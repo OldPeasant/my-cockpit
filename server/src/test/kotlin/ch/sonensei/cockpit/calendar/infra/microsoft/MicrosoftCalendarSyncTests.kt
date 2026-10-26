@@ -180,6 +180,22 @@ class MicrosoftCalendarSyncTests(
 		jsonMapper.readTree(cursor()).get("link").asString() shouldBe "/me/calendars/$CALENDAR/calendarView/delta?\$deltatoken=DELTA-4"
 	}
 
+	@Test
+	fun `the scheduler syncs a Microsoft source while Microsoft is enabled`() {
+		// The test configuration turns cockpit.microsoft.enabled on (MicrosoftDisabledWebTests covers the off state).
+		stub(get(urlPathEqualTo(DELTA)), """{"value": [], "@odata.deltaLink": "https://graph.microsoft.com/v1.0/x?${'$'}deltatoken=D"}""")
+
+		sync.syncDue() shouldBe 1
+
+		sync
+			.get(source.id)
+			.status
+			.shouldNotBeNull()
+			.lastError
+			.shouldBeNull()
+		calendars.findBySourceIdAndExternalId(source.id, CALENDAR).shouldNotBeNull()
+	}
+
 	// --- write-through
 
 	@Test

@@ -643,6 +643,9 @@ describe('CalendarsSettings', () => {
 
     expect(root.querySelector('[role="alert"]')).toBeNull();
     expect(groups()).toEqual([{ source: 'In the cockpit', calendars: ['Personal'] }]);
+    // Without the providers the server is not known to offer Microsoft, so it is not offered either.
+    const kinds = [...root.querySelectorAll('.kinds button')].map((b) => b.textContent?.trim());
+    expect(kinds).toEqual(['Local', 'CalDAV', 'ICS feed', 'Google']);
     await pickKind('Google');
     expect(button('Connect Google account')).toBeUndefined();
     expect(root.textContent).toContain('Google is not set up on this server');

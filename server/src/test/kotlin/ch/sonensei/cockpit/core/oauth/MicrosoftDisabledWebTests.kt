@@ -11,7 +11,10 @@ import ch.sonensei.cockpit.core.oauth.domain.MicrosoftAvailability
 import ch.sonensei.cockpit.core.oauth.domain.OAuthConnection
 import ch.sonensei.cockpit.core.oauth.domain.OAuthProvider
 import ch.sonensei.cockpit.core.oauth.infra.OAuthConnectionRepository
+import ch.sonensei.cockpit.mail.model.MailAccount
 import ch.sonensei.cockpit.mail.model.MailAccountRepository
+import ch.sonensei.cockpit.mail.model.MailAccountType
+import ch.sonensei.cockpit.mail.model.MailSecurity
 import ch.sonensei.cockpit.support.PostgresTestBase
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.shouldBe
@@ -20,6 +23,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
+import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
@@ -28,6 +32,7 @@ import org.springframework.test.context.TestPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.ResultActionsDsl
 import org.springframework.test.web.servlet.get
+import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 import java.util.UUID
 
@@ -111,6 +116,71 @@ class MicrosoftDisabledWebTests(
 		statuses.findById(source.id).isPresent.shouldBeFalse()
 		postJson("/api/v1/calendar/sources/${source.id}/sync", "{}").isNotEnabled("type")
 		statuses.findById(source.id).isPresent.shouldBeFalse()
+	}
+
+	@Test
+	fun `other sources still sync on schedule while Microsoft sources are skipped`() {
+		val microsoftSource =
+			sources.saveAndFlush(
+				CalendarSource(CalendarSourceType.MICROSOFT, "Outlook").apply { config = """{"connectionId":"$microsoftConnection"}""" },
+			)
+		// A loopback feed is refused before any network access, but the attempt is recorded like any sync run.
+		val feed =
+			sources.saveAndFlush(
+				CalendarSource(CalendarSourceType.ICS_FEED, "Team holidays").apply { config = """{"url":"http://127.0.0.1:9/cal.ics"}""" },
+			)
+
+		sync.syncDue() shouldBe 1
+
+		statuses.findById(feed.id).isPresent shouldBe true
+		statuses.findById(microsoftSource.id).isPresent.shouldBeFalse()
+	}
+
+	@Test
+	fun `Google calendar sources and mail accounts are still accepted`() {
+		val google = connections.save(OAuthConnection(OAuthProvider.GOOGLE, "subject-g", "jane@gmail.example", "Jane", "openid", null)).id
+
+		postJson("/api/v1/calendar/sources", """{"type":"GOOGLE","oauthConnectionId":"$google"}""")
+			.andExpect { status { isCreated() } }
+		postJson(
+			"/api/v1/mail/accounts",
+			"""{"type":"GOOGLE","emailAddress":"jane@gmail.example","oauthConnectionId":"$google"}""",
+		).andExpect { status { isCreated() } }
+
+		sources.findAll().count { it.type == CalendarSourceType.GOOGLE } shouldBe 1
+		accounts.count() shouldBe 1
+	}
+
+	@Test
+	fun `an existing Microsoft mail account can still be changed`() {
+		// Deliberately not gated (task assumption): existing Microsoft data is kept and stays editable.
+		val account =
+			accounts.saveAndFlush(
+				MailAccount(
+					MailAccountType.MICROSOFT,
+					"Outlook",
+					"jane@outlook.example",
+					"outlook.office365.com",
+					993,
+					MailSecurity.SSL_TLS,
+					"smtp.office365.com",
+					587,
+					MailSecurity.STARTTLS,
+					"jane@outlook.example",
+				).apply { oauthConnectionId = microsoftConnection },
+			)
+
+		mockMvc
+			.patch("/api/v1/mail/accounts/${account.id}") {
+				with(csrf())
+				contentType = MediaType.APPLICATION_JSON
+				content = """{"displayName":"Outlook (old)","oauthConnectionId":"$microsoftConnection"}"""
+				header(HttpHeaders.IF_MATCH, "\"${account.version}\"")
+			}.andExpect {
+				status { isOk() }
+				jsonPath("$.displayName") { value("Outlook (old)") }
+				jsonPath("$.type") { value("MICROSOFT") }
+			}
 	}
 
 	private fun postJson(

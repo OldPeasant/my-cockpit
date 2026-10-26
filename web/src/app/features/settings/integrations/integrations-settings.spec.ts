@@ -579,6 +579,19 @@ describe('IntegrationsSettings', () => {
     expect(root().textContent).not.toContain('Microsoft');
   });
 
+  it('shows no connected calendars when the only one is Microsoft and Microsoft is off', async () => {
+    await open();
+    await load(
+      [fakeSource(), fakeSyncedSource({ id: 's8', type: 'MICROSOFT', name: 'Outlook' })],
+      [],
+      GOOGLE_ONLY,
+    );
+
+    expect(root().querySelectorAll('.sources > li').length).toBe(0);
+    expect(root().textContent).toContain('No connected calendars.');
+    expect(root().textContent).not.toContain('Outlook');
+  });
+
   it('hides Microsoft when the providers cannot be read', async () => {
     await open();
     http.expectOne(SOURCES).flush({

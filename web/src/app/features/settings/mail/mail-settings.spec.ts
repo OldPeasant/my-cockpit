@@ -731,6 +731,9 @@ describe('MailSettings', () => {
 
     expect(root.querySelectorAll('li.account').length).toBe(1);
     expect(root.querySelector('[role="alert"]')).toBeNull();
+    // Without the providers the server is not known to offer Microsoft, so it is not offered either.
+    const types = [...root.querySelectorAll('.kinds button')].map((b) => b.textContent?.trim());
+    expect(types).toEqual(['IMAP/SMTP', 'Google']);
     await chooseType('Google');
     expect(text()).toContain('Google is not set up on this server.');
   });
