@@ -1,11 +1,11 @@
 ---
 title: Mail sync: retake linked/reminded refs on the first sync after a restore
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-2
 deps: [backup-contrib-mail,mail-sync-perf]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/sync,server/src/test/kotlin/ch/sonensei/cockpit/mail/sync,server/src/main/kotlin/ch/sonensei/cockpit/mail/backup]
 prio: 2
-lease_until: 
+lease_until: 2026-10-26T08:14:38Z
 hold: 
 releases: 0
 extended: 
