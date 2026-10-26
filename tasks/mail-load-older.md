@@ -1,11 +1,11 @@
 ---
 title: Load older mail on demand (API for MailHeaderSyncService.loadOlder)
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [mail-read-api,mail-actions-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,server/src/test/kotlin/ch/sonensei/cockpit/mail/api,api/openapi.yaml,web/src/app/api/generated]
 prio: 2
-lease_until: 2026-10-26T05:26:42Z
+lease_until: 
 releases: 0
 extended: 
 hold: 
@@ -30,3 +30,4 @@ SPEC.md §7.2: headers are cached for the sync window, "older loaded on demand w
 - release by r1963macos/agent-1: Merged wip onto current main (merge commit); ktlintCheck + compileTestKotlin + MailLoadOlderControllerTests/MailOlderServiceTests pass. Still BLOCKED on r1963macos: Docker daemon down and agents may not start Docker Desktop (needs approval), so Testcontainers/.taskcheck cannot run here. Left (needs a machine with Docker): UPDATE_OPENAPI=1 ./gradlew test --tests '*OpenApiContractTest', cd web && npm run api:gen, mail.api tests + MailLoadOlderGreenMailTests (external), test-writer/code-reviewer/quality.json, verify, done. Human: please start Docker on r1963macos or let another machine take this.
 - hold by r1963macos/agent-1: Docker daemon down on r1963macos (3rd attempt): OpenApiContractTest regen, mail.api tests, MailLoadOlderGreenMailTests and .taskcheck all need Testcontainers Postgres. Code + unit tests done on wip/mail-load-older. Human: start Docker Desktop on r1963macos (or let a Docker machine take it), then unhold.
 - ASSUMPTION (2026-10-26 06:01+0100 by dell26/agent-2): Known limitation (review CR-1, P3): MailOlderService reads the folder's UIDVALIDITY after MailHeaderSyncService.loadOlder released its lock; a UIDVALIDITY change exactly in that gap can mark the new generation complete (hasOlder=false until restart). Fix needs OlderMessagesResult to carry UIDVALIDITY (mail/sync, outside touches); left as is given the tiny window and in-memory state
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 90s on a37769a26; criteria verified 4/4
