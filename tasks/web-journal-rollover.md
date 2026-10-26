@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [web-journal]
 touches: [web/src/app/features/journal]
 prio: 2
-lease_until: 2026-10-26T09:49:06Z
+lease_until: 2026-10-26T09:54:07Z
 ---
 ## Goal
 Follow-ups from the web-journal review (reviews/web-journal/review.md, P3): a journal page left open
