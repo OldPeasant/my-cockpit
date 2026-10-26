@@ -20,7 +20,8 @@ SPEC.md §9.3 "Read cache": the last-loaded agenda is cached in Room and shown r
       cached data is shown it is read-only (calendar visibility toggles and loading more days are disabled), and the
       next successful load replaces it (view model and Compose tests).
   - verified (2026-10-26 01:23+0100 by dell26/agent-1): same run: CalendarViewModelCacheTest (offline shows cached days from today, read-only: no loadMore/setVisible; next successful load replaces; day/week inside cache shown, outside not; refused load no fallback) + CalendarScreensCachedTest Compose/Robolectric (banner 'Offline. Showing events as loaded Oct 20, 2026 ... read-only', chips disabled, taps don't open, no more-days button) -> all passed
-- [ ] Logout clears the cache, and an answer whose load started before the logout is not stored (test).
+- [x] Logout clears the cache, and an answer whose load started before the logout is not stored (test).
+  - verified (2026-10-26 01:23+0100 by dell26/agent-1): same run: AgendaCacheTest (clear drops cache + pre-logout writes), AgendaCacheGraphTest (Hilt SessionCache set clears RoomAgendaCache), CalendarViewModelRoomCacheTest (agenda answer and scrolled chunk whose load started before logout not stored, next load stored) -> all passed
 - [ ] `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes.
 
 ## Notes
