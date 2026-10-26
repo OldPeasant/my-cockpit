@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [reminders-core,web-reminders,app-icons]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/push,server/src/test/kotlin/ch/sonensei/cockpit/core/push,web/src/app/core/notifications,web/public]
 prio: 3
-lease_until: 2026-10-26T16:17:33Z
+lease_until: 2026-10-26T16:22:40Z
 extended: felix/agent-1
 ---
 ## Goal
