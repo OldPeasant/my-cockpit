@@ -12,7 +12,8 @@ extended: dell26/agent-2
 Search file contents (SPEC.md §4.4).
 
 ## Acceptance criteria
-- [ ] Text extracted (PDFBox) in a background job, size-limited, indexed; search finds it
+- [x] Text extracted (PDFBox) in a background job, size-limited, indexed; search finds it
+  - verified (2026-10-26 14:51+0100 by dell26/agent-2): cd server && ./gradlew test --rerun-tasks --tests 'ch.sonensei.cockpit.files.fulltext.*' (Postgres via Testcontainers) at 045288e1e -> 71 passed; FileTextIndexerTests/EdgeCaseTests show PDFBox text extracted by the background FileTextJob (own thread), size/char/page limits (FileTextExtractorTests), stored in file_text and found via search, also after restore
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.files.fulltext.*'` passes (Postgres via Testcontainers where persistence is involved)
 
 ## Notes
