@@ -15,5 +15,6 @@ CardDavRadicaleSyncTests (config under /etc/radicale, `withCommand(... --config 
 ## Acceptance criteria
 - [x] CalDAV Radicale tests run with htpasswd auth (log shows auth type htpasswd); `./gradlew integrationTest --tests '*CalDavRadicale*'` passes
   - verified (2026-10-26 12:57+0100 by dell26/agent-1): cd server && ./gradlew integrationTest --tests '*CalDavRadicale*' -> BUILD SUCCESSFUL, CalDavRadicaleSyncTests 11 tests, 0 failures/errors (new test: unauthenticated PROPFIND -> 401); podman run docker.io/tomsquest/docker-radicale:3.5.4.0 /venv/bin/radicale --config /etc/radicale/config with the test's config -> log "auth type is 'radicale.auth.htpasswd'", "auth htpasswd file: '/etc/radicale/users'"
+  - verified (2026-10-26 13:00+0100 by dell26/agent-1): cd server && ./gradlew ktlintCheck integrationTest --tests '*CalDavRadicale*' (rev 4b9699b32, Podman) -> BUILD SUCCESSFUL, CalDavRadicaleSyncTests 12 tests 0 failures; tests assert wrong-password PROPFIND -> 401 and radicale.logs contains "auth type is 'radicale.auth.htpasswd'"
 
 ## Notes
