@@ -13,7 +13,8 @@ Serve `https://<rp-id>/.well-known/assetlinks.json` with `delegate_permission/co
 `ch.sonensei.cockpit` and the signing certificate SHA-256 fingerprint(s), configurable per deployment (env).
 
 ## Acceptance criteria
-- [ ] `GET /.well-known/assetlinks.json` returns the configured statement as `application/json` without login (test)
+- [x] `GET /.well-known/assetlinks.json` returns the configured statement as `application/json` without login (test)
+  - verified (2026-10-26 07:06+0100 by dell26/agent-2): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.passkey.*' -> pass; AssetLinksWebTests (configured statement, application/json, no login) + AssetLinksDefaultWebTests ([] default, HEAD, writes still need login) green
 - [ ] Package and fingerprint(s) configurable via env in the deploy compose; documented in the deploy README
 - [ ] The Android apk-key-hash origin matching the fingerprint is accepted by the passkey RP config (documented)
 
