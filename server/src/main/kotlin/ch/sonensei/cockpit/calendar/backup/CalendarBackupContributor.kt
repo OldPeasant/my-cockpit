@@ -58,6 +58,8 @@ import java.util.UUID
  *   and its etag is [PLACEHOLDER_ETAG], which matches no provider version. An edit or delete before the sync is then
  *   refused by the provider's `If-Match` check (412: 409 for the user, and the calendar is fetched again) instead of
  *   overwriting the provider's event with placeholder data.
+ * - `data/calendar_itip_replies.json`: per attendee of a LOCAL event, the SEQUENCE and DTSTAMP of the newest iTIP
+ *   REPLY taken, so that a late older REPLY stays ignored after a restore.
  *
  * Mirror: `readable/calendar/<calendar-name>.ics` per calendar of a LOCAL source that has events not in the Trash, with
  * those events (UID: the event id), importable into other calendar apps. A calendar without such events gets no file:
@@ -104,6 +106,7 @@ class CalendarBackupContributor(
 		calendars().takeIf { it.isNotEmpty() }?.let { writer.json(CALENDARS, it) }
 		val exdates = exdates()
 		eventRows { rows -> writer.jsonLines(EVENTS, rows.map { it.toBackup(exdates) }) }
+		itipReplies().takeIf { it.isNotEmpty() }?.let { writer.json(ITIP_REPLIES, it) }
 	}
 
 	override fun readable(writer: BackupReadableWriter) {
@@ -167,6 +170,19 @@ class CalendarBackupContributor(
 			val content = event.content
 			if (content == null) insertPlaceholder(event) else insert(event, content)
 			if (content != null && event.parentEventId == null) restored += event.id
+		}
+		reader.json<List<ItipReplyBackup>>(ITIP_REPLIES).orEmpty().forEach { reply ->
+			jdbc.update(
+				"""insert into calendar_itip_reply (id, event_id, recurrence_id_at, recurrence_id_date, email, sequence, stamp)
+				values (?, ?, ?, ?, ?, ?, ?)""",
+				reply.id,
+				reply.eventId,
+				reply.recurrenceIdAt.toTimestampOrNull(),
+				reply.recurrenceIdDate?.let(Date::valueOf),
+				reply.email,
+				reply.sequence,
+				reply.stamp.toTimestampOrNull(),
+			)
 		}
 		// Overrides are indexed with their series master.
 		restored.forEach { id -> events.findById(id).ifPresent(indexer::index) }
@@ -310,6 +326,27 @@ class CalendarBackupContributor(
 		return result
 	}
 
+	/** The iTIP REPLY stamps of the events of LOCAL sources. */
+	private fun itipReplies(): List<ItipReplyBackup> =
+		jdbc.query(
+			"""select r.* from calendar_itip_reply r
+			join calendar_event e on e.id = r.event_id join calendar c on c.id = e.calendar_id
+			join calendar_source s on s.id = c.source_id
+			where s.type = ? order by r.id""",
+			{ rs, _ ->
+				ItipReplyBackup(
+					id = rs.uuid("id"),
+					eventId = rs.uuid("event_id"),
+					recurrenceIdAt = rs.instantOrNull("recurrence_id_at"),
+					recurrenceIdDate = rs.getObject("recurrence_id_date", LocalDate::class.java),
+					email = rs.getString("email"),
+					sequence = (rs.getObject("sequence") as Number?)?.toInt(),
+					stamp = rs.instantOrNull("stamp"),
+				)
+			},
+			CalendarSourceType.LOCAL.name,
+		)
+
 	/** Every event, series masters and single events first, streamed from the database. */
 	private fun <R> eventRows(block: (Sequence<EventRow>) -> R): R =
 		jdbc
@@ -431,6 +468,7 @@ class CalendarBackupContributor(
 		const val SOURCES = "calendar_sources"
 		const val CALENDARS = "calendars"
 		const val EVENTS = "events"
+		const val ITIP_REPLIES = "calendar_itip_replies"
 
 		/** Name of the source credentials (source id → credential) in the backup's secrets. */
 		const val CREDENTIALS = "calendar_source_credentials"
@@ -542,4 +580,18 @@ data class EventContentBackup(
 data class ExdateBackup(
 	val at: Instant?,
 	val date: LocalDate?,
+)
+
+/**
+ * One entry of `data/calendar_itip_replies.json`: the SEQUENCE and DTSTAMP of the newest iTIP REPLY taken from attendee
+ * [email] for event [eventId] and an occurrence (none: the whole event).
+ */
+data class ItipReplyBackup(
+	val id: UUID,
+	val eventId: UUID,
+	val recurrenceIdAt: Instant?,
+	val recurrenceIdDate: LocalDate?,
+	val email: String,
+	val sequence: Int?,
+	val stamp: Instant?,
 )

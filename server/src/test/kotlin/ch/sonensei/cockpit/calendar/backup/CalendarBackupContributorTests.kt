@@ -25,6 +25,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -246,6 +247,39 @@ class CalendarBackupContributorTests(
 		byId.getValue(id(33))["recurrenceIdDate"].asString() shouldBe "2026-04-14"
 		val text = events.joinToString("\n") { it.toString() }
 		listOf("Team sync", "Confidential agenda", "Offsite", "etag-").forEach { text shouldNotContain it }
+	}
+
+	// --- data/calendar_itip_replies.json ------------------------------------------------------------------------------
+
+	@Test
+	fun `iTIP REPLY stamps of local events are exported and restored unchanged, those of external events are not exported`() {
+		seedLocal()
+		seedExternal()
+		itipReply(id(40), id(25), "alex@example.test", sequence = 2, stamp = Instant.parse("2026-03-30T10:00:00Z"))
+		itipReply(id(41), id(20), "alex@example.test", at = Instant.parse("2026-03-09T08:00:00Z"), sequence = 0)
+		itipReply(id(42), id(23), "sam@example.test", date = LocalDate.parse("2026-03-14"), stamp = Instant.parse("2026-03-01T07:00:00Z"))
+		itipReply(id(43), id(25), "sam@example.test")
+		itipReply(id(44), id(30), "alex@example.test", sequence = 1)
+		val zip = export()
+
+		val exported = zip.json("data/calendar_itip_replies.json")
+		exported.map { UUID.fromString(it["id"].asString()) } shouldContainExactly (40..43).map(::id)
+		exported[1]["recurrenceIdAt"].asString() shouldBe "2026-03-09T08:00:00Z"
+		exported[2]["recurrenceIdDate"].asString() shouldBe "2026-03-14"
+		exported[3]["sequence"].isNull shouldBe true
+		val local = rows("select to_jsonb(r) from calendar_itip_reply r where id <> ? order by id", id(44))
+		wipe()
+
+		import(zip.path)
+
+		rows("select to_jsonb(r) from calendar_itip_reply r order by id") shouldBe local
+	}
+
+	@Test
+	fun `without iTIP REPLY stamps no stamp file is written`() {
+		seedLocal()
+
+		export().entryNames shouldNotContain "data/calendar_itip_replies.json"
 	}
 
 	// --- readable/calendar/ -----------------------------------------------------------------------------------------
@@ -984,6 +1018,28 @@ class CalendarBackupContributorTests(
 			event,
 			at?.let(Timestamp::from),
 			date?.let(Date::valueOf),
+		)
+	}
+
+	private fun itipReply(
+		id: UUID,
+		event: UUID,
+		email: String,
+		at: Instant? = null,
+		date: LocalDate? = null,
+		sequence: Int? = null,
+		stamp: Instant? = null,
+	) {
+		jdbc.update(
+			"""insert into calendar_itip_reply (id, event_id, recurrence_id_at, recurrence_id_date, email, sequence, stamp)
+			values (?, ?, ?, ?, ?, ?, ?)""",
+			id,
+			event,
+			at?.let(Timestamp::from),
+			date?.let(Date::valueOf),
+			email,
+			sequence,
+			stamp?.let(Timestamp::from),
 		)
 	}
 

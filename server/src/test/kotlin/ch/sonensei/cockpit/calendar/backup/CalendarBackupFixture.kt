@@ -7,6 +7,8 @@ import ch.sonensei.cockpit.calendar.api.EditScope
 import ch.sonensei.cockpit.calendar.api.EventChanges
 import ch.sonensei.cockpit.calendar.api.FieldChange
 import ch.sonensei.cockpit.calendar.api.TimingInput
+import ch.sonensei.cockpit.calendar.itip.ItipReplyStamp
+import ch.sonensei.cockpit.calendar.itip.ItipReplyStampRepository
 import ch.sonensei.cockpit.calendar.model.Attendee
 import ch.sonensei.cockpit.calendar.model.AttendeeStatus
 import ch.sonensei.cockpit.calendar.model.Calendar
@@ -28,7 +30,7 @@ import java.time.ZoneId
 /**
  * Local calendars with a timed and an all-day recurring series (each with a changed, a cancelled and an excluded
  * occurrence), a single event with attendees, reminders and a conference URL, an empty untitled-ish event and one in the
- * Trash; plus an external CalDAV source with credentials, its calendar and synced events (a series with an override and
+ * Trash, iTIP REPLY stamps for a single event and an occurrence; plus an external CalDAV source with credentials, its calendar and synced events (a series with an override and
  * a single event), which the backup keeps as id refs.
  */
 class CalendarBackupFixture(
@@ -37,6 +39,7 @@ class CalendarBackupFixture(
 	private val sources: CalendarSourceRepository,
 	private val calendarRows: CalendarRepository,
 	private val eventRows: CalendarEventRepository,
+	private val itipReplies: ItipReplyStampRepository,
 ) : BackupFixture {
 	override val contributor = CalendarBackupContributor.ID
 
@@ -77,23 +80,27 @@ class CalendarBackupFixture(
 		events.update(training.id, EditScope.THIS, "2026-03-14", EventChanges(title = FieldChange("Long run (hills)"))) {}
 		events.delete(training.id, EditScope.THIS, "2026-03-21") {}
 
-		create(
-			EventChanges(
-				calendarId = FieldChange(home.id),
-				title = FieldChange("Dinner with Alex; bring \"wine\""),
-				location = FieldChange("Rue du Lac 1, Lausanne"),
-				timing = TimingInput(start = Instant.parse("2026-04-01T17:30:00Z"), end = Instant.parse("2026-04-01T20:00:00Z"), timeZone = ZURICH),
-				attendees =
-					FieldChange(
-						listOf(
-							Attendee("alex@example.test", "Alex Example", AttendeeStatus.ACCEPTED),
-							Attendee("sam@example.test"),
+		val dinner =
+			create(
+				EventChanges(
+					calendarId = FieldChange(home.id),
+					title = FieldChange("Dinner with Alex; bring \"wine\""),
+					location = FieldChange("Rue du Lac 1, Lausanne"),
+					timing = TimingInput(start = Instant.parse("2026-04-01T17:30:00Z"), end = Instant.parse("2026-04-01T20:00:00Z"), timeZone = ZURICH),
+					attendees =
+						FieldChange(
+							listOf(
+								Attendee("alex@example.test", "Alex Example", AttendeeStatus.ACCEPTED),
+								Attendee("sam@example.test"),
+							),
 						),
-					),
-				conferenceUrl = FieldChange("https://meet.example.test/dinner"),
-				status = FieldChange(EventStatus.TENTATIVE),
-			),
-		)
+					conferenceUrl = FieldChange("https://meet.example.test/dinner"),
+					status = FieldChange(EventStatus.TENTATIVE),
+				),
+			)
+		// Alex accepted by iTIP REPLY, for the dinner and for one occurrence of the planning.
+		itipReplies.save(ItipReplyStamp(dinner.id, null, null, "alex@example.test", 1, Instant.parse("2026-03-20T18:00:00Z")))
+		itipReplies.save(ItipReplyStamp(standup.id, Instant.parse("2026-03-09T08:00:00Z"), null, "alex@example.test", 0, null))
 		create(
 			EventChanges(
 				calendarId = FieldChange(home.id),

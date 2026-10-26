@@ -43,6 +43,8 @@ import java.util.concurrent.TimeUnit
  * that list the attendee; an answer for one occurrence updates its override, and is ignored when the occurrence has
  * none (the cockpit does not create overrides for answers). Replies that cannot be matched are skipped. When one
  * message holds several answers of an attendee for the same event, only the newest (SEQUENCE, then DTSTAMP) counts.
+ * Across messages too: an answer older than the last one taken from the attendee for the same event and occurrence
+ * ([ItipReplyStamp]) arrived late and is ignored (RFC 5546 §2.1.5).
  */
 @Component
 class ItipReplyProcessor(
@@ -51,6 +53,7 @@ class ItipReplyProcessor(
 	private val events: CalendarEventRepository,
 	private val calendars: CalendarRepository,
 	private val sources: CalendarSourceRepository,
+	private val stamps: ItipReplyStampRepository,
 	private val indexer: CalendarEventIndexer,
 	private val changes: ChangeEventPublisher,
 	transactionManager: PlatformTransactionManager,
@@ -148,7 +151,32 @@ class ItipReplyProcessor(
 		// The answer counts only from someone the event (or the answered occurrence) invites.
 		val invited = targets.firstOrNull()?.attendees?.any { it.email.equals(reply.email, ignoreCase = true) } ?: false
 		if (!invited) return emptyList()
+		if (!takeStamp(master, reply)) return emptyList()
 		return targets.mapNotNull { event -> update(event, reply)?.id }
+	}
+
+	/**
+	 * Records [reply] as the newest answer of its attendee for [master] and its occurrence; false (nothing recorded)
+	 * when an answer taken before is newer.
+	 */
+	private fun takeStamp(
+		master: CalendarEvent,
+		reply: ItipReply,
+	): Boolean {
+		val last = stamps.find(master.id, reply.recurrenceId, reply.email)
+		if (last == null) {
+			val occurrence = reply.recurrenceId
+			stamps.save(ItipReplyStamp(master.id, occurrence?.at, occurrence?.date, reply.email.lowercase(), reply.sequence, reply.stamp))
+			return true
+		}
+		if (ItipReply.ORDER.compare(reply, reply.copy(sequence = last.sequence, stamp = last.stamp)) < 0) {
+			log.debug("Event {}: ignored an invitation reply older than the last one taken", master.id)
+			return false
+		}
+		last.sequence = reply.sequence
+		last.stamp = reply.stamp
+		stamps.save(last)
+		return true
 	}
 
 	private fun update(

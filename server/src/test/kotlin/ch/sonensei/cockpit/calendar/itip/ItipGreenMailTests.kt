@@ -697,6 +697,39 @@ class ItipGreenMailTests(
 		stored(withoutAnna).attendees.map { it.email to it.status } shouldContainExactly listOf(BOB to AttendeeStatus.NEEDS_ACTION)
 	}
 
+	// --- REPLYs across messages (itip-reply-ordering) -----------------------------------------------------------------
+
+	@Test
+	fun `a REPLY older than one taken from an earlier message is ignored, also after the event was edited`() {
+		val event = createEvent(attendees = listOf(ANNA))
+		appendTo("INBOX", replyMail(from = ANNA, uid = event, attendee = ANNA, partStat = "ACCEPTED", sequence = 2))
+		fullSyncInbox()
+		processor.process(cachedInbox().single().id) shouldContainExactly listOf(UUID.fromString(event))
+		// The client sends the attendees back as it shows them, with a new one.
+		api.patchEventOk(
+			event,
+			"""{"title":"Project kickoff (moved)","attendees":[{"email":"$ANNA","status":"ACCEPTED"},{"email":"$BOB"}]}""",
+		)
+
+		val taken = cachedInbox().map { it.id }.toSet()
+		// Same SEQUENCE and an older DTSTAMP, and a lower SEQUENCE: both answered before the one taken.
+		appendTo("INBOX", replyMail(from = ANNA, uid = event, attendee = ANNA, partStat = "DECLINED", sequence = 2, stamp = "20261026T110000Z"))
+		appendTo("INBOX", replyMail(from = ANNA, uid = event, attendee = ANNA, partStat = "TENTATIVE", sequence = 1, stamp = "20261027T120000Z"))
+		fullSyncInbox()
+		val late = cachedInbox().map { it.id } - taken
+		late.size shouldBe 2
+		late.forEach { processor.process(it).shouldBeEmpty() }
+		stored(event).attendees.map { it.status } shouldContainExactly listOf(AttendeeStatus.ACCEPTED, AttendeeStatus.NEEDS_ACTION)
+
+		// A newer answer is still taken.
+		val seen = taken + late
+		appendTo("INBOX", replyMail(from = ANNA, uid = event, attendee = ANNA, partStat = "DECLINED", sequence = 3, stamp = "20261026T100000Z"))
+		fullSyncInbox()
+		processor.process((cachedInbox().map { it.id } - seen).single()) shouldContainExactly listOf(UUID.fromString(event))
+		stored(event).attendees.first().status shouldBe AttendeeStatus.DECLINED
+		jdbc.queryForObject("select sequence from calendar_itip_reply where event_id = ?::uuid", Int::class.java, event) shouldBe 3
+	}
+
 	// --- helpers -------------------------------------------------------------------------------------------------------
 
 	private fun createEvent(
@@ -792,6 +825,8 @@ class ItipGreenMailTests(
 		attendee: String,
 		partStat: String,
 		recurrenceId: String? = null,
+		stamp: String = "20261026T120000Z",
+		sequence: Int? = null,
 	): String =
 		listOfNotNull(
 			"BEGIN:VCALENDAR",
@@ -801,7 +836,8 @@ class ItipGreenMailTests(
 			"BEGIN:VEVENT",
 			"UID:$uid",
 			recurrenceId?.let { "RECURRENCE-ID:$it" },
-			"DTSTAMP:20261026T120000Z",
+			sequence?.let { "SEQUENCE:$it" },
+			"DTSTAMP:$stamp",
 			"ORGANIZER:mailto:$JANE",
 			"ATTENDEE;PARTSTAT=$partStat:mailto:$attendee",
 			"END:VEVENT",
@@ -815,6 +851,8 @@ class ItipGreenMailTests(
 		attendee: String,
 		partStat: String,
 		recurrenceId: String? = null,
+		stamp: String = "20261026T120000Z",
+		sequence: Int? = null,
 	): MimeMessage =
 		message(from, "Reply: Project kickoff").apply {
 			setContent(
@@ -822,7 +860,7 @@ class ItipGreenMailTests(
 					"alternative",
 					MimeBodyPart().apply { setText("$attendee answered $partStat.", "UTF-8") },
 					MimeBodyPart().apply {
-						setContent(replyIcs(uid, attendee, partStat, recurrenceId), "text/calendar; charset=UTF-8; method=REPLY")
+						setContent(replyIcs(uid, attendee, partStat, recurrenceId, stamp, sequence), "text/calendar; charset=UTF-8; method=REPLY")
 					},
 				),
 			)
