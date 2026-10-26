@@ -158,7 +158,8 @@ class ItipService(
 	}
 
 	/** The live overrides of series [master]; cancelled occurrences are in its EXDATEs. */
-	private fun overrides(master: CalendarEvent): List<CalendarEvent> = events.findByParentEventIdOrderByIdAsc(master.id).filter { !it.isDeleted }
+	private fun overrides(master: CalendarEvent): List<CalendarEvent> =
+		events.findByParentEventIdOrderByIdAsc(master.id).filter { !it.isDeleted }
 
 	/** The plain-text part, for mail clients that do not show the invitation. */
 	private fun summary(
