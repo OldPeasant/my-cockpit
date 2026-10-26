@@ -134,8 +134,13 @@ export default class JournalPage {
   private openSeq = 0;
   /** Counts the heatmap requests: only the newest one is shown. */
   private heatmapSeq = 0;
-  /** Entries saved while a heatmap request runs: its answer may not have them yet. */
+  /**
+   * Entries saved since the newest heatmap request started (cleared when one starts): its answer
+   * may not have them yet, so they are marked again on it.
+   */
   private readonly savedSince = new Map<string, JournalEntryResponse>();
+  /** "Save my version" running for the load `seq`: leaving waits for it instead of starting another. */
+  private keeping: { seq: number; done: Promise<void> } | null = null;
   /** The date of the route; null for `/journal` (today). */
   private routeDate: string | null = null;
   /** The load whose edits in conflict are being dropped ("Discard my edits"): leaving it asks no more. */
@@ -278,9 +283,19 @@ export default class JournalPage {
     }
   }
 
-  /** Conflict: save the local edits over the newer version. */
-  protected async keepMine(): Promise<void> {
+  /** Conflict: save the local edits over the newer version; joins one already running for the day. */
+  protected keepMine(): Promise<void> {
     const seq = this.loadSeq;
+    if (this.keeping?.seq !== seq) {
+      const done = this.saveMine(seq).finally(() => {
+        if (this.keeping?.done === done) this.keeping = null;
+      });
+      this.keeping = { seq, done };
+    }
+    return this.keeping.done;
+  }
+
+  private async saveMine(seq: number): Promise<void> {
     try {
       const entry = await this.service.get(this.date());
       // Another day was opened meanwhile: its text must not overwrite this one.
@@ -297,14 +312,18 @@ export default class JournalPage {
   /**
    * Whether the day may be left for `next` (a date, null for today, undefined for another page).
    * Edits in conflict are not saved by leaving: asks whether to save them, drop them or stay.
+   * "Save my version" while the banner's one is still running waits for that one.
    */
   async canLeave(next: string | null | undefined): Promise<boolean> {
     if (this.saveState() !== 'conflict' || this.discardSeq === this.loadSeq) return true;
     if (next !== undefined && (next ?? this.today()) === this.date()) return true;
+    const running = this.keeping?.seq === this.loadSeq ? this.keeping.done : null;
     const choice = await this.leavePrompt.ask();
     if (choice === 'discard') return true;
-    if (choice === 'stay' || this.saveState() !== 'conflict') return false;
-    await this.keepMine();
+    if (choice === 'stay') return false;
+    if (running) await running;
+    else if (this.saveState() !== 'conflict') return false;
+    else await this.keepMine();
     return this.saveState() === 'saved';
   }
 

@@ -1280,6 +1280,54 @@ describe('JournalPage', () => {
       expect(state()).toBe('Not saved: changed elsewhere');
     });
 
+    it('waits for "Save my version" from the banner instead of saving again', async () => {
+      await conflict();
+      el('.keep-mine').click();
+      await pending();
+      const reload = http.expectOne((r) => r.method === 'GET' && r.url === `${ENTRIES}/2026-10-24`);
+      ask.mockResolvedValue('keep-mine');
+      void harness.navigateByUrl('/journal/2026-10-22');
+      await pending();
+      expect(ask).toHaveBeenCalledTimes(1);
+      // No second reload: the one from the banner is awaited.
+      http.expectNone((r) => r.method === 'GET' && r.url === `${ENTRIES}/2026-10-24`);
+
+      reload.flush(journalEntry('2026-10-24', { bodyMd: 'From the phone', version: 3 }));
+      await pending();
+      const save = http.expectOne((r) => r.method === 'PUT');
+      expect(save.request.headers.get('If-Match')).toBe('"3"');
+      expect(save.request.body.bodyMd).toBe('Mine, edited');
+      save.flush(journalEntry('2026-10-24', { bodyMd: 'Mine, edited', version: 4 }));
+      await settle();
+      flushDay('2026-10-22');
+      await settle();
+
+      expect(router.url).toBe('/journal/2026-10-22');
+      http.expectNone((r) => r.url === `${ENTRIES}/2026-10-24`);
+      expect(puts()).toEqual([]);
+    });
+
+    it('stays when "Save my version" from the banner ends in a conflict again', async () => {
+      await conflict();
+      el('.keep-mine').click();
+      await pending();
+      const reload = http.expectOne((r) => r.method === 'GET' && r.url === `${ENTRIES}/2026-10-24`);
+      ask.mockResolvedValue('keep-mine');
+      void harness.navigateByUrl('/journal/2026-10-22');
+      await pending();
+
+      reload.flush(journalEntry('2026-10-24', { bodyMd: 'From the phone', version: 3 }));
+      await pending();
+      http.expectOne((r) => r.method === 'PUT').flush(...problem(412, 'Changed again.'));
+      await settle();
+
+      expect(ask).toHaveBeenCalledTimes(1);
+      expect(router.url).toBe('/journal/2026-10-24');
+      http.expectNone((r) => r.url.startsWith(ENTRIES));
+      expect(editor().value()).toBe('Mine, edited');
+      expect(state()).toBe('Not saved: changed elsewhere');
+    });
+
     it('asks before leaving the journal too', async () => {
       await conflict();
       void harness.navigateByUrl('/elsewhere');
