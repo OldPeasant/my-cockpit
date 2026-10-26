@@ -19,3 +19,4 @@ Goal: The app registers with a UnifiedPush distributor (ntfy) and reacts to serv
 ## Notes
 - Work done on `unifiedpush-android` before the split is on `origin/wip/unifiedpush-android` (if it exists): merge it first if your part builds on it.
 - ASSUMPTION (2026-10-26 17:38+0100 by dell26/agent-2): UnifiedPush connector 3.3.5 (Maven Central) brings plain tink 1.23 which duplicates tink-android classes: tink-android bumped 1.18.0 -> 1.23.0 (same version the connector is built against) and plain tink excluded
+- ASSUMPTION (2026-10-26 17:38+0100 by dell26/agent-2): Distributor choice has no UI: the saved one, else the system default, else (several, no default) the first installed one; no distributor -> no registration, the existing WorkManager periodic syncs stay the only sync
