@@ -78,6 +78,23 @@ class ReminderScheduler internal constructor(
         return reminder
     }
 
+    /**
+     * The server fired [reminder] (it announced it by a push): shows it unless it was already shown on this device, and
+     * marks it notified, so its local alarm (if any) does not show it again. Nothing happens unless [stillValid] holds;
+     * it is checked under the same lock as [clear], so a logout during the request cannot leave the notification behind.
+     * Returns whether it was shown.
+     */
+    @Synchronized
+    fun showFiredByServer(
+        reminder: ScheduledReminder,
+        stillValid: () -> Boolean = { true },
+    ): Boolean {
+        if (!stillValid() || reminder.id in store.notifiedIds()) return false
+        store.markNotified(reminder.id)
+        notifier.show(reminder)
+        return true
+    }
+
     /** Logout: no alarm or notification of the user stays behind. */
     @Synchronized
     fun clear() {

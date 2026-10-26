@@ -16,10 +16,12 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import androidx.work.workDataOf
 import ch.sonensei.cockpit.MainActivity
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.reminders.ReminderSyncWorker
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -82,7 +84,10 @@ class SystemNewMailNotifier
         }
     }
 
-/** Runs the reminder sync once, now (as soon as there is network), next to its periodic runs. */
+/**
+ * Runs the reminder sync once, now (as soon as there is network), next to its periodic runs; and loads a pushed reminder
+ * to show it.
+ */
 class WorkManagerPushSyncTrigger
     @Inject
     constructor(
@@ -97,7 +102,20 @@ class WorkManagerPushSyncTrigger
             WorkManager.getInstance(context).enqueueUniqueWork(WORK_NAME, ExistingWorkPolicy.REPLACE, request)
         }
 
+        override fun showReminder(id: UUID) {
+            val request =
+                OneTimeWorkRequestBuilder<PushReminderWorker>()
+                    .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                    .setInputData(workDataOf(PushReminderWorker.KEY_REMINDER_ID to id.toString()))
+                    .build()
+            // KEEP: a repeated push of the same reminder adds no second request; it is shown at most once anyway.
+            WorkManager.getInstance(context).enqueueUniqueWork(reminderWorkName(id), ExistingWorkPolicy.KEEP, request)
+        }
+
         internal companion object {
             const val WORK_NAME = "push-reminders-sync"
+
+            /** One unique work per pushed reminder, so pushes of different reminders do not replace each other. */
+            fun reminderWorkName(id: UUID) = "push-reminder-$id"
         }
     }

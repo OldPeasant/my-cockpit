@@ -11,7 +11,7 @@ import javax.inject.Inject
 
 /** What a server push announces; it carries ids only, never item contents. */
 sealed interface PushEvent {
-    /** A reminder fired: the reminder sync loads the current reminders. */
+    /** A reminder fired: it is loaded and shown, and the reminder sync loads the current reminders. */
     data class Reminder(
         val id: UUID,
     ) : PushEvent
@@ -55,12 +55,15 @@ internal fun parsePushEvent(content: ByteArray): PushEvent? {
 /** Starts the work a push asks for; the WorkManager-backed one is in [WorkManagerPushSyncTrigger]. */
 interface PushSyncTrigger {
     fun syncReminders()
+
+    /** Loads the reminder [id] the server fired and shows it unless this device already did. */
+    fun showReminder(id: UUID)
 }
 
 /**
- * Reacts to a push: a reminder push runs the reminder sync, a new-mail push shows the new-mail notification. Pushes
- * that were not decrypted (anyone who learns the endpoint can post plain text to it), that belong to another
- * registration, arrive while logged out, or are unknown or garbled are ignored.
+ * Reacts to a push: a reminder push shows that reminder and runs the reminder sync, a new-mail push shows the new-mail
+ * notification. Pushes that were not decrypted (anyone who learns the endpoint can post plain text to it), that belong to
+ * another registration, arrive while logged out, or are unknown or garbled are ignored.
  */
 class PushMessageHandler
     @Inject
@@ -79,7 +82,10 @@ class PushMessageHandler
             if (!decrypted || !session.isLoggedIn || instance != store.current()) return null
             val event = parsePushEvent(content) ?: return null
             when (event) {
-                is PushEvent.Reminder -> sync.syncReminders()
+                is PushEvent.Reminder -> {
+                    sync.showReminder(event.id)
+                    sync.syncReminders()
+                }
                 is PushEvent.Mail -> mailNotifier.show()
             }
             return event

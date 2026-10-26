@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.push
 
+import androidx.test.core.app.ApplicationProvider
 import ch.sonensei.cockpit.auth.AuthRepository
 import ch.sonensei.cockpit.auth.LoginResult
 import ch.sonensei.cockpit.auth.PersistentTokenStore
@@ -148,11 +149,36 @@ class PushInAppTest {
     }
 
     @Test
-    fun `the push service passes a decrypted reminder push to the reminder sync`() {
+    fun `the push service passes a decrypted reminder push to the reminder delivery and the reminder sync`() {
         service().onMessage(PushMessage(payload("reminder"), true), INSTANCE)
 
+        assertEquals(listOf(java.util.UUID.fromString(ITEM_ID)), recordingSync.shownReminders)
         assertEquals(1, recordingSync.reminderSyncs)
         assertEquals(0, recordingNotifier.shown)
+    }
+
+    @Test
+    fun `the push reminder worker's delivery loads the pushed reminder through the app's authenticated client`() {
+        server.enqueue(
+            MockResponse
+                .Builder()
+                .code(200)
+                .addHeader("Content-Type", "application/json")
+                .body(
+                    """{"id":"$ITEM_ID","channel":"NOTIFICATION","createdAt":"2026-10-21T07:00:00Z",""" +
+                        """"remindAt":"2026-10-21T08:00:00Z","firedAt":"2026-10-21T08:00:01Z",""" +
+                        """"item":{"available":true,"id":"$ITEM_ID","type":"TASK","title":"Water the ficus"}}""",
+                ).build(),
+        )
+        val delivery = pushGraph(ApplicationProvider.getApplicationContext()).pushReminderDelivery()
+
+        val result = runBlocking { delivery.deliver(java.util.UUID.fromString(ITEM_ID)) }
+
+        assertEquals(PushReminderResult.SHOWN, result)
+        val get = server.takeRequest(5, TimeUnit.SECONDS)!!
+        assertEquals("GET", get.method)
+        assertEquals("/api/v1/reminders/$ITEM_ID", get.url.encodedPath)
+        assertEquals("Bearer access-fictitious", get.headers["Authorization"])
     }
 
     @Test

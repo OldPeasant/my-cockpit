@@ -24,10 +24,11 @@ class PushMessageHandlerTest {
     ) = handler.handle(content.toByteArray(), decrypted, instance)
 
     @Test
-    fun `a reminder push runs the reminder sync`() {
+    fun `a reminder push shows that reminder and runs the reminder sync`() {
         val event = handle("""{"kind":"reminder","id":"$ID"}""")
 
         assertEquals(PushEvent.Reminder(UUID.fromString(ID)), event)
+        assertEquals(listOf(UUID.fromString(ID)), sync.shownReminders)
         assertEquals(1, sync.reminderSyncs)
         assertEquals(0, notifier.shown)
     }
@@ -69,6 +70,7 @@ class PushMessageHandlerTest {
 
         ignored.forEach { assertNull(it, handle(it)) }
         assertEquals(0, sync.reminderSyncs)
+        assertTrue(sync.shownReminders.isEmpty())
         assertEquals(0, notifier.shown)
     }
 
@@ -122,6 +124,7 @@ class PushMessageHandlerTest {
     fun `a message the library could not decrypt is ignored`() {
         assertNull(handle("""{"kind":"reminder","id":"$ID"}""", decrypted = false))
         assertEquals(0, sync.reminderSyncs)
+        assertTrue(sync.shownReminders.isEmpty())
     }
 
     @Test
@@ -136,6 +139,7 @@ class PushMessageHandlerTest {
 
         assertNull(handle("""{"kind":"reminder","id":"$ID"}"""))
         assertEquals(0, sync.reminderSyncs)
+        assertTrue(sync.shownReminders.isEmpty())
     }
 
     private companion object {
@@ -160,9 +164,14 @@ class FakeInstanceStore(
 
 class RecordingSyncTrigger : PushSyncTrigger {
     var reminderSyncs = 0
+    val shownReminders = mutableListOf<UUID>()
 
     override fun syncReminders() {
         reminderSyncs++
+    }
+
+    override fun showReminder(id: UUID) {
+        shownReminders += id
     }
 }
 

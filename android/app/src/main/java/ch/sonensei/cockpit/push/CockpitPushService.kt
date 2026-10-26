@@ -51,6 +51,8 @@ interface PushEntryPoint {
     fun pushRegistrar(): PushRegistrar
 
     fun pushMessageHandler(): PushMessageHandler
+
+    fun pushReminderDelivery(): PushReminderDelivery
 }
 
 internal fun pushGraph(context: Context): PushEntryPoint =
