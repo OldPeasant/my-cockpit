@@ -14,7 +14,8 @@ Today the web event dialog treats them as a series occurrence, fetches the event
 Show them read-only from the occurrence data instead, with a link to the contact.
 
 ## Acceptance criteria
-- [ ] Web: clicking a birthday occurrence shows its title/date read-only (no load error, no edit/delete) and links to the contact; unit tests cover it
+- [x] Web: clicking a birthday occurrence shows its title/date read-only (no load error, no edit/delete) and links to the contact; unit tests cover it
+  - verified (2026-10-26 05:38+0100 by dell26/agent-1): cd web && npm run check -> 174 files passed; test-writer ran npx ng test on event-dialog.spec.ts + event-edit.service.spec.ts -> 69 passed: birthday dialog shows title/date read-only, no events.get/load error, no edit/delete buttons, /contacts/:id link closes dialog, isVirtual only for readOnly LOCAL calendars
 - [x] Android: tapping a birthday occurrence in agenda/day/week does not try to load or edit an event; it opens the contact; unit tests cover it
   - verified (2026-10-26 05:38+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest -> CalendarWithEditorTest (agenda/day/week birthday tap opens contact, editRepo.event never called, editor closed, back returns), EventEditorViewModelTest birthday cases, BirthdayContactTest 4/4 (real contact screen loads contact, back/system back, retry), CalendarRepositoryTest+AgendaCacheTest virtual mapping/round trip, BirthdayOccurrenceTest: all pass, 1938 total 0 failures
 - [x] `cd web && npm run check` and `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` pass
