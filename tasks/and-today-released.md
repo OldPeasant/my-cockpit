@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [gtd-scheduled-marker]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/today]
 prio: 2
-lease_until: 2026-10-26T16:34:52Z
+lease_until: 2026-10-26T16:39:51Z
 ---
 ## Goal
 The server clears `scheduledDate` when it releases a SCHEDULED task to NEXT, so Android's Today view
