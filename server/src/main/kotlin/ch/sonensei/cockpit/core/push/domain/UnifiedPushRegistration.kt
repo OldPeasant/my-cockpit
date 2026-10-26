@@ -34,13 +34,4 @@ class UnifiedPushRegistration(
 
 	/** The stored keys; `null` when the instance gets unencrypted pushes. */
 	val keys: WebPushKeys? get() = p256dh?.let { p -> auth?.let { a -> WebPushKeys(p, a) } }
-
-	fun update(
-		endpoint: String,
-		keys: WebPushKeys?,
-	) {
-		this.endpoint = endpoint
-		p256dh = keys?.p256dh
-		auth = keys?.auth
-	}
 }

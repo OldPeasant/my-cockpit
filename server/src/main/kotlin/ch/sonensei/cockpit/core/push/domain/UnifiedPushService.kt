@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.core.push.domain
 
+import ch.sonensei.cockpit.core.persistence.UuidV7
 import ch.sonensei.cockpit.core.push.infra.UnifiedPushRegistrationRepository
 import ch.sonensei.cockpit.core.web.InvalidRequestException
 import org.slf4j.LoggerFactory
@@ -7,17 +8,21 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.net.URI
 import java.net.URISyntaxException
+import java.time.Clock
 
 /** The UnifiedPush endpoints of the owner's app installations. */
 @Service
 @Transactional
 class UnifiedPushService(
 	private val registrations: UnifiedPushRegistrationRepository,
+	private val clock: Clock,
 ) {
 	private val log = LoggerFactory.getLogger(javaClass)
 
 	/**
 	 * Stores [endpoint] (and [keys]) for [instanceId], replacing what the instance registered before.
+	 * One upsert statement, so concurrent registrations of the same instance (the connector may report a new endpoint
+	 * several times in a row) all succeed.
 	 *
 	 * @throws InvalidRequestException (400) for an endpoint that is not an absolute http(s) URL or keys that are not a
 	 *   P-256 public key
@@ -35,13 +40,8 @@ class UnifiedPushService(
 				throw InvalidRequestException("p256dh", "must be a P-256 public key")
 			}
 		}
-		val existing = registrations.findByInstanceId(instanceId)
-		if (existing == null) {
-			registrations.save(UnifiedPushRegistration(instanceId, endpoint, keys))
-			log.info("UnifiedPush instance {} registered", instanceId)
-		} else {
-			existing.update(endpoint, keys)
-		}
+		registrations.upsert(UuidV7.generate(), instanceId, endpoint, keys?.p256dh, keys?.auth, clock.instant())
+		log.info("UnifiedPush instance {} registered", instanceId)
 	}
 
 	/** Forgets [instanceId]'s endpoint; nothing happens if it has none. */

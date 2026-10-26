@@ -11,10 +11,12 @@ import ch.sonensei.cockpit.core.web.InvalidRequestException
 import ch.sonensei.cockpit.support.PostgresTestBase
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
+import io.kotest.matchers.string.shouldStartWith
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -24,6 +26,9 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.jdbc.core.JdbcTemplate
 import java.util.Base64
+import java.util.concurrent.CyclicBarrier
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /** [UnifiedPushService] against Postgres: one row per instance, the gone-endpoint race, endpoint checks, logging. */
 @SpringBootTest
@@ -64,6 +69,32 @@ class UnifiedPushServiceTests(
 		stored.id shouldBe first.id
 		stored.endpoint shouldBe "https://ntfy.example.test/upNew"
 		stored.keys shouldBe keys
+	}
+
+	@Test
+	fun `concurrent registrations of the same instance all succeed and leave one row`() {
+		val threads = 8
+		repeat(5) { round ->
+			val instance = "phone-$round"
+			val start = CyclicBarrier(threads)
+			val executor = Executors.newFixedThreadPool(threads)
+			try {
+				val results =
+					(1..threads).map { n ->
+						executor.submit<Unit> {
+							start.await()
+							service.register(instance, "https://ntfy.example.test/up$n", if (n % 2 == 0) keys else null)
+							// A second wave updates the now existing row concurrently.
+							service.register(instance, "https://ntfy.example.test/again$n", null)
+						}
+					}
+				results.forEach { it.get(30, TimeUnit.SECONDS) }
+			} finally {
+				executor.shutdownNow()
+			}
+			repository.findByInstanceId(instance).shouldNotBeNull().endpoint shouldStartWith "https://ntfy.example.test/again"
+		}
+		repository.findAll() shouldHaveSize 5
 	}
 
 	@Test

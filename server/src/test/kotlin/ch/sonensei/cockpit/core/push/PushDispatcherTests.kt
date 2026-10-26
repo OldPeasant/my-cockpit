@@ -102,6 +102,7 @@ class PushDispatcherTests(
 	 */
 	private fun awaitFailureLogged(instanceId: String) {
 		val deadline = System.nanoTime() + 10_000_000_000
+
 		fun logged() =
 			appender.list.toList().any {
 				it.level == Level.WARN && it.formattedMessage.contains("UnifiedPush instance $instanceId failed")
@@ -185,6 +186,11 @@ class PushDispatcherTests(
 
 		awaitFailureLogged("down")
 		repository.findByInstanceId("down")?.instanceId shouldBe "down"
+
+		// The dispatcher survived the failure: a later push still goes out.
+		service.register("phone", url("/ok"), null)
+		events.publishEvent(PushMessage(PushKind.MAIL, UuidV7.generate()))
+		requests("/ok", 1).size shouldBe 1
 	}
 
 	companion object {
