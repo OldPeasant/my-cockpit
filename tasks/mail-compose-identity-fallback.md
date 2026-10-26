@@ -16,7 +16,8 @@ mail-identities CR-2). A new draft without an explicit identity should be From t
 (display name + emailAddress) unless an identity is marked default.
 
 ## Acceptance criteria
-- [ ] New draft with no identityId and no default identity is From the account's display name + address; with a default identity it uses that one; server tests cover both and pass
+- [x] New draft with no identityId and no default identity is From the account's display name + address; with a default identity it uses that one; server tests cover both and pass
+  - verified (2026-10-26 08:39+0100 by dell26/agent-2): cd server && ./gradlew integrationTest --tests 'ch.sonensei.cockpit.mail.compose.*' (GreenMail + Postgres Testcontainers, Docker) -> 32 tests 0 failures; test 'a new draft is From the account address unless an identity is default' covers no default (From Jane Doe + account address, also on received mail) and default identity
 
 ## Notes
 - ASSUMPTION (2026-10-26 07:48+0100 by dell26/agent-2): Fixed the identities settings hint text (web/src/app/features/settings/mail) and API identityId descriptions too, outside touches, so UI/API docs match the new account-address fallback (review CR-1, CR-2)
