@@ -16,7 +16,8 @@ Goal: The app registers with a UnifiedPush distributor (ntfy) and reacts to serv
 ## Acceptance criteria
 - [x] UnifiedPush connector library added (libs.versions.toml, ARCHITECTURE.md stack table); registration on login, endpoint sent to `PUT /api/v1/push/unifiedpush/{instanceId}`, unregistered and deleted on logout; no distributor installed -> periodic sync only
   - verified (2026-10-26 21:04+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*' --tests 'ch.sonensei.cockpit.auth.AuthRepositoryLogoutHookTest' -> 82 passed (PushRegistrarTest 28: register on login/app start, PUT /push/unifiedpush/{id} with keys, logout DELETE+unregister, no distributor -> no registration; AuthRepositoryLogoutHookTest 9); connector 3.3.5 in libs.versions.toml + ARCHITECTURE.md stack table (inspected)
-- [ ] A reminder push runs the reminder sync; a new-mail push shows a new-mail notification (or runs the mail sync); unknown or garbled messages are ignored
+- [x] A reminder push runs the reminder sync; a new-mail push shows a new-mail notification (or runs the mail sync); unknown or garbled messages are ignored
+  - verified (2026-10-26 21:04+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*' -> PushMessageHandlerTest 12 + PushInAppTest 15 + PushAndroidAdaptersTest 11 passed: reminder push enqueues ReminderSyncWorker, mail push shows content-free notification, unknown/garbled/non-UTF-8/oversized/undecrypted/after-logout pushes ignored
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*'` passes, covering message handling
 
 ## Notes
