@@ -6,7 +6,7 @@ deps: [oauth-connections]
 touches: [deploy/docker-compose.yml,deploy/.env.example]
 prio: 2
 lease_until: 
-hold: Implementation, verify and review evidence are committed; only 'done' is left, but .taskcheck can't pass on host felix: JAVA_HOME=/usr/lib/jvm/java-21-openjdk doesn't exist (only JDK 25 is installed),
+hold: 
 releases: 0
 extended: 
 ---
