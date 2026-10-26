@@ -6,6 +6,7 @@ deps: []
 touches: [agents.py,tests]
 prio: 1
 lease_until: 2026-10-26T01:12:30Z
+extended: dell26/agent-2
 ---
 ## Goal
 A `claude -p` session that has printed its final successful `result` event but does not exit must not block
@@ -31,3 +32,4 @@ already done, until the 1800 s `--timeout` killed it.
 
 ## Notes
 - ASSUMPTION (2026-10-26 01:00+0100 by dell26/agent-2): Background tasks are detected from stream-json only: an Agent/Task tool_use (unless run_in_background:false) or Bash run_in_background:true whose tool_result mentions background/async/agentId counts as pending, and each result with origin.kind task-notification settles one. If this over-counts, the session just falls back to --timeout (safe); open tool calls (tool_use without tool_result) and any non-result stream-json event after a result also block the early end.
+- extended by dell26/agent-2: Implementation, fixes (CR-1, CR-2, TW-1) and re-review (0 findings, reviews/runner-hung-session/review.md) are committed. Left: run test-writer on the final code (no reviews/runner-hung-session/tests.md exists yet; it must include task-scoped coverage), run python -m unittest tests.test_hung_session and sh scripts/check.sh, record verify 1-3, write quality.json (reviewed_revision = HEAD of final code), then done.
