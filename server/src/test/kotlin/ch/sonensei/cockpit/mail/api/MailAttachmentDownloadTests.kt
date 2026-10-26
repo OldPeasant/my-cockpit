@@ -142,6 +142,32 @@ class MailAttachmentDownloadTests {
 	}
 
 	@Test
+	fun `copyAttachment returns the write failure, not a later close failure`() {
+		// Save-to-files relies on this: its size signal from the write must survive a failing close to become a 413.
+		remote()
+		var closed = false
+		val failsOnWriteAndClose =
+			object : ByteArrayOutputStream() {
+				override fun write(
+					b: ByteArray,
+					off: Int,
+					len: Int,
+				): Unit = throw IOException("Write failed")
+
+				override fun close() {
+					closed = true
+					throw IOException("Close failed")
+				}
+			}
+
+		val copy = service.copyAttachment(message.id, "2", closeOutput = true) { failsOnWriteAndClose }
+
+		closed shouldBe true
+		copy.failure.shouldBeInstanceOf<IOException>().message shouldBe "Write failed"
+		blockOutcome!!.isSuccess shouldBe true
+	}
+
+	@Test
 	fun `copyAttachment closes the output when reading from the mail server fails`() {
 		remote { root -> FailingReads(root) }
 		var closed = false
