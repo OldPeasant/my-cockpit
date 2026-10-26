@@ -26,6 +26,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import io.mockk.every
@@ -46,7 +47,9 @@ import java.util.UUID
  * [CardDavContactsSync] without Spring or a database (repositories and the contact service mocked) against WireMock,
  * for the paths a Radicale server does not take: a server without sync-collection (listed with PROPFIND), hrefs of
  * another host or outside the address book (ignored), a card that cannot be stored (skipped and counted), a 5xx while
- * listing with a token (the token stays), and a 412 on a write (the server's version wins). Data is fictitious.
+ * listing with a token (the token stays), a 412 on a write (the server's version wins), discovery from an address-book
+ * URL or through principal and home set, a sync-collection answer truncated with 507 (continued with its token), and a
+ * contact restored from a backup (adopted) or in the Trash (gives up its id). Data is fictitious.
  */
 class CardDavContactsSyncUnitTests {
 	private val accounts = mockk<CardDavAccountRepository>()
@@ -244,6 +247,154 @@ class CardDavContactsSyncUnitTests {
 		verify(exactly = 1) { service.update(contact.id, any(), any()) }
 	}
 
+	// --- discovery (CR-1: the configured URL is the address book; principal and home set)
+
+	private fun propfindAt(
+		path: String,
+		vararg responses: String,
+	) {
+		val body =
+			"""<D:multistatus xmlns:D="DAV:" xmlns:CR="urn:ietf:params:xml:ns:carddav">""" +
+				responses.joinToString("") + "</D:multistatus>"
+		wireMock.stubFor(request("PROPFIND", urlPathEqualTo(path)).willReturn(aResponse().withStatus(207).withBody(body)))
+	}
+
+	private fun found(
+		href: String,
+		vararg props: String,
+	): String =
+		"<D:response><D:href>$href</D:href><D:propstat><D:prop>${props.joinToString("")}</D:prop>" +
+			"<D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>"
+
+	/** A sync-collection answer with [entries] and the new [token]. */
+	private fun syncAnswer(
+		entries: String,
+		token: String,
+	): String = """<D:multistatus xmlns:D="DAV:">$entries<D:sync-token>$token</D:sync-token></D:multistatus>"""
+
+	private fun emptySyncAt(path: String) {
+		wireMock.stubFor(
+			request("REPORT", urlPathEqualTo(path))
+				.withRequestBody(containing("sync-collection"))
+				.willReturn(aResponse().withStatus(207).withBody(syncAnswer("", "tok-1"))),
+		)
+	}
+
+	@Test
+	fun `a configured URL that is an address book is used as it is`() {
+		propfindAt("/dav/", found("/dav/", ADDRESSBOOK))
+		emptySyncAt("/dav/")
+
+		val state = sync.sync(account.id)
+
+		state.lastError.shouldBeNull()
+		state.addressbookUrl shouldBe "${wireMock.baseUrl()}/dav/"
+		state.syncToken shouldBe "tok-1"
+		requests().filter { it.method.value() == "PROPFIND" }.map { it.url } shouldContainExactly listOf("/dav/")
+		requests().single { it.method.value() == "REPORT" }.url shouldBe "/dav/"
+	}
+
+	@Test
+	fun `discovery follows the principal to the home set and takes the first address book of this origin by path`() {
+		val principal = "<D:current-user-principal><D:href>/dav/alice/</D:href></D:current-user-principal>"
+		val home = "<CR:addressbook-home-set><D:href>/dav/alice/books/</D:href></CR:addressbook-home-set>"
+		propfindAt("/dav/", found("/dav/", COLLECTION, principal))
+		propfindAt("/dav/alice/", found("/dav/alice/", home))
+		propfindAt(
+			"/dav/alice/books/",
+			found("/dav/alice/books/", COLLECTION),
+			found("/dav/alice/books/zeta/", ADDRESSBOOK),
+			found("http://evil.example.test/dav/alice/books/aaa/", ADDRESSBOOK),
+			found("/dav/alice/books/alpha/", ADDRESSBOOK),
+			found("/dav/alice/books/abc-calendar/", COLLECTION),
+		)
+		emptySyncAt("/dav/alice/books/alpha/")
+
+		val state = sync.sync(account.id)
+
+		state.lastError.shouldBeNull()
+		state.addressbookUrl shouldBe "${wireMock.baseUrl()}/dav/alice/books/alpha/"
+		val propfinds = requests().filter { it.method.value() == "PROPFIND" }
+		propfinds.map { it.url } shouldContainExactly listOf("/dav/", "/dav/alice/", "/dav/alice/books/")
+		propfinds.map { it.getHeader("Depth") } shouldContainExactly listOf("0", "0", "1")
+		requests().single { it.method.value() == "REPORT" }.url shouldBe "/dav/alice/books/alpha/"
+	}
+
+	@Test
+	fun `a server that announces no address book home fails the run with a message`() {
+		propfindAt("/dav/", found("/dav/", COLLECTION))
+
+		val state = sync.sync(account.id)
+
+		state.lastError shouldBe "Finding the address book: the CardDAV server announced no address book home"
+		state.addressbookUrl.shouldBeNull()
+		requests().filter { it.method.value() == "REPORT" }.shouldBeEmpty()
+	}
+
+	// --- pull branches (CR-1: 507 truncation paging, adoption of a restored contact)
+
+	@Test
+	fun `a sync-collection answer truncated with 507 is continued with its token until complete`() {
+		account.addressbookUrl = book()
+		account.syncToken = "tok-1"
+		val truncated = "<D:response><D:href>$BOOK</D:href><D:status>HTTP/1.1 507 Insufficient Storage</D:status></D:response>"
+		stubReport("<D:sync-token>tok-1</D:sync-token>", 207, syncAnswer(etagEntry("${BOOK}ada.vcf", "e-ada.vcf") + truncated, "tok-2"))
+		stubReport("<D:sync-token>tok-2</D:sync-token>", 207, syncAnswer(etagEntry("${BOOK}bob.vcf", "e-bob.vcf"), "tok-3"))
+		stubReport("addressbook-multiget", 207, multiget("ada.vcf" to "Ada Example", "bob.vcf" to "Bob Example"))
+
+		val state = sync.sync(account.id)
+
+		state.lastError.shouldBeNull()
+		state.syncToken shouldBe "tok-3"
+		requests().count { it.bodyAsString.contains("sync-collection") } shouldBe 2
+		verify(exactly = 1) { service.createSynced(ContactSource.CARDDAV, book("ada.vcf"), any()) }
+		verify(exactly = 1) { service.createSynced(ContactSource.CARDDAV, book("bob.vcf"), any()) }
+		saved.map { it.href } shouldContainExactly listOf("${BOOK}ada.vcf", "${BOOK}bob.vcf")
+	}
+
+	private fun listAda() {
+		account.addressbookUrl = book()
+		account.syncToken = null
+		stubReport("sync-collection", 207, syncAnswer(etagEntry("${BOOK}ada.vcf", "e-ada.vcf"), "tok-1"))
+		stubReport("addressbook-multiget", 207, multiget("ada.vcf" to "Ada Restored"))
+	}
+
+	@Test
+	fun `an active contact restored from a backup with the card's id and no link is adopted, not duplicated`() {
+		listAda()
+		val restored = Contact(displayName = "Ada Example", source = ContactSource.CARDDAV)
+		every { lookup.findBySourceAndExternalId(ContactSource.CARDDAV, book("ada.vcf")) } returns restored
+		every { links.findByContactId(restored.id) } returns null
+		val applied = slot<ContactChanges>()
+		every { service.update(restored.id, capture(applied), any()) } returns restored
+
+		val state = sync.sync(account.id)
+
+		state.lastError.shouldBeNull()
+		applied.captured.displayName?.value shouldBe "Ada Restored"
+		verify(exactly = 0) { service.createSynced(any(), any(), any()) }
+		saved.single().contactId shouldBe restored.id
+		saved.single().etag shouldBe "\"e-ada.vcf\""
+	}
+
+	@Test
+	fun `a contact in the Trash with the card's id gives the id up, and the card gets a new contact`() {
+		listAda()
+		val trashed =
+			Contact(displayName = "Ada Example", source = ContactSource.CARDDAV).apply { softDelete(Clock.fixed(NOW, ZoneOffset.UTC)) }
+		every { lookup.findBySourceAndExternalId(ContactSource.CARDDAV, book("ada.vcf")) } returns trashed
+		every { links.findByContactId(trashed.id) } returns null
+		every { lookup.updateExternalId(trashed.id, null) } returns 1
+
+		val state = sync.sync(account.id)
+
+		state.lastError.shouldBeNull()
+		verify(exactly = 1) { lookup.updateExternalId(trashed.id, null) }
+		verify(exactly = 1) { service.createSynced(ContactSource.CARDDAV, book("ada.vcf"), any()) }
+		verify(exactly = 0) { service.update(any(), any(), any()) }
+		saved.single().contactId shouldNotBe trashed.id
+	}
+
 	@Test
 	fun `an unknown account is not found`() {
 		val unknown = UUID.fromString("0192a5f0-0000-7000-8000-0000000000c2")
@@ -267,6 +418,8 @@ class CardDavContactsSyncUnitTests {
 		const val USER = "alice-fictitious"
 		const val PASSWORD = "fictitious-password-456"
 		const val BOOK = "/dav/book/"
+		const val COLLECTION = "<D:resourcetype><D:collection/></D:resourcetype>"
+		const val ADDRESSBOOK = "<D:resourcetype><D:collection/><CR:addressbook/></D:resourcetype>"
 		val NOW: Instant = Instant.parse("2026-10-26T10:00:00Z")
 
 		val wireMock: WireMockServer = WireMockServer(wireMockConfig().dynamicPort()).apply { start() }
