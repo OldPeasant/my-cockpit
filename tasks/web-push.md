@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [reminders-core,web-reminders,app-icons]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/push,server/src/test/kotlin/ch/sonensei/cockpit/core/push,web/src/app/core/notifications,web/public]
 prio: 3
-lease_until: 2026-10-26T17:25:17Z
+lease_until: 2026-10-26T17:30:17Z
 extended: 
 releases: 1
 ---
