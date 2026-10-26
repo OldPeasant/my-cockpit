@@ -1,10 +1,11 @@
 ---
 title: Accessibility audit
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [p6-smoke]
 touches: [web/e2e/a11y]
 prio: 3
+lease_until: 2026-10-26T09:39:37Z
 ---
 ## Goal
 Accessible web UI.
