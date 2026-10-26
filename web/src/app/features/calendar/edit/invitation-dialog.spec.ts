@@ -231,6 +231,27 @@ describe('InvitationDialog', () => {
     expect(service.send).toHaveBeenCalledExactlyOnceWith('e1', 'REQUEST', 'a1');
   });
 
+  it('shows the loading state during a retry and the error again when it fails too', async () => {
+    await open(Promise.reject(new ApiError(503, 'Service Unavailable', 'Try again later')));
+    const retry = deferred<MailAccountResponse[]>();
+    service.accounts.mockReturnValue(retry.promise);
+
+    button('Try again').click();
+    await stable();
+    expect(el().textContent).toContain('Loading mail accounts…');
+    expect(alerts()).toEqual([]);
+    expect(button('Try again')).toBeUndefined();
+    expect(button('Send').disabled).toBe(true);
+
+    retry.reject(new ApiError(0, 'The server could not be reached'));
+    await stable();
+    expect(el().textContent).not.toContain('Loading mail accounts…');
+    expect(alerts()).toEqual(['The server could not be reached']);
+    expect(button('Try again')).toBeDefined();
+    expect(button('Send').disabled).toBe(true);
+    expect(service.send).not.toHaveBeenCalled();
+  });
+
   it('shows a generic message when the mail accounts fail without an API error', async () => {
     await open(Promise.reject(new Error('fictitious failure')));
 
