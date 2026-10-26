@@ -1,11 +1,11 @@
 ---
 title: CardDAV accounts: REST API, web settings UI and backup
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [carddav-sync]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/contacts/carddav,web/src/app/features/contacts,api/openapi.yaml,server/src/main/kotlin/ch/sonensei/cockpit/contacts/backup]
 prio: 2
-lease_until: 2026-10-26T13:47:49Z
+lease_until: 
 ---
 ## Goal
 Users can add, list, sync and remove CardDAV accounts (carddav-sync built only the services:
@@ -26,3 +26,4 @@ CardDavAccountService, CardDavContactsSync.sync/createContact) and create contac
 - ASSUMPTION (2026-10-26 13:28+0100 by dell26/agent-1): Web: CardDAV accounts are managed in a panel on the Contacts page (task touches only features/contacts, not settings); adding an account syncs it at once so the discovery outcome shows; ContactRequest.parse moved from ContactController into ContactDtos for reuse
 - ASSUMPTION (2026-10-26 13:54+0100 by dell26/agent-1): CR-5 fix added ContactService.validateNew (contacts/domain, outside touches) so CardDAV contact creation validates fields before address book discovery: invalid input gets 400 without a remote call
 - ASSUMPTION (2026-10-26 13:56+0100 by dell26/agent-1): CR-7: German translations for the new contacts.carddav/saveTo messages added in web/src/locale (outside touches), as docs/ARCHITECTURE.md i18n requires for every new message
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 83s on 2f345cbe3; criteria verified 3/3
