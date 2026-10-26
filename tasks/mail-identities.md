@@ -17,3 +17,4 @@ Settings → Mail (web-mail-accounts) only edits the account's primary identity 
 - [ ] Settings → Mail lists an account's identities and adds/edits/removes them; Vitest tests cover it; `cd web && npm run check` passes
 
 ## Notes
+- ASSUMPTION (2026-10-26 04:50+0100 by felix/agent-1): Identities are additional From addresses besides the account's own emailAddress (which stays the primary one, edited via the account); an identity may repeat the account address. Duplicate address within an account -> 409. Exposed isDefault (moves flag) since compose already starts with the default identity; new identities are appended (position = max+1), no reorder endpoint. Change events type MAIL_IDENTITY.
