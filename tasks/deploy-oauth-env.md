@@ -1,10 +1,11 @@
 ---
 title: Pass COCKPIT_OAUTH_PUBLICURL to the server in deploy compose
-status: todo
-owner:
+status: in_progress
+owner: felix/agent-1
 deps: [oauth-connections]
 touches: [deploy/docker-compose.yml,deploy/.env.example]
 prio: 2
+lease_until: 2026-10-26T00:59:38Z
 ---
 ## Goal
 OAuth redirect URIs work when the stack runs on a non-standard HTTPS port (e.g. 8443 for rootless
