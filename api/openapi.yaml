@@ -38,6 +38,12 @@ tags:
     \ Mail server failures are 502 (503 when the account's connections are busy) with\
     \ an `errorCode`."
   name: Mail messages
+- description: "Web Push (VAPID) for notifications without an open tab. A browser\
+    \ subscribes with the server's public key; the server then sends each `reminder`\
+    \ and `mail` SSE event to it as a push message `{\"event\": <name>, \"data\":\
+    \ <event data>}` (encrypted, RFC 8291). `data` is left out when the message would\
+    \ be too large. Subscriptions the push service reports gone (404/410) are removed."
+  name: Push
 - description: "Push registrations. When a reminder fires or new mail arrives, the\
     \ server POSTs a push to every registered UnifiedPush endpoint. Its payload is\
     \ `{\"kind\":\"reminder\"|\"mail\",\"id\":\"<uuid>\"}` (the reminder's id, or\
@@ -7238,6 +7244,52 @@ paths:
       summary: Order the project's tasks
       tags:
       - Projects
+  /api/v1/push/subscriptions:
+    delete:
+      description: "Removes the subscription with this endpoint; also succeeds when\
+        \ there is none. The endpoint goes in the body, not the URL: it is a secret\
+        \ capability URL that must not end up in access logs."
+      operationId: deletePushSubscription
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushUnsubscribeRequest"
+        required: true
+      responses:
+        "204":
+          description: Unsubscribed
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Missing endpoint
+      summary: Unsubscribe a browser
+      tags:
+      - Push
+    put:
+      description: "Registers the browser's `PushSubscription` (its `toJSON()`). Idempotent:\
+        \ the same endpoint again replaces its keys."
+      operationId: putPushSubscription
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushSubscriptionRequest"
+        required: true
+      responses:
+        "204":
+          description: Subscribed
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Endpoint not an https URL, or invalid keys"
+      summary: Subscribe this browser
+      tags:
+      - Push
   /api/v1/push/unifiedpush/{instanceId}:
     delete:
       description: "Idempotent: an instance without an endpoint answers 204 as well."
@@ -7294,6 +7346,21 @@ paths:
         "401":
           description: Not logged in
       summary: Register or update the UnifiedPush endpoint of an instance
+      tags:
+      - Push
+  /api/v1/push/vapid-public-key:
+    get:
+      description: Generated at first start. Pass it as `applicationServerKey` to
+        `PushManager.subscribe`.
+      operationId: getVapidPublicKey
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VapidPublicKeyResponse"
+          description: The key
+      summary: The server's VAPID public key
       tags:
       - Push
   /api/v1/reminders:
@@ -13525,6 +13592,42 @@ components:
           type: boolean
       required:
       - ok
+    PushSubscriptionKeys:
+      type: object
+      properties:
+        auth:
+          type: string
+          description: "The browser's 16-byte authentication secret, base64url"
+          minLength: 1
+        p256dh:
+          type: string
+          description: "The browser's P-256 public key, base64url"
+          minLength: 1
+      required:
+      - auth
+      - p256dh
+    PushSubscriptionRequest:
+      type: object
+      description: "A browser's push subscription, as `PushSubscription.toJSON()`\
+        \ returns it"
+      properties:
+        endpoint:
+          type: string
+          description: The push service URL (https)
+          minLength: 1
+        keys:
+          $ref: "#/components/schemas/PushSubscriptionKeys"
+      required:
+      - endpoint
+      - keys
+    PushUnsubscribeRequest:
+      type: object
+      properties:
+        endpoint:
+          type: string
+          minLength: 1
+      required:
+      - endpoint
     RecoveryCodesResponse:
       type: object
       properties:
@@ -14699,6 +14802,15 @@ components:
       required:
       - imported
       - skipped
+    VapidPublicKeyResponse:
+      type: object
+      description: The server's VAPID public key
+      properties:
+        publicKey:
+          type: string
+          description: "Uncompressed P-256 public key, unpadded base64url"
+      required:
+      - publicKey
     WeeklyReviewResponse:
       type: object
       description: A weekly review with its progress. `version` is also sent as the
