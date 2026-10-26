@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [carddav-sync]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/contacts/carddav,web/src/app/features/contacts,api/openapi.yaml,server/src/main/kotlin/ch/sonensei/cockpit/contacts/backup]
 prio: 2
-lease_until: 2026-10-26T13:22:40Z
+lease_until: 2026-10-26T13:27:41Z
 ---
 ## Goal
 Users can add, list, sync and remove CardDAV accounts (carddav-sync built only the services:
