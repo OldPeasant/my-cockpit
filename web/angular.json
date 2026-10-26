@@ -18,7 +18,10 @@
       "sourceRoot": "src",
       "prefix": "app",
       "i18n": {
-        "sourceLocale": "en"
+        "sourceLocale": "en",
+        "locales": {
+          "de": "src/locale/messages.de.xlf"
+        }
       },
       "architect": {
         "build": {
@@ -44,7 +47,8 @@
               "src/styles.scss"
             ],
             "polyfills": ["@angular/localize/init"],
-            "allowedCommonJsDependencies": ["qrcode"]
+            "allowedCommonJsDependencies": ["qrcode"],
+            "i18nMissingTranslation": "error"
           },
           "configurations": {
             "production": {
@@ -66,6 +70,9 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "de": {
+              "localize": ["de"]
             }
           },
           "defaultConfiguration": "production"
@@ -81,6 +88,9 @@
             },
             "development": {
               "buildTarget": "web:build:development"
+            },
+            "de": {
+              "buildTarget": "web:build:development,de"
             }
           },
           "defaultConfiguration": "development"

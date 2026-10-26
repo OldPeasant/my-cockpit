@@ -239,7 +239,11 @@ All outputs are Git-ignored (`build/`, `coverage/`). To get task-scoped coverage
 - **Web:** Angular style guide, standalone components, signals, `inject()`. One feature folder per
   server module, with lazy routes. The `app-` selector prefix. Format with Prettier (`web/.prettierrc`).
 - **Android:** MVVM with unidirectional data flow, one package per feature.
-- All user-facing strings are externalized (i18n-ready, English first).
+- All user-facing strings are externalized (English first) and translated to German (informal "du").
+  Web: after adding or changing a message, `npm run i18n:extract` and add its `<target>` to
+  `src/locale/messages.de.xlf`; `npm run build:de` (→ `dist/web/browser/de`) fails on a missing
+  translation. Android: every string in `res/values/` needs its `res/values-de/` entry, or lint
+  (`MissingTranslation`) fails the check.
 - Every schema change is a new Flyway migration. Applied migrations are never edited.
 
 ## Persistence conventions
