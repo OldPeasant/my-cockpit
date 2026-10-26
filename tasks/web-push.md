@@ -16,3 +16,4 @@ Notifications without an open tab (SPEC.md §4.6).
 - [ ] Vitest component/service tests cover subscription flow; `cd web && npm run check` passes
 
 ## Notes
+- ASSUMPTION (2026-10-26 15:44+0100 by felix/agent-1): Web Push implemented with JDK crypto only (RFC 8291 aes128gcm + RFC 8292 VAPID, ~150 lines in core/push/infra/WebPushCrypto.kt) instead of adding the unmaintained nl.martijndwars:web-push library; round-trip and VAPID-signature tests cover it.
