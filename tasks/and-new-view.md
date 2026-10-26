@@ -13,7 +13,8 @@ unified-inbox mails in one list, with the same source filter. Additional view on
 screens stay unchanged.
 
 ## Acceptance criteria
-- [ ] "New" screen in the app navigation: merged list newest first with source marker, filter All / GTD Inbox / Mail (remembered), tap opens the task or the mail read view, mail row offers "→ Inbox task"; shows cached data offline (mail part read-only offline)
+- [x] "New" screen in the app navigation: merged list newest first with source marker, filter All / GTD Inbox / Mail (remembered), tap opens the task or the mail read view, mail row offers "→ Inbox task"; shows cached data offline (mail part read-only offline)
+  - verified (2026-10-26 11:41+0100 by dell26/agent-2): Robolectric/Compose: NewScreenInAppTest (real app+Hilt, More -> New, mail opens MailRead), NewRouteTest/NewScreenTest (merge newest first + source marker, filters All/GTD Inbox/Mail persisted in SharedPreferences, tap opens task view / mail read, -> Inbox task, offline banner + read-only mail from cache) via cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.newitems.*' -> 98 passed, 0 failed
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.newitems.*'` passes, covering merge order, each filter, offline state (Robolectric/Compose UI tests for screens); `./gradlew ktlintCheck lintDebug` passes
 
 ## Notes
