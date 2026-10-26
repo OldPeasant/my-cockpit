@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "task": "and-gtd-load-error",
+  "reviewed_revision": "f3b90c49c856f126f346b8c66d8cf7a91e62cda7",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-gtd-load-error/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-gtd-load-error/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-gtd-load-error/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "Today showed a partial list without error when one of its lists never loaded; firstLoadFailed no longer needs empty sections, LoadFailedBanner above the sections (eb5e289d0)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "observation: while Next's first load still runs, a failed Today reload shows the banner over cached sections; transient, message true, retry harmless"}
+  ],
+  "validation": [
+    {"command": "android/gradlew -p android ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.*' lintDebug (450 tests, 0 failures)", "result": "pass"},
+    {"command": "android/gradlew -p android createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}

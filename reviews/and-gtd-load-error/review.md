@@ -4,21 +4,22 @@ Date: 2026-10-26
 
 Task: and-gtd-load-error - Android: show first-load errors in GTD lists (TaskRepository reports refresh failure)
 
-Scope: production code under `android/app/src/main/java/ch/sonensei/cockpit/gtd` in 381f80f8943934aa98b631b8eef0d9340b8b6df3..HEAD (commit 4e1aa4148), plus the uncommitted test changes under `android/app/src/test/java/ch/sonensei/cockpit/gtd` written by test-writer.
+Scope: final code of the task, 381f80f8943934aa98b631b8eef0d9340b8b6df3..eb5e289d0, limited to `android/app/src/{main,test}/java/ch/sonensei/cockpit/gtd`. This is a re-review after the CR-1 fix (`git diff d97f0f2c8..eb5e289d0`).
 
 Requirements:
 - tasks/and-gtd-load-error.md (acceptance criteria and recorded assumption)
 - SPEC.md §9.3 (read cache, offline banner)
 - AGENTS.md project notes (conventions, touches)
-- Existing conventions in `gtd/lists/ListUi.kt` (live-list error/retry UI)
+- Previous review of this task (CR-1) and reviews/and-gtd-load-error/fixes.md
+- Existing conventions in `gtd/next/TaskListUi.kt` and `gtd/lists/ListUi.kt`
 
 Git range:
 - Branch: main
-- HEAD: 4e1aa41481f9aa7fb3223e6b2a6ecf0f1e12c832
+- HEAD: eb5e289d0
 - Base/start: 381f80f8943934aa98b631b8eef0d9340b8b6df3
-- Commits reviewed: 2 (3deb4964b assume-only, 4e1aa4148 implementation); uncommitted test changes in 10 test files also reviewed
+- Commits reviewed: 4 (3deb4964b assume-only, 4e1aa4148 implementation, d97f0f2c8 tests and reports, eb5e289d0 CR-1 fix); no uncommitted changes
 
-Summary: 0 P0, 0 P1, 0 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## P0 Critical
 
@@ -34,19 +35,19 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | Today hides a failed first load of the Today view when the Next view has tasks scheduled for today**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/today/TodayViewModel.kt:48`, `android/app/src/main/java/ch/sonensei/cockpit/gtd/today/TodayScreen.kt:93`
-    - Category: Correctness
-    - Problem: `firstLoadFailed` needs `sections.isEmpty()`. If the TODAY view (overdue + due) was never loaded and its first load fails, but the NEXT view loaded and has a task scheduled for today, `sections` is not empty. The screen shows only the SCHEDULED section with no error or hint that overdue and due tasks are missing, and there is no retry. This is still a never-loaded state (TODAY `refreshedAt == null`), not the "failed refresh over cached data" case the recorded assumption excludes.
-    - Why it matters: the user may think nothing is overdue or due when that list never loaded. It is rare (first launch, 4xx/unreadable answer on one endpoint only) and it is not the endless-loading defect the criterion targets, so it is low priority.
-    - Suggested fix: when `loadFailed` is set and one of the two lists was never loaded, show a small inline error with retry above the sections (or fall back to the full error). Alternatively, record an assumption that partial Today results are acceptable.
+None.
+
+## Status of earlier findings
+
+- CR-1 (P3, Today hides a failed first load of one view when the other view has sections): **resolved**.
+  `TodayUiState.firstLoadFailed` is now `refreshedAt == null && loadFailed` (`gtd/today/TodayViewModel.kt:51`). `TodayContent` shows the new `LoadFailedBanner` with the `lists_error_failed` text and a retry button above the sections when `firstLoadFailed` and the sections are not empty (`gtd/today/TodayScreen.kt:93`). With no sections, the full-screen `LoadFailed` still shows, because the `when` branch for `sections.isNotEmpty()` comes first (`TodayScreen.kt:96-108`). `loading` is still false whenever `loadFailed` is set, so the banner and "Loading…" cannot show at the same time. Retry still refreshes both views (`TodayViewModel.kt:96-99`). Failed reloads over loaded lists (`refreshedAt != null`) still show no error, as the recorded assumption says. Two new view-model tests (TODAY failed with NEXT scheduled tasks, NEXT failed with TODAY tasks) and one screen test (banner, sections, no loading, retry callback) cover the fix.
 
 ## Notes (no findings)
 
-- Acceptance criterion 1: `GtdConnectivity.failure(view)` exposes the last failure per view key. `cachedView` puts it into `Cached.failure`. Next and Today show `LoadFailed` with a retry instead of `Loading…` when nothing was loaded. Retry calls `TaskRepository.refresh` for the right view(s). Keys match between `observe` (`view.name`, `CacheMetaEntity.PROJECTS/CONTEXTS`) and `refresh`, and they cannot collide ("INBOX"/"NEXT"/"TODAY"/"PROJECTS"/"CONTEXTS").
-- Concurrency: the failure is cleared inside the per-view lock when a load starts, so a retry shows Loading. A failure is recorded only when no clear ran meanwhile (checked under `writeLock`), and `clearing` empties the map under the same lock, so a load that outlives a logout does not leak its error into the next session. Offline results (IOException, 5xx) clear the failure, so the error and the offline banner do not compete for the same cause. Repeated retry taps queue behind the view lock and cause no inconsistent state.
-- `LoadFailed` in `gtd/next/TaskListUi.kt` is close to the private `LoadFailed` in `gtd/lists/ListUi.kt`. That file is outside this task's touches, so keeping them separate is reasonable.
-- Tests (uncommitted, from test-writer) cover these paths: failure reporting for 4xx, an unreadable body and a failed cache write; isolation per view; offline vs failure; clearing on a successful load; hiding while a load runs; logout races, at both connectivity and repository level; view-model state for first load vs reload; retry wiring in the view models and through `NextRoute`/`TodayRoute`; screen rendering. The parent reports the gtd suite passing (447 tests, 0 failures). The reviewer could not run Gradle here, so this was not checked independently. These tests are not committed yet, and the parent must commit them before `done`.
+- Acceptance criterion 1: `GtdConnectivity.failure(view)` exposes the last failure per view key. `cachedView` puts it into `Cached.failure`. Next and Today show an error with retry instead of endless loading when nothing was loaded, and Today now also shows it when only one of its two lists never loaded. The keys used by `observe` and `refresh` match and cannot collide. The concurrency handling (failure cleared when a load starts, recorded only if no clear ran meanwhile, emptied on logout under the same lock) has not changed since the previous review.
+- Edge case checked and not reported: `loadFailed` combines the failures of both views, while `refreshedAt` is null when either view was never loaded. So in a narrow window (the TODAY view loaded earlier and its reload fails while the NEXT view's first load is still running), the banner shows even though the failed view has cached data. The message is still true, retry is harmless, and the window closes when NEXT finishes loading. It is too rare to matter for this task.
+- `LoadFailedBanner` sits next to `LoadFailed` in the shared `gtd/next/TaskListUi.kt` and reuses existing strings and test tags. This matches the task's touches and the recorded assumption (no new resources).
+- Tests: the parent reports `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.*' lintDebug` on eb5e289d0 -> BUILD SUCCESSFUL, 450 gtd tests, 0 failures. That is 447 tests from the earlier revision plus the 3 new ones. The reviewer cannot run Gradle here and did not check this independently. All tests are committed.
 
 ## Review conclusion
 
