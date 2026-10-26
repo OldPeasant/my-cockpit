@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="review_offline">Der Server ist nicht erreichbar. Der zuletzt geladene Rückblick wird angezeigt.</string>
+    <string name="review_failed">Der Wochenrückblick konnte nicht geladen werden.</string>
+    <string name="review_retry">Erneut versuchen</string>
+    <string name="review_never">Noch kein Wochenrückblick abgeschlossen.</string>
+    <string name="review_last_today">Letzter Wochenrückblick: heute</string>
+    <plurals name="review_last_days">
+        <item quantity="one">Letzter Wochenrückblick: vor %1$d Tag</item>
+        <item quantity="other">Letzter Wochenrückblick: vor %1$d Tagen</item>
+    </plurals>
+    <string name="review_in_progress">Rückblick läuft: Schritt %1$d von %2$d</string>
+    <string name="review_none_open">Kein Rückblick in Arbeit. Starte einen im Web.</string>
+    <string name="review_steps">Schritte</string>
+    <string name="review_step_done">erledigt</string>
+    <string name="review_step_current">aktueller Schritt</string>
+    <string name="review_step_get_clear">Den Kopf freibekommen</string>
+    <string name="review_step_past_calendar">Vergangenen Kalender prüfen</string>
+    <string name="review_step_upcoming_calendar">Kommenden Kalender prüfen</string>
+    <string name="review_step_waiting_for">Wartet auf</string>
+    <string name="review_step_projects">Projekte</string>
+    <string name="review_step_next_actions">Nächste Aktionen</string>
+    <string name="review_step_someday">Irgendwann/Vielleicht</string>
+    <string name="review_step_reflection">Reflexion zu Gewohnheiten &amp; Journal</string>
+    <string name="review_stalled">Blockierte Projekte</string>
+    <string name="review_no_stalled">Jedes aktive Projekt hat einen nächsten Schritt.</string>
+    <string name="review_stalled_hint">Kein nächster Schritt</string>
+</resources>

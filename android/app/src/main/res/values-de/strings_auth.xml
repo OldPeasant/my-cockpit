@@ -1,0 +1,30 @@
+<resources>
+    <!-- Login (auth feature) -->
+    <string name="login_title">Bei deinem Cockpit anmelden</string>
+    <string name="login_server_section">Server</string>
+    <string name="login_server_url">Serveradresse</string>
+    <string name="login_server_url_hint">Zum Beispiel https://cockpit.example.org</string>
+    <string name="login_account_section">Konto</string>
+    <string name="login_username">Benutzername</string>
+    <string name="login_password">Passwort</string>
+    <string name="login_totp">Code aus deiner Authenticator-App</string>
+    <string name="login_recovery_code">Wiederherstellungscode</string>
+    <string name="login_use_recovery_code">Stattdessen einen Wiederherstellungscode verwenden</string>
+    <string name="login_use_totp">Stattdessen die Authenticator-App verwenden</string>
+    <string name="login_submit">Anmelden</string>
+    <string name="login_signing_in">Anmeldung läuft…</string>
+    <plurals name="login_retry_in">
+        <item quantity="one">Erneut versuchen in %d Sekunde</item>
+        <item quantity="other">Erneut versuchen in %d Sekunden</item>
+    </plurals>
+    <string name="login_error_server_url_malformed">Gib die Serveradresse als http(s)-URL ein, ohne Benutzername, Query oder Fragment.</string>
+    <string name="login_error_server_url_https_required">Der Server braucht eine https-Adresse. Einfaches http funktioniert nur auf diesem Gerät.</string>
+    <string name="login_error_invalid_request">Der Server konnte die Anmeldeanfrage nicht lesen. Fülle alle Felder aus und versuche es erneut.</string>
+    <string name="login_error_wrong_credentials">Benutzername, Passwort oder Code ist falsch. Prüfe sie und gib einen neuen Code ein.</string>
+    <string name="login_error_too_many_attempts">Zu viele fehlgeschlagene Versuche. Die Anmeldung ist kurz pausiert.</string>
+    <string name="login_error_network">Der Server ist nicht erreichbar. Prüfe die Adresse und deine Verbindung.</string>
+    <string name="login_error_server">Beim Anmelden ist auf dem Server ein Problem aufgetreten. Versuche es später erneut.</string>
+
+    <!-- Logout -->
+    <string name="logout">Abmelden</string>
+</resources>

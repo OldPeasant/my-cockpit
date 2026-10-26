@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="journal_edit">Bearbeiten</string>
+    <string name="journal_view">Fertig</string>
+    <string name="journal_body_hint">Wie war dein Tag? Markdown funktioniert hier.</string>
+    <string name="journal_empty_body">Heute noch nichts geschrieben. Tippe auf Bearbeiten, um zu beginnen.</string>
+    <string name="journal_status_saved">Gespeichert</string>
+    <string name="journal_status_unsaved">Ungespeicherte Änderungen</string>
+    <string name="journal_status_saving">Wird gespeichert…</string>
+    <string name="journal_status_offline">Nicht gespeichert: keine Verbindung</string>
+    <string name="journal_status_failed">Nicht gespeichert: der Server hat die Änderung abgelehnt</string>
+    <string name="journal_save_retry">Erneut speichern</string>
+    <string name="journal_take_photo">Foto aufnehmen</string>
+    <string name="journal_pick_photo">Foto aus der Galerie hinzufügen</string>
+    <string name="journal_uploading">Foto wird hochgeladen…</string>
+    <string name="journal_conflict">Der heutige Eintrag wurde auf einem anderen Gerät geändert, während du geschrieben hast.</string>
+    <string name="journal_conflict_deleted">Der heutige Eintrag wurde auf einem anderen Gerät gelöscht, während du geschrieben hast.</string>
+    <string name="journal_keep_mine">Meine Version behalten</string>
+    <string name="journal_use_theirs">Die andere Version verwenden</string>
+    <string name="journal_keep_mine_deleted">Meinen Text erneut speichern</string>
+    <string name="journal_use_theirs_deleted">Meinen Text verwerfen</string>
+    <string name="journal_load_offline">Server nicht erreichbar, daher konnte der heutige Eintrag nicht geladen werden.</string>
+    <string name="journal_load_failed">Der heutige Eintrag konnte nicht geladen werden.</string>
+    <string name="journal_photo_unreadable">Dieses Foto konnte nicht gelesen werden. Versuche ein anderes.</string>
+    <string name="journal_photo_offline">Foto nicht hinzugefügt: keine Verbindung.</string>
+    <string name="journal_photo_failed">Foto nicht hinzugefügt: der Server hat es abgelehnt.</string>
+    <string name="journal_retry">Erneut versuchen</string>
+    <string name="journal_dismiss">Ausblenden</string>
+</resources>

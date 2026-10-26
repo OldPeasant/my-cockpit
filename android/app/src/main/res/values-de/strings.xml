@@ -1,0 +1,27 @@
+<resources>
+    <string name="app_name">My Cockpit</string>
+
+    <!-- Navigation -->
+    <string name="nav_today">Heute</string>
+    <string name="nav_inbox">Eingang</string>
+    <string name="nav_calendar">Kalender</string>
+    <string name="nav_mail">E-Mail</string>
+    <string name="nav_more">Mehr</string>
+    <string name="nav_new">Neu</string>
+    <string name="nav_next">Nächste</string>
+    <string name="nav_projects">Projekte</string>
+    <string name="nav_waiting">Warten</string>
+    <string name="nav_someday">Irgendwann</string>
+    <string name="nav_notes">Notizen</string>
+    <string name="nav_files">Dateien</string>
+    <string name="nav_contacts">Kontakte</string>
+    <string name="nav_bookmarks">Lesezeichen</string>
+    <string name="nav_journal">Journal</string>
+    <string name="nav_habits">Gewohnheiten</string>
+    <string name="nav_review">Überprüfung</string>
+    <string name="nav_settings">Einstellungen</string>
+    <string name="nav_back">Zurück</string>
+
+    <!-- Platzhalter für Bildschirme, die noch nicht gebaut sind -->
+    <string name="placeholder_body">Dieser Teil deines Cockpits ist noch nicht gebaut.</string>
+</resources>

@@ -1,0 +1,13 @@
+<resources>
+    <!-- Erinnerungsbenachrichtigungen (reminders) -->
+    <string name="reminder_channel_name">Erinnerungen</string>
+    <string name="reminder_channel_description">Erinnerungen, die du für Aufgaben, Termine und andere Einträge festlegst</string>
+    <string name="reminder_notification_text">Erinnerung</string>
+    <string name="reminder_untitled">Erinnerung</string>
+    <string name="reminder_prompt_title">Anstehende Erinnerungen</string>
+    <string name="reminder_prompt_notifications">Erlaube Benachrichtigungen, damit dich deine Erinnerungen auf diesem Gerät melden können.</string>
+    <string name="reminder_prompt_exact">Erlaube genaue Alarme, damit Erinnerungen pünktlich ankommen und nicht einige Minuten zu spät.</string>
+    <string name="reminder_prompt_allow_notifications">Benachrichtigungen erlauben</string>
+    <string name="reminder_prompt_allow_exact">Genaue Alarme erlauben</string>
+    <string name="reminder_prompt_dismiss">Nicht jetzt</string>
+</resources>

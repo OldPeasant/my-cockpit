@@ -1,0 +1,66 @@
+<resources>
+    <!-- Inbox list and processing mode (gtd/inbox) -->
+    <plurals name="inbox_count">
+        <item quantity="one">%1$d Element zu verarbeiten</item>
+        <item quantity="other">%1$d Elemente zu verarbeiten</item>
+    </plurals>
+    <plurals name="inbox_left">
+        <item quantity="one">%1$d Element übrig</item>
+        <item quantity="other">%1$d Elemente übrig</item>
+    </plurals>
+    <string name="inbox_process">Eingang verarbeiten</string>
+    <string name="inbox_stop">Verarbeitung beenden</string>
+    <string name="inbox_loading">Eingang wird geladen…</string>
+    <string name="inbox_empty">Der Eingang ist leer. Alles, was du erfasst, landet hier.</string>
+    <string name="inbox_all_done">Eingang verarbeitet. Nichts mehr zu entscheiden.</string>
+    <string name="inbox_back_to_list">Zurück zur Liste</string>
+    <string name="inbox_offline">Offline: Der Eingang wird so angezeigt, wie er um %1$s geladen wurde. Die Verarbeitung ist pausiert, bis der Server wieder erreichbar ist.</string>
+    <string name="inbox_offline_never">Offline: Der Eingang konnte noch nicht geladen werden.</string>
+    <string name="inbox_retry">Erneut versuchen</string>
+    <string name="inbox_message_offline">Der Server war nicht erreichbar. Das Element ist wieder im Eingang.</string>
+    <string name="inbox_message_conflict">Dieses Element wurde anderswo geändert. Es zeigt jetzt seinen neuesten Stand; wähle erneut.</string>
+    <string name="inbox_message_failed">Der Server hat diese Aktion abgelehnt. Das Element ist wieder im Eingang.</string>
+    <string name="inbox_dismiss">Ausblenden</string>
+
+    <string name="inbox_energy">Energie</string>
+    <string name="inbox_energy_low">Niedrig</string>
+    <string name="inbox_energy_medium">Mittel</string>
+    <string name="inbox_energy_high">Hoch</string>
+    <string name="inbox_creativity">Kreativität</string>
+    <string name="inbox_creativity_routine">Routine</string>
+    <string name="inbox_creativity_mixed">Gemischt</string>
+    <string name="inbox_creativity_creative">Kreativ</string>
+    <string name="inbox_estimate">Schätzung</string>
+    <string name="inbox_estimate_minutes">%1$d Min.</string>
+    <string name="inbox_contexts">Kontexte</string>
+
+    <string name="inbox_group_act">Angehen</string>
+    <string name="inbox_group_defer">Zurückstellen</string>
+    <string name="inbox_group_drop">Verwerfen</string>
+    <string name="inbox_action_done">Erledigen (sofort)</string>
+    <string name="inbox_action_next">Nächste</string>
+    <string name="inbox_action_project">Zum Projekt</string>
+    <string name="inbox_action_waiting">Warten</string>
+    <string name="inbox_action_schedule">Einplanen</string>
+    <string name="inbox_action_tickler">Wiedervorlage</string>
+    <string name="inbox_action_someday">Irgendwann</string>
+    <string name="inbox_action_trash">Papierkorb</string>
+
+    <string name="inbox_prompt_waiting">Warten auf wen oder was?</string>
+    <string name="inbox_prompt_waiting_hint">Person oder Sache (optional)</string>
+    <string name="inbox_prompt_schedule">Einplanen für</string>
+    <string name="inbox_prompt_tickler">Ausblenden bis</string>
+    <string name="inbox_prompt_tickler_future">Wähle einen Tag nach heute.</string>
+    <string name="inbox_prompt_project">Nächste Aktion von</string>
+    <string name="inbox_prompt_new_project">Neues Projekt</string>
+    <string name="inbox_prompt_new_project_hint">Projekttitel</string>
+    <string name="inbox_date_tomorrow">Morgen</string>
+    <string name="inbox_date_week">In einer Woche</string>
+    <string name="inbox_date_month">In einem Monat</string>
+    <string name="inbox_date_pick">Anderer Tag…</string>
+    <string name="inbox_cancel">Abbrechen</string>
+    <string name="inbox_confirm_waiting">Zu „Warten“ verschieben</string>
+    <string name="inbox_confirm_schedule">Einplanen</string>
+    <string name="inbox_confirm_tickler">Bis dahin ausblenden</string>
+    <string name="inbox_confirm_project">Zum Projekt verschieben</string>
+</resources>

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="contacts_search">Kontakte suchen</string>
+    <string name="contacts_clear_search">Suche löschen</string>
+    <string name="contacts_empty">Noch keine Kontakte. Füge sie im Web hinzu oder importiere dort eine vCard.</string>
+    <string name="contacts_empty_search">Keine Kontakte passen zu „%1$s“.</string>
+    <string name="contacts_offline">Server nicht erreichbar. Die zuletzt geladenen Kontakte werden angezeigt.</string>
+    <string name="contacts_failed">Die Kontakte konnten nicht geladen werden.</string>
+    <string name="contacts_retry">Erneut versuchen</string>
+    <string name="contacts_back">Zurück zu den Kontakten</string>
+    <string name="contacts_call">Anrufen</string>
+    <string name="contacts_email">E-Mail</string>
+    <string name="contacts_call_number">%1$s anrufen</string>
+    <string name="contacts_email_address">E-Mail an %1$s</string>
+    <string name="contacts_no_app">Keine App auf diesem Telefon kann das verarbeiten.</string>
+    <string name="contacts_phones">Telefon</string>
+    <string name="contacts_emails">E-Mail</string>
+    <string name="contacts_addresses">Adresse</string>
+    <string name="contacts_birthday">Geburtstag</string>
+    <string name="contacts_notes">Notizen</string>
+    <string name="contacts_waiting_for">Wartet auf</string>
+    <string name="contacts_waiting_since">Seit %1$s</string>
+    <string name="contacts_mails">Letzte E-Mails</string>
+    <string name="contacts_mail_from">Von dieser Person, %1$s</string>
+    <string name="contacts_mail_to">An diese Person, %1$s</string>
+    <string name="contacts_no_subject">(kein Betreff)</string>
+    <string name="contacts_events">Kommende Termine</string>
+    <string name="contacts_links">Verknüpfte Elemente</string>
+    <string name="contacts_link_deleted">Gelöscht</string>
+    <string name="contacts_untitled">Ohne Titel</string>
+    <string name="contacts_nothing_related">Keine offenen „Wartet auf“-Einträge, E-Mails, Termine oder Verknüpfungen mit diesem Kontakt.</string>
+    <string name="contacts_related_offline">Server nicht erreichbar. E-Mails, Termine und „Wartet auf“-Einträge werden nicht angezeigt.</string>
+    <string name="contacts_related_failed">E-Mails, Termine und „Wartet auf“-Einträge konnten nicht geladen werden.</string>
+    <string name="contacts_related_offline_stale">Server nicht erreichbar. E-Mails, Termine und „Wartet auf“-Einträge sind möglicherweise veraltet.</string>
+    <string name="contacts_related_failed_stale">E-Mails, Termine und „Wartet auf“-Einträge konnten nicht neu geladen werden und sind möglicherweise veraltet.</string>
+    <string name="contacts_not_loaded">Dieser Kontakt konnte nicht geladen werden.</string>
+</resources>

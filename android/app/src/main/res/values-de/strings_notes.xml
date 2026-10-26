@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notes_new">Neue Notiz</string>
+    <string name="notes_all">Alle</string>
+    <string name="notes_pinned">Angeheftet</string>
+    <string name="notes_empty">Noch keine Notizen. Tippe auf Neue Notiz, um eine zu schreiben.</string>
+    <string name="notes_empty_tag">Keine Notizen mit dem Tag %1$s.</string>
+    <string name="notes_offline">Der Server ist nicht erreichbar. Die zuletzt geladenen Notizen werden angezeigt.</string>
+    <string name="notes_failed">Die Notizen konnten nicht geladen werden.</string>
+    <string name="notes_retry">Erneut versuchen</string>
+    <string name="notes_back">Zurück zu den Notizen</string>
+    <string name="notes_edit">Bearbeiten</string>
+    <string name="notes_view">Fertig</string>
+    <string name="notes_title_hint">Titel (optional)</string>
+    <string name="notes_body_hint">In Markdown schreiben</string>
+    <string name="notes_empty_body">Diese Notiz ist leer. Tippe auf Bearbeiten, um zu schreiben.</string>
+    <string name="notes_status_saved">Gespeichert</string>
+    <string name="notes_status_unsaved">Ungespeicherte Änderungen</string>
+    <string name="notes_status_saving">Wird gespeichert…</string>
+    <string name="notes_status_offline">Nicht gespeichert: keine Verbindung</string>
+    <string name="notes_status_failed">Nicht gespeichert: Der Server hat die Änderung abgelehnt</string>
+    <string name="notes_save_retry">Erneut speichern</string>
+    <string name="notes_take_photo">Foto aufnehmen</string>
+    <string name="notes_pick_photo">Foto aus der Galerie hinzufügen</string>
+    <string name="notes_uploading">Foto wird hochgeladen…</string>
+    <string name="notes_conflict">Diese Notiz wurde auf einem anderen Gerät geändert, während du sie bearbeitet hast.</string>
+    <string name="notes_conflict_deleted">Diese Notiz wurde auf einem anderen Gerät gelöscht, während du sie bearbeitet hast.</string>
+    <string name="notes_keep_mine">Meine Version behalten</string>
+    <string name="notes_use_theirs">Andere Version verwenden</string>
+    <string name="notes_keep_mine_deleted">Als neue Notiz speichern</string>
+    <string name="notes_use_theirs_deleted">Meine Änderungen verwerfen</string>
+    <string name="notes_load_offline">Der Server ist nicht erreichbar, um diese Notiz zu öffnen.</string>
+    <string name="notes_load_failed">Diese Notiz konnte nicht geöffnet werden.</string>
+    <string name="notes_photo_unreadable">Das Foto konnte nicht gelesen werden oder ist größer als 25 MB.</string>
+    <string name="notes_photo_offline">Das Foto wurde nicht hinzugefügt: keine Verbindung.</string>
+    <string name="notes_photo_failed">Das Foto wurde nicht hinzugefügt: Der Server hat es abgelehnt.</string>
+    <string name="notes_dismiss">Schließen</string>
+    <string name="notes_image">Bild</string>
+    <string name="notes_web_image">Externes Bild nicht geladen: %1$s</string>
+</resources>

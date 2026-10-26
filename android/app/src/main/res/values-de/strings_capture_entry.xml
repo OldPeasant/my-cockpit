@@ -1,0 +1,16 @@
+<resources>
+    <!-- Capture entry points (capture/entry): widget, quick-settings tile, app shortcut -->
+    <string name="capture_entry_label">Erfassen</string>
+    <string name="capture_shortcut_long">Im Eingang erfassen</string>
+    <string name="capture_shortcut_disabled">Erfassen ist nicht verfügbar</string>
+    <string name="capture_widget_description">Erfasse einen Gedanken im Eingang, auch offline.</string>
+    <string name="capture_widget_open">Im Eingang erfassen</string>
+    <plurals name="capture_pending">
+        <item quantity="one">%1$d zu synchronisieren</item>
+        <item quantity="other">%1$d zu synchronisieren</item>
+    </plurals>
+    <plurals name="capture_pending_failed">
+        <item quantity="one">%1$d nicht synchronisiert</item>
+        <item quantity="other">%1$d nicht synchronisiert</item>
+    </plurals>
+</resources>

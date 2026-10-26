@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Gemeinsam für die Listen Nächste Aktionen und Heute -->
+    <string name="tasks_loading">Wird geladen…</string>
+    <string name="tasks_offline">Offline: Die Liste von %1$s wird angezeigt. Zum Erledigen von Aufgaben ist eine Verbindung nötig.</string>
+    <string name="tasks_offline_never">Offline: Noch nichts geladen.</string>
+    <string name="tasks_complete">%1$s erledigen</string>
+    <string name="tasks_estimate">%1$d Min.</string>
+    <plurals name="tasks_overdue">
+        <item quantity="one">%1$d Tag überfällig</item>
+        <item quantity="other">%1$d Tage überfällig</item>
+    </plurals>
+    <string name="tasks_due_today">Heute fällig</string>
+    <string name="tasks_due_today_at">Heute fällig, %1$s</string>
+    <string name="tasks_due_on">Fällig %1$s</string>
+    <string name="tasks_completed">Erledigt %1$s</string>
+    <string name="tasks_undo">Rückgängig</string>
+    <string name="tasks_message_offline">Nicht gespeichert: Der Server ist nicht erreichbar. Versuche es erneut, wenn du online bist.</string>
+    <string name="tasks_message_conflict">Diese Aufgabe wurde an anderer Stelle geändert. Die Liste zeigt jetzt den aktuellen Stand.</string>
+    <string name="tasks_message_failed">Der Server hat die Änderung abgelehnt. Die Liste zeigt die Aufgabe, wie sie ist.</string>
+
+    <!-- Nächste Aktionen -->
+    <plurals name="next_count">
+        <item quantity="one">%1$d nächste Aktion</item>
+        <item quantity="other">%1$d nächste Aktionen</item>
+    </plurals>
+    <plurals name="next_count_filtered">
+        <item quantity="one">%1$d von %2$d nächster Aktion</item>
+        <item quantity="other">%1$d von %2$d nächsten Aktionen</item>
+    </plurals>
+    <string name="next_filters">Filter</string>
+    <string name="next_filters_active">Filter (%1$d)</string>
+    <string name="next_filter_context">Kontext</string>
+    <string name="next_filter_energy">Energie</string>
+    <string name="next_filter_creativity">Kreativität</string>
+    <string name="next_filter_estimate">Verfügbare Zeit</string>
+    <string name="next_filter_at_most">≤ %1$d Min.</string>
+    <string name="next_filter_clear">Filter zurücksetzen</string>
+    <string name="next_energy_low">Niedrig</string>
+    <string name="next_energy_medium">Mittel</string>
+    <string name="next_energy_high">Hoch</string>
+    <string name="next_creativity_routine">Routine</string>
+    <string name="next_creativity_mixed">Gemischt</string>
+    <string name="next_creativity_creative">Kreativ</string>
+    <string name="next_empty">Keine nächsten Aktionen. Bearbeite deinen Eingang, um welche hinzuzufügen.</string>
+    <string name="next_empty_filtered">Keine nächste Aktion passt zu diesen Filtern.</string>
+
+    <!-- Heute -->
+    <string name="today_overdue">Überfällig</string>
+    <string name="today_due">Heute fällig</string>
+    <string name="today_scheduled">Für heute geplant</string>
+    <string name="today_empty">Heute ist nichts fällig oder geplant.</string>
+</resources>

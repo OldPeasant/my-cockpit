@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Files (files/FilesScreen.kt). -->
+<resources>
+    <string name="files_root">Dateien</string>
+    <string name="files_upload">Hochladen</string>
+    <string name="files_empty">Hier ist noch nichts. Lade mit der Schaltfläche unten eine Datei von diesem Telefon hoch.</string>
+    <string name="files_offline">Offline. Das zuvor Geladene wird angezeigt.</string>
+    <string name="files_failed">Der Ordner konnte nicht geladen werden.</string>
+    <string name="files_retry">Erneut versuchen</string>
+    <string name="files_more">Mehr für %1$s</string>
+    <string name="files_open">Öffnen</string>
+    <string name="files_save">Auf dem Gerät speichern</string>
+    <string name="files_download_offline">Offline. Die Datei konnte nicht heruntergeladen werden.</string>
+    <string name="files_download_failed">Die Datei konnte nicht heruntergeladen werden.</string>
+    <string name="files_dismiss">Ausblenden</string>
+    <string name="files_saved">%1$s gespeichert</string>
+    <string name="files_no_app">Keine App auf diesem Telefon öffnet diese Datei</string>
+    <string name="files_uploading">Wird hochgeladen…</string>
+    <string name="files_uploaded">Hochgeladen</string>
+    <string name="files_upload_offline">Offline, nicht hochgeladen</string>
+    <string name="files_upload_too_large">Zu groß für das Laufwerk</string>
+    <string name="files_upload_failed">Konnte nicht hochgeladen werden</string>
+    <string name="files_special">Von Cockpit verwaltet</string>
+</resources>

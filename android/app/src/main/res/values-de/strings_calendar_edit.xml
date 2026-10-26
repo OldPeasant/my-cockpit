@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="calendar_edit_new">Neuer Termin</string>
+    <string name="calendar_edit_edit">Termin bearbeiten</string>
+    <string name="calendar_edit_close">Schließen</string>
+    <string name="calendar_edit_save">Speichern</string>
+    <string name="calendar_edit_title">Titel</string>
+    <string name="calendar_edit_title_missing">Gib einen Titel ein.</string>
+    <string name="calendar_edit_calendar">Kalender</string>
+    <string name="calendar_edit_calendar_missing">Wähle einen Kalender. Füge im Web einen hinzu, falls keiner vorhanden ist.</string>
+    <string name="calendar_edit_all_day">Ganztägig</string>
+    <string name="calendar_edit_starts">Beginnt</string>
+    <string name="calendar_edit_ends">Endet</string>
+    <string name="calendar_edit_end_before_start">Das Ende muss nach dem Beginn liegen.</string>
+    <string name="calendar_edit_time_zone">Zeitzone: %1$s</string>
+    <string name="calendar_edit_repeat">Wiederholung</string>
+    <string name="calendar_edit_repeat_none">Keine Wiederholung</string>
+    <string name="calendar_edit_repeat_daily">Jeden Tag</string>
+    <string name="calendar_edit_repeat_weekly">Jede Woche</string>
+    <string name="calendar_edit_repeat_monthly">Jeden Monat</string>
+    <string name="calendar_edit_repeat_yearly">Jedes Jahr</string>
+    <string name="calendar_edit_repeat_custom">Benutzerdefiniert (%1$s)</string>
+    <string name="calendar_edit_location">Ort</string>
+    <string name="calendar_edit_description">Beschreibung</string>
+    <string name="calendar_edit_read_only">Dieser Kalender ist schreibgeschützt. Seine Termine können hier nicht geändert werden.</string>
+    <string name="calendar_edit_load_offline">Server nicht erreichbar. Der Termin konnte nicht geladen werden.</string>
+    <string name="calendar_edit_load_failed">Der Termin konnte nicht geladen werden.</string>
+    <string name="calendar_edit_offline">Server nicht erreichbar. Versuche es erneut.</string>
+    <string name="calendar_edit_failed">Der Termin konnte nicht gespeichert werden.</string>
+    <string name="calendar_edit_conflict">Dieser Termin wurde anderswo geändert. Lade ihn neu, um die aktuelle Version zu sehen; deine Änderungen hier werden verworfen.</string>
+    <string name="calendar_edit_gone">Dieser Termin wurde anderswo geändert oder entfernt. Schließe den Editor, um den aktuellen Kalender zu sehen.</string>
+    <string name="calendar_edit_reload">Neu laden</string>
+    <string name="calendar_edit_retry">Erneut versuchen</string>
+    <string name="calendar_edit_scope_title">Wiederkehrenden Termin ändern</string>
+    <string name="calendar_edit_scope_question">Für welche Termine der Serie soll das gelten?</string>
+    <string name="calendar_edit_scope_this">Nur dieser Termin</string>
+    <string name="calendar_edit_scope_following">Dieser und alle folgenden Termine</string>
+    <string name="calendar_edit_scope_all">Alle Termine der Serie</string>
+    <string name="calendar_edit_cancel">Abbrechen</string>
+    <string name="calendar_edit_ok">OK</string>
+    <string name="calendar_edit_add">Neuer Termin</string>
+</resources>

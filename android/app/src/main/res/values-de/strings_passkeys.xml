@@ -1,0 +1,32 @@
+<resources>
+    <!-- Anmeldung mit Passkey (auth feature) -->
+    <string name="login_passkey">Mit Passkey anmelden</string>
+    <string name="login_error_passkey_rejected">Der Server hat diesen Passkey nicht akzeptiert. Versuche es erneut oder melde dich mit deinem Passwort an.</string>
+    <string name="login_error_no_passkey">Dieses Gerät hat keinen Passkey für diesen Server. Melde dich mit deinem Passwort an und füge in den Einstellungen einen hinzu.</string>
+    <string name="login_error_passkey_unavailable">Passkeys sind auf diesem Gerät nicht verfügbar. Melde dich mit deinem Passwort an.</string>
+    <string name="login_error_passkey_failed">Der Passkey konnte nicht verwendet werden. Versuche es erneut oder melde dich mit deinem Passwort an.</string>
+    <string name="login_error_totp_reset_required">Richte zuerst deine Authenticator-App in der Web-App neu ein und melde dich dann hier an.</string>
+
+    <!-- Passkeys in den Einstellungen -->
+    <string name="passkeys_title">Passkeys</string>
+    <string name="passkeys_body">Melde dich mit Fingerabdruck, Gesicht oder Displaysperre an, statt mit Passwort und Code.</string>
+    <string name="passkeys_empty">Noch keine Passkeys.</string>
+    <string name="passkeys_load_failed">Deine Passkeys konnten nicht geladen werden.</string>
+    <string name="passkeys_retry">Erneut versuchen</string>
+    <string name="passkeys_last_used">Zuletzt verwendet %1$s</string>
+    <string name="passkeys_never_used">Nie verwendet</string>
+    <string name="passkeys_add">Passkey hinzufügen</string>
+    <string name="passkeys_add_title">Passkey hinzufügen</string>
+    <string name="passkeys_name">Name</string>
+    <string name="passkeys_code_hint">Bestätigt, dass du es bist, bevor der Passkey erstellt wird.</string>
+    <string name="passkeys_create">Erstellen</string>
+    <string name="passkeys_adding">Wird erstellt…</string>
+    <string name="passkeys_cancel">Abbrechen</string>
+    <string name="passkeys_added">Passkey „%1$s“ hinzugefügt.</string>
+    <string name="passkeys_error_wrong_code">Der Code ist falsch. Gib den aktuellen Code aus deiner Authenticator-App ein.</string>
+    <string name="passkeys_error_already_registered">Dieser Passkey ist bereits registriert.</string>
+    <string name="passkeys_error_unavailable">Passkeys sind auf diesem Gerät nicht verfügbar.</string>
+    <string name="passkeys_error_failed">Der Passkey konnte nicht erstellt werden. Versuche es erneut.</string>
+    <string name="passkeys_error_network">Der Server ist nicht erreichbar. Prüfe deine Verbindung.</string>
+    <string name="passkeys_error_server">Beim Hinzufügen des Passkeys ist auf dem Server ein Problem aufgetreten. Versuche es später erneut.</string>
+</resources>

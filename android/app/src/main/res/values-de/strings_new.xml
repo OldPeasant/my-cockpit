@@ -1,0 +1,26 @@
+<resources>
+    <!-- Kombinierte Ansicht „Neu“ (newitems) -->
+    <string name="new_filter_all">Alle</string>
+    <string name="new_filter_inbox">GTD-Eingang</string>
+    <string name="new_filter_mail">E-Mail</string>
+    <string name="new_source_inbox">GTD-Eingang</string>
+    <string name="new_source_mail">E-Mail</string>
+    <string name="new_to_task">→ Aufgabe im Eingang</string>
+    <string name="new_loading">Wird geladen…</string>
+    <string name="new_empty">Nichts Neues. Erfasstes und eingehende E-Mails erscheinen hier.</string>
+    <string name="new_offline">Offline: Es wird der zuletzt geladene Stand angezeigt. E-Mails sind schreibgeschützt, bis der Server erreichbar ist.</string>
+    <string name="new_offline_inbox_at">GTD-Eingang, geladen um %1$s.</string>
+    <string name="new_offline_mail_at">E-Mail, geladen um %1$s.</string>
+    <string name="new_offline_mail_never">E-Mails konnten noch nicht geladen werden.</string>
+    <string name="new_inbox_failed">Der Eingang konnte nicht geladen werden.</string>
+    <string name="new_mail_failed">Die Nachrichten konnten nicht geladen werden.</string>
+    <string name="new_retry">Erneut versuchen</string>
+    <string name="new_load_more">Ältere Nachrichten laden</string>
+    <string name="new_task_created">„%1$s“ zum Eingang hinzugefügt</string>
+    <string name="new_task_offline">Der Server war nicht erreichbar. Es wurde keine Aufgabe erstellt.</string>
+    <string name="new_task_failed">Die Aufgabe konnte nicht erstellt werden.</string>
+    <string name="new_dismiss">Schließen</string>
+    <string name="new_task_created_at">Erfasst %1$s</string>
+    <string name="new_task_hint">Bearbeite sie im Eingang, um zu entscheiden, was sie ist.</string>
+    <string name="new_no_subject">(kein Betreff)</string>
+</resources>

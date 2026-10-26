@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="habits_due_today">Heute fällig</string>
+    <string name="habits_not_due_today">Heute nicht fällig</string>
+    <string name="habits_empty">Noch keine Gewohnheiten. Füge sie in der Web-App hinzu und hake sie hier ab.</string>
+    <string name="habits_daily">Täglich</string>
+    <string name="habits_times_per_week">%1$d× pro Woche</string>
+    <plurals name="habits_streak_days">
+        <item quantity="one">Serie von %1$d Tag</item>
+        <item quantity="other">Serie von %1$d Tagen</item>
+    </plurals>
+    <plurals name="habits_streak_weeks">
+        <item quantity="one">Serie von %1$d Woche</item>
+        <item quantity="other">Serie von %1$d Wochen</item>
+    </plurals>
+    <string name="habits_completion">%1$d%% der letzten 30 Tage</string>
+    <string name="habits_progress">heute %1$d/%2$d</string>
+    <string name="habits_load_offline">Server nicht erreichbar, daher konnten deine Gewohnheiten nicht geladen werden.</string>
+    <string name="habits_load_failed">Deine Gewohnheiten konnten nicht geladen werden.</string>
+    <string name="habits_check_offline">Nicht abgehakt: keine Verbindung.</string>
+    <string name="habits_check_failed">Nicht abgehakt: der Server hat die Änderung abgelehnt.</string>
+    <string name="habits_retry">Erneut versuchen</string>
+    <string name="habits_dismiss">Ausblenden</string>
+</resources>

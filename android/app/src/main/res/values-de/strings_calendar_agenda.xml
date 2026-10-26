@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="calendar_view_agenda">Agenda</string>
+    <string name="calendar_view_day">Tag</string>
+    <string name="calendar_view_week">Woche</string>
+    <string name="calendar_today">Heute</string>
+    <string name="calendar_previous_day">Vorheriger Tag</string>
+    <string name="calendar_next_day">Nächster Tag</string>
+    <string name="calendar_previous_week">Vorherige Woche</string>
+    <string name="calendar_next_week">Nächste Woche</string>
+    <string name="calendar_calendars">Kalender</string>
+    <string name="calendar_no_calendars">Noch keine Kalender. Füge im Web einen hinzu.</string>
+    <string name="calendar_all_day">Ganztägig</string>
+    <string name="calendar_continues">geht weiter</string>
+    <string name="calendar_agenda_empty">Bis %1$s ist nichts geplant.</string>
+    <string name="calendar_day_empty">Nichts geplant.</string>
+    <string name="calendar_load_more">Spätere Tage anzeigen</string>
+    <string name="calendar_loaded_until">Angezeigt bis %1$s</string>
+    <string name="calendar_offline">Server nicht erreichbar. Die zuletzt geladenen Termine werden angezeigt.</string>
+    <string name="calendar_offline_cached">Offline. Termine vom %1$s werden angezeigt; nur lesbar, bis der Server wieder erreichbar ist.</string>
+    <string name="calendar_failed">Die Termine konnten nicht geladen werden.</string>
+    <string name="calendar_visibility_failed">Der Kalender konnte nicht geändert werden. Versuche es erneut.</string>
+    <string name="calendar_retry">Erneut versuchen</string>
+    <string name="calendar_week_range">%1$s – %2$s</string>
+</resources>

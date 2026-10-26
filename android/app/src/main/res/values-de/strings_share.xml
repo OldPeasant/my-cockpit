@@ -1,0 +1,29 @@
+<resources>
+    <!-- Erfassen-Dialog als Teilen-Ziel (capture/share) -->
+    <string name="share_label">Im Eingang speichern</string>
+    <string name="share_heading">Eingang</string>
+    <string name="share_text_hint">Was ist es?</string>
+    <string name="share_notes_hint">Notizen</string>
+    <string name="share_cancel">Abbrechen</string>
+    <string name="share_save">Im Eingang speichern</string>
+    <string name="share_saved">Im Eingang gespeichert</string>
+    <string name="share_nothing">Nichts zu speichern: Die App hat weder Text noch Dateien geteilt.</string>
+    <string name="share_error_empty">Gib einen Titel ein, um dies im Eingang zu speichern.</string>
+    <string name="share_error_too_many_files">Zu viele Dateien. Teile höchstens %1$d auf einmal.</string>
+    <plurals name="share_error_too_long">
+        <item quantity="one">Der Text ist zu lang. Kürze ihn auf höchstens %1$,d Zeichen.</item>
+        <item quantity="other">Der Text ist zu lang. Kürze ihn auf höchstens %1$,d Zeichen.</item>
+    </plurals>
+    <plurals name="share_error_notes_too_long">
+        <item quantity="one">Die Notizen sind zu lang. Kürze sie auf höchstens %1$,d Zeichen.</item>
+        <item quantity="other">Die Notizen sind zu lang. Kürze sie auf höchstens %1$,d Zeichen.</item>
+    </plurals>
+    <string name="share_error_unreadable">Eine geteilte Datei konnte nicht gelesen werden. Teile sie erneut aus der anderen App.</string>
+    <string name="share_error_failed">Die Erfassung konnte nicht gespeichert werden. Versuche es erneut.</string>
+    <string name="share_destination">Speichern in</string>
+    <string name="share_destination_inbox">Eingang</string>
+    <string name="share_destination_read_later">Später lesen</string>
+    <string name="share_title_hint_read_later">Titel (optional)</string>
+    <string name="share_save_read_later">Zum späteren Lesen speichern</string>
+    <string name="share_saved_read_later">Zum späteren Lesen gespeichert</string>
+</resources>

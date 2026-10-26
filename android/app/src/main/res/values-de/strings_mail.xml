@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mail_unified">Alle Eingänge</string>
+    <string name="mail_choose_mailbox">Postfach wählen</string>
+    <string name="mail_folder_inbox">Posteingang</string>
+    <string name="mail_folder_drafts">Entwürfe</string>
+    <string name="mail_folder_sent">Gesendet</string>
+    <string name="mail_folder_archive">Archiv</string>
+    <string name="mail_folder_spam">Spam</string>
+    <string name="mail_folder_trash">Papierkorb</string>
+    <string name="mail_empty">Keine E-Mails vorhanden.</string>
+    <string name="mail_no_accounts">Noch kein E-Mail-Konto. Füge in der Web-App unter Einstellungen → E-Mail eines hinzu.</string>
+    <string name="mail_no_subject">(kein Betreff)</string>
+    <string name="mail_unread">Ungelesen</string>
+    <string name="mail_flagged">Markiert</string>
+    <string name="mail_has_attachments">Mit Anhängen</string>
+    <string name="mail_archive">Archivieren</string>
+    <string name="mail_delete">Löschen</string>
+    <string name="mail_offline">Der Server ist nicht erreichbar. Die Liste ist möglicherweise veraltet.</string>
+    <string name="mail_failed">Die E-Mail konnte nicht geladen werden.</string>
+    <string name="mail_archive_failed">Die E-Mail konnte nicht archiviert werden.</string>
+    <string name="mail_delete_failed">Die E-Mail konnte nicht gelöscht werden.</string>
+    <string name="mail_retry">Erneut versuchen</string>
+    <string name="mail_read_back">Zurück zur Liste</string>
+    <string name="mail_read_to_task">Als Aufgabe in den Eingang</string>
+    <string name="mail_read_to_waiting">Zu Wartet auf</string>
+    <string name="mail_read_from">Von %1$s</string>
+    <string name="mail_read_to">An %1$s</string>
+    <string name="mail_read_cc">Cc %1$s</string>
+    <plurals name="mail_read_images_blocked">
+        <item quantity="one">%1$d externes Bild wurde blockiert.</item>
+        <item quantity="other">%1$d externe Bilder wurden blockiert.</item>
+    </plurals>
+    <string name="mail_read_attachments">Anhänge: %1$s</string>
+    <string name="mail_read_offline">Der Server ist nicht erreichbar.</string>
+    <string name="mail_read_failed">Die E-Mail konnte nicht geladen werden.</string>
+    <string name="mail_read_gone">Diese E-Mail ist nicht mehr auf dem E-Mail-Server.</string>
+    <string name="mail_read_task_created">Zum Eingang hinzugefügt: %1$s</string>
+    <string name="mail_read_waiting_created">Zu Wartet auf hinzugefügt: %1$s</string>
+    <string name="mail_read_task_failed">Die Aufgabe konnte nicht erstellt werden.</string>
+    <string name="mail_read_waiting_failed">Der Eintrag für Wartet auf konnte nicht erstellt werden.</string>
+</resources>

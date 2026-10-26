@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Live-Listen (Warten auf, Irgendwann, Projektaufgaben): werden beim Anzeigen geladen, nicht zwischengespeichert -->
+    <string name="lists_retry">Erneut versuchen</string>
+    <string name="lists_error_offline">Der Server ist nicht erreichbar, daher konnte diese Liste nicht geladen werden. Versuche es erneut, wenn du online bist.</string>
+    <string name="lists_error_failed">Der Server konnte diese Liste nicht senden. Versuche es erneut.</string>
+    <string name="lists_stale_offline">Offline: Diese Liste ist möglicherweise veraltet. Änderungen erfordern eine Verbindung.</string>
+    <string name="lists_stale_failed">Diese Liste konnte nicht aktualisiert werden und ist möglicherweise veraltet.</string>
+
+    <!-- Warten auf -->
+    <string name="waiting_empty">Nichts, worauf du wartest. Delegierte Einträge erscheinen hier.</string>
+    <string name="waiting_follow_up">Nachfassen</string>
+    <string name="waiting_follow_up_label">%1$s nachfassen</string>
+    <string name="waiting_follow_up_title">Nachfassen: %1$s</string>
+    <string name="waiting_follow_up_title_who">Bei %1$s nachfassen: %2$s</string>
+    <string name="waiting_followed_up">Nächste Aktion zum Nachfassen bei %1$s hinzugefügt</string>
+    <string name="waiting_for">%1$s</string>
+    <string name="waiting_for_since">%1$s, %2$s</string>
+    <string name="waiting_since_today">seit heute</string>
+    <plurals name="waiting_days">
+        <item quantity="one">seit %d Tag</item>
+        <item quantity="other">seit %d Tagen</item>
+    </plurals>
+
+    <!-- Irgendwann/Vielleicht -->
+    <string name="someday_empty">Keine Irgendwann-Ideen. Lege hier ab, was du vielleicht später erledigen willst.</string>
+    <string name="someday_activate">Aktivieren</string>
+    <string name="someday_activate_label">%1$s aktivieren</string>
+    <string name="someday_activated">%1$s zu Nächste verschoben</string>
+
+    <!-- Projekte -->
+    <plurals name="projects_stalled_count">
+        <item quantity="one">%d Projekt hat keinen nächsten Schritt</item>
+        <item quantity="other">%d Projekte haben keinen nächsten Schritt</item>
+    </plurals>
+    <string name="projects_none_stalled">Jedes aktive Projekt hat einen nächsten Schritt</string>
+    <string name="projects_show_finished">Abgeschlossen (%1$d)</string>
+    <string name="projects_empty">Noch keine Projekte. Mach aus einem Eingangseintrag mit „Zu Projekt“ eines.</string>
+    <string name="projects_no_area">Kein Bereich</string>
+    <string name="projects_area_unloaded">In einem Bereich (Bereiche nicht geladen)</string>
+    <string name="projects_areas_failed">Die Bereiche konnten nicht geladen werden, daher sind die Projekte nicht nach Bereich gruppiert.</string>
+    <string name="projects_open">Projekt öffnen</string>
+    <string name="projects_stalled">Kein nächster Schritt</string>
+    <string name="projects_status_on_hold">Pausiert</string>
+    <string name="projects_status_someday">Irgendwann</string>
+    <string name="projects_status_completed">Erledigt</string>
+    <string name="projects_status_dropped">Verworfen</string>
+    <string name="projects_back">Zurück zu den Projekten</string>
+    <string name="projects_next_step">Nächster Schritt</string>
+    <string name="projects_next_step_is">Nächster Schritt: %1$s</string>
+    <string name="projects_stalled_hint">Wähle, was als Nächstes zu tun ist.</string>
+    <string name="projects_choose_next_step">Nächsten Schritt wählen</string>
+    <string name="projects_make_next_step_label">%1$s zum nächsten Schritt machen</string>
+    <string name="projects_next_step_set">Nächster Schritt: %1$s</string>
+    <string name="projects_no_tasks">Keine offenen Aufgaben in diesem Projekt.</string>
+    <string name="projects_list_inbox">Eingang</string>
+    <string name="projects_list_scheduled">Geplant</string>
+    <string name="projects_prompt_done">%1$s erledigt. Was ist der nächste Schritt?</string>
+    <string name="projects_prompt_no_tasks">Keine offenen Aufgaben mehr. Füge den nächsten Schritt hinzu:</string>
+    <string name="projects_prompt_new">Neuer nächster Schritt</string>
+    <string name="projects_prompt_add">Als nächsten Schritt hinzufügen</string>
+    <string name="projects_prompt_skip">Überspringen</string>
+</resources>
