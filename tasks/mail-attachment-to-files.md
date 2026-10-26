@@ -14,9 +14,10 @@ extended: dell26/agent-1
 (web-mail-read's interim solution).
 
 ## Acceptance criteria
-- [ ] `POST /api/v1/mail/messages/{id}/attachments/{partId}/save-to-files` streams the part from the mail server into
+- [x] `POST /api/v1/mail/messages/{id}/attachments/{partId}/save-to-files` streams the part from the mail server into
       `FilesService` in `specialFolder(MAIL)` (name = attachment filename, taken names get a suffix), returns the
       `FileResponse` (201) and links the file to the message; Problem Details for 404/502/503; integration test
+  - verified (2026-10-26 09:32+0100 by dell26/agent-1): server/gradlew -p server integrationTest --offline --tests '*MailAttachmentToFilesGreenMailTests' (GreenMail IMAP + Postgres) -> 3 passed (201 FileResponse in /Attachments/Mail, ' (2)' suffix, FILE->EMAIL link; 404; 502); 503/413 in MailMessageControllerTests within ./gradlew check -> pass
 - [ ] `api/openapi.yaml` and the web client regenerated; `MailReadService.saveToFiles` uses the endpoint;
       `cd server && ./gradlew check` and `cd web && npm run check` pass
 
