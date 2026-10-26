@@ -47,6 +47,7 @@ dependencies {
 	implementation("com.vladsch.flexmark:flexmark-ext-autolink:0.64.8")
 	implementation("org.jsoup:jsoup:1.21.2")
 	implementation("net.coobird:thumbnailator:0.4.20")
+	implementation("org.apache.pdfbox:pdfbox:3.0.8")
 	implementation("com.twelvemonkeys.imageio:imageio-webp:3.12.0")
 	implementation("com.fasterxml.uuid:java-uuid-generator:5.1.0")
 

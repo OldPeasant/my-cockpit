@@ -9,6 +9,7 @@ import ch.sonensei.cockpit.core.persistence.storableInstant
 import ch.sonensei.cockpit.core.search.domain.SearchIndexer
 import ch.sonensei.cockpit.core.web.ConflictException
 import ch.sonensei.cockpit.core.web.NotFoundException
+import ch.sonensei.cockpit.files.fulltext.FileTextRepository
 import ch.sonensei.cockpit.files.infra.BlobStore
 import ch.sonensei.cockpit.files.infra.FileRepository
 import ch.sonensei.cockpit.files.infra.FolderRepository
@@ -28,7 +29,8 @@ import java.util.UUID
 /**
  * Folders and files of the drive (SPEC.md §8.2): creating, renaming and deleting (to the Trash) them, the special
  * folders, and the Trash operations behind the FILE and FOLDER trash contributors. Every change keeps the search index
- * (names) in sync and is announced as a change event.
+ * (names, and the text of a file once [ch.sonensei.cockpit.files.fulltext.FileTextIndexer] extracted it) in sync and is
+ * announced as a change event.
  *
  * Deleting a folder moves its whole subtree to the Trash with one deletion time; only the folder itself is listed in
  * the Trash. Restoring it brings back what was deleted with it; purging it deletes the subtree and its blobs.
@@ -48,6 +50,7 @@ class FilesService(
 	private val files: FileRepository,
 	private val blobs: BlobStore,
 	private val thumbnails: ThumbnailStore,
+	private val texts: FileTextRepository,
 	private val search: SearchIndexer,
 	private val changes: ChangeEventPublisher,
 	private val events: ApplicationEventPublisher,
@@ -448,7 +451,7 @@ class FilesService(
 
 	private fun indexed(folder: Folder) = search.upsert(ItemType.FOLDER, folder.id, folder.name, null)
 
-	private fun indexed(file: FileItem) = search.upsert(ItemType.FILE, file.id, file.name, null)
+	private fun indexed(file: FileItem) = search.upsert(ItemType.FILE, file.id, file.name, texts.textOf(file.id))
 
 	private fun nameTaken() = ConflictException("A folder with this name already exists here")
 
