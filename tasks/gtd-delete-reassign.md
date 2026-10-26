@@ -1,11 +1,13 @@
 ---
 title: Server-side reassignment when deleting a context or area
-status: in_progress
-owner: felix/agent-1
+status: todo
+owner: 
 deps: [web-settings-gtd]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,api/openapi.yaml,web/src/app/features/settings/gtd]
 prio: 2
-lease_until: 2026-10-26T01:26:17Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 Deleting a context/area with "move to another" must also reach items the list endpoints hide
@@ -17,3 +19,4 @@ Deleting a context/area with "move to another" must also reach items the list en
 - [ ] `api/openapi.yaml` regenerated; Settings -> Tasks & projects uses the parameter instead of patching items client-side, and the tickler/Trash hint in the delete dialog is removed; Vitest tests updated; `cd web && npm run check` passes
 
 ## Notes
+- release by felix/agent-1: Not started. Host felix has a broken JDK (JAVA_HOME=/usr/lib/jvm/java-21-openjdk missing), so server tests and .taskcheck cannot run here; released for an agent on a working host.
