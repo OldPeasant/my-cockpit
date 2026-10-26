@@ -72,5 +72,9 @@ arrives. The server IDLEs on every account's Inbox as in production, so new Inbo
 are polled only every 5 minutes. `POST /api/test/mail/sync` (e2e profile) reads the folder list and new headers of every
 account now (`mail.testsupport`).
 
+Bookmarks: the stack has no internet, so the e2e profile sets `cockpit.bookmarks.fetch.allow-private-networks=true`
+and the bookmark page fetcher may reach private and loopback addresses (the phase 6 demo bookmarks the server's own
+page). The e2e stack therefore can't test the refusal of such URLs (SSRF protection); the server unit tests cover it.
+
 Test data is fictitious. `npm run e2e:typecheck` type-checks the suites, `npm run lint` lints them (both run in
 `npm run check`).
