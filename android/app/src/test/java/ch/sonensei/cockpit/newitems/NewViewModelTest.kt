@@ -846,4 +846,38 @@ class NewViewModelTest {
 
             assertEquals(listOf("mail:${party.id}", "mail:${invoice.id}", "task:${plumber.id}"), vm.keys())
         }
+
+    // --- Empty inbox and first load ---
+
+    @Test
+    fun aRefreshFindingTheMailInboxEmptyDropsTheShownMails() =
+        runTest {
+            coEvery { mailRepo.messages(Mailbox.Unified, null) } returnsMany
+                listOf(
+                    MailResult.Ok(MailPage(listOf(party, invoice), "page-2")),
+                    MailResult.Ok(MailPage(emptyList(), null)),
+                )
+            val vm = viewModel().collected(backgroundScope, testScheduler)
+            vm.refresh()
+
+            // Everything was archived elsewhere meanwhile.
+            vm.refresh()
+
+            assertEquals(listOf("task:${plumber.id}"), vm.keys())
+            assertFalse(vm.uiState.value.moreMail)
+            assertEquals(emptyList<Any>(), cache.last?.messages)
+            assertEquals(null, cache.last?.nextCursor)
+        }
+
+    @Test
+    fun theFirstLoadEndsOnceTheInboxAnswersInAnyWay() {
+        val none = NewUiState()
+        assertTrue(none.firstLoad)
+        assertFalse(none.copy(inboxRefreshedAt = loadedAt).firstLoad)
+        assertFalse(none.copy(inboxOffline = true).firstLoad)
+        assertFalse(none.copy(inboxFailed = true).firstLoad)
+        // While the mail loads the screen still waits, unless there is something to show.
+        assertTrue(none.copy(inboxRefreshedAt = loadedAt, loading = true).firstLoad)
+        assertFalse(none.copy(rows = listOf(NewRow.Task(plumber)), loading = true).firstLoad)
+    }
 }

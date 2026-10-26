@@ -3,10 +3,12 @@ package ch.sonensei.cockpit.newitems
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -255,6 +257,25 @@ class NewScreenTest {
 
         state = loaded
         composeRule.onNodeWithTag(NewTags.NOTICE).assertDoesNotExist()
+    }
+
+    @Test
+    fun rowsShowNotesSenderAndTodayAsTimeOlderAsDate() {
+        val withNotes = NewRow.Task(task("Book the dentist", "2026-10-20T08:00:00Z", 2, notes = "Before Friday"))
+        val blankNotes = NewRow.Task(task("Water the plants", "2026-10-19T08:00:00Z", 8, notes = "  "))
+        val bare = NewRow.Mail(mail("Bare", null, 9).copy(sender = "", snippet = " "))
+        show(loaded.copy(rows = listOf(mailRow, withNotes, blankNotes, bare)))
+
+        composeRule.onNodeWithText("Before Friday").assertExists()
+        composeRule.onNodeWithText("Ada Example – Snippet 3").assertExists()
+        // Today's rows show the time, older rows the date, rows without a time neither.
+        composeRule.onNodeWithTag(NewTags.row(withNotes)).assertTextContains("8:00", substring = true)
+        composeRule.onNodeWithTag(NewTags.row(blankNotes)).assertTextContains("10/19/26", substring = true)
+        val bareTexts = composeRule.onNodeWithTag(NewTags.row(bare)).fetchSemanticsNode().config[SemanticsProperties.Text]
+        // No date and no sender line; the "→ Inbox task" button is a node of its own.
+        assertEquals(listOf("Mail", "Bare"), bareTexts.map { it.text })
+        val plantTexts = composeRule.onNodeWithTag(NewTags.row(blankNotes)).fetchSemanticsNode().config[SemanticsProperties.Text]
+        assertEquals(listOf("GTD Inbox", "10/19/26", "Water the plants"), plantTexts.map { it.text })
     }
 
     @Test
