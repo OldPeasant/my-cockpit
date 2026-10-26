@@ -9,8 +9,8 @@
   },
   "fixes_required": false,
   "findings": [
-    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
-     "note": "first review (b4b9a475e): criterion 3 lacked the 10-in-a-row evidence and the cause note; 10 consecutive --rerun runs passed, investigation added to tasks/cal-caldav-retry.md Notes"},
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "invalid",
+     "note": "first review (b4b9a475e): not a code defect but pending criterion-3 evidence (the final review calls it 'missing evidence, not a code problem'); resolved without code change: 10 consecutive --rerun runs passed (verify #3) and the cause investigation is in tasks/cal-caldav-retry.md Notes"},
     {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
      "note": "first review: a retried If-Match write that already applied answers 412 -> reported as conflict; rare, recoverable, adapter outside the criteria; recorded with tasks.py assume"}
   ],
