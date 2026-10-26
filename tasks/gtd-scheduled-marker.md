@@ -1,11 +1,11 @@
 ---
 title: Today view: keep 'scheduled for today' visible after the scheduled release
-status: todo
-owner: 
+status: in_progress
+owner: felix/agent-1
 deps: [web-next-today]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,web/src/app/features/gtd/today]
 prio: 2
-lease_until: 
+lease_until: 2026-10-26T01:34:43Z
 releases: 1
 extended: 
 ---
