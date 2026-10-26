@@ -15,3 +15,4 @@ If the first load of a GTD list fails for a reason other than being offline (4xx
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.*'` passes, with tests for the failure and retry paths
 
 ## Notes
+- ASSUMPTION (2026-10-26 01:36+0100 by dell26/agent-1): Retry and error UI reuse the existing lists_retry/lists_error_failed strings (no new resources). The error replaces only the never-loaded state; when a cached list exists and a refresh fails, the cached list stays without a stale banner (out of the task's first-load scope). A running load clears the failure so a retry shows Loading. Tests for Next/Today view models and screens live in test/gtd/next and test/gtd/today (beyond the listed test touches).
