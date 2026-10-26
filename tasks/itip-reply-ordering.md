@@ -1,13 +1,14 @@
 ---
 title: Ignore stale iTIP REPLYs across messages (per-attendee answered-at)
-status: in_progress
-owner: felix/agent-1
+status: todo
+owner: 
 deps: [itip-invitations]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar]
 prio: 2
-lease_until: 2026-10-26T19:34:44Z
-extended: felix/agent-1
+lease_until: 
+extended: 
 releases: 1
+hold: All work done and evidence committed (both criteria verified, review.md/tests.md/fixes.md/quality.json). Only 'done' is left: .taskcheck (sh scripts/check.sh) takes ~23 min on felix's machine (server 
 ---
 ## Goal
 An older iTIP REPLY (lower SEQUENCE, or same SEQUENCE and older DTSTAMP) that arrives after a newer one from the same attendee must not overwrite the attendee status (RFC 5546 §2.1.5; review finding CR-3 of itip-invitations). Needs a per-attendee answered-at/sequence value: decide between an optional field on the Attendee JSON (mind EventCommands equality, backup, AttendeeDto) or an itip table with a Flyway migration.
@@ -27,3 +28,4 @@ An older iTIP REPLY (lower SEQUENCE, or same SEQUENCE and older DTSTAMP) that ar
 - release by felix/agent-1: Code done and reviewed: calendar_itip_reply stamps, ItipReplyProcessor.takeStamp incl. series vs occurrence ordering (CR-1/CR-2 fixed, see fixes.md), backup export/restore of LOCAL stamps, unit+Postgres+GreenMail tests. review.md is a re-review of the final code with 0 findings. LEFT: (1) sh scripts/check.sh hangs in server ktlint + tests (timed out at 9 and 10 min, no output after the JVM warnings). Find out whether this task's GreenMail/Testcontainers tests run inside ./gradlew check and hang (they must stay out of .taskcheck) or whether it is a gradle lock/environment issue, and fix it. (2) Run test-writer on the final code to write reviews/itip-reply-ordering/tests.md with coverage (missing). (3) tasks.py verify 1 and 2 using the unit/Postgres/GreenMail/backup round-trip tests. (4) Write quality.json (CR-1/CR-2 fixed, re-review clean). (5) done.
 - ASSUMPTION (2026-10-26 19:13+0100 by felix/agent-1): The earlier 'check hangs' was not a hang: on felix's machine sh scripts/check.sh tfp server takes ~23 min (passed 18:49-19:12 on 2026-10-26); the *BackupContributorTests/Restore* suites of all modules dominate (~2 s per test), this task's itip tests add ~5 s and its backup tests ~12 s. done is run with TASK_CHECK_TIMEOUT=2400 here; the slow server suite on this machine needs a human look
 - extended by felix/agent-1: Code, tests and tests.md (final code, with coverage) done. Left: (1) code-reviewer re-run, because ea3d1307 added a test (ItipReplyStampPersistenceTests) after the re-review 51767f9e, so review.md is stale by patch-id; (2) tasks.py verify 1+2 from tests.md (ItipReplyProcessorTests/ItipReplyStampPersistenceTests/ItipGreenMailTests/CalendarBackupContributorTests); (3) quality.json (CR-1/CR-2 fixed, fixes.md); (4) TASK_CHECK_TIMEOUT=2400 python tasks.py done (server check takes ~23 min on this machine)
+- hold by felix/agent-1: All work done and evidence committed (both criteria verified, review.md/tests.md/fixes.md/quality.json). Only 'done' is left: .taskcheck (sh scripts/check.sh) takes ~23 min on felix's machine (server ./gradlew check), longer than the default 15-min TASK_CHECK_TIMEOUT, and the agent may not set the env var. A human: run 'TASK_CHECK_TIMEOUT=2400 python tasks.py done itip-reply-ordering' from agent-1's clone (or from wip/itip-reply-ordering), and look at why the server suite is this slow.
