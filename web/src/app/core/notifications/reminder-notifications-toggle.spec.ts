@@ -78,6 +78,27 @@ describe('ReminderNotificationsToggle', () => {
     expect(hint()).toBe('Reminders and new mail also show while My Cockpit is closed.');
   });
 
+  it('stops promising closed-tab notifications once switched off or push ends', async () => {
+    localStorage.setItem(REMINDER_NOTIFICATIONS_STORAGE_KEY, 'on');
+    pushActive.set(true);
+    await setup('granted');
+    expect(hint()).toBe('Reminders and new mail also show while My Cockpit is closed.');
+
+    // Push ends (e.g. the push service went away) while the switch stays on.
+    pushActive.set(false);
+    await fixture.whenStable();
+    expect(hint()).toBe('');
+
+    // Switched off while the unsubscribe is still pending: push still reports active.
+    pushActive.set(true);
+    await fixture.whenStable();
+    await click();
+
+    expect(button().getAttribute('aria-checked')).toBe('false');
+    expect(hint()).toBe('Reminders appear inside My Cockpit while it is open.');
+    expect(hint()).not.toContain('closed');
+  });
+
   it('springs back and explains the block when the permission is refused', async () => {
     await setup('default');
     browser.answer = 'denied';
