@@ -21,3 +21,4 @@ display name. Found in mail-gtd, which works around it by writing mail escapes a
 
 ## Notes
 - Also check whether entity/numeric references (`&amp;`, `&#91;`, `&nbsp;`) next to bold/autolinks/hard breaks trip the same assertion (mail-gtd final review note).
+- ASSUMPTION (2026-10-26 04:12+0100 by dell26/agent-2): NoteMarkdown.plainText now uses its own AST walk instead of flexmark's TextCollectingVisitor (no flexmark option fixes the miscount). Side effects judged improvements: table cells are space-separated (was 'DayPlace'), undefined reference brackets like [x] stay literal text, mail autolink addresses are kept in the search text, entities resolve correctly (&#91; -> '[' instead of '[[]').
