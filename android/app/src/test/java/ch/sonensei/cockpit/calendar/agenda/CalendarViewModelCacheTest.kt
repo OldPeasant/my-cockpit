@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.calendar.agenda
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -401,6 +402,59 @@ class CalendarViewModelCacheTest {
             assertEquals(CalendarMessage.OFFLINE, state.message)
             // Offline loads leave the cache as it was.
             assertEquals(listOf(work), cache.agenda?.calendars)
+        }
+
+    @Test
+    fun `offline events without a calendar list keep the calendars loaded in this session over the cached ones`() =
+        runTest(dispatcher) {
+            val renamed = work.copy(name = "Office", version = 4)
+            val cache = FakeCache()
+            coEvery { repo.calendars() } returnsMany listOf(CalendarResult.Ok(listOf(renamed)), CalendarResult.Offline)
+            coEvery { repo.occurrences(today, today.plusDays(30), zone) } returns CalendarResult.Ok(listOf(event(2, today)))
+            coEvery { repo.occurrences(today, today.plusDays(1), zone) } returns CalendarResult.Offline
+            val vm = viewModel(cache)
+            vm.refresh()
+            advanceUntilIdle()
+            // An older cache (e.g. written by an earlier session) still holds the calendar as it was.
+            cache.agenda = CachedAgenda(today, today.plusDays(30), listOf(work), listOf(event(1, today)), now.minusSeconds(60))
+
+            vm.select(CalendarView.DAY)
+            advanceUntilIdle()
+
+            val state = vm.uiState.value
+            assertEquals(listOf(event(1, today)), state.occurrences)
+            assertEquals(now.minusSeconds(60), state.cachedAt)
+            assertEquals(listOf(renamed), state.calendars)
+        }
+
+    @Test
+    fun `offline events with a loaded calendar list keep a visibility choice still being written`() =
+        runTest(dispatcher) {
+            val home = CalendarInfo(id(91), "Home", null, true, false, 1)
+            val written = CompletableDeferred<CalendarResult<CalendarInfo>>()
+            val cache = FakeCache()
+            coEvery { repo.calendars() } returns CalendarResult.Ok(listOf(work, home))
+            coEvery { repo.occurrences(today, today.plusDays(30), zone) } returns CalendarResult.Ok(listOf(event(2, today)))
+            coEvery { repo.occurrences(today, today.plusDays(1), zone) } returns CalendarResult.Offline
+            coEvery { repo.setVisible(work, false) } coAnswers { written.await() }
+            val vm = viewModel(cache)
+            vm.refresh()
+            advanceUntilIdle()
+            cache.agenda = CachedAgenda(today, today.plusDays(30), listOf(work), listOf(event(1, today)), now.minusSeconds(60))
+            vm.setVisible(work.id, false)
+            advanceUntilIdle()
+
+            // The calendar list answers with the version from before the change; the events come from the cache.
+            vm.select(CalendarView.DAY)
+            advanceUntilIdle()
+
+            val state = vm.uiState.value
+            assertEquals(listOf(event(1, today)), state.occurrences)
+            assertEquals(now.minusSeconds(60), state.cachedAt)
+            assertEquals(listOf(work.copy(visible = false), home), state.calendars)
+            assertEquals(mapOf(work.id to false), state.pendingVisibility)
+            written.complete(CalendarResult.Offline)
+            advanceUntilIdle()
         }
 
     @Test
