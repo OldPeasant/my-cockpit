@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "task": "unifiedpush-android",
+  "reviewed_revision": "419fb4a188b0e700d4e9ef9366b172767f3ac2c1",
+  "helpers": {
+    "test-writer": {
+      "status": "completed",
+      "report": "reviews/unifiedpush-android/tests.md"
+    },
+    "code-reviewer": {
+      "status": "completed",
+      "report": "reviews/unifiedpush-android/review.md"
+    },
+    "fixer": {
+      "status": "completed",
+      "report": "reviews/unifiedpush-android/fixes.md"
+    }
+  },
+  "fixes_required": true,
+  "findings": [
+    {
+      "id": "R3-CR-1",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "accepted",
+      "note": "ReminderResponse.toFired() repeats the field mapping of toScheduled(); optional refactor in reminders/ (outside touches), behaviour is correct and tested"
+    },
+    {
+      "id": "R3-CR-2",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "fixed",
+      "note": "a 5xx answer (proxy 502/503 while the server restarts) was ignored instead of retried; now OFFLINE -> worker retry, tests for 500/502/503 and 4xx (419fb4a18, fixes.md round 2); final review at 419fb4a18 has no findings"
+    }
+  ],
+  "validation": [
+    {
+      "command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*' --tests 'ch.sonensei.cockpit.reminders.ReminderShowFiredByServerTest' createDebugUnitTestCoverageReport ktlintCheck (at 419fb4a18): 108 tests, 0 failures; task-scoped lines 189/197, branches 67/70",
+      "result": "pass"
+    },
+    {
+      "command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.push.*': 129 tests, 0 failures",
+      "result": "pass"
+    },
+    {
+      "command": "sh scripts/check.sh",
+      "result": "pass"
+    }
+  ]
+}
