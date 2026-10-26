@@ -1014,6 +1014,33 @@ describe('EventDialog', () => {
       });
       expect(el().querySelector('button.invite')).toBeNull();
     });
+
+    it('is not offered for a read-only local calendar', async () => {
+      const shared = fakeCalendar('shared', { name: 'Shared', readOnly: true });
+      stored.set('e1', fakeEvent('e1', { calendarId: 'shared', attendees: guests }));
+      await edit(fakeOccurrence('Kickoff', { eventId: 'e1', calendarId: 'shared' }), [
+        ...CALENDARS,
+        shared,
+      ]);
+
+      expect(el().querySelector('button.invite')).toBeNull();
+    });
+
+    it('sends an override on its own and a generated occurrence as its series', async () => {
+      stored.set('m1', fakeEvent('m1', { title: 'Swim', rrule: 'FREQ=WEEKLY', attendees: guests }));
+      stored.set('o1', fakeEvent('o1', { title: 'Swim', seriesId: 'm1', attendees: guests }));
+      await edit(fakeOccurrence('Swim', { eventId: 'o1', seriesId: 'm1', occurrence: OCCURRENCE }));
+      el().querySelector<HTMLButtonElement>('button.invite')!.click();
+      await stable();
+      expect(invitations.open).toHaveBeenLastCalledWith(expect.objectContaining({ eventId: 'o1' }));
+      TestBed.resetTestingModule();
+
+      await edit(fakeOccurrence('Swim', { eventId: 'm1', seriesId: 'm1', occurrence: OCCURRENCE }));
+      el().querySelector<HTMLButtonElement>('button.invite')!.click();
+      await stable();
+      expect(invitations.open).toHaveBeenLastCalledWith(expect.objectContaining({ eventId: 'm1' }));
+      expect(invitations.open).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('birthdays (virtual calendar)', () => {

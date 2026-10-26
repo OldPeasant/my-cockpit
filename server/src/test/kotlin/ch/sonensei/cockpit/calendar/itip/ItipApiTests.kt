@@ -148,6 +148,16 @@ class ItipApiTests(
 	}
 
 	@Test
+	fun `more than the allowed number of recipients answers 400 without sending`() {
+		val event = createEvent(listOf(ANNA))
+		val tooMany = (1..MAX_ITIP_RECIPIENTS + 1).joinToString(",") { "\"guest$it@example.test\"" }
+
+		send(event, """{"method":"REQUEST","accountId":"${account.id}","recipients":[$tooMany]}""").isProblem(400, "recipients")
+
+		verify(exactly = 0) { sender.send(any(), any()) }
+	}
+
+	@Test
 	fun `an unknown event answers 404 and an event without guests 409`() {
 		send(UUID.randomUUID().toString(), """{"method":"REQUEST","accountId":"${account.id}"}""").andExpect {
 			status { isNotFound() }
