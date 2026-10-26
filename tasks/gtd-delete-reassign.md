@@ -1,7 +1,7 @@
 ---
 title: Server-side reassignment when deleting a context or area
-status: todo
-owner: 
+status: in_progress
+owner: Peter Gürtler
 deps: [web-settings-gtd]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,api/openapi.yaml,web/src/app/features/settings/gtd]
 prio: 2
