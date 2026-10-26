@@ -19,8 +19,9 @@ Like `BackupRoundTripTest` before `backup-roundtrip-tmp-leak`, several server te
   after the class, also when a test fails (`@AfterAll` + `deleteRecursively()` as in `BackupRoundTripTest`); test
   behavior is unchanged
   - verified (2026-10-26 09:15+0100 by dell26/agent-2): grep -rn createTempDirectory server/src/test/kotlin -> 12 classes with a companion temp dir (RestoreWebTests, RestoreCliTests, BackupSecretsTest, SpaFallbackTests, 8 *BackupContributorTests) + BackupRoundTripTest; each has @JvmStatic @AfterAll deleteRecursively() (added on main in 6b8afa8ae); no other static createTemp* in server tests
-- [ ] `cd server && ./gradlew check` passes, and the number of the affected temp dirs in /tmp is the same before
+- [x] `cd server && ./gradlew check` passes, and the number of the affected temp dirs in /tmp is the same before
   and after the run
+  - verified (2026-10-26 09:15+0100 by dell26/agent-2): sh .tmp/check-tmp.sh = cd server && JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=<clone>/.tmp/jtmp ./gradlew check --rerun-tasks --no-daemon -> exit 0; companion dirs (cockpit-*-data, cockpit-spa*) before 0, after 0. Unrelated leftovers: 14 empty cockpit-backups* + 2 cockpit-restores* from production BackupJobService/RestoreService -> new task backup-workdir-tmp-leak
 - [ ] `sh scripts/check.sh` passes
 
 ## Notes
