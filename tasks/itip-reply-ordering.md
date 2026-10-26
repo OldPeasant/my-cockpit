@@ -6,7 +6,7 @@ deps: [itip-invitations]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar]
 prio: 2
 lease_until: 2026-10-26T19:04:24Z
-extended: 
+extended: felix/agent-1
 releases: 1
 ---
 ## Goal
@@ -24,3 +24,4 @@ An older iTIP REPLY (lower SEQUENCE, or same SEQUENCE and older DTSTAMP) that ar
 - ASSUMPTION (2026-10-26 18:11+0100 by felix/agent-1): Supersedes the earlier ordering assumption: a missing SEQUENCE counts as 0 (RFC 5545 default), a missing DTSTAMP as oldest among equal SEQUENCEs; an occurrence REPLY older than the attendee's series stamp is ignored, and a series REPLY skips overrides whose own occurrence stamp is newer (review CR-1/CR-2)
 - release by felix/agent-1: Code done and reviewed: calendar_itip_reply stamps, ItipReplyProcessor.takeStamp incl. series vs occurrence ordering (CR-1/CR-2 fixed, see fixes.md), backup export/restore of LOCAL stamps, unit+Postgres+GreenMail tests. review.md is a re-review of the final code with 0 findings. LEFT: (1) sh scripts/check.sh hangs in server ktlint + tests (timed out at 9 and 10 min, no output after the JVM warnings). Find out whether this task's GreenMail/Testcontainers tests run inside ./gradlew check and hang (they must stay out of .taskcheck) or whether it is a gradle lock/environment issue, and fix it. (2) Run test-writer on the final code to write reviews/itip-reply-ordering/tests.md with coverage (missing). (3) tasks.py verify 1 and 2 using the unit/Postgres/GreenMail/backup round-trip tests. (4) Write quality.json (CR-1/CR-2 fixed, re-review clean). (5) done.
 - ASSUMPTION (2026-10-26 19:13+0100 by felix/agent-1): The earlier 'check hangs' was not a hang: on felix's machine sh scripts/check.sh tfp server takes ~23 min (passed 18:49-19:12 on 2026-10-26); the *BackupContributorTests/Restore* suites of all modules dominate (~2 s per test), this task's itip tests add ~5 s and its backup tests ~12 s. done is run with TASK_CHECK_TIMEOUT=2400 here; the slow server suite on this machine needs a human look
+- extended by felix/agent-1: Code, tests and tests.md (final code, with coverage) done. Left: (1) code-reviewer re-run, because ea3d1307 added a test (ItipReplyStampPersistenceTests) after the re-review 51767f9e, so review.md is stale by patch-id; (2) tasks.py verify 1+2 from tests.md (ItipReplyProcessorTests/ItipReplyStampPersistenceTests/ItipGreenMailTests/CalendarBackupContributorTests); (3) quality.json (CR-1/CR-2 fixed, fixes.md); (4) TASK_CHECK_TIMEOUT=2400 python tasks.py done (server check takes ~23 min on this machine)
