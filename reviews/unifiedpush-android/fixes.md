@@ -28,7 +28,7 @@ Fix:
 - `WorkManagerPushSyncTrigger.showReminder` enqueues a one-time `PushReminderWorker`:
   - the work waits for a network connection (`NetworkType.CONNECTED`);
   - it gets the reminder id as input data;
-  - it uses a unique work name per reminder (`push-reminder-<id>`) with policy KEEP, so it never replaces the `push-reminders-sync` work or the periodic `reminders-sync` work.
+  - it uses a unique work name per reminder (`push-reminder-{id}`) with policy KEEP, so it never replaces the `push-reminders-sync` work or the periodic `reminders-sync` work.
 - `PushReminderDelivery.deliver(id)`:
   - does nothing while logged out;
   - otherwise calls the generated `RemindersApi.getReminder(id)` (`GET /api/v1/reminders/{id}`);
@@ -110,5 +110,71 @@ Remaining unresolved findings:
 0
 
 ## Final status
+
+All validated findings fixed and validation passed.
+
+---
+
+# Fix Report (round 2)
+
+Date: 2026-10-27
+
+Task: unifiedpush-android - UnifiedPush for Android
+
+Scope: current task; findings CR-1 (P3) and CR-2 of the 2026-10-27 review in `reviews/unifiedpush-android/review.md`. The parent worker sent only CR-2 to be fixed.
+
+## Fixed findings
+
+### CR-2 — A 5xx answer (e.g. proxy 502/503 during a server restart) is not retried
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/push/PushReminderDelivery.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/push/PushReminderDeliveryTest.kt`
+
+Problem:
+Validated against the code. `PushReminderDelivery.deliver` returned IGNORED for every non-2xx answer, so the worker returned `Result.success()` on a 502/503 and never retried. Behind the reverse proxy, a server that is restarting answers 502/503 instead of failing the connection. The pushed reminder is often one the reminder sync never lists, so its notification was lost. The worker comment ("Network up but server down: retry with backoff") did not match this behavior.
+
+Fix:
+- `deliver` now returns OFFLINE for any answer with a status of 500 or above. This gives the same result as an `IOException`, so `PushReminderWorker` retries with backoff. 4xx answers (404 included), unreadable bodies and the other cases are still IGNORED.
+- The KDoc of `PushReminderResult.IGNORED` and `OFFLINE` and the worker comment now describe this. Nothing is logged.
+- Tests:
+  - New `a server error answer (5xx) is offline and the worker retries`: 503 and 500 make `deliver` return OFFLINE. A 502 makes `PushReminderWorker.doWork()` return `Result.retry()`. Nothing is shown or marked notified.
+  - New `after a 5xx, the retried delivery shows the reminder`: a 503 and then a fired answer give OFFLINE and then SHOWN, with one notification.
+  - The earlier `an error answer or an unreadable body is ignored` test asserted that a 500 is ignored, which is the behavior this finding rejects. It is now `a client error answer or an unreadable body is ignored` and uses a 403. The existing 404 tests (`a deleted reminder (404) is ignored`, and at worker level `the worker does not retry a push it ignores`) are unchanged.
+
+Validation:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.push.PushReminderDeliveryTest'` — Pass (22 tests, 0 failures)
+- `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*'` — Pass (101 tests, 0 failures)
+- `cd android && ./gradlew lintDebug` — Pass
+
+## Not fixed
+
+### CR-1 — optional P3 refactor
+
+Status:
+Declined (parent decision)
+
+Reason:
+The parent worker declined it as an optional, low-priority (P3) refactor that changes no behavior. No code was changed for it.
+
+## Validation summary
+
+Focused tests:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.push.PushReminderDeliveryTest'` — Pass (22/22)
+- `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*'` — Pass (101/101)
+
+Full test suite:
+- Not run by the fixer; the parent worker runs `sh scripts/check.sh`.
+
+Lint/type-check/build:
+- `cd android && ./gradlew ktlintCheck lintDebug` — Pass
+
+`.taskcheck`:
+- Not run (the parent worker runs it before `done`)
+
+Remaining unresolved findings:
+0 (CR-1 declined by the parent)
+
+## Final status (round 2)
 
 All validated findings fixed and validation passed.

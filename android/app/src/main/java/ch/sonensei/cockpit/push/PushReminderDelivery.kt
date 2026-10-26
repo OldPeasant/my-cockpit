@@ -18,10 +18,10 @@ enum class PushReminderResult {
     /** Shown now. */
     SHOWN,
 
-    /** Nothing to show: logged out, already shown here, not fired, gone (404), item trashed, or an error answer. */
+    /** Nothing to show: logged out, already shown here, not fired, gone (404), item trashed, or another client error. */
     IGNORED,
 
-    /** The server could not be reached; worth a retry. */
+    /** The server could not be reached or answered a server error (5xx, e.g. a proxy while it restarts); worth a retry. */
     OFFLINE,
 }
 
@@ -50,6 +50,9 @@ class PushReminderDelivery
                     // An unreadable body. Not logged: it may carry user data.
                     return PushReminderResult.IGNORED
                 }
+            // A 5xx is transient (a reverse proxy answers 502/503 while the server restarts): the push may be the only way
+            // this reminder reaches the device, so retry instead of dropping it.
+            if (response.code() >= 500) return PushReminderResult.OFFLINE
             val body = response.body()
             if (!response.isSuccessful || body == null || body.id != id) return PushReminderResult.IGNORED
             val reminder = body.toFired() ?: return PushReminderResult.IGNORED
@@ -89,7 +92,7 @@ class PushReminderWorker internal constructor(
                 return Result.failure()
             }
         return when (delivery().deliver(id)) {
-            // Network up but server down: retry with backoff.
+            // Server unreachable or answering 5xx: retry with backoff. Anything else is final.
             PushReminderResult.OFFLINE -> Result.retry()
             else -> Result.success()
         }

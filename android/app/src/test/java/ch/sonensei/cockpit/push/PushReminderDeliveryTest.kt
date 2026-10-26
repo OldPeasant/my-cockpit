@@ -244,14 +244,42 @@ class PushReminderDeliveryTest {
     }
 
     @Test
-    fun `an error answer or an unreadable body is ignored`() {
-        answer("""{"type":"about:blank","title":"Internal Server Error","status":500}""", code = 500)
+    fun `a client error answer or an unreadable body is ignored`() {
+        answer("""{"type":"about:blank","title":"Forbidden","status":403}""", code = 403)
         answer("""{"id":""")
 
         assertEquals(PushReminderResult.IGNORED, deliver(1))
         assertEquals(PushReminderResult.IGNORED, deliver(1))
 
         assertTrue(shown().isEmpty())
+    }
+
+    @Test
+    fun `a server error answer (5xx) is offline and the worker retries`() =
+        runBlocking {
+            // A reverse proxy answers 502/503 while the server restarts.
+            answer("""{"type":"about:blank","title":"Service Unavailable","status":503}""", code = 503)
+            answer("""{"type":"about:blank","title":"Internal Server Error","status":500}""", code = 500)
+            answer("", code = 502)
+
+            assertEquals(PushReminderResult.OFFLINE, delivery.deliver(reminderId(1)))
+            assertEquals(PushReminderResult.OFFLINE, delivery.deliver(reminderId(1)))
+            assertEquals(ListenableWorker.Result.retry(), worker(reminderId(1).toString()).doWork())
+
+            assertEquals(3, server.requestCount)
+            assertTrue(shown().isEmpty())
+            assertTrue(store.notifiedIds().isEmpty())
+        }
+
+    @Test
+    fun `after a 5xx, the retried delivery shows the reminder`() {
+        answer("""{"type":"about:blank","title":"Service Unavailable","status":503}""", code = 503)
+        answer(firedJson(1))
+
+        assertEquals(PushReminderResult.OFFLINE, deliver(1))
+        assertEquals(PushReminderResult.SHOWN, deliver(1))
+
+        assertEquals(1, shown().size)
     }
 
     @Test

@@ -1,39 +1,43 @@
 # Code Review
 
-Date: 2026-10-26
+Date: 2026-10-27
 
-Task: unifiedpush-android - UnifiedPush for Android (integration task of the split into unifiedpush-server and unifiedpush-android-client); final review round
+Task: unifiedpush-android - UnifiedPush for Android (integration task of the split into unifiedpush-server and unifiedpush-android-client); review of the final code
 
-Scope: the task's commits 44885e9fb..4681a7a90 (final code), including a check that the fixes for the previous round's findings (CR-1, CR-2 in the earlier review; fixes in `reviews/unifiedpush-android/fixes.md`) are correct.
+Scope: `git diff origin/main HEAD` (all task-owned commits, final code after the rebase/merge of `origin/wip/unifiedpush-android`)
 
-Reviewed revision: 4681a7a9098eb4ebc55c0882baf93f44a921d4cf
+Reviewed revision: 53cdfe6d490dda9a6cc3900a98fb5d692c3115e7
 
 Requirements:
-- tasks/unifiedpush-android.md (acceptance criteria 1 and 2; assumptions: no device/ntfy here, reminder push loads the reminder by id via `ReminderScheduler.showFiredByServer`, redelivery after a later sync may re-post)
+- tasks/unifiedpush-android.md (acceptance criteria 1 and 2; assumptions: no device/emulator/ntfy in the agent environment, so end-to-end evidence combines server and Android tests; a reminder push loads the reminder by id and shows it once via `ReminderScheduler.showFiredByServer`; a redelivered push after a later sync may re-post the notification)
 - SPEC.md section 2 (Android: periodic sync, local alarms, UnifiedPush/ntfy optional)
-- docs/ARCHITECTURE.md, AGENTS.md project notes (no logging of user content, fictitious test data)
-- Server contract: `server/.../core/push/domain/PushDispatcher.kt` (reminder push after fire), `server/.../core/reminders/api/ReminderController.kt` (`GET /api/v1/reminders/{id}`, `ReminderResponse.firedAt`, `item.available`)
+- docs/ARCHITECTURE.md, docs/QUALITY.md, AGENTS.md project notes (no logging of user content, fictitious test data, stay inside `touches`)
+- Server side of the contract: `server/.../core/push/domain/PushDispatcher.kt` (reminder push sent by a `@TransactionalEventListener` after the fire transaction commits), `server/.../core/reminders/domain/ReminderService.kt` (`ReminderFiredEvent` only for reminders whose item still exists), `server/.../core/reminders/api/ReminderController.kt` (`GET /api/v1/reminders/{id}`, `firedAt`, `item.available`)
 
 Git range:
 - Branch: main
-- HEAD: 4681a7a9098eb4ebc55c0882baf93f44a921d4cf
-- Base/start: 44885e9fbfb8aac9a868b31a58a4dfed9857d8e3
-- Commits reviewed: 5 (499dfea43, 8dad9d477, b2435b512, 26ebcc4ed, 4681a7a90)
-- Uncommitted changes: none at review start
+- HEAD: 53cdfe6d490dda9a6cc3900a98fb5d692c3115e7
+- Base/start: 6c501511638ac9750976e9d8b9aca232231f8116 (origin/main)
+- Commits reviewed: 8 (0827bb996, e1dd3cb93, f3e5e1e6c, f29a214cc, b65cc62e3, 9bf2f18a1, c7d8f8bf5, merge 53cdfe6d4)
+- Uncommitted changes: only the untracked test-writer report `reviews/unifiedpush-android/tests.md`; not reviewed as code
 
 Commands run (read-only):
-- `git log --oneline 44885e9fb..4681a7a90`, `git diff --stat` and full diff of `android/app/src/main` and the push test files
-- read: ReminderScheduler.kt (full), AuthSession.kt, ReminderStore `toScheduled`, ReminderController.kt (GET by id, response schema), PushDispatcher `onReminderFired`
-- `git grep` for a custom WorkerFactory / `Configuration.Provider` (none: the default factory calls the `(Context, WorkerParameters)` constructor, as `PushReminderWorker` provides)
-- test results in `android/app/build/test-results/testDebugUnitTest` (2026-10-26T22:45Z): push suites PushRegistrarTest 28, PushRegistrationKeysContractTest 1, PushServerContractTest 2, LibraryUnifiedPushConnectorTest 7, PushInAppTest 17, PushReminderDeliveryTest 18, PushAndroidAdaptersTest 12, PushMessageHandlerTest 12; ReminderShowFiredByServerTest 7; all 0 failures, 0 errors, 0 skipped
+- `git log --oneline origin/main..HEAD`, `git diff --stat origin/main HEAD`, full diff of `android/app/src/main`
+- `git diff --stat 4681a7a90 HEAD` (previously reviewed revision to now): production code unchanged; only `PushReminderDeliveryTest.kt` (+35 lines) in the task's code, plus `docs/deploy-runbook.md` arriving from main, and task/review files
+- read in full: `PushReminderDelivery.kt`, `PushMessageHandler.kt`, `NewMailNotifier.kt` (incl. `WorkManagerPushSyncTrigger`), `ReminderScheduler.kt`, `ReminderStore.kt` mapping, `PushReminderDeliveryTest.kt`; server `PushDispatcher.kt`, `ReminderFiredEvent` publishing, `ReminderController` GET by id
+- generated client signature `RemindersApi.getReminder(id: UUID): Response<ReminderResponse>` (suspend) matches the use in `PushReminderDelivery`
+- test results in `android/app/build/test-results/testDebugUnitTest` (2026-10-26T23:00Z run): LibraryUnifiedPushConnectorTest 7, PushAndroidAdaptersTest 12, PushInAppTest 17, PushMessageHandlerTest 12, PushRegistrarTest 28, PushRegistrationKeysContractTest 1, PushReminderDeliveryTest 20, PushServerContractTest 2, ReminderShowFiredByServerTest 7 = 106 tests, 0 failures, 0 errors; matches the parent's reported run
 - `python tasks.py verify unifiedpush-android` (listing only): both criteria not yet recorded
 
-Checks of the previous fixes (no finding):
-- CR-1 fix is correct. A decrypted, current-instance reminder push calls `showReminder(id)` and then `syncReminders()`. The worker is unique per reminder (`push-reminder-<id>`, KEEP), needs the network, and never replaces `push-reminders-sync` or the periodic `reminders-sync`. `PushReminderDelivery` calls the existing `GET /api/v1/reminders/{id}`. It shows the reminder only for a 2xx answer with a matching id, `firedAt` set and `item.available`. `IOException` gives a retry, `CancellationException` is rethrown, and nothing is logged. `showFiredByServer` holds the same lock as `clear()`/`fire()`/`apply()` and checks `isLoggedIn` under that lock. `AuthSession.logout` clears the tokens before the session caches are cleared, so a logout during the request cannot leave a notification behind (same pattern as `apply`). Ordering against the sync is safe both ways: if the sync runs first, the reminder stays in the store as `firedByServer`; the push then marks it notified and the later alarm's `fire()` returns null. If the push runs first, `retainNotified` drops the id on the next sync.
-- CR-2 fix is correct. `PushRegistrationKeysContractTest` encodes a real P-256 key and 16-byte secret with the connector's own encoders and pins the PUT body (unpadded base64url, 65-byte uncompressed point). The server already pins acceptance of that format in `UnifiedPushWebTests`. The optional non-2xx handling was declined with a reason, which is acceptable for a best-effort call.
-- The test changes do not weaken earlier tests: existing assertions are kept, and the "ignored" cases now also assert that `showReminder` is not called.
+Checks (no finding):
+- Reminder push flow: a decrypted push for the current instance while logged in calls `showReminder(id)` then `syncReminders()`. The delivery worker is unique per reminder (`push-reminder-{id}`, KEEP) with a network constraint, and does not replace `push-reminders-sync` (REPLACE) or the periodic sync. Periodic sync as fallback is untouched.
+- `PushReminderDelivery`: logged-out check before any request; `CancellationException` rethrown; `IOException` gives OFFLINE/retry; other exceptions ignored without logging (no user data in logs); only a 2xx with a body whose id matches, `firedAt` set and `item.available` is shown.
+- Concurrency with logout: `showFiredByServer` is `@Synchronized` like `clear()`, `fire()` and `apply()`, and checks `isLoggedIn` under that lock, so a logout during the request cannot leave a notification behind. Ordering against the local alarm and the sync is safe in both directions (the notified set is shared; `retainNotified` prunes ids the server no longer lists).
+- Server contract: the push is sent only after the fire transaction commits, so `GET /reminders/{id}` sees `firedAt`; the payload format `{"kind","id"}` is pinned by `PushServerContractTest`; registration key encoding by `PushRegistrationKeysContractTest`.
+- The change to `reminders/ReminderScheduler.kt` lies outside the task's `touches`, but it is small, additive and recorded as an assumption.
+- The new test cases in c7d8f8bf5 (pushed reminder opens its item with the reminder's time; untitled item) assert behavior through Robolectric notifications and intents; test data is fictitious. No earlier assertions were removed or weakened.
 
-Summary: 0 P0, 0 P1, 0 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 2 P3
 
 ## P0 Critical
 
@@ -52,14 +56,21 @@ None.
 - [ ] **CR-1 | Second copy of the ReminderResponse to ScheduledReminder mapping**
     - File: `android/app/src/main/java/ch/sonensei/cockpit/push/PushReminderDelivery.kt:63` (duplicates `android/app/src/main/java/ch/sonensei/cockpit/reminders/ReminderStore.kt:31`)
     - Category: Quality
-    - Problem: `ReminderResponse.toFired()` repeats the field mapping of `ReminderResponse.toScheduled()` (id, itemType, itemId, title, remindAtMillis). Only the `firedAt` guard is inverted.
-    - Why it matters: If a field is later added to `ScheduledReminder` (for example a deep link for the notification tap), it has to be added in both places. A push-shown reminder could then look or behave differently from an alarm-shown one, and no test compares the two.
-    - Suggested fix: Pull the shared mapping out of `toScheduled` into one internal function in `reminders/` (for example `toScheduledReminder()` without the `firedAt` check). Have both `toScheduled` and `toFired` apply their own `firedAt`/`available` guard and then call it.
+    - Problem: `ReminderResponse.toFired()` repeats the field mapping of `ReminderResponse.toScheduled()` (id, itemType, itemId, title, remindAtMillis). Only the `firedAt` guard is inverted. (Carried over from the previous review; still present.)
+    - Why it matters: A field later added to `ScheduledReminder` must be added in both places, or a push-shown reminder looks or behaves differently from an alarm-shown one; no test compares the two mappings.
+    - Suggested fix: Extract the shared mapping into one internal function in `reminders/` (without the `firedAt` check) and have `toScheduled` and `toFired` apply their own guard before calling it.
+
+- [ ] **CR-2 | A 5xx answer (e.g. proxy 502/503 during a server restart) is not retried**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/push/PushReminderDelivery.kt:54` (and the comment at line 92)
+    - Category: Correctness
+    - Problem: Any non-2xx answer, including 502/503/504, maps to `IGNORED`, so the worker returns `Result.success()` and never retries. Only an `IOException` gives `OFFLINE`/retry. The worker comment "Network up but server down: retry with backoff" therefore only holds when the server is reached directly; in the documented deployment (`docs/deploy-runbook.md`, Caddy in front of the server) a down backend answers 502 instead of failing the connection.
+    - Why it matters: For a reminder this device never synced (the case this delivery path exists for), the push is the only way it reaches the device: the reminder sync lists only pending reminders. A transient 5xx right after the push loses that notification. Probability is low because the server sent the push moments before, so this is minor.
+    - Suggested fix: Treat 5xx (or at least 502/503/504) as `OFFLINE` so the worker retries with backoff, keep 4xx as `IGNORED`, and add a delivery test for a 503 answer; or adjust the comment to state that only connection failures are retried.
 
 ## Review conclusion
 
-No material issues found. Both fixes from the previous round are correct and tested, and the reminder/mail push paths line up with the server contract (payload, `GET /reminders/{id}`, registration keys). The periodic sync fallback is unchanged. CR-1 is an optional cleanup and does not block completion.
+No material issues found. The final code satisfies the reviewed behavior for both acceptance criteria as far as code and tests can show it: registration, reminder and new-mail push handling, and the unchanged periodic sync fallback line up with the server contract, and the 106 focused tests pass. Both findings are optional low-priority improvements and do not block completion.
 
 Notes for the parent worker (not findings):
-- The duplicate re-post that the recorded assumption describes is real but limited. A distributor that queues pushes while the device is offline (ntfy caches messages) can, after reconnect, deliver a reminder push after a sync has already pruned that id from the notified set. The same notification tag is then posted once more. The assumption covers this.
-- Both acceptance criteria are still unrecorded in `tasks.py verify`. Per the recorded assumption, criterion 1's on-device/ntfy part cannot run here: record that part with `--skip` and a reason, plus the combined server and Android test evidence, rather than claiming it.
+- Both acceptance criteria are still unrecorded in `tasks.py verify`. Criterion 1's on-device/ntfy part cannot run here (recorded assumption): record the combined server tests (WireMock distributor, RFC 8291 encryption, reminder and mail pushes) and Android tests as evidence and mark the on-device part as not run, rather than claiming it.
+- The re-post of a notification for a push redelivered after a later sync (ntfy caches messages while the device is offline) is real but limited, and is covered by the recorded assumption.
