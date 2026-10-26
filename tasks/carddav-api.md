@@ -17,3 +17,4 @@ CardDavAccountService, CardDavContactsSync.sync/createContact) and create contac
 - [ ] account config (password encrypted or omitted) covered by backup/restore and its round-trip test
 
 ## Notes
+- ASSUMPTION (2026-10-26 13:28+0100 by dell26/agent-1): CardDAV account API at /api/v1/contacts/carddav-accounts (list/get/add/delete, POST /{id}/sync, POST /{id}/contacts to create a contact there); no edit endpoint: changing URL or password means removing and adding the account again
