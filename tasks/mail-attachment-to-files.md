@@ -21,3 +21,4 @@ lease_until: 2026-10-26T07:34:40Z
 
 ## Notes
 Found in the web-mail-read review (CR-4). The file goes through the server, so large attachments work too.
+- ASSUMPTION (2026-10-26 08:18+0100 by dell26/agent-1): Name-collision check for save-to-files added to the files module (FilesService.freeFileName + FileRepository.existsActiveInFolderByName, outside touches, small): taken = an active file in /Attachments/Mail with the same name regardless of case; it's a hint, not enforced (file names need not be unique)
