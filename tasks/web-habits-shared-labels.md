@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [web-today-habits]
 touches: [web/src/app/features/habits,web/src/app/features/gtd/today]
 prio: 2
-lease_until: 2026-10-26T09:38:58Z
+lease_until: 2026-10-26T09:43:59Z
 ---
 ## Goal
 `checkLabel()` and the error `message()` helper are copied in `features/habits/habits-page.ts` and
