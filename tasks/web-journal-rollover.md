@@ -19,3 +19,4 @@ state are dropped without a prompt when the user opens another day.
 - [ ] Vitest specs cover all three; `cd web && npm run check` passes
 
 ## Notes
+- ASSUMPTION (2026-10-26 10:14+0100 by dell26/agent-2): Midnight is detected client-side (every minute and on visibilitychange) from settings.timeZone, falling back to the browser's zone; the server's heatmap.to stays the source of 'today'. While the browser's day is ahead of the server's (clock skew, missing settings), the heatmap is re-requested once per minute until they agree.
