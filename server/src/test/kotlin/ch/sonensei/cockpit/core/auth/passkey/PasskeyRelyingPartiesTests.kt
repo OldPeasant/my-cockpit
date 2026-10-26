@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.core.auth.passkey
 
 import ch.sonensei.cockpit.core.auth.passkey.api.PasskeyRelyingParties
 import ch.sonensei.cockpit.core.auth.passkey.domain.RelyingParty
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.springframework.boot.convert.ApplicationConversionService
@@ -92,6 +93,33 @@ class PasskeyRelyingPartiesTests {
 	}
 
 	@Test
+	fun `the app origin of each configured fingerprint is added to explicitly configured origins`() {
+		val origins = listOf("https://cockpit.example.org", "android:apk-key-hash:AAAA")
+		PasskeyRelyingParties("", "My Cockpit", origins, "cockpit.example.org", listOf(FINGERPRINT, " ", FINGERPRINT.lowercase()))
+			.resolve(request) shouldBe
+			RelyingParty(
+				"cockpit.example.org",
+				"My Cockpit",
+				setOf("https://cockpit.example.org", "android:apk-key-hash:AAAA", APP_ORIGIN),
+			)
+	}
+
+	@Test
+	fun `the app origin of a fingerprint is added to the request-derived default origins`() {
+		PasskeyRelyingParties("", "My Cockpit", emptyList(), "", listOf(FINGERPRINT)).resolve(request) shouldBe
+			RelyingParty("cockpit.example.org", "My Cockpit", setOf("https://cockpit.example.org:8443", APP_ORIGIN))
+		// An app origin is never derived from a request: a request for another host still only adds the configured one.
+		PasskeyRelyingParties("", "My Cockpit", emptyList(), "cockpit.example.org", listOf(FINGERPRINT))
+			.resolve(request("http", "evil.example.net", 8080))
+			.origins shouldBe setOf("https://cockpit.example.org", APP_ORIGIN)
+	}
+
+	@Test
+	fun `an invalid android fingerprint fails the relying party configuration`() {
+		shouldThrow<IllegalArgumentException> { PasskeyRelyingParties("", "My Cockpit", emptyList(), "", listOf("AB:CD")) }
+	}
+
+	@Test
 	fun `Spring binds cockpit domain to the default relying party`() {
 		ApplicationContextRunner()
 			.withBean(PasskeyRelyingParties::class.java)
@@ -128,5 +156,22 @@ class PasskeyRelyingPartiesTests {
 			context.getBean(PasskeyRelyingParties::class.java).resolve(request("http", "cockpit.example.org", 80)) shouldBe
 				RelyingParty("example.org", "Fictitious Cockpit", setOf("https://cockpit.example.org", "android:apk-key-hash:AAAA"))
 		}
+		runner(
+			mapOf(
+				"COCKPIT_DOMAIN" to "cockpit.example.org",
+				"COCKPIT_AUTH_PASSKEY_ANDROID_FINGERPRINTS" to FINGERPRINT,
+			),
+		).run { context ->
+			context.getBean(PasskeyRelyingParties::class.java).resolve(request("http", "cockpit.example.org", 80)).origins shouldBe
+				setOf("https://cockpit.example.org", "http://cockpit.example.org", APP_ORIGIN)
+		}
+	}
+
+	companion object {
+		/** A fictitious signing certificate fingerprint. */
+		const val FINGERPRINT = "AB:12:CD:34:EF:56:AB:78:CD:90:EF:12:AB:34:CD:56:EF:78:AB:90:CD:12:EF:34:AB:56:CD:78:EF:90:AB:12"
+
+		/** Its app origin, computed independently (Python base64.urlsafe_b64encode of the 32 bytes, unpadded). */
+		const val APP_ORIGIN = "android:apk-key-hash:qxLNNO9Wq3jNkO8SqzTNVu94q5DNEu80q1bNeO-QqxI"
 	}
 }
