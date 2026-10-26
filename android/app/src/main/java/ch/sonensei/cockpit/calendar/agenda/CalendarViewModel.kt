@@ -311,13 +311,20 @@ class CalendarViewModel internal constructor(
                 val result = repository.occurrences(from, to, zone)
                 val calendarList = calendars.await()
                 if (result is CalendarResult.Ok && agenda) {
-                    val loadedCalendars = (calendarList as? CalendarResult.Ok)?.value ?: state.value.calendars
+                    // Only a calendar list from the server is stored; without one, the cached calendars are kept.
+                    val loadedCalendars = (calendarList as? CalendarResult.Ok)?.value ?: cache.read()?.calendars.orEmpty()
                     cache.store(session, CachedAgenda(from, to, loadedCalendars, result.value, Instant.now(clock)))
                 }
                 if (result == CalendarResult.Offline && !state.value.loaded) {
                     val cached = cache.read()?.let { cachedRange(it, from, to, agenda) }
                     if (cached != null) {
-                        state.update { it.withCached(cached) }
+                        state.update { current ->
+                            // Calendars loaded now or earlier in this session are newer than the cached ones.
+                            val withCalendars =
+                                (calendarList as? CalendarResult.Ok)?.let { current.withCalendars(it.value) }
+                                    ?: current.copy(calendars = current.calendars.ifEmpty { cached.calendars })
+                            withCalendars.withCached(cached)
+                        }
                         return@launch
                     }
                 }
@@ -361,8 +368,6 @@ class CalendarViewModel internal constructor(
         copy(
             to = cached.to,
             occurrences = cached.occurrences,
-            // Calendars loaded in this session are newer than the cached ones.
-            calendars = calendars.ifEmpty { cached.calendars },
             loading = false,
             cachedAt = cached.loadedAt,
             message = CalendarMessage.OFFLINE,

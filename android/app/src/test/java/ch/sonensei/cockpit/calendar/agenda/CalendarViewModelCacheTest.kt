@@ -354,6 +354,56 @@ class CalendarViewModelCacheTest {
         }
 
     @Test
+    fun `an agenda loaded without the calendar list keeps the cached calendars`() =
+        runTest(dispatcher) {
+            val cache = FakeCache(CachedAgenda(today, today.plusDays(30), listOf(work), listOf(event(1, today)), now.minusSeconds(60)))
+            coEvery { repo.calendars() } returns CalendarResult.Offline
+            coEvery { repo.occurrences(today, today.plusDays(30), zone) } returns CalendarResult.Ok(listOf(event(2, today)))
+            val vm = viewModel(cache)
+
+            vm.refresh()
+            advanceUntilIdle()
+
+            assertEquals(CachedAgenda(today, today.plusDays(30), listOf(work), listOf(event(2, today)), now), cache.agenda)
+        }
+
+    @Test
+    fun `an agenda loaded without the calendar list and without a cache stores no calendars`() =
+        runTest(dispatcher) {
+            val cache = FakeCache()
+            coEvery { repo.calendars() } returns CalendarResult.Failed(500)
+            coEvery { repo.occurrences(today, today.plusDays(30), zone) } returns CalendarResult.Ok(listOf(event(2, today)))
+            val vm = viewModel(cache)
+
+            vm.refresh()
+            advanceUntilIdle()
+
+            assertEquals(CachedAgenda(today, today.plusDays(30), emptyList(), listOf(event(2, today)), now), cache.agenda)
+        }
+
+    @Test
+    fun `offline events with a loaded calendar list show the cached events with the loaded calendars`() =
+        runTest(dispatcher) {
+            val renamed = work.copy(name = "Office", visible = false, version = 4)
+            val home = CalendarInfo(id(91), "Home", null, true, false, 1)
+            val cache = FakeCache(CachedAgenda(today, today.plusDays(30), listOf(work), listOf(event(1, today)), now.minusSeconds(60)))
+            coEvery { repo.calendars() } returns CalendarResult.Ok(listOf(renamed, home))
+            coEvery { repo.occurrences(any(), any(), any()) } returns CalendarResult.Offline
+            val vm = viewModel(cache)
+
+            vm.refresh()
+            advanceUntilIdle()
+
+            val state = vm.uiState.value
+            assertEquals(listOf(event(1, today)), state.occurrences)
+            assertEquals(listOf(renamed, home), state.calendars)
+            assertEquals(now.minusSeconds(60), state.cachedAt)
+            assertEquals(CalendarMessage.OFFLINE, state.message)
+            // Offline loads leave the cache as it was.
+            assertEquals(listOf(work), cache.agenda?.calendars)
+        }
+
+    @Test
     fun `days loaded on scrolling that fail are not appended to the cache`() =
         runTest(dispatcher) {
             val cache = FakeCache()
