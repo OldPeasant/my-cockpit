@@ -16,7 +16,8 @@ Show them read-only from the occurrence data instead, with a link to the contact
 ## Acceptance criteria
 - [ ] Web: clicking a birthday occurrence shows its title/date read-only (no load error, no edit/delete) and links to the contact; unit tests cover it
 - [ ] Android: tapping a birthday occurrence in agenda/day/week does not try to load or edit an event; it opens the contact; unit tests cover it
-- [ ] `cd web && npm run check` and `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` pass
+- [x] `cd web && npm run check` and `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` pass
+  - verified (2026-10-26 05:38+0100 by dell26/agent-1): cd web && npm run check -> exit 0 (lint, build, 174 vitest files passed); cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL, 1938 unit tests 0 failures/errors (HEAD c63c35ae4)
 
 ## Notes
 - Found by the code review of contacts-birthdays (reviews/contacts-birthdays/review.md, CR-1). Recognize the occurrence by its calendar being the read-only calendar whose occurrences 404, e.g. by comparing `eventId` with a known birthdays calendar id or by the calendar's read-only flag plus a missing event.
