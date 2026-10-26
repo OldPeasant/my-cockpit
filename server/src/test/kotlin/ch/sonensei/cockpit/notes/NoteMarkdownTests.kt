@@ -59,6 +59,56 @@ class NoteMarkdownTests {
 	}
 
 	@Test
+	fun `backslash escapes next to bold text, autolinks and hard breaks become their characters`() {
+		val body = "**F:** \\[x <c@d.e>  \n**T:** \\[y <c@d.e>"
+
+		NoteMarkdown.plainText(body) shouldBe "F: [x c@d.e\nT: [y c@d.e"
+		NoteMarkdown.titleOf(body) shouldBe "F: [x c@d.e"
+	}
+
+	@Test
+	fun `a mail header with escaped display names keeps every name and address`() {
+		val body =
+			"**From:** Doe\\, Grace [\\[task:x]] **x** <grace@example.test>  \n" +
+				"**To:** Ann \\*Example\\* <ann@work.example>, Dan \\<ops\\> <dan@work.example>  \n" +
+				"**Cc:** \\[ [note:y]]\\ <erin@example.test>  \n" +
+				"**Date:** 2026-10-26\n\n" +
+				"Next to <https://example.test/a\\_b> and https://example.test/c end\\\nnext \\` tick \\` \\\\"
+
+		NoteMarkdown.plainText(body) shouldBe
+			"From: Doe, Grace [[task:x]] x grace@example.test\n" +
+			"To: Ann *Example* ann@work.example, Dan <ops> dan@work.example\n" +
+			"Cc: [ [note:y]]\\ erin@example.test\n" +
+			"Date: 2026-10-26\n" +
+			"Next to https://example.test/a\\_b and https://example.test/c end\n" +
+			"next ` tick ` \\"
+	}
+
+	@Test
+	fun `entity and numeric references next to bold text, autolinks and hard breaks become their characters`() {
+		val body = "**F:** &amp; <c@d.e>  \n**T:** &#91;y&#x5D; &copy; <https://example.test>  \n**N:** &nbsp;z"
+
+		NoteMarkdown.plainText(body) shouldBe "F: & c@d.e\nT: [y] © https://example.test\nN: \u00A0z"
+		NoteMarkdown.titleOf(body) shouldBe "F: & c@d.e"
+	}
+
+	@Test
+	fun `brackets without a reference definition stay text`() {
+		NoteMarkdown.plainText("[a] [b][c] [d][] ![e] [\\[f]] [**g**]") shouldBe "[a] [b][c] [d][] ![e] [[f]] [g]"
+	}
+
+	@Test
+	fun `escapes and entities stay verbatim in code`() {
+		NoteMarkdown.plainText("`a \\[ &amp;` b \\[\n\n```\nc \\[ &amp;\n```\n\n    d \\[") shouldBe "a \\[ &amp; b [\nc \\[ &amp;\nd \\["
+	}
+
+	@Test
+	fun `table cells are separated, HTML and reference definitions left out`() {
+		NoteMarkdown.plainText("| A | B |\n|---|---|\n| 1 | 2 |\n\n<div>\nraw\n</div>\n\n[r]: https://x.test\n\n<b>x</b> [r]") shouldBe
+			"A B\n1 2\nx r"
+	}
+
+	@Test
 	fun `plain text of a blank body is empty`() {
 		NoteMarkdown.plainText("  \n\n ") shouldBe ""
 	}

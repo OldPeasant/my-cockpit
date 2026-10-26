@@ -451,8 +451,8 @@ class MailGtdWebTests(
 
 		linkedEnds("NOTE", result["id"].asString()).single()["id"].asString() shouldBe mail.id.toString()
 		val body = getJson("/api/v1/notes/${result["id"].asString()}")["bodyMd"].asString()
-		body shouldContain "**From:** Grace ∖[ [x]] <grace@example.test>"
-		body shouldEndWith "A ∖[∖[b]] https://example.test/e\n[∖[task:$other]]\\"
+		body shouldContain "**From:** Grace \\[ [x]] <grace@example.test>"
+		body shouldEndWith "A \\[\\[b]] https://example.test/e\n[\\[task:$other]]\\"
 		body shouldNotContain "[["
 	}
 
@@ -480,14 +480,14 @@ class MailGtdWebTests(
 		linkedEnds("NOTE", result["id"].asString()).single()["id"].asString() shouldBe mail.id.toString()
 		val body = getJson("/api/v1/notes/${result["id"].asString()}")["bodyMd"].asString()
 		body shouldNotContain "[["
-		body shouldContain "**From:** Doe∖, Grace [∖[task:$other]] **x** <grace@example.test>"
-		body shouldContain "**Cc:** ∖[ [note:$other]]\\ <erin@example.test>"
-		body shouldContain "Escaped ∖[∖[task:$other]] and [∖[note:$other]] and ∖∖[ [task:$other]] stay text."
-		body shouldContain "[ [ [ [ ]] ∖\\"
+		body shouldContain "**From:** Doe\\, Grace [\\[task:$other]] **x** <grace@example.test>"
+		body shouldContain "**Cc:** \\[ [note:$other]]\\ <erin@example.test>"
+		body shouldContain "Escaped \\[\\[task:$other]] and [\\[note:$other]] and \\\\[ [task:$other]] stay text."
+		body shouldContain "[ [ [ [ ]] \\\\"
 	}
 
 	@Test
-	fun `to-note keeps escapes in the subject as the title and neutralizes them in To and every Cc name`() {
+	fun `to-note keeps escapes verbatim in the subject as the title, in To and in every Cc name`() {
 		val other = UUID.randomUUID()
 		val mail =
 			message(
@@ -511,11 +511,10 @@ class MailGtdWebTests(
 		val body = note["bodyMd"].asString()
 		body shouldNotContain "Re: "
 		body shouldNotContain "[["
-		body shouldContain "**To:** Ann ∖*Example∖* <ann@work.example>, Dan ∖<ops∖> <dan@work.example>  \n"
-		// Only a backslash before ASCII punctuation is an escape; before a letter, non-ASCII or the line end it stays.
+		body shouldContain "**To:** Ann \\*Example\\* <ann@work.example>, Dan \\<ops\\> <dan@work.example>  \n"
 		body shouldContain
-			"**Cc:** Erin ∖[ [note:$other]] <erin@example.test>, Frank ∖`code∖` \\«quote\\» C:\\Users\\x\\ <frank@example.test>  \n"
-		body shouldEndWith "Zinnia budget ∖# draft"
+			"**Cc:** Erin \\[ [note:$other]] <erin@example.test>, Frank \\`code\\` \\«quote\\» C:\\Users\\x\\ <frank@example.test>  \n"
+		body shouldEndWith "Zinnia budget \\# draft"
 		val hits =
 			mockMvc
 				.get("/api/v1/search?q=zinnia&types=NOTE")

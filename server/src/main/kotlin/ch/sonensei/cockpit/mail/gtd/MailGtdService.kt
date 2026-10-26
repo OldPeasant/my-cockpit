@@ -188,7 +188,6 @@ class MailGtdService(
 		val TRAILING_BLANKS = Regex("[ \\t\\u00A0]+\\n")
 		val EXTRA_NEWLINES = Regex("\\n{3,}")
 		val BRACKET_PAIR = Regex("\\[(?=\\[)")
-		val ESCAPE = Regex("\\\\(?=\\p{Punct})")
 		val HTML_WHITESPACE = Regex("[ \\t\\n\\r\\f]+")
 
 		/**
@@ -259,12 +258,10 @@ class MailGtdService(
 
 		/**
 		 * Mail text with every `[[` written as `[ [`, so a received mail cannot add inline `[[type:id]]` links to the
-		 * user's items when it becomes a note. A space, not a Markdown escape (`[\[`): flexmark's text collection
-		 * miscounts escapes next to bold text, autolinks and hard line breaks, which the note header has. For the same
-		 * reason the mail's own escapes (a backslash before ASCII punctuation) are written with the look-alike `∖`
-		 * (U+2216), so the note has no escapes at all.
+		 * user's items when it becomes a note. A space, not a Markdown escape (`[\[`), so the mail's own backslash
+		 * escapes stay verbatim and the note reads like the mail.
 		 */
-		fun neutralizeInlineLinks(text: String): String = text.replace(BRACKET_PAIR) { "[ " }.replace(ESCAPE) { "∖" }
+		fun neutralizeInlineLinks(text: String): String = text.replace(BRACKET_PAIR, "[ ")
 
 		fun titleOf(
 			message: MailMessage,
