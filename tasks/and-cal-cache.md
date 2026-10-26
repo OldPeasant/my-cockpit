@@ -15,10 +15,11 @@ SPEC.md §9.3 "Read cache": the last-loaded agenda is cached in Room and shown r
 - [x] Every successful agenda load (the first range and each chunk loaded on scrolling) is stored in a Room cache
       together with the calendar list; a new load from today replaces it (Robolectric Room tests).
   - verified (2026-10-26 01:23+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' on 6f394e2fb (Robolectric in-memory Room: AgendaCacheTest store/replace/append/read-back, CalendarViewModelCacheTest 'a loaded agenda and the days loaded on scrolling are cached', later-day refresh replaces) -> all passed
-- [ ] When the server is unreachable and nothing is loaded for the range yet, the agenda (and a day or week view
+- [x] When the server is unreachable and nothing is loaded for the range yet, the agenda (and a day or week view
       inside the cached range) shows the cached events with the offline banner naming when they were loaded; while
       cached data is shown it is read-only (calendar visibility toggles and loading more days are disabled), and the
       next successful load replaces it (view model and Compose tests).
+  - verified (2026-10-26 01:23+0100 by dell26/agent-1): same run: CalendarViewModelCacheTest (offline shows cached days from today, read-only: no loadMore/setVisible; next successful load replaces; day/week inside cache shown, outside not; refused load no fallback) + CalendarScreensCachedTest Compose/Robolectric (banner 'Offline. Showing events as loaded Oct 20, 2026 ... read-only', chips disabled, taps don't open, no more-days button) -> all passed
 - [ ] Logout clears the cache, and an answer whose load started before the logout is not stored (test).
 - [ ] `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes.
 
