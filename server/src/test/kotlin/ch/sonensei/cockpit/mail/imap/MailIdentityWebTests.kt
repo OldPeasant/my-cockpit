@@ -177,6 +177,10 @@ class MailIdentityWebTests(
 			jsonPath("$.errors[0].field") { value("name") }
 		}
 		patch(id, mapOf("email" to "broken")).andExpect { status { isBadRequest() } }
+		patch(id, mapOf("email" to "   ")).andExpect {
+			status { isBadRequest() }
+			jsonPath("$.errors[0].field") { value("email") }
+		}
 	}
 
 	@Test

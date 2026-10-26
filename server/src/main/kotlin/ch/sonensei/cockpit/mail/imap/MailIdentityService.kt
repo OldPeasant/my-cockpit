@@ -92,6 +92,7 @@ class MailIdentityService(
 		ETags.checkIfMatch(ifMatch, identity.version)
 		val existing = identities.findByAccountIdOrderByPositionAscIdAsc(accountId)
 		request.name?.let(::checkName)
+		request.email?.let(::checkEmail)
 		request.email?.let { checkUnique(existing, it, except = id) }
 		if (request.isDefault == true && !identity.isDefault) clearDefault(existing)
 		request.name?.let { identity.name = it.trim() }
@@ -133,6 +134,10 @@ class MailIdentityService(
 
 	private fun checkName(name: String) {
 		if (name.isBlank()) throw InvalidRequestException("name", "must not be blank")
+	}
+
+	private fun checkEmail(email: String) {
+		if (email.isBlank()) throw InvalidRequestException("email", "must not be blank")
 	}
 
 	private fun checkUnique(

@@ -157,7 +157,8 @@ export class MailIdentities implements OnInit {
 
   /**
    * Runs a change, then reads the list again: making one identity the default takes the flag
-   * (and so a new version) from another.
+   * (and so a new version) from another. A change that failed because the identity was changed
+   * or removed elsewhere (412, 404) reads the list too, so the next attempt uses its current version.
    */
   private async run(change: () => Promise<void>): Promise<void> {
     this.saving.set(true);
@@ -166,6 +167,9 @@ export class MailIdentities implements OnInit {
       await change();
     } catch (error) {
       this.error.set(identityError(error));
+      if (error instanceof ApiError && (error.status === 412 || error.status === 404)) {
+        await this.refresh();
+      }
       return;
     } finally {
       this.saving.set(false);
@@ -189,10 +193,16 @@ export class MailIdentities implements OnInit {
   }
 }
 
-/** A duplicate address is the only conflict of a create or change here. */
+/**
+ * A duplicate address is the only conflict of a create or change here. After a stale version the
+ * list has already been read again (see `run`), so no page reload is needed.
+ */
 function identityError(error: unknown): string {
   if (error instanceof ApiError && error.status === 409) {
     return $localize`:@@mailIdentities.duplicate:This account already has an identity with that address.`;
+  }
+  if (error instanceof ApiError && error.status === 412) {
+    return $localize`:@@mailIdentities.changedElsewhere:It was changed elsewhere. The list now shows the current state; try again.`;
   }
   return errorMessage(error);
 }

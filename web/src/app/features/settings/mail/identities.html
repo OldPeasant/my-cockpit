@@ -1,13 +1,14 @@
 <div class="identities">
   <div class="head">
     <p class="note" i18n="@@mailIdentities.hint">
-      Further addresses you send from with this account. {{ account().emailAddress }} is always
-      available; change it with Edit.
+      Further addresses you send from with this account. Once there is one, new mail starts with the
+      default identity, or with the first one when none is the default, instead of
+      {{ account().emailAddress }}. Change the account's own address with Edit.
     </p>
     <button
       mat-stroked-button
       type="button"
-      [disabled]="editing() === 'new'"
+      [disabled]="editing() === 'new' || saving()"
       (click)="add()"
       i18n="@@mailIdentities.add"
     >
@@ -55,6 +56,7 @@
                     mat-button
                     type="button"
                     [attr.aria-label]="editLabel(identity)"
+                    [disabled]="saving()"
                     (click)="edit(identity)"
                     i18n="@@mailIdentities.edit"
                   >
@@ -66,6 +68,7 @@
                     class="danger"
                     [attr.aria-label]="removeLabel(identity)"
                     [attr.aria-expanded]="removing() === identity.id"
+                    [disabled]="saving()"
                     (click)="askRemove(identity)"
                     i18n="@@mailIdentities.remove"
                   >
@@ -162,9 +165,14 @@
         >
       }
     </mat-form-field>
-    <mat-slide-toggle formControlName="isDefault" i18n="@@mailIdentities.field.default"
-      >Start new mail with this identity</mat-slide-toggle
-    >
+    <div class="default-toggle">
+      <mat-slide-toggle formControlName="isDefault" i18n="@@mailIdentities.field.default"
+        >Start new mail with this identity</mat-slide-toggle
+      >
+      <p class="note" i18n="@@mailIdentities.field.defaultHint">
+        Without a default, new mail starts with the first identity in the list.
+      </p>
+    </div>
     <mat-form-field subscriptSizing="dynamic" class="wide">
       <mat-label i18n="@@mailIdentities.field.signature">Signature (optional)</mat-label>
       <textarea matInput formControlName="signatureMd" rows="3"></textarea>

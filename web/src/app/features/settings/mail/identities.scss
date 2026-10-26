@@ -74,6 +74,11 @@
   content: ' · ';
 }
 
+.default-toggle {
+  display: grid;
+  gap: var(--app-space-1);
+}
+
 .tag {
   margin-left: var(--app-space-2);
   font: var(--mat-sys-body-small);

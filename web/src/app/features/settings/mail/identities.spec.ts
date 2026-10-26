@@ -257,16 +257,75 @@ describe('MailIdentities', () => {
     expect(root.querySelector('form')).not.toBeNull();
   });
 
-  it('reports a stale version as changed elsewhere', async () => {
+  it('reports a stale version as changed elsewhere, reloads, and retries at the current version', async () => {
     await load([fakeIdentity()]);
     await click(button('Edit info@mail.example.test'));
     await click(button('Save identity'));
 
     const { body, options } = problem(412, 'Precondition Failed');
     http.expectOne({ method: 'PATCH', url: `${IDENTITIES}/i1` }).flush(body, options);
-    await settle();
+    await reload([fakeIdentity({ version: 5 })]);
 
-    expect(root.querySelector('[role="alert"]')?.textContent).toContain('changed elsewhere');
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+      'It was changed elsewhere. The list now shows the current state; try again.',
+    );
+    expect(root.querySelector('form')).not.toBeNull();
+
+    await click(button('Save identity'));
+    const retry = http.expectOne({ method: 'PATCH', url: `${IDENTITIES}/i1` });
+    expect(retry.request.headers.get('If-Match')).toBe('"5"');
+    retry.flush(fakeIdentity({ version: 6 }));
+    await reload([fakeIdentity({ version: 6 })]);
+    expect(text()).toContain('info@mail.example.test saved.');
+  });
+
+  it('reloads the list when the identity to remove was already removed elsewhere', async () => {
+    await load([fakeIdentity(), fakeIdentity({ id: 'i2', email: 'b@mail.example.test' })]);
+    await click(button('Remove info@mail.example.test'));
+    await click(button('Remove identity'));
+
+    const { body, options } = problem(404, 'Not Found');
+    http.expectOne({ method: 'DELETE', url: `${IDENTITIES}/i1` }).flush(body, options);
+    await reload([fakeIdentity({ id: 'i2', email: 'b@mail.example.test' })]);
+
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain('Not Found');
+    const items = [...root.querySelectorAll('li')].map((li) => li.getAttribute('aria-label'));
+    expect(items).toEqual(['b@mail.example.test']);
+  });
+
+  it('disables Add, Edit and Remove while a change is saving', async () => {
+    await load([fakeIdentity(), fakeIdentity({ id: 'i2', email: 'b@mail.example.test' })]);
+    await click(button('Edit info@mail.example.test'));
+    await click(button('Save identity'));
+
+    expect(button('Add identity').disabled).toBe(true);
+    expect(button('Edit b@mail.example.test').disabled).toBe(true);
+    expect(button('Remove b@mail.example.test').disabled).toBe(true);
+
+    http
+      .expectOne({ method: 'PATCH', url: `${IDENTITIES}/i1` })
+      .flush(fakeIdentity({ version: 1 }));
+    await reload([
+      fakeIdentity({ version: 1 }),
+      fakeIdentity({ id: 'i2', email: 'b@mail.example.test' }),
+    ]);
+
+    expect(button('Add identity').disabled).toBe(false);
+    expect(button('Edit b@mail.example.test').disabled).toBe(false);
+    expect(button('Remove b@mail.example.test').disabled).toBe(false);
+  });
+
+  it('says that new mail starts with the default or the first identity', async () => {
+    await load([fakeIdentity()]);
+    expect(text()).toContain(
+      'Once there is one, new mail starts with the default identity, or with the first one when none is the default, instead of jane@mail.example.test.',
+    );
+    expect(text()).not.toContain('is always available');
+
+    await click(button('Edit info@mail.example.test'));
+    expect(text()).toContain(
+      'Without a default, new mail starts with the first identity in the list.',
+    );
   });
 
   it('removes an identity after confirming', async () => {
