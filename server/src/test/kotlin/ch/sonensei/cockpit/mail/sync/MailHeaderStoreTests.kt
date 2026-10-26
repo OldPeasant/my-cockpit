@@ -5,6 +5,7 @@ import ch.sonensei.cockpit.core.items.domain.ItemRef
 import ch.sonensei.cockpit.core.items.domain.ItemType
 import ch.sonensei.cockpit.core.items.domain.LinkService
 import ch.sonensei.cockpit.core.persistence.UuidV7
+import ch.sonensei.cockpit.core.reminders.domain.ReminderService
 import ch.sonensei.cockpit.core.web.NotFoundException
 import ch.sonensei.cockpit.mail.model.MailAccount
 import ch.sonensei.cockpit.mail.model.MailAccountRepository
@@ -38,6 +39,7 @@ class MailHeaderStoreTests(
 	@Autowired private val accounts: MailAccountRepository,
 	@Autowired private val folders: MailFolderRepository,
 	@Autowired private val links: LinkService,
+	@Autowired private val reminders: ReminderService,
 	@Autowired private val jdbc: JdbcTemplate,
 ) : PostgresTestBase() {
 	private lateinit var account: MailAccount
@@ -48,6 +50,7 @@ class MailHeaderStoreTests(
 	@BeforeEach
 	fun setUp() {
 		jdbc.update("delete from link")
+		jdbc.update("delete from reminder")
 		jdbc.update("delete from mail_account")
 		account = accounts.save(account("jane.doe@example.test"))
 		inbox = folders.save(MailFolder(account.id, "INBOX", "INBOX"))
@@ -478,6 +481,32 @@ class MailHeaderStoreTests(
 		store.upsert(account.id, other.id, listOf(remote(1, "<reminder@example.test>", subject = "Offsite")))
 
 		listOf(row(inbox, 1), row(archive, 1), row(other, 1)).map { it.threadKey }.toSet().size shouldBe 1
+	}
+
+	@Test
+	fun `a reminder alone keeps a detached row through pruneDetached and vanishing, and its Message-ID is retaken`() {
+		store.upsert(account.id, inbox.id, listOf(remote(1, "<a@example.test>"), remote(2, "<b@example.test>"), remote(3, "<c@example.test>")))
+		val reminded = row(inbox, 1)
+		val vanishing = row(inbox, 3)
+		reminders.create(ItemRef(ItemType.EMAIL, reminded.id), Instant.parse("2026-11-02T09:00:00Z"))
+		reminders.create(ItemRef(ItemType.EMAIL, vanishing.id), Instant.parse("2026-11-02T09:00:00Z"))
+
+		store.reconcile(inbox.id, emptyList(), setOf(3L)) shouldBe StoreCounts(removed = 1)
+		messages
+			.findById(vanishing.id)
+			.orElseThrow()
+			.uid
+			.shouldBeNull()
+
+		store.detachFolder(inbox.id)
+		store.linkedDetachedMessageIds(inbox.id) shouldContainExactlyInAnyOrder listOf("<a@example.test>", "<c@example.test>")
+		store.pruneDetached(inbox.id) shouldBe 1
+		messages
+			.findById(reminded.id)
+			.orElseThrow()
+			.uid
+			.shouldBeNull()
+		byMessageId("<b@example.test>").shouldBeEmpty()
 	}
 
 	@Test

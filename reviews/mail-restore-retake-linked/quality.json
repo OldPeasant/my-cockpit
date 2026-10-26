@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "task": "mail-restore-retake-linked",
+  "reviewed_revision": "e41d187aa73f52c1368bd0eb09c6c7f6a416db7d",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/mail-restore-retake-linked/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-restore-retake-linked/review.md"},
+    "fixer": {"status": "not_required", "reason": "the only finding (CR-1, P3 missing fired-reminder test) was resolved by the test-writer's tests; the re-review of the final revision reported 0 findings and no production bugs were found"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "non-blocking test gap; no fixer ran: the test-writer's ReminderPendingOfItemTests (test-only, 8e82f4e45) covers the fired-reminder case of hasReminders, and the re-review of the final revision reports CR-1 resolved and 0 findings"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.mail.sync.MailHeaderSyncServiceTests' --tests 'ch.sonensei.cockpit.mail.sync.MailHeaderStoreTests' --tests 'ch.sonensei.cockpit.mail.backup.MailBackupContributorTests' --tests 'ch.sonensei.cockpit.core.reminders.ReminderPendingOfItemTests' jacocoTestReport", "result": "pass"}
+  ]
+}

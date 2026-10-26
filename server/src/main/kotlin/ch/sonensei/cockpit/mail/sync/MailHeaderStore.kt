@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.mail.sync
 import ch.sonensei.cockpit.core.items.domain.ItemRef
 import ch.sonensei.cockpit.core.items.domain.ItemType
 import ch.sonensei.cockpit.core.items.domain.LinkService
+import ch.sonensei.cockpit.core.reminders.domain.ReminderService
 import ch.sonensei.cockpit.core.web.NotFoundException
 import ch.sonensei.cockpit.mail.model.MailFolderRepository
 import ch.sonensei.cockpit.mail.model.MailMessage
@@ -26,15 +27,16 @@ data class StoreCounts(
 /**
  * Writes what [MailHeaderSyncService] read from the server into `mail_message`, one transaction per call (a batch).
  *
- * A message no longer on the server is deleted, unless an item links to it: then it is only detached
- * ([MailMessage.detach]) so the link survives, and a message with the same Message-ID that shows up later (e.g. after
- * a move to another folder or a UIDVALIDITY change) takes over that row again.
+ * A message no longer on the server is deleted, unless an item links to it or a reminder points to it: then it is
+ * only detached ([MailMessage.detach]) so the link or reminder survives, and a message with the same Message-ID that
+ * shows up later (e.g. after a move to another folder or a UIDVALIDITY change) takes over that row again.
  */
 @Component
 class MailHeaderStore(
 	private val messages: MailSyncRepository,
 	private val folders: MailFolderRepository,
 	private val links: LinkService,
+	private val reminders: ReminderService,
 	private val searchIndex: MailSearchIndex,
 ) {
 	@Transactional(readOnly = true)
@@ -121,7 +123,10 @@ class MailHeaderStore(
 		messages.flush()
 	}
 
-	/** The Message-IDs of the folder's detached rows that an item links to (to look for them on the server again). */
+	/**
+	 * The Message-IDs of the folder's detached rows that an item links to or a reminder points to (to look for them on
+	 * the server again).
+	 */
 	@Transactional(readOnly = true)
 	fun linkedDetachedMessageIds(folderId: UUID): List<String> =
 		messages
@@ -130,7 +135,7 @@ class MailHeaderStore(
 			.mapNotNull { it.messageIdHeader }
 			.distinct()
 
-	/** After a resync: rows of the folder that were not found again are removed (or stay detached when linked). */
+	/** After a resync: rows of the folder that were not found again are removed (or stay detached when linked or reminded). */
 	@Transactional
 	fun pruneDetached(folderId: UUID): Int {
 		val stale = messages.findByFolderIdAndUidIsNull(folderId).filter { !isLinked(it) }
@@ -168,7 +173,11 @@ class MailHeaderStore(
 		searchIndex.unindex(message.id)
 	}
 
-	private fun isLinked(message: MailMessage): Boolean = links.hasLinks(ItemRef(ItemType.EMAIL, message.id))
+	/** Whether an item links to the message or a reminder points to it: then its row must survive. */
+	private fun isLinked(message: MailMessage): Boolean {
+		val ref = ItemRef(ItemType.EMAIL, message.id)
+		return links.hasLinks(ref) || reminders.hasReminders(ref)
+	}
 
 	private fun assignThread(
 		message: MailMessage,

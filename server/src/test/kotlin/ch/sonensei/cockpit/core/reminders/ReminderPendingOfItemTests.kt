@@ -73,4 +73,26 @@ class ReminderPendingOfItemTests(
 		service.pendingOfItem(task).map { it.id } shouldContainExactly listOf(first.id, second.id).sorted()
 		service.pendingOfItem(fakes.tasks.add("Nothing planned")).shouldBeEmpty()
 	}
+
+	@Test
+	fun `hasReminders counts fired and pending reminders of exactly that item, and none once they are deleted`() {
+		val fired = fakes.tasks.add("Renew the passport")
+		val pending = fakes.tasks.add("Book the train")
+		// A note sharing the fired task's id is a different item.
+		val sameIdNote = fakes.notes.add("Passport notes", fired.id)
+		val firedReminder = service.create(fired, start.plus(Duration.ofMinutes(30))).reminder
+		val pendingReminder = service.create(pending, start.plus(Duration.ofHours(5))).reminder
+		clock.advance(Duration.ofHours(1))
+		service.fireDue() shouldBe 1
+
+		service.hasReminders(fired) shouldBe true
+		service.hasReminders(pending) shouldBe true
+		service.hasReminders(sameIdNote) shouldBe false
+		service.hasReminders(fakes.tasks.add("Nothing planned")) shouldBe false
+
+		service.delete(firedReminder.id)
+		service.delete(pendingReminder.id)
+		service.hasReminders(fired) shouldBe false
+		service.hasReminders(pending) shouldBe false
+	}
 }

@@ -90,6 +90,10 @@ class ReminderService(
 	fun ofItem(item: ItemRef): List<ResolvedReminder> =
 		resolveAll(reminders.findByItemTypeAndItemIdOrderByRemindAtAscIdAsc(item.type, item.id))
 
+	/** Whether [item] has any reminder, fired or not. Unlike [ofItem] it resolves nothing. */
+	@Transactional(readOnly = true)
+	fun hasReminders(item: ItemRef): Boolean = reminders.existsByItemTypeAndItemId(item.type, item.id)
+
 	/**
 	 * The reminders of [item] that have not fired yet, earliest first, without display data: for modules that manage
 	 * their items' reminders themselves.
