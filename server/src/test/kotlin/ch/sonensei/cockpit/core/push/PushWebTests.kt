@@ -1,12 +1,17 @@
 package ch.sonensei.cockpit.core.push
 
 import ch.sonensei.cockpit.core.auth.WithCockpitUser
+import ch.sonensei.cockpit.core.crypto.EncryptedSecret
+import ch.sonensei.cockpit.core.persistence.UuidV7
 import ch.sonensei.cockpit.core.push.domain.PushService
+import ch.sonensei.cockpit.core.push.domain.VapidKey
 import ch.sonensei.cockpit.core.push.domain.VapidKeyService
 import ch.sonensei.cockpit.core.push.infra.PushSubscriptionRepository
 import ch.sonensei.cockpit.core.push.infra.VapidKeyRepository
 import ch.sonensei.cockpit.core.push.infra.WebPushCrypto
 import ch.sonensei.cockpit.support.PostgresTestBase
+import io.kotest.assertions.throwables.shouldNotThrowAny
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
@@ -361,7 +366,7 @@ class PushWebTests(
 			privateKeyColumn,
 		)
 
-	private fun vapidKeyRows(): List<String> = jdbc.queryForList("select private_key from push_vapid_key", String::class.java)
+	private fun vapidKeyRows(): List<String?> = jdbc.queryForList("select private_key from push_vapid_key", String::class.java)
 
 	/** Other tests expect the key pair generated at startup. */
 	private fun restoreUsableKeyPair() {

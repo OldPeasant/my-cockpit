@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.TransactionDefinition
 import org.springframework.transaction.support.TransactionTemplate
+import java.security.GeneralSecurityException
 import java.security.PrivateKey
 import java.security.interfaces.ECPublicKey
 import java.util.Base64
@@ -54,10 +55,14 @@ class VapidKeyService(
 	/** The key pair, generated on first use. Two instances generating at once agree on the one stored first. */
 	fun current(): VapidKeyPair {
 		val stored = tx.execute { keys.findFirstBy() } ?: generate()
-		return VapidKeyPair(
-			WebPushCrypto.decode(stored.publicKey),
-			WebPushCrypto.privateKey(Base64.getDecoder().decode(stored.privateKey.reveal())),
-		)
+		return try {
+			VapidKeyPair(
+				WebPushCrypto.decode(stored.publicKey),
+				WebPushCrypto.privateKey(Base64.getDecoder().decode(stored.privateKey.reveal())),
+			)
+		} catch (e: GeneralSecurityException) {
+			throw IllegalStateException("The stored VAPID private key is not a valid key", e)
+		}
 	}
 
 	private fun generate(): VapidKey {
