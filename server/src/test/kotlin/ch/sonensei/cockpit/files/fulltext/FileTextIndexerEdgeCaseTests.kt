@@ -1,12 +1,14 @@
 package ch.sonensei.cockpit.files.fulltext
 
 import ch.sonensei.cockpit.core.items.domain.ItemType
+import ch.sonensei.cockpit.core.persistence.MutableClock
 import ch.sonensei.cockpit.core.search.domain.SearchIndexer
 import ch.sonensei.cockpit.core.search.domain.SearchService
 import ch.sonensei.cockpit.files.domain.FileItem
 import ch.sonensei.cockpit.files.domain.FilesService
 import ch.sonensei.cockpit.files.infra.BlobStore
 import ch.sonensei.cockpit.support.PostgresTestBase
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
@@ -22,12 +24,14 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.transaction.support.TransactionTemplate
 import java.nio.file.Files
 import java.time.Clock
+import java.time.Duration
 import java.util.UUID
 
 /**
  * Edge cases of [FileTextIndexer] against Postgres (task pdf-fulltext): NUL characters, the character limit end to end,
- * missing blobs and unexpected extractor exceptions, batches, and files that change, go to the Trash or are purged
- * while their text is extracted (an indexer built with a mocked extractor simulates the race deterministically).
+ * missing blobs and unexpected extractor exceptions and errors, batches, the rebuild after a backup restore, and files
+ * that change, go to the Trash or are purged while their text is extracted (an indexer built with a mocked extractor
+ * simulates the race deterministically).
  */
 @SpringBootTest
 class FileTextIndexerEdgeCaseTests(
@@ -59,6 +63,7 @@ class FileTextIndexerEdgeCaseTests(
 	private fun indexerWith(
 		extractor: FileTextExtractor = this.extractor,
 		properties: FileTextProperties = this.properties,
+		clock: Clock = this.clock,
 	) = FileTextIndexer(texts, extractor, blobs, searchIndexer, transactions, properties, clock)
 
 	/** An extractor that runs [during] (the racing change) and then returns [text]. */
@@ -105,16 +110,95 @@ class FileTextIndexerEdgeCaseTests(
 	}
 
 	@Test
-	fun `a file whose blob is missing is marked failed and not tried again`() {
+	fun `a file whose blob is missing gets no row, does not block other files, and is tried again later`() {
+		val time = MutableClock(clock.instant())
+		val retrying = indexerWith(clock = time)
 		val file = files.storeFile(null, "lost.txt", "text/plain", "Vanished trellis".byteInputStream())
-		Files.delete(blobs.path(file.storageKey))
+		val blob = blobs.path(file.storageKey)
+		val saved = Files.readAllBytes(blob)
+		Files.delete(blob)
+		val older = files.storeFile(null, "kept.txt", "text/plain", "Present gooseberry".byteInputStream())
+		jdbc.update("update file set created_at = created_at - interval '1 hour' where id = ?", older.id)
 
-		indexAll()
+		retrying.indexPending() shouldBe 2
 
-		row(file)!!["status"] shouldBe "FAILED"
-		row(file)!!["text"].shouldBeNull()
-		indexer.indexPending() shouldBe 0
+		row(file).shouldBeNull()
+		row(older)!!["status"] shouldBe "EXTRACTED"
+		retrying.indexPending() shouldBe 0
 		found("lost") shouldContainExactly listOf(file.id)
+
+		Files.write(blob, saved)
+		time.advance(FileTextIndexer.UNREADABLE_RETRY_DELAY.minusSeconds(1))
+		retrying.indexPending() shouldBe 0
+		time.advance(Duration.ofSeconds(1))
+		retrying.indexPending() shouldBe 1
+
+		row(file)!!["status"] shouldBe "EXTRACTED"
+		found("trellis") shouldContainExactly listOf(file.id)
+	}
+
+	@Test
+	fun `a StackOverflowError of the extractor marks the file failed instead of stopping the batch`() {
+		val failing = files.storeFile(null, "deep.pdf", "application/pdf", "fictitious".byteInputStream())
+		val other = files.storeFile(null, "flat.pdf", "application/pdf", "fictitious".byteInputStream())
+		val overflowing =
+			mockk<FileTextExtractor> {
+				every { extract(blobs.path(failing.storageKey), any(), any()) } throws StackOverflowError()
+				every { extract(blobs.path(other.storageKey), any(), any()) } returns "Flat lindqvist"
+			}
+
+		indexerWith(extractor = overflowing).indexPending() shouldBe 2
+
+		row(failing)!!["status"] shouldBe "FAILED"
+		row(other)!!["status"] shouldBe "EXTRACTED"
+		indexer.indexPending() shouldBe 0
+	}
+
+	@Test
+	fun `other errors of the virtual machine are not swallowed and the file stays pending`() {
+		val file = files.storeFile(null, "huge.pdf", "application/pdf", "fictitious".byteInputStream())
+		val exhausted =
+			mockk<FileTextExtractor> {
+				every { extract(any(), any(), any()) } throws OutOfMemoryError("fictitious")
+			}
+
+		shouldThrow<OutOfMemoryError> { indexerWith(extractor = exhausted).indexPending() }
+
+		row(file).shouldBeNull()
+	}
+
+	@Test
+	fun `text extracted from a blob that was replaced meanwhile is dropped and extracted again on the next run`() {
+		val file = files.storeFile(null, "moved.txt", "text/plain", "Moved words".byteInputStream())
+		val copy = blobs.write("Moved words".byteInputStream(), Long.MAX_VALUE)
+		val racing =
+			racingExtractor("Stale abernethy") {
+				jdbc.update("update file set storage_key = ? where id = ?", copy.key, file.id)
+			}
+
+		indexerWith(extractor = racing).indexPending() shouldBe 1
+
+		row(file).shouldBeNull()
+		indexer.indexPending() shouldBe 1
+		row(file)!!["status"] shouldBe "EXTRACTED"
+	}
+
+	@Test
+	fun `after the extracted texts are wiped (backup restore) they are rebuilt from the blobs and found again`() {
+		val file = files.storeFile(null, "restored.txt", "text/plain", "Restored kittiwake".byteInputStream())
+		indexAll()
+		found("kittiwake") shouldContainExactly listOf(file.id)
+
+		// What a restore leaves: file_text truncated, the search document rebuilt from the name only.
+		jdbc.execute("truncate file_text")
+		searchIndexer.upsert(ItemType.FILE, file.id, file.name, null)
+		found("kittiwake").shouldBeEmpty()
+
+		indexer.indexPending() shouldBe 1
+
+		row(file)!!["status"] shouldBe "EXTRACTED"
+		found("kittiwake") shouldContainExactly listOf(file.id)
+		found("restored") shouldContainExactly listOf(file.id)
 	}
 
 	@Test

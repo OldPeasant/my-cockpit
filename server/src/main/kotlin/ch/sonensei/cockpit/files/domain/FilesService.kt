@@ -165,13 +165,15 @@ class FilesService(
 		val at = clock.storableInstant()
 		val subtree = folders.findAllById(lockSubtree(id)).filter { !it.isDeleted }
 		val contained = files.findByFolderIdIn(subtree.map { it.id }).filter { !it.isDeleted }
+		subtree.forEach { it.trashAt(at) }
+		contained.forEach { it.trashAt(at) }
+		// Lock the rows before the search documents, in the order FileTextIndexer takes them.
+		files.flush()
 		subtree.forEach {
-			it.trashAt(at)
 			search.delete(ItemType.FOLDER, it.id)
 			changes.publish(ItemType.FOLDER, it.id, ChangeOp.DELETED)
 		}
 		contained.forEach {
-			it.trashAt(at)
 			search.delete(ItemType.FILE, it.id)
 			changes.publish(ItemType.FILE, it.id, ChangeOp.DELETED)
 		}
@@ -264,6 +266,8 @@ class FilesService(
 		val file = file(id)
 		checkVersion(file.version)
 		file.trashAt(clock.storableInstant())
+		// Lock the row before the search document, in the order FileTextIndexer takes them.
+		files.flush()
 		search.delete(ItemType.FILE, file.id)
 		changes.publish(ItemType.FILE, file.id, ChangeOp.DELETED)
 	}
@@ -314,12 +318,13 @@ class FilesService(
 		val at = folder.deletedAt
 		folder.name = freeName(folder.parentId, folder.name)
 		val subtree = folders.findAllById(folders.findSubtreeIds(id)).filter { it.deletedAt == at }
-		subtree.forEach {
-			it.restore()
-			indexed(it)
-		}
-		files.findByFolderIdIn(subtree.map { it.id }).filter { it.deletedAt == at }.forEach {
-			it.restore()
+		val contained = files.findByFolderIdIn(subtree.map { it.id }).filter { it.deletedAt == at }
+		subtree.forEach { it.restore() }
+		contained.forEach { it.restore() }
+		// Lock the rows before the search documents and the extracted texts are read (see restoreFile).
+		files.flush()
+		subtree.forEach { indexed(it) }
+		contained.forEach {
 			indexed(it)
 			changes.publish(ItemType.FILE, it.id, ChangeOp.UPDATED)
 		}
@@ -331,6 +336,9 @@ class FilesService(
 	fun restoreFile(id: UUID): Boolean {
 		val file = trashedFiles().find { it.id == id } ?: return false
 		file.restore()
+		// Lock the row first, in the order FileTextIndexer takes it, so its text is read after a running extraction
+		// committed.
+		files.flush()
 		indexed(file)
 		return true
 	}

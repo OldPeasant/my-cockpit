@@ -24,6 +24,7 @@ data class LockedFile(
 	val sha256: String,
 	val updatedAt: Instant,
 	val active: Boolean,
+	val storageKey: String,
 )
 
 /** SQL access to `file_text`. */
@@ -58,13 +59,14 @@ class FileTextRepository(
 	fun lockFile(id: UUID): LockedFile? =
 		jdbc
 			.query(
-				"select name, sha256, updated_at, deleted_at from file where id = ? for update",
+				"select name, sha256, updated_at, deleted_at, storage_key from file where id = ? for update",
 				{ rs, _ ->
 					LockedFile(
 						rs.getString("name"),
 						rs.getString("sha256"),
 						rs.getTimestamp("updated_at").toInstant(),
 						rs.getTimestamp("deleted_at") == null,
+						rs.getString("storage_key"),
 					)
 				},
 				id,

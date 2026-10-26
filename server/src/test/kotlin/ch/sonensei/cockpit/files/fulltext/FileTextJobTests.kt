@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.files.fulltext
 
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.every
@@ -14,14 +15,20 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.scheduling.config.FixedDelayTask
 import org.springframework.scheduling.config.ScheduledTaskHolder
 import java.time.Duration
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executor
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.TimeUnit
 
 /**
- * [FileTextJob] (task pdf-fulltext): the batch loop with a mocked [FileTextIndexer], and the scheduling switch of
- * [FileTextJobConfiguration] in a minimal context.
+ * [FileTextJob] (task pdf-fulltext): the batch loop with a mocked [FileTextIndexer] (on an executor that runs the
+ * extraction right away), the hand-off to its own executor, and the scheduling switch of [FileTextJobConfiguration] in a
+ * minimal context.
  */
 class FileTextJobTests {
 	private val indexer = mockk<FileTextIndexer>()
-	private val job = FileTextJob(indexer)
+	private val direct = Executor { it.run() }
+	private val job = FileTextJob(indexer, direct)
 
 	private val contextRunner =
 		ApplicationContextRunner()
@@ -64,6 +71,98 @@ class FileTextJobTests {
 
 		job.run()
 		verify(exactly = 3) { indexer.indexPending() }
+	}
+
+	@Test
+	fun `a run starts no new batch after the time limit, the rest waits for the next run`() {
+		var now = 0L
+		val timed = FileTextJob(indexer, direct) { now }
+		every { indexer.indexPending() } answers {
+			now += Duration.ofMinutes(2).toNanos()
+			20
+		}
+
+		timed.run()
+
+		// Batches end at 2, 4 and 6 minutes; the third one passes the 5-minute limit.
+		verify(exactly = 3) { indexer.indexPending() }
+	}
+
+	@Test
+	fun `the extraction runs on the executor, and a tick while it is busy does nothing`() {
+		val queued = mutableListOf<Runnable>()
+		val handOff = FileTextJob(indexer, Executor { queued += it })
+		every { indexer.indexPending() } returns 0
+
+		handOff.run()
+		handOff.run()
+
+		queued shouldHaveSize 1
+		verify(exactly = 0) { indexer.indexPending() }
+
+		queued.single().run()
+		verify(exactly = 1) { indexer.indexPending() }
+
+		handOff.run()
+		queued shouldHaveSize 2
+	}
+
+	@Test
+	fun `a run that throws still frees the job for the next tick`() {
+		val queued = mutableListOf<Runnable>()
+		val handOff = FileTextJob(indexer, Executor { queued += it })
+		every { indexer.indexPending() } throws StackOverflowError() andThen 0
+
+		handOff.run()
+		runCatching { queued.single().run() }
+		handOff.run()
+
+		queued shouldHaveSize 2
+	}
+
+	@Test
+	fun `a rejected hand-off (shutdown) frees the job`() {
+		var reject = true
+		val queued = mutableListOf<Runnable>()
+		val handOff =
+			FileTextJob(
+				indexer,
+				Executor {
+					if (reject) throw RejectedExecutionException("shut down")
+					queued += it
+				},
+			)
+
+		assertDoesNotThrow { handOff.run() }
+		reject = false
+		handOff.run()
+
+		queued shouldHaveSize 1
+	}
+
+	@Test
+	fun `close shuts the executor down`() {
+		val executor = FileTextJob.newExecutor()
+
+		FileTextJob(indexer, executor).close()
+
+		executor.isShutdown shouldBe true
+	}
+
+	@Test
+	fun `the configured job extracts on its own file-text thread`() {
+		val latch = CountDownLatch(1)
+		var thread: String? = null
+		every { indexer.indexPending() } answers {
+			thread = Thread.currentThread().name
+			latch.countDown()
+			0
+		}
+		contextRunner.run { context ->
+			context.getBean(FileTextJob::class.java).run()
+			latch.await(10, TimeUnit.SECONDS) shouldBe true
+		}
+		thread.shouldNotBeNull() shouldBe "file-text"
 	}
 
 	@Test
