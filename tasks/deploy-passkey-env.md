@@ -1,11 +1,11 @@
 ---
 title: Forward COCKPIT_AUTH_PASSKEY_* to the server in deploy
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-2
 deps: [passkeys-server]
 touches: [deploy/docker-compose.yml,deploy/.env.example,deploy/README.md]
 prio: 2
-lease_until: 
+lease_until: 2026-10-26T04:43:25Z
 releases: 0
 extended: 
 hold: 
