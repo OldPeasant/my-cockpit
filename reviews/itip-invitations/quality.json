@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "itip-invitations",
-  "reviewed_revision": "4745a792e0658324fb19a59ac9ad6abfbbbafc0f",
+  "reviewed_revision": "eaf543d45406d59f0a1fa40be0b67b4d45c5b132",
   "helpers": {
     "test-writer":   {"status": "completed", "report": "reviews/itip-invitations/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/itip-invitations/review.md"},
