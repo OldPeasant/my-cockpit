@@ -20,6 +20,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.security.test.context.support.WithAnonymousUser
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
 import org.springframework.test.context.event.ApplicationEvents
 import org.springframework.test.context.event.RecordApplicationEvents
@@ -400,6 +401,67 @@ class MailIdentityWebTests(
 			jsonPath("$.errors[0].field") { value("email") }
 		}
 		identities.findById(UUID.fromString(id)).get().email shouldBe "info@example.test"
+	}
+
+	@Test
+	fun `changing an unknown identity of the account is 404 Problem Details`() {
+		val unknown = UuidV7.generate()
+		patch(unknown, mapOf("name" to "X")).andExpect {
+			status { isNotFound() }
+			content { contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) }
+		}
+		patch(unknown, mapOf("name" to "X"), account = UuidV7.generate()).andExpect { status { isNotFound() } }
+	}
+
+	@Test
+	fun `a rejected change stores nothing and publishes no event`(events: ApplicationEvents) {
+		createOk(mapOf("name" to "Jane", "email" to "info@example.test"))
+		val id = createOk(mapOf("name" to "Jane", "email" to "other@example.test", "isDefault" to true))["id"].asString()
+
+		patch(id, mapOf("name" to "Changed", "email" to "info@example.test", "isDefault" to false)).andExpect {
+			status { isConflict() }
+		}
+		patch(id, mapOf("name" to "Changed", "email" to " ")).andExpect { status { isBadRequest() } }
+		delete(id, ifMatch = "\"9\"").andExpect { status { isPreconditionFailed() } }
+
+		val stored = identities.findById(UUID.fromString(id)).get()
+		stored.name shouldBe "Jane"
+		stored.email shouldBe "other@example.test"
+		stored.isDefault shouldBe true
+		stored.version shouldBe 0
+		events.identityEvents(ChangeOp.UPDATED) shouldBe 0
+		events.identityEvents(ChangeOp.DELETED) shouldBe 0
+	}
+
+	@Test
+	fun `a duplicate new default does not take the flag from the current default`() {
+		val first = createOk(mapOf("name" to "Jane", "email" to "info@example.test", "isDefault" to true))["id"].asString()
+		create(mapOf("name" to "Jane", "email" to "INFO@example.test", "isDefault" to true)).andExpect { status { isConflict() } }
+
+		val stored = identities.findById(UUID.fromString(first)).get()
+		stored.isDefault shouldBe true
+		stored.version shouldBe 0
+	}
+
+	@Test
+	fun `removing the default identity leaves no default`() {
+		val id = createOk(mapOf("name" to "Jane", "email" to "info@example.test", "isDefault" to true))["id"].asString()
+		createOk(mapOf("name" to "Jane", "email" to "other@example.test"))
+		delete(id).andExpect { status { isNoContent() } }
+
+		identities.findAll().none { it.isDefault } shouldBe true
+		listEmails() shouldContainExactly listOf("other@example.test")
+	}
+
+	@Test
+	@WithAnonymousUser
+	fun `the identity API requires login`() {
+		val id = UuidV7.generate()
+		mockMvc.get(base()).andExpect { status { isUnauthorized() } }
+		create(mapOf("name" to "Jane", "email" to "info@example.test")).andExpect { status { isUnauthorized() } }
+		patch(id, mapOf("name" to "X")).andExpect { status { isUnauthorized() } }
+		delete(id).andExpect { status { isUnauthorized() } }
+		identities.count() shouldBe 0
 	}
 
 	@Test

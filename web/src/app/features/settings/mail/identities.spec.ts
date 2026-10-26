@@ -434,6 +434,103 @@ describe('MailIdentities', () => {
     expect(root.querySelector('[role="group"][aria-label="New identity"] form')).not.toBeNull();
   });
 
+  it('reloads after a stale removal and removes at the current version on retry', async () => {
+    await load([fakeIdentity({ version: 1 })]);
+    await click(button('Remove info@mail.example.test'));
+    await click(button('Remove identity'));
+
+    const { body, options } = problem(412, 'Precondition Failed');
+    const stale = http.expectOne({ method: 'DELETE', url: `${IDENTITIES}/i1` });
+    expect(stale.request.headers.get('If-Match')).toBe('"1"');
+    stale.flush(body, options);
+    await reload([fakeIdentity({ version: 2 })]);
+
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+      'It was changed elsewhere. The list now shows the current state; try again.',
+    );
+    expect(text()).not.toContain('Reload the page');
+    // The removal question stays open, so the user can confirm again.
+    await click(button('Remove identity'));
+    const retry = http.expectOne({ method: 'DELETE', url: `${IDENTITIES}/i1` });
+    expect(retry.request.headers.get('If-Match')).toBe('"2"');
+    retry.flush(null, { status: 204, statusText: 'No Content' });
+    await reload([]);
+    expect(text()).toContain('info@mail.example.test removed.');
+  });
+
+  it('reloads the list when the edited identity was removed elsewhere', async () => {
+    await load([fakeIdentity(), fakeIdentity({ id: 'i2', email: 'b@mail.example.test' })]);
+    await click(button('Edit info@mail.example.test'));
+    await click(button('Save identity'));
+
+    const { body, options } = problem(404, 'Not Found');
+    http.expectOne({ method: 'PATCH', url: `${IDENTITIES}/i1` }).flush(body, options);
+    await reload([fakeIdentity({ id: 'i2', email: 'b@mail.example.test' })]);
+
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain('Not Found');
+    const items = [...root.querySelectorAll('li')].map((li) => li.getAttribute('aria-label'));
+    expect(items).toEqual(['b@mail.example.test']);
+    expect(button('Edit b@mail.example.test').disabled).toBe(false);
+  });
+
+  it('shows a load error with a retry when the reload after a stale change fails', async () => {
+    await load([fakeIdentity()]);
+    await click(button('Edit info@mail.example.test'));
+    await click(button('Save identity'));
+
+    const stale = problem(412, 'Precondition Failed');
+    http.expectOne({ method: 'PATCH', url: `${IDENTITIES}/i1` }).flush(stale.body, stale.options);
+    await tick();
+    const down = problem(503, 'Unavailable');
+    http.expectOne({ method: 'GET', url: IDENTITIES }).flush(down.body, down.options);
+    await settle();
+
+    expect(text()).toContain('Identities could not be loaded: Unavailable');
+    await click(button('Try again'));
+    http.expectOne({ method: 'GET', url: IDENTITIES }).flush({ items: [fakeIdentity()] });
+    await settle();
+    expect(text()).not.toContain('could not be loaded');
+    expect(root.querySelectorAll('li').length).toBe(1);
+  });
+
+  it('does not reload the list after a duplicate address or another error', async () => {
+    await load([fakeIdentity(), fakeIdentity({ id: 'i2', email: 'b@mail.example.test' })]);
+    await click(button('Edit b@mail.example.test'));
+    type('email', 'info@mail.example.test');
+    await click(button('Save identity'));
+
+    const { body, options } = problem(409, 'Conflict');
+    http.expectOne({ method: 'PATCH', url: `${IDENTITIES}/i2` }).flush(body, options);
+    await settle();
+    await tick();
+    // afterEach's http.verify() fails if a list request was made.
+    http.expectNone({ method: 'GET', url: IDENTITIES });
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+      'This account already has an identity with that address.',
+    );
+    expect((input('email') as HTMLInputElement).value).toBe('info@mail.example.test');
+  });
+
+  it('disables the removal confirmation and Edit while a removal is running', async () => {
+    await load([fakeIdentity(), fakeIdentity({ id: 'i2', email: 'b@mail.example.test' })]);
+    await click(button('Remove info@mail.example.test'));
+    const confirm = button('Remove identity');
+    await click(confirm);
+
+    expect(confirm.disabled).toBe(true);
+    expect(button('Edit b@mail.example.test').disabled).toBe(true);
+    expect(button('Add identity').disabled).toBe(true);
+    // A second click while pending sends nothing more (http.verify in afterEach).
+    confirm.click();
+    await settle();
+
+    http
+      .expectOne({ method: 'DELETE', url: `${IDENTITIES}/i1` })
+      .flush(null, { status: 204, statusText: 'No Content' });
+    await reload([fakeIdentity({ id: 'i2', email: 'b@mail.example.test' })]);
+    expect(button('Edit b@mail.example.test').disabled).toBe(false);
+  });
+
   it('keeps an identity whose removal failed and says why', async () => {
     await load([fakeIdentity()]);
     await click(button('Remove info@mail.example.test'));
