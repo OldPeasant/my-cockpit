@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "task": "and-cal-cache",
+  "reviewed_revision": "6fc162929328234442f51bc21340ecd7382c497d",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-cal-cache/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-cal-cache/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-cal-cache/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "view-model logout-during-load not tested; covered by CalendarViewModelRoomCacheTest (test-writer, ebd91e2b7)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "a failed calendar list replaced the cached calendars; only server calendar lists are stored now (e1758858e)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "offline fallback dropped a freshly loaded calendar list; applied via withCalendars now (e1758858e)"}
+  ],
+  "validation": [
+    {"command": "android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug (1880 tests, 0 failures)", "result": "pass"},
+    {"command": "android/gradlew -p android createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
