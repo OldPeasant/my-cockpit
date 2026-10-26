@@ -119,6 +119,115 @@ class RunningToolNotEnded(Hung):
         self.assertEqual(self.ended(), [], self.log.read_text())
 
 
+FAKE_AGENT_2 = r'''
+import json, os, subprocess, sys, time
+prompt, mode = sys.argv[-1], os.environ.get("FAKE_MODE", "")
+def tp(*a):
+    p = subprocess.run([sys.executable, "tasks.py", *a], capture_output=True, text=True)
+    print(p.stdout + p.stderr, flush=True)
+    return p.stdout
+def emit(**ev):
+    print(json.dumps(ev), flush=True)
+def result(text, **kw):
+    emit(type="result", subtype="success", is_error=False, result=text, **kw)
+if "You already own task `" in prompt:  # second session on the same task: finish it, then hang again
+    tid = prompt.split("You already own task `")[1].split("`")[0]
+    tp("done", tid, "--force")
+    result(f"resumed and finished {tid}")
+    time.sleep(600)
+out = tp("claim")
+tid = out.split("CLAIMED ")[1].split()[0] if "CLAIMED " in out else None
+if mode == "bg":  # a background sub-agent whose completion notification never comes
+    emit(type="assistant", message={"content": [{"type": "tool_use", "id": "ag1", "name": "Agent",
+                                                 "input": {"prompt": "write tests"}}]})
+    emit(type="user", message={"content": [{"type": "tool_result", "tool_use_id": "ag1",
+                                            "content": "Async agent launched successfully. agentId: fake-1"}]})
+elif mode == "junk":  # JSON lines a custom --cmd (or a future stream-json event) may print
+    emit(type="system", message="retrying the request")
+if mode != "nodone" and tid:
+    tp("done", tid, "--force")
+result(f"first session {tid}")
+time.sleep(600)
+'''
+
+
+class Hung2(Hung):
+    fake_agent = FAKE_AGENT_2
+    tasks = (("a", "Task A", "1"),)
+
+
+class EndedSessionResumesUnfinishedTask(Hung2):
+    """Criterion 2: after an early end the runner goes on with the actual task state. The task is still ours
+    and in progress, so the next session resumes it (no back-off, not a failure)."""
+    mode = "nodone"
+
+    def test_unfinished_task_is_resumed_after_an_early_end(self):
+        self.proc.wait(timeout=2 * TIMEOUT)
+        log = self.log.read_text()
+        self.assertIn("all tasks done", log)
+        self.assertEqual([r for _, r in self.ended()], ["first session a", "resumed and finished a"], log)
+        self.assertIn("session start: resume a", log)
+        self.assertNotIn("timed out", log)
+        self.assertNotIn("retrying", log)
+        self.assertNotIn("failed sessions", log)
+        self.assertEqual(self.state("a")["status"], "done")
+
+
+class PendingBackgroundAgentNotEnded(Hung2):
+    """The incident's setup: a background sub-agent was launched and has not reported back yet. The final
+    result is printed, but the session must not be ended early: only --timeout may end it."""
+    mode = "bg"
+
+    def test_session_with_pending_background_agent_runs_until_timeout(self):
+        # the task is done, so the runner exits right after the timeout kill: wait for the exit, then read the log
+        self.proc.wait(timeout=3 * TIMEOUT)
+        log = self.log.read_text()
+        self.assertIn(f"session killed, timed out after {TIMEOUT}s", log)
+        self.assertEqual(self.ended(), [], log)
+
+
+class UnusualJsonLineDoesNotCrashRunner(Hung2):
+    """A JSON line whose `message` is not an object (structured logging of a custom --cmd) must not crash
+    the runner: describe() treats such lines as unknown events, Settled must too."""
+    mode = "junk"
+
+    def test_runner_survives_json_line_with_string_message(self):
+        self.proc.wait(timeout=2 * TIMEOUT)
+        log = self.log.read_text()
+        self.assertNotIn("Traceback", log)
+        self.assertEqual([r for _, r in self.ended()], ["first session a"], log)
+        self.assertIn("all tasks done", log)
+
+
+class Options(unittest.TestCase):
+    """--result-grace defaults to 60 s for `run` and `start`."""
+
+    def parsed(self, argv, fn):
+        import agents
+        got = {}
+        old_fn, old_argv = getattr(agents, fn), sys.argv
+        setattr(agents, fn, lambda a: got.setdefault("a", a))
+        sys.argv = ["agents.py", *argv]
+        try:
+            agents.main()
+        finally:
+            setattr(agents, fn, old_fn)
+            sys.argv = old_argv
+        return got["a"]
+
+    def test_run_default_grace_is_60(self):
+        a = self.parsed(["run", "agent-1", ".", "--owner", "box/agent-1", "--cmd", "x"], "cmd_run")
+        self.assertEqual(a.result_grace, 60)
+
+    def test_run_grace_option(self):
+        a = self.parsed(["run", "agent-1", ".", "--owner", "box/agent-1", "--cmd", "x", "--result-grace", "5"],
+                        "cmd_run")
+        self.assertEqual(a.result_grace, 5)
+
+    def test_start_default_grace_is_60(self):
+        self.assertEqual(self.parsed(["start", "1"], "cmd_start").result_grace, 60)
+
+
 def ev(**kw):
     return json.dumps(kw)
 
@@ -184,6 +293,35 @@ class SettledUnit(unittest.TestCase):
         s = self.feed(tool_use("b", "Bash", command="make", run_in_background=True),
                       tool_result("b", "Command running in background with ID: b1"), result())
         self.assertFalse(self.quiet(s))
+
+    def test_error_result_after_success_unsettles(self):
+        s = self.feed(result(), ev(type="result", subtype="error_during_execution", is_error=True))
+        self.assertFalse(self.quiet(s))
+
+    def test_extra_notification_does_not_go_below_zero(self):
+        # a notification without a known background task must not hide a later real one
+        s = self.feed(result(origin={"kind": "task-notification"}),
+                      tool_use("a1", "Agent", prompt="x"), tool_result("a1", "Async agent launched. agentId: z"),
+                      result())
+        self.assertFalse(self.quiet(s))
+
+    def test_blank_lines_do_not_restart_quiet_time(self):
+        s = self.feed(result())
+        last = s.last
+        s.feed("   ")
+        s.feed("")
+        self.assertEqual(s.last, last)
+
+    def test_non_object_json_only_restarts_quiet_time(self):
+        s = self.feed(result(), "[1, 2]", "42")
+        self.assertTrue(self.quiet(s))
+
+    def test_json_with_non_object_message_or_origin_does_not_raise(self):
+        # describe() ignores such lines; Settled runs inside the runner's drain(), so raising there kills the runner
+        s = Settled()
+        s.feed(ev(type="system", message="retrying the request"))
+        s.feed(ev(type="result", subtype="success", result="ok", origin="cli"))
+        self.assertTrue(self.quiet(s))
 
     def test_finished_agent_without_background_hint_is_not_background(self):
         self.assertTrue(self.quiet(self.feed(tool_use("a", "Agent", prompt="x"), tool_result("a", "all fine"),
