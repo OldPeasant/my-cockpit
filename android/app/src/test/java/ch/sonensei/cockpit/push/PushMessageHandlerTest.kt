@@ -82,6 +82,24 @@ class PushMessageHandlerTest {
     }
 
     @Test
+    fun `a message of exactly the maximum size is still read, one byte more is ignored`() {
+        val message = """{"kind":"mail","id":"$ID"}"""
+        val atLimit = message + " ".repeat(PushMessageHandler.MAX_PAYLOAD_BYTES - message.length)
+
+        assertEquals(PushEvent.Mail(UUID.fromString(ID)), handle(atLimit))
+        assertNull(handle("$atLimit "))
+        assertEquals(1, notifier.shown)
+    }
+
+    @Test
+    fun `a message without a registration is ignored`() {
+        store.instance = null
+
+        assertNull(handle("""{"kind":"mail","id":"$ID"}"""))
+        assertEquals(0, notifier.shown)
+    }
+
+    @Test
     fun `a message the library could not decrypt is ignored`() {
         assertNull(handle("""{"kind":"reminder","id":"$ID"}""", decrypted = false))
         assertEquals(0, sync.reminderSyncs)
