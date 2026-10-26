@@ -15,7 +15,8 @@ the Kotlin string `"**F:** \\[x <c@d.e>  \n**T:** \\[y <c@d.e>"` or a header lik
 display name. Found in mail-gtd, which works around it by writing mail escapes as U+2216.
 
 ## Acceptance criteria
-- [ ] plainText/titleOf of Markdown with escapes mixed with bold, autolinks and hard breaks neither throws (tests run with -ea) nor drops/garbles text (unit tests with the repro cases)
+- [x] plainText/titleOf of Markdown with escapes mixed with bold, autolinks and hard breaks neither throws (tests run with -ea) nor drops/garbles text (unit tests with the repro cases)
+  - verified (2026-10-26 04:50+0100 by dell26/agent-2): ./gradlew test --tests 'ch.sonensei.cockpit.notes.*' (Gradle Test enableAssertions=true, -ea) -> NoteMarkdownTests 35 pass incl. repro '**F:** \[x <c@d.e> \n**T:** ...', backslash hard break, entities (&amp; &#91; &nbsp;) next to bold/autolinks/hard breaks, plainText and titleOf exact-text asserts
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.notes.*'` passes
 - [ ] mail-gtd's workaround is removed: `MailGtdService.neutralizeInlineLinks` keeps the mail's backslash escapes verbatim (no U+2216), its escape tests in `MailGtdWebTests` expect the original text, and `./gradlew test --tests 'ch.sonensei.cockpit.mail.gtd.*'` passes
 
