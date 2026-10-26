@@ -7,8 +7,8 @@ prio: 3
 parent: unifiedpush-android
 lease_until: 
 extended: 
-releases: 3
-hold: given back 3 times; last: All 3 criteria implemented and verified; final test-writer and code-reviewer reports (0 findings) and quality.json committed at 83603e8c2 (reviewed_revision = that hash). Onl
+releases: 0
+hold: 
 ---
 ## Goal
 Part of `unifiedpush-android` (UnifiedPush for Android), which was split.
