@@ -15,3 +15,4 @@ An older iTIP REPLY (lower SEQUENCE, or same SEQUENCE and older DTSTAMP) that ar
 - [ ] The stored value survives backup/restore and is not lost on event edits via the API
 
 ## Notes
+- ASSUMPTION (2026-10-26 17:16+0100 by felix/agent-1): Per-attendee REPLY stamp kept in a new table calendar_itip_reply (event_id=series master, recurrence_id_at/date, lower-case email, SEQUENCE, DTSTAMP) instead of a field on the Attendee JSON: event edits via the API replace attendees and EventContent.propagate compares attendee lists, so a JSON field would be lost or break propagation; the table is untouched by edits and cascades with the event
