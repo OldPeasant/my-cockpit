@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/ics,server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/ics]
 prio: 2
-lease_until: 2026-10-26T03:01:25Z
+lease_until: 2026-10-26T03:06:29Z
 extended: dell26/agent-1
 ---
 ## Goal
