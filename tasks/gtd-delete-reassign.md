@@ -7,7 +7,7 @@ touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,api/openapi.yaml,web/sr
 prio: 2
 lease_until: 2026-10-26T02:53:15Z
 releases: 0
-extended: 
+extended: dell26/agent-2
 hold: 
 ---
 ## Goal
@@ -25,3 +25,4 @@ Deleting a context/area with "move to another" must also reach items the list en
 - release by felix/agent-1: Not started. Host felix still has a broken JDK (JAVA_HOME=/usr/lib/jvm/java-21-openjdk missing; server/gradlew -p server -v fails), so server integration tests and .taskcheck cannot run here; released for an agent on a working host.
 - ASSUMPTION (2026-10-26 02:44+0100 by dell26/agent-2): replaceWith/moveTo equal to the deleted context/area itself is rejected with 400 like an unknown id (field error on the parameter); a task that already has the replacement context just keeps it once
 - ASSUMPTION (2026-10-26 02:44+0100 by dell26/agent-2): The delete dialog's task/project count still comes from listTasks/listProjects (visible items only); a context used only by tickler/Trash tasks shows 'No task uses this context' and is deleted without replacement. Counting hidden items would need a new count endpoint, out of scope
+- extended by dell26/agent-2: Implementation, fix of CR-1 and clean re-review (review.md, fixes.md) committed. Left: run test-writer on final code (tests.md missing; wip AreaContextDeleteRollbackTests.kt committed unverified), write quality.json, record verify for both criteria, done. Last .taskcheck failed only in BackupRoundTripTest/FilesBackupContributorTests with 'Disk quota exceeded' (host disk, unrelated to this task).
