@@ -1,11 +1,11 @@
 ---
 title: CalDAV Radicale tests run without authentication
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/caldav]
 prio: 2
-lease_until: 2026-10-26T12:32:15Z
+lease_until: 
 ---
 ## Goal
 CalDavRadicaleSyncTests copies its Radicale config to /config/config, but the image fills its /config volume with
@@ -19,3 +19,4 @@ CardDavRadicaleSyncTests (config under /etc/radicale, `withCommand(... --config 
   - verified (2026-10-26 13:03+0100 by dell26/agent-1): cd server && ./gradlew ktlintCheck integrationTest --tests '*CalDavRadicale*' (rev 0996f9d4a, Podman) -> BUILD SUCCESSFUL, CalDavRadicaleSyncTests 12 tests 0 failures; tests assert wrong-password PROPFIND -> 401 and radicale.logs contains "auth type is 'radicale.auth.htpasswd'"
 
 ## Notes
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 578s on cdf8b7ba3; criteria verified 1/1
