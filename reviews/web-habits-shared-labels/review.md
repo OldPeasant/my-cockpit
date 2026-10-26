@@ -4,41 +4,21 @@ Date: 2026-10-26
 
 Task: web-habits-shared-labels - Share habit check label/error helpers between Habits view and Today
 
-Scope: task commit 00a417b0 on top of base 9890aa29d3d2627e01210f7659eefc5e0c0cb33b, limited to `web/src/app/features/habits/habit-display.ts`, `web/src/app/features/habits/habits-page.ts`, `web/src/app/features/gtd/today/today-habits.ts` (plus their specs as evidence)
+Scope: `git diff 8ab942ce..HEAD -- web/` (production commit 3c0acdfa and test commit 06172c40, new tests included)
 
 Requirements:
-- tasks/web-habits-shared-labels.md acceptance criteria (1) one shared implementation of the check label and error message, used by both components; (2) existing Vitest tests of both still pass, `cd web && npm run check` passes
+- tasks/web-habits-shared-labels.md (acceptance criteria 1 and 2)
 - reviews/web-today-habits/review.md CR-3 (origin of the task)
-- AGENTS.md project notes (feature folders, touches, i18n/lint conventions)
-- Parent instructions: i18n ids unchanged, maintainability
+- AGENTS.md project notes (lint, feature folders, touches)
+- docs/ARCHITECTURE.md conventions (web feature folders, i18n via `$localize`)
 
 Git range:
 - Branch: main
-- HEAD: 00a417b0
-- Base/start: 9890aa29d3d2627e01210f7659eefc5e0c0cb33b
-- Commits reviewed: 1 (00a417b0 "web-habits-shared-labels: share habit check label and error message helpers")
-- Uncommitted changes: not checked (see limitation below)
+- HEAD: 06172c40
+- Base/start: 8ab942cec4152d16c2c58d97607da2a35c116c01
+- Commits reviewed: 2 (3c0acdfa, 06172c40); no uncommitted changes at start
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
-
-## Review limitation
-
-The Bash tool was denied in this review session, so I could not run `git diff 9890aa29..00a417b0`, `git log`, `git status` or the tests. I reviewed the current files in the working tree (HEAD 00a417b0 according to the session's git snapshot) in full, plus their specs. I could not see the removed lines. This affects one check:
-
-- **i18n ids unchanged.** The shared helpers use `@@habits.check`, `@@habits.uncheck`, `@@habits.checkCount` and `@@habits.error` (`habit-display.ts:43,44,48,55`). `habits-page.ts` has no `$localize` copies of these left, and `today-habits.ts` has no `$localize` calls at all. So the Habits view now uses one id per message. I could not confirm from the old code whether the removed Today copies used these ids or their own (for example `@@gtd.today.*`). Impact is nil either way: `web/src/locale/messages.xlf` has no `habits.*` or `gtd.today.*` units, and there is no translation file, so no translation can be lost. The parent should still run `git diff 9890aa29..00a417b0 | grep '@@'` to confirm that the removed lines have no ids missing from the added lines, and record the result.
-
-I did not run the test suites myself. Criterion 2 needs the parent's or the test-writer's recorded `npm run check` run.
-
-## Verification
-
-- **Criterion 1 (one shared implementation, used by both):** met in the current code.
-  - `habit-display.ts:38-56` defines `checkLabel(habit)` and `errorMessage(error)` once.
-  - `habits-page.ts:15-25` imports both. The component uses `checkLabel` as a template alias (`:200`) and calls `errorMessage` in `load()` (`:106`), `save()` (`:161`) and `run()` (`:251`). No private `message()` or `checkLabel()` copy is left.
-  - `today-habits.ts:14-20` imports both. The component uses `checkLabel` as a template alias (`:137`, bound in `today-habits.html:39`) and calls `errorMessage` in `check()` (`:113`). No local copy is left.
-- **Behavior unchanged:** the label texts the specs assert match the shared helper. Examples: `today-habits.spec.ts:85,91,116` (`“Water”: 1 of 3 today`, `Check “Read 20 pages” for today`, `Uncheck …`) and the error detail at `:224-226`. `ApiError` is still imported and used in both components (404 and conflict handling), so no import was left unused.
-- **Tests:** `habit-display.spec.ts:16-56` adds direct unit tests for `checkLabel` (once a day, unchecked and checked; a target above 1, including reaching and passing the target) and `errorMessage` (ApiError detail/title; generic text for Error, string, undefined, null, `{}`). These cover the shared helpers where they now live.
-- **Architecture/conventions:** the helpers live in `features/habits/habit-display.ts` next to `nextCount`, `todayProgress` and `scheduleLabel`, which Today already imported from there. The changes stay inside the task's `touches` (`features/habits`, `features/gtd/today`). The dependency direction (gtd/today -> habits) matches the existing imports. Nothing is in scope that the task excludes.
-- **Security:** no new input, output or logging paths. `errorMessage` returns only `ApiError.userMessage` or a fixed text, as before.
 
 ## P0 Critical
 
@@ -56,13 +36,43 @@ None.
 
 None.
 
-## Notes (no finding)
+## Verification notes
 
-- Copies remain of the check flow (busy set, 404 drop, 409/412 conflict reload, sequence counter) in `HabitsPage.run()`/`isConflict()` (`habits-page.ts:237-271`) and `TodayHabits.check()` (`today-habits.ts:97-125`). CR-3 in web-today-habits also mentioned these, but this task's goal and criteria name only the label and the error message, so they are out of scope. A further follow-up could share `isConflict`.
-- In both components, `checkLabel` is declared as a class field below the methods (`habits-page.ts:200`, `today-habits.ts:137`), while the other template aliases (`scheduleLabel`, `todayProgress`) sit at the top of the class. This is a cosmetic inconsistency only.
+- AC1 (one shared implementation): `checkLabel()` and `errorMessage()` are now exported from
+  `web/src/app/features/habits/habit-display.ts:39` and `:52`. `habits-page.ts` and
+  `gtd/today/today-habits.ts` import both helpers, bind `protected readonly checkLabel = checkLabel`
+  for their templates (`habits-page.html:117`, `today-habits.html:39`), and call `errorMessage()` at
+  every former `message()` call site (habits-page: load, save, check; today-habits: check). A grep
+  for `function message` and for the i18n ids in `web/src` finds no remaining copy outside
+  `habit-display.ts`.
+- i18n ids: I extracted every `$localize` literal from the removed and added lines of the diff.
+  The removed lines held `@@habits.check`, `@@habits.uncheck`, `@@habits.checkCount` and
+  `@@habits.error` twice each (one copy per component). The added lines hold each of them once, with
+  the same source text and the same placeholder names (`name`, `count`, `target`). No id, text or
+  placeholder changed. The `habits.*` ids are not in `web/src/locale/messages.xlf` yet, and this task
+  does not change that file.
+- Behaviour is the same as before: the moved bodies match the old ones exactly, and `ApiError` is
+  still imported where the components use it for 404/409/412 handling.
+- Dependency direction: `gtd/today` already imported from `features/habits/habit-display`
+  (`nextCount`, `scheduleLabel`, `todayProgress`), so this adds no new coupling. All changes stay
+  inside the task's `touches`.
+- Tests: `habit-display.spec.ts` covers all three `checkLabel` branches (including target 2 and a
+  count above the target) and both `errorMessage` branches (API error detail/title and non-API
+  values, including `null`/`undefined`). `today-habits.spec.ts` adds the generic-message path for a
+  non-API failure and checks that the button is enabled again afterwards. These tests check what the
+  user sees, not how the code is built.
+- Commands run in this review:
+  - `cd web && npx ng test --watch=false --include=src/app/features/habits/habit-display.spec.ts --include=src/app/features/habits/habits-page.spec.ts --include=src/app/features/gtd/today/today-habits.spec.ts` -> 3 files, 89 tests passed.
+  - `cd web && npx eslint src/app/features/habits src/app/features/gtd/today` -> clean.
+  - Plain `npx vitest run ...` without the Angular builder fails before any test runs, because
+    `$localize` is not set up there. That is how the project's test setup works (it runs through
+    `ng test`) and is not a defect of this task.
+- AC2 (`npm run check`): this review did not re-run it. The test-writer's report
+  (reviews/web-habits-shared-labels/tests.md) records a passing `npm run check` with 175 files and
+  3671 tests. That report cites older hashes of the production commit (e.g. 0041235a); the parent
+  worker should make sure the recorded evidence matches the final code (patch-id) when it records
+  `verify`.
 
 ## Review conclusion
 
 No material issues found.
-
-The code meets criterion 1. The i18n-id check of the removed lines and criterion 2 (test run) could not be verified in this session because Bash was unavailable. The parent must confirm both through its own recorded commands before `done`.
