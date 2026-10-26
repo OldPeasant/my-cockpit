@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "task": "ics-max-size-flaky-test",
+  "reviewed_revision": "03a5d5f63c86e3543c751d0e8361e5cc79517b81",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/ics-max-size-flaky-test/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/ics-max-size-flaky-test/review.md"},
+    "fixer": {"status": "not_required", "reason": "code-reviewer reported 0 findings and test-writer found no production bugs"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "server/gradlew -p server ktlintCheck test --tests '*IcsFeedClientTests'", "result": "pass"}
+  ]
+}
