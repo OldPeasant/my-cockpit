@@ -6,9 +6,9 @@ deps: [web-settings-gtd]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,api/openapi.yaml,web/src/app/features/settings/gtd]
 prio: 2
 lease_until: 
-releases: 1
+releases: 0
 extended: 
-hold: Task complete: both criteria verified, test/review/quality evidence committed (reviewed_revision 4d2582b47, fresh). .taskcheck fails only in BackupRoundTripTest and FilesBackupContributorTests with 'j
+hold: 
 ---
 ## Goal
 Deleting a context/area with "move to another" must also reach items the list endpoints hide
