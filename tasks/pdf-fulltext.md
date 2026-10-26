@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [files-preview,p0-search-core]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/files/fulltext,server/src/test/kotlin/ch/sonensei/cockpit/files/fulltext]
 prio: 3
-lease_until: 2026-10-26T14:11:35Z
+lease_until: 2026-10-26T14:16:36Z
 extended: dell26/agent-2
 ---
 ## Goal
