@@ -1,11 +1,11 @@
 ---
 title: BackupRoundTripTest leaks a temp data dir per run
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/backup/BackupRoundTripTest.kt]
 prio: 1
-lease_until: 2026-10-26T05:38:34Z
+lease_until: 
 ---
 ## Goal
 `BackupRoundTripTest` creates its data dir with `Files.createTempDirectory("cockpit-round-trip-data")` in its
@@ -26,3 +26,4 @@ delete files outside their clone, so only a human can clean up after a leak: the
   - verified (2026-10-26 06:11+0100 by dell26/agent-1): sh scripts/check.sh -> exit 0, '== all checks passed'
 
 ## Notes
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 88s on 469c5a600; criteria verified 3/3
