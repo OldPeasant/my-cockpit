@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [p6-smoke]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/perf,server/src/main/resources/db/migration/perf,docs/perf.md]
 prio: 3
-lease_until: 2026-10-26T14:38:28Z
+lease_until: 2026-10-26T14:43:32Z
 ---
 ## Goal
 Fast with realistic data volumes.
