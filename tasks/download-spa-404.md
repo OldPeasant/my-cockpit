@@ -1,11 +1,11 @@
 ---
 title: Unknown /download/* paths return 404, not the SPA index.html
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-apk-distribution]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/spa,server/src/test/kotlin/ch/sonensei/cockpit/core/spa]
 prio: 2
-lease_until: 2026-10-26T01:35:29Z
+lease_until: 
 ---
 ## Goal
 `/download/` is a server prefix (and-apk-distribution, review finding CR-1), but
@@ -19,3 +19,4 @@ request to an unknown path such as `/download/ios` gets the SPA `index.html` wit
   - verified (2026-10-26 02:04+0100 by dell26/agent-1): cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.core.spa.*' -> BUILD SUCCESSFUL, 19 tests, 0 failures
 
 ## Notes
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 92s on 3b1498c99; criteria verified 2/2
