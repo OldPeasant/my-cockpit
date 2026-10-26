@@ -16,7 +16,8 @@ body subscription, and the JDK HttpClient sometimes completes the future with it
 subscriber's `tooLarge` error, so `fetchOnce` maps it to "could not be reached".
 
 ## Acceptance criteria
-- [ ] An oversized Content-Length is always reported as "larger than" (the refusal's own error wins over the IOException the cancelled exchange causes)
+- [x] An oversized Content-Length is always reported as "larger than" (the refusal's own error wins over the IOException the cancelled exchange causes)
+  - verified (2026-10-26 03:22+0100 by dell26/agent-1): cd server && ./gradlew check (full suite, HEAD 4acf6e3b8) -> IcsFeedClientTests 46 tests, 0 failures, incl. 50x refused Content-Length and 20x mid-stream refusal asserting 'larger than'; refusal stored before cancel and checked first in send() (code-reviewer: 0 findings)
 - [ ] `IcsFeedClientTests` passes reliably inside the full `server/gradlew -p server check` run (several consecutive runs)
 
 ## Notes
