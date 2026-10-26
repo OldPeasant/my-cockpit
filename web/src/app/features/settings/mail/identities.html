@@ -1,9 +1,9 @@
 <div class="identities">
   <div class="head">
     <p class="note" i18n="@@mailIdentities.hint">
-      Further addresses you send from with this account. Once there is one, new mail starts with the
-      default identity, or with the first one when none is the default, instead of
-      {{ account().emailAddress }}. Change the account's own address with Edit.
+      Further addresses you send from with this account. New mail starts with the default identity,
+      or with {{ account().emailAddress }} when none is the default. Change the account's own address
+      with Edit.
     </p>
     <button
       mat-stroked-button
@@ -170,7 +170,7 @@
         >Start new mail with this identity</mat-slide-toggle
       >
       <p class="note" i18n="@@mailIdentities.field.defaultHint">
-        Without a default, new mail starts with the first identity in the list.
+        Without a default, new mail starts with the account's own address.
       </p>
     </div>
     <mat-form-field subscriptSizing="dynamic" class="wide">

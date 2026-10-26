@@ -13,7 +13,7 @@ export interface ReplyToMailMessage$Params {
   id: string;
 
 /**
- * Send as this identity; default: the one the original was addressed to, else the default
+ * Send as this identity; default: the one the original was addressed to, else the default, else the account address
  */
   identityId?: string;
 }

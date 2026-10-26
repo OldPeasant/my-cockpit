@@ -68,8 +68,8 @@ class DraftController(
 		summary = "Save a new draft",
 		description =
 			"Builds the message (HTML with a plain-text alternative, derived from the HTML when `text` is missing; `From` " +
-				"and `Reply-To` from the identity, by default the account's default identity) and appends it to the " +
-				"account's Drafts folder. Attachments can only be files (`fileId`) here; upload others afterwards.",
+				"and `Reply-To` from the identity, by default the account's default identity, else the account address) and " +
+				"appends it to the account's Drafts folder. Attachments can only be files (`fileId`) here; upload others afterwards.",
 	)
 	@DraftCreatedResponse
 	@MailFailureResponses
@@ -207,7 +207,9 @@ class DraftController(
 	@MailFailureResponses
 	fun reply(
 		@PathVariable id: UUID,
-		@Parameter(description = "Send as this identity; default: the one the original was addressed to, else the default")
+		@Parameter(
+			description = "Send as this identity; default: the one the original was addressed to, else the default, else the account address",
+		)
 		@RequestParam(required = false) identityId: UUID?,
 	): ResponseEntity<DraftResponse> = created(drafts.respond(id, ResponseMode.REPLY, identityId))
 
@@ -221,7 +223,9 @@ class DraftController(
 	@MailFailureResponses
 	fun replyAll(
 		@PathVariable id: UUID,
-		@Parameter(description = "Send as this identity; default: the one the original was addressed to, else the default")
+		@Parameter(
+			description = "Send as this identity; default: the one the original was addressed to, else the default, else the account address",
+		)
 		@RequestParam(required = false) identityId: UUID?,
 	): ResponseEntity<DraftResponse> = created(drafts.respond(id, ResponseMode.REPLY_ALL, identityId))
 
@@ -235,7 +239,9 @@ class DraftController(
 	@MailFailureResponses
 	fun forward(
 		@PathVariable id: UUID,
-		@Parameter(description = "Send as this identity; default: the one the original was addressed to, else the default")
+		@Parameter(
+			description = "Send as this identity; default: the one the original was addressed to, else the default, else the account address",
+		)
 		@RequestParam(required = false) identityId: UUID?,
 	): ResponseEntity<DraftResponse> = created(drafts.respond(id, ResponseMode.FORWARD, identityId))
 
@@ -382,7 +388,7 @@ class DraftAttachmentRequest(
 
 // Nullable fields so a missing value reaches Bean Validation (400 with field errors) instead of failing in Jackson.
 class DraftContentRequest(
-	@field:Schema(description = "Identity of the account to send as; default: the account's default identity")
+	@field:Schema(description = "Identity of the account to send as; default: the account's default identity, else the account address")
 	val identityId: UUID? = null,
 	@field:Valid @field:Size(max = MAX_RECIPIENTS) val to: List<MailAddressRequest>? = null,
 	@field:Valid @field:Size(max = MAX_RECIPIENTS) val cc: List<MailAddressRequest>? = null,
@@ -444,7 +450,7 @@ class CreateDraftRequest(
 	@field:NotNull
 	@field:Schema(requiredMode = RequiredMode.REQUIRED, description = "The account whose Drafts folder stores the draft")
 	val accountId: UUID?,
-	@field:Schema(description = "Identity of the account to send as; default: the account's default identity")
+	@field:Schema(description = "Identity of the account to send as; default: the account's default identity, else the account address")
 	val identityId: UUID? = null,
 	@field:Valid @field:Size(max = DraftContentRequest.MAX_RECIPIENTS) val to: List<MailAddressRequest>? = null,
 	@field:Valid @field:Size(max = DraftContentRequest.MAX_RECIPIENTS) val cc: List<MailAddressRequest>? = null,

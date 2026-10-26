@@ -4775,9 +4775,9 @@ paths:
     post:
       description: "Builds the message (HTML with a plain-text alternative, derived\
         \ from the HTML when `text` is missing; `From` and `Reply-To` from the identity,\
-        \ by default the account's default identity) and appends it to the account's\
-        \ Drafts folder. Attachments can only be files (`fileId`) here; upload others\
-        \ afterwards."
+        \ by default the account's default identity, else the account address) and\
+        \ appends it to the account's Drafts folder. Attachments can only be files\
+        \ (`fileId`) here; upload others afterwards."
       operationId: createMailDraft
       requestBody:
         content:
@@ -5524,7 +5524,7 @@ paths:
           type: string
           format: uuid
       - description: "Send as this identity; default: the one the original was addressed\
-          \ to, else the default"
+          \ to, else the default, else the account address"
         in: query
         name: identityId
         required: false
@@ -5592,7 +5592,7 @@ paths:
           type: string
           format: uuid
       - description: "Send as this identity; default: the one the original was addressed\
-          \ to, else the default"
+          \ to, else the default, else the account address"
         in: query
         name: identityId
         required: false
@@ -5659,7 +5659,7 @@ paths:
           type: string
           format: uuid
       - description: "Send as this identity; default: the one the original was addressed\
-          \ to, else the default"
+          \ to, else the default, else the account address"
         in: query
         name: identityId
         required: false
@@ -10213,7 +10213,7 @@ components:
           type: string
           format: uuid
           description: "Identity of the account to send as; default: the account's\
-            \ default identity"
+            \ default identity, else the account address"
         subject:
           type: string
           maxLength: 998
@@ -10727,7 +10727,7 @@ components:
           type: string
           format: uuid
           description: "Identity of the account to send as; default: the account's\
-            \ default identity"
+            \ default identity, else the account address"
         subject:
           type: string
           maxLength: 998

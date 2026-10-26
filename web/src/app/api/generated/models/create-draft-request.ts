@@ -23,7 +23,7 @@ export interface CreateDraftRequest {
   html?: string;
 
   /**
-   * Identity of the account to send as; default: the account's default identity
+   * Identity of the account to send as; default: the account's default identity, else the account address
    */
   identityId?: string;
   subject?: string;

@@ -315,17 +315,17 @@ describe('MailIdentities', () => {
     expect(button('Remove b@mail.example.test').disabled).toBe(false);
   });
 
-  it('says that new mail starts with the default or the first identity', async () => {
+  it('says that new mail starts with the default identity, else the account address', async () => {
     await load([fakeIdentity()]);
     expect(text()).toContain(
-      'Once there is one, new mail starts with the default identity, or with the first one when none is the default, instead of jane@mail.example.test.',
+      'New mail starts with the default identity, or with jane@mail.example.test when none is the default.',
     );
+    expect(text()).not.toContain('first one');
     expect(text()).not.toContain('is always available');
 
     await click(button('Edit info@mail.example.test'));
-    expect(text()).toContain(
-      'Without a default, new mail starts with the first identity in the list.',
-    );
+    expect(text()).toContain("Without a default, new mail starts with the account's own address.");
+    expect(text()).not.toContain('first identity');
   });
 
   it('removes an identity after confirming', async () => {
