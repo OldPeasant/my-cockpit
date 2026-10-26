@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "task": "mail-identities",
+  "reviewed_revision": "ef0da81404628a73b7aca7e8916109fae8c335e9",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/mail-identities/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-identities/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/mail-identities/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "PATCH with a blank email now returns 400 (MailIdentityService.checkEmail); re-review confirmed"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "Settings hint describes the real default-From behavior; compose fallback is follow-up task mail-compose-identity-fallback"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "identities list reloads after 412/404; tests cover stale edit/remove and 404"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "Add/Edit/Remove disabled while saving; tested"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew check", "result": "pass"},
+    {"command": "cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.mail.imap.MailIdentityWebTests' jacocoTestReport", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}

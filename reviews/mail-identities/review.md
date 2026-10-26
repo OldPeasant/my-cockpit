@@ -4,23 +4,58 @@ Date: 2026-10-26
 
 Task: mail-identities - Mail sending identities API and settings
 
-Scope: committed changes of the task, `git diff e3b8c6af HEAD` (commits 20fb5d9a server identity API + openapi + generated client, 2371f113 web Settings → Mail identities UI). Uncommitted test edits in the working tree were not reviewed.
+Scope: committed changes of the task, `git diff 270652780..ef0da8140` without `tasks/`. Commits dea927fe6 (server identity API, openapi, generated client), 89176b623 (web Settings → Mail identities UI), 3144450d2 (more tests, first review), 2f970eea5 (fixes for CR-1..CR-4 of the first review), merge 292446ec5, and ef0da8140 (more identity tests). The generated client under `web/src/app/api/generated/` was checked only against `api/openapi.yaml`. This is the third review. The code up to 292446ec5 was reviewed with no findings. This pass covers the final revision. `git diff 292446ec5 ef0da8140 --stat` shows that ef0da8140 only changes two test files (`MailIdentityWebTests.kt` +62, `identities.spec.ts` +97) and no production code. So this pass focused on whether the new tests are correct and useful.
+
+Reviewed revision: ef0da81404628a73b7aca7e8916109fae8c335e9
 
 Requirements:
-- tasks/mail-identities.md (acceptance criteria and the two recorded assumptions)
-- SPEC.md §7.1 (identities), §4.2 (API conventions: Problem Details, ETag/If-Match)
-- docs/ARCHITECTURE.md, AGENTS.md project notes, docs/QUALITY.md
-- Existing conventions in `mail/imap/MailAccountController.kt`, `core/web/ETags.kt`, `settings/mail/*`
+- tasks/mail-identities.md (both acceptance criteria and the two recorded assumptions)
+- SPEC.md §4.2 (Problem Details, ETag/If-Match), §7.1 (identities)
+- docs/ARCHITECTURE.md, AGENTS.md project notes (module boundaries, change events, no secret logging), docs/QUALITY.md
+- Previous review and fix report: reviews/mail-identities/review.md (previous revision), reviews/mail-identities/fixes.md
+- Existing conventions in `core/web/ETags.kt`, `mail/model/MailIdentity.kt`, migration `V202610201402__mail_model.sql`, `settings/mail/*`
 
 Git range:
 - Branch: main
-- HEAD: 2371f1139ffafb2f0eaa7383b0f6b0f7faefcaed
-- Base/start: e3b8c6af437aaca389959eda5c797105efde7cb3
-- Commits reviewed: 2
+- HEAD: ef0da81404628a73b7aca7e8916109fae8c335e9
+- Base/start: 270652780c142c1a3cc5657639d69efd1e03c241
+- Commits reviewed: 6 (5 task commits and 1 merge; ad0ecb3c9 only adds a task file)
 
-Summary: 0 P0, 0 P1, 2 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-Checked and found in order: the routes, operation ids, request/response fields, required fields and status codes (201/204/400/404/409/412/428) in `api/openapi.yaml` match the controller, and the generated web client matches the yaml. ETag on GET/POST/PATCH, `If-Match` checked through `ETags.checkIfMatch` (428 missing, 412 stale) on PATCH and DELETE. Errors are Problem Details. Account scoping works: an identity of another account is 404 through `takeIf { it.accountId == accountId }`. Writes per account run one at a time under a `PESSIMISTIC_WRITE` lock on the account. The default flag is cleared and flushed before the new default is set, which respects the `mail_identity_default` partial unique index. An `UPDATED` event goes out for the identity that loses the flag. `CREATED`/`UPDATED`/`DELETED` events use type `MAIL_IDENTITY`. Address uniqueness ignores case, matching the `lower(email)` index. Backup already covers `mail_identity`. The web side uses OnPush, signal inputs, `If-Match` from the shown version, a 409 message, and a load error with retry, and form controls are labelled.
+## Status of the previous findings
+
+- CR-1 (PATCH accepted a blank `email`) is resolved. `MailIdentityService.update` calls `checkEmail` on the trimmed value before the uniqueness check and the assignment. ef0da8140 also tests that a whitespace-only email stores nothing.
+- CR-2 (the hint said the account address stays available) is resolved. `identities.html` says that new mail starts with the default identity, or with the first one. The compose fallback is a separate task, `mail-compose-identity-fallback`.
+- CR-3 (no reload after a 412 or 404) is resolved. `run()` (`identities.ts:163-178`) calls `refresh()` on a 412 or 404. Tests cover a stale edit and a stale removal (the removal test was added in ef0da8140), a 404 on edit and on remove, and a failed reload after a stale change.
+- CR-4 (Edit/Add enabled during a save) is resolved. Add, Edit and Remove are disabled while `saving()`. ef0da8140 adds the same check during a removal.
+
+## Tests added in ef0da8140
+
+Server (`MailIdentityWebTests.kt:406-465`):
+- `changing an unknown identity of the account is 404 Problem Details` covers an unknown id under the right account and under an unknown account, and checks the Problem content type.
+- `a rejected change stores nothing and publishes no event` checks that a 409 (duplicate), a 400 (blank email) and a 412 (stale DELETE) leave name, email, default flag and `version` unchanged, and that no UPDATED/DELETED event is published. `@RecordApplicationEvents` is on the class and the `ApplicationEvents` parameter is per test, so the counts start at zero for each test and the earlier creates do not affect them.
+- `a duplicate new default does not take the flag from the current default` checks that the uniqueness check runs before the old default loses its flag. The case-insensitive duplicate (`INFO@…`) also covers the `lower(email)` rule.
+- `removing the default identity leaves no default` matches the recorded behavior: no other identity becomes the default. `findAll()` reads every account, but `setUp` empties `mail_account` first, so only this test's rows exist.
+- `the identity API requires login` uses `@WithAnonymousUser` on the method, which overrides the class-level `@WithCockpitUser`. It checks GET/POST/PATCH/DELETE → 401 and that nothing was stored. CSRF is supplied, so the 401 comes from authentication and not from CSRF.
+
+Web (`identities.spec.ts:437-532`):
+- Stale removal → reload → the confirmation stays open → the retry sends `If-Match: "2"`. This matches `run()`, which leaves `removing` set on an error.
+- 404 on edit → reload, alert shown, the remaining identity can be edited again.
+- 412 → the reload fails (503) → the load error appears with "Try again", and recovery works. This covers the `refresh()` catch path.
+- 409 → no reload. `expectNone` plus `http.verify()` in `afterEach` (`:65`) would catch an extra GET. The entered value is kept. The title also says "or another error", but this test only sends a 409. The non-409/412/404 path (no reload) is covered by `keeps an identity whose removal failed and says why` (500, enforced by `afterEach` verify).
+- Removal in progress → confirm, Edit and Add are disabled. A second click sends no second DELETE (enforced by `verify`). Everything is enabled again after the reload.
+
+The assertions test what the user sees and what goes over HTTP (headers, URLs, request count), not internal details. The mocks are only `HttpTestingController` and MockMvc, so they don't hide the behavior under test. No existing test was removed or weakened (the diff only adds lines). The parent reports: `MailIdentityWebTests` 24 tests pass with ktlint clean, and the full web suite passes (175 files, 3665 tests).
+
+## Checked without findings (unchanged since the previous pass)
+
+- Contract: routes, operation ids, request and response fields, required fields and status codes (201/204/400/404/409/412/428) in `api/openapi.yaml` match `MailIdentityController`. The generated client matches the yaml.
+- ETag/If-Match: GET, POST and PATCH return `ETags.of(version)`. PATCH and DELETE call `ETags.checkIfMatch` before any change (428 when the header is missing, 412 when it is stale).
+- Account scoping: an identity of another account gives 404. An unknown account gives 404 on list and create.
+- Concurrency: writes for one account are serialized by a `PESSIMISTIC_WRITE` lock on the account row. The old default is cleared and flushed before the new one is set, so the partial unique index holds.
+- Change events: `MAIL_IDENTITY` CREATED/UPDATED/DELETED, including UPDATED for the identity that loses the default flag.
+- No logging was added, and nothing sensitive goes into Problem messages. Backup of `mail_identity` already existed (mail-model).
 
 ## P0 Critical
 
@@ -32,36 +67,14 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | PATCH accepts an empty `email` and stores an identity without a From address**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/imap/MailIdentityController.kt:237`
-    - Category: Correctness
-    - Problem: `UpdateMailIdentityRequest.email` has only `@field:Email`. Hibernate's `EmailValidator` treats `""` as valid. `MailIdentityService.update` (`MailIdentityService.kt:95`, `:98`) then checks uniqueness and sets `identity.email = ""`. Nothing else checks it: `name` has `checkName`, but `email` has no equivalent. The column is `not null` but accepts `''`. `DraftService.compose` would then build `From` from an empty address for this identity, and it may be the default.
-    - Why it matters: one API call produces an identity that cannot send mail. The create path rejects the same value with `@NotBlank`, so the two paths are inconsistent. The current UI never sends this because its form requires the field, but the API contract (`UpdateMailIdentityRequest.email`, `format: email`) is supposed to be safe for any client (Android).
-    - Suggested fix: reject a blank `email` on PATCH with a 400 field error, for example `@field:Pattern(regexp = ".*\\S.*")` or a `checkEmail` next to `checkName` that throws `InvalidRequestException("email", "must not be blank")`. Add a case to `invalid requests are 400 with field errors`.
-
-- [ ] **CR-2 | The settings hint says the account's address stays available, but adding any identity changes the From of new mail**
-    - File: `web/src/app/features/settings/mail/identities.html:3`
-    - Category: Correctness
-    - Problem: the hint reads "{{ account().emailAddress }} is always available". In `DraftService.identity` (`DraftService.kt:442`), a new draft with no `identityId` uses the default identity, or else the first identity. The compose page (`mail-compose-page.ts`) has no identity picker. Once one non-default identity exists, every new mail is sent from that identity, and the user cannot pick the account address in compose. The task's second assumption records this server behavior, but the UI text says the opposite, and the change happens silently when the user adds an alias.
-    - Why it matters: a user who adds, say, an `info@` alias gets all new mail sent from it without being told, and the settings text says this does not happen.
-    - Suggested fix: within this task, reword the hint (and the "Start new mail with this identity" toggle help) to describe the real behavior: with identities present, new mail starts with the default identity, or the first one when none is the default. Keep the follow-up from the assumption (compose falls back to the account address when no identity is the default) as a separate task, since `mail/compose` is outside this task's touches.
+None.
 
 ## P3 Low
 
-- [ ] **CR-3 | A failed change does not reload the list, so retrying after a 412 sends the same stale version again**
-    - File: `web/src/app/features/settings/mail/identities.ts:169`
-    - Category: Quality
-    - Problem: `run()` returns on error without calling `refresh()`. After a 412 (`errorMessage` shows "changed elsewhere, reload the page"), Save and Remove keep using the cached `version`, so each retry fails again. The only ways out are a full page reload or closing and reopening the Identities panel.
-    - Why it matters: the screen does not recover after a concurrent change, even though the component already has a non-hiding `refresh()`.
-    - Suggested fix: on 412 (and 404), call `refresh()` after setting the error, so the next attempt uses the current version.
-
-- [ ] **CR-4 | Edit/Add stay enabled while a save runs; when the save finishes it closes a form opened in the meantime**
-    - File: `web/src/app/features/settings/mail/identities.ts:131`
-    - Category: Quality
-    - Problem: only the submit and confirm-remove buttons are disabled while `saving()`. If the user clicks Edit on another identity (or Add) during a save, the save finishes with `this.editing.set(null)` and closes the form the user just opened. `refresh()` then replaces the list underneath it.
-    - Why it matters: a small loss of the user's input, which happens on slow connections.
-    - Suggested fix: disable Edit, Add and Remove while `saving()`, or clear `editing` only when it still equals the identity that was saved.
+None.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
+
+The parent worker still has to record the acceptance criteria with `tasks.py verify`, run `.taskcheck`, and set `reviewed_revision` in `quality.json` to ef0da81404628a73b7aca7e8916109fae8c335e9.
