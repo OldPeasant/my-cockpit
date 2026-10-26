@@ -18,3 +18,4 @@ MailAccountController and MailGtdController (deferred review finding of mail-gtd
 
 ## Notes
 - ASSUMPTION (2026-10-26 02:42+0100 by felix/agent-1): DraftController (mail/compose, outside touches) had a fourth identical MailConnectionException handler; removed it too, since the advice covers the whole ch.sonensei.cockpit.mail package and the criterion says all per-controller copies are gone
+- ASSUMPTION (2026-10-26 02:42+0100 by felix/agent-1): The advice is @RestControllerAdvice(basePackages=ch.sonensei.cockpit.mail) with HIGHEST_PRECEDENCE so it wins over the global ProblemDetailsAdvice catch-all (500); response body/status/log lines copied verbatim
