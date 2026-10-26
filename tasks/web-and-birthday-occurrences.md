@@ -15,7 +15,8 @@ Show them read-only from the occurrence data instead, with a link to the contact
 
 ## Acceptance criteria
 - [ ] Web: clicking a birthday occurrence shows its title/date read-only (no load error, no edit/delete) and links to the contact; unit tests cover it
-- [ ] Android: tapping a birthday occurrence in agenda/day/week does not try to load or edit an event; it opens the contact; unit tests cover it
+- [x] Android: tapping a birthday occurrence in agenda/day/week does not try to load or edit an event; it opens the contact; unit tests cover it
+  - verified (2026-10-26 05:38+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest -> CalendarWithEditorTest (agenda/day/week birthday tap opens contact, editRepo.event never called, editor closed, back returns), EventEditorViewModelTest birthday cases, BirthdayContactTest 4/4 (real contact screen loads contact, back/system back, retry), CalendarRepositoryTest+AgendaCacheTest virtual mapping/round trip, BirthdayOccurrenceTest: all pass, 1938 total 0 failures
 - [x] `cd web && npm run check` and `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` pass
   - verified (2026-10-26 05:38+0100 by dell26/agent-1): cd web && npm run check -> exit 0 (lint, build, 174 vitest files passed); cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL, 1938 unit tests 0 failures/errors (HEAD c63c35ae4)
 
