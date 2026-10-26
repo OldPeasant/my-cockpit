@@ -15,7 +15,8 @@ hold:
 Push via a self-hosted distributor (ntfy).
 
 ## Acceptance criteria
-- [ ] App registers with UnifiedPush; server sends reminder/new-mail pushes; fallback to periodic sync
+- [x] App registers with UnifiedPush; server sends reminder/new-mail pushes; fallback to periodic sync
+  - verified (2026-10-27 00:10+0100 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.push.*' -> 129 passed, 0 failed (UnifiedPushWeb*/UnifiedPushService registrations, PushDispatcher reminder+new-mail pushes to a WireMock distributor, WebPushCryptoRfc8291 encryption); cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*' --tests 'ch.sonensei.cockpit.reminders.ReminderShowFiredByServerTest' -> 108 passed (PushRegistrarTest registration/unregistration + 'no distributor installed means no registration, only the periodic sync' fallback, PushServerContractTest/PushRegistrationKeysContractTest pin the server payload+key format, PushReminderDeliveryTest/PushMessageHandlerTest reminder+new-mail handling). Real device + ntfy run NOT done (none available here; see assumption)
 - [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*'` passes, covering message handling (Robolectric/Compose UI tests for screens)
 
 ## Notes
