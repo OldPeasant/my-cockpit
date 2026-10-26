@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "task": "unifiedpush-server",
+  "reviewed_revision": "8b862e12423c9eec1528c575fb6992803eb58143",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/unifiedpush-server/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/unifiedpush-server/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/unifiedpush-server/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "concurrent PUT for the same instance answered 500/409; now a single insert ... on conflict upsert (fixes.md)"},
+    {"id": "CR-2 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "async dispatcher failure test asserted too early; now waits for the warning log (fixes.md)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "revoking an auth_device does not delete its UnifiedPush registration; pushes carry only kind+id and stop on 404/410 or unregister; recorded with tasks.py assume as follow-up work"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.push.*' --tests 'ch.sonensei.cockpit.mail.sync.NewMailAnnouncerTests'", "result": "pass"},
+    {"command": "cd server && ./gradlew check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
