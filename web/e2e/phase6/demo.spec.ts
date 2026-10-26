@@ -125,6 +125,19 @@ test.describe('Phase 6 demo', () => {
       .locator('.app-event', { hasText: MIRA.name });
     await expect(birthday).toHaveCount(1);
     await expect(birthday).toContainText(`${MIRA.name} (${year - 1985})`);
+    // It is the Birthdays calendar's (listed in the panel), read-only and leads back to the contact.
+    await expect(
+      page.locator('.calendar-list .calendar-name').getByText('Birthdays', { exact: true }),
+    ).toBeVisible();
+    await birthday.click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.locator('.virtual-title')).toContainText(`${MIRA.name} (${year - 1985})`);
+    await expect(dialog.getByText('Birthdays', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('This date comes from a contact')).toBeVisible();
+    await dialog.getByRole('link', { name: 'Open contact' }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]{36}$/);
+    await expect(page.getByRole('heading', { name: MIRA.name, level: 1 })).toBeVisible();
 
     // Alex in a mail, an upcoming event and a Waiting For item.
     const api = apiOf(page.request);
