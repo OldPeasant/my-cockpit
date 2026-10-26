@@ -6,10 +6,23 @@ import ch.sonensei.cockpit.backup.domain.BackupService
 import ch.sonensei.cockpit.backup.domain.secret
 import ch.sonensei.cockpit.backup.infra.ZipBackupReader
 import ch.sonensei.cockpit.core.crypto.SecretCipher
+import ch.sonensei.cockpit.core.events.domain.ChangeEventPublisher
+import ch.sonensei.cockpit.mail.model.MailAccount
+import ch.sonensei.cockpit.mail.model.MailAccountRepository
 import ch.sonensei.cockpit.mail.model.MailAddress
+import ch.sonensei.cockpit.mail.model.MailFolderRepository
 import ch.sonensei.cockpit.mail.model.MailMessageLocator
+import ch.sonensei.cockpit.mail.sync.FolderSyncResult
+import ch.sonensei.cockpit.mail.sync.KnownFolderState
 import ch.sonensei.cockpit.mail.sync.MailHeaderStore
+import ch.sonensei.cockpit.mail.sync.MailHeaderSyncService
+import ch.sonensei.cockpit.mail.sync.NewMailAnnouncer
+import ch.sonensei.cockpit.mail.sync.QresyncChanges
+import ch.sonensei.cockpit.mail.sync.RemoteFlagState
 import ch.sonensei.cockpit.mail.sync.RemoteFlags
+import ch.sonensei.cockpit.mail.sync.RemoteFolder
+import ch.sonensei.cockpit.mail.sync.RemoteFolderStatus
+import ch.sonensei.cockpit.mail.sync.RemoteMailbox
 import ch.sonensei.cockpit.mail.sync.RemoteMessage
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -21,6 +34,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
+import io.mockk.mockk
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
@@ -37,7 +51,9 @@ import tools.jackson.databind.JsonNode
 import java.nio.file.Files
 import java.nio.file.Path
 import java.sql.Timestamp
+import java.time.Clock
 import java.time.Instant
+import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.io.path.outputStream
 import kotlin.io.path.readBytes
@@ -61,6 +77,8 @@ class MailBackupContributorTests(
 	@Autowired private val locator: MailMessageLocator,
 	@Autowired private val jdbc: JdbcTemplate,
 	@Autowired private val transactions: TransactionTemplate,
+	@Autowired private val mailAccounts: MailAccountRepository,
+	@Autowired private val mailFolders: MailFolderRepository,
 ) {
 	@TempDir lateinit var work: Path
 
@@ -489,7 +507,129 @@ class MailBackupContributorTests(
 		jdbc.queryForObject("select uid from mail_message where id = ?", Long::class.java, REMINDED) shouldBe 5L
 	}
 
+	@Test
+	fun `the first sync after a restore takes linked and reminder-only refs older than the window over by Message-ID`() {
+		seed()
+		val zip = export()
+		wipe()
+		import(zip.path)
+		// The links and reminders contributors restore these rows in the same restore.
+		link("TASK", id(90), "EMAIL", LINKED)
+		reminder(id(95), REMINDED)
+		rows("select uidvalidity::text from mail_folder where id in ('$INBOX', '$ALL_MAIL') order by id") shouldBe listOf(null, null)
+		store.linkedDetachedMessageIds(INBOX) shouldContainExactly listOf("<invoice-17@example.test>")
+		store.linkedDetachedMessageIds(ALL_MAIL) shouldContainExactly listOf("<follow-up@work.example.test>")
+		// Clock 2026-10-26: the IMAP window (6 months) starts 2026-04-26, the Google one (12 months) 2025-10-26.
+		val server =
+			ScriptedMailbox(
+				mapOf(
+					"$IMAP/INBOX" to
+						listOf(
+							remote(40, "<recent@example.test>", Instant.parse("2026-10-20T07:00:00Z")),
+							remote(23, "<invoice-17@example.test>", T2),
+						),
+					"$GOOGLE/[Gmail]/All Mail" to
+						listOf(remote(5, "<follow-up@work.example.test>", Instant.parse("2025-06-01T12:00:00Z"))),
+				),
+			)
+		val sync =
+			MailHeaderSyncService(
+				mailAccounts,
+				mailFolders,
+				server,
+				store,
+				mockk<ChangeEventPublisher>(relaxed = true),
+				mockk<NewMailAnnouncer>(relaxed = true),
+				Clock.fixed(Instant.parse("2026-10-26T08:00:00Z"), ZoneOffset.UTC),
+			)
+
+		sync.syncFolder(INBOX) shouldBe FolderSyncResult(INBOX, full = true, created = 1, updated = 1, removed = 0)
+		sync.syncFolder(ALL_MAIL) shouldBe FolderSyncResult(ALL_MAIL, full = true, created = 0, updated = 1, removed = 0)
+
+		server.messageIdSearches shouldContainExactly
+			listOf(
+				"$IMAP/INBOX" to listOf("<invoice-17@example.test>"),
+				"$GOOGLE/[Gmail]/All Mail" to listOf("<follow-up@work.example.test>"),
+			)
+		val linked = jdbc.queryForMap("select uid, folder_id from mail_message where id = ?", LINKED)
+		linked["uid"] shouldBe 23L
+		linked["folder_id"] shouldBe INBOX
+		locator.current(LINKED).shouldNotBeNull().id shouldBe LINKED
+		jdbc.queryForObject("select uid from mail_message where id = ?", Long::class.java, REMINDED) shouldBe 5L
+		locator.current(REMINDED).shouldNotBeNull().id shouldBe REMINDED
+		rows("select id::text from mail_message where message_id_header = '<invoice-17@example.test>'") shouldBe listOf(LINKED.toString())
+		rows("select uidvalidity::text from mail_folder where id in ('$INBOX', '$ALL_MAIL') order by id") shouldBe listOf("7", "7")
+	}
+
 	// --- helpers ----------------------------------------------------------------------------------------------------
+
+	/**
+	 * A mail server whose folders ("accountId/path") hold the given messages: `SEARCH SINCE` compares the arrival day,
+	 * a Message-ID search matches substrings like IMAP does. It records the Message-ID searches.
+	 */
+	private class ScriptedMailbox(
+		private val messages: Map<String, List<RemoteMessage>>,
+	) : RemoteMailbox {
+		val messageIdSearches = mutableListOf<Pair<String, List<String>>>()
+
+		override fun <T> withFolder(
+			account: MailAccount,
+			path: String,
+			known: KnownFolderState?,
+			block: (RemoteFolder) -> T,
+		): T {
+			val key = "${account.id}/$path"
+			val content = messages.getValue(key).sortedBy { it.uid }
+			return block(
+				object : RemoteFolder {
+					override val status = RemoteFolderStatus(7, content.maxOf { it.uid } + 1, null, condstore = false, qresync = false)
+					override val qresyncChanges: QresyncChanges? = null
+
+					override fun uidsSince(since: Instant): List<Long> {
+						val day = since.atOffset(ZoneOffset.UTC).toLocalDate()
+						return content
+							.filter { m -> m.receivedAt?.let { !it.atOffset(ZoneOffset.UTC).toLocalDate().isBefore(day) } ?: false }
+							.map { it.uid }
+					}
+
+					override fun uidsFrom(fromUid: Long) = content.map { it.uid }.filter { it >= fromUid }
+
+					override fun receivedDates(uids: List<Long>) =
+						content.filter { it.uid in uids }.mapNotNull { m -> m.receivedAt?.let { m.uid to it } }.toMap()
+
+					override fun uidsWithMessageIds(messageIds: Collection<String>): List<Long> {
+						messageIdSearches += key to messageIds.sorted()
+						return content.filter { m -> messageIds.any { m.messageId.orEmpty().contains(it) } }.map { it.uid }
+					}
+
+					override fun search(words: List<String>) = emptyList<Long>()
+
+					override fun headers(uids: List<Long>) = content.filter { it.uid in uids }
+
+					override fun flagsFrom(fromUid: Long) = emptyList<RemoteFlagState>()
+
+					override fun flagsChangedSince(
+						fromUid: Long,
+						modSeq: Long,
+					) = emptyList<RemoteFlagState>()
+				},
+			)
+		}
+	}
+
+	private fun reminder(
+		id: UUID,
+		item: UUID,
+	) {
+		jdbc.update(
+			"insert into reminder (id, created_at, updated_at, version, item_type, item_id, remind_at, channel) values (?, ?, ?, 0, 'EMAIL', ?, ?, 'NOTIFICATION')",
+			id,
+			ts(T0),
+			ts(T0),
+			item,
+			ts(T2),
+		)
+	}
 
 	private fun warnings(exported: Exported): List<String> =
 		ZipBackupReader.open(exported.path, backups.canonicalJson).use { contributor.restoreWarnings(it) }
@@ -710,6 +850,7 @@ class MailBackupContributorTests(
 	private fun remote(
 		uid: Long,
 		messageId: String,
+		receivedAt: Instant = T2,
 	) = RemoteMessage(
 		uid = uid,
 		messageId = messageId,
@@ -721,8 +862,8 @@ class MailBackupContributorTests(
 		cc = emptyList(),
 		bcc = emptyList(),
 		replyTo = emptyList(),
-		sentAt = T2,
-		receivedAt = T2,
+		sentAt = receivedAt,
+		receivedAt = receivedAt,
 		flags = RemoteFlags(seen = true),
 		sizeBytes = 2048,
 		hasAttachments = false,
