@@ -11,7 +11,8 @@ lease_until: 2026-10-26T14:43:32Z
 Fast with realistic data volumes.
 
 ## Acceptance criteria
-- [ ] Seed 10k tasks, 2k notes, 50k mail headers, 5k events; p95 of list/search endpoints < 200 ms measured in a repeatable test (`external` tag); indexes added as migrations; results in docs/perf.md
+- [x] Seed 10k tasks, 2k notes, 50k mail headers, 5k events; p95 of list/search endpoints < 200 ms measured in a repeatable test (`external` tag); indexes added as migrations; results in docs/perf.md
+  - verified (2026-10-26 15:25+0100 by dell26/agent-1): cd server && ./gradlew ktlintCheck integrationTest --tests '*PerfBaselineTests' --rerun (Testcontainers Postgres, @ExternalTest) on 66ac4e18f -> BUILD SUCCESSFUL, 2 tests 0 failures; seed 10k tasks/2k notes/50k mail headers/5k events asserted; all 24 list/search endpoints p95 < 200 ms (worst search common word 66.0 ms, unified inbox threaded 50.1 ms); index V202610261500__perf_mail_unified_sort.sql is a Flyway migration; results and tuning in docs/perf.md
 
 ## Notes
 - ASSUMPTION (2026-10-26 15:00+0100 by dell26/agent-1): p95 is measured in-process through MockMvc (security filters, controller, service, Postgres; no network/TLS/Caddy), 10 warm-up + 50 sequential samples per endpoint; network latency is deployment-specific and not part of the server baseline
