@@ -2,21 +2,25 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { ApiError, NotificationService, provideHttp } from '../http';
-import { AuthService } from './auth.service';
+import { PushSubscriptionService } from '../notifications/push-subscription.service';
+import { AuthService, LOGOUT_PUSH_TIMEOUT_MS } from './auth.service';
 
 describe('AuthService', () => {
   let auth: AuthService;
   let backend: HttpTestingController;
   let notifications: { error: ReturnType<typeof vi.fn>; info: ReturnType<typeof vi.fn> };
+  let push: { unsubscribe: ReturnType<typeof vi.fn<() => Promise<void>>> };
 
   beforeEach(() => {
     notifications = { error: vi.fn(), info: vi.fn() };
+    push = { unsubscribe: vi.fn(() => Promise.resolve()) };
     TestBed.configureTestingModule({
       providers: [
         provideHttp(),
         provideHttpClientTesting(),
         provideRouter([]),
         { provide: NotificationService, useValue: notifications },
+        { provide: PushSubscriptionService, useValue: push },
       ],
     });
     auth = TestBed.inject(AuthService);
@@ -103,6 +107,60 @@ describe('AuthService', () => {
     backend.expectOne('/api/v1/auth/logout').flush(null, { status: 500, statusText: 'Error' });
     await logout;
     expect(auth.loggedIn()).toBe(false);
+  });
+
+  it('ends the push subscription before the session, so a logged-out device gets no pushes', async () => {
+    let unsubscribed = false;
+    push.unsubscribe.mockImplementation(async () => {
+      expect(backend.match('/api/v1/auth/logout')).toHaveLength(0);
+      unsubscribed = true;
+    });
+    const logout = auth.logout();
+    await tick();
+    expect(unsubscribed).toBe(true);
+    backend.expectOne('/api/v1/auth/logout').flush(null, { status: 204, statusText: 'No Content' });
+    await logout;
+    expect(push.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(auth.loggedIn()).toBe(false);
+  });
+
+  it('logs out also when ending the push subscription fails', async () => {
+    push.unsubscribe.mockReturnValue(Promise.reject(new Error('push service unreachable')));
+    const logout = auth.logout();
+    await tick();
+    backend.expectOne('/api/v1/auth/logout').flush(null, { status: 204, statusText: 'No Content' });
+    await logout;
+    expect(auth.loggedIn()).toBe(false);
+    expect(notifications.error).not.toHaveBeenCalled();
+  });
+
+  it('logs out also when unsubscribe throws right away', async () => {
+    push.unsubscribe.mockImplementation(() => {
+      throw new Error('broken');
+    });
+    const logout = auth.logout();
+    await tick();
+    backend.expectOne('/api/v1/auth/logout').flush(null, { status: 204, statusText: 'No Content' });
+    await logout;
+    expect(auth.loggedIn()).toBe(false);
+  });
+
+  it('does not wait longer than the timeout for a hanging push unsubscribe', async () => {
+    vi.useFakeTimers();
+    try {
+      push.unsubscribe.mockReturnValue(new Promise<void>(() => undefined));
+      const logout = auth.logout();
+      await vi.advanceTimersByTimeAsync(LOGOUT_PUSH_TIMEOUT_MS - 1);
+      expect(backend.match('/api/v1/auth/logout')).toHaveLength(0);
+      await vi.advanceTimersByTimeAsync(1);
+      backend
+        .expectOne('/api/v1/auth/logout')
+        .flush(null, { status: 204, statusText: 'No Content' });
+      await logout;
+      expect(auth.loggedIn()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('passes other /me failures on and asks again next time', async () => {

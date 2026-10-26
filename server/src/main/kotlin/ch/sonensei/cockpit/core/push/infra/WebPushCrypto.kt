@@ -96,9 +96,18 @@ object WebPushCrypto {
 		plaintext: ByteArray,
 		uaPublic: ByteArray,
 		authSecret: ByteArray,
+	): ByteArray = encrypt(plaintext, uaPublic, authSecret, ByteArray(SALT_BYTES).also(random::nextBytes), generateKeyPair())
+
+	/** [encrypt] with a given [salt] and [ephemeral] key pair, for the known-answer test of RFC 8291 Appendix A. */
+	internal fun encrypt(
+		plaintext: ByteArray,
+		uaPublic: ByteArray,
+		authSecret: ByteArray,
+		salt: ByteArray,
+		ephemeral: KeyPair,
 	): ByteArray {
 		require(authSecret.size == AUTH_SECRET_BYTES) { "auth secret must be $AUTH_SECRET_BYTES bytes" }
-		val ephemeral = generateKeyPair()
+		require(salt.size == SALT_BYTES) { "salt must be $SALT_BYTES bytes" }
 		val asPublic = rawPublicKey(ephemeral.public as ECPublicKey)
 		val ecdhSecret =
 			KeyAgreement
@@ -109,7 +118,6 @@ object WebPushCrypto {
 				}.generateSecret()
 		val keyInfo = "WebPush: info".toByteArray(Charsets.US_ASCII) + byteArrayOf(0) + uaPublic + asPublic
 		val ikm = hkdf(salt = authSecret, ikm = ecdhSecret, info = keyInfo, length = 32)
-		val salt = ByteArray(SALT_BYTES).also(random::nextBytes)
 		val cek = hkdf(salt, ikm, "Content-Encoding: aes128gcm".toByteArray(Charsets.US_ASCII) + byteArrayOf(0), KEY_BYTES)
 		val nonce = hkdf(salt, ikm, "Content-Encoding: nonce".toByteArray(Charsets.US_ASCII) + byteArrayOf(0), NONCE_BYTES)
 		// 0x02 marks the last (and only) record; no further padding.

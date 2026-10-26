@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.core.push.domain
 
+import ch.sonensei.cockpit.core.persistence.UuidV7
 import ch.sonensei.cockpit.core.push.infra.PushProperties
 import ch.sonensei.cockpit.core.push.infra.PushSubscriptionRepository
 import ch.sonensei.cockpit.core.push.infra.PushUrgency
@@ -56,12 +57,9 @@ class PushService(
 		if (decodeOrNull(auth)?.size != WebPushCrypto.AUTH_SECRET_BYTES) {
 			throw InvalidRequestException("keys.auth", "must be a ${WebPushCrypto.AUTH_SECRET_BYTES}-byte secret (base64url)")
 		}
-		val existing = subscriptions.findByEndpoint(endpoint)
-		if (existing != null) {
-			existing.updateKeys(p256dh, auth)
-			return existing
-		}
-		return subscriptions.save(PushSubscription(endpoint, p256dh, auth))
+		// One upsert statement instead of find-then-insert: two tabs subscribing at once must not hit the unique endpoint.
+		subscriptions.upsert(UuidV7.generate(), endpoint, p256dh, auth, clock.instant())
+		return checkNotNull(subscriptions.findByEndpoint(endpoint))
 	}
 
 	/** Removes a browser's subscription; nothing happens when there is none. */

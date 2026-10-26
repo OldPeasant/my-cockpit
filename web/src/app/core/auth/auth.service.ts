@@ -17,6 +17,10 @@ import {
   TotpEnrollmentResponse,
 } from '../../api/generated';
 import { ApiError, SILENT_ERRORS, SKIP_LOGIN_REDIRECT } from '../http';
+import { PushSubscriptionService } from '../notifications/push-subscription.service';
+
+/** How long logout waits for this browser's push subscription to be removed before going on. */
+export const LOGOUT_PUSH_TIMEOUT_MS = 3000;
 
 /** A 401 of an auth call is an answer, not an expired session: never redirect to login. */
 function noRedirect(): HttpContext {
@@ -35,6 +39,7 @@ function quiet(): HttpContext {
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly api = inject(Api);
+  private readonly push = inject(PushSubscriptionService);
 
   /** `undefined` until the server was asked, `null` when not logged in. */
   private readonly current = signal<MeResponse | null | undefined>(undefined);
@@ -83,13 +88,30 @@ export class AuthService {
 
   /**
    * Ends the session on the server; the local state is cleared even when that call fails
-   * (the error is shown as a toast and rethrown).
+   * (the error is shown as a toast and rethrown). First ends this browser's Web Push subscription,
+   * so a logged-out device shows no more pushed notifications; that is best effort and waits at
+   * most {@link LOGOUT_PUSH_TIMEOUT_MS}, logout goes on whatever it does.
    */
   async logout(): Promise<void> {
+    await this.unsubscribePush();
     try {
       await this.api.invoke(logout, undefined, noRedirect());
     } finally {
       this.current.set(null);
+    }
+  }
+
+  private async unsubscribePush(): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<void>(
+      (resolve) => (timer = setTimeout(resolve, LOGOUT_PUSH_TIMEOUT_MS)),
+    );
+    try {
+      await Promise.race([this.push.unsubscribe().catch(() => undefined), timeout]);
+    } catch {
+      // unsubscribe() itself threw: logout goes on.
+    } finally {
+      clearTimeout(timer);
     }
   }
 

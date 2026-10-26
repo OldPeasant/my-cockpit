@@ -53,7 +53,8 @@ Flyway migrates the database on startup. Take a backup first (in-app backup or `
 All settings are in `deploy/.env` (template: `.env.example`): `COCKPIT_DOMAIN`, `COCKPIT_MASTER_KEY`,
 `POSTGRES_PASSWORD`, the published ports, and the optional OAuth apps (`GOOGLE_CLIENT_ID/SECRET`,
 `MS_CLIENT_ID/SECRET/TENANT`). The server gets `SPRING_DATASOURCE_*` and `COCKPIT_DATA_DIR=/data` from the
-compose file.
+compose file. `COCKPIT_PUSH_SUBJECT` (optional) is the Web Push contact sent to the browsers' push services
+(`mailto:` or `https:`, default `https://<COCKPIT_DOMAIN>`).
 
 Passkeys (optional, all empty by default):
 

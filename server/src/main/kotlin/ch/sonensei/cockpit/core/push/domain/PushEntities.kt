@@ -45,13 +45,4 @@ class PushSubscription(
 	@Column(name = "auth", nullable = false)
 	var auth: String = auth
 		protected set
-
-	/** A browser that subscribes again with the same endpoint may hand out new keys. */
-	fun updateKeys(
-		p256dh: String,
-		auth: String,
-	) {
-		this.p256dh = p256dh
-		this.auth = auth
-	}
 }

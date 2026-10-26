@@ -113,6 +113,25 @@ class PushWebTests(
 	}
 
 	@Test
+	fun `subscribing keeps id, created time and version, and bumps the version only when the keys change`() {
+		val created = push.subscribe(ENDPOINT, browser.p256dh, browser.auth)
+		created.version shouldBe 0
+		created.createdAt shouldNotBe null
+		created.updatedAt shouldBe created.createdAt
+
+		val again = push.subscribe(ENDPOINT, browser.p256dh, browser.auth)
+		again.id shouldBe created.id
+		again.version shouldBe 0
+
+		val other = PushTestBrowser()
+		val changed = push.subscribe(ENDPOINT, other.p256dh, other.auth)
+		changed.id shouldBe created.id
+		changed.createdAt shouldBe created.createdAt
+		changed.version shouldBe 1
+		changed.p256dh shouldBe other.p256dh
+	}
+
+	@Test
 	fun `invalid subscriptions are rejected with 400`() {
 		put(subscription(endpoint = "http://push.example.test/x")).andExpect { status { isBadRequest() } }
 		put(subscription(endpoint = "https://user:pw@push.example.test/x")).andExpect { status { isBadRequest() } }

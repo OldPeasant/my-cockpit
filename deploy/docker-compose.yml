@@ -34,6 +34,8 @@ services:
       COCKPIT_DOMAIN: ${COCKPIT_DOMAIN}
       # Origin of OAuth redirect URIs (docs/oauth-setup.md); include the port if COCKPIT_HTTPS_PORT isn't 443.
       COCKPIT_OAUTH_PUBLICURL: ${COCKPIT_OAUTH_PUBLICURL:-https://${COCKPIT_DOMAIN}}
+      # Web Push: contact of this server's operator for the browsers' push services (VAPID subject, mailto: or https:).
+      COCKPIT_PUSH_SUBJECT: ${COCKPIT_PUSH_SUBJECT:-https://${COCKPIT_DOMAIN}}
       COCKPIT_DATA_DIR: /data
       COCKPIT_MASTER_KEY: ${COCKPIT_MASTER_KEY:?set COCKPIT_MASTER_KEY in deploy/.env}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/cockpit
