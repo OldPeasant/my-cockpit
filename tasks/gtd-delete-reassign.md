@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [web-settings-gtd]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,api/openapi.yaml,web/src/app/features/settings/gtd]
 prio: 2
-lease_until: 2026-10-26T02:33:05Z
+lease_until: 2026-10-26T02:38:06Z
 releases: 0
 extended: 
 hold: 
