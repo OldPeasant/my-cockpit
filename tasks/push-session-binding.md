@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [web-push]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/push,server/src/main/kotlin/ch/sonensei/cockpit/core/auth,server/src/main/resources/db/migration/core,server/src/test/kotlin/ch/sonensei/cockpit/core/push]
 prio: 2
-lease_until: 2026-10-26T18:35:53Z
+lease_until: 2026-10-26T18:40:53Z
 ---
 ## Goal
 Web Push stops when the session that subscribed ends, also without an explicit logout (browser-session login
