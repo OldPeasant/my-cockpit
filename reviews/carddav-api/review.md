@@ -4,25 +4,32 @@ Date: 2026-10-26
 
 Task: carddav-api - CardDAV accounts: REST API, web settings UI and backup
 
-Scope: committed changes of task carddav-api, `git diff 728a43f4b..caa413abf`. The generated files `api/openapi.yaml` and `web/src/app/api/generated/` were only checked against the code. This is a re-review of the final revision after the fixes in `reviews/carddav-api/fixes.md`. The previous review (CR-1 to CR-6) was done on revision e84697ffd.
+Scope: committed changes of task carddav-api, `git diff 728a43f4b..4a56280f3`. This is the final review of the whole task at revision 4a56280f3. Commit 4a56280f3 is the delta since the last review (revision caa413abf), and this review read it line by line: `git diff caa413abf..4a56280f3`. The delta changes:
+- `web/src/locale/messages.xlf` and `messages.de.xlf` (fix for CR-7);
+- `contact-detail.ts`: the error guard in `loadCardDavAccounts` (test-writer finding TW-1);
+- `contact-detail.spec.ts` and `contacts-page.spec.ts`;
+- `tasks/` and `reviews/` files only.
+
+The generated files `api/openapi.yaml` and `web/src/app/api/generated/` were only checked against the code. CR-1 to CR-6 come from the first review (revision e84697ffd). CR-7 comes from the re-review (revision caa413abf).
 
 Requirements:
-- tasks/carddav-api.md acceptance criteria and its four recorded assumptions
+- tasks/carddav-api.md acceptance criteria and its six recorded assumptions (two added since the last review: `ContactService.validateNew` outside `touches`, and the locale files outside `touches` for CR-7)
 - AGENTS.md project notes and conventions
 - docs/ARCHITECTURE.md conventions: i18n (lines 242-246) and modules
-- Parent instructions: check each earlier finding, the fix commits (ContactService.validateNew, the order in CardDavContactsSync.createContact, the 409 handling in contact-detail.ts save(), the removal of the `changed` output) and the added tests
+- Parent instructions: review the delta, confirm CR-7 is resolved, and give the final status for the whole task
+- reviews/carddav-api/fixes.md (read as a claim, checked against the code)
 
 Git range:
 - Branch: main
-- HEAD: caa413abf2fc48e8c1adca816cf3f6862621412b
+- HEAD: 4a56280f381ac2bd862c2753c6243880954e6476
 - Base/start: 728a43f4baff41729fbf439a0aa1aadc6ee3a17a
-- Commits reviewed: 4 (0c47dc0f4, 61a4d3518, 55bf0b3c3, caa413abf)
+- Commits reviewed: 5 (0c47dc0f4, 61a4d3518, 55bf0b3c3, caa413abf, 4a56280f3)
 - Uncommitted changes: none at the start of the review
 
-Summary: 0 P0, 0 P1, 1 P2, 0 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-Earlier findings, checked against the current code:
-- CR-1 (no server tests for the REST endpoints): resolved. `CardDavAccountWebTests` (55bf0b3c3, caa413abf) has 19 tests covering:
+Status of the earlier findings, checked against the current code:
+- CR-1 (no server tests for the REST endpoints): resolved, verified in the previous review. `CardDavAccountWebTests` has 19 tests covering:
     - 201 with Location on add;
     - 400 for missing or blank name and URL fields;
     - 404 on get, delete, sync and create-contact;
@@ -31,33 +38,42 @@ Earlier findings, checked against the current code:
     - 409 with the CardDAV detail;
     - no `password` key and no stored password in any response;
     - the redacting toString.
-- CR-2 (409 for a new contact shown as an edit conflict): resolved. `contact-detail.ts:195` takes the conflict branch only when `!this.isNew()`. Otherwise the Problem Details detail is shown and nothing is reloaded. The spec "shows why the account could not take the contact (409) and keeps the form" asserts the message, that no GET of `/contacts/new` is sent, the route, and the typed value.
-- CR-3 (backup secret path untested): resolved. `ContactsBackupContributorTests` now covers:
-    - export without secrets, and with a passphrase (the password is only in the encrypted secrets);
+- CR-2 (a 409 for a new contact was shown as an edit conflict): resolved, verified in the previous review. `contact-detail.ts` takes the conflict branch only when `!this.isNew()`, and a spec covers it.
+- CR-3 (backup secret path untested): resolved, verified in the previous review. `ContactsBackupContributorTests` covers:
+    - export with and without the passphrase;
     - import with and without the passphrase;
     - no secret in the logs;
-    - restore warnings, singular and plural;
-    - no files without accounts;
+    - the restore warnings;
     - an account without links.
 
-  `ContactsBackupFixture` seeds two accounts, a link and a tombstone. `BackupRoundTripTest` finds the fixture automatically by classpath scan.
-- CR-4 (no web specs for the panel and "Save to"): resolved. Added:
-    - `carddav-accounts.spec.ts` with 14 tests: load, load error with retry, the three states, sync now, remove with confirm, add with its first sync, validation, 400 field errors, busy;
-    - `contact-detail.spec.ts`: posting to the chosen account, staying local, failed account load, the 409 case;
-    - `contact-form.spec.ts`: the "Save to" select.
-- CR-5 (validation after discovery): resolved. `CardDavContactsSync.createContact` (line 116) calls `service.validateNew(fields)` after the account lookup, so an unknown account is still a 404 first, and before `Run(account)`, which can run discovery. `validateNew` runs the same `apply` and `validate` as `create`, without saving. The regression test uses an account at an unreachable URL with no address book. It passes only if validation comes first: if discovery ran first, the answer would be 409, not 400.
-- CR-6 (unused `changed` output): resolved. The output, its emit, the import and the misleading comment are gone. The spec asserts the rendered rows instead.
+  `ContactsBackupFixture` is included in `BackupRoundTripTest`.
+- CR-4 (no web specs for the panel and "Save to"): resolved, verified in the previous review, with specs in `carddav-accounts.spec.ts`, `contact-detail.spec.ts` and `contact-form.spec.ts`. The delta adds:
+    - a `contacts-page.spec.ts` test that the panel renders on the page with the ERROR state and lastError;
+    - two `contact-detail.spec.ts` tests for older account answers, one successful and one failed.
+- CR-5 (validation ran after discovery): resolved, verified in the previous review. `CardDavContactsSync.createContact` calls `service.validateNew(fields)` after the account lookup and before discovery. A regression test covers this.
+- CR-6 (unused `changed` output): resolved, verified in the previous review.
+- CR-7 (new UI strings missing from the locale files): resolved in 4a56280f3. Verified:
+    - `messages.xlf` now contains all 24 new ids: the 21 `contacts.carddav.*` ids, `contacts.saveTo`, `contacts.saveTo.here` and `contacts.saveTo.carddav`. Apart from these, the only changes in that file are moved units and new context line numbers. One source text changed, for `contacts.retry`, described below.
+    - `messages.de.xlf` has a unit with `state="translated"` for each of the 24 ids. Each source matches `messages.xlf` exactly, including leading and trailing spaces. The German is informal ("Gib einen Namen ... ein", "Füge eines hinzu"). Every `INTERPOLATION` placeholder is kept, including the `equiv-text`.
+    - fixes.md reports that `npm run build:de` and `messages-de.spec.ts` pass. This review did not re-run them.
+    - The last part of the fix changed the `contacts.retry` source and leaves a fragile spot. See CR-8.
+- TW-1 (an older failed accounts request cleared the current list): resolved. In `contact-detail.ts:264`, the catch branch now sets the list to empty only when `seq === this.loadSeq`, the same check as the success path at line 261. `load()` (line 124) increments `loadSeq` on every route load, so a stale request cannot write to the list, whether it succeeds or fails. The new spec "ignores an older accounts request that fails after the current one answered" covers this:
+    - the stale request is kept, while a navigation to an existing contact and back starts a newer one;
+    - the newer request answers first;
+    - the spec then fails the stale request with a 500 and asserts the select still offers both accounts.
 
-Also checked, no finding:
-- The CardDavException messages that reach the 409 detail are fixed texts with HTTP status codes only (CardDavClient.kt, CardDavContactsSync.kt). They contain no credentials, URLs with user info, or contact data.
-- `ContactService.validateNew` is outside the task's `touches` but inside the contacts module. It reuses the private validation rules rather than duplicating them. `createSynced` still validates on its own, so a photo deleted between the two checks still gives a 400.
+  "ignores an older accounts list that answers after the current one" covers the success path.
+
+Also checked, no finding (carried over from the previous review and still valid at 4a56280f3, because the delta does not change these files):
+- The CardDavException messages that reach the 409 detail are fixed texts with HTTP status codes only. They contain no credentials, URLs with user info, or contact data.
+- `ContactService.validateNew` reuses the private validation rules rather than duplicating them. `createSynced` still validates on its own. It is now recorded as an assumption.
 - Web race handling:
-    - `syncNow` and `remove` merge into the current list when they finish, so a late sync result does not bring back a removed account;
-    - the per-account busy guard blocks a second sync or remove of the same account;
-    - `loadCardDavAccounts` ignores results from an earlier route.
+    - `syncNow` and `remove` merge into the current list;
+    - a per-account busy guard blocks repeated actions on the same account;
+    - `loadCardDavAccounts` ignores results from an earlier route, on both its success and error paths.
 - The OpenAPI paths and operation ids, `writeOnly` on the password, and the generated client functions match the controller.
 - The restore warnings follow the CalDAV convention in `CalendarBackupContributor`.
-- `python tasks.py verify carddav-api` shows no evidence recorded yet for the three criteria. The parent worker records it after this review, so this is not a finding.
+- `python tasks.py verify carddav-api` evidence is the parent worker's job and is not reviewed as a finding here.
 
 ## P0 Critical
 
@@ -69,17 +85,22 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-7 | New UI strings were not extracted and have no German translations**
-    - File: `web/src/app/features/contacts/carddav-accounts.html:1` (also `carddav-accounts.ts:20`, `contact-form.html:5`)
-    - Category: Integration
-    - Problem: the task adds 24 new message ids: 21 `@@contacts.carddav.*` and `@@contacts.saveTo`, `@@contacts.saveTo.here`, `@@contacts.saveTo.carddav`. None of them are in `web/src/locale/messages.xlf` or `web/src/locale/messages.de.xlf` (a grep finds 0 matches in each). The existing contacts messages, such as `contacts.created` and `contacts.form.*`, are present in both files, so the files are otherwise kept in sync. docs/ARCHITECTURE.md lines 242-246 require running `npm run i18n:extract` and adding each `<target>` to `messages.de.xlf` after adding a message. `angular.json` sets `"i18nMissingTranslation": "error"`, so `npm run build:de` fails on these ids. `messages-de.spec.ts` cannot catch this, because it compares only the two xlf files and `messages.xlf` was not re-extracted.
-    - Why it matters: the German build breaks. It is not part of `.taskcheck`, so the gap goes unnoticed until someone builds or ships the German locale. Until then the new panel is English-only, against the "every user-facing string translated to German" convention.
-    - Suggested fix: run `npm run i18n:extract` in `web/` and add informal German ("du") targets for the 24 new units to `src/locale/messages.de.xlf`. Then run `npx ng test --include='src/locale/**'` and `npm run build:de`. `web/src/locale/` is outside the task's `touches`. The convention requires the change, so the parent should record that with `tasks.py assume` or keep the edit small.
+None.
 
 ## P3 Low
 
-None.
+- [ ] **CR-8 | `@@contacts.retry` now has two different source texts, so the locale check depends on extraction order**
+    - File: `web/src/app/features/contacts/carddav-accounts.html:22`
+    - Category: Quality
+    - Problem: the new panel uses `i18n="@@contacts.retry"` with the inline text `Try again`. The three existing uses wrap the text across lines, so after whitespace collapsing their text is ` Try again `:
+        - `contacts-page.html:120`;
+        - `contact-detail.html:19`;
+        - `contact-detail.html:164`.
+
+      One custom id now has two different contents. fixes.md (CR-7 section) confirms that `npm run i18n:extract` warns about a duplicate message. The extractor took `Try again` from `carddav-accounts.html` because that file comes first, and the German source was changed to match. `messages-de.spec.ts` compares the sources without trimming them: `text()` at line 21 and the check at line 88. If the extraction order changes, for example because a file is added or renamed, `messages.xlf` gets ` Try again ` back and the locale spec fails on an id nobody touched. At runtime, translations are looked up by id, so German users still see "Erneut versuchen". There is no visible defect today.
+    - Why it matters: this task introduced a fragile spot in the i18n check and an extractor warning. It can break a later, unrelated task's `.taskcheck` in a confusing way.
+    - Suggested fix: use a separate id for the panel's button (for example `@@contacts.carddav.retry`) with its own German unit, and restore the `contacts.retry` source in both xlf files to the extracted ` Try again `. Alternatively, write the panel's text with the same surrounding whitespace in a form Prettier keeps. Then re-run `npm run i18n:extract` and check that it no longer warns about a duplicate message.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found. CR-1 to CR-7 and TW-1 are resolved in revision 4a56280f3. The only open item is the low-priority CR-8. It causes no visible defect, and the parent worker may fix it or record it as accepted.
