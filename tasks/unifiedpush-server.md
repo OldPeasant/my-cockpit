@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [and-reminders]
 prio: 3
 parent: unifiedpush-android
-lease_until: 2026-10-26T14:57:05Z
+lease_until: 2026-10-26T15:02:05Z
 ---
 ## Goal
 Part of `unifiedpush-android` (UnifiedPush for Android), which was split.
