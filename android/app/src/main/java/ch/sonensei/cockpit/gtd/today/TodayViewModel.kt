@@ -53,7 +53,8 @@ data class TodayUiState(
 
 /**
  * The Today view (SPEC.md §5.3): overdue tasks and tasks due today (the cached Today view), then the Next tasks
- * scheduled for today or earlier (the server moves due SCHEDULED tasks to NEXT), with completion and undo.
+ * scheduled for today: the server moves due SCHEDULED tasks to NEXT, clears their scheduled date and marks them
+ * `releasedOn` that day. With completion and undo.
  */
 @HiltViewModel
 class TodayViewModel internal constructor(
@@ -111,7 +112,10 @@ class TodayViewModel internal constructor(
     }
 }
 
-/** The section [task] belongs to on [today], or `null` when it is not for today (a Next task without a date). */
+/**
+ * The section [task] belongs to on [today], or `null` when it is not for today (a Next task without a date, or one
+ * released on an earlier day). Like `GET /tasks?scheduled=today`: released today, or still scheduled for today or earlier.
+ */
 internal fun sectionOf(
     task: GtdTask,
     today: LocalDate,
@@ -121,6 +125,7 @@ internal fun sectionOf(
     return when {
         dueDate != null && dueDate.isBefore(today) -> TodaySectionKind.OVERDUE
         dueDate == today -> TodaySectionKind.DUE
+        task.releasedOn == today -> TodaySectionKind.SCHEDULED
         scheduledDate != null && !scheduledDate.isAfter(today) -> TodaySectionKind.SCHEDULED
         else -> null
     }

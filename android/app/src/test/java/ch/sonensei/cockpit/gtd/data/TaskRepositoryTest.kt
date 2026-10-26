@@ -45,7 +45,7 @@ class TaskRepositoryTest {
             val extra =
                 ""","projectId":"${uuid(90)}","dueDate":"2026-10-22",""" +
                     """"dueTime":"14:30:00","energy":"LOW","creativity":"CREATIVE","timeEstimateMin":15,""" +
-                    """"waitingForText":"Alex","waitingSince":"2026-10-01","scheduledDate":"2026-10-25","notesMd":"n""""
+                    """"waitingForText":"Alex","waitingSince":"2026-10-01","scheduledDate":"2026-10-25","releasedOn":"2026-10-20","notesMd":"n""""
             dispatcher.enqueue("$TASKS|NEXT", json(taskPage(taskJson(1, "Call the plumber", "NEXT", extra, listOf(uuid(80), uuid(81))))))
 
             assertEquals(RefreshResult.Refreshed, gtd.tasks.refresh(TaskView.NEXT))
@@ -69,6 +69,7 @@ class TaskRepositoryTest {
             assertEquals("Alex", task.waitingForText)
             assertEquals(LocalDate.of(2026, 10, 1), task.waitingSince)
             assertEquals(LocalDate.of(2026, 10, 25), task.scheduledDate)
+            assertEquals(LocalDate.of(2026, 10, 20), task.releasedOn)
             assertEquals("n", task.notesMd)
             val request = dispatcher.requests.single()
             assertEquals("200", request.url.queryParameter("limit"))

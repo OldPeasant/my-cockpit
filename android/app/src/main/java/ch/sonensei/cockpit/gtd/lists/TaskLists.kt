@@ -183,6 +183,7 @@ internal fun TaskResponse.toTask() =
         dueDate = dueDate,
         dueTime = dueTime,
         scheduledDate = scheduledDate,
+        releasedOn = releasedOn,
         energy = energy?.let { Energy.valueOf(it.name) },
         creativity = creativity?.let { Creativity.valueOf(it.name) },
         timeEstimateMin = timeEstimateMin,

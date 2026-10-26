@@ -28,6 +28,7 @@ data class CachedTaskEntity(
     val dueDate: String?,
     val dueTime: String?,
     val scheduledDate: String?,
+    val releasedOn: String?,
     val energy: String?,
     val creativity: String?,
     val timeEstimateMin: Int?,
@@ -171,7 +172,7 @@ abstract class GtdCacheDao {
 /** The offline read cache of the GTD screens (SPEC.md §9.3). It only holds copies of server data, so it may be dropped. */
 @Database(
     entities = [CachedTaskEntity::class, CachedProjectEntity::class, CachedContextEntity::class, CacheMetaEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class GtdCacheDatabase : RoomDatabase() {

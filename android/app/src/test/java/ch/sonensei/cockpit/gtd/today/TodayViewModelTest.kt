@@ -153,6 +153,24 @@ class TodayViewModelTest {
     }
 
     @Test
+    fun `a task released to Next today is scheduled for today, one released earlier is not`() {
+        assertEquals(TodaySectionKind.SCHEDULED, sectionOf(undated.copy(releasedOn = today), today))
+        assertEquals(TodaySectionKind.DUE, sectionOf(due.copy(releasedOn = today), today))
+        assertNull(sectionOf(undated.copy(releasedOn = today.minusDays(1)), today))
+    }
+
+    @Test
+    fun `the Scheduled for today section shows the Next tasks the server released today`() =
+        test { vm ->
+            val released = undated.copy(id = id(7), title = "Water the plants", releasedOn = today)
+            nextFlow.value = nextFlow.value.copy(data = listOf(released, undated.copy(releasedOn = today.minusDays(1))))
+            assertEquals(
+                mapOf(TodaySectionKind.SCHEDULED to listOf(released)),
+                vm.sections().filterKeys { it == TodaySectionKind.SCHEDULED },
+            )
+        }
+
+    @Test
     fun `refreshedAt is the older of the two loads`() =
         test { vm ->
             val earlier = loadedAt.minusSeconds(600)

@@ -34,6 +34,8 @@ data class GtdTask(
     /** Local time such as `14:30:00`, as the server sends it. */
     val dueTime: String? = null,
     val scheduledDate: LocalDate? = null,
+    /** The day the server moved the task from SCHEDULED to NEXT on its scheduled date (which it then clears). */
+    val releasedOn: LocalDate? = null,
     val energy: Energy? = null,
     val creativity: Creativity? = null,
     val timeEstimateMin: Int? = null,
