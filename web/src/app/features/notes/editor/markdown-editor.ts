@@ -7,7 +7,7 @@ import {
 } from '@codemirror/autocomplete';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
-import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { EditorState } from '@codemirror/state';
 import {
   Decoration,
@@ -31,6 +31,7 @@ import {
   untracked,
   ViewEncapsulation,
 } from '@angular/core';
+import { tags } from '@lezer/highlight';
 import { ItemRefDto } from '../../../api/generated';
 import { inlineLinkMarkdown } from './note-markdown';
 
@@ -43,6 +44,51 @@ export interface LinkOption extends ItemRefDto {
 
 /** Text before the cursor that asks for a link: `[[` and what was typed since. */
 const LINK_TRIGGER = /\[\[([^\]\n]*)$/;
+
+/**
+ * CodeMirror's `defaultHighlightStyle` with the theme's colors: its literal colors (e.g. `#219` for URLs) fail the
+ * WCAG AA contrast in the dark theme.
+ */
+const highlightStyle = HighlightStyle.define([
+  { tag: [tags.meta, tags.comment], color: 'var(--app-fg-muted)' },
+  { tag: tags.link, textDecoration: 'underline' },
+  { tag: tags.heading, textDecoration: 'underline', fontWeight: 'bold' },
+  { tag: tags.emphasis, fontStyle: 'italic' },
+  { tag: tags.strong, fontWeight: 'bold' },
+  { tag: tags.strikethrough, textDecoration: 'line-through' },
+  {
+    tag: [tags.keyword, tags.special(tags.variableName), tags.macroName],
+    color: 'var(--mat-sys-tertiary)',
+  },
+  {
+    tag: [
+      tags.atom,
+      tags.bool,
+      tags.url,
+      tags.contentSeparator,
+      tags.labelName,
+      tags.definition(tags.variableName),
+      tags.local(tags.variableName),
+      tags.definition(tags.propertyName),
+    ],
+    color: 'var(--app-accent)',
+  },
+  {
+    tag: [tags.literal, tags.inserted, tags.typeName, tags.namespace, tags.className],
+    color: 'var(--mat-sys-secondary)',
+  },
+  {
+    tag: [
+      tags.string,
+      tags.deleted,
+      tags.regexp,
+      tags.escape,
+      tags.special(tags.string),
+      tags.invalid,
+    ],
+    color: 'var(--app-danger)',
+  },
+]);
 
 /** Marks inline links `[[type:id]]` in the editor, so they read as one unit. */
 const inlineLinkMarks = ViewPlugin.fromClass(
@@ -176,7 +222,7 @@ export class MarkdownEditor {
         history(),
         keymap.of([...defaultKeymap, ...historyKeymap]),
         markdown(),
-        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        syntaxHighlighting(highlightStyle),
         EditorView.lineWrapping,
         placeholder(this.placeholder()),
         EditorView.contentAttributes.of({ 'aria-label': this.label(), 'aria-multiline': 'true' }),
