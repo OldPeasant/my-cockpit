@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "task": "and-new-view",
+  "reviewed_revision": "9a7c9b97b94579d101a4d66c83ad490c456e9e93",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-new-view/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-new-view/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-new-view/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "in-flight mail load after logout repopulated NewMailCache; session counter added"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "older Inbox tasks held back only while more mail can actually load"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "paging/concurrency/store tests added (test-writer + fixer)"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "LazyListState hoisted into NewRoute"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "open task looked up in the full Inbox, not filtered rows"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.newitems.*' ktlintCheck lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
