@@ -116,6 +116,7 @@ class GtdBackupContributorTests(
 				"recurrenceMode",
 				"nextOccurrenceId",
 				"completedAt",
+				"releasedOn",
 			) shouldBe emptySet()
 		done["contextIds"].toList().map { it.asString() } shouldContainExactly listOf(phone, errands).map(UUID::toString)
 		done["nextOccurrenceId"].asString() shouldBe next.toString()

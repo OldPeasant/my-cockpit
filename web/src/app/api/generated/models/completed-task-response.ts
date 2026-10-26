@@ -41,6 +41,11 @@ export interface CompletedTaskResponse {
    * iCalendar RRULE without the `RRULE:` prefix
    */
   recurrenceRule?: string;
+
+  /**
+   * The day the task moved from SCHEDULED to NEXT on its scheduled date (its `scheduledDate` is then cleared); `null` once it leaves NEXT
+   */
+  releasedOn?: string;
   scheduledDate?: string;
 
   /**

@@ -212,6 +212,68 @@ class TicklerWebTests(
 	}
 
 	@Test
+	fun `a released scheduled task remembers the day it was released, and only on that day is it scheduled for today`() {
+		val dentist = create("""{"title":"Book the dentist","list":"SCHEDULED","scheduledDate":"2026-03-02"}""")
+		val next = create("""{"title":"Buy stamps","list":"NEXT"}""")
+		create("""{"title":"File the tax return","list":"SCHEDULED","scheduledDate":"2026-03-10"}""")
+		task(dentist).isAbsent("releasedOn") shouldBe true
+
+		clock.advance(Duration.ofDays(1))
+		ids("?scheduled=today") shouldContainExactly listOf(dentist)
+		task(dentist).get("releasedOn").asString() shouldBe "2026-03-02"
+		task(next).isAbsent("releasedOn") shouldBe true
+		ids("?list=NEXT&scheduled=today") shouldContainExactly listOf(dentist)
+		ids("?list=INBOX&scheduled=today").shouldBeEmpty()
+
+		// A day later it is a plain next action that still says when it was released.
+		clock.advance(Duration.ofDays(1))
+		ids("?scheduled=TODAY").shouldBeEmpty()
+		ids("?list=NEXT") shouldContainExactly listOf(next, dentist)
+		task(dentist).get("releasedOn").asString() shouldBe "2026-03-02"
+	}
+
+	@Test
+	fun `a completed released task keeps its marker, a task that leaves Next loses it`() {
+		val dentist = create("""{"title":"Book the dentist","list":"SCHEDULED","scheduledDate":"2026-03-02"}""")
+		val plumber = create("""{"title":"Call the plumber","list":"SCHEDULED","scheduledDate":"2026-03-02"}""")
+		clock.advance(Duration.ofDays(1))
+		tickler.run() shouldBe 2
+
+		mockMvc.post("$BASE/$dentist/complete") { with(csrf()) }.andExpect { status { isOk() } }
+		task(dentist).get("releasedOn").asString() shouldBe "2026-03-02"
+		ids("?scheduled=today&completed=true") shouldContainExactly listOf(dentist)
+
+		move(plumber, """{"list":"NEXT"}""")
+		task(plumber).get("releasedOn").asString() shouldBe "2026-03-02"
+		move(plumber, """{"list":"SOMEDAY"}""")
+		task(plumber).isAbsent("releasedOn") shouldBe true
+		move(plumber, """{"list":"NEXT"}""")
+		task(plumber).isAbsent("releasedOn") shouldBe true
+		ids("?scheduled=today").shouldBeEmpty()
+	}
+
+	@Test
+	fun `a released tickler clears the release marker`() {
+		val dentist = create("""{"title":"Book the dentist","list":"SCHEDULED","scheduledDate":"2026-03-02"}""")
+		clock.advance(Duration.ofDays(1))
+		tickler.run() shouldBe 1
+		move(dentist, """{"list":"NEXT","ticklerDate":"2026-03-03"}""")
+		task(dentist).get("releasedOn").asString() shouldBe "2026-03-02"
+
+		clock.advance(Duration.ofDays(1))
+		ids("?list=INBOX") shouldContainExactly listOf(dentist)
+		task(dentist).isAbsent("releasedOn") shouldBe true
+	}
+
+	@Test
+	fun `an unknown scheduled filter is a 400`() {
+		mockMvc.get("$BASE?scheduled=tomorrow").andExpect {
+			status { isBadRequest() }
+			jsonPath("$.errors[0].field") { value("scheduled") }
+		}
+	}
+
+	@Test
 	fun `a scheduled task created for today or a past day is a next action when the tasks are read`() {
 		val today = create("""{"title":"Book the dentist","list":"SCHEDULED","scheduledDate":"2026-03-01"}""")
 		val overdue = create("""{"title":"Call the plumber","list":"SCHEDULED","scheduledDate":"2026-02-20"}""")

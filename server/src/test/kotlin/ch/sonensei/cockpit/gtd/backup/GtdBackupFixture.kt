@@ -76,7 +76,10 @@ class GtdBackupFixture(
 			}
 		checklists.saveAndFlush(ChecklistItem(draft.id, "Hero text", true, 0))
 		checklists.saveAndFlush(ChecklistItem(draft.id, "Pricing table", false, 1))
-		task("Cover the beds", TaskList.NEXT) { projectId = garden.id }
+		task("Cover the beds", TaskList.NEXT) {
+			projectId = garden.id
+			releasedOn = LocalDate.parse("2026-10-24")
+		}
 		task("Wait for the designer's mockups", TaskList.WAITING) {
 			projectId = launch.id
 			waitingForContactId = UUID.fromString("01890a5d-ac96-774b-bcce-b302099a8057")

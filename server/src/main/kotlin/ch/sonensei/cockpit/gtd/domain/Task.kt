@@ -18,7 +18,7 @@ import java.util.UUID
 /**
  * A GTD task (SPEC.md §5.2). Tasks may stay in the [TaskList.INBOX] with partial data. [projectId] and [contextIds]
  * reference [Project] and [Context] rows of this module; [waitingForContactId] references a contact (no foreign key).
- * Dates without a time ([dueDate], [scheduledDate], [ticklerDate], [waitingSince]) are local dates of the user's zone.
+ * Dates without a time ([dueDate], [scheduledDate], [releasedOn], [ticklerDate], [waitingSince]) are local dates of the user's zone.
  */
 @Entity
 @Table(name = "task")
@@ -67,6 +67,10 @@ class Task(
 
 	@Column(name = "scheduled_date")
 	var scheduledDate: LocalDate? = null
+
+	/** The day the tickler job moved this SCHEDULED task to Next; cleared when it leaves Next. */
+	@Column(name = "released_on")
+	var releasedOn: LocalDate? = null
 
 	/** While set, the task is hidden; on that date it moves back to the Inbox. */
 	@Column(name = "tickler_date")

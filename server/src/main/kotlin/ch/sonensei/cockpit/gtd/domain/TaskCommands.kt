@@ -67,6 +67,8 @@ data class TaskFilter(
 	val completed: Boolean = false,
 	/** Only tasks with a due or tickler date in this range (both inclusive); includes tasks still in a tickler. */
 	val dates: ClosedRange<LocalDate>? = null,
+	/** Only tasks scheduled for today (SPEC.md §5.3): released to Next today, or SCHEDULED up to today. */
+	val scheduledToday: Boolean = false,
 )
 
 /** Changes of a checklist item; `null` leaves a field unchanged. */

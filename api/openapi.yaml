@@ -7698,6 +7698,16 @@ paths:
           - overdue
           - today
           - week
+      - description: "`today`: only tasks scheduled for today, i.e. released from\
+          \ SCHEDULED to NEXT today (see `releasedOn`) or still SCHEDULED for today\
+          \ or earlier"
+        in: query
+        name: scheduled
+        required: false
+        schema:
+          type: string
+          enum:
+          - today
       - description: "true: done tasks (Logbook) instead of open ones"
         in: query
         name: completed
@@ -9890,6 +9900,11 @@ components:
           type: string
           description: iCalendar RRULE without the `RRULE:` prefix
           example: FREQ=WEEKLY;BYDAY=MO
+        releasedOn:
+          type: string
+          format: date
+          description: The day the task moved from SCHEDULED to NEXT on its scheduled
+            date (its `scheduledDate` is then cleared); `null` once it leaves NEXT
         scheduledDate:
           type: string
           format: date
@@ -14140,6 +14155,11 @@ components:
           type: string
           description: iCalendar RRULE without the `RRULE:` prefix
           example: FREQ=WEEKLY;BYDAY=MO
+        releasedOn:
+          type: string
+          format: date
+          description: The day the task moved from SCHEDULED to NEXT on its scheduled
+            date (its `scheduledDate` is then cleared); `null` once it leaves NEXT
         scheduledDate:
           type: string
           format: date
