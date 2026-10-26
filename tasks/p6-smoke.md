@@ -15,3 +15,4 @@ Automate SPEC.md §13.2 Phase 6.
 
 ## Notes
 - ASSUMPTION (2026-10-26 06:32+0100 by dell26/agent-1): Step 2 (Android share -> Read later) bookmarks the e2e server's own page http://localhost:8080/ (title 'My Cockpit', favicon.svg): the e2e stack has no internet, so application-e2e.properties now sets cockpit.bookmarks.fetch.allow-private-networks=true (outside the task's touches, e2e profile only).
+- ASSUMPTION (2026-10-26 06:32+0100 by dell26/agent-1): Step 5 restores the backup into the same e2e server (server-fresh is single-use and taken by phase 2): the phase 6 data is changed after the backup (contact + bookmark trashed, a habit check removed) and the restore must bring the snapshot back exactly.
