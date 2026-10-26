@@ -276,8 +276,9 @@ export default class GtdSettings implements OnInit {
       return await action();
     } catch (error) {
       this.setIn(this.error, kind, message(kind, error));
-      // The context or area was changed or deleted elsewhere meanwhile: show the current state.
-      if (isStale(error)) {
+      // The context or area (or the one to move to) was changed or deleted elsewhere meanwhile:
+      // show the current state.
+      if (isStale(error) || isMissingTarget(kind, error)) {
         void this.load(kind);
       }
       return undefined;
@@ -327,7 +328,22 @@ function isStale(error: unknown): boolean {
   return error instanceof ApiError && (error.status === 404 || error.status === 412);
 }
 
+/** A 400 of a delete whose `replaceWith`/`moveTo` names a context/area that no longer exists. */
+function isMissingTarget(kind: GtdListKind, error: unknown): boolean {
+  const field = kind === 'context' ? 'replaceWith' : 'moveTo';
+  return (
+    error instanceof ApiError &&
+    error.status === 400 &&
+    error.errors.some((fieldError) => fieldError.field === field)
+  );
+}
+
 function message(kind: GtdListKind, error: unknown): string {
+  if (isMissingTarget(kind, error)) {
+    return kind === 'context'
+      ? $localize`:@@gtdSettings.contexts.missingTarget:The context to move to no longer exists; the list now shows the current state.`
+      : $localize`:@@gtdSettings.areas.missingTarget:The area to move to no longer exists; the list now shows the current state.`;
+  }
   if (isStale(error)) {
     return $localize`:@@gtdSettings.stale:It was changed elsewhere in the meantime; the list now shows the current state.`;
   }

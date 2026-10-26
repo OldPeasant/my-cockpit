@@ -941,6 +941,92 @@ describe('GtdSettings', () => {
       expect(button('Delete @home').disabled).toBe(false);
     });
 
+    it('reloads the list when the context to move to was deleted elsewhere', async () => {
+      await setup();
+      button('Delete @home').click();
+      await settle();
+      await flushAssignedTasks([task('t1', [HOME.id])]);
+      document.querySelector<HTMLInputElement>('mat-radio-button[value="move"] input')!.click();
+      await settle();
+      dialogButton('Delete').click();
+
+      (
+        await closedThen((r) => r.method === 'DELETE' && r.url === `/api/v1/contexts/${HOME.id}`)
+      ).flush(
+        {
+          status: 400,
+          title: 'Bad Request',
+          detail: 'Request validation failed',
+          errors: [{ field: 'replaceWith', message: 'must be another existing context' }],
+        },
+        { status: 400, statusText: 'Bad Request' },
+      );
+      await settle();
+      http.expectOne({ method: 'GET', url: '/api/v1/contexts' }).flush({ items: [HOME, ERRANDS] });
+      await settle();
+
+      expect(names('contexts')).toEqual(['@home', '@errands']);
+      expect(errorText()).toContain('The context to move to no longer exists');
+      expect(errorText()).not.toContain('Request validation failed');
+      expect(button('Delete @home').disabled).toBe(false);
+    });
+
+    it('reloads the list when the area to move to was deleted elsewhere', async () => {
+      await setup();
+      button('Delete Work').click();
+      await settle();
+      http
+        .expectOne((r) => r.url === '/api/v1/projects')
+        .flush({ items: [{ id: 'p1', title: 'Fictitious launch', areaId: WORK.id, version: 1 }] });
+      await settle();
+      document.querySelector<HTMLInputElement>('mat-radio-button[value="move"] input')!.click();
+      await settle();
+      dialogButton('Delete').click();
+
+      (
+        await closedThen((r) => r.method === 'DELETE' && r.url === `/api/v1/areas/${WORK.id}`)
+      ).flush(
+        {
+          status: 400,
+          title: 'Bad Request',
+          detail: 'Request validation failed',
+          errors: [{ field: 'moveTo', message: 'must be another existing area' }],
+        },
+        { status: 400, statusText: 'Bad Request' },
+      );
+      await settle();
+      http.expectOne({ method: 'GET', url: '/api/v1/areas' }).flush({ items: [WORK] });
+      await settle();
+
+      expect(names('areas')).toEqual(['Work']);
+      expect(errorText()).toContain('The area to move to no longer exists');
+    });
+
+    it('keeps the list for a 400 whose field error is not on the target', async () => {
+      await setup();
+      button('Delete @phone').click();
+      await settle();
+      await flushAssignedTasks([]);
+      dialogButton('Delete').click();
+
+      (
+        await closedThen((r) => r.method === 'DELETE' && r.url === `/api/v1/contexts/${PHONE.id}`)
+      ).flush(
+        {
+          status: 400,
+          title: 'Bad Request',
+          detail: 'Request validation failed',
+          errors: [{ field: 'moveTo', message: 'must be another existing area' }],
+        },
+        { status: 400, statusText: 'Bad Request' },
+      );
+      await settle();
+
+      http.expectNone({ method: 'GET', url: '/api/v1/contexts' });
+      expect(names('contexts')).toEqual(['@home', '@phone', '@errands']);
+      expect(errorText()).toContain('Request validation failed');
+    });
+
     it('reloads the list when the delete itself finds the context changed elsewhere', async () => {
       await setup();
       button('Delete @phone').click();
