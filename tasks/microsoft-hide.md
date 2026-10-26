@@ -1,11 +1,11 @@
 ---
 title: Hide Microsoft integration behind a setting (default off)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [mail-identities]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/oauth,server/src/main/kotlin/ch/sonensei/cockpit/calendar/sync,server/src/main/kotlin/ch/sonensei/cockpit/mail/imap,server/src/main/resources/application.properties,api/openapi.yaml,web/src/app/api/generated,web/src/app/features/settings/integrations,web/src/app/features/settings/calendars,web/src/app/features/settings/mail,android/app/src/main/java/ch/sonensei/cockpit/settings,docs/oauth-setup.md,deploy/.env.example]
 prio: 2
-lease_until: 2026-10-26T09:35:42Z
+lease_until: 
 ---
 ## Goal
 The owner deferred Microsoft (docs/adr/0003-microsoft-deferred.md): the built Microsoft code stays, but nothing
@@ -31,3 +31,4 @@ on again later.
 - ASSUMPTION (2026-10-26 09:44+0100 by dell26/agent-1): Web Integrations page hides existing Microsoft sources and connections while the server does not list Microsoft in /oauth/providers (also when that request fails), instead of showing them as unsyncable.
 - ASSUMPTION (2026-10-26 09:44+0100 by dell26/agent-1): Android has no Microsoft (or any OAuth provider) option yet, so nothing to hide and no Android test added; deploy/docker-compose.yml passes MICROSOFT_ENABLED (default false) to the server (outside touches, one line). Tests set cockpit.microsoft.enabled=true in test config so existing Microsoft tests keep running; MicrosoftDisabledWebTests set it false.
 - ASSUMPTION (2026-10-26 10:00+0100 by dell26/agent-1): While Microsoft is off, manual 'Test' and 'sync folders' of an already existing MICROSOFT mail account stay allowed (only creation and background push/poll are blocked), unlike calendar 'Sync now' which returns 400; no such accounts exist since Microsoft was never set up. Contacts page text still mentions Microsoft (outside touches, follow-up if wanted).
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 464s on a306c91dd; criteria verified 3/3
