@@ -17,6 +17,7 @@
     <string name="calendar_load_more">Show later days</string>
     <string name="calendar_loaded_until">Showing until %1$s</string>
     <string name="calendar_offline">Can\'t reach the server. Showing the last loaded events.</string>
+    <string name="calendar_offline_cached">Offline. Showing events as loaded %1$s; read-only until the server is reachable.</string>
     <string name="calendar_failed">The events could not be loaded.</string>
     <string name="calendar_visibility_failed">The calendar could not be changed. Try again.</string>
     <string name="calendar_retry">Retry</string>

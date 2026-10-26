@@ -184,17 +184,26 @@ fun CalendarContent(
     callbacks: CalendarCallbacks,
     modifier: Modifier = Modifier,
 ) {
+    // Cached events are read-only: the editor needs the server to load and save them.
+    val shownCallbacks = if (state.cachedAt != null) callbacks.copy(open = {}) else callbacks
     var showCalendars by rememberSaveable { mutableStateOf(false) }
     Column(modifier.fillMaxSize()) {
-        Toolbar(state, callbacks, showCalendars) { showCalendars = it }
-        if (showCalendars) CalendarFilter(state.calendars, state.pendingVisibility.keys, callbacks.setVisible)
-        state.message?.let { Message(it, state.loading, callbacks.retry) }
+        Toolbar(state, shownCallbacks, showCalendars) { showCalendars = it }
+        if (showCalendars) {
+            CalendarFilter(
+                state.calendars,
+                state.pendingVisibility.keys,
+                readOnly = state.cachedAt != null,
+                setVisible = shownCallbacks.setVisible,
+            )
+        }
+        state.message?.let { Message(it, state.cachedAt, state.zone, state.loading, shownCallbacks.retry) }
         if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth()) else Spacer(Modifier.height(4.dp))
         when (state.view) {
-            CalendarView.AGENDA -> Agenda(state, callbacks)
+            CalendarView.AGENDA -> Agenda(state, shownCallbacks)
             CalendarView.DAY, CalendarView.WEEK -> {
-                RangeHeader(state, callbacks)
-                TimeGrid(state, callbacks)
+                RangeHeader(state, shownCallbacks)
+                TimeGrid(state, shownCallbacks)
             }
         }
     }
@@ -252,6 +261,8 @@ private fun CalendarFilter(
     calendars: List<CalendarInfo>,
     /** Calendars whose visibility change is still being written: their chip waits for the answer. */
     pending: Set<UUID>,
+    /** Cached calendars are shown: none can be changed. */
+    readOnly: Boolean,
     setVisible: (UUID, Boolean) -> Unit,
 ) {
     if (calendars.isEmpty()) {
@@ -271,7 +282,7 @@ private fun CalendarFilter(
             FilterChip(
                 selected = calendar.visible,
                 onClick = { setVisible(calendar.id, !calendar.visible) },
-                enabled = calendar.id !in pending,
+                enabled = !readOnly && calendar.id !in pending,
                 label = { Text(calendar.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 leadingIcon = { ColorDot(calendarColor(calendar)) },
                 modifier = Modifier.testTag(CalendarTags.calendar(calendar.id)),
@@ -294,6 +305,9 @@ private fun calendarColor(calendar: CalendarInfo?): Color = calendar?.color?.let
 @Composable
 private fun Message(
     message: CalendarMessage,
+    /** When the shown cached occurrences were loaded; `null` when they were not loaded from the cache. */
+    cachedAt: Instant?,
+    zone: ZoneId,
     loading: Boolean,
     onRetry: () -> Unit,
 ) {
@@ -303,11 +317,25 @@ private fun Message(
             CalendarMessage.FAILED -> R.string.calendar_failed to MaterialTheme.colorScheme.errorContainer
             CalendarMessage.VISIBILITY_FAILED -> R.string.calendar_visibility_failed to MaterialTheme.colorScheme.errorContainer
         }
+    val locale = currentLocale()
+    val label =
+        if (message == CalendarMessage.OFFLINE && cachedAt != null) {
+            val loadedAt =
+                DateTimeFormatter
+                    .ofLocalizedDateTime(
+                        FormatStyle.MEDIUM,
+                        FormatStyle.SHORT,
+                    ).withLocale(locale)
+                    .format(cachedAt.atZone(zone))
+            stringResource(R.string.calendar_offline_cached, loadedAt)
+        } else {
+            stringResource(text)
+        }
     Surface(color = color, modifier = Modifier.fillMaxWidth().testTag(CalendarTags.MESSAGE)) {
         Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.CloudOff, contentDescription = null)
             Text(
-                stringResource(text),
+                label,
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f).padding(start = 12.dp, top = 10.dp, bottom = 10.dp),
             )
@@ -513,7 +541,7 @@ private fun AgendaFooter(
 ) {
     val until = state.to.minusDays(1).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale))
     Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        if (state.loaded && !state.loading) {
+        if (state.shown && !state.loading) {
             Text(
                 stringResource(if (empty) R.string.calendar_agenda_empty else R.string.calendar_loaded_until, until),
                 style = MaterialTheme.typography.bodyMedium,
@@ -603,7 +631,7 @@ private fun TimeGrid(
         }
         AllDayStrip(days, entriesByDay, state, callbacks.open)
         HorizontalDivider()
-        if (!week && state.loaded && entriesByDay.values.all { it.isEmpty() }) {
+        if (!week && state.shown && entriesByDay.values.all { it.isEmpty() }) {
             Text(
                 stringResource(R.string.calendar_day_empty),
                 style = MaterialTheme.typography.bodyMedium,

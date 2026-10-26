@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.WeekFields
@@ -46,7 +47,15 @@ data class CalendarUiState(
     val message: CalendarMessage? = null,
     /** Calendars whose visibility change is still being written, and the visibility the user chose. */
     val pendingVisibility: Map<UUID, Boolean> = emptyMap(),
+    /**
+     * The server could not be reached and the shown occurrences come from the offline cache, loaded at this time; they
+     * are read-only until a load works again. `null` when nothing cached is shown.
+     */
+    val cachedAt: Instant? = null,
 ) {
+    /** Something is shown for the range: loaded from the server, or from the cache. */
+    val shown: Boolean get() = loaded || cachedAt != null
+
     /** The agenda: the days of the range that have occurrences. */
     val agendaDays: List<AgendaDay> get() = groupByDay(occurrences, from, to, zone)
 
@@ -63,16 +72,19 @@ data class CalendarUiState(
 
 /**
  * Agenda (from today on, loaded further by range as it is scrolled), day and week views, and which calendars are
- * shown. Nothing is cached: every view loads its range from the server.
+ * shown. Every view loads its range from the server; the agenda's loads are also kept in the [AgendaCache], which is
+ * shown read-only when the server cannot be reached (SPEC.md §9.3).
  */
 @HiltViewModel
 class CalendarViewModel internal constructor(
     private val repository: CalendarRepository,
     private val clock: Clock,
     locale: Locale,
+    private val cache: AgendaCache = AgendaCache.None,
 ) : ViewModel() {
     @Inject
-    constructor(repository: CalendarRepository) : this(repository, Clock.systemDefaultZone(), Locale.getDefault())
+    constructor(repository: CalendarRepository, cache: AgendaCache) :
+        this(repository, Clock.systemDefaultZone(), Locale.getDefault(), cache)
 
     private val state =
         MutableStateFlow(
@@ -100,7 +112,7 @@ class CalendarViewModel internal constructor(
             // Nothing loaded yet, or the day changed since the agenda was opened: it starts at the new today.
             if (current.to <= current.from || (current.view == CalendarView.AGENDA && current.from != today)) {
                 val (from, to) = rangeOf(current.view, current.anchor, next)
-                next.copy(from = from, to = to, occurrences = emptyList(), loaded = false)
+                next.copy(from = from, to = to, occurrences = emptyList(), loaded = false, cachedAt = null)
             } else {
                 next
             }
@@ -142,7 +154,9 @@ class CalendarViewModel internal constructor(
         state.update { it.copy(loadingMore = true) }
         loadJob =
             viewModelScope.launch {
+                val session = cache.session()
                 val result = repository.occurrences(from, to, current.zone)
+                if (result is CalendarResult.Ok) cache.append(session, from, to, result.value)
                 state.update {
                     when (result) {
                         is CalendarResult.Ok ->
@@ -169,7 +183,8 @@ class CalendarViewModel internal constructor(
         visible: Boolean,
     ) {
         val current = state.value
-        if (calendarId in current.pendingVisibility) return
+        // Cached data is read-only: the toggle would be written against calendars that may have changed since.
+        if (calendarId in current.pendingVisibility || current.cachedAt != null) return
         val calendar = current.calendar(calendarId) ?: return
         if (calendar.visible == visible) return
         // What the server has for this calendar; a calendar list loaded while the change runs replaces it.
@@ -260,6 +275,7 @@ class CalendarViewModel internal constructor(
                 // The occurrences of another range would be wrong here: cleared until the new ones arrive.
                 occurrences = if (sameRange) it.occurrences else emptyList(),
                 loaded = it.loaded && sameRange,
+                cachedAt = it.cachedAt.takeIf { sameRange },
             )
         }
         load(from, to)
@@ -276,25 +292,42 @@ class CalendarViewModel internal constructor(
             CalendarView.WEEK -> weekOf(anchor, current.firstDayOfWeek).let { it.first() to it.last().plusDays(1) }
         }
 
-    /** Loads [from, to) and the calendars; a load still running for an earlier range is dropped. */
+    /**
+     * Loads [from, to) and the calendars; a load still running for an earlier range is dropped. The agenda's answer is
+     * cached; when the server cannot be reached and nothing is shown for the range yet, the cache is shown instead.
+     */
     private fun load(
         from: LocalDate,
         to: LocalDate,
     ) {
         loadJob?.cancel()
         val zone = state.value.zone
+        val agenda = state.value.view == CalendarView.AGENDA
         state.update { it.copy(loading = true, loadingMore = false) }
         loadJob =
             viewModelScope.launch {
+                val session = cache.session()
                 val calendars = async { repository.calendars() }
                 val result = repository.occurrences(from, to, zone)
                 val calendarList = calendars.await()
+                if (result is CalendarResult.Ok && agenda) {
+                    val loadedCalendars = (calendarList as? CalendarResult.Ok)?.value ?: state.value.calendars
+                    cache.store(session, CachedAgenda(from, to, loadedCalendars, result.value, Instant.now(clock)))
+                }
+                if (result == CalendarResult.Offline && !state.value.loaded) {
+                    val cached = cache.read()?.let { cachedRange(it, from, to, agenda) }
+                    if (cached != null) {
+                        state.update { it.withCached(cached) }
+                        return@launch
+                    }
+                }
                 state.update { current ->
                     val withCalendars = (calendarList as? CalendarResult.Ok)?.let { current.withCalendars(it.value) } ?: current
                     withCalendars.copy(
                         occurrences = (result as? CalendarResult.Ok)?.value ?: current.occurrences,
                         loading = false,
                         loaded = current.loaded || result is CalendarResult.Ok,
+                        cachedAt = current.cachedAt.takeUnless { result is CalendarResult.Ok },
                         message =
                             when (result) {
                                 is CalendarResult.Ok -> null
@@ -305,6 +338,35 @@ class CalendarViewModel internal constructor(
                 }
             }
     }
+
+    /**
+     * The part of [cached] for [from, to): the agenda shows the cached days from [from] on (the cache may have been
+     * loaded on an earlier day), a day or week only when all its days are cached. `null` when nothing fits.
+     */
+    private fun cachedRange(
+        cached: CachedAgenda,
+        from: LocalDate,
+        to: LocalDate,
+        agenda: Boolean,
+    ): CachedAgenda? {
+        if (cached.from > from) return null
+        val end = if (agenda) cached.to else to
+        if (end <= from || cached.to < end) return null
+        val zone = state.value.zone
+        val touching = cached.occurrences.filter { o -> o.days(zone).let { it.start < end && it.endInclusive >= from } }
+        return cached.copy(from = from, to = end, occurrences = touching)
+    }
+
+    private fun CalendarUiState.withCached(cached: CachedAgenda): CalendarUiState =
+        copy(
+            to = cached.to,
+            occurrences = cached.occurrences,
+            // Calendars loaded in this session are newer than the cached ones.
+            calendars = calendars.ifEmpty { cached.calendars },
+            loading = false,
+            cachedAt = cached.loadedAt,
+            message = CalendarMessage.OFFLINE,
+        )
 
     internal companion object {
         /** Days loaded at once by the agenda. */
