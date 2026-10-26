@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "task": "download-spa-404",
+  "reviewed_revision": "bb74d4b7ee2233add5e977708440441ee4e66827",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/download-spa-404/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/download-spa-404/review.md"},
+    "fixer": {"status": "not_required", "reason": "fixer not required: no findings from test-writer or code-reviewer"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.core.spa.*' (19 tests, 0 failures; 3 fail with the fix reverted)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
