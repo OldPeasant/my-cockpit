@@ -1,13 +1,13 @@
 ---
 title: Server-side reassignment when deleting a context or area
-status: in_progress
-owner: dell26/agent-2
+status: todo
+owner: 
 deps: [web-settings-gtd]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,api/openapi.yaml,web/src/app/features/settings/gtd]
 prio: 2
-lease_until: 2026-10-26T03:23:25Z
-releases: 0
-extended: dell26/agent-2
+lease_until: 
+releases: 1
+extended: 
 hold: 
 ---
 ## Goal
@@ -26,3 +26,4 @@ Deleting a context/area with "move to another" must also reach items the list en
 - ASSUMPTION (2026-10-26 02:44+0100 by dell26/agent-2): replaceWith/moveTo equal to the deleted context/area itself is rejected with 400 like an unknown id (field error on the parameter); a task that already has the replacement context just keeps it once
 - ASSUMPTION (2026-10-26 02:44+0100 by dell26/agent-2): The delete dialog's task/project count still comes from listTasks/listProjects (visible items only); a context used only by tickler/Trash tasks shows 'No task uses this context' and is deleted without replacement. Counting hidden items would need a new count endpoint, out of scope
 - extended by dell26/agent-2: Implementation, fix of CR-1 and clean re-review (review.md, fixes.md) committed. Left: run test-writer on final code (tests.md missing; wip AreaContextDeleteRollbackTests.kt committed unverified), write quality.json, record verify for both criteria, done. Last .taskcheck failed only in BackupRoundTripTest/FilesBackupContributorTests with 'Disk quota exceeded' (host disk, unrelated to this task).
+- release by dell26/agent-2: Implementation complete (server DELETE ?replaceWith/?moveTo in one tx incl. tickler/Trash, 400 on unknown/self target; openapi regenerated; web settings uses the params, hint removed). CR-1 fixed, clean re-review committed (reviews/gtd-delete-reassign/review.md, fixes.md). At dfb237034 all gtd server tests pass (32 classes incl. AreaContextWebTests 20, AreaContextDeleteRollbackTests 2) and ktlintCheck is clean. Left: (1) run test-writer on final code -> reviews/gtd-delete-reassign/tests.md with coverage; (2) if it changes nothing, write quality.json (reviewed_revision = final hash, fixer ran for CR-1); (3) run cd web && npm run check, then tasks.py verify for #1 and #2; (4) sh scripts/check.sh, then done. An earlier .taskcheck failure was only 'Disk quota exceeded' in BackupRoundTripTest/FilesBackupContributorTests (host issue, unrelated).
