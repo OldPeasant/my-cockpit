@@ -42,16 +42,16 @@
   ],
   "validation": [
     {
-      "command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*' createDebugUnitTestCoverageReport (at ff93b836a)",
-      "result": "pass: 73 push tests, 0 failures; push package coverage instructions 1004/1067, branches 74/74, lines 166/171"
+      "command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*' createDebugUnitTestCoverageReport (at ff93b836a): 73 push tests, 0 failures; push coverage instr 1004/1067, branches 74/74, lines 166/171",
+      "result": "pass"
     },
     {
-      "command": "cd android && ./gradlew ktlintCheck testDebugUnitTest (full suite, maxHeapSize 2g)",
-      "result": "pass: 2123 tests, 0 failures (CockpitThemeTest OOM gone)"
+      "command": "cd android && ./gradlew ktlintCheck testDebugUnitTest (full suite, maxHeapSize 2g): 2123 tests, 0 failures",
+      "result": "pass"
     },
     {
       "command": "sh scripts/check.sh",
-      "result": "pass: all checks passed"
+      "result": "pass"
     }
   ]
 }
