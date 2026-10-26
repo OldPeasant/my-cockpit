@@ -144,3 +144,18 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+// A birthday: no form, just what it is and where it comes from.
+.virtual {
+  display: grid;
+  gap: var(--app-space-2);
+  justify-items: start;
+
+  p {
+    margin: 0;
+  }
+}
+
+.virtual-title {
+  font: var(--mat-sys-title-large);
+}

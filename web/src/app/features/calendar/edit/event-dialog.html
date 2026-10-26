@@ -10,7 +10,27 @@
 
 <form class="event-form" [formGroup]="form" (ngSubmit)="save()">
   <mat-dialog-content>
-    @if (loading()) {
+    @if (virtual; as occurrence) {
+      <div class="virtual">
+        <p class="virtual-title">{{ occurrence.title }}</p>
+        <!-- Virtual occurrences are all-day (VirtualOccurrence on the server). -->
+        <p class="virtual-date">{{ occurrence.startDate | date: 'fullDate' }}</p>
+        @if (calendar(); as cal) {
+          <p class="note">{{ cal.name }}</p>
+        }
+        <p class="note" i18n="@@calendar.edit.virtualReadOnly">
+          This date comes from a contact: change it there.
+        </p>
+        <a
+          mat-stroked-button
+          class="virtual-contact"
+          [routerLink]="['/contacts', occurrence.eventId]"
+          [mat-dialog-close]="undefined"
+          i18n="@@calendar.edit.openContact"
+          >Open contact</a
+        >
+      </div>
+    } @else if (loading()) {
       <p class="note" role="status" i18n="@@calendar.edit.loading">Loading the event…</p>
     } @else if (loadFailed()) {
       <div class="banner" role="alert">

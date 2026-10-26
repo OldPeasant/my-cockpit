@@ -2,6 +2,7 @@ import { HttpContext } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import {
   Api,
+  CalendarResponse,
   createEvent,
   CreateEventRequest,
   deleteEvent,
@@ -31,6 +32,15 @@ interface Target {
  */
 export function isConflict(error: unknown): boolean {
   return error instanceof ApiError && (error.status === 409 || error.status === 412);
+}
+
+/**
+ * Whether `calendar` is virtual: a read-only calendar of the local source, whose occurrences the
+ * server computes (the Birthdays calendar, SPEC.md §8.3). They have no stored event to read or
+ * change; their `eventId` is the contact they come from.
+ */
+export function isVirtual(calendar: CalendarResponse | undefined): boolean {
+  return !!calendar && calendar.readOnly && calendar.sourceType === 'LOCAL';
 }
 
 /** Whether `occurrence` belongs to a recurring series (a change needs a scope). */

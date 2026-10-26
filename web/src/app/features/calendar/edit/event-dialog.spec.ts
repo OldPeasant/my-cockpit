@@ -2,6 +2,7 @@ import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatSelectHarness } from '@angular/material/select/testing';
+import { provideRouter } from '@angular/router';
 import { CalendarResponse, EventResponse, OccurrenceResponse } from '../../../api/generated';
 import { ApiError } from '../../../core/http';
 import { LinksService } from '../../../shared/links';
@@ -77,6 +78,8 @@ describe('EventDialog', () => {
         { provide: MatDialogRef, useValue: ref },
         { provide: EventEditService, useValue: events },
         { provide: ScopePrompt, useValue: scopes },
+        // The contact link of a birthday navigates.
+        provideRouter([{ path: '**', children: [] }]),
         // The event's linked items (overlay/event-links.spec.ts covers them).
         { provide: LinksService, useValue: { list: vi.fn(() => Promise.resolve([])) } },
       ],
@@ -924,6 +927,66 @@ describe('EventDialog', () => {
       expect(events.update).toHaveBeenCalledWith(expect.anything(), undefined, {
         title: 'Planning Q2',
       });
+    });
+  });
+
+  describe('birthdays (virtual calendar)', () => {
+    const birthdays = fakeCalendar('birthdays', { name: 'Birthdays', readOnly: true });
+    // Computed by the server: eventId and seriesId are the contact, GET /events/{id} is a 404.
+    const birthday = fakeOccurrence('Ada Lovelace', {
+      eventId: 'contact-ada',
+      seriesId: 'contact-ada',
+      occurrence: '2026-12-10',
+      calendarId: 'birthdays',
+      allDay: true,
+      start: undefined,
+      end: undefined,
+      startDate: '2026-12-10',
+      endDate: '2026-12-11',
+    });
+
+    it('shows title and date read-only without loading an event', async () => {
+      await edit(birthday, [...CALENDARS, birthdays]);
+      expect(events.get).not.toHaveBeenCalled();
+      expect(events.reread).not.toHaveBeenCalled();
+      expect(alerts()).toEqual([]);
+      expect(el().textContent).not.toContain('could not be loaded');
+      expect(el().querySelector('h2')!.textContent!.trim()).toBe('Event');
+      expect(el().querySelector('.virtual-title')!.textContent!.trim()).toBe('Ada Lovelace');
+      expect(el().querySelector('.virtual-date')!.textContent!.trim()).toBe(
+        'Thursday, December 10, 2026',
+      );
+      expect(el().textContent).toContain('Birthdays');
+      expect(el().querySelector('form input, form textarea, mat-select')).toBeNull();
+      expect(el().querySelector('app-calendar-event-links')).toBeNull();
+    });
+
+    it('offers no edit or delete, only close', async () => {
+      await edit(birthday, [...CALENDARS, birthdays]);
+      expect(el().querySelector('button[type="submit"]')).toBeNull();
+      expect(button('Delete')).toBeUndefined();
+      expect(button('Close')).toBeDefined();
+      el().querySelector('form')!.dispatchEvent(new Event('submit'));
+      await stable();
+      expect(events.update).not.toHaveBeenCalled();
+      expect(events.delete).not.toHaveBeenCalled();
+    });
+
+    it('links to the contact and closes the dialog when followed', async () => {
+      await edit(birthday, [...CALENDARS, birthdays]);
+      const link = el().querySelector<HTMLAnchorElement>('a.virtual-contact')!;
+      expect(link.textContent!.trim()).toBe('Open contact');
+      expect(link.getAttribute('href')).toBe('/contacts/contact-ada');
+      link.click();
+      await stable();
+      expect(ref.close).toHaveBeenCalledWith(undefined);
+    });
+
+    it('still loads events of read-only calendars of other sources', async () => {
+      stored.set('h1', fakeEvent('h1', { title: 'Easter Monday', calendarId: 'feed' }));
+      await edit(fakeOccurrence('Easter Monday', { eventId: 'h1', calendarId: 'feed' }));
+      expect(events.get).toHaveBeenCalledWith('h1');
+      expect(el().querySelector('.virtual')).toBeNull();
     });
   });
 });

@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -8,6 +9,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { RouterLink } from '@angular/router';
 import {
   AttendeeDto,
   CalendarResponse,
@@ -22,6 +24,7 @@ import {
   isConflict,
   isGenerated,
   isSeries,
+  isVirtual,
 } from './event-edit.service';
 import {
   createRequest,
@@ -65,12 +68,17 @@ export const REMINDER_PRESETS: readonly number[] = [0, 5, 10, 15, 30, 60, 120, 1
  * a new repeat rule or calendar can't apply to one occurrence alone). Only changed fields are sent.
  * When the event changed elsewhere or at its provider since it was opened, the dialog says so and
  * offers to reload it (SPEC.md §6.2).
+ *
+ * An occurrence of a virtual calendar (Birthdays) has no event to load: the dialog shows its title
+ * and date from the occurrence and links to its contact.
  */
 @Component({
   selector: 'app-calendar-event-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    DatePipe,
     EventLinks,
+    RouterLink,
     ReactiveFormsModule,
     MatButtonModule,
     MatCheckboxModule,
@@ -122,7 +130,10 @@ export class EventDialog {
   protected readonly customRule = signal('');
   protected readonly calendarId = signal('');
 
-  protected readonly loading = signal(this.data.mode === 'edit');
+  /** The occurrence of a virtual calendar (a birthday) the dialog shows, if it is one. */
+  protected readonly virtual = virtualOccurrence(this.data);
+
+  protected readonly loading = signal(this.data.mode === 'edit' && !this.virtual);
   protected readonly loadFailed = signal(false);
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -157,6 +168,9 @@ export class EventDialog {
       const calendars = this.data.calendars.filter((c) => !c.readOnly);
       const target = calendars.find((c) => c.isDefault) ?? calendars[0];
       this.reset(newForm(this.data.draft, target?.id ?? '', this.data.timeZone));
+    } else if (this.virtual) {
+      // Nothing to load or change: `readOnly()` follows from its calendar.
+      this.calendarId.set(this.virtual.calendarId);
     } else {
       void this.load();
     }
@@ -171,7 +185,7 @@ export class EventDialog {
    * view showed may be out of date, so its times and version are read again too.
    */
   protected async load(): Promise<void> {
-    if (this.data.mode !== 'edit') return;
+    if (this.data.mode !== 'edit' || this.virtual) return;
     this.loading.set(true);
     this.loadFailed.set(false);
     this.error.set(null);
@@ -376,6 +390,15 @@ export class EventDialog {
       }
     }
   }
+}
+
+/** The occurrence `data` opens if it belongs to a virtual calendar (a birthday). */
+function virtualOccurrence(data: EventDialogData): OccurrenceResponse | undefined {
+  if (data.mode !== 'edit') return undefined;
+  const { occurrence } = data;
+  return isVirtual(data.calendars.find((c) => c.id === occurrence.calendarId))
+    ? occurrence
+    : undefined;
 }
 
 /** The scopes a change can apply to: a new repeat rule or calendar is for the series only. */
