@@ -7,6 +7,7 @@ import ch.sonensei.cockpit.core.auth.domain.LoginResult
 import ch.sonensei.cockpit.core.auth.domain.LoginThrottle
 import ch.sonensei.cockpit.core.auth.domain.SetupService
 import ch.sonensei.cockpit.core.auth.domain.Totp
+import ch.sonensei.cockpit.core.auth.passkey.api.AndroidAssetLinks
 import ch.sonensei.cockpit.core.auth.passkey.api.PasskeyRelyingParties
 import ch.sonensei.cockpit.core.auth.passkey.domain.PasskeyService
 import ch.sonensei.cockpit.core.auth.passkey.domain.RegistrationStartResult
@@ -60,7 +61,7 @@ class PasskeyConfiguredRelyingPartyTests(
 
 	/** What the deployment configures; the request comes from an internal host the passkeys must not depend on. */
 	private val relyingParty: RelyingParty =
-		PasskeyRelyingParties(RP_ID, "Fictitious Cockpit", listOf(WEB_ORIGIN, ANDROID_ORIGIN), "")
+		PasskeyRelyingParties(RP_ID, "Fictitious Cockpit", listOf(WEB_ORIGIN, ANDROID_ORIGIN), "", NO_APP)
 			.resolve(MockHttpServletRequest("POST", "/api/v1/auth/passkeys/token").apply { serverName = "cockpit-server" })
 
 	@BeforeEach
@@ -116,7 +117,7 @@ class PasskeyConfiguredRelyingPartyTests(
 	fun `with only COCKPIT_DOMAIN set, a browser behind a TLS proxy registers and logs in with the https origin`() {
 		// Caddy terminates TLS and forwards plain HTTP with the public Host: the server sees http://cockpit.example.org.
 		val behindProxy =
-			PasskeyRelyingParties("", "My Cockpit", emptyList(), RP_ID).resolve(
+			PasskeyRelyingParties("", "My Cockpit", emptyList(), RP_ID, NO_APP).resolve(
 				MockHttpServletRequest("POST", "/api/v1/auth/passkeys/registration/options").apply {
 					scheme = "http"
 					serverName = RP_ID
@@ -141,7 +142,7 @@ class PasskeyConfiguredRelyingPartyTests(
 	@Test
 	fun `with only COCKPIT_DOMAIN set, a request for another host accepts only the domain's https origin`() {
 		val otherHost =
-			PasskeyRelyingParties("", "My Cockpit", emptyList(), RP_ID)
+			PasskeyRelyingParties("", "My Cockpit", emptyList(), RP_ID, NO_APP)
 				.resolve(MockHttpServletRequest("POST", "/api/v1/auth/passkeys/token").apply { serverName = "cockpit-server" })
 		shouldThrow<InvalidRequestException> {
 			register(TestAuthenticator(rpId = RP_ID, origin = "http://cockpit-server"), otherHost)
@@ -182,5 +183,8 @@ class PasskeyConfiguredRelyingPartyTests(
 		const val RP_ID = "cockpit.example.org"
 		const val WEB_ORIGIN = "https://cockpit.example.org"
 		const val ANDROID_ORIGIN = "android:apk-key-hash:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+
+		/** No app fingerprints: the Android origin is accepted only where it is listed in `origins`. */
+		val NO_APP = AndroidAssetLinks("ch.sonensei.cockpit", emptyList())
 	}
 }

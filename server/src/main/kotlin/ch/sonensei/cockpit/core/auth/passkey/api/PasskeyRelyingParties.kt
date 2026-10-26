@@ -16,7 +16,10 @@ import org.springframework.web.util.UriComponentsBuilder
  *   (`android:apk-key-hash:<base64url SHA-256 of the signing certificate>`). Unset: `https://<cockpit.domain>`, plus,
  *   when the request's host equals `cockpit.domain`, the request's own host and port in both schemes
  *   (`https://<host>[:port]` and `http://<host>[:port]`); if `cockpit.domain` is unset too, the origin of the request.
- *   The Android origin can never come from a request, so the app needs `origins` set explicitly.
+ *   The Android origin can never come from a request: it comes from `origins` or from the app's signing certificates.
+ * - `android-fingerprints` (owned by [AndroidAssetLinks]): the app's origin `android:apk-key-hash:<...>` of each configured
+ *   fingerprint is always accepted, in addition to `origins` or the defaults above. The fingerprints that
+ *   `assetlinks.json` names are exactly the ones whose app origin is accepted.
  * - `rp-name`: shown by the authenticator.
  *
  * Accepting both schemes for the configured domain covers a proxy that terminates TLS (Caddy forwards plain HTTP,
@@ -33,7 +36,10 @@ class PasskeyRelyingParties(
 	@Value("\${cockpit.auth.passkey.rp-name:My Cockpit}") private val rpName: String,
 	@Value("\${cockpit.auth.passkey.origins:}") private val origins: List<String>,
 	@Value("\${cockpit.domain:}") private val domain: String,
+	assetLinks: AndroidAssetLinks,
 ) {
+	private val androidOrigins = assetLinks.origins()
+
 	fun resolve(request: HttpServletRequest): RelyingParty {
 		val requestOrigin =
 			UriComponentsBuilder
@@ -54,7 +60,7 @@ class PasskeyRelyingParties(
 					} else {
 						domainOrigins(configuredDomain, requestOrigin)
 					}
-				},
+				} + androidOrigins,
 		)
 	}
 

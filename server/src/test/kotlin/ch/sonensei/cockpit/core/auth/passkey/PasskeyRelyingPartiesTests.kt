@@ -1,7 +1,9 @@
 package ch.sonensei.cockpit.core.auth.passkey
 
+import ch.sonensei.cockpit.core.auth.passkey.api.AndroidAssetLinks
 import ch.sonensei.cockpit.core.auth.passkey.api.PasskeyRelyingParties
 import ch.sonensei.cockpit.core.auth.passkey.domain.RelyingParty
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.springframework.boot.convert.ApplicationConversionService
@@ -29,23 +31,32 @@ class PasskeyRelyingPartiesTests {
 		serverPort = port
 	}
 
+	/** The relying parties with the app's asset links of [androidFingerprints], as Spring wires them. */
+	private fun relyingParties(
+		rpId: String,
+		rpName: String,
+		origins: List<String>,
+		domain: String,
+		androidFingerprints: List<String> = emptyList(),
+	) = PasskeyRelyingParties(rpId, rpName, origins, domain, AndroidAssetLinks("ch.sonensei.cockpit", androidFingerprints))
+
 	@Test
 	fun `without configuration the relying party is the request's host and origin`() {
-		PasskeyRelyingParties("", "My Cockpit", emptyList(), "").resolve(request) shouldBe
+		relyingParties("", "My Cockpit", emptyList(), "").resolve(request) shouldBe
 			RelyingParty("cockpit.example.org", "My Cockpit", setOf("https://cockpit.example.org:8443"))
 	}
 
 	@Test
 	fun `configured RP ID and origins win over the request and the domain`() {
 		val origins = listOf(" https://cockpit.example.org", "android:apk-key-hash:AAAA ", "")
-		PasskeyRelyingParties(" example.org ", "Cockpit", origins, "other.example.org").resolve(request) shouldBe
+		relyingParties(" example.org ", "Cockpit", origins, "other.example.org").resolve(request) shouldBe
 			RelyingParty("example.org", "Cockpit", setOf("https://cockpit.example.org", "android:apk-key-hash:AAAA"))
 	}
 
 	@Test
 	fun `the domain is the default RP ID and https origin when rp-id and origins are unset`() {
 		// Behind Caddy: TLS is terminated by the proxy, the server sees plain http on the default port.
-		PasskeyRelyingParties("", "My Cockpit", emptyList(), " cockpit.example.org ")
+		relyingParties("", "My Cockpit", emptyList(), " cockpit.example.org ")
 			.resolve(request("http", "cockpit.example.org", 80)) shouldBe
 			RelyingParty(
 				"cockpit.example.org",
@@ -57,25 +68,25 @@ class PasskeyRelyingPartiesTests {
 	@Test
 	fun `with the domain the request's own port is accepted in both schemes`() {
 		// Caddy on a non-default HTTPS port, e.g. https://localhost:18443.
-		PasskeyRelyingParties("", "My Cockpit", emptyList(), "localhost")
+		relyingParties("", "My Cockpit", emptyList(), "localhost")
 			.resolve(request("http", "localhost", 18443))
 			.origins shouldBe setOf("https://localhost", "https://localhost:18443", "http://localhost:18443")
 		// The e2e stack, reached at http://localhost:<port>.
-		PasskeyRelyingParties("", "My Cockpit", emptyList(), "localhost")
+		relyingParties("", "My Cockpit", emptyList(), "localhost")
 			.resolve(request("http", "LOCALHOST", 5173))
 			.origins shouldBe setOf("https://localhost", "https://localhost:5173", "http://localhost:5173")
 	}
 
 	@Test
 	fun `with the domain a request for another host only gets the domain's https origin`() {
-		PasskeyRelyingParties("", "My Cockpit", emptyList(), "cockpit.example.org")
+		relyingParties("", "My Cockpit", emptyList(), "cockpit.example.org")
 			.resolve(request("http", "evil.example.net", 8080)) shouldBe
 			RelyingParty("cockpit.example.org", "My Cockpit", setOf("https://cockpit.example.org"))
 	}
 
 	@Test
 	fun `a configured rp-id wins over the domain, which still yields the default origins`() {
-		PasskeyRelyingParties("example.org", "My Cockpit", emptyList(), "cockpit.example.org")
+		relyingParties("example.org", "My Cockpit", emptyList(), "cockpit.example.org")
 			.resolve(request("https", "cockpit.example.org", 443)) shouldBe
 			RelyingParty(
 				"example.org",
@@ -86,14 +97,42 @@ class PasskeyRelyingPartiesTests {
 
 	@Test
 	fun `configured origins win over the domain, which still yields the default RP ID`() {
-		PasskeyRelyingParties("", "My Cockpit", listOf("android:apk-key-hash:AAAA"), "cockpit.example.org")
+		relyingParties("", "My Cockpit", listOf("android:apk-key-hash:AAAA"), "cockpit.example.org")
 			.resolve(request) shouldBe
 			RelyingParty("cockpit.example.org", "My Cockpit", setOf("android:apk-key-hash:AAAA"))
 	}
 
 	@Test
+	fun `the app origin of each configured fingerprint is added to explicitly configured origins`() {
+		val origins = listOf("https://cockpit.example.org", "android:apk-key-hash:AAAA")
+		relyingParties("", "My Cockpit", origins, "cockpit.example.org", listOf(FINGERPRINT, " ", FINGERPRINT.lowercase()))
+			.resolve(request) shouldBe
+			RelyingParty(
+				"cockpit.example.org",
+				"My Cockpit",
+				setOf("https://cockpit.example.org", "android:apk-key-hash:AAAA", APP_ORIGIN),
+			)
+	}
+
+	@Test
+	fun `the app origin of a fingerprint is added to the request-derived default origins`() {
+		relyingParties("", "My Cockpit", emptyList(), "", listOf(FINGERPRINT)).resolve(request) shouldBe
+			RelyingParty("cockpit.example.org", "My Cockpit", setOf("https://cockpit.example.org:8443", APP_ORIGIN))
+		// An app origin is never derived from a request: a request for another host still only adds the configured one.
+		relyingParties("", "My Cockpit", emptyList(), "cockpit.example.org", listOf(FINGERPRINT))
+			.resolve(request("http", "evil.example.net", 8080))
+			.origins shouldBe setOf("https://cockpit.example.org", APP_ORIGIN)
+	}
+
+	@Test
+	fun `an invalid android fingerprint fails the relying party configuration`() {
+		shouldThrow<IllegalArgumentException> { relyingParties("", "My Cockpit", emptyList(), "", listOf("AB:CD")) }
+	}
+
+	@Test
 	fun `Spring binds cockpit domain to the default relying party`() {
 		ApplicationContextRunner()
+			.withBean(AndroidAssetLinks::class.java)
 			.withBean(PasskeyRelyingParties::class.java)
 			.withPropertyValues("cockpit.domain=cockpit.example.org")
 			.run { context ->
@@ -106,6 +145,7 @@ class PasskeyRelyingPartiesTests {
 	fun `the deployment's COCKPIT_DOMAIN and COCKPIT_AUTH_PASSKEY_ environment variables are read`() {
 		fun runner(environment: Map<String, Any>) =
 			ApplicationContextRunner()
+				.withBean(AndroidAssetLinks::class.java)
 				.withBean(PasskeyRelyingParties::class.java)
 				.withInitializer { context ->
 					context.beanFactory.conversionService = ApplicationConversionService.getSharedInstance()
@@ -128,5 +168,22 @@ class PasskeyRelyingPartiesTests {
 			context.getBean(PasskeyRelyingParties::class.java).resolve(request("http", "cockpit.example.org", 80)) shouldBe
 				RelyingParty("example.org", "Fictitious Cockpit", setOf("https://cockpit.example.org", "android:apk-key-hash:AAAA"))
 		}
+		runner(
+			mapOf(
+				"COCKPIT_DOMAIN" to "cockpit.example.org",
+				"COCKPIT_AUTH_PASSKEY_ANDROID_FINGERPRINTS" to FINGERPRINT,
+			),
+		).run { context ->
+			context.getBean(PasskeyRelyingParties::class.java).resolve(request("http", "cockpit.example.org", 80)).origins shouldBe
+				setOf("https://cockpit.example.org", "http://cockpit.example.org", APP_ORIGIN)
+		}
+	}
+
+	companion object {
+		/** A fictitious signing certificate fingerprint. */
+		const val FINGERPRINT = "AB:12:CD:34:EF:56:AB:78:CD:90:EF:12:AB:34:CD:56:EF:78:AB:90:CD:12:EF:34:AB:56:CD:78:EF:90:AB:12"
+
+		/** Its app origin, computed independently (Python base64.urlsafe_b64encode of the 32 bytes, unpadded). */
+		const val APP_ORIGIN = "android:apk-key-hash:qxLNNO9Wq3jNkO8SqzTNVu94q5DNEu80q1bNeO-QqxI"
 	}
 }

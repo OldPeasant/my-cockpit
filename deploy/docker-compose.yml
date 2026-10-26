@@ -44,10 +44,13 @@ services:
       MS_CLIENT_ID: ${MS_CLIENT_ID:-}
       MS_CLIENT_SECRET: ${MS_CLIENT_SECRET:-}
       MS_TENANT: ${MS_TENANT:-common}
-      # Passkeys: empty means the server derives RP ID and web origin from COCKPIT_DOMAIN. The Android app's
-      # origin (android:apk-key-hash:...) only works when COCKPIT_AUTH_PASSKEY_ORIGINS lists it.
+      # Passkeys: empty means the server derives RP ID and web origin from COCKPIT_DOMAIN. The Android app needs its
+      # signing certificate fingerprint(s): they go into /.well-known/assetlinks.json and make the server accept the
+      # app's origin (android:apk-key-hash:...).
       COCKPIT_AUTH_PASSKEY_RP_ID: ${COCKPIT_AUTH_PASSKEY_RP_ID:-}
       COCKPIT_AUTH_PASSKEY_ORIGINS: ${COCKPIT_AUTH_PASSKEY_ORIGINS:-}
+      COCKPIT_AUTH_PASSKEY_ANDROID_FINGERPRINTS: ${COCKPIT_AUTH_PASSKEY_ANDROID_FINGERPRINTS:-}
+      COCKPIT_AUTH_PASSKEY_ANDROID_PACKAGE: ${COCKPIT_AUTH_PASSKEY_ANDROID_PACKAGE:-ch.sonensei.cockpit}
       # The server takes an empty value literally (no default), so keep its default name here.
       COCKPIT_AUTH_PASSKEY_RP_NAME: ${COCKPIT_AUTH_PASSKEY_RP_NAME:-My Cockpit}
     volumes:
