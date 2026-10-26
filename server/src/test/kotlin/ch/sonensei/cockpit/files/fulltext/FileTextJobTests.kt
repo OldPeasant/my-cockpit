@@ -8,6 +8,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import io.mockk.verifyOrder
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertDoesNotThrow
 import org.springframework.boot.context.annotation.UserConfigurations
@@ -17,6 +18,7 @@ import org.springframework.scheduling.config.ScheduledTaskHolder
 import java.time.Duration
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
 
@@ -178,6 +180,86 @@ class FileTextJobTests {
 
 		executor.isTerminated shouldBe true
 		interrupted shouldBe false
+		verify(exactly = 1) { indexer.indexPending() }
+	}
+
+	@Test
+	fun `close interrupts an extraction that outlasts the grace period`() {
+		val service = mockk<ExecutorService>(relaxed = true)
+		every { service.awaitTermination(any(), any()) } returns false andThen true
+
+		FileTextJob(indexer, service).close()
+
+		verifyOrder {
+			service.shutdown()
+			service.awaitTermination(FileTextJob.SHUTDOWN_GRACE.toMillis(), TimeUnit.MILLISECONDS)
+			service.shutdownNow()
+			service.awaitTermination(FileTextJob.SHUTDOWN_GRACE.toMillis(), TimeUnit.MILLISECONDS)
+		}
+	}
+
+	@Test
+	fun `close does not interrupt an extraction that ends within the grace period`() {
+		val service = mockk<ExecutorService>(relaxed = true)
+		every { service.awaitTermination(any(), any()) } returns true
+
+		FileTextJob(indexer, service).close()
+
+		verify(exactly = 1) { service.shutdown() }
+		verify(exactly = 0) { service.shutdownNow() }
+	}
+
+	@Test
+	fun `close interrupted while it waits stops the executor at once and keeps the interrupt`() {
+		val service = mockk<ExecutorService>(relaxed = true)
+		every { service.awaitTermination(any(), any()) } throws InterruptedException("fictitious")
+
+		val interrupted =
+			try {
+				FileTextJob(indexer, service).close()
+				Thread.currentThread().isInterrupted
+			} finally {
+				Thread.interrupted()
+			}
+
+		interrupted shouldBe true
+		verify(exactly = 1) { service.shutdownNow() }
+	}
+
+	@Test
+	fun `close with a plain executor only stops new ticks`() {
+		val queued = mutableListOf<Runnable>()
+		val plain = FileTextJob(indexer, Executor { queued += it })
+
+		assertDoesNotThrow { plain.close() }
+		plain.run()
+
+		queued.shouldBeEmpty()
+	}
+
+	@Test
+	fun `a run on an interrupted thread starts no batch`() {
+		every { indexer.indexPending() } returns 0
+
+		try {
+			Thread.currentThread().interrupt()
+			job.run()
+		} finally {
+			Thread.interrupted()
+		}
+
+		verify(exactly = 0) { indexer.indexPending() }
+	}
+
+	@Test
+	fun `close during a run starts no further batch`() {
+		every { indexer.indexPending() } answers {
+			job.close()
+			20
+		}
+
+		job.run()
+
 		verify(exactly = 1) { indexer.indexPending() }
 	}
 

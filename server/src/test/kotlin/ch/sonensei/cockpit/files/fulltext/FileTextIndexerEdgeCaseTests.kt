@@ -23,8 +23,10 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.transaction.support.TransactionTemplate
 import java.io.IOException
+import java.io.InterruptedIOException
 import java.nio.channels.ClosedByInterruptException
 import java.nio.file.Files
+import java.nio.file.NoSuchFileException
 import java.time.Clock
 import java.time.Duration
 import java.util.UUID
@@ -234,6 +236,99 @@ class FileTextIndexerEdgeCaseTests(
 		row(file).shouldBeNull()
 		indexer.indexPending() shouldBe 1
 		row(file)!!["status"] shouldBe "EXTRACTED"
+	}
+
+	@Test
+	fun `an interruption wrapped as the cause of the extractor's exception also stores nothing and stops the batch`() {
+		val wrapped = storeText("wrapped.txt")
+		val next = storeText("after.txt")
+		jdbc.update("update file set created_at = created_at - interval '1 hour' where id = ?", next.id)
+		val closing =
+			mockk<FileTextExtractor> {
+				every { extract(any(), any(), any()) } throws
+					IOException("fictitious", RuntimeException("fictitious", ClosedByInterruptException()))
+			}
+
+		indexerWith(extractor = closing).indexPending() shouldBe 1
+
+		row(wrapped).shouldBeNull()
+		row(next).shouldBeNull()
+	}
+
+	@Test
+	fun `an InterruptedIOException of the extractor stores nothing`() {
+		val file = storeText("timeout.txt")
+		val halted =
+			mockk<FileTextExtractor> {
+				every { extract(any(), any(), any()) } throws InterruptedIOException("fictitious")
+			}
+
+		indexerWith(extractor = halted).indexPending() shouldBe 1
+
+		row(file).shouldBeNull()
+	}
+
+	@Test
+	fun `an exception with a cyclic cause chain and no interruption marks the file failed instead of hanging`() {
+		val file = files.storeFile(null, "loop.pdf", "application/pdf", "fictitious".byteInputStream())
+		val outer = IOException("fictitious outer")
+		val inner = IllegalStateException("fictitious inner", outer)
+		outer.initCause(inner)
+		val looping =
+			mockk<FileTextExtractor> {
+				every { extract(any(), any(), any()) } throws outer
+			}
+
+		indexerWith(extractor = looping).indexPending() shouldBe 1
+
+		row(file)!!["status"] shouldBe "FAILED"
+	}
+
+	@Test
+	fun `a batch started on an interrupted thread looks at no file`() {
+		val file = storeText("untouched.txt")
+
+		Thread.currentThread().interrupt()
+		val looked =
+			try {
+				indexer.indexPending()
+			} finally {
+				Thread.interrupted()
+			}
+
+		looked shouldBe 0
+		row(file).shouldBeNull()
+		indexer.indexPending() shouldBe 1
+		row(file)!!["status"] shouldBe "EXTRACTED"
+	}
+
+	@Test
+	fun `a read error between out of memory errors resets their count, so the file is left out only after consecutive ones`() {
+		val time = MutableClock(clock.instant())
+		val file = files.storeFile(null, "flaky.pdf", "application/pdf", "fictitious".byteInputStream())
+		val flaky =
+			mockk<FileTextExtractor> {
+				every { extract(any(), any(), any()) } throws
+					OutOfMemoryError("fictitious") andThenThrows
+					OutOfMemoryError("fictitious") andThenThrows
+					NoSuchFileException("fictitious") andThenThrows
+					OutOfMemoryError("fictitious") andThenThrows
+					OutOfMemoryError("fictitious") andThen
+					"Flaky ostrowski"
+			}
+		val indexing = indexerWith(extractor = flaky, clock = time)
+
+		repeat(2) { shouldThrow<OutOfMemoryError> { indexing.indexPending() } }
+		indexing.indexPending() shouldBe 1
+		row(file).shouldBeNull()
+		time.advance(FileTextIndexer.UNREADABLE_RETRY_DELAY)
+
+		// Without the reset these would be the 3rd and 4th errors, and the file would be left out after the 3rd.
+		repeat(2) { shouldThrow<OutOfMemoryError> { indexing.indexPending() } }
+		indexing.indexPending() shouldBe 1
+
+		row(file)!!["status"] shouldBe "EXTRACTED"
+		found("ostrowski") shouldContainExactly listOf(file.id)
 	}
 
 	@Test
