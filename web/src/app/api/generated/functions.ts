@@ -261,6 +261,8 @@ export type { ReplyToMailMessage$Params as ReplyToMailMessage$Params } from './f
 export { replyToMailMessage as replyToMailMessage } from './fn/mail-compose/reply-to-mail-message';
 export type { ReplyAllToMailMessage$Params as ReplyAllToMailMessage$Params } from './fn/mail-compose/reply-all-to-mail-message';
 export { replyAllToMailMessage as replyAllToMailMessage } from './fn/mail-compose/reply-all-to-mail-message';
+export type { LoadOlderMail$Params as LoadOlderMail$Params } from './fn/mail-messages/load-older-mail';
+export { loadOlderMail as loadOlderMail } from './fn/mail-messages/load-older-mail';
 export type { ProxyMailImage$Params as ProxyMailImage$Params } from './fn/mail-messages/proxy-mail-image';
 export { proxyMailImage as proxyMailImage } from './fn/mail-messages/proxy-mail-image';
 export type { ListMailMessages$Params as ListMailMessages$Params } from './fn/mail-messages/list-mail-messages';

@@ -4925,6 +4925,65 @@ paths:
       summary: Send a draft
       tags:
       - Mail compose
+  /api/v1/mail/folders/{id}/load-older:
+    post:
+      description: "Caches the headers of up to `limit` messages of the folder that\
+        \ are not cached yet (past the sync window), the most recently arrived first,\
+        \ so the folder list continues with them. `hasMore` tells whether the server\
+        \ has even older ones. A folder that cannot hold messages loads nothing."
+      operationId: loadOlderMail
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: "Maximum number of messages to load, 1..200"
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 100
+          maximum: 200
+          minimum: 1
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailLoadOlderResponse"
+          description: What was loaded
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Malformed id or `limit` out of range
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such folder, or it is no longer on the server"
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The mail server failed
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: All connections of the account are busy (`errorCode` POOL_EXHAUSTED);
+            retry later
+      summary: Load older messages of a folder from the server
+      tags:
+      - Mail messages
   /api/v1/mail/image-proxy:
     get:
       description: "Fetches an `http`/`https` raster image (no SVG) for \"load images\"\
@@ -4975,7 +5034,8 @@ paths:
         \ unified Inbox of all accounts. With `threaded=true` each item is the newest\
         \ message of a conversation in that list, with `threadSize` and `threadUnread`\
         \ counted in the list; `GET /messages/{id}/thread` returns the whole conversation.\
-        \ Only cached headers are read."
+        \ Only cached headers are read: the last page of a folder has `hasOlder` when\
+        \ `POST /folders/{id}/load-older` may find more."
       operationId: listMailMessages
       parameters:
       - in: query
@@ -11669,9 +11729,24 @@ components:
       - messageId
       - title
       - type
+    MailLoadOlderResponse:
+      type: object
+      properties:
+        hasMore:
+          type: boolean
+          description: The server has even older messages in the folder
+        loaded:
+          type: integer
+          format: int32
+          description: Messages added to the cache
     MailMessageListResponse:
       type: object
       properties:
+        hasOlder:
+          type: boolean
+          description: "Only on the last page of a folder list: the server may have\
+            \ older messages that are not cached; `POST /folders/{id}/load-older`\
+            \ loads them"
         items:
           type: array
           items:

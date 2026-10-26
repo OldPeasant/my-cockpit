@@ -3,6 +3,11 @@
 
 import { MailMessageSummaryResponse } from '../models/mail-message-summary-response';
 export interface MailMessageListResponse {
+
+  /**
+   * Only on the last page of a folder list: the server may have older messages that are not cached; `POST /folders/{id}/load-older` loads them
+   */
+  hasOlder?: boolean;
   items?: Array<MailMessageSummaryResponse>;
 
   /**
