@@ -6,9 +6,9 @@ deps: [web-next-today]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,web/src/app/features/gtd/today]
 prio: 2
 lease_until: 
-releases: 3
+releases: 0
 extended: 
-hold: given back 3 times; last: Everything except done is finished and committed: both criteria verified, reviews/gtd-scheduled-marker/{tests.md,review.md,quality.json} committed (done already merged main, 
+hold: 
 ---
 ## Goal
 TaskService.releaseDue moves SCHEDULED tasks to NEXT and clears scheduledDate, so the Today view (SPEC.md §5.3 'scheduled for today') can't tell which Next actions were scheduled for today.
