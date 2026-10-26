@@ -2,34 +2,58 @@
 
 Date: 2026-10-26
 
-Task: unifiedpush-android-client - Android UnifiedPush client (round 3)
+Task: unifiedpush-android-client - Android UnifiedPush client (round 4, final revision)
 
-Scope: whole task, commits 4acbc4be335ca1cfe8ee476142d291f3f912aa73..10eadb04c52c1421a76ddd70da180e00e03bbd1e (committed changes only; uncommitted test-writer files ignored). Reviewed revision: 10eadb04c52c1421a76ddd70da180e00e03bbd1e.
+Scope: whole task, commits 4acbc4be335ca1cfe8ee476142d291f3f912aa73..0d881bb2d4a440def7dc64fcc31023fa6a7c7320 (committed changes only; working tree clean). Reviewed revision: 0d881bb2d4a440def7dc64fcc31023fa6a7c7320.
 
 Requirements:
 - tasks/unifiedpush-android-client.md (acceptance criteria 1-3 and recorded assumptions)
 - AGENTS.md project notes and conventions
 - docs/ARCHITECTURE.md (Android stack table)
-- api/openapi.yaml (UnifiedPushRegistrationRequest) and the server push module (payload format, registration table)
-- reviews/unifiedpush-android-client/fixes.md (round-2 CR-1 fix)
+- reviews/unifiedpush-android-client/fixes.md and the round-3 review (ead4f9994)
+- Parent-supplied test run: `android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*' --tests 'ch.sonensei.cockpit.auth.AuthRepositoryLogoutHookTest'` -> BUILD SUCCESSFUL, 82 tests, 0 failures (Gradle could not be run in this review)
 
 Git range:
 - Branch: main
-- HEAD: 10eadb04c52c1421a76ddd70da180e00e03bbd1e
+- HEAD: 0d881bb2d4a440def7dc64fcc31023fa6a7c7320
 - Base/start: 4acbc4be335ca1cfe8ee476142d291f3f912aa73
-- Commits reviewed: 20 (10 code/test/review commits plus heartbeat, claim and release board commits)
+- Commits reviewed: 25 (15 code, test and review commits plus heartbeat, claim and release board commits)
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-## Round-2 finding confirmed fixed
+## Changes since round 3
 
-Round-2 P3 CR-1 (deleteOnServer set `deleted` only inside the lock, so a logout hook timeout while waiting for a slow PUT let the queued PUTs through): fixed in 10eadb04c. `PushRegistrar.deleteOnServer` (android/app/src/main/java/ch/sonensei/cockpit/push/PushRegistrar.kt:111-120) now sets `deleted = instance` before `requests.withLock`, and `onNewEndpoint` checks `instance == deleted` inside the lock (line 91), so PUTs waiting on the lock and later ones are dropped even when the wait is cancelled. The stale value cannot block a later login, because `clear()` forgets the instance and the next login creates a new random id. The new test in PushRegistrarTest.kt (`endpoints waiting or arriving after the logout's delete timed out are dropped`) holds the lock with a slow PUT, times the delete out after 100 ms, then checks that exactly one PUT and no DELETE were sent. That matches the scenario in the finding.
+Production code is unchanged since 54d45a508, which round 3 reviewed. Two commits followed:
+
+- 8cb57beba adds two tests to android/app/src/test/java/ch/sonensei/cockpit/push/PushInAppTest.kt.
+- 0d881bb2d adds reviews/unifiedpush-android-client/tests.md. It contains no placeholders, TODO or TBD.
+
+### New test: `a push that arrives after a user logout is ignored` (PushInAppTest.kt:265-276)
+
+The test queues two 204 answers, one for the push DELETE and one for the device revoke. It then runs the real `AuthRepository.logout()` and sends a decrypted mail push and a decrypted reminder push through the real `CockpitPushService` for the old instance. The assertions are correct. `logout()` clears the caches before it returns (`clearCaches()` in the `finally` block of AuthRepository.kt:232-239), so `PushRegistrar.clear()` has already removed the instance and the session is logged out. `PushMessageHandler.handle` (PushMessageHandler.kt:79) therefore returns early for both pushes.
+
+Both guards (logged out, and the instance no longer matching) are true together here, so the test does not show which one does the work. That is fine for an integration test, because each guard is also tested on its own in PushMessageHandlerTest.
+
+### New test: `a user logout without a push registration only revokes the device` (PushInAppTest.kt:278-290)
+
+With `fakeStore.instance = null`, `deleteOnServer()` returns at PushRegistrar.kt:112 before it sets `deleted` or takes the lock, and `clear()` returns at line 124. The only server request is therefore the revoke, and `requestCount == 1` with an empty `unregistered` list is the right expectation.
+
+The test runs under `HiltTestApplication`, so `CockpitApp.onCreate` does not call `PushRegistrar.start()`. No background `register()` can create an instance and make the test racy.
 
 ## Acceptance criteria check (code inspection)
 
-- AC1: connector 3.3.5 is in android/gradle/libs.versions.toml and the ARCHITECTURE.md stack table (Tink bump 1.18.0 to 1.23.0 is recorded there too). The plain tink exclusion is in app/build.gradle.kts, as the task assumption says. Registration runs at app start and after each login (`PushRegistrar.start` collects the logged-in flow). The endpoint goes to `PUT /push/unifiedpush/{instanceId}` through the generated PushApi. Keys are sent both or neither, which matches the server check constraint. A user logout runs the DELETE through the new LogoutHook (still authenticated, 5 s bound), and every logout unregisters at the distributor through a SessionCache. With no distributor, `selectDistributor()` returns false and nothing registers, so the existing periodic syncs stay.
-- AC2: `PushMessageHandler` acts only on decrypted pushes for the current instance while logged in. A reminder push enqueues a unique one-time ReminderSyncWorker (REPLACE). A mail push shows one notification on channel `mail` with no contents. Unknown kinds, invalid JSON, non-UUID ids, non-UTF-8 bytes, empty input and oversized input all return null. The wire format `{"kind","id"}` matches server PushMessage.toJson.
-- AC3: tests exist under ch.sonensei.cockpit.push for message handling, registration, ordering, the adapters and the connector. I could not run Gradle in this review. `tasks.py verify unifiedpush-android-client` currently shows no evidence for criteria 1-3, so the parent worker still has to run the named command and record the results.
+- **AC1:**
+    - Connector 3.3.5 is in android/gradle/libs.versions.toml and in the ARCHITECTURE.md stack table, along with the Tink bump from 1.18.0 to 1.23.0. The plain tink exclusion is in app/build.gradle.kts, as the assumption says.
+    - Registration runs at app start and after each login (`PushRegistrar.start`, called from `CockpitApp.onCreate`).
+    - The endpoint goes to `PUT /api/v1/push/unifiedpush/{instanceId}` through the generated PushApi, with the keys sent both or neither.
+    - A user logout runs the authenticated DELETE through the new `LogoutHook`, which is bounded to 5 s and ordered against PUTs by a Mutex and the `deleted` marker. Every logout unregisters at the distributor through a `SessionCache`.
+    - With no distributor, `selectDistributor()` returns false, nothing registers, and the periodic syncs stay.
+- **AC2:**
+    - The handler acts only on decrypted pushes for the current instance while logged in.
+    - A reminder push enqueues a unique one-time ReminderSyncWorker (REPLACE).
+    - A mail push shows one content-free notification on channel `mail`.
+    - Unknown kinds, invalid JSON, non-UUID ids, non-UTF-8 bytes, empty input and oversized input all return null.
+- **AC3:** Tests under `ch.sonensei.cockpit.push` cover message handling, registration and ordering, the Android adapters, the connector and the in-app wiring. The parent's run of the named test filter passed (82 tests in total, including AuthRepositoryLogoutHookTest). Evidence is not yet recorded with `tasks.py verify`; the parent worker does that after this review.
 
 ## P0 Critical
 
