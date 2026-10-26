@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.push
 
+import android.app.Application
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -150,7 +151,25 @@ class LibraryUnifiedPushConnectorTest {
         assertEquals(installed.first(), UnifiedPush.getSavedDistributor(context))
     }
 
+    @Test
+    fun `unregistering an instance the library never registered is harmless and sends nothing`() {
+        // The registrar stores the instance before the library registers it, so a registration that failed (e.g. no
+        // keystore) still leaves an instance for the logout to unregister.
+        installDistributor(DISTRIBUTOR)
+        assertTrue(connector.selectDistributor())
+        val app = shadowOf(ApplicationProvider.getApplicationContext<Application>())
+        val before = app.broadcastIntents.size
+
+        connector.unregister(UNKNOWN_INSTANCE)
+
+        val sent = app.broadcastIntents.drop(before)
+        assertEquals("no unregister broadcast for a registration the distributor never had", emptyList<Intent>(), sent)
+        // The next login selects a distributor again, as at a first login.
+        assertTrue(connector.selectDistributor())
+    }
+
     private companion object {
+        const val UNKNOWN_INSTANCE = "00000000-0000-4000-8000-00000000f1c1"
         const val ACTION_REGISTER = "org.unifiedpush.android.distributor.REGISTER"
         const val DISTRIBUTOR = "org.example.fictitious.distributor"
         const val OTHER_DISTRIBUTOR = "org.example.fictitious.otherdistributor"
