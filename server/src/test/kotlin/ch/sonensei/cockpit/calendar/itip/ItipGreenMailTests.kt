@@ -566,7 +566,8 @@ class ItipGreenMailTests(
 		text shouldContain "When: Nov 2, 2026 – Nov 4, 2026"
 		text shouldContain "Join: https://meet.example.test/offsite"
 		text shouldContain "Bring warm clothes."
-		ics(calendarPart(received)).children("VEVENT").single().property("DTSTART")!!.value shouldBe "20261102"
+		val vevent = ics(calendarPart(received)).children("VEVENT").single()
+		vevent.property("DTSTART")!!.value shouldBe "20261102"
 	}
 
 	@Test
