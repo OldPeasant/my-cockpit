@@ -21,3 +21,4 @@ closed, 12 h idle expiry, session revoked). Follow-up of review finding CR-1 in 
   `domain/WebPushEncryption` from UnifiedPush); let `PushService` use `WebPushEncryption` and drop the duplicate
   together with its tests (keep the RFC 8291 vector test).
 - ASSUMPTION (2026-10-26 18:50+0100 by dell26/agent-1): Migration deletes existing push_subscription rows (they have no session); the web app re-registers on its next start (PushSubscriptionService.sync), so a browser at most misses pushes until it is opened again.
+- ASSUMPTION (2026-10-26 18:50+0100 by dell26/agent-1): PUT /api/v1/push/subscriptions without a browser session (device-token principal) answers 403 Problem Details: Web Push is browser-only, Android uses UnifiedPush.
