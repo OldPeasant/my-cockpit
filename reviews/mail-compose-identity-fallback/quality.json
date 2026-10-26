@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "mail-compose-identity-fallback",
+  "reviewed_revision": "42c33370dac6a4c9dabff186df2d23cfe10e4450",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/mail-compose-identity-fallback/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-compose-identity-fallback/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/mail-compose-identity-fallback/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "settings identities hint no longer says new mail starts with the first identity"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "DraftController identityId descriptions name the account-address fallback; openapi and client regenerated"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew integrationTest --tests 'ch.sonensei.cockpit.mail.compose.*'", "result": "pass"},
+    {"command": "cd server && ./gradlew test jacocoTestReport", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
