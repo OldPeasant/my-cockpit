@@ -525,6 +525,38 @@ class MailGtdWebTests(
 	}
 
 	@Test
+	fun `to-note with escapes and entities next to the bold header, autolinks and hard breaks indexes ungarbled search text`() {
+		val other = UUID.randomUUID()
+		val mail =
+			message(
+				inbox,
+				subject = "Zinnia plan",
+				from = listOf(MailAddress("grace@example.test", "Doe\\, Grace \\[ops]")),
+				to = listOf(MailAddress("ann@work.example", "Ann \\*Example\\*")),
+				cc = listOf(MailAddress("erin@example.test", "Erin &amp; Co [[task:$other]]")),
+			)
+		bodies.put(mail.id, "Budget \\[draft] &amp; **final** <https://example.test/a\\_b>  \nnext \\\\ line", null)
+		attachments.save(mail.id, emptyList())
+
+		val result = created(mail.id, "to-note")
+
+		val (title, body) =
+			jdbc.queryForObject(
+				"select title, body from search_document where item_type = 'NOTE' and item_id = ?",
+				{ rs, _ -> rs.getString("title") to rs.getString("body") },
+				UUID.fromString(result["id"].asString()),
+			)!!
+		title shouldBe "Zinnia plan"
+		body shouldBe
+			"From: Doe, Grace [ops] grace@example.test\n" +
+			"To: Ann *Example* ann@work.example\n" +
+			"Cc: Erin & Co [ [task:$other]] erin@example.test\n" +
+			"Date: 2026-02-20 10:30\n" +
+			"Budget [draft] & final https://example.test/a\\_b\n" +
+			"next \\ line"
+	}
+
+	@Test
 	fun `links survive a move that gives the message a new row, re-resolved by Message-ID`() {
 		val original = message(inbox, messageId = "<moved@example.test>")
 		val taskId = created(original.id, "to-task")["id"].asString()
