@@ -27,7 +27,8 @@ class VapidKey(
 
 /**
  * A browser subscribed to Web Push: its push service [endpoint] and the keys to encrypt messages for it ([p256dh]:
- * the browser's P-256 public key, [auth]: its authentication secret, both base64url as the Push API returns them).
+ * the browser's P-256 public key, [auth]: its authentication secret, both unpadded base64url). [sessionId] is the login
+ * session (`auth_session`) that subscribed it last; the subscription is deleted with that session.
  */
 @Entity
 @Table(name = "push_subscription")
@@ -36,8 +37,13 @@ class PushSubscription(
 	val endpoint: String,
 	p256dh: String,
 	auth: String,
+	sessionId: UUID,
 	id: UUID? = null,
 ) : BaseEntity(id) {
+	@Column(name = "session_id", nullable = false)
+	var sessionId: UUID = sessionId
+		protected set
+
 	@Column(name = "p256dh", nullable = false)
 	var p256dh: String = p256dh
 		protected set

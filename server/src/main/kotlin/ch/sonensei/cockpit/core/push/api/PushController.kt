@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.core.push.api
 
+import ch.sonensei.cockpit.core.auth.domain.CockpitPrincipal
 import ch.sonensei.cockpit.core.push.domain.PushService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.media.Content
@@ -12,6 +13,9 @@ import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
+import org.springframework.http.ProblemDetail
+import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.web.ErrorResponseException
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PutMapping
@@ -29,7 +33,8 @@ import org.springframework.web.bind.annotation.RestController
 		"Web Push (VAPID) for notifications without an open tab. A browser subscribes with the server's public key; " +
 			"the server then sends each `reminder` and `mail` SSE event to it as a push message " +
 			"`{\"event\": <name>, \"data\": <event data>}` (encrypted, RFC 8291). `data` is left out when the message " +
-			"would be too large. Subscriptions the push service reports gone (404/410) are removed.",
+			"would be too large. A subscription belongs to the login session that registered it and ends with it " +
+			"(logout, idle expiry, session ended). Subscriptions the push service reports gone (404/410) are removed.",
 )
 class PushController(
 	private val push: PushService,
@@ -49,8 +54,9 @@ class PushController(
 		operationId = "putPushSubscription",
 		summary = "Subscribe this browser",
 		description =
-			"Registers the browser's `PushSubscription` (its `toJSON()`). Idempotent: the same endpoint again replaces " +
-				"its keys.",
+			"Registers the browser's `PushSubscription` (its `toJSON()`) for the current login session; pushes stop " +
+				"when that session ends. Idempotent: the same endpoint again replaces its keys and moves it to the " +
+				"current session. Needs a session cookie: a device token cannot subscribe.",
 	)
 	@ApiResponse(responseCode = "204", description = "Subscribed")
 	@ApiResponse(
@@ -58,10 +64,22 @@ class PushController(
 		description = "Endpoint not an https URL, or invalid keys",
 		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
 	)
+	@ApiResponse(
+		responseCode = "403",
+		description = "Not logged in with a browser session (e.g. a device token)",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
+	)
 	fun subscribe(
+		@AuthenticationPrincipal principal: CockpitPrincipal?,
 		@Valid @RequestBody request: PushSubscriptionRequest,
 	) {
-		push.subscribe(request.endpoint!!, request.keys!!.p256dh!!, request.keys.auth!!)
+		val sessionId =
+			principal?.sessionId ?: throw ErrorResponseException(
+				HttpStatus.FORBIDDEN,
+				ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, "Web Push needs a browser login session"),
+				null,
+			)
+		push.subscribe(sessionId, request.endpoint!!, request.keys!!.p256dh!!, request.keys.auth!!)
 	}
 
 	@DeleteMapping("/subscriptions", consumes = [MediaType.APPLICATION_JSON_VALUE])

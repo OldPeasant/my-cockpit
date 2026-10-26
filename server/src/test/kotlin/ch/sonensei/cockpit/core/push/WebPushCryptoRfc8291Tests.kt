@@ -1,5 +1,7 @@
 package ch.sonensei.cockpit.core.push
 
+import ch.sonensei.cockpit.core.push.domain.WebPushEncryption
+import ch.sonensei.cockpit.core.push.domain.WebPushKeys
 import ch.sonensei.cockpit.core.push.infra.WebPushCrypto
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -17,10 +19,9 @@ class WebPushCryptoRfc8291Tests {
 	@Test
 	fun `encrypting the RFC 8291 example gives exactly the RFC's message`() {
 		val body =
-			WebPushCrypto.encrypt(
+			WebPushEncryption.encrypt(
 				PLAINTEXT.toByteArray(Charsets.US_ASCII),
-				WebPushCrypto.decode(UA_PUBLIC),
-				WebPushCrypto.decode(AUTH_SECRET),
+				WebPushKeys(UA_PUBLIC, AUTH_SECRET),
 				WebPushCrypto.decode(SALT),
 				keyPair(AS_PUBLIC, AS_PRIVATE),
 			)

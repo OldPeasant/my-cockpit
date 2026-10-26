@@ -77,7 +77,7 @@ class LoginService(
 			sessions.saveAndFlush(
 				AuthSession(account, hash(token), rememberDevice, now, now.plus(AuthSession.idleLifetime(rememberDevice))),
 			)
-		return SessionGrant(token, session.rememberDevice, principalOf(account))
+		return SessionGrant(token, session.rememberDevice, principalOf(account, session.id))
 	}
 
 	/**
@@ -135,7 +135,7 @@ class LoginService(
 		}
 		val renew = Duration.between(session.lastSeenAt, now) >= TOUCH_INTERVAL
 		if (renew) sessions.touch(session.id, now, now.plus(session.idleLifetime))
-		return SessionAuthentication(principalOf(session.user), session.rememberDevice, renew)
+		return SessionAuthentication(principalOf(session.user, session.id), session.rememberDevice, renew)
 	}
 
 	@Transactional
@@ -185,7 +185,10 @@ class LoginService(
 			return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
 		}
 
-		fun principalOf(account: UserAccount) = CockpitPrincipal(account.id, account.username, account.totpReenrollRequired)
+		fun principalOf(
+			account: UserAccount,
+			sessionId: UUID? = null,
+		) = CockpitPrincipal(account.id, account.username, account.totpReenrollRequired, sessionId)
 
 		/** A session's expiry is written at most this often, not on every request. */
 		val TOUCH_INTERVAL: Duration = Duration.ofMinutes(1)
@@ -211,12 +214,14 @@ class LoginCredentials(
 
 /**
  * The authenticated owner. Contains no secrets. With [totpEnrollmentRequired] (a session of an account restored without
- * its TOTP secret) it may only enroll TOTP again.
+ * its TOTP secret) it may only enroll TOTP again. [sessionId] is the id of the web login session ([AuthSession]) the
+ * request came with, null for a device token.
  */
 data class CockpitPrincipal(
 	val userId: UUID,
 	val username: String,
 	val totpEnrollmentRequired: Boolean = false,
+	val sessionId: UUID? = null,
 )
 
 /** The outcome of [LoginService.verify]. */

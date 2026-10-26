@@ -1,5 +1,7 @@
 package ch.sonensei.cockpit.core.push
 
+import ch.sonensei.cockpit.core.push.domain.WebPushEncryption
+import ch.sonensei.cockpit.core.push.domain.WebPushKeys
 import ch.sonensei.cockpit.core.push.infra.WebPushCrypto
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -11,54 +13,12 @@ import java.security.KeyPair
 import java.security.interfaces.ECPublicKey
 import java.security.spec.ECPrivateKeySpec
 import java.time.Instant
-import java.util.HexFormat
-import javax.crypto.KeyAgreement
 
 /**
- * Web Push crypto against published test vectors (RFC 5869, RFC 8291 Appendix A) and at its edges: key encodings,
- * size limits and the escaping of VAPID claims.
+ * Web Push crypto against the published test vector of RFC 8291 Appendix A and at its edges: key encodings, size
+ * limits and the escaping of VAPID claims.
  */
 class WebPushCryptoEdgeCaseTests {
-	private fun hex(value: String): ByteArray = HexFormat.of().parseHex(value)
-
-	private fun ascii(value: String): ByteArray = value.toByteArray(Charsets.US_ASCII)
-
-	@Test
-	fun `HKDF matches the RFC 5869 test case 1 for one block of output`() {
-		val okm =
-			WebPushCrypto.hkdf(
-				salt = hex("000102030405060708090a0b0c"),
-				ikm = hex("0b".repeat(22)),
-				info = hex("f0f1f2f3f4f5f6f7f8f9"),
-				length = 32,
-			)
-
-		okm shouldBe hex("3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf")
-	}
-
-	@Test
-	fun `the key derivation matches the RFC 8291 Appendix A example`() {
-		val uaPublic = WebPushCrypto.decode(Rfc8291.UA_PUBLIC)
-		val asPublic = WebPushCrypto.decode(Rfc8291.AS_PUBLIC)
-		val ecdh =
-			KeyAgreement
-				.getInstance("ECDH")
-				.apply {
-					init(privateKey(Rfc8291.AS_PRIVATE))
-					doPhase(WebPushCrypto.publicKey(uaPublic), true)
-				}.generateSecret()
-		ecdh shouldBe WebPushCrypto.decode(Rfc8291.ECDH_SECRET)
-
-		val keyInfo = ascii("WebPush: info") + byteArrayOf(0) + uaPublic + asPublic
-		val ikm = WebPushCrypto.hkdf(WebPushCrypto.decode(Rfc8291.AUTH_SECRET), ecdh, keyInfo, 32)
-		ikm shouldBe WebPushCrypto.decode(Rfc8291.IKM)
-		val salt = WebPushCrypto.decode(Rfc8291.SALT)
-		WebPushCrypto.hkdf(salt, ikm, ascii("Content-Encoding: aes128gcm") + byteArrayOf(0), 16) shouldBe
-			WebPushCrypto.decode(Rfc8291.CEK)
-		WebPushCrypto.hkdf(salt, ikm, ascii("Content-Encoding: nonce") + byteArrayOf(0), 12) shouldBe
-			WebPushCrypto.decode(Rfc8291.NONCE)
-	}
-
 	@Test
 	fun `the test browser decrypts the RFC 8291 example, so the round-trip tests check the RFC format`() {
 		val uaPrivate = privateKey(Rfc8291.UA_PRIVATE)
@@ -75,9 +35,15 @@ class WebPushCryptoEdgeCaseTests {
 		val browser = PushTestBrowser()
 		val message = "x".toByteArray()
 
-		shouldThrow<IllegalArgumentException> { WebPushCrypto.encrypt(message, browser.publicKey, ByteArray(15)) }
-		shouldThrow<IllegalArgumentException> { WebPushCrypto.encrypt(message, browser.publicKey, ByteArray(17)) }
-		shouldThrow<IllegalArgumentException> { WebPushCrypto.encrypt(message, ByteArray(65), browser.authSecret) }
+		fun encrypt(
+			publicKey: ByteArray,
+			authSecret: ByteArray,
+		) = WebPushEncryption.encrypt(message, WebPushKeys(WebPushCrypto.encode(publicKey), WebPushCrypto.encode(authSecret)))
+
+		shouldThrow<IllegalArgumentException> { encrypt(browser.publicKey, ByteArray(15)) }
+		shouldThrow<IllegalArgumentException> { encrypt(browser.publicKey, ByteArray(17)) }
+		shouldThrow<IllegalArgumentException> { encrypt(ByteArray(65), browser.authSecret) }
+		shouldThrow<IllegalArgumentException> { encrypt(byteArrayOf(4) + ByteArray(64), browser.authSecret) }
 	}
 
 	@Test
@@ -86,10 +52,10 @@ class WebPushCryptoEdgeCaseTests {
 		// record size 4096 = plaintext + 1 delimiter byte + 16 tag bytes
 		val largest = ByteArray(4079) { 'a'.code.toByte() }
 
-		browser.decrypt(WebPushCrypto.encrypt(largest, browser.publicKey, browser.authSecret)) shouldBe largest
-		shouldThrow<IllegalArgumentException> {
-			WebPushCrypto.encrypt(ByteArray(4080), browser.publicKey, browser.authSecret)
-		}
+		val keys = WebPushKeys(browser.p256dh, browser.auth)
+
+		browser.decrypt(WebPushEncryption.encrypt(largest, keys)) shouldBe largest
+		shouldThrow<IllegalArgumentException> { WebPushEncryption.encrypt(ByteArray(4080), keys) }
 	}
 
 	@Test
@@ -160,16 +126,9 @@ class WebPushCryptoEdgeCaseTests {
 
 	/** The example of RFC 8291 Appendix A. */
 	private object Rfc8291 {
-		const val AS_PUBLIC = "BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8"
-		const val AS_PRIVATE = "yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw"
 		const val UA_PUBLIC = "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4"
 		const val UA_PRIVATE = "q1dXpw3UpT5VOmu_cf_v6ih07Aems3njxI-JWgLcM94"
 		const val AUTH_SECRET = "BTBZMqHH6r4Tts7J_aSIgg"
-		const val SALT = "DGv6ra1nlYgDCS1FRnbzlw"
-		const val ECDH_SECRET = "kyrL1jIIOHEzg3sM2ZWRHDRB62YACZhhSlknJ672kSs"
-		const val IKM = "S4lYMb_L0FxCeq0WhDx813KgSYqU26kOyzWUdsXYyrg"
-		const val CEK = "oIhVW04MRdy2XN9CiKLxTg"
-		const val NONCE = "4h_95klXJ5E_qnoN"
 		const val HEADER =
 			"DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8"
 		const val CIPHERTEXT = "8pfeW0KbunFT06SuDKoJH9Ql87S1QUrdirN6GcG7sFz1y1sqLgVi1VhjVkHsUoEsbI_0LpXMuGvnzQ"

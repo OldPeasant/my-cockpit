@@ -1,5 +1,7 @@
 package ch.sonensei.cockpit.core.push
 
+import ch.sonensei.cockpit.core.push.domain.WebPushEncryption
+import ch.sonensei.cockpit.core.push.domain.WebPushKeys
 import ch.sonensei.cockpit.core.push.infra.WebPushCrypto
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -18,7 +20,7 @@ class WebPushCryptoTests {
 		val browser = PushTestBrowser()
 		val message = """{"event":"reminder","data":{"title":"Call plumber"}}""".toByteArray()
 
-		val body = WebPushCrypto.encrypt(message, browser.publicKey, browser.authSecret)
+		val body = WebPushEncryption.encrypt(message, WebPushKeys(browser.p256dh, browser.auth))
 
 		browser.decrypt(body) shouldBe message
 		// salt (16) | record size (4) | key id length (1) | key (65) | ciphertext (message + delimiter + tag)
@@ -30,8 +32,8 @@ class WebPushCryptoTests {
 		val browser = PushTestBrowser()
 		val message = "same".toByteArray()
 
-		val first = WebPushCrypto.encrypt(message, browser.publicKey, browser.authSecret)
-		val second = WebPushCrypto.encrypt(message, browser.publicKey, browser.authSecret)
+		val first = WebPushEncryption.encrypt(message, WebPushKeys(browser.p256dh, browser.auth))
+		val second = WebPushEncryption.encrypt(message, WebPushKeys(browser.p256dh, browser.auth))
 
 		first.copyOf(86).contentEquals(second.copyOf(86)) shouldBe false
 	}

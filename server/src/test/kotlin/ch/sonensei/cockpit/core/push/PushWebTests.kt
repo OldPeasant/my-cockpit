@@ -1,6 +1,8 @@
 package ch.sonensei.cockpit.core.push
 
 import ch.sonensei.cockpit.core.auth.WithCockpitUser
+import ch.sonensei.cockpit.core.auth.cockpitUser
+import ch.sonensei.cockpit.core.auth.domain.CockpitPrincipal
 import ch.sonensei.cockpit.core.crypto.EncryptedSecret
 import ch.sonensei.cockpit.core.persistence.UuidV7
 import ch.sonensei.cockpit.core.push.domain.PushService
@@ -51,8 +53,17 @@ class PushWebTests(
 	@Autowired private val push: PushService,
 ) : PostgresTestBase() {
 	private val browser = PushTestBrowser()
+	private val sessions = PushTestSessions(jdbc)
+
+	/** The owner logged in with a browser session; [WithCockpitUser] alone has none. */
+	private lateinit var owner: CockpitPrincipal
 
 	@BeforeEach
+	fun setUp() {
+		subscriptions.deleteAll()
+		owner = sessions.principal()
+	}
+
 	@AfterEach
 	fun clean() = subscriptions.deleteAll()
 
@@ -62,12 +73,15 @@ class PushWebTests(
 		auth: String = browser.auth,
 	) = jsonMapper.writeValueAsString(mapOf("endpoint" to endpoint, "keys" to mapOf("p256dh" to p256dh, "auth" to auth)))
 
-	private fun put(content: String) =
-		mockMvc.put(SUBSCRIPTIONS) {
-			with(csrf())
-			contentType = MediaType.APPLICATION_JSON
-			this.content = content
-		}
+	private fun put(
+		content: String,
+		user: CockpitPrincipal? = owner,
+	) = mockMvc.put(SUBSCRIPTIONS) {
+		with(csrf())
+		user?.let { with(cockpitUser(it)) }
+		contentType = MediaType.APPLICATION_JSON
+		this.content = content
+	}
 
 	private fun publicKey(): String =
 		jsonMapper
@@ -119,17 +133,17 @@ class PushWebTests(
 
 	@Test
 	fun `subscribing keeps id, created time and version, and bumps the version only when the keys change`() {
-		val created = push.subscribe(ENDPOINT, browser.p256dh, browser.auth)
+		val created = push.subscribe(owner.sessionId!!, ENDPOINT, browser.p256dh, browser.auth)
 		created.version shouldBe 0
 		created.createdAt shouldNotBe null
 		created.updatedAt shouldBe created.createdAt
 
-		val again = push.subscribe(ENDPOINT, browser.p256dh, browser.auth)
+		val again = push.subscribe(owner.sessionId!!, ENDPOINT, browser.p256dh, browser.auth)
 		again.id shouldBe created.id
 		again.version shouldBe 0
 
 		val other = PushTestBrowser()
-		val changed = push.subscribe(ENDPOINT, other.p256dh, other.auth)
+		val changed = push.subscribe(owner.sessionId!!, ENDPOINT, other.p256dh, other.auth)
 		changed.id shouldBe created.id
 		changed.createdAt shouldBe created.createdAt
 		changed.version shouldBe 1
@@ -173,7 +187,17 @@ class PushWebTests(
 	@WithAnonymousUser
 	fun `the API needs a login`() {
 		mockMvc.get("$BASE/vapid-public-key").andExpect { status { isUnauthorized() } }
-		put(subscription()).andExpect { status { isUnauthorized() } }
+		put(subscription(), user = null).andExpect { status { isUnauthorized() } }
+		subscriptions.findAll().shouldBeEmpty()
+	}
+
+	@Test
+	fun `subscribing needs a browser session, a login without one (a device token) gets 403`() {
+		put(subscription(), user = owner.copy(sessionId = null)).andExpect {
+			status { isForbidden() }
+			content { contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) }
+		}
+
 		subscriptions.findAll().shouldBeEmpty()
 	}
 
@@ -238,7 +262,11 @@ class PushWebTests(
 
 		put(subscription(p256dh = p256dh, auth = auth)).andExpect { status { isNoContent() } }
 
-		subscriptions.findAll() shouldHaveSize 1
+		val stored = subscriptions.findAll().single()
+		withClue("stored as unpadded base64url") {
+			stored.p256dh shouldBe browser.p256dh
+			stored.auth shouldBe browser.auth
+		}
 	}
 
 	@Test
@@ -297,7 +325,7 @@ class PushWebTests(
 					.map {
 						pool.submit<Result<Unit>> {
 							start.await()
-							runCatching { push.subscribe(ENDPOINT, browser.p256dh, browser.auth) }.map { }
+							runCatching { push.subscribe(owner.sessionId!!, ENDPOINT, browser.p256dh, browser.auth) }.map { }
 						}
 					}.map { it.get(30, TimeUnit.SECONDS) }
 

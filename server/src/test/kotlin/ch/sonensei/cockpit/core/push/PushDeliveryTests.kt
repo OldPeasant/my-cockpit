@@ -35,9 +35,11 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.context.annotation.Import
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.json.JsonMapper
 import java.time.Duration
+import java.util.UUID
 
 /**
  * Reminders and new mail reach subscribed browsers as encrypted Web Push messages (SPEC.md §4.6); the push service is
@@ -59,7 +61,10 @@ class PushDeliveryTests(
 	@Autowired private val transactions: TransactionTemplate,
 	@Autowired private val jsonMapper: JsonMapper,
 	@Autowired private val properties: PushProperties,
+	@Autowired jdbc: JdbcTemplate,
 ) : PostgresTestBase() {
+	private val sessions = PushTestSessions(jdbc)
+	private lateinit var sessionId: UUID
 	private val server = WireMockServer(wireMockConfig().dynamicPort())
 	private val browser = PushTestBrowser()
 
@@ -74,6 +79,7 @@ class PushDeliveryTests(
 		server.resetAll()
 		server.stubFor(post(urlPathMatching("/push/.*")).willReturn(aResponse().withStatus(201)))
 		subscriptions.deleteAll()
+		sessionId = sessions.create()
 		reminderRepository.deleteAll()
 		fakes.reset()
 		clock.set(MutableClockTestConfiguration.START)
@@ -85,7 +91,9 @@ class PushDeliveryTests(
 	private fun subscribe(
 		path: String,
 		target: PushTestBrowser = browser,
-	) = subscriptions.save(PushSubscription("http://127.0.0.1:${server.port()}/push/$path", target.p256dh, target.auth))
+	) = subscriptions.save(
+		PushSubscription("http://127.0.0.1:${server.port()}/push/$path", target.p256dh, target.auth, sessionId),
+	)
 
 	private fun received(): List<Map<String, Any?>> =
 		server.allServeEvents.reversed().map { event ->
@@ -165,7 +173,7 @@ class PushDeliveryTests(
 
 	@Test
 	fun `an unreachable push service does not stop delivery to the others`() {
-		subscriptions.save(PushSubscription("http://127.0.0.1:1/push/down", browser.p256dh, browser.auth))
+		subscriptions.save(PushSubscription("http://127.0.0.1:1/push/down", browser.p256dh, browser.auth, sessionId))
 		subscribe("ok")
 
 		push.send("mail", mapOf("count" to 1)) shouldBe 1
@@ -191,7 +199,7 @@ class PushDeliveryTests(
 
 	@Test
 	fun `a subscription whose keys no longer decode is skipped, the others still get the message`() {
-		subscriptions.save(PushSubscription("http://127.0.0.1:${server.port()}/push/broken", "not a key !", browser.auth))
+		subscriptions.save(PushSubscription("http://127.0.0.1:${server.port()}/push/broken", "not a key !", browser.auth, sessionId))
 		subscribe("ok")
 
 		push.send("mail", mapOf("count" to 1)) shouldBe 1

@@ -55,7 +55,7 @@ class WebPushSender(
 			.build()
 
 	/**
-	 * Sends one [body] (already encrypted, [WebPushCrypto.encrypt]) to [endpoint] with the VAPID [authorization].
+	 * Sends one [body] (already encrypted, [ch.sonensei.cockpit.core.push.domain.WebPushEncryption]) to [endpoint] with the VAPID [authorization].
 	 *
 	 * @return the push service's HTTP status (201 when accepted, 404/410 when the subscription is gone)
 	 * @throws java.io.IOException when the push service cannot be reached

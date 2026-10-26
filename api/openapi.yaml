@@ -38,6 +38,14 @@ tags:
     \ Mail server failures are 502 (503 when the account's connections are busy) with\
     \ an `errorCode`."
   name: Mail messages
+- description: "Web Push (VAPID) for notifications without an open tab. A browser\
+    \ subscribes with the server's public key; the server then sends each `reminder`\
+    \ and `mail` SSE event to it as a push message `{\"event\": <name>, \"data\":\
+    \ <event data>}` (encrypted, RFC 8291). `data` is left out when the message would\
+    \ be too large. A subscription belongs to the login session that registered it\
+    \ and ends with it (logout, idle expiry, session ended). Subscriptions the push\
+    \ service reports gone (404/410) are removed."
+  name: Web Push
 - description: "Push registrations. When a reminder fires or new mail arrives, the\
     \ server POSTs a push to every registered UnifiedPush endpoint. Its payload is\
     \ `{\"kind\":\"reminder\"|\"mail\",\"id\":\"<uuid>\"}` (the reminder's id, or\
@@ -84,12 +92,6 @@ tags:
   name: Journal
 - description: "Habits with checks, streaks and completion stats"
   name: Habits
-- description: "Web Push (VAPID) for notifications without an open tab. A browser\
-    \ subscribes with the server's public key; the server then sends each `reminder`\
-    \ and `mail` SSE event to it as a push message `{\"event\": <name>, \"data\":\
-    \ <event data>}` (encrypted, RFC 8291). `data` is left out when the message would\
-    \ be too large. Subscriptions the push service reports gone (404/410) are removed."
-  name: Web Push
 paths:
   /api/v1/areas:
     get:
@@ -7269,8 +7271,10 @@ paths:
       tags:
       - Web Push
     put:
-      description: "Registers the browser's `PushSubscription` (its `toJSON()`). Idempotent:\
-        \ the same endpoint again replaces its keys."
+      description: "Registers the browser's `PushSubscription` (its `toJSON()`) for\
+        \ the current login session; pushes stop when that session ends. Idempotent:\
+        \ the same endpoint again replaces its keys and moves it to the current session.\
+        \ Needs a session cookie: a device token cannot subscribe."
       operationId: putPushSubscription
       requestBody:
         content:
@@ -7287,6 +7291,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
           description: "Endpoint not an https URL, or invalid keys"
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Not logged in with a browser session (e.g. a device token)
       summary: Subscribe this browser
       tags:
       - Web Push
