@@ -1,12 +1,12 @@
 ---
 title: Server-side reassignment when deleting a context or area
-status: in_progress
-owner: felix/agent-1
+status: todo
+owner: 
 deps: [web-settings-gtd]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,api/openapi.yaml,web/src/app/features/settings/gtd]
 prio: 2
-lease_until: 2026-10-26T01:28:33Z
-releases: 1
+lease_until: 
+releases: 2
 extended: 
 ---
 ## Goal
@@ -20,3 +20,4 @@ Deleting a context/area with "move to another" must also reach items the list en
 
 ## Notes
 - release by felix/agent-1: Not started. Host felix has a broken JDK (JAVA_HOME=/usr/lib/jvm/java-21-openjdk missing), so server tests and .taskcheck cannot run here; released for an agent on a working host.
+- release by felix/agent-1: Not started. Host felix still has a broken JDK (JAVA_HOME=/usr/lib/jvm/java-21-openjdk missing; server/gradlew -v fails), so server integration tests and .taskcheck cannot run here; released for an agent on a working host.
