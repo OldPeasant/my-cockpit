@@ -23,3 +23,4 @@ Like `BackupRoundTripTest` before `backup-roundtrip-tmp-leak`, several server te
 - [ ] `sh scripts/check.sh` passes
 
 ## Notes
+- ASSUMPTION (2026-10-26 09:13+0100 by dell26/agent-2): The companion-object @AfterAll cleanup was already on main (6b8afa8ae by agent-1, done while fixing another task); this task verifies it and adds no code. The remaining leaked dirs (empty cockpit-backups*/cockpit-restores*, one per Spring context, from production BackupJobService/RestoreService workDir) are outside this task's test-only scope: new task backup-workdir-tmp-leak.
