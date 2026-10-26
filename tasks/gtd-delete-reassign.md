@@ -1,10 +1,11 @@
 ---
 title: Server-side reassignment when deleting a context or area
-status: todo
-owner:
+status: in_progress
+owner: felix/agent-1
 deps: [web-settings-gtd]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,api/openapi.yaml,web/src/app/features/settings/gtd]
 prio: 2
+lease_until: 2026-10-26T01:26:17Z
 ---
 ## Goal
 Deleting a context/area with "move to another" must also reach items the list endpoints hide
