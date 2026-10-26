@@ -36,6 +36,7 @@ import net.fortuna.ical4j.model.Property
 import net.fortuna.ical4j.model.component.VEvent
 import net.fortuna.ical4j.model.component.VTimeZone
 import net.fortuna.ical4j.util.CompatibilityHints
+import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
@@ -992,6 +993,13 @@ class CalendarBackupContributorTests(
 		/** Every ical4j builder [parse] used, kept reachable for the JVM's lifetime (see [parse]). */
 		private val builders = mutableListOf<CalendarBuilder>()
 		private val dataDir: Path = Files.createTempDirectory("cockpit-calendar-backup-data")
+
+		/** Runs also when a test failed, so no run leaves its data directory behind. */
+		@JvmStatic
+		@AfterAll
+		fun deleteDataDir() {
+			dataDir.toFile().deleteRecursively()
+		}
 
 		private const val ZURICH = "Europe/Zurich"
 		private const val PASSWORD = "fictitious-caldav-password"

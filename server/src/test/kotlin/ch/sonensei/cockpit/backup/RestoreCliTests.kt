@@ -15,6 +15,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
+import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -392,6 +393,13 @@ class RestoreCliTests(
 		private const val DATABASE = "backup_restore_cli"
 		private const val CLI_PASSPHRASE = "fictitious cli backup passphrase"
 		private val dataDir: Path = Files.createTempDirectory("cockpit-restore-cli-data")
+
+		/** Runs also when a test failed, so no run leaves its data directory behind. */
+		@JvmStatic
+		@AfterAll
+		fun deleteDataDir() {
+			dataDir.toFile().deleteRecursively()
+		}
 
 		@JvmStatic
 		@DynamicPropertySource

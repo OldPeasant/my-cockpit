@@ -21,6 +21,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
+import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
@@ -734,6 +735,13 @@ class MailBackupContributorTests(
 	companion object {
 		private const val DATABASE = "mail_backup_contributor"
 		private val dataDir: Path = Files.createTempDirectory("cockpit-mail-backup-data")
+
+		/** Runs also when a test failed, so no run leaves its data directory behind. */
+		@JvmStatic
+		@AfterAll
+		fun deleteDataDir() {
+			dataDir.toFile().deleteRecursively()
+		}
 
 		private const val PASSWORD = "fictitious-imap-password"
 		private const val PASSPHRASE = "fictitious backup passphrase"

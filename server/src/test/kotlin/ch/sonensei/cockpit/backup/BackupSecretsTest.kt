@@ -30,6 +30,7 @@ import io.kotest.matchers.maps.shouldNotContainKey
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import jakarta.servlet.http.Cookie
+import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -527,6 +528,13 @@ class BackupSecretsTest(
 		private const val ENROLLMENT = "/api/v1/auth/totp-enrollment"
 		private const val DEVICES = "/api/v1/auth/devices"
 		private val dataDir: Path = Files.createTempDirectory("cockpit-secrets-data")
+
+		/** Runs also when a test failed, so no run leaves its data directory behind. */
+		@JvmStatic
+		@AfterAll
+		fun deleteDataDir() {
+			dataDir.toFile().deleteRecursively()
+		}
 
 		@JvmStatic
 		@DynamicPropertySource

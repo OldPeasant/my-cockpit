@@ -15,6 +15,7 @@ import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.string.shouldStartWith
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
+import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -341,6 +342,13 @@ class BookmarksBackupContributorTests(
 	companion object {
 		private const val DATABASE = "bookmarks_backup_contributor"
 		private val dataDir: Path = Files.createTempDirectory("cockpit-bookmarks-backup-data")
+
+		/** Runs also when a test failed, so no run leaves its data directory behind. */
+		@JvmStatic
+		@AfterAll
+		fun deleteDataDir() {
+			dataDir.toFile().deleteRecursively()
+		}
 
 		private const val URL = "https://example.test/articles/grüezi?lang=de&x=\"1\""
 		private val T0 = Instant.parse("2026-03-01T08:15:30.123456Z")

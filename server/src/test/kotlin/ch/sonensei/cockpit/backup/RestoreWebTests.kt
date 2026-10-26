@@ -23,6 +23,7 @@ import io.kotest.matchers.string.shouldStartWith
 import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.hasItem
 import org.hamcrest.Matchers.not
+import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -653,6 +654,13 @@ class RestoreWebTests(
 		private const val BASE = "/api/v1/restore"
 		private val ZIP = org.springframework.http.MediaType("application", "zip")
 		private val dataDir: Path = Files.createTempDirectory("cockpit-restore-data")
+
+		/** Runs also when a test failed, so no run leaves its data directory behind. */
+		@JvmStatic
+		@AfterAll
+		fun deleteDataDir() {
+			dataDir.toFile().deleteRecursively()
+		}
 
 		@JvmStatic
 		@DynamicPropertySource

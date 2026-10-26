@@ -15,6 +15,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldEndWith
 import io.kotest.matchers.string.shouldNotContain
+import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -571,6 +572,13 @@ class JournalBackupContributorTests(
 	companion object {
 		private const val DATABASE = "journal_backup_contributor"
 		private val dataDir: Path = Files.createTempDirectory("cockpit-journal-backup-data")
+
+		/** Runs also when a test failed, so no run leaves its data directory behind. */
+		@JvmStatic
+		@AfterAll
+		fun deleteDataDir() {
+			dataDir.toFile().deleteRecursively()
+		}
 
 		private const val CSV_HEADER = "habit_id,name,schedule,times_per_week,weekdays,target_count,reminder_time,archived,date,count"
 
