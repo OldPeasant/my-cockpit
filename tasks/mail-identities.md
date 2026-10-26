@@ -15,7 +15,8 @@ Additional sending identities per mail account (SPEC.md §7.1 "email address(es)
 Settings → Mail (web-mail-accounts) only edits the account's primary identity (display name + address).
 
 ## Acceptance criteria
-- [ ] API: list/add/change/remove identities of an account (name, email, reply-to, signature override), ETag/If-Match, Problem Details; `api/openapi.yaml` and web client regenerated; server tests pass
+- [x] API: list/add/change/remove identities of an account (name, email, reply-to, signature override), ETag/If-Match, Problem Details; `api/openapi.yaml` and web client regenerated; server tests pass
+  - verified (2026-10-26 06:58+0100 by dell26/agent-1): cd server && ./gradlew check -> BUILD SUCCESSFUL (4660 tests, ktlint clean); ./gradlew ktlintCheck test --tests MailIdentityWebTests jacocoTestReport at ef0da8140 -> 24/24 pass (list/add/PATCH/DELETE, ETag 412/428, Problem Details 400/404/409, 401); OpenApiContractTest passes so api/openapi.yaml matches server; web client regenerated (npm run api:gen) in 19048d81/dea927fe6
 - [ ] Settings → Mail lists an account's identities and adds/edits/removes them; Vitest tests cover it; `cd web && npm run check` passes
 
 ## Notes
