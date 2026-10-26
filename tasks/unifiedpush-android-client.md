@@ -18,7 +18,8 @@ Goal: The app registers with a UnifiedPush distributor (ntfy) and reacts to serv
   - verified (2026-10-26 21:04+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*' --tests 'ch.sonensei.cockpit.auth.AuthRepositoryLogoutHookTest' -> 82 passed (PushRegistrarTest 28: register on login/app start, PUT /push/unifiedpush/{id} with keys, logout DELETE+unregister, no distributor -> no registration; AuthRepositoryLogoutHookTest 9); connector 3.3.5 in libs.versions.toml + ARCHITECTURE.md stack table (inspected)
 - [x] A reminder push runs the reminder sync; a new-mail push shows a new-mail notification (or runs the mail sync); unknown or garbled messages are ignored
   - verified (2026-10-26 21:04+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*' -> PushMessageHandlerTest 12 + PushInAppTest 15 + PushAndroidAdaptersTest 11 passed: reminder push enqueues ReminderSyncWorker, mail push shows content-free notification, unknown/garbled/non-UTF-8/oversized/undecrypted/after-logout pushes ignored
-- [ ] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*'` passes, covering message handling
+- [x] `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*'` passes, covering message handling
+  - verified (2026-10-26 21:04+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*' (same as cd android && ./gradlew ...) -> BUILD SUCCESSFUL, 73 push tests passed, 0 failures (message handling: PushMessageHandlerTest 12)
 
 ## Notes
 - Work done on `unifiedpush-android` before the split is on `origin/wip/unifiedpush-android` (if it exists): merge it first if your part builds on it.
