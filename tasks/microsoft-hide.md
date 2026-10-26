@@ -25,3 +25,4 @@ on again later.
 
 ## Notes
 - ASSUMPTION (2026-10-26 09:44+0100 by dell26/agent-1): Microsoft off also stops mail push/poll of existing MICROSOFT accounts (small edit in mail/sync/MailPushService, outside touches) and refuses manual 'Sync now' of MICROSOFT calendar sources with 400; existing Microsoft OAuth connections, sources and accounts are kept, not deleted.
+- ASSUMPTION (2026-10-26 09:44+0100 by dell26/agent-1): Web Integrations page hides existing Microsoft sources and connections while the server does not list Microsoft in /oauth/providers (also when that request fails), instead of showing them as unsyncable.
