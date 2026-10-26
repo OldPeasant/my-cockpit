@@ -18,3 +18,4 @@ Goal: The server stores UnifiedPush endpoints per device and POSTs a small push 
 
 ## Notes
 - Work done on `unifiedpush-android` before the split is on `origin/wip/unifiedpush-android` (if it exists): merge it first if your part builds on it.
+- ASSUMPTION (2026-10-26 15:15+0100 by dell26/agent-2): UnifiedPush registrations are not backed up (like sessions and Android devices): an endpoint belongs to one app installation, which registers again after a restore; documented in the migration.
