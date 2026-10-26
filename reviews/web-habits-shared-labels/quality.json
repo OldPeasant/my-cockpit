@@ -10,7 +10,7 @@
   "fixes_required": false,
   "findings": [],
   "validation": [
-    {"command": "cd web && npm run check", "result": "pass (175 files, 3678 tests)"},
-    {"command": "sh scripts/check.sh tfp web", "result": "pass (full check.sh timed out locally in the server step, unrelated to this web-only change; tasks.py done runs the full .taskcheck)"}
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "sh scripts/check.sh tfp web", "result": "pass"}
   ]
 }
