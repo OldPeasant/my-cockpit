@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "task": "backup-round-trip-tmp-leak",
+  "reviewed_revision": "ae683aed699fceb94948c0d8139a8c1aad291450",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/backup-round-trip-tmp-leak/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/backup-round-trip-tmp-leak/review.md"},
+    "fixer": {"status": "not_required", "reason": "code-reviewer reported 0 findings and test-writer found no production bugs"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "server/gradlew -p server ktlintCheck", "result": "pass"},
+    {"command": "server/gradlew -p server test --rerun-tasks --init-script .tmp/tmpdir.gradle (java.io.tmpdir=.tmp/testtmp)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
