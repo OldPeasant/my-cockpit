@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-passkeys,deploy-passkey-env]
 touches: [deploy,server/src/main/kotlin/ch/sonensei/cockpit/auth]
 prio: 2
-lease_until: 2026-10-26T07:13:04Z
+lease_until: 2026-10-26T07:19:33Z
 releases: 1
 extended: 
 ---
