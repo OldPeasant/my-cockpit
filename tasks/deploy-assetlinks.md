@@ -17,7 +17,8 @@ Serve `https://<rp-id>/.well-known/assetlinks.json` with `delegate_permission/co
   - verified (2026-10-26 07:06+0100 by dell26/agent-2): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.passkey.*' -> pass; AssetLinksWebTests (configured statement, application/json, no login) + AssetLinksDefaultWebTests ([] default, HEAD, writes still need login) green
 - [x] Package and fingerprint(s) configurable via env in the deploy compose; documented in the deploy README
   - verified (2026-10-26 07:07+0100 by dell26/agent-2): grep ANDROID deploy/docker-compose.yml deploy/README.md -> COCKPIT_AUTH_PASSKEY_ANDROID_FINGERPRINTS/_PACKAGE forwarded in compose (lines 52-53), documented in README env table + fingerprint how-to; .env.example updated
-- [ ] The Android apk-key-hash origin matching the fingerprint is accepted by the passkey RP config (documented)
+- [x] The Android apk-key-hash origin matching the fingerprint is accepted by the passkey RP config (documented)
+  - verified (2026-10-26 07:07+0100 by dell26/agent-2): PasskeyRelyingPartiesTests (android:apk-key-hash origin added to explicit, domain-default and dev origins; values cross-checked in Python by reviewer) -> pass; documented in deploy/README.md
 
 ## Notes
 Found while reviewing and-passkeys (see passkeys-server assumption: assetlinks left to deployment).
