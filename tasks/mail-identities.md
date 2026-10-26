@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [web-mail-accounts]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/imap,web/src/app/features/settings/mail]
 prio: 2
-lease_until: 2026-10-26T04:46:28Z
+lease_until: 2026-10-26T04:51:29Z
 ---
 ## Goal
 Additional sending identities per mail account (SPEC.md §7.1 "email address(es)/identities"). The
