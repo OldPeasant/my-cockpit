@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "task": "test-tmp-dir-leaks",
+  "reviewed_revision": "e7afc6c8caa9f4f597058ba93fe7ba8fa09eea79",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/test-tmp-dir-leaks/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/test-tmp-dir-leaks/review.md"},
+    "fixer": {"status": "not_required", "reason": "No findings: the cleanup (6b8afa8ae, already on main) was reviewed and measured without issues; the remaining production-code leak is the separate task backup-workdir-tmp-leak"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "sh .tmp/check-tmp.sh (cd server && JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=<clone>/.tmp/jtmp ./gradlew check --rerun-tasks --no-daemon; companion temp dirs 0 before, 0 after)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
