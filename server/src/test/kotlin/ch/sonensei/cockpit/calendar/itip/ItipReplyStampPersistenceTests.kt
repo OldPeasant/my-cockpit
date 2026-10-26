@@ -198,6 +198,35 @@ class ItipReplyStampPersistenceTests(
 	}
 
 	@Test
+	fun `each attendee has a stamp of its own, so an older REPLY of another attendee is still taken`() {
+		val event =
+			events.saveAndFlush(
+				CalendarEvent(calendar.id, "Project kickoff").apply {
+					setTimed(Instant.parse("2026-11-02T08:00:00Z"), Instant.parse("2026-11-02T09:00:00Z"), ZURICH)
+					attendees = listOf(Attendee(ANNA, "Anna Example"), Attendee(BEN, "Ben Example"))
+				},
+			)
+
+		answer(reply(event.id, "ACCEPTED", 3, "20261027T120000Z")) shouldContainExactly listOf(event.id)
+		// Lower SEQUENCE and older DTSTAMP than Anna's answer, but the first one of Ben.
+		answer(reply(event.id, "DECLINED", 1, "20261026T120000Z", attendee = BEN), sender = BEN) shouldContainExactly listOf(event.id)
+		// Ben's own older answer is ignored; Anna's stamp stays as it was.
+		answer(reply(event.id, "TENTATIVE", 0, "20261028T120000Z", attendee = BEN), sender = BEN).shouldBeEmpty()
+
+		val attendees =
+			events
+				.findById(event.id)
+				.get()
+				.attendees
+		attendees.map { it.email to it.status } shouldContainExactly listOf(ANNA to AttendeeStatus.ACCEPTED, BEN to AttendeeStatus.DECLINED)
+		storedStamps() shouldContainExactlyInAnyOrder
+			listOf(
+				listOf(event.id, null, null, ANNA, 3, Instant.parse("2026-10-27T12:00:00Z")),
+				listOf(event.id, null, null, BEN, 1, Instant.parse("2026-10-26T12:00:00Z")),
+			)
+	}
+
+	@Test
 	fun `a REPLY equal to the last one taken is applied again`() {
 		val event = single()
 		answer(reply(event.id, "ACCEPTED", 1, "20261026T120000Z"))
@@ -377,6 +406,7 @@ class ItipReplyStampPersistenceTests(
 
 	private companion object {
 		const val ANNA = "anna@example.test"
+		const val BEN = "ben@example.test"
 		val ZURICH: ZoneId = ZoneId.of("Europe/Zurich")
 		val CALENDAR_HEADERS = InternetHeaders().apply { addHeader("Content-Type", "text/calendar; charset=UTF-8; method=REPLY") }
 	}
