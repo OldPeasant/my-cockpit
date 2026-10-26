@@ -131,44 +131,83 @@ class MailReadService(
 	 * IMAP connection is held.
 	 *
 	 * @throws NotFoundException when the message has no such attachment
-	 * @throws AttachmentDownloadAbortedException when writing to the client failed (it went away); the mail server
-	 *   was fine, so its connection is kept
+	 * @throws AttachmentDownloadAbortedException when opening or writing to the client failed (it went away); the
+	 *   mail server was fine, so its connection is kept
 	 */
 	fun attachment(
 		id: UUID,
 		partId: String,
 		open: (MailAttachment) -> OutputStream,
 	) {
-		val message = get(id)
-		val attachment = loader.load(message).attachments.firstOrNull { it.partId == partId } ?: throw NotFoundException(ATTACHMENT_NOT_FOUND)
-		// A client failure or a missing part is returned, not thrown, inside the block: a throw would count as an IMAP
-		// failure there.
-		val outcome =
-			loader.withRemoteMessage(message) { root ->
-				val part = MimeContent.findPart(root, partId) ?: return@withRemoteMessage AttachmentCopy.PartMissing
-				part.inputStream.use { copy(it, open(attachment)) }?.let { AttachmentCopy.ClientFailed(it) } ?: AttachmentCopy.Done
-			}
-		when (outcome) {
-			AttachmentCopy.Done -> Unit
-			AttachmentCopy.PartMissing -> throw NotFoundException(ATTACHMENT_NOT_FOUND)
-			is AttachmentCopy.ClientFailed -> throw AttachmentDownloadAbortedException(outcome.cause)
-		}
-	}
-
-	/** How streaming an attachment inside the IMAP block ended. */
-	private sealed interface AttachmentCopy {
-		data object Done : AttachmentCopy
-
-		data object PartMissing : AttachmentCopy
-
-		data class ClientFailed(
-			val cause: IOException,
-		) : AttachmentCopy
+		copyAttachment(id, partId, closeOutput = false, open).failure?.let { throw AttachmentDownloadAbortedException(it) }
 	}
 
 	/**
-	 * Copies [input] (the mail server) to [output] (the client). Read failures are thrown; a write failure ends the
-	 * copy and is returned.
+	 * Streams attachment [partId] of message [id] into the stream [open] returns for it, while the IMAP connection is
+	 * held; the stream is closed afterwards when [closeOutput] is set. Failures on the output side (opening, writing,
+	 * flushing or closing it) end the copy and are returned in [AttachmentCopy.failure], not thrown: a throw inside
+	 * the IMAP block would count as a mail server failure and drop a working pooled connection.
+	 *
+	 * @throws NotFoundException when the message has no such attachment (or it is no longer on the server)
+	 * @throws ch.sonensei.cockpit.mail.imap.MailConnectionException when the mail server fails
+	 */
+	fun copyAttachment(
+		id: UUID,
+		partId: String,
+		closeOutput: Boolean,
+		open: (MailAttachment) -> OutputStream,
+	): AttachmentCopy {
+		val message = get(id)
+		val attachment = loader.load(message).attachments.firstOrNull { it.partId == partId } ?: throw NotFoundException(ATTACHMENT_NOT_FOUND)
+		// A missing part is returned, not thrown, inside the block for the same reason.
+		val outcome =
+			loader.withRemoteMessage(message) { root ->
+				val part = MimeContent.findPart(root, partId) ?: return@withRemoteMessage RemoteCopy.PartMissing
+				val output =
+					try {
+						open(attachment)
+					} catch (e: IOException) {
+						return@withRemoteMessage RemoteCopy.Copied(e)
+					}
+				var failure: IOException? = null
+				try {
+					failure = part.inputStream.use { copy(it, output) }
+				} finally {
+					if (closeOutput) {
+						try {
+							output.close()
+						} catch (e: IOException) {
+							failure = failure ?: e
+						}
+					}
+				}
+				RemoteCopy.Copied(failure)
+			}
+		return when (outcome) {
+			RemoteCopy.PartMissing -> throw NotFoundException(ATTACHMENT_NOT_FOUND)
+			is RemoteCopy.Copied -> AttachmentCopy(message, attachment, outcome.failure)
+		}
+	}
+
+	/** An attachment streamed by [copyAttachment]: the located [message], the [attachment] and the output's [failure], if any. */
+	data class AttachmentCopy(
+		val message: MailMessage,
+		val attachment: MailAttachment,
+		val failure: IOException?,
+	)
+
+	/** How the IMAP block of [copyAttachment] ended. */
+	private sealed interface RemoteCopy {
+		data object PartMissing : RemoteCopy
+
+		data class Copied(
+			val failure: IOException?,
+		) : RemoteCopy
+	}
+
+	/**
+	 * Copies [input] (the mail server) to [output]. Read failures are thrown; a write failure ends the copy and is
+	 * returned.
 	 */
 	private fun copy(
 		input: InputStream,

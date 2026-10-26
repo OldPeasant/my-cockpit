@@ -12,6 +12,7 @@ import ch.sonensei.cockpit.files.domain.SpecialFolder
 import ch.sonensei.cockpit.files.domain.UploadLimits
 import ch.sonensei.cockpit.files.infra.BlobTooLargeException
 import ch.sonensei.cockpit.mail.model.MailMessage
+import ch.sonensei.cockpit.mail.model.MailMessageLocator
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
@@ -55,8 +56,9 @@ class MailAttachmentFilesServiceTests {
 	private val message = MailMessage(UUID.randomUUID(), UUID.randomUUID(), 7)
 	private val attachment = MailAttachment("2", "budget.csv", "text/csv", 30, inline = false, contentId = null)
 	private val mailFolder = Folder("Mail", UUID.randomUUID())
-	private val reads = mockk<MailReadService> { every { get(message.id) } returns message }
+	private val locator = mockk<MailMessageLocator> { every { current(message.id) } returns message }
 	private val loader = mockk<MailContentLoader>()
+	private val reads = MailReadService(locator, mockk(), mockk(), mockk(), mockk(), loader, mockk())
 	private val files = mockk<FilesService>()
 	private val links = mockk<LinkService>(relaxed = true)
 	private val transactions = mockk<TransactionTemplate>()
@@ -80,7 +82,6 @@ class MailAttachmentFilesServiceTests {
 	private fun service(maxSize: Long = 1024) =
 		MailAttachmentFilesService(
 			reads,
-			loader,
 			files,
 			links,
 			UploadLimits(DataSize.ofBytes(maxSize), DataSize.ofMegabytes(8)),
@@ -211,7 +212,7 @@ class MailAttachmentFilesServiceTests {
 	@Test
 	fun `an unknown message is 404`() {
 		val unknown = UUID.randomUUID()
-		every { reads.get(unknown) } throws NotFoundException("Message not found")
+		every { locator.current(unknown) } returns null
 
 		shouldThrow<NotFoundException> { service().saveToFiles(unknown, "2") }
 
@@ -271,6 +272,24 @@ class MailAttachmentFilesServiceTests {
 			val temp = tempFilesLeft().single()
 			Files.delete(temp)
 			Files.createSymbolicLink(temp, full)
+		})
+
+		val e = shouldThrow<UncheckedIOException> { service().saveToFiles(message.id, "2") }
+
+		e.cause.shouldBeInstanceOf<IOException>()
+		// The IMAP block ended normally, so the pool keeps the connection.
+		blockOutcome!!.isSuccess shouldBe true
+		stored shouldBe null
+		tempFilesLeft().shouldBeEmpty()
+	}
+
+	@Test
+	fun `a buffer file that cannot be opened is no mail server failure`() {
+		// A directory in place of the buffer file makes opening it for writing fail.
+		remote(beforeBlock = {
+			val temp = tempFilesLeft().single()
+			Files.delete(temp)
+			Files.createDirectory(temp)
 		})
 
 		val e = shouldThrow<UncheckedIOException> { service().saveToFiles(message.id, "2") }

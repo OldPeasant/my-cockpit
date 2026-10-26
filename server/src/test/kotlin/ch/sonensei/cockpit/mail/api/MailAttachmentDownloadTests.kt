@@ -110,6 +110,71 @@ class MailAttachmentDownloadTests {
 	}
 
 	@Test
+	fun `a client stream that cannot be opened is no mail server failure`() {
+		remote()
+
+		val e = shouldThrow<AttachmentDownloadAbortedException> { service.attachment(message.id, "2") { throw IOException("Broken pipe") } }
+
+		e.cause.shouldBeInstanceOf<IOException>().message shouldBe "Broken pipe"
+		blockOutcome!!.isSuccess shouldBe true
+	}
+
+	@Test
+	fun `copyAttachment closes the output on request and returns a close failure instead of throwing it`() {
+		remote()
+		var closed = false
+		val failsOnClose =
+			object : ByteArrayOutputStream() {
+				override fun close() {
+					closed = true
+					throw IOException("Disk full")
+				}
+			}
+
+		val copy = service.copyAttachment(message.id, "2", closeOutput = true) { failsOnClose }
+
+		closed shouldBe true
+		copy.message shouldBe message
+		copy.attachment shouldBe attachment
+		copy.failure.shouldBeInstanceOf<IOException>().message shouldBe "Disk full"
+		failsOnClose.toByteArray().toList() shouldBe CONTENT.toList()
+		blockOutcome!!.isSuccess shouldBe true
+	}
+
+	@Test
+	fun `copyAttachment closes the output when reading from the mail server fails`() {
+		remote { root -> FailingReads(root) }
+		var closed = false
+		val output =
+			object : ByteArrayOutputStream() {
+				override fun close() {
+					closed = true
+				}
+			}
+
+		shouldThrow<IOException> { service.copyAttachment(message.id, "2", closeOutput = true) { output } }
+
+		closed shouldBe true
+		blockOutcome!!.exceptionOrNull().shouldBeInstanceOf<IOException>()
+	}
+
+	@Test
+	fun `the download leaves the client stream open`() {
+		remote()
+		var closed = false
+		val output =
+			object : ByteArrayOutputStream() {
+				override fun close() {
+					closed = true
+				}
+			}
+
+		service.attachment(message.id, "2") { output }
+
+		closed shouldBe false
+	}
+
+	@Test
 	fun `a part missing on the server is 404 without leaving the IMAP block as a failure`() {
 		// The server copy no longer has the cached part 2.
 		remote { MimeMessage(Session.getInstance(Properties())).apply { setText("Hello", "UTF-8") }.apply { saveChanges() } }
