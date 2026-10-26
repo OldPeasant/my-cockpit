@@ -1,10 +1,11 @@
 ---
 title: BackupRoundTripTest leaks a 61 MB cockpit-round-trip-data temp dir per run, filling /tmp (Disk quota exceeded)
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/backup]
 prio: 2
+lease_until: 2026-10-26T06:43:01Z
 ---
 ## Goal
 `BackupRoundTripTest` creates `Files.createTempDirectory("cockpit-round-trip-data")` in its companion object and
