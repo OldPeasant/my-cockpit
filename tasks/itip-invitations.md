@@ -5,7 +5,7 @@ owner: r1963macos/agent-1
 deps: [cal-local-api,mail-compose]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/itip,server/src/test/kotlin/ch/sonensei/cockpit/calendar/itip]
 prio: 3
-lease_until: 2026-10-26T14:42:00Z
+lease_until: 2026-10-26T14:55:12Z
 extended: 
 releases: 1
 ---
@@ -13,8 +13,10 @@ releases: 1
 Invite attendees by mail (SPEC.md §6.2).
 
 ## Acceptance criteria
-- [ ] REQUEST/CANCEL as text/calendar mails; incoming REPLY updates attendee status
-- [ ] `external` GreenMail tests
+- [x] REQUEST/CANCEL as text/calendar mails; incoming REPLY updates attendee status
+  - verified (2026-10-26 15:35+0100 by r1963macos/agent-1): cd server && ./gradlew test --tests '*itip*' --tests '*MailReadServiceInInboxTests' ktlintCheck -> ItipMessagesTests 26/26, ItipReplyProcessorTests 11/11, MailReadServiceInInboxTests 4/4 pass, ktlint clean; ./gradlew integrationTest --tests '*ItipGreenMail*' -> 32/32 pass (REQUEST/CANCEL sent as text/calendar via GreenMail SMTP, incoming REPLY in Inbox updates PARTSTAT)
+- [x] `external` GreenMail tests
+  - verified (2026-10-26 15:35+0100 by r1963macos/agent-1): cd server && ./gradlew integrationTest --tests '*ItipGreenMail*' (@ExternalTest, GreenMail SMTP/IMAP + test DB) -> ItipGreenMailTests 32 tests, 0 failures, 0 skipped
 
 ## Notes
 - ASSUMPTION (2026-10-26 13:20+0100 by r1963macos/agent-1): No REST endpoint/UI for sending invitations in this task: touches only covers calendar/itip; ItipService.send is the server API, exposing it (controller + openapi + clients) is follow-up task itip-api

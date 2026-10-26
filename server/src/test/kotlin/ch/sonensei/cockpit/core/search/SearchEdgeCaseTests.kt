@@ -30,6 +30,9 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.transaction.IllegalTransactionStateException
+import java.time.Duration
+import java.time.Instant
+import java.util.UUID
 
 /**
  * Edge cases of the global search beyond [SearchServiceTests] and [SearchWebTests]: ranking and grouping order, the
@@ -117,6 +120,42 @@ class SearchEdgeCaseTests(
 
 		found("passport") shouldContainExactly listOf(oldTitle, freshBody)
 	}
+
+	@Test
+	fun `full-text ranking at a fixed now prefers the more recent of equal matches`() {
+		val now = Instant.parse("2026-03-01T12:00:00Z")
+		val older = indexed("Renew passport", "", now.minus(Duration.ofDays(31)))
+		val newer = indexed("Renew passport", "", now.minus(Duration.ofDays(29)))
+		val oldest = indexed("Renew passport", "", now.minus(Duration.ofDays(400)))
+
+		fullTextIds("passport", now) shouldContainExactly listOf(newer, older, oldest)
+	}
+
+	@Test
+	fun `a document changed after now gets the full boost, neither a vanishing nor an unbounded one`() {
+		val now = Instant.parse("2026-03-01T12:00:00Z")
+		// Without the clamp at 0 the boost of a document 60 days in the future would be 0 (ranked last) ...
+		val old = indexed("Renew passport", "", now.minus(Duration.ofDays(60)))
+		val farFuture = indexed("Renew passport", "", now.plus(Duration.ofDays(60)))
+		fullTextIds("passport", now) shouldContainExactly listOf(farFuture, old)
+
+		// ... and that of one 29 days in the future about 31, lifting a body hit above a fresh title hit.
+		jdbc.update("delete from search_document")
+		val freshTitle = indexed("Passport renewal", "", now)
+		val nearFutureBody = indexed("Travel", "bring the passport", now.plus(Duration.ofDays(29)))
+		fullTextIds("passport", now) shouldContainExactly listOf(freshTitle, nearFutureBody)
+	}
+
+	private fun indexed(
+		title: String,
+		body: String,
+		updatedAt: Instant,
+	): UUID = UuidV7.generate().also { documents.upsert(ItemType.TASK, it, title, body, updatedAt) }
+
+	private fun fullTextIds(
+		tsquery: String,
+		now: Instant,
+	): List<UUID> = documents.fullText(tsquery, listOf(ItemType.TASK.name), 20, now).map { it.item.id }
 
 	// --- trigram fill-up ------------------------------------------------------------------------------------------
 
