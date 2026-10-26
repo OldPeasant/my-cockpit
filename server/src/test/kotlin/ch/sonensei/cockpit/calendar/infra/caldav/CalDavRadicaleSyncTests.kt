@@ -366,12 +366,33 @@ class CalDavRadicaleSyncTests(
 	@Test
 	fun `Radicale refuses a request without credentials, so the sync runs authenticated`() {
 		val anonymous =
-			http.send(
+			http.sendRetryingDrop(
 				HttpRequest.newBuilder(URI.create("${radicale.baseUrl()}$HOME")).method("PROPFIND", HttpRequest.BodyPublishers.noBody()).build(),
 				HttpResponse.BodyHandlers.discarding(),
+				repeatable = true,
 			)
 
 		anonymous.statusCode() shouldBe 401
+	}
+
+	@Test
+	fun `Radicale refuses the right user with a wrong password, so it checks passwords against htpasswd`() {
+		// Without authentication (type = none) Radicale trusts the login name and owner_only lets alice into her home;
+		// only a password check refuses this request. An anonymous request is refused by the rights alone.
+		val wrongPassword =
+			http.sendRetryingDrop(
+				HttpRequest
+					.newBuilder(URI.create("${radicale.baseUrl()}$HOME"))
+					.method("PROPFIND", HttpRequest.BodyPublishers.noBody())
+					.header("Depth", "0")
+					.header("Authorization", "Basic " + Base64.getEncoder().encodeToString("$USER:not-the-password".toByteArray()))
+					.build(),
+				HttpResponse.BodyHandlers.discarding(),
+				repeatable = true,
+			)
+
+		wrongPassword.statusCode() shouldBe 401
+		radicale.logs shouldContain "auth type is 'radicale.auth.htpasswd'"
 	}
 
 	// --- Radicale
