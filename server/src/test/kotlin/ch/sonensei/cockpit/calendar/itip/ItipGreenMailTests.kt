@@ -528,6 +528,149 @@ class ItipGreenMailTests(
 		processor.process(UUID.randomUUID()).shouldBeEmpty()
 	}
 
+	// --- added by test-writer: edge, security and round-trip cases ---------------------------------------------------
+
+	@Test
+	fun `a CANCEL for one override goes out as just that occurrence, cancelled, with the series UID`() {
+		val series = createEvent(attendees = listOf(ANNA), rrule = "FREQ=WEEKLY")
+		val override = api.patchEventOk(series, """{"title":"Kickoff (room B)"}""", "?scope=THIS&occurrence=2026-11-09T08:00:00Z").id()
+
+		val sent = itip.send(UUID.fromString(override), ItipMethod.CANCEL, account.id, null)
+
+		sent shouldBe SentInvitation(ItipMethod.CANCEL, listOf(ANNA))
+		val received = onServer("INBOX", ANNA_USER).single()
+		received.subject shouldBe "Cancelled: Kickoff (room B)"
+		val vevent = ics(calendarPart(received)).children("VEVENT").single()
+		vevent.text("UID") shouldBe series
+		vevent.property("RECURRENCE-ID")!!.value shouldBe "20261109T090000"
+		vevent.text("STATUS") shouldBe "CANCELLED"
+		vevent.text("RRULE") shouldBe null
+	}
+
+	@Test
+	fun `the text part of an all-day invitation names its dates, the conference link and the description`() {
+		val event =
+			api
+				.createEvent(
+					"""
+					{"calendarId":"$calendarId","title":"Team offsite","allDay":true,"startDate":"2026-11-02","endDate":"2026-11-05",
+					 "conferenceUrl":"https://meet.example.test/offsite","description":"Bring warm clothes.",
+					 "attendees":[{"email":"$ANNA"}]}
+					""".trimIndent(),
+				).id()
+
+		itip.send(UUID.fromString(event), ItipMethod.REQUEST, account.id, null)
+
+		val received = onServer("INBOX", ANNA_USER).single()
+		val text = leaves(received).first().content as String
+		text shouldContain "When: Nov 2, 2026 – Nov 4, 2026"
+		text shouldContain "Join: https://meet.example.test/offsite"
+		text shouldContain "Bring warm clothes."
+		ics(calendarPart(received)).children("VEVENT").single().property("DTSTART")!!.value shouldBe "20261102"
+	}
+
+	@Test
+	fun `a title with a line break cannot inject mail headers or extra recipients`() {
+		greenMail.setUser(MALLORY, MALLORY_USER, PASSWORD)
+		val event = createEvent(attendees = listOf(ANNA))
+		val stored = stored(event)
+		stored.title = "Kickoff\r\nBcc: $MALLORY\r\nX-Injected: yes"
+		events.saveAndFlush(stored)
+
+		itip.send(UUID.fromString(event), ItipMethod.REQUEST, account.id, null)
+
+		onServer("INBOX", MALLORY_USER).shouldBeEmpty()
+		greenMail.receivedMessages.flatMap { message -> message.allRecipients.map { (it as InternetAddress).address } } shouldContainExactly
+			listOf(ANNA)
+		val received = onServer("INBOX", ANNA_USER).single()
+		received.getHeader("X-Injected") shouldBe null
+		received.getHeader("Bcc") shouldBe null
+	}
+
+	@Test
+	fun `an occurrence REPLY with the RECURRENCE-ID as the cockpit sent it (TZID) updates its override`() {
+		val series = createEvent(attendees = listOf(ANNA), rrule = "FREQ=WEEKLY")
+		val override = api.patchEventOk(series, """{"title":"Kickoff (room B)"}""", "?scope=THIS&occurrence=2026-11-09T08:00:00Z").id()
+		itip.send(UUID.fromString(override), ItipMethod.REQUEST, account.id, null)
+		val sentRecurrenceId =
+			ics(calendarPart(onServer("INBOX", ANNA_USER).single())).children("VEVENT").single().property("RECURRENCE-ID")!!
+		val tzid = sentRecurrenceId.param("TZID")
+		tzid shouldBe "Europe/Zurich"
+		val reply =
+			message(from = ANNA, subject = "Accepted: Kickoff (room B)").apply {
+				setContent(
+					replyIcs(series, ANNA, "ACCEPTED")
+						.replace("BEGIN:VEVENT\r\n", "BEGIN:VEVENT\r\nRECURRENCE-ID;TZID=$tzid:${sentRecurrenceId.value}\r\n"),
+					"text/calendar; charset=UTF-8; method=REPLY",
+				)
+				saveChanges()
+			}
+		appendTo("INBOX", reply)
+		fullSyncInbox()
+
+		processor.process(cachedInbox().single().id) shouldContainExactly listOf(UUID.fromString(override))
+
+		stored(override).attendees.single().status shouldBe AttendeeStatus.ACCEPTED
+		stored(series).attendees.single().status shouldBe AttendeeStatus.NEEDS_ACTION
+	}
+
+	@Test
+	fun `a REPLY listing several attendees only applies the answer of the sender`() {
+		val event = createEvent(attendees = listOf(ANNA, BOB))
+		val reply =
+			message(from = ANNA, subject = "Answers").apply {
+				setContent(
+					replyIcs(event, ANNA, "ACCEPTED").replace(
+						"ATTENDEE;PARTSTAT=ACCEPTED:mailto:$ANNA\r\n",
+						"ATTENDEE;PARTSTAT=ACCEPTED:mailto:$ANNA\r\nATTENDEE;PARTSTAT=DECLINED:mailto:$BOB\r\n",
+					),
+					"text/calendar; charset=UTF-8; method=REPLY",
+				)
+				saveChanges()
+			}
+		appendTo("INBOX", reply)
+		fullSyncInbox()
+
+		processor.process(cachedInbox().single().id) shouldContainExactly listOf(UUID.fromString(event))
+
+		stored(event).attendees.map { it.email to it.status } shouldContainExactly
+			listOf(ANNA to AttendeeStatus.ACCEPTED, BOB to AttendeeStatus.NEEDS_ACTION)
+	}
+
+	@Test
+	fun `a sender whose display name shows the attendee's address is not taken for the attendee`() {
+		val event = createEvent(attendees = listOf(ANNA))
+		val spoofed =
+			replyMail(from = MALLORY, uid = event, attendee = ANNA, partStat = "DECLINED").apply {
+				setFrom(InternetAddress(MALLORY, ANNA))
+				saveChanges()
+			}
+		appendTo("INBOX", spoofed)
+		fullSyncInbox()
+
+		processor.process(cachedInbox().single().id).shouldBeEmpty()
+
+		stored(event).attendees.single().status shouldBe AttendeeStatus.NEEDS_ACTION
+	}
+
+	@Test
+	fun `a series REPLY skips overrides that no longer list the attendee`() {
+		val series = createEvent(attendees = listOf(ANNA, BOB), rrule = "FREQ=WEEKLY")
+		val withoutAnna =
+			api
+				.patchEventOk(
+					series,
+					"""{"attendees":[{"email":"$BOB"}]}""",
+					"?scope=THIS&occurrence=2026-11-09T08:00:00Z",
+				).id()
+		appendTo("INBOX", replyMail(from = ANNA, uid = series, attendee = ANNA, partStat = "ACCEPTED"))
+		fullSyncInbox()
+
+		processor.process(cachedInbox().single().id) shouldContainExactly listOf(UUID.fromString(series))
+
+		stored(withoutAnna).attendees.map { it.email to it.status } shouldContainExactly listOf(BOB to AttendeeStatus.NEEDS_ACTION)
+	}
+
 	// --- helpers -------------------------------------------------------------------------------------------------------
 
 	private fun createEvent(
@@ -734,6 +877,7 @@ class ItipGreenMailTests(
 		private const val CAROL = "carol@example.test"
 		private const val CAROL_USER = "carol"
 		private const val MALLORY = "mallory@example.test"
+		private const val MALLORY_USER = "mallory"
 		private const val AWAIT_NANOS = 15_000_000_000L
 		private const val POLL_MILLIS = 50L
 
