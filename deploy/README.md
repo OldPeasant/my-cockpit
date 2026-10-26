@@ -62,21 +62,39 @@ Passkeys (optional, all empty by default):
 | `COCKPIT_AUTH_PASSKEY_RP_ID` | `COCKPIT_DOMAIN` | Domain the passkeys are bound to |
 | `COCKPIT_AUTH_PASSKEY_ORIGINS` | `https://<COCKPIT_DOMAIN>` | Comma-separated accepted origins. Replaces the default, so list the web origin too |
 | `COCKPIT_AUTH_PASSKEY_RP_NAME` | `My Cockpit` | Name the authenticator shows |
+| `COCKPIT_AUTH_PASSKEY_ANDROID_FINGERPRINTS` | none | Comma-separated SHA-256 fingerprints of the Android app's signing certificate(s) |
+| `COCKPIT_AUTH_PASSKEY_ANDROID_PACKAGE` | `ch.sonensei.cockpit` | Package name of the Android app |
 
-The web app works without them. Passkeys in the Android app need its origin in `COCKPIT_AUTH_PASSKEY_ORIGINS`:
+The web app works without them. Passkeys in the Android app need two things, both from
+`COCKPIT_AUTH_PASSKEY_ANDROID_FINGERPRINTS`:
+
+1. **Digital Asset Links.** Credential Manager only offers passkeys for an RP ID whose domain lists the app in
+   `https://<RP ID>/.well-known/assetlinks.json` (relation `delegate_permission/common.get_login_creds`, the
+   package and the fingerprints). The server serves that file without login; without fingerprints it is `[]`.
+   If `COCKPIT_AUTH_PASSKEY_RP_ID` is not `COCKPIT_DOMAIN` (e.g. the parent domain), serve the same file on the
+   RP ID's host yourself.
+2. **The app's origin.** The app signs in with the origin `android:apk-key-hash:<base64url, no padding, of the
+   certificate's SHA-256>`. The server accepts that origin for every configured fingerprint, in addition to the
+   web origin (or `COCKPIT_AUTH_PASSKEY_ORIGINS`), so it never has to be listed by hand.
+
+The fingerprint is printed as hex with colons (`AB:CD:...`, 32 bytes; lower case or without colons works too). The
+APK is signed with scheme v2/v3 only, so use `apksigner` (Android SDK `build-tools/<version>/`), not
+`keytool -printcert -jarfile`, or read the keystore:
 
 ```sh
-COCKPIT_AUTH_PASSKEY_ORIGINS=https://cockpit.example.org,android:apk-key-hash:REPLACE_WITH_APK_KEY_HASH
+apksigner verify --print-certs cockpit.apk | grep 'SHA-256 digest'
+keytool -list -v -keystore release.jks -alias <alias> | grep 'SHA256:'
+# deploy/.env:
+COCKPIT_AUTH_PASSKEY_ANDROID_FINGERPRINTS=AB:CD:...:EF
+curl https://cockpit.example.org/.well-known/assetlinks.json     # check
 ```
 
-The hash is the base64url-encoded (no padding) SHA-256 of the APK's signing certificate. The APK is
-signed with scheme v2/v3 only, so use `apksigner` (Android SDK `build-tools/<version>/`), not `keytool -printcert -jarfile`:
+List one fingerprint per key that signs installed apps (e.g. the release key and, while testing, the debug key).
+To see the app origin of a fingerprint (it is what the server accepts):
 
 ```sh
-apksigner verify --print-certs cockpit.apk | python3 -c 'import base64,re,sys; print(base64.urlsafe_b64encode(bytes.fromhex(re.search(r"SHA-?256(?: digest)?: ([0-9A-Fa-f:]+)", sys.stdin.read()).group(1).replace(":", ""))).decode().rstrip("="))'
+echo 'AB:CD:...:EF' | python3 -c 'import base64,sys; print("android:apk-key-hash:" + base64.urlsafe_b64encode(bytes.fromhex(sys.stdin.read().strip().replace(":", ""))).decode().rstrip("="))'
 ```
-
-The same filter also reads `keytool -list -v -keystore <release.keystore> -alias <alias>` (its `SHA256:` line).
 
 Restart the server after changing it: `docker compose -f deploy/docker-compose.yml up -d server`.
 

@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.core.auth.infra
 
 import ch.sonensei.cockpit.core.auth.domain.DeviceTokenService
 import ch.sonensei.cockpit.core.auth.domain.LoginService
+import ch.sonensei.cockpit.core.auth.passkey.api.AssetLinksController
 import jakarta.servlet.DispatcherType
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
@@ -29,7 +30,7 @@ import org.springframework.web.filter.OncePerRequestFilter
  * HTTP security (SPEC.md §4.1).
  *
  * - Everything under `/api/`, `/actuator/`, `/download/` (the Android app) and the OpenAPI docs needs a login, except the health endpoint, the
- *   setup flow (it runs before an account exists) and login/logout (password or passkey). The SPA (static files and the `index.html`
+ *   Digital Asset Links (`/.well-known/assetlinks.json`), the setup flow (it runs before an account exists) and login/logout (password or passkey). The SPA (static files and the `index.html`
  *   fallback for client routes) is public for GET/HEAD; any other request outside the API needs a login too.
  * - Logins are sessions in the database ([SessionAuthenticationFilter], cookie [SessionCookies.NAME]); there is no
  *   servlet `HttpSession`. The Android app sends `Authorization: Bearer` access tokens of a device
@@ -61,6 +62,8 @@ class SecurityConfiguration {
 					.dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR, DispatcherType.ASYNC)
 					.permitAll()
 					.requestMatchers("/actuator/health", "/actuator/health/**", "$SETUP_PATH/**", SETUP_PATH)
+					.permitAll()
+					.requestMatchers(HttpMethod.GET, AssetLinksController.PATH)
 					.permitAll()
 					.requestMatchers(HttpMethod.POST, LOGIN_PATH, LOGOUT_PATH, TOKEN_PATH, TOKEN_REFRESH_PATH)
 					.permitAll()
