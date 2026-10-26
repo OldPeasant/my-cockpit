@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "task": "backup-workdir-tmp-leak",
+  "reviewed_revision": "3fd960bf867a82404c515c30ada8b242f3b321d7",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/backup-workdir-tmp-leak/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/backup-workdir-tmp-leak/review.md"},
+    "fixer": {"status": "not_required", "reason": "No findings from test-writer (no production bugs) or code-reviewer (0 P0-P3)"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "sh .tmp/leakcheck.sh (cd server && JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=<clone>/.tmp/jtmp ./gradlew check --rerun-tasks; 0 cockpit-backups*/cockpit-restores* dirs left)", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests '*BackupWorkDirCleanupTests' --tests '*BackupJobServiceTests'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
