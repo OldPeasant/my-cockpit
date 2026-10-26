@@ -41,9 +41,14 @@ class VapidKeyService(
 	private val newTx =
 		TransactionTemplate(transactions).apply { propagationBehavior = TransactionDefinition.PROPAGATION_REQUIRES_NEW }
 
+	/** Push is optional: a key pair that can't be read (e.g. a different master key) must not stop the server. */
 	@EventListener(ApplicationReadyEvent::class)
 	fun generateAtStartup() {
-		current()
+		try {
+			current()
+		} catch (e: RuntimeException) {
+			log.warn("The VAPID key pair for Web Push is not usable, push messages will fail: {}", e.toString())
+		}
 	}
 
 	/** The key pair, generated on first use. Two instances generating at once agree on the one stored first. */
