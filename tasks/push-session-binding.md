@@ -12,7 +12,8 @@ Web Push stops when the session that subscribed ends, also without an explicit l
 closed, 12 h idle expiry, session revoked). Follow-up of review finding CR-1 in `reviews/web-push/review.md`.
 
 ## Acceptance criteria
-- [ ] `push_subscription` references the `auth_session` that created it (new Flyway migration, `on delete cascade`); PUT /api/v1/push/subscriptions stores the current session (a session id in `CockpitPrincipal`); a re-subscribe from a new session moves the subscription to it
+- [x] `push_subscription` references the `auth_session` that created it (new Flyway migration, `on delete cascade`); PUT /api/v1/push/subscriptions stores the current session (a session id in `CockpitPrincipal`); a re-subscribe from a new session moves the subscription to it
+  - verified (2026-10-26 19:07+0100 by dell26/agent-1): Migration V202610261800__core_push_session.sql adds push_subscription.session_id uuid not null references auth_session on delete cascade; CockpitPrincipal.sessionId set by LoginService; PushSessionBindingTests (real setup+login+cookie PUT) 'subscribing stores the session of the request' and 'subscribing again from a new session moves the subscription to it' pass: ./gradlew test --tests 'ch.sonensei.cockpit.core.push.*' on ed147c713 against Testcontainers Postgres 16 -> 127 tests, 0 failures
 - [ ] Pushes are not sent to subscriptions whose session is expired; they are deleted (with the session cleanup or on send)
 - [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.push.*'` passes, with tests for logout, idle expiry and revoked session
 
