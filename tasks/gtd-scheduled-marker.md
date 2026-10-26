@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [web-next-today]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,web/src/app/features/gtd/today]
 prio: 2
-lease_until: 2026-10-26T15:59:07Z
+lease_until: 2026-10-26T16:07:53Z
 releases: 0
 extended: 
 hold: 
