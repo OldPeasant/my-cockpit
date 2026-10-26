@@ -16,3 +16,4 @@ Search file contents (SPEC.md §4.4).
 
 ## Notes
 - ASSUMPTION (2026-10-26 13:36+0100 by dell26/agent-2): Extracted text is cached in a new table file_text (not backed up: rebuilt from blobs after a restore); FilesService.indexed(file) now re-reads it so rename/move/restore keep the body. Small edit outside touches (FilesService, build.gradle.kts pdfbox line, test application.properties scheduler switch).
+- ASSUMPTION (2026-10-26 13:36+0100 by dell26/agent-2): Limits (cockpit.files.fulltext.*): max-file-size 20MB, max-chars 100000 (SearchIndexer body limit), max-pages 500; job every 30s (initial 1 min). Supported: application/pdf and the text types the preview treats as text.
