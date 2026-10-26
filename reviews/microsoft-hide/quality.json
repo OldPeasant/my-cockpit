@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "task": "microsoft-hide",
+  "reviewed_revision": "64168071e9f89037d82f24395ece2d27ffaf2d49",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/microsoft-hide/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/microsoft-hide/review.md"},
+    "fixer":         {"status": "not_required", "reason": "test-writer found no production defects; the code-reviewer reported only two optional P3 items, both accepted"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "manual Test/folder sync of existing MICROSOFT mail accounts stays allowed by design; recorded as assumption (2026-10-26 10:00) in tasks/microsoft-hide.md; no such accounts exist"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "contacts page hint text mentioning Microsoft is outside this task's touches and the three settings screens the criterion names; noted in the task assumptions for a follow-up if the owner wants it"}
+  ],
+  "validation": [
+    {"command": "server/gradlew -p server check jacocoTestReport (4755 tests, 0 failures)", "result": "pass"},
+    {"command": "npm --prefix web run check (175 test files)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
