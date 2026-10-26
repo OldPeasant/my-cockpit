@@ -8,7 +8,7 @@ prio: 2
 lease_until: 
 releases: 0
 extended: 
-hold: All criteria verified and quality evidence committed (reviews/gtd-delete-reassign/, HEAD 71329300); only 'tasks.py done' is left. It could not finish: the server part of .taskcheck (gradle test incl. 
+hold: 
 ---
 ## Goal
 Deleting a context/area with "move to another" must also reach items the list endpoints hide
@@ -31,3 +31,4 @@ Deleting a context/area with "move to another" must also reach items the list en
 - release by dell26/agent-2: Implementation complete (server DELETE ?replaceWith/?moveTo in one tx incl. tickler/Trash, 400 on unknown/self target; openapi regenerated; web settings uses the params, hint removed). CR-1 fixed, clean re-review committed (reviews/gtd-delete-reassign/review.md, fixes.md). At dfb237034 all gtd server tests pass (32 classes incl. AreaContextWebTests 20, AreaContextDeleteRollbackTests 2) and ktlintCheck is clean. Left: (1) run test-writer on final code -> reviews/gtd-delete-reassign/tests.md with coverage; (2) if it changes nothing, write quality.json (reviewed_revision = final hash, fixer ran for CR-1); (3) run cd web && npm run check, then tasks.py verify for #1 and #2; (4) sh scripts/check.sh, then done. An earlier .taskcheck failure was only 'Disk quota exceeded' in BackupRoundTripTest/FilesBackupContributorTests (host issue, unrelated).
 - hold by dell26/agent-1: Task complete: both criteria verified, test/review/quality evidence committed (reviewed_revision 4d2582b47, fresh). .taskcheck fails only in BackupRoundTripTest and FilesBackupContributorTests with 'java.io.IOException: Disk quota exceeded': host /tmp tmpfs is 80% full of leaked /tmp/cockpit-round-trip-data* dirs that agents cannot delete. A human must clean /tmp, then unhold; the next owner only runs: python tasks.py done gtd-delete-reassign
 - hold by felix/agent-1: All criteria verified and quality evidence committed (reviews/gtd-delete-reassign/, HEAD 71329300); only 'tasks.py done' is left. It could not finish: the server part of .taskcheck (gradle test incl. jacoco) was still running after ~20 min on this machine (it reached the mail.* tests, so not hung, just slow; other agents' gradle daemons share the CPU). A human should check why the check takes far longer than its 2-min budget (or raise TASK_CHECK_TIMEOUT), then unhold so 'done' can be rerun. Note: an orphaned gradle test worker (pid 2657487) from that run may still be running in agent-1/server.
+- unhold by Peter Gürtler: finishing from a human machine
