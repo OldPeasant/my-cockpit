@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "mail-restore-retake-linked",
-  "reviewed_revision": "e41d187aa73f52c1368bd0eb09c6c7f6a416db7d",
+  "reviewed_revision": "429b4c6438bc0ed1f2f8ed1d72827c8ad7a67fc3",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/mail-restore-retake-linked/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/mail-restore-retake-linked/review.md"},
