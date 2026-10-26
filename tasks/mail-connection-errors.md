@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [mail-gtd]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,server/src/main/kotlin/ch/sonensei/cockpit/mail/imap/MailAccountController.kt,server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdController.kt]
 prio: 2
-lease_until: 2026-10-26T01:59:57Z
+lease_until: 2026-10-26T02:00:23Z
 ---
 ## Goal
 Remove the duplicated `@ExceptionHandler(MailConnectionException::class)` copies in MailMessageController,
