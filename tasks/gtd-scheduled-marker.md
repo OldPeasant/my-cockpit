@@ -1,11 +1,11 @@
 ---
 title: Today view: keep 'scheduled for today' visible after the scheduled release
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [web-next-today]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,web/src/app/features/gtd/today]
 prio: 2
-lease_until: 2026-10-26T16:07:53Z
+lease_until: 
 releases: 0
 extended: 
 hold: 
@@ -30,3 +30,4 @@ TaskService.releaseDue moves SCHEDULED tasks to NEXT and clears scheduledDate, s
 - release by felix/agent-1: Implementation done and committed (8c18fe35 server: Task.releasedOn + Flyway migration + GET /tasks?scheduled=today + openapi regen; 7509e6a3 web Today view). Code review in reviews/gtd-scheduled-marker/review.md (only P3 CR-1, moved to follow-up task and-today-released). Test-writer's extra tests committed WIP in 9a159199, tests.md NOT written. Left: (1) investigate server check hang: sh scripts/check.sh hangs in 'server: ktlint + tests' (killed by timeout after ~9.5 min, no error in log, twice on host felix) - run cd server && ./gradlew check --info and check whether a test from 9a159199 hangs (e.g. a clock/scheduler wait) or it is host-specific; (2) re-run test-writer to finish tests + write tests.md with coverage; (3) re-run code-reviewer on final code (review predates 9a159199); (4) verify both criteria; (5) quality.json; (6) done.
 - release by felix/agent-1: Implementation done and committed (c141a864 server: Task.releasedOn + Flyway migration + GET /tasks?scheduled=today + openapi regen; 00e5aaf0 web Today view). Code review in reviews/gtd-scheduled-marker/review.md (only P3 CR-1 -> follow-up task and-today-released). Test-writer's extra tests committed WIP in ddb2ec2f; 456ac139 adds fsync=off etc. to PostgresTestBase (shared file outside touches - keep only if it helps the check, else revert) and drops a redundant !! in TicklerWebTests. tests.md NOT written, no criterion verified, no quality.json. Left: (1) sh scripts/check.sh hung in 'server: ktlint + tests' twice on host felix (~9.5 min, no error): run cd server && ./gradlew check --info and find whether a test from ddb2ec2f hangs or it is host/Docker-specific; (2) test-writer -> tests.md with coverage; (3) code-reviewer again on final code; (4) verify both criteria; (5) quality.json; (6) done.
 - release by felix/agent-1: Everything except done is finished and committed: both criteria verified, reviews/gtd-scheduled-marker/{tests.md,review.md,quality.json} committed (done already merged main, so the patch-id evidence stays fresh). Only left: python tasks.py done gtd-scheduled-marker. On host felix, sh scripts/check.sh hung 3 times in 'server: ./gradlew check' (Gradle Test Executor kept running, no new test-results after 15 min, no error). gradlew -p server check alone passed earlier at 28e44631, so it looks host/Docker-load specific. Run done on another host; if it hangs there too, run cd server && ./gradlew check --info and jstack the Test Executor to find the stuck test. Note: an orphaned Test Executor (pid 3416881) may still be running on felix.
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 780s on bb5e6adf4; criteria verified 2/2
