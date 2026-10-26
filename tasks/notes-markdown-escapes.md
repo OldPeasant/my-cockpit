@@ -1,11 +1,11 @@
 ---
 title: Robust plain text of note Markdown with backslash escapes
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [mail-gtd]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/notes/domain/NoteMarkdown.kt,server/src/test/kotlin/ch/sonensei/cockpit/notes,server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailGtdService.kt,server/src/test/kotlin/ch/sonensei/cockpit/mail/gtd]
 prio: 2
-lease_until: 2026-10-26T04:41:07Z
+lease_until: 
 ---
 ## Goal
 `NoteMarkdown.plainText` (flexmark `TextCollectingVisitor`) miscounts Markdown backslash escapes next to bold text,
@@ -26,3 +26,4 @@ display name. Found in mail-gtd, which works around it by writing mail escapes a
 - Also check whether entity/numeric references (`&amp;`, `&#91;`, `&nbsp;`) next to bold/autolinks/hard breaks trip the same assertion (mail-gtd final review note).
 - ASSUMPTION (2026-10-26 04:12+0100 by dell26/agent-2): NoteMarkdown.plainText now uses its own AST walk instead of flexmark's TextCollectingVisitor (no flexmark option fixes the miscount). Side effects judged improvements: table cells are space-separated (was 'DayPlace'), undefined reference brackets like [x] stay literal text, mail autolink addresses are kept in the search text, entities resolve correctly (&#91; -> '[' instead of '[[]').
 - ASSUMPTION (2026-10-26 04:48+0100 by dell26/agent-2): titleOf now derives the title from the first non-blank line of plainText of the whole body (fix of TW-1): titles of notes starting with a table are its header cells, text inside a leading multi-line HTML block is no longer the title (consistent with search text); whole-body parse per title accepted (CR-1, P3) since notes are small
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 656s on 48ba7a6f3; criteria verified 3/3
