@@ -14,3 +14,4 @@ Fast with realistic data volumes.
 - [ ] Seed 10k tasks, 2k notes, 50k mail headers, 5k events; p95 of list/search endpoints < 200 ms measured in a repeatable test (`external` tag); indexes added as migrations; results in docs/perf.md
 
 ## Notes
+- ASSUMPTION (2026-10-26 15:00+0100 by dell26/agent-1): p95 is measured in-process through MockMvc (security filters, controller, service, Postgres; no network/TLS/Caddy), 10 warm-up + 50 sequential samples per endpoint; network latency is deployment-specific and not part of the server baseline
