@@ -1,11 +1,11 @@
 ---
 title: Android UnifiedPush client
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [and-reminders, unifiedpush-server]
 prio: 3
 parent: unifiedpush-android
-lease_until: 2026-10-26T22:17:09Z
+lease_until: 
 extended: 
 releases: 0
 hold: 
@@ -36,3 +36,4 @@ Goal: The app registers with a UnifiedPush distributor (ntfy) and reacts to serv
 - release by dell26/agent-2: Implementation is done and committed (push package, LogoutHook in AuthRepository, connector 3.3.5 in libs.versions.toml and the ARCHITECTURE stack table). fixes.md covers round-1 CR-1 (Mutex orders PUT/DELETE); CR-2 was left as is on purpose (assumption). .taskcheck ran with no failures in its output. Left: (1) round-2 review.md P3 CR-1: in PushRegistrar.deleteOnServer set deleted=instance BEFORE requests.withLock, so a lock wait that times out (5s LOGOUT_HOOK_TIMEOUT_MS) still drops queued PUTs, and add a test; run fixer for this. (2) test-writer was never run: tests.md is missing (needs task-scoped coverage). (3) Re-run code-reviewer on the final code. (4) tasks.py verify for AC1-3 (run: cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*'). (5) Write quality.json, then done.
 - release by dell26/agent-1: All 3 criteria implemented and verified; final test-writer and code-reviewer reports (0 findings) and quality.json committed at 83603e8c2 (reviewed_revision = that hash). Only 'done' is left, but its .taskcheck failed after merging main: android :app:testDebugUnitTest hit java.lang.OutOfMemoryError: Java heap space in the unrelated ch.sonensei.cockpit.ui.theme.CockpitThemeTest (2121 tests, 1 failed). Next owner: re-run 'python tasks.py done' once (it may be transient); if OOM persists, raise the test heap or set forkEvery for unit tests in android/app/build.gradle.kts (or do it in a separate task first). A build-file change makes the review evidence stale, so re-run test-writer + code-reviewer and update quality.json. Don't write the words TODO/TBD in reports: the gate rejects them.
 - ASSUMPTION (2026-10-26 22:49+0100 by dell26/agent-2): Android unit test JVM heap raised to 2g (app/build.gradle.kts maxHeapSize): the full suite OOMed in CockpitThemeTest at the 512m default after merging main, blocking .taskcheck; done here rather than a separate task since it blocked done
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 83s on 97e23a145; criteria verified 3/3
