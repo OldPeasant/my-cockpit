@@ -214,10 +214,10 @@ class AuthRepository internal constructor(
                 logoutHooks.forEach { hook ->
                     try {
                         withTimeoutOrNull(LOGOUT_HOOK_TIMEOUT_MS) { hook.beforeLogout() }
-                    } catch (e: CancellationException) {
-                        throw e
                     } catch (_: Exception) {
-                        // Best effort: the logout goes on. Not logged: the exception may carry user data.
+                        // Best effort: the logout goes on. Not logged: the exception may carry user data. This also
+                        // swallows a CancellationException: under NonCancellable it can only come from the hook itself
+                        // (e.g. its own withTimeout), never from cancelling this logout.
                     }
                 }
                 tokenStore.session.value?.deviceId?.let { id ->
