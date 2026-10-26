@@ -1,11 +1,11 @@
 ---
 title: BackupEventsStreamTests flakes under full-suite load (step was 'bookmarks: data', expected 'controllable: data')
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/backup]
 prio: 2
-lease_until: 2026-10-26T14:03:05Z
+lease_until: 
 ---
 ## Goal
 `backup.BackupEventsStreamTests` "progress of a running backup reaches the SSE stream before the export
@@ -20,3 +20,4 @@ event belongs to the gated `controllable` contributor, but other contributors' s
   - verified (2026-10-26 14:42+0100 by dell26/agent-1): cd server && ./gradlew test --tests '*BackupEventsStreamTests' -> 1 test, 0 failures; cd server && ./gradlew check -> exit 0, 4860 tests, 0 failures/errors; sh scripts/check.sh -> all checks passed
 
 ## Notes
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 84s on a6eb9b8b1; criteria verified 2/2
