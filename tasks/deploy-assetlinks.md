@@ -20,3 +20,4 @@ Serve `https://<rp-id>/.well-known/assetlinks.json` with `delegate_permission/co
 ## Notes
 Found while reviewing and-passkeys (see passkeys-server assumption: assetlinks left to deployment).
 - ASSUMPTION (2026-10-26 06:14+0100 by dell26/agent-2): Config: cockpit.auth.passkey.android-fingerprints / android-package (env COCKPIT_AUTH_PASSKEY_ANDROID_FINGERPRINTS / _PACKAGE, default package ch.sonensei.cockpit). Without fingerprints assetlinks.json is [] (valid, links nothing) rather than 404; an invalid fingerprint fails startup.
+- ASSUMPTION (2026-10-26 06:14+0100 by dell26/agent-2): PasskeyRelyingParties now always accepts android:apk-key-hash:<b64url> for each configured fingerprint in addition to origins/defaults, so the app origin needs no manual COCKPIT_AUTH_PASSKEY_ORIGINS entry (explicit origins still work).
