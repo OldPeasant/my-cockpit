@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "task": "backup-contrib-review",
+  "reviewed_revision": "3c3d5d0558b87db99d85bbb6cf57e2350be46650",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/backup-contrib-review/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/backup-contrib-review/review.md"},
+    "fixer": {"status": "not_required", "reason": "test-writer found no production bugs and code-reviewer reported no findings"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests '*ReviewBackupContributorTests' --tests '*BackupRoundTripTest'", "result": "pass"},
+    {"command": "cd server && ./gradlew test --rerun jacocoTestReport ktlintCheck", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
