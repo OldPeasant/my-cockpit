@@ -44,8 +44,11 @@ data class TodayUiState(
 ) {
     val loading: Boolean get() = refreshedAt == null && sections.isEmpty() && !offline && !loadFailed
 
-    /** Nothing to show and a list was never loaded because its load failed: the screen shows an error with a retry. */
-    val firstLoadFailed: Boolean get() = refreshedAt == null && sections.isEmpty() && loadFailed
+    /**
+     * A list the screen needs was never loaded because its load failed: the screen shows an error with a retry, in
+     * full when there is nothing to show, else as a banner above the sections of the other list.
+     */
+    val firstLoadFailed: Boolean get() = refreshedAt == null && loadFailed
 }
 
 /**

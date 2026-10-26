@@ -169,6 +169,23 @@ class TodayScreenTest {
     }
 
     @Test
+    fun `a failed first load of one view shows a banner with a retry above the other view's sections`() {
+        show(TodayUiState(sections = listOf(TodaySection(TodaySectionKind.SCHEDULED, listOf(scheduled))), loadFailed = true, today = today))
+        composeRule.onNodeWithTag(TaskListTags.ERROR).assertIsDisplayed()
+        composeRule
+            .onNode(hasText("The server could not send this list. Try again.") and hasAnyAncestor(hasTestTag(TaskListTags.ERROR)))
+            .assertIsDisplayed()
+        composeRule.onNodeWithTag(TodayTags.LIST).assertIsDisplayed()
+        composeRule.onNodeWithTag(TodayTags.section(TodaySectionKind.SCHEDULED)).assertIsDisplayed()
+        composeRule.onNodeWithText("Book the train").assertIsDisplayed()
+        composeRule.onNodeWithTag(TodayTags.LOADING).assertDoesNotExist()
+
+        composeRule.onNodeWithTag(TaskListTags.RETRY).assertIsDisplayed().performClick()
+
+        assertEquals(listOf("retry"), calls)
+    }
+
+    @Test
     fun `a failed reload keeps the sections without the error`() {
         show(loaded.copy(loadFailed = true))
         composeRule.onNodeWithTag(TodayTags.section(TodaySectionKind.OVERDUE)).assertIsDisplayed()

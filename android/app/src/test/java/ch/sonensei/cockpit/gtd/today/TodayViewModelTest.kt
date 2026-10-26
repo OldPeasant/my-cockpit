@@ -299,6 +299,26 @@ class TodayViewModelTest {
         }
 
     @Test
+    fun `a failed first load of the Today view is an error even when the Next view has tasks for today`() =
+        test { vm ->
+            todayFlow.value = Cached(emptyList(), offline = false, refreshedAt = null, failure = RefreshResult.Failed(403))
+            nextFlow.value = Cached(listOf(scheduled), offline = false, refreshedAt = loadedAt)
+            assertEquals(mapOf(TodaySectionKind.SCHEDULED to listOf(scheduled)), vm.sections())
+            assertTrue(vm.uiState.value.loadFailed)
+            assertTrue(vm.uiState.value.firstLoadFailed)
+            assertFalse(vm.uiState.value.loading)
+        }
+
+    @Test
+    fun `a failed first load of the Next view is an error even when the Today view has tasks`() =
+        test { vm ->
+            nextFlow.value = Cached(emptyList(), offline = false, refreshedAt = null, failure = RefreshResult.Failed(400))
+            assertEquals(mapOf(TodaySectionKind.OVERDUE to listOf(overdue), TodaySectionKind.DUE to listOf(due)), vm.sections())
+            assertTrue(vm.uiState.value.firstLoadFailed)
+            assertFalse(vm.uiState.value.loading)
+        }
+
+    @Test
     fun `a failed reload keeps the sections instead of the error`() =
         test { vm ->
             todayFlow.value = todayFlow.value.copy(failure = RefreshResult.Failed(400))

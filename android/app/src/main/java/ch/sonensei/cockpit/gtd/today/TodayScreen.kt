@@ -33,6 +33,7 @@ import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.next.CompletionSnackbar
 import ch.sonensei.cockpit.gtd.next.CompletionSnackbarEffect
 import ch.sonensei.cockpit.gtd.next.LoadFailed
+import ch.sonensei.cockpit.gtd.next.LoadFailedBanner
 import ch.sonensei.cockpit.gtd.next.OfflineBanner
 import ch.sonensei.cockpit.gtd.next.TaskListTags
 import ch.sonensei.cockpit.gtd.next.TaskRow
@@ -89,6 +90,9 @@ fun TodayContent(
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             if (state.offline) OfflineBanner(state.refreshedAt)
+            if (state.firstLoadFailed && state.sections.isNotEmpty()) {
+                LoadFailedBanner(callbacks.retry, Modifier.testTag(TaskListTags.ERROR))
+            }
             when {
                 state.sections.isNotEmpty() ->
                     LazyColumn(Modifier.fillMaxSize().testTag(TodayTags.LIST)) {

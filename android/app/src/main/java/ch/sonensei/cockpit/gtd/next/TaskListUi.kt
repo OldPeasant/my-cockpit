@@ -90,6 +90,22 @@ fun LoadFailed(
     }
 }
 
+/** A list the screen needs failed its first load while another one shows: [LoadFailed] as a banner above the list. */
+@Composable
+fun LoadFailedBanner(
+    retry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = modifier.fillMaxWidth()) {
+        Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 10.dp)) {
+            Text(stringResource(R.string.lists_error_failed), style = MaterialTheme.typography.bodyMedium)
+            TextButton(onClick = retry, modifier = Modifier.align(Alignment.End).testTag(TaskListTags.RETRY)) {
+                Text(stringResource(R.string.lists_retry))
+            }
+        }
+    }
+}
+
 /** One open task: a checkbox to complete it (disabled while [readOnly]), its title and what it needs. */
 @Composable
 fun TaskRow(
