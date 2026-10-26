@@ -35,7 +35,7 @@
     </plurals>
     <string name="projects_none_stalled">Jedes aktive Projekt hat einen nächsten Schritt</string>
     <string name="projects_show_finished">Abgeschlossen (%1$d)</string>
-    <string name="projects_empty">Noch keine Projekte. Mach aus einem Eingangseintrag mit „Zu Projekt“ eines.</string>
+    <string name="projects_empty">Noch keine Projekte. Mach aus einem Eingangseintrag mit „Zum Projekt“ eines.</string>
     <string name="projects_no_area">Kein Bereich</string>
     <string name="projects_area_unloaded">In einem Bereich (Bereiche nicht geladen)</string>
     <string name="projects_areas_failed">Die Bereiche konnten nicht geladen werden, daher sind die Projekte nicht nach Bereich gruppiert.</string>

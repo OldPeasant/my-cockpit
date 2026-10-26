@@ -42,7 +42,7 @@
     <string name="next_creativity_routine">Routine</string>
     <string name="next_creativity_mixed">Gemischt</string>
     <string name="next_creativity_creative">Kreativ</string>
-    <string name="next_empty">Keine nächsten Aktionen. Bearbeite deinen Eingang, um welche hinzuzufügen.</string>
+    <string name="next_empty">Keine nächsten Aktionen. Verarbeite deinen Eingang, um welche hinzuzufügen.</string>
     <string name="next_empty_filtered">Keine nächste Aktion passt zu diesen Filtern.</string>
 
     <!-- Heute -->

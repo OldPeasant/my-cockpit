@@ -10,7 +10,7 @@
     <string name="nav_new">Neu</string>
     <string name="nav_next">Nächste</string>
     <string name="nav_projects">Projekte</string>
-    <string name="nav_waiting">Warten</string>
+    <string name="nav_waiting">Warten auf</string>
     <string name="nav_someday">Irgendwann</string>
     <string name="nav_notes">Notizen</string>
     <string name="nav_files">Dateien</string>
@@ -18,7 +18,7 @@
     <string name="nav_bookmarks">Lesezeichen</string>
     <string name="nav_journal">Journal</string>
     <string name="nav_habits">Gewohnheiten</string>
-    <string name="nav_review">Überprüfung</string>
+    <string name="nav_review">Wochenrückblick</string>
     <string name="nav_settings">Einstellungen</string>
     <string name="nav_back">Zurück</string>
 

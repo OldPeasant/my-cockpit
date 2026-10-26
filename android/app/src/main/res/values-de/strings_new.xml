@@ -21,6 +21,6 @@
     <string name="new_task_failed">Die Aufgabe konnte nicht erstellt werden.</string>
     <string name="new_dismiss">Schließen</string>
     <string name="new_task_created_at">Erfasst %1$s</string>
-    <string name="new_task_hint">Bearbeite sie im Eingang, um zu entscheiden, was sie ist.</string>
+    <string name="new_task_hint">Verarbeite sie im Eingang, um zu entscheiden, was sie ist.</string>
     <string name="new_no_subject">(kein Betreff)</string>
 </resources>

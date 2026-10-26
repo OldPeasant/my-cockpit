@@ -2044,7 +2044,7 @@
       </trans-unit>
       <trans-unit id="capture.syntaxHint" datatype="html">
         <source> Add <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/>#project<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/>@context<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/>!today<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/>!tomorrow<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> or <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/>!2026-11-03<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, and <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/>^name<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> for waiting. </source>
-        <target state="translated">Ergänze <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/>#Projekt<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/>@Kontext<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/>!heute<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/>!morgen<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> oder <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/>!2026-11-03<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> und <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/>^Name<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> für „Wartet auf“.</target>
+        <target state="translated">Ergänze <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/>#Projekt<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/>@Kontext<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/>!today<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/>, <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/>!tomorrow<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> oder <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/>!2026-11-03<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> und <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/>^Name<x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/> für „Warten auf“.</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/capture/capture-dialog.html</context>
           <context context-type="linenumber">69,73</context>
@@ -2356,7 +2356,7 @@
       </trans-unit>
       <trans-unit id="contacts.related.loadFailed" datatype="html">
         <source> Mails, events and Waiting For items could not be loaded: <x id="INTERPOLATION" equiv-text="{{ error }}"/> </source>
-        <target state="translated">E-Mails, Termine und Einträge unter „Wartet auf“ konnten nicht geladen werden: <x id="INTERPOLATION" equiv-text="{{ error }}"/></target>
+        <target state="translated">E-Mails, Termine und Einträge unter „Warten auf“ konnten nicht geladen werden: <x id="INTERPOLATION" equiv-text="{{ error }}"/></target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/contacts/contact-detail.html</context>
           <context context-type="linenumber">160,162</context>
@@ -2364,7 +2364,7 @@
       </trans-unit>
       <trans-unit id="contacts.related.waiting" datatype="html">
         <source>Waiting for</source>
-        <target state="translated">Wartet auf</target>
+        <target state="translated">Warten auf</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/contacts/contact-detail.html</context>
           <context context-type="linenumber">168,169</context>
@@ -3202,7 +3202,7 @@
       </trans-unit>
       <trans-unit id="dashboard.inboxTasks" datatype="html">
         <source>{VAR_PLURAL, plural, =1 {task to process} other {tasks to process}}</source>
-        <target state="translated">{VAR_PLURAL, plural, =1 {Aufgabe zu bearbeiten} other {Aufgaben zu bearbeiten}}</target>
+        <target state="translated">{VAR_PLURAL, plural, =1 {Aufgabe zu verarbeiten} other {Aufgaben zu verarbeiten}}</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/dashboard/dashboard-page.html</context>
           <context context-type="linenumber">183,185</context>
@@ -3366,7 +3366,7 @@
       </trans-unit>
       <trans-unit id="dashboard.waitingOverdue" datatype="html">
         <source>Waiting For overdue</source>
-        <target state="translated">Überfällige Einträge unter „Wartet auf“</target>
+        <target state="translated">Überfällige Einträge unter „Warten auf“</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/dashboard/dashboard-page.ts</context>
           <context context-type="linenumber">29</context>
@@ -4194,7 +4194,7 @@
       </trans-unit>
       <trans-unit id="inbox.action.schedule" datatype="html">
         <source>Schedule</source>
-        <target state="translated">Terminieren</target>
+        <target state="translated">Einplanen</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/inbox/inbox-actions.ts</context>
           <context context-type="linenumber">65</context>
@@ -4226,7 +4226,7 @@
       </trans-unit>
       <trans-unit id="inbox.action.reference" datatype="html">
         <source>To reference</source>
-        <target state="translated">Zur Referenz</target>
+        <target state="translated">In die Ablage</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/inbox/inbox-actions.ts</context>
           <context context-type="linenumber">88</context>
@@ -4346,7 +4346,7 @@
       </trans-unit>
       <trans-unit id="inbox.referenced" datatype="html">
         <source>Moved to reference as the note “<x id="INTERPOLATION" equiv-text="{{ note.displayTitle }}"/>”.</source>
-        <target state="translated">Als Notiz „<x id="INTERPOLATION" equiv-text="{{ note.displayTitle }}"/>“ in die Referenz verschoben.</target>
+        <target state="translated">Als Notiz „<x id="INTERPOLATION" equiv-text="{{ note.displayTitle }}"/>“ in die Ablage verschoben.</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/inbox/inbox-page.html</context>
           <context context-type="linenumber">71,73</context>
@@ -4634,7 +4634,7 @@
       </trans-unit>
       <trans-unit id="gtd.scheduled.title" datatype="html">
         <source>Scheduled</source>
-        <target state="translated">Terminiert</target>
+        <target state="translated">Geplant</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/lists/scheduled-page.html</context>
           <context context-type="linenumber">3,6</context>
@@ -4658,7 +4658,7 @@
       </trans-unit>
       <trans-unit id="gtd.scheduled.empty" datatype="html">
         <source> Nothing scheduled. Schedule an inbox item to have it show up in Next on its date. </source>
-        <target state="translated">Nichts terminiert. Terminiere einen Eingangseintrag, damit er an diesem Datum unter „Nächste“ erscheint.</target>
+        <target state="translated">Nichts geplant. Plane einen Eingangseintrag ein, damit er an diesem Datum unter „Nächste“ erscheint.</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/lists/scheduled-page.html</context>
           <context context-type="linenumber">42,45</context>
@@ -4666,7 +4666,7 @@
       </trans-unit>
       <trans-unit id="nav.scheduled" datatype="html">
         <source>Scheduled</source>
-        <target state="translated">Terminiert</target>
+        <target state="translated">Geplant</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/lists/scheduled.routes.ts</context>
           <context context-type="linenumber">5</context>
@@ -4722,7 +4722,7 @@
       </trans-unit>
       <trans-unit id="gtd.waiting.title" datatype="html">
         <source>Waiting for</source>
-        <target state="translated">Wartet auf</target>
+        <target state="translated">Warten auf</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/lists/waiting-page.html</context>
           <context context-type="linenumber">3,5</context>
@@ -4806,7 +4806,7 @@
       </trans-unit>
       <trans-unit id="nav.waiting" datatype="html">
         <source>Waiting</source>
-        <target state="translated">Warten</target>
+        <target state="translated">Warten auf</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/lists/waiting.routes.ts</context>
           <context context-type="linenumber">5</context>
@@ -5134,7 +5134,7 @@
       </trans-unit>
       <trans-unit id="gtd.projects.stalled" datatype="html">
         <source>Stalled</source>
-        <target state="translated">Ins Stocken geraten</target>
+        <target state="translated">Stockend</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.html</context>
           <context context-type="linenumber">9,11</context>
@@ -5574,7 +5574,7 @@
       </trans-unit>
       <trans-unit id="gtd.projects.stalledCount" datatype="html">
         <source>{VAR_PLURAL, plural, =1 {1 project needs a next step.} other {<x id="INTERPOLATION"/> projects need a next step.}}</source>
-        <target state="translated">{VAR_PLURAL, plural, =1 {1 Projekt braucht eine nächste Aktion.} other {<x id="INTERPOLATION"/> Projekte brauchen eine nächste Aktion.}}</target>
+        <target state="translated">{VAR_PLURAL, plural, =1 {1 Projekt braucht einen nächsten Schritt.} other {<x id="INTERPOLATION"/> Projekte brauchen einen nächsten Schritt.}}</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/projects-page.html</context>
           <context context-type="linenumber">14,17</context>
@@ -6214,7 +6214,7 @@
       </trans-unit>
       <trans-unit id="taskDetail.saveShortcut" datatype="html">
         <source>Ctrl/⌘ ↵</source>
-        <target state="translated">Ctrl/⌘ ↵</target>
+        <target state="translated">Strg/⌘ ↵</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
           <context context-type="linenumber">362,364</context>
@@ -8254,7 +8254,7 @@
       </trans-unit>
       <trans-unit id="mail.unified" datatype="html">
         <source>All inboxes</source>
-        <target state="translated">Alle Eingänge</target>
+        <target state="translated">Alle Posteingänge</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-folder-tree.ts</context>
           <context context-type="linenumber">22,24</context>
@@ -8266,7 +8266,7 @@
       </trans-unit>
       <trans-unit id="mail.role.inbox" datatype="html">
         <source>Inbox</source>
-        <target state="translated">Eingang</target>
+        <target state="translated">Posteingang</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-folder-tree.ts</context>
           <context context-type="linenumber">70</context>
@@ -8542,7 +8542,7 @@
       </trans-unit>
       <trans-unit id="mail.keysHint" datatype="html">
         <source> Keys: j/k next/previous, o or double-click open, x select, e archive, # delete, Shift+I read, u unread, s star, v move, ! spam </source>
-        <target state="translated">Tasten: j/k nächste/vorherige, o oder Doppelklick öffnen, x auswählen, e archivieren, # löschen, Shift+I gelesen, u ungelesen, s Stern, v verschieben, ! Spam</target>
+        <target state="translated">Tasten: j/k nächste/vorherige, o oder Doppelklick öffnen, x auswählen, e archivieren, # löschen, Umschalt+I gelesen, u ungelesen, s Stern, v verschieben, ! Spam</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
           <context context-type="linenumber">239,242</context>
@@ -8730,7 +8730,7 @@
       </trans-unit>
       <trans-unit id="mailRead.gtdAria" datatype="html">
         <source>Process</source>
-        <target state="translated">Bearbeiten</target>
+        <target state="translated">Verarbeiten</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
           <context context-type="linenumber">43,45</context>
@@ -8746,7 +8746,7 @@
       </trans-unit>
       <trans-unit id="mailRead.toWaiting" datatype="html">
         <source> → Waiting For </source>
-        <target state="translated">→ Warten auf</target>
+        <target state="translated">→ „Warten auf“</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
           <context context-type="linenumber">60,62</context>
@@ -9018,7 +9018,7 @@
       </trans-unit>
       <trans-unit id="new.source.inbox" datatype="html">
         <source>GTD Inbox</source>
-        <target state="translated">Eingang</target>
+        <target state="translated">GTD-Eingang</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/new/new-page.html</context>
           <context context-type="linenumber">51,53</context>
@@ -9050,7 +9050,7 @@
       </trans-unit>
       <trans-unit id="new.keysHint" datatype="html">
         <source> Keys: 1 all, 2 GTD Inbox, 3 mail, j/k next/previous, o open, t make an Inbox task </source>
-        <target state="translated">Tasten: 1 alle, 2 Eingang, 3 E-Mail, j/k nächster/vorheriger, o öffnen, t Aufgabe im Eingang erstellen</target>
+        <target state="translated">Tasten: 1 alle, 2 GTD-Eingang, 3 E-Mail, j/k nächster/vorheriger, o öffnen, t Aufgabe im Eingang erstellen</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/new/new-page.html</context>
           <context context-type="linenumber">122,125</context>
@@ -9066,7 +9066,7 @@
       </trans-unit>
       <trans-unit id="new.filter.inbox" datatype="html">
         <source>GTD Inbox</source>
-        <target state="translated">Eingang</target>
+        <target state="translated">GTD-Eingang</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/new/new-page.ts</context>
           <context context-type="linenumber">57</context>
@@ -9278,7 +9278,7 @@
       </trans-unit>
       <trans-unit id="notes.editor.placeholder" datatype="html">
         <source>Write in Markdown. Paste or drop images, type [[ to link an item.</source>
-        <target state="translated">In Markdown schreiben. Bilder einfügen oder hineinziehen, mit [[ ein Element verknüpfen.</target>
+        <target state="translated">In Markdown schreiben. Bilder einfügen oder hineinziehen, mit [[ einen Eintrag verknüpfen.</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.html</context>
           <context context-type="linenumber">132,133</context>
@@ -9762,7 +9762,7 @@
       </trans-unit>
       <trans-unit id="review.lastDays" datatype="html">
         <source>Last weekly review: <x id="ICU" equiv-text="{days, plural, =1 {1 day} other {{{days}} days}}" xid="1035153266238401995"/> ago.</source>
-        <target state="translated">Letzter Wochenrückblick: vor <x id="ICU" equiv-text="{days, plural, =1 {1 day} other {{{days}} days}}" xid="1035153266238401995"/>.</target>
+        <target state="translated">Letzter Wochenrückblick: <x id="ICU" equiv-text="{days, plural, =1 {1 day} other {{{days}} days}}" xid="1035153266238401995"/> her.</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/review/review-page.html</context>
           <context context-type="linenumber">19,21</context>
@@ -9914,7 +9914,7 @@
       </trans-unit>
       <trans-unit id="review.step.waitingFor" datatype="html">
         <source>Waiting for</source>
-        <target state="translated">Wartet auf</target>
+        <target state="translated">Warten auf</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/review/review-steps.ts</context>
           <context context-type="linenumber">32</context>
@@ -9994,7 +9994,7 @@
       </trans-unit>
       <trans-unit id="nav.review" datatype="html">
         <source>Review</source>
-        <target state="translated">Überprüfung</target>
+        <target state="translated">Wochenrückblick</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/review/review.routes.ts</context>
           <context context-type="linenumber">5</context>
@@ -12474,7 +12474,7 @@
       </trans-unit>
       <trans-unit id="mailSettings.role.inbox" datatype="html">
         <source>Inbox</source>
-        <target state="translated">Eingang</target>
+        <target state="translated">Posteingang</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/mail/folder-roles.ts</context>
           <context context-type="linenumber">18</context>
@@ -13870,7 +13870,7 @@
       </trans-unit>
       <trans-unit id="trash.hint" datatype="html">
         <source> Deleted items stay here for 30 days, then they are deleted permanently. </source>
-        <target state="translated">Gelöschte Elemente bleiben 30 Tage hier, danach werden sie endgültig gelöscht.</target>
+        <target state="translated">Gelöschte Einträge bleiben 30 Tage hier, danach werden sie endgültig gelöscht.</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/trash/trash-page.html</context>
           <context context-type="linenumber">5,7</context>
@@ -13942,7 +13942,7 @@
       </trans-unit>
       <trans-unit id="trash.empty" datatype="html">
         <source> The Trash is empty. Deleted tasks, notes, emails and other items show up here. </source>
-        <target state="translated">Der Papierkorb ist leer. Gelöschte Aufgaben, Notizen, E-Mails und andere Elemente erscheinen hier.</target>
+        <target state="translated">Der Papierkorb ist leer. Gelöschte Aufgaben, Notizen, E-Mails und andere Einträge erscheinen hier.</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/trash/trash-page.html</context>
           <context context-type="linenumber">95,98</context>
@@ -14078,7 +14078,7 @@
       </trans-unit>
       <trans-unit id="links.heading" datatype="html">
         <source>Linked items</source>
-        <target state="translated">Verknüpfte Elemente</target>
+        <target state="translated">Verknüpfte Einträge</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/links/linked-items.html</context>
           <context context-type="linenumber">4,5</context>
@@ -14094,7 +14094,7 @@
       </trans-unit>
       <trans-unit id="links.searchLabel" datatype="html">
         <source>Find an item to link</source>
-        <target state="translated">Element zum Verknüpfen suchen</target>
+        <target state="translated">Eintrag zum Verknüpfen suchen</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/links/linked-items.html</context>
           <context context-type="linenumber">35,36</context>
@@ -14118,7 +14118,7 @@
       </trans-unit>
       <trans-unit id="links.resultsLabel" datatype="html">
         <source>Items to link</source>
-        <target state="translated">Elemente zum Verknüpfen</target>
+        <target state="translated">Einträge zum Verknüpfen</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/links/linked-items.html</context>
           <context context-type="linenumber">59,61</context>
@@ -14158,7 +14158,7 @@
       </trans-unit>
       <trans-unit id="links.inlineTitle" datatype="html">
         <source>Linked in the item&apos;s text. Edit the text to remove it.</source>
-        <target state="translated">Im Text des Elements verknüpft. Bearbeite den Text, um die Verknüpfung zu entfernen.</target>
+        <target state="translated">Im Text des Eintrags verknüpft. Bearbeite den Text, um die Verknüpfung zu entfernen.</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/links/linked-items.html</context>
           <context context-type="linenumber">150,151</context>
@@ -14174,7 +14174,7 @@
       </trans-unit>
       <trans-unit id="links.empty" datatype="html">
         <source> No linked items yet. Add a link to connect related work. </source>
-        <target state="translated">Noch keine verknüpften Elemente. Füge eine Verknüpfung hinzu, um zusammengehörige Arbeit zu verbinden.</target>
+        <target state="translated">Noch keine verknüpften Einträge. Füge eine Verknüpfung hinzu, um zusammengehörige Arbeit zu verbinden.</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/links/linked-items.html</context>
           <context context-type="linenumber">158,160</context>
@@ -14182,7 +14182,7 @@
       </trans-unit>
       <trans-unit id="links.createLabel" datatype="html">
         <source>Create linked</source>
-        <target state="translated">Verknüpftes Element erstellen</target>
+        <target state="translated">Verknüpften Eintrag erstellen</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/links/linked-items.html</context>
           <context context-type="linenumber">169,171</context>
@@ -14190,7 +14190,7 @@
       </trans-unit>
       <trans-unit id="links.create" datatype="html">
         <source>Create linked</source>
-        <target state="translated">Verknüpftes Element erstellen</target>
+        <target state="translated">Verknüpften Eintrag erstellen</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/links/linked-items.html</context>
           <context context-type="linenumber">171,172</context>
@@ -14206,7 +14206,7 @@
       </trans-unit>
       <trans-unit id="links.unavailable" datatype="html">
         <source>Unavailable item</source>
-        <target state="translated">Nicht verfügbares Element</target>
+        <target state="translated">Nicht verfügbarer Eintrag</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/links/linked-items.ts</context>
           <context context-type="linenumber">177</context>

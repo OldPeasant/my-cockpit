@@ -1,12 +1,12 @@
 <resources>
     <!-- Inbox list and processing mode (gtd/inbox) -->
     <plurals name="inbox_count">
-        <item quantity="one">%1$d Element zu verarbeiten</item>
-        <item quantity="other">%1$d Elemente zu verarbeiten</item>
+        <item quantity="one">%1$d Eintrag zu verarbeiten</item>
+        <item quantity="other">%1$d Einträge zu verarbeiten</item>
     </plurals>
     <plurals name="inbox_left">
-        <item quantity="one">%1$d Element übrig</item>
-        <item quantity="other">%1$d Elemente übrig</item>
+        <item quantity="one">%1$d Eintrag übrig</item>
+        <item quantity="other">%1$d Einträge übrig</item>
     </plurals>
     <string name="inbox_process">Eingang verarbeiten</string>
     <string name="inbox_stop">Verarbeitung beenden</string>
@@ -17,9 +17,9 @@
     <string name="inbox_offline">Offline: Der Eingang wird so angezeigt, wie er um %1$s geladen wurde. Die Verarbeitung ist pausiert, bis der Server wieder erreichbar ist.</string>
     <string name="inbox_offline_never">Offline: Der Eingang konnte noch nicht geladen werden.</string>
     <string name="inbox_retry">Erneut versuchen</string>
-    <string name="inbox_message_offline">Der Server war nicht erreichbar. Das Element ist wieder im Eingang.</string>
-    <string name="inbox_message_conflict">Dieses Element wurde anderswo geändert. Es zeigt jetzt seinen neuesten Stand; wähle erneut.</string>
-    <string name="inbox_message_failed">Der Server hat diese Aktion abgelehnt. Das Element ist wieder im Eingang.</string>
+    <string name="inbox_message_offline">Der Server war nicht erreichbar. Der Eintrag ist wieder im Eingang.</string>
+    <string name="inbox_message_conflict">Dieser Eintrag wurde anderswo geändert. Er zeigt jetzt seinen neuesten Stand; wähle erneut.</string>
+    <string name="inbox_message_failed">Der Server hat diese Aktion abgelehnt. Der Eintrag ist wieder im Eingang.</string>
     <string name="inbox_dismiss">Ausblenden</string>
 
     <string name="inbox_energy">Energie</string>
@@ -59,7 +59,7 @@
     <string name="inbox_date_month">In einem Monat</string>
     <string name="inbox_date_pick">Anderer Tag…</string>
     <string name="inbox_cancel">Abbrechen</string>
-    <string name="inbox_confirm_waiting">Zu „Warten“ verschieben</string>
+    <string name="inbox_confirm_waiting">Nach „Warten auf“ verschieben</string>
     <string name="inbox_confirm_schedule">Einplanen</string>
     <string name="inbox_confirm_tickler">Bis dahin ausblenden</string>
     <string name="inbox_confirm_project">Zum Projekt verschieben</string>

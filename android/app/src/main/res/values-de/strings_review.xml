@@ -14,15 +14,15 @@
     <string name="review_steps">Schritte</string>
     <string name="review_step_done">erledigt</string>
     <string name="review_step_current">aktueller Schritt</string>
-    <string name="review_step_get_clear">Den Kopf freibekommen</string>
+    <string name="review_step_get_clear">Klarheit schaffen</string>
     <string name="review_step_past_calendar">Vergangenen Kalender prüfen</string>
     <string name="review_step_upcoming_calendar">Kommenden Kalender prüfen</string>
-    <string name="review_step_waiting_for">Wartet auf</string>
+    <string name="review_step_waiting_for">Warten auf</string>
     <string name="review_step_projects">Projekte</string>
     <string name="review_step_next_actions">Nächste Aktionen</string>
     <string name="review_step_someday">Irgendwann/Vielleicht</string>
     <string name="review_step_reflection">Reflexion zu Gewohnheiten &amp; Journal</string>
-    <string name="review_stalled">Blockierte Projekte</string>
+    <string name="review_stalled">Stockende Projekte</string>
     <string name="review_no_stalled">Jedes aktive Projekt hat einen nächsten Schritt.</string>
     <string name="review_stalled_hint">Kein nächster Schritt</string>
 </resources>
