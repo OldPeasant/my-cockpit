@@ -18,8 +18,9 @@ on again later.
   enabled"); any "available providers" information in the API leaves Microsoft out; Microsoft sync jobs don't run.
   With the setting on, behavior is unchanged. Server tests cover both; `api/openapi.yaml` regenerated if it changed
   - verified (2026-10-26 10:10+0100 by dell26/agent-1): server/gradlew -p server check jacocoTestReport -> 4755 tests, 0 failures; MicrosoftDisabledWebTests (off: /oauth/providers omits Microsoft, OAuth start, MICROSOFT calendar source, mail account and Sync now -> 400 'Microsoft is not enabled', scheduler skips Microsoft sources, Google still accepted), MicrosoftAvailabilityTests (default false), MailPushServiceTests (push/poll skip MICROSOFT when off, run when on), OAuthConnectionsWebTests + MicrosoftCalendarSyncTests (setting on, unchanged) pass; JaCoCo MicrosoftAvailability 6/6 lines, OAuthController 74/74; api/openapi.yaml regenerated (new 400 on POST /calendar/sources/{id}/sync)
-- [ ] Web settings (integrations, calendars, mail accounts) and Android show no Microsoft option when the server
+- [x] Web settings (integrations, calendars, mail accounts) and Android show no Microsoft option when the server
   says Microsoft is off; Vitest (and Android unit tests where Android offers it) cover it; `cd web && npm run check` passes
+  - verified (2026-10-26 10:10+0100 by dell26/agent-1): npm --prefix web run check -> passed, 175 test files; Vitest specs for calendars, mail and integrations settings cover Microsoft listed / not listed / providers request failing (no Microsoft option or existing Microsoft items when off); Android: grep of android/app/src/main shows no Microsoft or OAuth provider option, so nothing to hide and no Android test (recorded assumption)
 - [ ] No Microsoft code, enum value or migration is deleted; existing Microsoft tests still pass (setting on in
   those tests); `docs/oauth-setup.md` and `deploy/.env.example` say Microsoft is deferred and how to re-enable it;
   `sh scripts/check.sh` passes
