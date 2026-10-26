@@ -85,7 +85,8 @@ class VCardService(
 		return contacts.create(if (photo == null) fields else fields.copy(photoFileId = Change(photo)))
 	}
 
-	private fun toChanges(card: VCard): ContactChanges {
+	/** The contact fields of [card] (no photo), as an import or a CardDAV sync stores them. */
+	fun toChanges(card: VCard): ContactChanges {
 		val name: StructuredName? = card.structuredName
 		return ContactChanges(
 			displayName = Change(card.formattedName?.value),
