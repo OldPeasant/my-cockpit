@@ -330,4 +330,65 @@ describe('MarkdownEditor', () => {
     await tick();
     expect(currentCompletions(view().state)).toEqual([]);
   });
+
+  describe('syntax colors (dark-theme contrast)', () => {
+    /** Every CSS rule the document knows, from <style> elements and adopted style sheets. */
+    function cssRules(): string[] {
+      const sheets = [...document.styleSheets, ...(document.adoptedStyleSheets ?? [])];
+      return sheets.flatMap((sheet) => {
+        try {
+          return [...sheet.cssRules].map((rule) => rule.cssText);
+        } catch {
+          return [];
+        }
+      });
+    }
+
+    /** The declarations of the rules that target one of the token's classes. */
+    function styleOf(token: Element): string {
+      const classes = [...token.classList];
+      expect(classes.length).toBeGreaterThan(0);
+      return cssRules()
+        .filter((rule) => classes.some((c) => new RegExp(`\\.${c}(?![\\w-])`).test(rule)))
+        .join('\n');
+    }
+
+    /** The innermost highlighted span that contains the text (marks like `#` or `[` may be nested inside). */
+    async function token(text: string): Promise<Element> {
+      const has = (el: Element): boolean => (el.textContent ?? '').includes(text);
+      let found: Element | undefined;
+      await vi.waitFor(() => {
+        found = [...view().contentDOM.querySelectorAll('span')].find(
+          (s) => has(s) && ![...s.querySelectorAll('span')].some(has),
+        );
+        expect(found).toBeTruthy();
+      });
+      return found!;
+    }
+
+    beforeEach(async () => {
+      await create();
+      host.value.set('# Trip notes\n\nSee [the map](https://example.org/map) and *soon*.');
+      fixture.detectChanges();
+      await fixture.whenStable();
+    });
+
+    it('colors URLs with the theme accent instead of a literal color', async () => {
+      const style = styleOf(await token('https://example.org/map'));
+      expect(style).toContain('var(--app-accent)');
+      expect(style).not.toMatch(/color:\s*(#|rgb)/);
+    });
+
+    it('colors Markdown marks with the muted theme color', async () => {
+      const style = styleOf(await token('#'));
+      expect(style).toContain('var(--app-fg-muted)');
+      expect(style).not.toMatch(/color:\s*(#|rgb)/);
+    });
+
+    it('keeps headings, links and emphasis distinguishable without color', async () => {
+      expect(styleOf(await token('Trip notes'))).toMatch(/font-weight:\s*bold/);
+      expect(styleOf(await token('the map'))).toMatch(/text-decoration:\s*underline/);
+      expect(styleOf(await token('soon'))).toMatch(/font-style:\s*italic/);
+    });
+  });
 });

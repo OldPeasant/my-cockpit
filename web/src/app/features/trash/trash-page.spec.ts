@@ -364,6 +364,18 @@ describe('TrashPage', () => {
     expect(actions).toEqual(['Restore Your invoice', 'Delete permanently: Your invoice']);
   });
 
+  it('starts the accessible name of each row action with its visible text (WCAG 2.5.3)', async () => {
+    await setup();
+
+    const buttons = [...root.querySelectorAll<HTMLButtonElement>('.items .actions button')];
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const button of buttons) {
+      const visible = (button.textContent ?? '').replace(/\s+/g, ' ').trim();
+      expect(visible).not.toBe('');
+      expect(button.getAttribute('aria-label')?.startsWith(visible)).toBe(true);
+    }
+  });
+
   it('does nothing when the confirmation is dismissed with Escape', async () => {
     await setup();
 
