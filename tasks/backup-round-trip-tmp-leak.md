@@ -1,11 +1,11 @@
 ---
 title: BackupRoundTripTest leaks a 61 MB cockpit-round-trip-data temp dir per run, filling /tmp (Disk quota exceeded)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/backup]
 prio: 2
-lease_until: 2026-10-26T06:54:17Z
+lease_until: 
 ---
 ## Goal
 `BackupRoundTripTest` creates `Files.createTempDirectory("cockpit-round-trip-data")` in its companion object and
@@ -22,3 +22,4 @@ hundreds of these directories (13 of 16 GB). As a result, `BackupRoundTripTest` 
 ## Notes
 - Existing leaked directories in the host's `/tmp` must be removed by a human (agents may not write outside their clone).
 - ASSUMPTION (2026-10-26 07:24+0100 by dell26/agent-1): Criterion 2 names tests outside touches (files/, other modules' backup tests, core/spa): added the same @AfterAll deleteRecursively to every test companion that creates a temp dir (12 classes). Main-code BackupJobService/RestoreService 'cockpit-backups'/'cockpit-restores' work dirs left as is: their zips are already deleted on shutdown, only empty dirs remain.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 84s on 461729810; criteria verified 2/2
