@@ -78,12 +78,8 @@ export default class TodayView {
         id: 'scheduled',
         title: $localize`:@@gtd.today.scheduled:Scheduled for today`,
         store: this.scheduled,
-        // Dates up to today: the server moves them to Next on their date.
-        tasks: unique(
-          this.scheduled
-            .items()
-            .filter((task) => task.scheduledDate !== undefined && task.scheduledDate <= this.today),
-        ),
+        // The server moves them to Next on their date and marks them `releasedOn` that day.
+        tasks: unique(this.scheduled.items()),
       },
     ];
   });
@@ -100,7 +96,7 @@ export default class TodayView {
   constructor() {
     void this.overdue.load({ due: 'overdue' });
     void this.dueToday.load({ due: 'today' });
-    void this.scheduled.load({ list: 'SCHEDULED' });
+    void this.scheduled.load({ scheduled: 'today' });
     void this.projects.ensureLoaded();
     void this.contexts.ensureLoaded();
   }

@@ -603,6 +603,19 @@ describe('TaskStore', () => {
       scheduledDate: undefined,
     });
   });
+
+  it('drops the release marker of a task that leaves Next, keeps it within Next', async () => {
+    const done = store.load({});
+    const a = task('a', { releasedOn: '2026-10-20' });
+    callsOf(listTasks)[0].resolve(page([a]));
+    await done;
+
+    void store.move(a, { list: 'NEXT', projectId: 'p1' });
+    expect(store.find('a')).toMatchObject({ projectId: 'p1', releasedOn: '2026-10-20' });
+
+    void store.move(store.find('a')!, { list: 'SOMEDAY' });
+    expect(store.find('a')).toMatchObject({ list: 'SOMEDAY', releasedOn: undefined });
+  });
 });
 
 describe('matchesTask', () => {
@@ -644,6 +657,23 @@ describe('matchesTask', () => {
     expect(matchesTask(due('2026-10-19'), { due: 'today' }, today)).toBe(false);
     expect(matchesTask(due('2026-10-20'), { due: 'week' }, today)).toBe(true);
     expect(matchesTask(due('2026-10-19'), { due: 'week' }, today)).toBe(false);
+  });
+
+  it('matches scheduled for today: released to Next today or still scheduled up to today', () => {
+    const scheduledToday = { scheduled: 'today' } as const;
+    const released = (releasedOn: string, fields: Partial<TaskResponse> = {}) =>
+      task('a', { releasedOn, ...fields });
+    expect(matchesTask(released('2026-10-20'), scheduledToday, today)).toBe(true);
+    expect(matchesTask(released('2026-10-19'), scheduledToday, today)).toBe(false);
+    expect(matchesTask(released('2026-10-20', { list: 'SOMEDAY' }), scheduledToday, today)).toBe(
+      false,
+    );
+    expect(matchesTask(task('b'), scheduledToday, today)).toBe(false);
+    const scheduled = (scheduledDate?: string) => task('c', { list: 'SCHEDULED', scheduledDate });
+    expect(matchesTask(scheduled('2026-10-20'), scheduledToday, today)).toBe(true);
+    expect(matchesTask(scheduled('2026-10-19'), scheduledToday, today)).toBe(true);
+    expect(matchesTask(scheduled('2026-10-21'), scheduledToday, today)).toBe(false);
+    expect(matchesTask(scheduled(), scheduledToday, today)).toBe(false);
   });
 
   it('hides a task whose tickler date is still to come, on every list (server rule)', () => {
