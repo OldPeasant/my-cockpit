@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "mail-compose-identity-fallback",
-  "reviewed_revision": "42c33370dac6a4c9dabff186df2d23cfe10e4450",
+  "reviewed_revision": "b6e736b40812bc209420956dcb7a87f0bad1bc07",
   "helpers": {
     "test-writer":   {"status": "completed", "report": "reviews/mail-compose-identity-fallback/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/mail-compose-identity-fallback/review.md"},
