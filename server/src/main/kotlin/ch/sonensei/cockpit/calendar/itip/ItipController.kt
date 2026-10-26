@@ -83,7 +83,11 @@ class ItipController(
 				"accounts, from its default identity (else the account address). A series is sent with its overrides, an " +
 				"override on its own. A CANCEL also works for an event in the Trash. Nothing in the event changes.",
 	)
-	@ApiResponse(responseCode = "200", description = "Sent")
+	@ApiResponse(
+		responseCode = "200",
+		description = "Sent",
+		content = [Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = Schema(implementation = SendInvitationsResponse::class))],
+	)
 	@ApiResponse(
 		responseCode = "400",
 		description =

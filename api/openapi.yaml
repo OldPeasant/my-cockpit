@@ -1860,9 +1860,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SendInvitationsResponse"
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/SendInvitationsResponse"
           description: Sent
         "400":
           content:
