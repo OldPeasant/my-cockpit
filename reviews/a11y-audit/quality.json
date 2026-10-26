@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "task": "a11y-audit",
+  "reviewed_revision": "5f95566b708143898c2e222f85b86e7950830f48",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/a11y-audit/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/a11y-audit/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/a11y-audit/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "focusableScrollers had no unit test; test-writer added calendar-view.spec.ts 'keyboard access to the time grid'"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "time-grid scroller patch skipped non-overflowing scrollers; fixer removed the overflow guard (fixes.md)"}
+  ],
+  "validation": [
+    {"command": "npm --prefix web run e2e (Playwright chromium, podman e2e stack)", "result": "pass"},
+    {"command": "npx --prefix web ng test --watch=false (calendar-view, markdown-editor, trash-page, inbox-page specs)", "result": "pass"},
+    {"command": "npm --prefix web run coverage", "result": "pass"},
+    {"command": "npm --prefix web run lint", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
