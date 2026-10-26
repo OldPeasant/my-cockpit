@@ -9,8 +9,8 @@
   },
   "fixes_required": false,
   "findings": [
-    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
-     "note": "hasReminders fired-reminder case now covered by ReminderPendingOfItemTests (test-only, 8e82f4e45); confirmed in re-review"}
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "non-blocking test gap; no fixer ran: the test-writer's ReminderPendingOfItemTests (test-only, 8e82f4e45) covers the fired-reminder case of hasReminders, and the re-review of the final revision reports CR-1 resolved and 0 findings"}
   ],
   "validation": [
     {"command": "cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.mail.sync.MailHeaderSyncServiceTests' --tests 'ch.sonensei.cockpit.mail.sync.MailHeaderStoreTests' --tests 'ch.sonensei.cockpit.mail.backup.MailBackupContributorTests' --tests 'ch.sonensei.cockpit.core.reminders.ReminderPendingOfItemTests' jacocoTestReport", "result": "pass"}
