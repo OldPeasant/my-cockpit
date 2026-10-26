@@ -312,7 +312,8 @@ export default class CalendarView {
 /**
  * Makes the scrolling hours of FullCalendar's time grid focusable, so they can be scrolled with the keyboard also
  * when they hold no event (WCAG 2.1.1). The scroller is a generic element right inside the grid's `rowgroup`, which
- * may own rows only: the scroller takes over the `rowgroup` role and its parent becomes presentational.
+ * may own rows only: the scroller takes over the `rowgroup` role and its parent becomes presentational. It is made
+ * focusable also while it does not overflow, so it stays reachable when a resize makes it scroll later.
  */
 function focusableScrollers(root: HTMLElement): void {
   for (const el of Array.from(
@@ -322,8 +323,7 @@ function focusableScrollers(root: HTMLElement): void {
     if (
       el.hasAttribute('tabindex') ||
       parent?.getAttribute('role') !== 'rowgroup' ||
-      !['auto', 'scroll'].includes(getComputedStyle(el).overflowY) ||
-      el.scrollHeight <= el.clientHeight
+      !['auto', 'scroll'].includes(getComputedStyle(el).overflowY)
     )
       continue;
     parent.setAttribute('role', 'none');
