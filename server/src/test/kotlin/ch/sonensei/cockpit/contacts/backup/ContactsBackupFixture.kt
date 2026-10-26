@@ -1,6 +1,10 @@
 package ch.sonensei.cockpit.contacts.backup
 
 import ch.sonensei.cockpit.backup.BackupFixture
+import ch.sonensei.cockpit.contacts.carddav.CardDavAccount
+import ch.sonensei.cockpit.contacts.carddav.CardDavAccountRepository
+import ch.sonensei.cockpit.contacts.carddav.CardDavLink
+import ch.sonensei.cockpit.contacts.carddav.CardDavLinkRepository
 import ch.sonensei.cockpit.contacts.domain.Change
 import ch.sonensei.cockpit.contacts.domain.Contact
 import ch.sonensei.cockpit.contacts.domain.ContactAddress
@@ -10,18 +14,22 @@ import ch.sonensei.cockpit.contacts.domain.ContactPhone
 import ch.sonensei.cockpit.contacts.domain.ContactService
 import ch.sonensei.cockpit.contacts.domain.ContactSource
 import ch.sonensei.cockpit.contacts.infra.ContactRepository
+import ch.sonensei.cockpit.core.crypto.EncryptedSecret
 import ch.sonensei.cockpit.files.domain.FilesService
 import java.time.LocalDate
 
 /**
  * Contacts with photos (drive files, one with spaces and brackets in its name), with every field set (several
  * labelled emails, phones and addresses, unicode, multi-line notes, a birthday), a minimal one, one in the Trash and
- * one of an external source with its external id.
+ * one of an external source with its external id; two CardDAV accounts (with and without password), one with a linked
+ * contact and the tombstone of a purged one.
  */
 class ContactsBackupFixture(
 	private val contacts: ContactService,
 	private val files: FilesService,
 	private val rows: ContactRepository,
+	private val carddavAccounts: CardDavAccountRepository,
+	private val carddavLinks: CardDavLinkRepository,
 ) : BackupFixture {
 	override val contributor = ContactsBackupContributor.ID
 
@@ -70,6 +78,26 @@ class ContactsBackupFixture(
 				externalId = "people/c0000000000000000001"
 			},
 		)
+		val account =
+			carddavAccounts.saveAndFlush(
+				CardDavAccount("Home server", "https://dav.example.test/dav/", "alice", EncryptedSecret("fictitious-carddav-pw")).apply {
+					addressbookUrl = "https://dav.example.test/dav/alice/contacts/"
+					syncToken = "https://dav.example.test/sync/1"
+				},
+			)
+		val href = "/dav/alice/contacts/0192f000-card-0001.vcf"
+		val card =
+			rows.saveAndFlush(
+				Contact("Robin Carddav", ContactSource.CARDDAV).apply {
+					emails = listOf(ContactEmail("robin@example.test"))
+					externalId = "https://dav.example.test$href"
+				},
+			)
+		carddavLinks.saveAndFlush(CardDavLink(card.id, account.id, href, "\"etag-1\"", card.version))
+		// The tombstone of a purged contact whose card the next push deletes.
+		carddavLinks.saveAndFlush(CardDavLink(null, account.id, "/dav/alice/contacts/0192f000-card-0002.vcf", "\"etag-2\"", 3))
+		// Without a password.
+		carddavAccounts.saveAndFlush(CardDavAccount("Open server", "http://localhost:5232/", null, null))
 	}
 
 	companion object {

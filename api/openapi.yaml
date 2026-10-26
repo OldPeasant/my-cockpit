@@ -2211,6 +2211,177 @@ paths:
       summary: Suggest contacts and recent correspondents
       tags:
       - Contacts
+  /api/v1/contacts/carddav-accounts:
+    get:
+      description: "In creation order, with their sync status."
+      operationId: listCardDavAccounts
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardDavAccountListResponse"
+          description: The accounts
+      summary: List CardDAV accounts
+      tags:
+      - Contacts
+    post:
+      description: "`url` is an address book, or the server (or principal) URL from\
+        \ which the first address book is found. The scheduler syncs the account shortly;\
+        \ `POST /{id}/sync` syncs it at once."
+      operationId: addCardDavAccount
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddCardDavAccountRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardDavAccountResponse"
+          description: Added
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+      summary: Add a CardDAV account
+      tags:
+      - Contacts
+  /api/v1/contacts/carddav-accounts/{id}:
+    delete:
+      description: Its contacts stay here (no longer synced); nothing is deleted at
+        the server.
+      operationId: removeCardDavAccount
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "204":
+          description: Removed
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such account
+      summary: Remove a CardDAV account
+      tags:
+      - Contacts
+    get:
+      operationId: getCardDavAccount
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardDavAccountResponse"
+          description: The account with its sync status
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such account
+      summary: One CardDAV account with its sync status
+      tags:
+      - Contacts
+  /api/v1/contacts/carddav-accounts/{id}/contacts:
+    post:
+      description: "A CARDDAV contact, created here at once and at the server with\
+        \ the next sync. Same fields as `createContact`; unknown fields are rejected."
+      operationId: createCardDavContact
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContactResponse"
+          description: Created
+          headers:
+            ETag:
+              description: "Version of the contact, for If-Match"
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such account
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The account's address book could not be found at the server
+      summary: Create a contact in the account's address book
+      tags:
+      - Contacts
+  /api/v1/contacts/carddav-accounts/{id}/sync:
+    post:
+      description: "Pushes local changes and pulls the server's, and waits until done.\
+        \ A failing server is reported in `sync.lastError`, not as an error response.\
+        \ While a run of the account is going on, its status is returned."
+      operationId: syncCardDavAccount
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardDavAccountResponse"
+          description: The account with its sync status
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such account
+      summary: Sync an account now
+      tags:
+      - Contacts
   /api/v1/contacts/export:
     get:
       description: All contacts not in the Trash (or only the given `ids`) as one
@@ -8971,6 +9142,29 @@ paths:
       - Download
 components:
   schemas:
+    AddCardDavAccountRequest:
+      type: object
+      description: A new CardDAV account. The password is stored encrypted and never
+        returned.
+      properties:
+        name:
+          type: string
+          description: Shown name
+        password:
+          type: string
+          format: password
+          description: The (app) password; write-only
+          writeOnly: true
+        url:
+          type: string
+          description: "An address book, or the server (or principal) URL; http or\
+            \ https"
+        username:
+          type: string
+          description: The user name
+      required:
+      - name
+      - url
     AndroidAppVersion:
       type: object
       description: Version of the Android app offered for download. The version fields
@@ -9487,6 +9681,71 @@ components:
           minLength: 0
       required:
       - text
+    CardDavAccountListResponse:
+      type: object
+      description: Every CardDAV account in creation order
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardDavAccountResponse"
+      required:
+      - items
+    CardDavAccountResponse:
+      type: object
+      description: A CardDAV account whose contacts are synced. The password is never
+        returned.
+      properties:
+        addressbookUrl:
+          type: string
+          description: The address book that is synced; null until the first sync
+            found it
+        hasPassword:
+          type: boolean
+          description: Whether a password is stored
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        sync:
+          $ref: "#/components/schemas/CardDavSyncStatusResponse"
+        url:
+          type: string
+          description: "The URL as configured: an address book, or the server to find\
+            \ one from"
+        username:
+          type: string
+      required:
+      - hasPassword
+      - id
+      - name
+      - sync
+      - url
+    CardDavSyncStatusResponse:
+      type: object
+      description: The sync status of a CardDAV account
+      properties:
+        lastAttemptAt:
+          type: string
+          format: date-time
+          description: Start of the last sync run
+        lastError:
+          type: string
+          description: "What failed in the last run (no secrets, no contact data);\
+            \ null when it succeeded"
+        lastSuccessAt:
+          type: string
+          format: date-time
+          description: End of the last run without errors
+        state:
+          type: string
+          enum:
+          - NEVER
+          - OK
+          - ERROR
+      required:
+      - state
     ChangeEvent:
       type: object
       description: A change notification. Clients refetch the item; the event carries

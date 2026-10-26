@@ -48,8 +48,11 @@ class CardDavAccountService(
 	}
 
 	/** @throws NotFoundException when there is no such account */
+	@Transactional(readOnly = true)
+	fun get(id: UUID): CardDavAccount = accounts.findById(id).orElseThrow { NotFoundException("CardDAV account not found") }
+
+	/** @throws NotFoundException when there is no such account */
 	fun remove(id: UUID) {
-		val account = accounts.findById(id).orElseThrow { NotFoundException("CardDAV account not found") }
-		accounts.delete(account)
+		accounts.delete(get(id))
 	}
 }

@@ -5,7 +5,6 @@ import ch.sonensei.cockpit.contacts.domain.ContactService
 import ch.sonensei.cockpit.contacts.domain.VCardService
 import ch.sonensei.cockpit.core.web.CursorRequest
 import ch.sonensei.cockpit.core.web.ETags
-import ch.sonensei.cockpit.core.web.FieldError
 import ch.sonensei.cockpit.core.web.InvalidRequestException
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -32,7 +31,6 @@ import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder
-import tools.jackson.core.JacksonException
 import tools.jackson.databind.json.JsonMapper
 import java.nio.charset.StandardCharsets
 import java.util.UUID
@@ -183,17 +181,7 @@ class ContactController(
 			).body(vcards.export(list))
 	}
 
-	/** Converts a create or PATCH body; unknown fields and values of the wrong type are a 400. */
-	private fun parse(body: Map<String, Any?>): ContactRequest {
-		val unknown = body.keys - ContactRequest.FIELDS
-		if (unknown.isNotEmpty()) throw InvalidRequestException(unknown.sorted().map { FieldError(it, "is not a field of a contact") })
-		return try {
-			jsonMapper.convertValue(body, ContactRequest::class.java)
-		} catch (e: JacksonException) {
-			val field = e.path.mapNotNull { it.propertyName }.firstOrNull() ?: "body"
-			throw InvalidRequestException(field, "has an invalid value")
-		}
-	}
+	private fun parse(body: Map<String, Any?>): ContactRequest = ContactRequest.parse(body, jsonMapper)
 
 	private fun respond(contact: Contact): ResponseEntity<ContactResponse> = ETags.ok(ContactResponse.of(contact), contact.version)
 

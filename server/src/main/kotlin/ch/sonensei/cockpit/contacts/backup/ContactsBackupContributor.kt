@@ -44,6 +44,8 @@ import java.util.UUID
  * contact id as `UID`), as the vCard export writes them. A photo is a `PHOTO` URI pointing to the file in the backup,
  * `../../files/<path>` (paths from [FilesBackupContributor]). No file when there is no such contact.
  *
+ * The CardDAV accounts and which card each contact is: [CardDavBackup].
+ *
  * Restore keeps ids, times and versions and indexes the contacts not in the Trash for search again. Links are restored
  * by the links contributor.
  *
@@ -57,12 +59,16 @@ class ContactsBackupContributor(
 	private val vcards: VCardService,
 	private val contacts: ContactService,
 	private val files: FilesBackupContributor,
+	private val carddav: CardDavBackup,
 ) : BackupContributor {
 	override val id = ID
 
 	override fun export(writer: BackupDataWriter) {
 		contactRows("select * from contact order by id") { writer.jsonLines(CONTACTS, it) }
+		carddav.export(writer)
 	}
+
+	override fun restoreWarnings(reader: BackupDataReader): List<String> = carddav.restoreWarnings(reader)
 
 	override fun readable(writer: BackupReadableWriter) {
 		val active = "select * from contact where deleted_at is null order by display_name, id"
@@ -121,6 +127,7 @@ class ContactsBackupContributor(
 			)
 			if (contact.deletedAt == null) contacts.indexContact(contact.toContact())
 		}
+		carddav.import(reader)
 	}
 
 	/** The contacts [sql] selects (`contact.*`), streamed from the database. */

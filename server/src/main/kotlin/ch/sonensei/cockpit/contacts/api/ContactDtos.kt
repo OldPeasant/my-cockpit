@@ -9,8 +9,12 @@ import ch.sonensei.cockpit.contacts.domain.ContactPhone
 import ch.sonensei.cockpit.contacts.domain.ContactSource
 import ch.sonensei.cockpit.contacts.domain.SkippedVCard
 import ch.sonensei.cockpit.contacts.domain.VCardImport
+import ch.sonensei.cockpit.core.web.FieldError
+import ch.sonensei.cockpit.core.web.InvalidRequestException
 import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.media.Schema.RequiredMode
+import tools.jackson.core.JacksonException
+import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
@@ -142,6 +146,21 @@ data class ContactRequest(
 	}
 
 	companion object {
+		/** Converts a create or PATCH body; unknown fields and values of the wrong type are a 400. */
+		fun parse(
+			body: Map<String, Any?>,
+			jsonMapper: JsonMapper,
+		): ContactRequest {
+			val unknown = body.keys - FIELDS
+			if (unknown.isNotEmpty()) throw InvalidRequestException(unknown.sorted().map { FieldError(it, "is not a field of a contact") })
+			return try {
+				jsonMapper.convertValue(body, ContactRequest::class.java)
+			} catch (e: JacksonException) {
+				val field = e.path.mapNotNull { it.propertyName }.firstOrNull() ?: "body"
+				throw InvalidRequestException(field, "has an invalid value")
+			}
+		}
+
 		val FIELDS =
 			setOf(
 				"displayName",
