@@ -9,7 +9,7 @@ import { firstValueFrom } from 'rxjs';
 import { AreaResponse, ContextResponse } from '../../../api/generated';
 import { ApiError } from '../../../core/http';
 import { DeleteDialog, DeleteDialogData, DeleteDialogResult } from './delete-dialog';
-import { GtdSettingsService, ReassignError } from './gtd-settings.service';
+import { GtdSettingsService } from './gtd-settings.service';
 
 /** The two lists of this section. */
 export type GtdListKind = 'context' | 'area';
@@ -277,7 +277,6 @@ export default class GtdSettings implements OnInit {
     } catch (error) {
       this.setIn(this.error, kind, message(kind, error));
       // The context or area was changed or deleted elsewhere meanwhile: show the current state.
-      // (A failed reassignment left the list as it was, so there is nothing to reload.)
       if (isStale(error)) {
         void this.load(kind);
       }
@@ -329,12 +328,6 @@ function isStale(error: unknown): boolean {
 }
 
 function message(kind: GtdListKind, error: unknown): string {
-  if (error instanceof ReassignError) {
-    if (!isStale(error.cause)) return message(kind, error.cause);
-    return kind === 'context'
-      ? $localize`:@@gtdSettings.reassignStale.context:Some tasks were changed elsewhere in the meantime, so nothing was deleted. Please try again.`
-      : $localize`:@@gtdSettings.reassignStale.area:Some projects were changed elsewhere in the meantime, so nothing was deleted. Please try again.`;
-  }
   if (isStale(error)) {
     return $localize`:@@gtdSettings.stale:It was changed elsewhere in the meantime; the list now shows the current state.`;
   }

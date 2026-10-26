@@ -8,7 +8,7 @@ import {
   TaskResponse,
 } from '../../../api/generated';
 import { ApiError, NotificationService, provideHttp, SILENT_ERRORS } from '../../../core/http';
-import { GtdSettingsService, ReassignError } from './gtd-settings.service';
+import { GtdSettingsService } from './gtd-settings.service';
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve));
 
@@ -126,102 +126,66 @@ describe('GtdSettingsService', () => {
     expect((await tasks).map((t) => t.id)).toEqual(['t1', 't2', 't3']);
   });
 
-  it('deletes a context without touching its tasks when they just lose it', async () => {
+  it('deletes a context without a replacement and without touching its tasks', async () => {
     const done = service.deleteContext(HOME, null);
-    const del = http.expectOne({ method: 'DELETE', url: `/api/v1/contexts/${HOME.id}` });
+    const del = http.expectOne(
+      (r) => r.method === 'DELETE' && r.url === `/api/v1/contexts/${HOME.id}`,
+    );
     expect(del.request.headers.get('If-Match')).toBe('"3"');
+    expect(del.request.params.has('replaceWith')).toBe(false);
     del.flush(null, { status: 204, statusText: 'No Content' });
     await expect(done).resolves.toBeUndefined();
+    http.expectNone((r) => r.url === '/api/v1/tasks');
   });
 
-  it('gives the tasks the replacement context before deleting, without duplicates', async () => {
+  it('lets the server give the tasks the replacement context in the delete itself', async () => {
     const done = service.deleteContext(HOME, PHONE.id);
-    http
-      .expectOne((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'false')
-      .flush({ items: [task('t1', [HOME.id, 'c-x'], 5), task('t2', [PHONE.id, HOME.id], 2)] });
-    await tick();
-    http
-      .expectOne((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'true')
-      .flush({ items: [] });
-    await tick();
-
-    const p1 = http.expectOne({ method: 'PATCH', url: '/api/v1/tasks/t1' });
-    expect(p1.request.headers.get('If-Match')).toBe('"5"');
-    expect(p1.request.body).toEqual({ contextIds: [PHONE.id, 'c-x'] });
-    p1.flush(task('t1', [PHONE.id, 'c-x'], 6));
-    await tick();
-    const p2 = http.expectOne({ method: 'PATCH', url: '/api/v1/tasks/t2' });
-    expect(p2.request.body).toEqual({ contextIds: [PHONE.id] });
-    p2.flush(task('t2', [PHONE.id], 3));
-    await tick();
-
-    http
-      .expectOne({ method: 'DELETE', url: `/api/v1/contexts/${HOME.id}` })
-      .flush(null, { status: 204, statusText: 'No Content' });
-    await expect(done).resolves.toBeUndefined();
-  });
-
-  it('moves the projects to the target area before deleting', async () => {
-    const done = service.deleteArea(WORK, 'a-home');
-    const list = http.expectOne((r) => r.url === '/api/v1/projects');
-    expect(list.request.params.get('areaId')).toBe(WORK.id);
-    expect(list.request.params.has('status')).toBe(false);
-    list.flush({ items: [project('p1', 4)] });
-    await tick();
-
-    const patch = http.expectOne({ method: 'PATCH', url: '/api/v1/projects/p1' });
-    expect(patch.request.headers.get('If-Match')).toBe('"4"');
-    expect(patch.request.body).toEqual({ areaId: 'a-home' });
-    patch.flush({ ...project('p1', 5), areaId: 'a-home' });
-    await tick();
-
-    const del = http.expectOne({ method: 'DELETE', url: `/api/v1/areas/${WORK.id}` });
-    expect(del.request.headers.get('If-Match')).toBe('"2"');
+    const del = http.expectOne(
+      (r) => r.method === 'DELETE' && r.url === `/api/v1/contexts/${HOME.id}`,
+    );
+    expect(del.request.headers.get('If-Match')).toBe('"3"');
+    expect(del.request.params.get('replaceWith')).toBe(PHONE.id);
     del.flush(null, { status: 204, statusText: 'No Content' });
     await expect(done).resolves.toBeUndefined();
-  });
-
-  it('stops before deleting when moving an item fails, and does not toast', async () => {
-    const done = service.deleteArea(WORK, 'a-home');
-    http.expectOne((r) => r.url === '/api/v1/projects').flush({ items: [project('p1')] });
-    await tick();
-    http
-      .expectOne({ method: 'PATCH', url: '/api/v1/projects/p1' })
-      .flush({ status: 412, title: 'Precondition Failed' }, { status: 412, statusText: 'Failed' });
-
-    const error = await done.catch((e: unknown) => e);
-    // Told apart from a failing DELETE: the error of the move step is the cause.
-    expect(error).toBeInstanceOf(ReassignError);
-    const cause = (error as ReassignError).cause;
-    expect(cause).toBeInstanceOf(ApiError);
-    expect((cause as ApiError).status).toBe(412);
-    http.expectNone({ method: 'DELETE' });
-    expect(notifications.error).not.toHaveBeenCalled();
-  });
-
-  it('rejects with a ReassignError when the projects to move cannot be listed', async () => {
-    const done = service.deleteArea(WORK, 'a-home');
-    http
-      .expectOne((r) => r.url === '/api/v1/projects')
-      .flush({ status: 503, title: 'Unavailable' }, { status: 503, statusText: 'Unavailable' });
-
-    const error = await done.catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(ReassignError);
-    expect(((error as ReassignError).cause as ApiError).status).toBe(503);
+    http.expectNone((r) => r.url === '/api/v1/tasks');
     http.expectNone({ method: 'PATCH' });
-    http.expectNone({ method: 'DELETE' });
-    expect(notifications.error).not.toHaveBeenCalled();
   });
 
-  it('rejects with the plain API error when deleting an area without a move fails', async () => {
+  it('deletes an area without a target and without touching its projects', async () => {
     const done = service.deleteArea(WORK, null);
+    const del = http.expectOne(
+      (r) => r.method === 'DELETE' && r.url === `/api/v1/areas/${WORK.id}`,
+    );
+    expect(del.request.headers.get('If-Match')).toBe('"2"');
+    expect(del.request.params.has('moveTo')).toBe(false);
+    del.flush(null, { status: 204, statusText: 'No Content' });
+    await expect(done).resolves.toBeUndefined();
+    http.expectNone((r) => r.url === '/api/v1/projects');
+  });
+
+  it('lets the server move the projects to the target area in the delete itself', async () => {
+    const done = service.deleteArea(WORK, 'a-home');
+    const del = http.expectOne(
+      (r) => r.method === 'DELETE' && r.url === `/api/v1/areas/${WORK.id}`,
+    );
+    expect(del.request.headers.get('If-Match')).toBe('"2"');
+    expect(del.request.params.get('moveTo')).toBe('a-home');
+    del.flush(null, { status: 204, statusText: 'No Content' });
+    await expect(done).resolves.toBeUndefined();
+    http.expectNone((r) => r.url === '/api/v1/projects');
+    http.expectNone({ method: 'PATCH' });
+  });
+
+  it('rejects with the API error of a failed delete, without a toast', async () => {
+    const done = service.deleteContext(HOME, 'c-gone');
     http
-      .expectOne({ method: 'DELETE', url: `/api/v1/areas/${WORK.id}` })
-      .flush({ status: 404, title: 'Not Found' }, { status: 404, statusText: 'Not Found' });
+      .expectOne((r) => r.method === 'DELETE' && r.url === `/api/v1/contexts/${HOME.id}`)
+      .flush({ status: 400, title: 'Bad Request' }, { status: 400, statusText: 'Bad Request' });
 
     const error = await done.catch((e: unknown) => e);
-    expect(error).not.toBeInstanceOf(ReassignError);
-    expect((error as ApiError).status).toBe(404);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(400);
+    expect(notifications.error).not.toHaveBeenCalled();
   });
 
   it('rejects a duplicate context name with the 409 problem, without a toast', async () => {
@@ -248,15 +212,6 @@ describe('GtdSettingsService', () => {
     expect((await created).id).toBe('a-health');
   });
 
-  it('deletes an area without listing its projects when they just lose it', async () => {
-    const done = service.deleteArea(WORK, null);
-    http.expectNone((r) => r.url === '/api/v1/projects');
-    const del = http.expectOne({ method: 'DELETE', url: `/api/v1/areas/${WORK.id}` });
-    expect(del.request.headers.get('If-Match')).toBe('"2"');
-    del.flush(null, { status: 204, statusText: 'No Content' });
-    await expect(done).resolves.toBeUndefined();
-  });
-
   it('collects the projects of an area over all pages', async () => {
     const projects = service.projectsInArea(WORK.id);
     const first = http.expectOne((r) => r.url === '/api/v1/projects' && !r.params.has('cursor'));
@@ -268,56 +223,5 @@ describe('GtdSettingsService', () => {
       .flush({ items: [project('p2')], nextCursor: null });
 
     expect((await projects).map((p) => p.id)).toEqual(['p1', 'p2']);
-  });
-
-  it('includes done tasks when replacing a context, and stops when one update fails', async () => {
-    const done = service.deleteContext(HOME, PHONE.id);
-    http
-      .expectOne((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'false')
-      .flush({ items: [] });
-    await tick();
-    http
-      .expectOne((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'true')
-      .flush({ items: [task('t-done', [HOME.id], 7), task('t-next', [HOME.id])] });
-    await tick();
-
-    const patch = http.expectOne({ method: 'PATCH', url: '/api/v1/tasks/t-done' });
-    expect(patch.request.headers.get('If-Match')).toBe('"7"');
-    expect(patch.request.body).toEqual({ contextIds: [PHONE.id] });
-    patch.flush(
-      { status: 500, title: 'Internal Server Error' },
-      { status: 500, statusText: 'Error' },
-    );
-
-    const error = await done.catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(ReassignError);
-    expect(((error as ReassignError).cause as ApiError).status).toBe(500);
-    http.expectNone({ method: 'PATCH', url: '/api/v1/tasks/t-next' });
-    http.expectNone({ method: 'DELETE' });
-    expect(notifications.error).not.toHaveBeenCalled();
-  });
-
-  it('rejects with the plain API error when the delete itself fails after the move', async () => {
-    const done = service.deleteContext(HOME, PHONE.id);
-    http
-      .expectOne((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'false')
-      .flush({ items: [task('t1', [HOME.id])] });
-    await tick();
-    http
-      .expectOne((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'true')
-      .flush({ items: [] });
-    await tick();
-    http
-      .expectOne({ method: 'PATCH', url: '/api/v1/tasks/t1' })
-      .flush({ ...task('t1', [PHONE.id]), version: 2 });
-    await tick();
-    http
-      .expectOne({ method: 'DELETE', url: `/api/v1/contexts/${HOME.id}` })
-      .flush({ status: 412, title: 'Precondition Failed' }, { status: 412, statusText: 'Failed' });
-
-    const error = await done.catch((e: unknown) => e);
-    expect(error).not.toBeInstanceOf(ReassignError);
-    expect(error).toBeInstanceOf(ApiError);
-    expect((error as ApiError).status).toBe(412);
   });
 });
