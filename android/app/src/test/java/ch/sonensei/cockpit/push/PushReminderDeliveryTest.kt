@@ -220,6 +220,27 @@ class PushReminderDeliveryTest {
     }
 
     @Test
+    fun `a success answer without a body is ignored`() {
+        server.enqueue(MockResponse.Builder().code(204).build())
+
+        assertEquals(PushReminderResult.IGNORED, deliver(1))
+
+        assertTrue(shown().isEmpty())
+        assertTrue(store.notifiedIds().isEmpty())
+    }
+
+    @Test
+    fun `the worker does not retry a push it ignores`() =
+        runBlocking {
+            answer("""{"type":"about:blank","title":"Not Found","status":404}""", code = 404)
+
+            assertEquals(ListenableWorker.Result.success(), worker(reminderId(1).toString()).doWork())
+
+            assertEquals(1, server.requestCount)
+            assertTrue(shown().isEmpty())
+        }
+
+    @Test
     fun `a reminder whose item was trashed is not shown`() {
         answer(firedJson(1, available = false))
 

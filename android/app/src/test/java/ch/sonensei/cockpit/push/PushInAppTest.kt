@@ -1,6 +1,9 @@
 package ch.sonensei.cockpit.push
 
 import androidx.test.core.app.ApplicationProvider
+import androidx.work.ListenableWorker
+import androidx.work.testing.TestListenableWorkerBuilder
+import androidx.work.workDataOf
 import ch.sonensei.cockpit.auth.AuthRepository
 import ch.sonensei.cockpit.auth.LoginResult
 import ch.sonensei.cockpit.auth.PersistentTokenStore
@@ -177,6 +180,25 @@ class PushInAppTest {
         assertEquals(PushReminderResult.SHOWN, result)
         val get = server.takeRequest(5, TimeUnit.SECONDS)!!
         assertEquals("GET", get.method)
+        assertEquals("/api/v1/reminders/$ITEM_ID", get.url.encodedPath)
+        assertEquals("Bearer access-fictitious", get.headers["Authorization"])
+    }
+
+    @Test
+    fun `the push reminder worker built by the default worker factory gets its delivery from the Hilt graph`() {
+        server.enqueue(MockResponse.Builder().code(404).build())
+
+        // No worker factory: WorkManager's default one calls the (Context, WorkerParameters) constructor.
+        val worker =
+            TestListenableWorkerBuilder
+                .from(ApplicationProvider.getApplicationContext(), PushReminderWorker::class.java)
+                .setInputData(workDataOf(PushReminderWorker.KEY_REMINDER_ID to ITEM_ID))
+                .build()
+
+        val result = runBlocking { worker.doWork() }
+
+        assertEquals(ListenableWorker.Result.success(), result)
+        val get = server.takeRequest(5, TimeUnit.SECONDS)!!
         assertEquals("/api/v1/reminders/$ITEM_ID", get.url.encodedPath)
         assertEquals("Bearer access-fictitious", get.headers["Authorization"])
     }
