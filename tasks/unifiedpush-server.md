@@ -18,7 +18,8 @@ Goal: The server stores UnifiedPush endpoints per device and POSTs a small push 
   - verified (2026-10-26 17:06+0100 by dell26/agent-2): test-writer+code-reviewer: gradlew test --tests 'ch.sonensei.cockpit.core.push.*' (UnifiedPushWebTests/WebEdgeCase/ServiceTests/UpsertTests: PUT/DELETE 204, idempotent, 400 validation, per user) -> pass; migration core/V202610261400__core_push_unifiedpush.sql applied in tests; backup not covered by recorded assumption (device re-registers); api/openapi.yaml + web client regenerated (matches controller per review)
 - [x] On `ReminderFiredEvent` and on new mail (`NewMailAnnouncer`), the server sends a push to every registered endpoint (payload: kind + id only, no item contents; RFC 8291 encryption when keys are given); endpoints answering 404/410 are removed; failures never break the event flow
   - verified (2026-10-26 17:06+0100 by dell26/agent-2): gradlew test --tests 'ch.sonensei.cockpit.core.push.*' --tests '*NewMailAnnouncerTests' -> 63 pass: PushDispatcherTests/EndToEnd (reminder+mail push to WireMock distributor, payload kind+id, RFC 8291 encryption incl. RFC example vector + round-trip decrypt), 404/410 removes endpoint, PushDispatcherFailureTests (failures logged, event flow unaffected)
-- [ ] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.push.*'` passes (MockWebServer or similar as the distributor)
+- [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.push.*'` passes (MockWebServer or similar as the distributor)
+  - verified (2026-10-26 17:07+0100 by dell26/agent-2): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.push.*' -> BUILD SUCCESSFUL, 52 tests, 0 failures (WireMock as distributor); full ./gradlew check also passed (5046 tests)
 
 ## Notes
 - Work done on `unifiedpush-android` before the split is on `origin/wip/unifiedpush-android` (if it exists): merge it first if your part builds on it.
