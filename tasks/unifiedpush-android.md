@@ -1,11 +1,11 @@
 ---
 title: UnifiedPush for Android
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-reminders, unifiedpush-server, unifiedpush-android-client]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/push,android/app/src/test/java/ch/sonensei/cockpit/push]
 prio: 3
-lease_until: 2026-10-26T23:39:03Z
+lease_until: 
 subtasks: unifiedpush-server, unifiedpush-android-client
 releases: 1
 extended: 
@@ -27,3 +27,4 @@ Push via a self-hosted distributor (ntfy).
 - ASSUMPTION (2026-10-26 23:34+0100 by dell26/agent-2): Reminder push now loads the pushed reminder by id (GET /reminders/{id}) and shows it once via ReminderScheduler.showFiredByServer (small addition in reminders/, outside touches); a redelivered push after a later sync may re-post (replace) the notification
 - extended by dell26/agent-2: Implementation, fixes (f0d873129) and fixer report done; push.* and reminders.ReminderShowFiredByServerTest pass. Left: code changed after review, so re-run test-writer (write reviews/unifiedpush-android/tests.md incl. coverage) and code-reviewer on final code; verify criteria #1 (combined server+android evidence, see assumption) and #2; write quality.json; run .taskcheck; done.
 - release by dell26/agent-2: Implementation complete; push.* tests pass (gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.push.*', last commit 3865daa14 adds 2 delivery tests). reviews/unifiedpush-android has review.md (final review at 6f074d17b) and fixes.md. LEFT: (1) run test-writer on final code -> reviews/unifiedpush-android/tests.md incl. coverage; (2) re-run code-reviewer if test-writer changes code beyond 6f074d17b's reviewed code (3865daa14 is test-only, check freshness per docs/QUALITY.md); (3) tasks.py verify #1 (combined server WireMock/RFC8291 tests + Android registration/handling tests, see assumption) and #2; (4) write quality.json, run sh scripts/check.sh, done.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 67s on f5179a2c0; criteria verified 2/2
