@@ -1,11 +1,11 @@
 ---
 title: Ignore stale iTIP REPLYs across messages (per-attendee answered-at)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [itip-invitations]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar]
 prio: 2
-lease_until: 2026-10-26T22:25:37Z
+lease_until: 
 extended: 
 releases: 0
 hold: 
@@ -29,3 +29,4 @@ An older iTIP REPLY (lower SEQUENCE, or same SEQUENCE and older DTSTAMP) that ar
 - ASSUMPTION (2026-10-26 19:13+0100 by felix/agent-1): The earlier 'check hangs' was not a hang: on felix's machine sh scripts/check.sh tfp server takes ~23 min (passed 18:49-19:12 on 2026-10-26); the *BackupContributorTests/Restore* suites of all modules dominate (~2 s per test), this task's itip tests add ~5 s and its backup tests ~12 s. done is run with TASK_CHECK_TIMEOUT=2400 here; the slow server suite on this machine needs a human look
 - extended by felix/agent-1: Code, tests and tests.md (final code, with coverage) done. Left: (1) code-reviewer re-run, because ea3d1307 added a test (ItipReplyStampPersistenceTests) after the re-review 51767f9e, so review.md is stale by patch-id; (2) tasks.py verify 1+2 from tests.md (ItipReplyProcessorTests/ItipReplyStampPersistenceTests/ItipGreenMailTests/CalendarBackupContributorTests); (3) quality.json (CR-1/CR-2 fixed, fixes.md); (4) TASK_CHECK_TIMEOUT=2400 python tasks.py done (server check takes ~23 min on this machine)
 - hold by felix/agent-1: All work done and evidence committed (both criteria verified, review.md/tests.md/fixes.md/quality.json). Only 'done' is left: .taskcheck (sh scripts/check.sh) takes ~23 min on felix's machine (server ./gradlew check), longer than the default 15-min TASK_CHECK_TIMEOUT, and the agent may not set the env var. A human: run 'TASK_CHECK_TIMEOUT=2400 python tasks.py done itip-reply-ordering' from agent-1's clone (or from wip/itip-reply-ordering), and look at why the server suite is this slow.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 304s on 36c561a0c; criteria verified 2/2
