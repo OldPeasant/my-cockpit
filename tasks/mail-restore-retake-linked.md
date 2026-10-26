@@ -6,7 +6,7 @@ deps: [backup-contrib-mail,mail-sync-perf]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/sync,server/src/test/kotlin/ch/sonensei/cockpit/mail/sync,server/src/main/kotlin/ch/sonensei/cockpit/mail/backup]
 prio: 2
 lease_until: 
-hold: Task is complete: all 3 criteria verified, quality evidence committed (quality gate passed in done). done refused only because .taskcheck fails in BackupRoundTripTest and FilesBackupContributorTests w
+hold: 
 releases: 0
 extended: 
 ---
