@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "deploy-assetlinks",
+  "reviewed_revision": "8be2cc7f7913578fe68a990802c98cb59b359a05",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/deploy-assetlinks/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/deploy-assetlinks/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/deploy-assetlinks/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "invalid",
+     "note": "earlier revision: the assumed behaviors were already covered by the test-writer commit (AndroidAssetLinksTests, AssetLinksDefaultWebTests, PasskeyRelyingPartiesTests)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "AndroidAssetLinks is the single owner of the android config; fingerprints without a package fail startup"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.auth.passkey.*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
