@@ -16,7 +16,8 @@ Notifications without an open tab (SPEC.md §4.6).
 - [ ] VAPID keys generated at first start, subscriptions API, service worker shows reminder/new-mail pushes; unsubscribe on 410
 - [x] `cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.push.*'` passes (Postgres via Testcontainers where persistence is involved)
   - verified (2026-10-26 18:00+0100 by dell26/agent-1): server/gradlew -p server test --tests 'ch.sonensei.cockpit.core.push.*' (Postgres via Testcontainers/podman, after rebase on main b7f26df50) -> 107 tests in 16 classes, 0 failures (web-push: PushWebTests 18, PushDeliveryTests 13, PushEndToEndTests 5, relay/props/crypto 24)
-- [ ] Vitest component/service tests cover subscription flow; `cd web && npm run check` passes
+- [x] Vitest component/service tests cover subscription flow; `cd web && npm run check` passes
+  - verified (2026-10-26 18:00+0100 by dell26/agent-1): npm --prefix web run check -> pass (lint, api:check, build, Vitest 184 files); npm --prefix web run coverage -> 3857 tests passed, push-subscription.service/browser-push/provide-reminder-notifications/toggle/auth logout specs cover subscribe, unsubscribe, key replacement, logout; task web files 99.5% statements
 
 ## Notes
 - ASSUMPTION (2026-10-26 15:44+0100 by felix/agent-1): Web Push implemented with JDK crypto only (RFC 8291 aes128gcm + RFC 8292 VAPID, ~150 lines in core/push/infra/WebPushCrypto.kt) instead of adding the unmaintained nl.martijndwars:web-push library; round-trip and VAPID-signature tests cover it.
