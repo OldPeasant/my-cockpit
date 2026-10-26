@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "task": "web-push",
+  "reviewed_revision": "8d785ae1cf8e529a0a4ae269aca795d05bb24aad",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-push/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-push/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-push/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "deferred",
+     "note": "explicit logout now unsubscribes (fixed by fixer, fixes.md); subscriptions outliving a session that ends without logout deferred to follow-up task push-session-binding (needs a session id in core/auth CockpitPrincipal)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "no pushsubscriptionchange handler: recorded as assumption, rotated subscriptions are replaced on next app start and stale ones removed on 410"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "concurrent PUT of the same endpoint: single insert ... on conflict upsert"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "COCKPIT_PUSH_SUBJECT forwarded in docker-compose and documented"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "RFC 8291 Appendix A known-answer test added"}
+  ],
+  "validation": [
+    {"command": "server/gradlew -p server test --tests 'ch.sonensei.cockpit.core.push.*' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "server/gradlew -p server ktlintCheck test --tests 'ch.sonensei.cockpit.core.push.PushWebTests'", "result": "pass"},
+    {"command": "android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "npm --prefix web run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}

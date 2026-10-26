@@ -4,56 +4,72 @@ Date: 2026-10-26
 
 Task: web-push - Web Push notifications
 
-Scope: `git diff c7b117400574a0d13bfd17d594887e9b36241d14..8bc4d528b2347095b8f3ec979e56079720f1e90b`, excluding `tasks/` and `reviews/` (committed changes only). This is a re-review of the final code. The earlier review covered findings CR-1 to CR-5 on an older revision; `reviews/web-push/fixes.md` records how they were fixed.
+Scope: `git diff b7f26df50cdcf04a0fdd4d1302020a6922a193c9..4d5191e93` (merge-base with origin/main to HEAD), excluding `tasks/` and `reviews/` (committed changes only). This is a follow-up re-review of the final revision 4d5191e93. The previous version of this report covered the code up to c12b8f3c4. Since then there are two code commits: d52adc426 (the OpenAPI tag rename) and 4d5191e93 (a regression test for it). Both are reviewed in full below.
 
 Requirements:
-- tasks/web-push.md (acceptance criteria and recorded assumptions, including CR-2 accepted as an assumption)
+- tasks/web-push.md (acceptance criteria and recorded assumptions, including the CR-1 deferral and the migration rename of 2026-10-26 17:55/17:56)
+- tasks/push-session-binding.md (follow-up task that takes over CR-1)
 - SPEC.md §4.6 (optional Web Push), §4.1 (sessions), §4.2 (API conventions), §14 (backup)
-- docs/ARCHITECTURE.md, AGENTS.md project notes (module packages, migrations, logging, generated files, env table)
+- docs/ARCHITECTURE.md, AGENTS.md project notes (module packages, migrations, logging, generated files: regenerate, never merge by hand)
 - RFC 8291 / RFC 8188 (aes128gcm), RFC 8292 (VAPID), RFC 8030 (push protocol)
 
 Git range:
 - Branch: main
-- HEAD: 8bc4d528b2347095b8f3ec979e56079720f1e90b
-- Base/start: c7b117400574a0d13bfd17d594887e9b36241d14
-- Commits reviewed: 10
-- Uncommitted changes: none
+- HEAD: 4d5191e93485727f1ae5e14106f77f54979bd820
+- Base/start: b7f26df50cdcf04a0fdd4d1302020a6922a193c9
+- Commits reviewed: 14 task commits outside `tasks/` (1a20b213e to 4d5191e93), plus TFP state commits that only touch `tasks/`
+- Uncommitted changes: only `reviews/web-push/review.md` and `reviews/web-push/tests.md` (review artifacts, no code)
 
-Summary: 0 P0, 0 P1, 1 P2, 0 P3
+Summary: 0 P0, 0 P1, 1 P2 (CR-1, deferred to push-session-binding), 0 P3
+
+## Changes in d52adc426, checked
+
+- Cause: `PushController` (this task) and main's `UnifiedPushController` both declared `@Tag(name = "Push")` with different descriptions. springdoc wrote two `tags` entries named `Push`, and the Android `openApiGenerate` refused the spec ("attribute tags.Push is repeated").
+- Server: `PushController.kt:27` now uses `name = "Web Push"`. The description is unchanged. `UnifiedPushController.kt:31` keeps `"Push"`. No other server code refers to the tag name.
+- Contract: `api/openapi.yaml` now has exactly one `name: Push` tag (UnifiedPush, line 46) and one `name: Web Push` tag (line 92). The three Web Push operations (PUT and DELETE `/api/v1/push/subscriptions`, GET `/api/v1/push/vapid-public-key`) are tagged `Web Push`. The UnifiedPush operations stay tagged `Push`. Paths, operation ids, schemas and responses are unchanged, so the HTTP contract is the same. The tag moved to the end of the list, which is springdoc's generation order, not a hand edit.
+- Web client: the generated files moved from `fn/push/` to `fn/web-push/` without content changes (rename, 0 lines changed). `functions.ts` and `index.ts` re-export the same symbols (`putPushSubscription`, `deletePushSubscription`, `getVapidPublicKey` and their `$Params`) from the new paths. `fn/push/` now holds only the UnifiedPush functions. No code outside `api/generated/` imports a `fn/push/` path directly. `core/notifications/push-subscription.service.ts` imports from the generated index, so it needs no change.
+- Android: the generator now produces separate API classes per tag. No Android source refers to either generated push API class, so nothing else is affected. The parent reports `ktlintCheck testDebugUnitTest lintDebug` successful on this revision, which runs `openApiGenerate` against the new spec.
+- Generated files were regenerated (`updateOpenApi`, `npm run api:gen`), not merged by hand, as AGENTS.md requires. The parent reports `OpenApiContractTest` and `npm --prefix web run check` (including `api:check`) passing, which confirms the committed contract and client match the server.
+
+## Changes in 4d5191e93, checked
+
+- Test only: `server/src/test/kotlin/ch/sonensei/cockpit/core/push/PushWebTests.kt` gets the test "the Web Push API has its own OpenAPI tag and no tag name is repeated" and the constant `WEB_PUSH_TAG`. No production code changes.
+- The test reads the live contract from `/v3/api-docs` through MockMvc and asserts that:
+  - no tag name in `tags` appears twice;
+  - `Web Push` appears exactly once;
+  - each of the three Web Push operations (GET `vapid-public-key`, PUT and DELETE `subscriptions`) carries exactly the tag `Web Push`.
+- It checks behaviour, not implementation details, and would have failed on c12b8f3c4: springdoc emitted two `tags` entries named `Push` there, so the list was not equal to its distinct values. The uniqueness check covers every tag in the contract, so a later module that reuses a tag name is caught too. That is the exact failure that broke the Android generation.
+- It follows the file's conventions: kotest matchers with `withClue`, the injected Jackson `JsonMapper`, and the existing `BASE` and `SUBSCRIPTIONS` constants. The parent reports `ktlintCheck` OK and 19 of 19 `PushWebTests` passing on this revision.
+
+## Changes between d6c48f31d and c12b8f3c4, checked (previous round)
+
+- Task code was unchanged by the rebase. The only differences were:
+  - the migration rename `V202610261400__core_push.sql` to `V202610261401__core_push_web.sql`, with identical content;
+  - the regenerated `api/openapi.yaml` and `web/src/app/api/generated/`.
+- Migrations: main's UnifiedPush task owns `V202610261400__core_push_unifiedpush.sql` (table `push_unifiedpush_registration`). This task's `V202610261401__core_push_web.sql` (tables `push_vapid_key`, `push_subscription`) sorts after it, so versions don't collide and table names don't overlap. The old file name was only ever on the task's wip branch, never on main, so no deployed Flyway history refers to it.
+
+## Integration with the UnifiedPush code in core/push, checked
+
+- Beans: no name or type conflicts. Web Push has `PushService`, `VapidKeyService`, `PushNotificationRelay`, `WebPushSender`, `PushConfiguration` and `PushProperties` (`cockpit.push.*`). UnifiedPush has `UnifiedPushService`, `PushDispatcher`, `UnifiedPushClient` and two `object`s (`WebPushEncryption`, `WebPushKeys`). The two controllers map different paths and now have distinct OpenAPI tags. UnifiedPush defines no `cockpit.push.*` properties.
+- Events: the two do not send the same thing twice.
+  - `PushNotificationRelay` listens to `ClientNotification` (`reminder`, `mail`) and sends the full notification to browser subscriptions.
+  - `PushDispatcher` listens to `ReminderFiredEvent` and `PushMessage` and sends `{kind,id}` to UnifiedPush registrations.
+  - `NewMailAnnouncer` publishes both a `ClientNotification` and a `PushMessage` for the same mail.
+  - The two sets of targets are separate tables, so each device gets one push from its own channel. Both listeners use `@TransactionalEventListener(fallbackExecution = true)` and their own executors, so neither blocks the other or the publisher.
+- Backup and restore: `RestoreService.wipeDatabase()` truncates every table except Flyway's history. That empties both Web Push tables after a restore, as the recorded assumption says. No backup contributor exports them, which is also as assumed.
+- Duplicated RFC 8291 code: `infra/WebPushCrypto.encrypt` (this task) and `domain/WebPushEncryption.encrypt` (UnifiedPush) both implement aes128gcm encryption. Both are tested, `WebPushCrypto` against the RFC 8291 Appendix A vector. The duplication is recorded in the task assumption of 17:56, and its removal is a concrete note in `tasks/push-session-binding.md`: switch `PushService` to `WebPushEncryption` and keep the vector test. It came from the two tasks running in parallel, and the follow-up captures it adequately, so it is not reported as a separate finding.
 
 ## Earlier findings re-checked
 
-- CR-1 (logout leaves the browser subscribed): fixed for explicit logout. `AuthService.logout()` (`web/src/app/core/auth/auth.service.ts:95-116`) unsubscribes before the logout request, best effort, with a 3 s cap. The shell effect (`provide-reminder-notifications.ts:25-29`) now does nothing while logged out and subscribes again after a new login in the same tab. Tests: `auth.service.spec.ts`, `push-logout.spec.ts`, `provide-reminder-notifications.spec.ts`. The part of the earlier finding about sessions that end without a logout is still open; see CR-1 below.
-- CR-2 (no `pushsubscriptionchange`): accepted as an assumption in the task notes. Not reported again.
-- CR-3 (concurrent PUT gives a 500): fixed. `PushSubscriptionRepository.upsert` is a single `insert ... on conflict (endpoint) do update` statement that fills every BaseEntity column and bumps the version only when the keys change. Covered by the concurrent-subscribe test and the id/version test in `PushWebTests`.
-- CR-4 (`COCKPIT_PUSH_SUBJECT` not forwarded or documented): fixed. `deploy/docker-compose.yml` forwards it with the same default as `application.properties`, and both `docs/ARCHITECTURE.md` and `deploy/README.md` document it.
-- CR-5 (no known-answer test for RFC 8291): fixed. `WebPushCryptoRfc8291Tests` checks the RFC 8291 Appendix A vector byte for byte through the internal `encrypt` overload. The public overload only adds a random salt and ephemeral key pair.
+- CR-1: deferred. See below. Neither d52adc426 nor 4d5191e93 touches it.
+- CR-2 (no `pushsubscriptionchange`): still accepted as an assumption. Not reported again.
+- CR-3, CR-4, CR-5 (fixed in an earlier round): d52adc426 changes only the tag name and generated files, and 4d5191e93 only adds a test, so the fixes still hold.
 
-## Changes since the last review, checked
+## Acceptance criteria
 
-- `VapidKeyService.current()` wraps `GeneralSecurityException` in `IllegalStateException`, so `generateAtStartup()` catches a non-PKCS#8 stored key (it catches `RuntimeException`). A key the master key can't decrypt fails inside `reveal()` or the converter, which is also a `RuntimeException`. Neither case replaces the stored row. The tests at `PushWebTests.kt:313-358` cover both cases and also generation at startup. They restore a usable key pair in `finally`, so other tests are not affected.
-- The `auth.loggedIn()` gate is correct. The effect reads `loggedIn` first, so a change of session re-runs it. While logged out it neither subscribes nor unsubscribes, because logout already unsubscribed. `PushSubscriptionService` runs its calls one at a time in a queue, so a logout unsubscribe that is still running is ordered before the sync of the next login.
-
-## Other things checked and found correct
-
-- Acceptance criterion 1 is met:
-  - VAPID keys are generated on `ApplicationReadyEvent`. The private key is stored as an `EncryptedSecret`, and a singleton constraint plus a REQUIRES_NEW re-read handle two instances starting at once.
-  - The subscriptions API (GET key, PUT and DELETE subscription) requires a login, validates its input and returns Problem Details. The endpoint is sent in the request body.
-  - The service worker shows `reminder` and `mail` pushes. Their payload shapes match `ReminderResponse` and `NewMailNotification` (`mail/sync/NewMailAnnouncer.kt:31`).
-  - A 404 or 410 from the push service deletes the subscription (`PushService.kt:182-185`, tested in `PushDeliveryTests`).
-- Architecture:
-  - Packages are `core.push.{api,domain,infra}`. Domain importing infra repositories matches other modules (`files`, `backup`).
-  - Core does not depend on the mail module: the relay uses the event name string `"mail"`.
-  - The migration file name follows the `core/V{timestamp}__core_{desc}.sql` rule.
-  - The OpenAPI file and the generated client are updated (`api:check` is part of `npm run check`).
-- Security and logging:
-  - Push service redirects are not followed.
-  - Logs name only subscription ids, never endpoints, keys or message contents.
-  - VAPID claims are JSON-escaped.
-  - Received public keys are checked against the P-256 curve.
-  - Notification click URLs stay inside the worker's scope.
-- Backup: `VapidKeyService` reads the key from the database on every call, with no cache, so after a restore empties the table the next use generates new keys. This matches the recorded assumption.
-- Tests: the server push tests (55, run by the parent against Postgres via Testcontainers) and the web specs cover subscribe, unsubscribe, key replacement, ordering in the queue, the logout paths, the login gate, the service worker's rendering, suppression and click handling, and the toggle hint. The tests check behaviour and do not mock away the logic under test.
+- AC 1 (VAPID keys at first start, subscriptions API, the service worker shows reminder and mail pushes, unsubscribe on 410): met. This was verified in earlier rounds. d52adc426 changes no behaviour, only the documentation tag, and 4d5191e93 adds only a test.
+- AC 2 (`./gradlew test --tests 'ch.sonensei.cockpit.core.push.*'` with Testcontainers): the parent reports 108 tests and 0 failures on d52adc426 (`core.push.*` plus `*OpenApiContractTest`). This includes the UnifiedPush tests in the same package. On 4d5191e93, `PushWebTests` (19 tests, including the new tag test) passes with ktlint OK, as the parent reports.
+- AC 3 (Vitest coverage of the subscription flow, `npm run check`): the specs are unchanged and cover the flow. The parent reports the check passing on d52adc426 (184 test files, 3857 tests).
 
 ## P0 Critical
 
@@ -65,12 +81,16 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Push subscriptions outlive a session that ends without an explicit logout (browser-session login, idle expiry)**
-    - File: `web/src/app/core/notifications/provide-reminder-notifications.ts:26`; `web/src/app/core/auth/auth.service.ts:95`; `server/src/main/kotlin/ch/sonensei/cockpit/core/push/domain/PushService.kt:128-145` (a subscription is not tied to a session); `server/src/main/kotlin/ch/sonensei/cockpit/core/auth/domain/AuthSession.kt:42-43`
+- [x] **CR-1 | Push subscriptions outlive a session that ends without an explicit logout (browser-session login, idle expiry)**: DEFERRED to task push-session-binding
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/core/push/domain/PushService.kt:47` (a subscription is not tied to a session); `web/src/app/core/notifications/provide-reminder-notifications.ts:26`
     - Category: Security
-    - Problem: Only an explicit `AuthService.logout()` removes the browser's subscription. A session without "remember device" ends when the browser closes (its cookie is a browser-session cookie) or after 12 h idle (`BROWSER_SESSION_IDLE`). After that, the client only sets `loggedIn` to false, and the effect then deliberately does nothing. The server has no link between subscriptions and sessions. So the server keeps pushing mail senders and subjects (`push-sw.js:66-78`) and reminder titles to that browser until it is subscribed again or the push service reports 410. This is the "or session expiry" part of the earlier CR-1, which the fix did not address. It is also not recorded as an assumption in `tasks/web-push.md`.
-    - Why it matters: On a shared or borrowed computer, a user who logs in without "remember device" and just closes the browser expects their data to stop appearing there, as it did before this task, when notifications came only over the authenticated SSE stream. Now personal mail and task data keeps appearing on that machine's lock screen with no session behind it.
-    - Suggested fix: Tie each subscription to the session that created it. For example, store the `auth_session` id on `push_subscription`, delete the subscription when the session is deleted or expires, and skip or delete subscriptions of expired sessions in `PushService.send`. Alternatively, subscribe only for remembered sessions. If the current behaviour is intended, record it with `tasks.py assume` and say in the toggle hint that pushes continue after the session ends. Add a test for the behaviour you choose.
+    - Problem: Only an explicit `AuthService.logout()` removes the browser's subscription. A session that ends because the browser closes (no "remember device") or after the 12 h idle limit leaves the subscription in place. The server keeps sending mail senders, subjects and reminder titles to that browser until it unsubscribes or its push service returns 410.
+    - Why it matters: On a shared computer, personal data keeps appearing in notifications after the session ends.
+    - Status: The parent deferred the fix. The deferral is adequately captured:
+      - Assumption: `tasks/web-push.md` line 29 records the deferral, the reason (binding needs a session id in `CockpitPrincipal` in core/auth, outside this task's touches) and the behaviour until then.
+      - Follow-up task: `tasks/push-session-binding.md` depends on web-push, has prio 2, and has testable acceptance criteria. These cover a session reference with `on delete cascade`, moving the subscription on re-subscribe, skipping or deleting subscriptions of expired sessions, and tests for logout, idle expiry and revoked sessions. Its touches list core/auth, core/push and the core migration folder.
+      - Scope: neither the assumption nor the follow-up hides a different gap. The explicit-logout path is fixed and tested in this task.
+    - Suggested fix: Implement push-session-binding as specified. No further change is required in web-push.
 
 ## P3 Low
 
@@ -78,4 +98,4 @@ None.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 is the unresolved remainder of the earlier CR-1. Fix it, or have the parent worker accept it explicitly as an assumption. Fixes CR-3, CR-4 and CR-5 hold, CR-2 is accepted, and the changes since the last review are correct and tested.
+No material issues found. d52adc426 fixes the duplicate `Push` tag in the right place, the server annotation. The contract and web client were regenerated, not edited by hand. 4d5191e93 adds a meaningful regression test against repeated tag names. The HTTP contract and the symbols the web app imports are unchanged, and the Android generator now accepts the spec. CR-1 remains a valid P2. The parent deferred it explicitly, with a recorded assumption and a concrete follow-up task (push-session-binding), so it does not block completion. The task integrates cleanly with the UnifiedPush code in core/push: there are no bean, event, migration, table or OpenAPI tag conflicts.
