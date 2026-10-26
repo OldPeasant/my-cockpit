@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [itip-invitations]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar]
 prio: 2
-lease_until: 2026-10-26T22:00:33Z
+lease_until: 2026-10-26T22:05:26Z
 extended: 
 releases: 0
 hold: 
