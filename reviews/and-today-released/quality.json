@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "task": "and-today-released",
+  "reviewed_revision": "8a3a65622f523d6b9b97bc27619df013c488bbba",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-today-released/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-today-released/review.md"},
+    "fixer":         {"status": "not_required", "reason": "code-reviewer reported no findings and test-writer found no production bugs"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "cd android && ./gradlew createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
