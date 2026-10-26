@@ -19,6 +19,11 @@ data class CalendarInfo(
     val readOnly: Boolean,
     /** Sent back as `If-Match` when the calendar is changed. */
     val version: Long,
+    /**
+     * Computed by the server instead of stored (the Birthdays calendar, SPEC.md §8.3): a read-only calendar of the
+     * local source. Its occurrences have no event to load or change; their `eventId` is the contact they come from.
+     */
+    val virtual: Boolean = false,
 )
 
 /** One occurrence of an event: a single event, or one instance of an expanded series. */
@@ -40,6 +45,9 @@ data class Occurrence(
     val occurrence: String? = null,
     val version: Long = 1,
 ) {
+    /** The contact this occurrence comes from if it is a birthday (its calendar is virtual), else `null`. */
+    fun contactId(calendars: List<CalendarInfo>): UUID? = eventId.takeIf { calendars.any { it.id == calendarId && it.virtual } }
+
     /** Unique within a range: an event appears once per occurrence. */
     val key: String get() = "$eventId/${occurrence ?: start ?: startDate}"
 
@@ -210,6 +218,7 @@ internal fun CalendarResponse.toCalendar() =
         visible = visible,
         readOnly = readOnly,
         version = version,
+        virtual = readOnly && sourceType == CalendarResponse.SourceType.LOCAL,
     )
 
 internal fun OccurrenceResponse.toOccurrence() =

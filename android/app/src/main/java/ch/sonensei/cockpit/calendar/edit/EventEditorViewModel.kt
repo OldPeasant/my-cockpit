@@ -134,11 +134,12 @@ class EventEditorViewModel internal constructor(
         state.value = EventEditorUiState(open = true, creating = true, form = form, calendars = calendars)
     }
 
-    /** Opens the form of [occurrence] and loads its event. */
+    /** Opens the form of [occurrence] and loads its event; a birthday has none, so it is not opened (see [Occurrence.contactId]). */
     fun edit(
         occurrence: Occurrence,
         calendars: List<CalendarInfo>,
     ) {
+        if (occurrence.contactId(calendars) != null) return
         this.occurrence = occurrence
         newId = null
         state.value = EventEditorUiState(open = true, calendars = calendars, series = occurrence.inSeries)

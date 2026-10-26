@@ -95,6 +95,7 @@ data class CachedCalendarEntity(
     val visible: Boolean,
     val readOnly: Boolean,
     val version: Long,
+    val virtual: Boolean,
 )
 
 @Entity(tableName = "cached_occurrence")
@@ -213,7 +214,7 @@ abstract class AgendaCacheDao {
 
 @Database(
     entities = [CachedCalendarEntity::class, CachedOccurrenceEntity::class, AgendaCacheMetaEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class AgendaCacheDatabase : RoomDatabase() {
@@ -332,9 +333,10 @@ object AgendaCacheModule {
     fun agendaSessionCache(cache: RoomAgendaCache): SessionCache = SessionCache { cache.clear() }
 }
 
-private fun CalendarInfo.toEntity(ordinal: Int) = CachedCalendarEntity(id.toString(), ordinal, name, color, visible, readOnly, version)
+private fun CalendarInfo.toEntity(ordinal: Int) =
+    CachedCalendarEntity(id.toString(), ordinal, name, color, visible, readOnly, version, virtual)
 
-private fun CachedCalendarEntity.toCalendar() = CalendarInfo(UUID.fromString(id), name, color, visible, readOnly, version)
+private fun CachedCalendarEntity.toCalendar() = CalendarInfo(UUID.fromString(id), name, color, visible, readOnly, version, virtual)
 
 private fun Occurrence.toEntity(ordinal: Int) =
     CachedOccurrenceEntity(
