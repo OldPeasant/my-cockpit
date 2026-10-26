@@ -1,11 +1,11 @@
 ---
 title: Android Today: show tasks released to Next today under 'Scheduled for today' (releasedOn / scheduled=today)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [gtd-scheduled-marker]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/today]
 prio: 2
-lease_until: 2026-10-26T16:39:51Z
+lease_until: 
 ---
 ## Goal
 The server clears `scheduledDate` when it releases a SCHEDULED task to NEXT, so Android's Today view
@@ -19,3 +19,4 @@ gtd-scheduled-marker added `TaskResponse.releasedOn` and `GET /api/v1/tasks?sche
 ## Notes
 - Found by the code review of gtd-scheduled-marker (CR-1).
 - ASSUMPTION (2026-10-26 17:11+0100 by dell26/agent-1): Used TaskResponse.releasedOn (cached as a new column, GtdCacheDatabase v2 with the existing destructive fallback since it is only a cache) instead of a separate scheduled=today view; this required small edits in gtd/data and gtd/lists outside the task's touches
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 75s on 51012d6b2; criteria verified 1/1
