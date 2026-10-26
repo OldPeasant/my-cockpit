@@ -1,11 +1,11 @@
 ---
 title: CalDAV: survive dropped connections (flaky Radicale integration tests)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/caldav,server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/caldav]
 prio: 1
-lease_until: 2026-10-26T00:19:49Z
+lease_until: 
 ---
 ## Goal
 GitHub CI on main fails in most runs since cal-caldav: `CalDavRadicaleSyncTests` (integrationTest job) loses 4-5 of
@@ -51,3 +51,4 @@ connections too, and today one dropped request fails the sync of that calendar. 
 - ASSUMPTION (2026-10-26 00:42+0100 by dell26/agent-1): The Radicale test helper dav() retries every method once (MKCALENDAR, unconditional PUT/DELETE too), unlike CalDavClient: the tests own the server and check outcomes, and restricting it would leave most setup requests unprotected. A repeated MKCALENDAR that already succeeded would answer 405 and fail reset(); accepted as far rarer than a drop.
 - ASSUMPTION (2026-10-26 00:42+0100 by dell26/agent-1): Retry backoff is a fixed 200 ms, one retry; 'before any response' means before the status line and headers arrived (tracked via the BodyHandler), so a failure while reading the body is not repeated. HEAD and OPTIONS count as safe methods besides PROPFIND/REPORT/GET. Each retry is logged at INFO (method, host, exception class only).
 - ASSUMPTION (2026-10-26 00:47+0100 by dell26/agent-1): A retried If-Match PUT/DELETE whose first attempt reached the server (only the answer was lost) gets 412 and is reported as 'changed remotely' (409), although the user's change was applied; the next sync shows the user's own version. Left as is (rare, recoverable, CalDavCalendarAdapter write paths are outside this task's criteria); a follow-up could re-read the resource after a 412 on a retried write, as the create path does.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 101s on 431abb719; criteria verified 3/3
