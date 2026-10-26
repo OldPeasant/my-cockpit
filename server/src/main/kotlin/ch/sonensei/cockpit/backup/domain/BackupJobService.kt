@@ -46,7 +46,8 @@ class BackupJobService(
 	private val log = LoggerFactory.getLogger(javaClass)
 	private val jobs = ConcurrentHashMap<UUID, BackupJob>()
 	private val zips = ConcurrentHashMap<UUID, Path>()
-	private val workDir: Path by lazy { Files.createTempDirectory("cockpit-backups") }
+	private val lazyWorkDir = lazy { Files.createTempDirectory("cockpit-backups") }
+	private val workDir: Path by lazyWorkDir
 	private val executor: ExecutorService =
 		Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "backup").apply { isDaemon = true } }
 
@@ -166,6 +167,7 @@ class BackupJobService(
 		executor.shutdownNow()
 		events.shutdownNow()
 		zips.values.forEach { runCatching { Files.deleteIfExists(it) } }
+		if (lazyWorkDir.isInitialized()) runCatching { workDir.toFile().deleteRecursively() }
 	}
 
 	companion object {

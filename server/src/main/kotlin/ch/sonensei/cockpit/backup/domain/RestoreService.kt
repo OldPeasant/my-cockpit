@@ -67,7 +67,8 @@ class RestoreService(
 ) : DisposableBean {
 	private val log = LoggerFactory.getLogger(javaClass)
 	private val dataDir: Path = dataDir.toAbsolutePath().normalize()
-	private val workDir: Path by lazy { Files.createTempDirectory("cockpit-restores") }
+	private val lazyWorkDir = lazy { Files.createTempDirectory("cockpit-restores") }
+	private val workDir: Path by lazyWorkDir
 	private var pending: Pair<UUID, Path>? = null
 
 	/** Stores [content] (read to its end, not closed) and validates it. Only a valid upload is kept for [confirm]. */
@@ -267,7 +268,10 @@ class RestoreService(
 	}
 
 	@Synchronized
-	override fun destroy() = discardPending()
+	override fun destroy() {
+		discardPending()
+		if (lazyWorkDir.isInitialized()) runCatching { workDir.toFile().deleteRecursively() }
+	}
 
 	companion object {
 		/** Folder of the data directory with the backups made before each restore. */
