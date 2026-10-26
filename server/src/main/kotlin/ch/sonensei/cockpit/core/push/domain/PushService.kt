@@ -8,12 +8,17 @@ import ch.sonensei.cockpit.core.push.infra.WebPushCrypto
 import ch.sonensei.cockpit.core.push.infra.WebPushSender
 import ch.sonensei.cockpit.core.web.InvalidRequestException
 import org.slf4j.LoggerFactory
+import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.http.HttpStatus
+import org.springframework.http.ProblemDetail
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.ErrorResponseException
 import tools.jackson.databind.json.JsonMapper
 import java.io.IOException
 import java.net.URI
 import java.net.URISyntaxException
+import java.sql.SQLException
 import java.time.Clock
 import java.time.Duration
 import java.time.temporal.ChronoUnit
@@ -48,6 +53,7 @@ class PushService(
 	 *
 	 * @throws InvalidRequestException (400) for an endpoint that is not an absolute `https` URL, or keys that are not a
 	 *   P-256 public key and a 16-byte secret
+	 * @throws ErrorResponseException (401) when the session [sessionId] no longer exists; nothing is stored then
 	 */
 	@Transactional
 	fun subscribe(
@@ -66,14 +72,26 @@ class PushService(
 			throw InvalidRequestException("keys.auth", "must be a ${WebPushCrypto.AUTH_SECRET_BYTES}-byte secret (base64url)")
 		}
 		// One upsert statement instead of find-then-insert: two tabs subscribing at once must not hit the unique endpoint.
-		subscriptions.upsert(
-			UuidV7.generate(),
-			endpoint,
-			WebPushCrypto.encode(publicKey),
-			WebPushCrypto.encode(authSecret),
-			sessionId,
-			clock.instant(),
-		)
+		try {
+			subscriptions.upsert(
+				UuidV7.generate(),
+				endpoint,
+				WebPushCrypto.encode(publicKey),
+				WebPushCrypto.encode(authSecret),
+				sessionId,
+				clock.instant(),
+			)
+		} catch (e: DataIntegrityViolationException) {
+			// The session ended after the request was authenticated (logout in another tab, ended by another login):
+			// answer like for an unknown cookie. No further query: the failed statement aborted the transaction.
+			if (!isForeignKeyViolation(e)) throw e
+			log.debug("Not subscribing: login session {} ended during the request", sessionId)
+			throw ErrorResponseException(
+				HttpStatus.UNAUTHORIZED,
+				ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "The login session has ended"),
+				null,
+			)
+		}
 		return checkNotNull(subscriptions.findByEndpoint(endpoint))
 	}
 
@@ -163,6 +181,11 @@ class PushService(
 		}
 	}
 
+	private fun isForeignKeyViolation(e: DataIntegrityViolationException): Boolean =
+		generateSequence<Throwable>(e) { it.cause }
+			.filterIsInstance<SQLException>()
+			.any { it.sqlState == FOREIGN_KEY_VIOLATION }
+
 	private fun decodeOrNull(value: String): ByteArray? =
 		try {
 			WebPushCrypto.decode(value)
@@ -174,6 +197,9 @@ class PushService(
 		/** Largest plaintext message: push services accept 4096 bytes of body, of which encryption takes 103. */
 		const val MAX_MESSAGE_BYTES = 3072
 		const val MAX_ENDPOINT_LENGTH = 2048
+
+		/** SQLSTATE `foreign_key_violation`: here, the subscription's login session no longer exists. */
+		private const val FOREIGN_KEY_VIOLATION = "23503"
 
 		/** VAPID tokens may be valid for at most 24 hours (RFC 8292 §2). */
 		private val VAPID_VALIDITY = Duration.ofHours(12)

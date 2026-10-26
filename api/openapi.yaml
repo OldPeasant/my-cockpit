@@ -7291,6 +7291,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
           description: "Endpoint not an https URL, or invalid keys"
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "Not logged in (no body), or the login session ended during\
+            \ the request (Problem Details)"
         "403":
           content:
             application/problem+json:

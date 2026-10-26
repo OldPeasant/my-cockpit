@@ -201,6 +201,30 @@ class PushWebTests(
 		subscriptions.findAll().shouldBeEmpty()
 	}
 
+	@Test
+	fun `subscribing with a session that ended during the request gets 401 and stores nothing`() {
+		val ended = sessions.principal()
+		sessions.delete(ended.sessionId!!)
+
+		put(subscription(), user = ended).andExpect {
+			status { isUnauthorized() }
+			content { contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) }
+			jsonPath("$.status") { value(401) }
+		}
+		subscriptions.findAll().shouldBeEmpty()
+
+		withClue("an existing subscription is not moved to the ended session") {
+			put(subscription()).andExpect { status { isNoContent() } }
+			val other = PushTestBrowser()
+			put(subscription(p256dh = other.p256dh, auth = other.auth), user = ended).andExpect {
+				status { isUnauthorized() }
+			}
+			val stored = subscriptions.findAll().single()
+			stored.sessionId shouldBe owner.sessionId
+			stored.p256dh shouldBe browser.p256dh
+		}
+	}
+
 	private fun delete(content: String) =
 		mockMvc.delete(SUBSCRIPTIONS) {
 			with(csrf())

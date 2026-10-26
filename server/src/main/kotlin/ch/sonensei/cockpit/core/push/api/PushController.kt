@@ -65,6 +65,11 @@ class PushController(
 		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
 	)
 	@ApiResponse(
+		responseCode = "401",
+		description = "Not logged in (no body), or the login session ended during the request (Problem Details)",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
+	)
+	@ApiResponse(
 		responseCode = "403",
 		description = "Not logged in with a browser session (e.g. a device token)",
 		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
