@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [web-mail-read,mail-load-older]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,api/openapi.yaml,web/src/app/features/mail/read]
 prio: 2
-lease_until: 2026-10-26T08:40:17Z
+lease_until: 2026-10-26T08:45:15Z
 extended: dell26/agent-1
 ---
 ## Goal
