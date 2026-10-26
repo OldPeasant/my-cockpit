@@ -131,13 +131,13 @@ object NoteMarkdown {
 
 	/**
 	 * The title derived from a body: its first line with text, as plain text, at most [MAX_DERIVED_TITLE_LENGTH]
-	 * characters (cut with `…`); [UNTITLED] when the body has no text.
+	 * characters (cut with `…`); [UNTITLED] when the body has no text. The whole body is parsed, so constructs spanning
+	 * lines (a backslash hard break, a fenced code block) are read as Markdown, not as separate lines.
 	 */
 	fun titleOf(markdown: String): String {
 		val line =
-			markdown
+			plainText(markdown)
 				.lineSequence()
-				.map { plainText(it).lineSequence().firstOrNull().orEmpty() }
 				.firstOrNull { it.isNotBlank() }
 				?: return UNTITLED
 		return if (line.length <= MAX_DERIVED_TITLE_LENGTH) line else line.take(MAX_DERIVED_TITLE_LENGTH - 1).trimEnd() + "…"
