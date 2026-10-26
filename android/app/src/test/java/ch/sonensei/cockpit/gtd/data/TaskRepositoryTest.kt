@@ -76,6 +76,23 @@ class TaskRepositoryTest {
         }
 
     @Test
+    fun `a task the server did not release has no release day in the cache`() =
+        runBlocking {
+            dispatcher.enqueue("$TASKS|NEXT", json(taskPage(taskJson(2, "Fix the bike", "NEXT"))))
+
+            assertEquals(RefreshResult.Refreshed, gtd.tasks.refresh(TaskView.NEXT))
+
+            val task =
+                gtd.dao
+                    .observeTasks("NEXT")
+                    .first()
+                    .single()
+                    .toDomain()
+            assertNull(task.releasedOn)
+            assertNull(task.scheduledDate)
+        }
+
+    @Test
     fun `refresh replaces the cached view instead of merging into it`() =
         runBlocking {
             dispatcher.enqueue("$TASKS|INBOX", json(taskPage(taskJson(1, "Old one"), taskJson(2, "Old two"))))

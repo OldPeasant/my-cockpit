@@ -160,6 +160,14 @@ class TodayViewModelTest {
     }
 
     @Test
+    fun `released today still yields to overdue, and an earlier release does not hide a schedule for today`() {
+        assertEquals(TodaySectionKind.OVERDUE, sectionOf(undated.copy(dueDate = today.minusDays(1), releasedOn = today), today))
+        assertEquals(TodaySectionKind.SCHEDULED, sectionOf(undated.copy(dueDate = today.plusDays(2), releasedOn = today), today))
+        assertEquals(TodaySectionKind.SCHEDULED, sectionOf(undated.copy(scheduledDate = today, releasedOn = today.minusDays(3)), today))
+        assertNull(sectionOf(undated.copy(releasedOn = today.plusDays(1)), today))
+    }
+
+    @Test
     fun `the Scheduled for today section shows the Next tasks the server released today`() =
         test { vm ->
             val released = undated.copy(id = id(7), title = "Water the plants", releasedOn = today)

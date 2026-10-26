@@ -72,6 +72,16 @@ class TaskListsRepositoryTest {
         }
 
     @Test
+    fun `a loaded task keeps the day the server released it to Next`() =
+        runBlocking {
+            val released = taskJson(3, "Water the plants", "NEXT", ""","releasedOn":"2026-10-20"""")
+            dispatcher.enqueue(TASKS, json(taskPage(released, taskJson(6, "Sort the photos", "NEXT"))))
+            val project = repository.observeProject(UUID.fromString(uuid(10)), MutableSharedFlow())
+            val live = withTimeout(TIMEOUT) { project.first { it.data != null } }
+            assertEquals(listOf(LocalDate.of(2026, 10, 20), null), live.data!!.map { it.releasedOn })
+        }
+
+    @Test
     fun `an unreachable server is an error, and a retry loads`() =
         runBlocking {
             dispatcher.enqueue("$TASKS|SOMEDAY", status(503))
