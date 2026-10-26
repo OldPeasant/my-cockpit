@@ -1,11 +1,11 @@
 ---
 title: Pass COCKPIT_OAUTH_PUBLICURL to the server in deploy compose
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-2
 deps: [oauth-connections]
 touches: [deploy/docker-compose.yml,deploy/.env.example]
 prio: 2
-lease_until: 
+lease_until: 2026-10-26T01:53:55Z
 hold: 
 releases: 0
 extended: 
