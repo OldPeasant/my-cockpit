@@ -28,9 +28,10 @@ already done, until the 1800 s `--timeout` killed it.
   final result is used for the log line, and the runner continues with the actual task state (claims the next
   task if the old one is done)
   - verified (2026-10-26 02:17+0100 by dell26/agent-2): python -m unittest tests.test_hung_session: EndsAfterGrace (rc forced 0, no back-off, claims next task b) and EndedSessionResumesUnfinishedTask -> pass (30/30)
-- [ ] Tests in `tests/` use a fake `--cmd` that prints a stream-json `result` line and then sleeps, and show: the
+- [x] Tests in `tests/` use a fake `--cmd` that prints a stream-json `result` line and then sleeps, and show: the
   runner ends it after the grace period (not after `--timeout`); output after the result resets the grace period;
   a session without a result is not ended early. `sh scripts/check.sh` passes
+  - verified (2026-10-26 02:17+0100 by dell26/agent-2): python -m unittest tests.test_hung_session (fake --cmd printing stream-json result then sleeping: ends after grace not --timeout, output resets grace, no-result session runs to --timeout) -> 30 passed; sh scripts/check.sh -> all checks passed
 
 ## Notes
 - ASSUMPTION (2026-10-26 01:00+0100 by dell26/agent-2): Background tasks are detected from stream-json only: an Agent/Task tool_use (unless run_in_background:false) or Bash run_in_background:true whose tool_result mentions background/async/agentId counts as pending, and each result with origin.kind task-notification settles one. If this over-counts, the session just falls back to --timeout (safe); open tool calls (tool_use without tool_result) and any non-result stream-json event after a result also block the early end.
