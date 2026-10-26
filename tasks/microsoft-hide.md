@@ -1,10 +1,11 @@
 ---
 title: Hide Microsoft integration behind a setting (default off)
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [mail-identities]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/oauth,server/src/main/kotlin/ch/sonensei/cockpit/calendar/sync,server/src/main/kotlin/ch/sonensei/cockpit/mail/imap,server/src/main/resources/application.properties,api/openapi.yaml,web/src/app/api/generated,web/src/app/features/settings/integrations,web/src/app/features/settings/calendars,web/src/app/features/settings/mail,android/app/src/main/java/ch/sonensei/cockpit/settings,docs/oauth-setup.md,deploy/.env.example]
 prio: 2
+lease_until: 2026-10-26T08:56:45Z
 ---
 ## Goal
 The owner deferred Microsoft (docs/adr/0003-microsoft-deferred.md): the built Microsoft code stays, but nothing
