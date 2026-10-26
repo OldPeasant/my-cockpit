@@ -12,6 +12,11 @@ export interface DeleteContext$Params {
   id: string;
 
 /**
+ * Another context to give its tasks instead
+ */
+  replaceWith?: string;
+
+/**
  * ETag of the context
  */
   'If-Match'?: string;
@@ -21,6 +26,7 @@ export function deleteContext(http: HttpClient, rootUrl: string, params: DeleteC
   const rb = new RequestBuilder(rootUrl, deleteContext.PATH, 'delete');
   if (params) {
     rb.path('id', params.id, {});
+    rb.query('replaceWith', params.replaceWith, {});
     rb.header('If-Match', params['If-Match'], {});
   }
 

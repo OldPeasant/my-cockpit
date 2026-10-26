@@ -16,7 +16,7 @@ import java.util.UUID
 /**
  * Contexts (`@home`, `@phone`; SPEC.md §5.1), in the user's order. Names are trimmed and unique regardless of case;
  * colors are CSS hex colors. Changes are announced as [CONTEXT] change events. Deleting a context removes it from its
- * tasks (each announced as `UPDATED`, with a new version).
+ * tasks or replaces it there with another context (each task announced as `UPDATED`, with a new version).
  */
 @Service
 @Transactional
@@ -95,15 +95,25 @@ class ContextService(
 		return list()
 	}
 
-	/** Deletes the context and removes it from every task that has it (also those in the Trash). */
+	/**
+	 * Deletes the context and removes it from every task that has it (also those in the tickler or the Trash). With
+	 * [replaceWith], those tasks get that context instead, all in this transaction.
+	 *
+	 * @throws InvalidRequestException (400) when [replaceWith] is the context itself or no context
+	 */
 	fun delete(
 		id: UUID,
+		replaceWith: UUID? = null,
 		checkVersion: (Long) -> Unit,
 	) {
 		val context = load(id)
 		checkVersion(context.version)
+		if (replaceWith != null && (replaceWith == id || !contexts.existsById(replaceWith))) {
+			throw InvalidRequestException("replaceWith", "must be another existing context")
+		}
 		tasks.findAllWithContext(id).forEach { task ->
 			task.contextIds.remove(id)
+			replaceWith?.let { task.contextIds.add(it) }
 			tasks.save(task)
 			if (!task.isDeleted) changes.publish(ItemType.TASK, task.id, ChangeOp.UPDATED)
 		}
