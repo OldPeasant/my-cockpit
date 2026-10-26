@@ -14,3 +14,4 @@ German translations (SPEC.md §4.2).
 - [ ] Web builds a `de` locale (all messages translated, no missing-translation warnings); Android values-de complete (lint `MissingTranslation` clean)
 
 ## Notes
+- ASSUMPTION (2026-10-26 12:39+0100 by dell26/agent-2): German UI uses standard German orthography (with ß, not Swiss ss) and informal 'du'; terms fixed in a glossary (e.g. Inbox=Eingang, Weekly review=Wochenrückblick, Event=Termin). SPEC only says 'German UI'.
