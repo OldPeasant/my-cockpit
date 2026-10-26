@@ -1,11 +1,11 @@
 ---
 title: Other server tests leak their companion temp data dirs into /tmp
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: []
 touches: [server/src/test/kotlin]
 prio: 2
-lease_until: 2026-10-26T08:43:34Z
+lease_until: 
 ---
 ## Goal
 Like `BackupRoundTripTest` before `backup-roundtrip-tmp-leak`, several server test classes create a data dir with
@@ -27,3 +27,4 @@ Like `BackupRoundTripTest` before `backup-roundtrip-tmp-leak`, several server te
 
 ## Notes
 - ASSUMPTION (2026-10-26 09:13+0100 by dell26/agent-2): The companion-object @AfterAll cleanup was already on main (6b8afa8ae by agent-1, done while fixing another task); this task verifies it and adds no code. The remaining leaked dirs (empty cockpit-backups*/cockpit-restores*, one per Spring context, from production BackupJobService/RestoreService workDir) are outside this task's test-only scope: new task backup-workdir-tmp-leak.
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 96s on 042c0c50d; criteria verified 3/3
