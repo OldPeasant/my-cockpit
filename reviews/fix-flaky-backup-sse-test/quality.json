@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "task": "fix-flaky-backup-sse-test",
+  "reviewed_revision": "5de93ecb1e7c40455973bab7f5494afa4d7bd123",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/fix-flaky-backup-sse-test/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/fix-flaky-backup-sse-test/review.md"},
+    "fixer": {"status": "not_required", "reason": "neither helper reported a finding"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests '*BackupEventsStreamTests'", "result": "pass"},
+    {"command": "cd server && ./gradlew check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
