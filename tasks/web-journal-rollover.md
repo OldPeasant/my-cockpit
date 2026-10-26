@@ -13,7 +13,8 @@ past midnight still treats yesterday as "Today" (heatmap/today loaded once), and
 state are dropped without a prompt when the user opens another day.
 
 ## Acceptance criteria
-- [ ] /journal (Today) moves to the new day after midnight in the user's time zone (saving the old day first) and the heatmap includes it
+- [x] /journal (Today) moves to the new day after midnight in the user's time zone (saving the old day first) and the heatmap includes it
+  - verified (2026-10-26 10:37+0100 by dell26/agent-2): cd web && npx ng test --watch=false --include='src/app/features/journal/**/*.spec.ts' -> 6 files, 138 passed; journal-page.spec 'midnight' (fake Date+setInterval, DAY_CHECK_MS and visibilitychange): /journal saves the old day first (PUT If-Match), then shows 2026-10-26 as Today with the reloaded heatmap containing it; journal-dates.spec dayIn: Europe/Zurich vs UTC vs America/New_York day boundaries
 - [ ] Leaving a day whose edits are in conflict state asks before dropping them (keep mine / discard / stay)
 - [ ] A heatmap response that arrives after a newer load no longer overwrites the newer heatmap/today (review CR-3: `loadHeatmap()` ignores `loadSeq`)
 - [ ] Vitest specs cover all three; `cd web && npm run check` passes
