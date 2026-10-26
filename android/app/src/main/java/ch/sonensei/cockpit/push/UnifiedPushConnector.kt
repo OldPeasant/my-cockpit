@@ -35,9 +35,10 @@ class LibraryUnifiedPushConnector
             val distributor =
                 when (val resolved = UnifiedPush.resolveDefaultDistributor(context)) {
                     is ResolvedDistributor.Found -> resolved.packageName
-                    // Several distributors and no default: the app has no picker, so it takes the first one.
-                    ResolvedDistributor.ToSelect -> UnifiedPush.getDistributors(context).firstOrNull()
-                    ResolvedDistributor.NoneAvailable -> null
+                    // Several distributors and no default (or ones without a link activity): the app has no picker,
+                    // so it takes the first installed one.
+                    ResolvedDistributor.ToSelect, ResolvedDistributor.NoneAvailable ->
+                        UnifiedPush.getDistributors(context).firstOrNull()
                 } ?: return false
             UnifiedPush.saveDistributor(context, distributor)
             return true

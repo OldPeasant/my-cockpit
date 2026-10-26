@@ -63,8 +63,9 @@ class PushRegistrar internal constructor(
         try {
             if (!session.isLoggedIn || !connector.selectDistributor()) return
             connector.register(store.getOrCreate())
-        } catch (_: RuntimeException) {
-            // The library failed (e.g. its database): the periodic syncs stay, the next app start tries again.
+        } catch (_: Exception) {
+            // The library failed (e.g. its database or the keystore): the periodic syncs stay, the next app start
+            // tries again.
         }
     }
 
@@ -106,7 +107,7 @@ class PushRegistrar internal constructor(
         val instance = store.current() ?: return
         try {
             connector.unregister(instance)
-        } catch (_: RuntimeException) {
+        } catch (_: Exception) {
             // The distributor keeps a dead registration; the server has none, so nothing is pushed to it.
         }
         store.clear()
