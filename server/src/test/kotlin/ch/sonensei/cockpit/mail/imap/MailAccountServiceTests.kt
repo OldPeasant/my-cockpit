@@ -4,6 +4,7 @@ import ch.sonensei.cockpit.core.auth.WithCockpitUser
 import ch.sonensei.cockpit.core.events.domain.ChangeEvent
 import ch.sonensei.cockpit.core.events.domain.ChangeEventPublisher
 import ch.sonensei.cockpit.core.events.domain.ChangeOp
+import ch.sonensei.cockpit.core.oauth.domain.MicrosoftAvailability
 import ch.sonensei.cockpit.core.oauth.domain.OAuthConnection
 import ch.sonensei.cockpit.core.oauth.domain.OAuthProvider
 import ch.sonensei.cockpit.core.oauth.domain.OAuthTokenProvider
@@ -313,7 +314,7 @@ class MailAccountServiceTests(
 	fun `test connection reports IMAP and SMTP independently`() {
 		val pool = mockk<ImapConnectionPool>()
 		val sessions = mockk<MailSessions>()
-		val tester = MailAccountService(repository, tokens, sessions, pool, changes, publisher)
+		val tester = MailAccountService(repository, tokens, sessions, pool, changes, publisher, MicrosoftAvailability(enabled = true))
 		val account = service.create(newPasswordAccount())
 
 		every { pool.withStore(any(), any<(IMAPStore) -> Unit>()) } throws MailConnectionException(MailConnectionError.TIMEOUT)

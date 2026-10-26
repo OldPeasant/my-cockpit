@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.mail.imap
 import ch.sonensei.cockpit.core.crypto.EncryptedSecret
 import ch.sonensei.cockpit.core.events.domain.ChangeEventPublisher
 import ch.sonensei.cockpit.core.events.domain.ChangeOp
+import ch.sonensei.cockpit.core.oauth.domain.MicrosoftAvailability
 import ch.sonensei.cockpit.core.oauth.domain.OAuthProvider
 import ch.sonensei.cockpit.core.oauth.domain.OAuthTokenProvider
 import ch.sonensei.cockpit.core.web.ETags
@@ -100,6 +101,7 @@ class MailAccountService(
 	private val pool: ImapConnectionPool,
 	private val changes: ChangeEventPublisher,
 	private val events: ApplicationEventPublisher,
+	private val microsoft: MicrosoftAvailability,
 ) {
 	@Transactional(readOnly = true)
 	fun list(): List<MailAccount> = accounts.findAllByOrderByDisplayNameAscIdAsc()
@@ -109,6 +111,7 @@ class MailAccountService(
 
 	@Transactional
 	fun create(request: NewMailAccount): MailAccount {
+		if (request.type == MailAccountType.MICROSOFT) microsoft.require(OAuthProvider.MICROSOFT, "type")
 		val errors = mutableListOf<FieldError>()
 		val oauth = request.type != MailAccountType.IMAP_SMTP
 		val connectionEmail = if (oauth) checkConnection(request.type, request.oauthConnectionId, errors) else null

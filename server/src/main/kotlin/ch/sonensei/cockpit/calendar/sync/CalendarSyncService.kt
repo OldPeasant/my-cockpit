@@ -15,6 +15,8 @@ import ch.sonensei.cockpit.core.events.domain.ChangeOp
 import ch.sonensei.cockpit.core.items.domain.ItemDeletedEvent
 import ch.sonensei.cockpit.core.items.domain.ItemRef
 import ch.sonensei.cockpit.core.items.domain.ItemType
+import ch.sonensei.cockpit.core.oauth.domain.MicrosoftAvailability
+import ch.sonensei.cockpit.core.oauth.domain.OAuthProvider
 import ch.sonensei.cockpit.core.persistence.storableInstant
 import ch.sonensei.cockpit.core.web.ConflictException
 import ch.sonensei.cockpit.core.web.NotFoundException
@@ -60,6 +62,7 @@ class CalendarSyncService(
 	private val changes: ChangeEventPublisher,
 	private val appEvents: ApplicationEventPublisher,
 	private val clock: Clock,
+	private val microsoft: MicrosoftAvailability,
 	transactionManager: PlatformTransactionManager,
 ) {
 	private val log = LoggerFactory.getLogger(javaClass)
@@ -94,9 +97,11 @@ class CalendarSyncService(
 	 *
 	 * @throws NotFoundException (404) when there is no such source
 	 * @throws ConflictException (409) when the source is LOCAL or its type has no adapter
+	 * @throws ch.sonensei.cockpit.core.web.InvalidRequestException (400) for a Microsoft source while Microsoft is not enabled
 	 */
 	fun sync(id: UUID): SourceSyncView {
 		val view = get(id)
+		if (view.source.type == CalendarSourceType.MICROSOFT) microsoft.require(OAuthProvider.MICROSOFT, "type")
 		val adapter =
 			view.adapter
 				?: throw ConflictException(
@@ -106,12 +111,16 @@ class CalendarSyncService(
 		return get(id)
 	}
 
-	/** Syncs every external source whose poll interval has passed since its last attempt; returns how many. */
+	/**
+	 * Syncs every external source whose poll interval has passed since its last attempt; returns how many. Microsoft
+	 * sources are skipped while Microsoft is not enabled.
+	 */
 	fun syncDue(): Int {
 		val now = clock.instant()
 		val due =
 			list().filter { view ->
 				val adapter = view.adapter ?: return@filter false
+				if (view.source.type == CalendarSourceType.MICROSOFT && !microsoft.enabled) return@filter false
 				val last = view.status?.lastAttemptAt
 				last == null || !last.plus(adapter.pollInterval).isAfter(now)
 			}

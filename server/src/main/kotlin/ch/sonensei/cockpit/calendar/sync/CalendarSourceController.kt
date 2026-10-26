@@ -62,7 +62,9 @@ class CalendarSourceController(
 	)
 	@ApiResponse(
 		responseCode = "400",
-		description = "Invalid fields, a LOCAL type, or an unknown connection or one of another provider",
+		description =
+			"Invalid fields, a LOCAL type, an unknown connection or one of another provider, or a MICROSOFT type while " +
+				"Microsoft is not enabled",
 		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
 	)
 	fun create(
@@ -95,6 +97,11 @@ class CalendarSourceController(
 		responseCode = "200",
 		description = "Synced (or failed, see `sync`); the source with its new status",
 		content = [Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = Schema(implementation = CalendarSourceResponse::class))],
+	)
+	@ApiResponse(
+		responseCode = "400",
+		description = "A Microsoft source while Microsoft is not enabled",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = "#/components/schemas/ProblemDetail"))],
 	)
 	@ApiResponse(
 		responseCode = "404",

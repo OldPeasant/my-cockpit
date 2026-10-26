@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.mail.sync
 
 import ch.sonensei.cockpit.core.events.domain.ChangeEvent
 import ch.sonensei.cockpit.core.events.domain.ChangeOp
+import ch.sonensei.cockpit.core.oauth.domain.MicrosoftAvailability
 import ch.sonensei.cockpit.mail.imap.MailAccountConnectionChanged
 import ch.sonensei.cockpit.mail.imap.MailAccountService
 import ch.sonensei.cockpit.mail.imap.MailConnectionError
@@ -49,26 +50,30 @@ class MailPushServiceTests {
 			if (account.id !in idleCapable) throw IdleNotSupportedException()
 			FakeIdleSession().also { sessions.getOrPut(account.id) { CopyOnWriteArrayList() } += it }
 		}
-	private val service = MailPushService(accounts, folders, folderService, sync, connector, properties)
+	private var microsoftEnabled = true
+	private val microsoft = mockk<MicrosoftAvailability> { every { enabled } answers { microsoftEnabled } }
+	private val service = MailPushService(accounts, folders, folderService, sync, connector, properties, microsoft)
 
 	private val ann = account("ann")
 	private val bob = account("bob")
 	private val known = CopyOnWriteArrayList<MailAccount>()
 	private val folderList = mutableMapOf<UUID, List<MailFolder>>()
 
-	private fun account(name: String) =
-		MailAccount(
-			MailAccountType.IMAP_SMTP,
-			name,
-			"$name@example.test",
-			"imap.example.test",
-			993,
-			MailSecurity.SSL_TLS,
-			"smtp.example.test",
-			465,
-			MailSecurity.SSL_TLS,
-			name,
-		)
+	private fun account(
+		name: String,
+		type: MailAccountType = MailAccountType.IMAP_SMTP,
+	) = MailAccount(
+		type,
+		name,
+		"$name@example.test",
+		"imap.example.test",
+		993,
+		MailSecurity.SSL_TLS,
+		"smtp.example.test",
+		465,
+		MailSecurity.SSL_TLS,
+		name,
+	)
 
 	/** Inbox, Archive and a `\Noselect` group folder for [account]. */
 	private fun foldersOf(account: MailAccount): List<MailFolder> {
@@ -171,6 +176,7 @@ class MailPushServiceTests {
 				sync,
 				connector,
 				MailPushProperties(true, Duration.ofMinutes(29), Duration.ofMillis(50), Duration.ofMinutes(10), Duration.ofMinutes(10)),
+				microsoft,
 			)
 		val polls = AtomicInteger()
 		every { folderService.sync(ann.id) } answers {
@@ -209,6 +215,7 @@ class MailPushServiceTests {
 				sync,
 				{ _, _ -> throw MailConnectionException(MailConnectionError.TIMEOUT) },
 				properties,
+				microsoft,
 			)
 		try {
 			failing.start()
@@ -297,6 +304,7 @@ class MailPushServiceTests {
 					FakeIdleSession()
 				},
 				properties,
+				microsoft,
 			)
 		try {
 			crashing.start()
@@ -368,6 +376,40 @@ class MailPushServiceTests {
 
 		service.watcher(ann.id) shouldBeSameInstanceAs annWatcher
 		idlingWatcher(bob)
+	}
+
+	@Test
+	fun `Microsoft accounts are neither watched nor polled while Microsoft is not enabled`() {
+		microsoftEnabled = false
+		val mia = account("mia", MailAccountType.MICROSOFT)
+		folderList[mia.id] = foldersOf(mia)
+		idleCapable += listOf(ann.id, mia.id)
+		known += listOf(ann, mia)
+		service.start()
+		idlingWatcher(ann)
+
+		service.poll()
+		service.onChange(ChangeEvent(MailAccountService.ACCOUNT_EVENT, mia.id, ChangeOp.CREATED, Instant.parse("2026-10-21T08:00:00Z")))
+		service.onAccountChanged(MailAccountConnectionChanged(mia.id))
+
+		service.watcher(mia.id).shouldBeNull()
+		sessions[mia.id].shouldBeNull()
+		verify(exactly = 0) { folderService.sync(mia.id) }
+		verify(atLeast = 1) { folderService.sync(ann.id) }
+	}
+
+	@Test
+	fun `Microsoft accounts are watched and polled while Microsoft is enabled`() {
+		val mia = account("mia", MailAccountType.MICROSOFT)
+		folderList[mia.id] = foldersOf(mia)
+		idleCapable += mia.id
+		known += mia
+		service.start()
+		idlingWatcher(mia)
+
+		service.poll()
+
+		verify(exactly = 1) { sync.syncFolder(archiveOf(mia).id) }
 	}
 
 	@Test
@@ -456,6 +498,7 @@ class MailPushServiceTests {
 					FakeIdleSession()
 				},
 				properties,
+				microsoft,
 			)
 		try {
 			recording.start()

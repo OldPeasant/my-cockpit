@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.core.oauth.api
 
 import ch.sonensei.cockpit.core.auth.infra.SessionCookies
+import ch.sonensei.cockpit.core.oauth.domain.MicrosoftAvailability
 import ch.sonensei.cockpit.core.oauth.domain.OAuthCallbackResult
 import ch.sonensei.cockpit.core.oauth.domain.OAuthConnectionInfo
 import ch.sonensei.cockpit.core.oauth.domain.OAuthConnectionService
@@ -47,11 +48,13 @@ import java.util.UUID
 class OAuthController(
 	private val service: OAuthConnectionService,
 	private val cookies: SessionCookies,
+	private val microsoft: MicrosoftAvailability,
 ) {
 	@GetMapping("/providers", produces = [MediaType.APPLICATION_JSON_VALUE])
 	@Operation(operationId = "listOAuthProviders", summary = "The providers and whether their OAuth app is configured")
-	@ApiResponse(responseCode = "200", description = "Both providers")
-	fun providers(): List<OAuthProviderResponse> = OAuthProvider.entries.map { OAuthProviderResponse(it, it.slug, service.isConfigured(it)) }
+	@ApiResponse(responseCode = "200", description = "The available providers (Microsoft only when it is enabled on this server)")
+	fun providers(): List<OAuthProviderResponse> =
+		OAuthProvider.entries.filter(microsoft::allows).map { OAuthProviderResponse(it, it.slug, service.isConfigured(it)) }
 
 	@GetMapping("/{provider}/start")
 	@Operation(
@@ -69,7 +72,7 @@ class OAuthController(
 	)
 	@ApiResponse(
 		responseCode = "400",
-		description = "Missing or unknown purpose",
+		description = "Missing or unknown purpose, or Microsoft is not enabled on this server",
 		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
 	)
 	@ApiResponse(
@@ -94,6 +97,7 @@ class OAuthController(
 		request: HttpServletRequest,
 	): ResponseEntity<Any> {
 		val oauthProvider = provider(provider)
+		microsoft.require(oauthProvider, "provider")
 		val session =
 			cookies.read(request)
 				?: return ResponseEntity

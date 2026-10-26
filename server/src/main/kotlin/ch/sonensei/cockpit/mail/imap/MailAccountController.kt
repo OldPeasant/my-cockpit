@@ -83,12 +83,13 @@ class MailAccountController(
 			"`IMAP_SMTP` accounts need servers, username and password. `GOOGLE`/`MICROSOFT` accounts need " +
 				"`oauthConnectionId` (a connection of that provider, see `/api/v1/oauth`) and no password; servers " +
 				"default to the provider's and the username to the connection's email address. The servers are not " +
-				"contacted: use `POST /{id}/test` and `POST /{id}/folders/sync` afterwards.",
+				"contacted: use `POST /{id}/test` and `POST /{id}/folders/sync` afterwards. `MICROSOFT` accounts are " +
+				"refused while Microsoft is not enabled on this server.",
 	)
 	@ApiResponse(responseCode = "201", description = "Created; `Location` points to the account")
 	@ApiResponse(
 		responseCode = "400",
-		description = "Invalid request",
+		description = "Invalid request, or a `MICROSOFT` account while Microsoft is not enabled",
 		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
 	)
 	fun create(

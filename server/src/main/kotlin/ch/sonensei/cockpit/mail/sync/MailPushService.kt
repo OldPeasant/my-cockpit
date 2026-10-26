@@ -2,10 +2,13 @@ package ch.sonensei.cockpit.mail.sync
 
 import ch.sonensei.cockpit.core.events.domain.ChangeEvent
 import ch.sonensei.cockpit.core.events.domain.ChangeOp
+import ch.sonensei.cockpit.core.oauth.domain.MicrosoftAvailability
 import ch.sonensei.cockpit.mail.imap.MailAccountConnectionChanged
 import ch.sonensei.cockpit.mail.imap.MailAccountService
 import ch.sonensei.cockpit.mail.imap.MailFolderService
+import ch.sonensei.cockpit.mail.model.MailAccount
 import ch.sonensei.cockpit.mail.model.MailAccountRepository
+import ch.sonensei.cockpit.mail.model.MailAccountType
 import ch.sonensei.cockpit.mail.model.MailFolder
 import ch.sonensei.cockpit.mail.model.MailFolderRepository
 import ch.sonensei.cockpit.mail.model.MailFolderRole
@@ -36,7 +39,7 @@ class MailPushConfiguration
  * [MailHeaderSyncService] (change events, new-mail notification).
  *
  * Watchers start with the application and follow the accounts: created, changed connection settings (restart) and
- * deleted. Runs unless `cockpit.mail.push.enabled=false` (the test configuration turns it off).
+ * deleted. Microsoft accounts are left alone while Microsoft is not enabled. Runs unless `cockpit.mail.push.enabled=false` (the test configuration turns it off).
  */
 @Service
 @ConditionalOnProperty(name = ["cockpit.mail.push.enabled"], havingValue = "true", matchIfMissing = true)
@@ -47,6 +50,7 @@ class MailPushService(
 	private val sync: MailHeaderSyncService,
 	private val connector: IdleConnector,
 	private val properties: MailPushProperties,
+	private val microsoft: MicrosoftAvailability,
 ) : SmartLifecycle {
 	private val log = LoggerFactory.getLogger(javaClass)
 	private val watchers = ConcurrentHashMap<UUID, InboxWatcher>()
@@ -102,7 +106,7 @@ class MailPushService(
 
 	private fun pollAccounts() {
 		reconcile()
-		accounts.findAll().forEach { account ->
+		syncedAccounts().forEach { account ->
 			try {
 				folderService.sync(account.id)
 				folders
@@ -135,7 +139,7 @@ class MailPushService(
 	@Synchronized
 	fun reconcile() {
 		if (!running) return
-		val ids = accounts.findAll().map { it.id }.toSet()
+		val ids = syncedAccounts().map { it.id }.toSet()
 		watchers.keys.filter { it !in ids }.forEach { watchers.remove(it)?.stop() }
 		ids.forEach { id ->
 			val current = watchers[id]
@@ -147,8 +151,13 @@ class MailPushService(
 	private fun restart(accountId: UUID) {
 		if (!running) return
 		watchers.remove(accountId)?.stop()
-		if (accounts.existsById(accountId)) start(accountId)
+		if (accounts.findById(accountId).orElse(null)?.let(::synced) == true) start(accountId)
 	}
+
+	/** The accounts to watch and poll: all but Microsoft ones while Microsoft is not enabled. */
+	private fun syncedAccounts(): List<MailAccount> = accounts.findAll().filter(::synced)
+
+	private fun synced(account: MailAccount): Boolean = account.type != MailAccountType.MICROSOFT || microsoft.enabled
 
 	private fun start(accountId: UUID) {
 		val watcher =

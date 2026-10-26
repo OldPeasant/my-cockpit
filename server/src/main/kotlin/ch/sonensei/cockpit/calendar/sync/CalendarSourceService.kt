@@ -6,6 +6,7 @@ import ch.sonensei.cockpit.calendar.model.CalendarSourceType
 import ch.sonensei.cockpit.core.crypto.EncryptedSecret
 import ch.sonensei.cockpit.core.events.domain.ChangeEventPublisher
 import ch.sonensei.cockpit.core.events.domain.ChangeOp
+import ch.sonensei.cockpit.core.oauth.domain.MicrosoftAvailability
 import ch.sonensei.cockpit.core.oauth.domain.OAuthProvider
 import ch.sonensei.cockpit.core.oauth.domain.OAuthTokenProvider
 import ch.sonensei.cockpit.core.web.FieldError
@@ -49,9 +50,11 @@ class CalendarSourceService(
 	private val tokens: OAuthTokenProvider,
 	private val changes: ChangeEventPublisher,
 	private val json: JsonMapper,
+	private val microsoft: MicrosoftAvailability,
 ) {
 	@Transactional
 	fun create(request: NewCalendarSource): CreatedCalendarSource {
+		if (request.type == CalendarSourceType.MICROSOFT) microsoft.require(OAuthProvider.MICROSOFT, "type")
 		val errors = mutableListOf<FieldError>()
 		val name = request.name?.trim()?.takeIf { it.isNotEmpty() }
 		if (name != null && name.length > MAX_NAME_LENGTH) errors += FieldError("name", "must be at most $MAX_NAME_LENGTH characters")
