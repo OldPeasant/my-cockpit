@@ -9,6 +9,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.maps.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.beans.factory.annotation.Autowired
@@ -148,6 +149,13 @@ class BackupRoundTripTest(
 	companion object {
 		private const val DATABASE = "backup_round_trip"
 		private val dataDir: Path = Files.createTempDirectory("cockpit-round-trip-data")
+
+		/** Runs also when a test failed, so no run leaves its data directory behind. */
+		@JvmStatic
+		@AfterAll
+		fun deleteDataDir() {
+			dataDir.toFile().deleteRecursively()
+		}
 
 		@JvmStatic
 		@DynamicPropertySource
