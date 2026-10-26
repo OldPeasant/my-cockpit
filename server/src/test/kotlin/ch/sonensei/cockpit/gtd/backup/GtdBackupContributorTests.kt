@@ -25,6 +25,7 @@ import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.JsonNode
+import tools.jackson.databind.node.ObjectNode
 import java.nio.file.Files
 import java.nio.file.Path
 import java.sql.Timestamp
@@ -616,6 +617,48 @@ class GtdBackupContributorTests(
 			.map { (it["time_estimate_min"] as Number?)?.toInt() } shouldContainExactly listOf(0, 90, 100_000, null)
 	}
 
+	@Test
+	fun `the release marker is exported as a date and restored, a task without one keeps none`() {
+		task(id(20), "Book the dentist", "NEXT", releasedOn = LocalDate.parse("2026-10-24"))
+		task(id(21), "Call the plumber", "NEXT")
+
+		val zip = export()
+
+		val tasks = zip.tasks()
+		tasks[0]["releasedOn"].asString() shouldBe "2026-10-24"
+		tasks[1].isNullOrAbsent("releasedOn") shouldBe true
+
+		wipe()
+		import(zip.path)
+
+		jdbc
+			.queryForList("select released_on from task order by id")
+			.map { it["released_on"]?.toString() } shouldContainExactly listOf("2026-10-24", null)
+	}
+
+	@Test
+	fun `a task line of a backup made before the release marker existed restores without one`() {
+		task(id(20), "Book the dentist", "NEXT", releasedOn = LocalDate.parse("2026-10-24"))
+		val exported = export()
+		val old =
+			Zips.edit(exported.path.readBytes(), backups.canonicalJson, updateManifest = true) { entries ->
+				val lines =
+					exported.tasks().map { line ->
+						(line as ObjectNode).remove("releasedOn")
+						backups.canonicalJson.writeValueAsString(line)
+					}
+				lines.forEach { it shouldNotContain "releasedOn" }
+				entries["data/tasks.jsonl"] = (lines.joinToString("\n") + "\n").toByteArray()
+			}
+		val zip = Files.createTempFile(work, "old-backup-", ".zip").also { Files.write(it, old) }
+
+		wipe()
+		import(zip)
+
+		jdbc.queryForObject("select title from task where id = ?", String::class.java, id(20)) shouldBe "Book the dentist"
+		jdbc.queryForObject("select released_on from task where id = ?", LocalDate::class.java, id(20)) shouldBe null
+	}
+
 	// --- helpers ----------------------------------------------------------------------------------------------------
 
 	private class Exported(
@@ -747,12 +790,13 @@ class GtdBackupContributorTests(
 		completedAt: Instant? = null,
 		deletedAt: Instant? = null,
 		version: Long = 1,
+		releasedOn: LocalDate? = null,
 	): UUID {
 		jdbc.update(
 			"""insert into task (id, created_at, updated_at, version, deleted_at, title, notes_md, list, project_id, position,
 			energy, creativity, time_estimate_min, due_date, due_time, scheduled_date, tickler_date, waiting_for_contact_id,
-			waiting_for_text, waiting_since, recurrence_rule, recurrence_mode, next_occurrence_id, completed_at)
-			values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+			waiting_for_text, waiting_since, recurrence_rule, recurrence_mode, next_occurrence_id, completed_at, released_on)
+			values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
 			id,
 			Timestamp.from(T0),
 			Timestamp.from(T1),
@@ -777,6 +821,7 @@ class GtdBackupContributorTests(
 			recurrenceMode,
 			nextOccurrence,
 			completedAt?.let(Timestamp::from),
+			releasedOn,
 		)
 		contexts.forEach { jdbc.update("insert into task_context (task_id, context_id) values (?, ?)", id, it) }
 		return id

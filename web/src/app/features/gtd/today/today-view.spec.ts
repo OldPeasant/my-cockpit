@@ -278,6 +278,19 @@ describe('TodayView', () => {
     expect(titlesIn('scheduled')).toEqual(['Sort the old mail', 'Water the plants']);
   });
 
+  it('shows a released task that is also due today only once, under Due today', async () => {
+    const releasedAndDue = task('t-call', 'Call Alice Example', {
+      releasedOn: TODAY,
+      dueDate: TODAY,
+    });
+    configure();
+    await render();
+    await answer([], [releasedAndDue], [releasedAndDue, WATER_PLANTS]);
+
+    expect(titlesIn('due')).toEqual(['Call Alice Example']);
+    expect(titlesIn('scheduled')).toEqual(['Water the plants']);
+  });
+
   it('drops a released task from Scheduled for today when it is completed', async () => {
     const released = task('t-mail', 'Sort the old mail', { releasedOn: TODAY });
     configure();
