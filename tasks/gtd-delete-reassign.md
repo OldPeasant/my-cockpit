@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [web-settings-gtd]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,api/openapi.yaml,web/src/app/features/settings/gtd]
 prio: 2
-lease_until: 2026-10-26T06:07:13Z
+lease_until: 2026-10-26T06:12:17Z
 releases: 0
 extended: 
 hold: 
