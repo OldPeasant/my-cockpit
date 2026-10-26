@@ -42,6 +42,10 @@ Live status: the runner reads the agent's output as it streams, turns each step 
 one-commit branch status/<host>/agent-N. `python tasks.py watch` shows these on any machine; main's
 history is not touched.
 
+Hung sessions: a session that printed its final successful result but doesn't exit (seen after background
+sub-agents) is ended once it has printed nothing for --result-grace s (default 60), as a normal exit.
+Never while a tool call or a background task (not yet reported by a task notification) is still open.
+
 Runs on Linux, macOS and Windows (on Windows: Git for Windows and Claude Code's native claude.exe).
 
 Agent command (default: Claude Code headless). Override with --cmd or AGENT_CMD; the prompt is
@@ -200,6 +204,59 @@ def describe(line, clone):
     return None, None
 
 
+class Settled:
+    """Watches a session's output for "final result printed, nothing running": then the session has only
+    to exit. `claude -p` sometimes stays alive and idle after its last result (seen after background
+    sub-agents), so the runner ends it once it was quiet for a grace period. Any output restarts the quiet
+    time; a stream-json event other than a successful result (a new turn, e.g. after a task notification)
+    unsettles it until the next result. Open tool calls (tool_use without its tool_result) and background
+    tasks not yet reported by a task notification keep it unsettled too, so a running tool is never cut off."""
+
+    BACKGROUND_HINT = re.compile(r"background|async|agentId", re.I)
+
+    def __init__(self):
+        self.result, self.last = False, time.time()
+        self.tools = {}  # open tool_use id -> True if it may start a background task
+        self.background = 0  # background tasks whose completion notification has not come yet
+
+    def feed(self, line):
+        line = line.strip()
+        if not line:
+            return
+        self.last = time.time()
+        try:
+            ev = json.loads(line)
+        except ValueError:
+            return  # plain text (a custom --cmd): only restarts the quiet time
+        if not isinstance(ev, dict):
+            return
+        if ev.get("type") == "result":
+            if (ev.get("origin") or {}).get("kind") == "task-notification":
+                self.background = max(0, self.background - 1)
+            self.result = not ev.get("is_error") and ev.get("subtype", "success") == "success"
+            return
+        self.result = False
+        content = (ev.get("message") or {}).get("content")
+        for c in content if isinstance(content, list) else []:
+            if not isinstance(c, dict):
+                continue
+            if c.get("type") == "tool_use":
+                inp = c.get("input") or {}
+                bg = inp.get("run_in_background") is True or (
+                    c.get("name") in ("Agent", "Task") and inp.get("run_in_background") is not False)
+                self.tools[c.get("id")] = bg
+            elif c.get("type") == "tool_result" and c.get("tool_use_id") in self.tools:
+                # an Agent call returns at once when it went to the background, else when it is finished
+                if self.tools.pop(c["tool_use_id"]) and self.BACKGROUND_HINT.search(json.dumps(c.get("content"))):
+                    self.background += 1
+
+    def idle(self, now=None):
+        """Seconds the session has been quiet after its final result, else 0."""
+        if not self.result or self.tools or self.background:
+            return 0
+        return max(0.0, (now or time.time()) - self.last)
+
+
 def repo_root():
     p = sh("git", "rev-parse", "--show-toplevel")
     if p.returncode:
@@ -312,7 +369,8 @@ def cmd_start(a):
         log = open(base / "logs" / f"{name}.log", "a", encoding="utf-8")
         argv = [sys.executable, str(Path(__file__).resolve()), "run", name, str(clone), "--owner", owner,
                 "--cmd", cmd, "--timeout", str(a.timeout), "--lease", str(a.lease), "--limit-wait", str(a.limit_wait),
-                "--task-budget", str(a.task_budget), "--avoid", str(a.avoid), "--blocked-retry", str(a.blocked_retry)]
+                "--task-budget", str(a.task_budget), "--avoid", str(a.avoid), "--blocked-retry", str(a.blocked_retry),
+                "--result-grace", str(a.result_grace)]
         io = dict(stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
         try:  # Windows: leave the terminal's job object too, if allowed, so closing the terminal is safe
             proc = subprocess.Popen(argv, **io, **detached(breakaway=True))
@@ -738,7 +796,7 @@ def cmd_run(a):
         publish(force=True, state="working", task=mine[0]["id"] if mine else None, error=None,
                 doing="reviewing: over budget" if review else "resuming" if mine else "claiming a task",
                 doing_at=int(t0))
-        final, buf, errored = [None], [""], [False]
+        final, buf, errored, settled = [None], [""], [False], Settled()
 
         def drain(reader):
             buf[0] += reader.read()
@@ -748,6 +806,7 @@ def cmd_run(a):
                 if m and m.group(1) in ts:
                     status["task"] = m.group(1)
                     held.add(m.group(1))
+                settled.feed(line)
                 doing, result = describe(line, clone)
                 if doing and doing.startswith("failed: "):
                     errored[0] = True
@@ -761,7 +820,7 @@ def cmd_run(a):
             env = {**os.environ, "TASK_AVOID": ",".join(sorted(avoid))}  # claim without id skips these
             child[0] = p = subprocess.Popen(agent_argv(a.cmd, prompt), cwd=clone, stdout=f, env=env,
                                             stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, **detached())
-            why = None
+            why = quiet = None
             while p.poll() is None:
                 try:
                     p.wait(timeout=min(5, every))
@@ -778,12 +837,18 @@ def cmd_run(a):
                 if why:
                     kill_tree(p.pid)
                     p.wait()
+                elif settled.idle() >= a.result_grace:  # done, but the process doesn't exit: a normal exit
+                    quiet = int(settled.idle())
+                    kill_tree(p.pid)
+                    p.wait()
             drain(reader)
         child[0] = None
+        rc = 0 if quiet is not None else p.returncode
         tail = final[0] or " | ".join(filter(None, (describe(l, clone)[0] for l in
                                                     out.read_text(encoding="utf-8", errors="replace").splitlines()[-3:])))
-        log(f"session {'killed, ' + why if why else f'exit {p.returncode}'}: {one_line(tail, 300)}")
-        failed = not why and (p.returncode != 0 or errored[0])
+        ended = f"ended: idle {quiet}s after final result" if quiet is not None else f"exit {rc}"
+        log(f"session {'killed, ' + why if why else ended}: {one_line(tail, 300)}")
+        failed = not why and (rc != 0 or errored[0])
         fails = fails + 1 if failed else 0
         # a push tasks.py could not do in this session; read before force_release() below, whose own refused
         # release would overwrite it (and lose e.g. the reason of a hold the agent chose in its review)
@@ -830,7 +895,7 @@ def cmd_run(a):
             hand_off(reason)
             wait_limited(reason, limit[1] if limit else None, bool(limit))
             fails = 0
-        elif not why and time.time() - t0 < 20 and (p.returncode or final[0] is None):  # crashed
+        elif not why and time.time() - t0 < 20 and (rc or final[0] is None):  # crashed
             idle(30, task=status["task"], state="backoff", doing=f"session ended after {int(time.time() - t0)}s "
                  f"(rate limit or error?): {one_line(tail, 80)}; retrying")
 
@@ -852,6 +917,8 @@ def main():
                    "budget to other agents before it may claim it again")
     s.add_argument("--blocked-retry", type=int, default=1800, help="seconds between retries of a task whose "
                    "pushes the remote refuses (blocked: no sessions on it meanwhile)")
+    s.add_argument("--result-grace", type=int, default=60, help="seconds a session may stay alive and silent "
+                   "after its final result before the runner ends it (as a normal exit)")
     s.set_defaults(f=cmd_start)
     sp.add_parser("status").set_defaults(f=cmd_status)
     s = sp.add_parser("stop"); s.set_defaults(f=cmd_stop)
@@ -863,6 +930,7 @@ def main():
     s.add_argument("--cmd", required=True); s.add_argument("--timeout", type=int, default=1800)
     s.add_argument("--limit-wait", type=int, default=900); s.add_argument("--task-budget", type=int, default=2)
     s.add_argument("--avoid", type=int, default=300); s.add_argument("--blocked-retry", type=int, default=1800)
+    s.add_argument("--result-grace", type=int, default=60)
     s.set_defaults(f=cmd_run)
     a = p.parse_args(); a.f(a)
 
