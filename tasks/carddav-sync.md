@@ -15,3 +15,4 @@ Contacts with CardDAV servers.
 
 ## Notes
 - ASSUMPTION (2026-10-26 11:55+0100 by dell26/agent-1): CardDAV accounts are managed through CardDavAccountService (add/remove) and CardDavContactsSync.createContact only; no REST endpoints, OpenAPI or UI yet (touches is the carddav package only). Follow-up task carddav-api added for API, UI and backup of the account config.
+- ASSUMPTION (2026-10-26 11:55+0100 by dell26/agent-1): One address book per account: the configured URL if it is an address book, else the first (by path) found via current-user-principal / addressbook-home-set.
