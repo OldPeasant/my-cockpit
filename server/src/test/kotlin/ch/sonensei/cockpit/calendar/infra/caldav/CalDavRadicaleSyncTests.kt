@@ -363,6 +363,17 @@ class CalDavRadicaleSyncTests(
 		}
 	}
 
+	@Test
+	fun `Radicale refuses a request without credentials, so the sync runs authenticated`() {
+		val anonymous =
+			http.send(
+				HttpRequest.newBuilder(URI.create("${radicale.baseUrl()}$HOME")).method("PROPFIND", HttpRequest.BodyPublishers.noBody()).build(),
+				HttpResponse.BodyHandlers.discarding(),
+			)
+
+		anonymous.statusCode() shouldBe 401
+	}
+
 	// --- Radicale
 
 	private fun put(
@@ -439,7 +450,7 @@ class CalDavRadicaleSyncTests(
 						hosts = 0.0.0.0:$PORT
 						[auth]
 						type = htpasswd
-						htpasswd_filename = /config/users
+						htpasswd_filename = /etc/radicale/users
 						htpasswd_encryption = plain
 						[rights]
 						type = owner_only
@@ -447,8 +458,10 @@ class CalDavRadicaleSyncTests(
 						filesystem_folder = /data/collections
 						""".trimIndent(),
 					),
-					"/config/config",
-				).withCopyToContainer(Transferable.of("$USER:$PASSWORD\n"), "/config/users")
+					"/etc/radicale/config",
+				).withCopyToContainer(Transferable.of("$USER:$PASSWORD\n"), "/etc/radicale/users")
+				// Not into /config: the image fills that volume with its default config (no authentication) at start.
+				.withCommand("/venv/bin/radicale", "--config", "/etc/radicale/config")
 				.waitingFor(Wait.forListeningPort())
 				// A socket-activated Podman API service exits when idle while the Spring context starts; the first
 				// create then fails with a broken pipe on the stale pooled connection, a second attempt reconnects.
