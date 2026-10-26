@@ -4,86 +4,72 @@ Date: 2026-10-26
 
 Task: push-session-binding - Bind Web Push subscriptions to the login session
 
-Scope: whole task range `git diff 98053b81c..ed147c713` (excluding `tasks/` and `reviews/`), second round on the
-final code, with focus on the commits added since the first review (7fe4c21c3, ed147c713) and on the resolution of
-CR-1 from the first round (which reviewed 99ff0179c)
+Scope: whole task range `git diff 98053b81c..091428200` (excluding `tasks/` and `reviews/`), third (final) round on
+the final code. Rounds one and two reviewed 99ff0179c and ed147c713; this round focuses on the only code commit added
+since then, 091428200 (test file `PushServiceSubscribeFailureTests.kt`).
 
 Requirements:
 - `tasks/push-session-binding.md` (acceptance criteria, notes, assumptions)
 - `reviews/web-push/review.md` CR-1 (origin of the task)
-- `reviews/push-session-binding/fixes.md` (fix of CR-1)
+- `reviews/push-session-binding/fixes.md` (fix of first-round CR-1)
 - SPEC.md §4.1 (sessions), §4.2 (API conventions, Problem Details), §4.6 (Web Push), §14 (backup)
 - docs/ARCHITECTURE.md (module boundaries, migrations, conventions)
 - AGENTS.md project notes (Flyway naming, Problem Details, generated `api/openapi.yaml`, logging)
 
 Git range:
 - Branch: main
-- HEAD: ed147c713ed3c1c1f4ea219f052e5cd6b70ca05c
+- HEAD: 091428200b36a6101ccd3a1975bf88d95f70bf74
 - Base/start: 98053b81c713e30fe85c7b431960a6d142f23f3e
-- Commits reviewed: 3 (99ff0179c bind Web Push subscriptions to the login session; 7fe4c21c3 session lifecycle
-  tests; ed147c713 401 when the session ends during subscribe (CR-1))
-- Uncommitted changes: none in code (only the untracked review reports under `reviews/push-session-binding/`)
+- Commits reviewed: 4 (4676a2b27 bind Web Push subscriptions to the login session; 69adbf954 session lifecycle
+  tests; 78a803dd1 401 when the session ends during subscribe (CR-1); 091428200 unit tests for the subscribe FK
+  mapping, review reports). The hashes differ from earlier rounds after a rebase; the code content is the same.
+- Uncommitted changes: none in code
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## What was checked
 
-First-round checks (migration, native SQL upsert and expiry complements, principal session id, encryption switch to
-`WebPushEncryption`, concurrency, OpenAPI, logging, `PushSessionBindingTests`) still hold on ed147c713; the code they
-cover is unchanged apart from the CR-1 fix below.
+### Production code unchanged since round two
 
-### ed147c713 (fix of first-round CR-1)
+`git diff --stat ed147c713..091428200 -- server/src/main api web android` is empty. Between ed147c713 and 091428200
+only `PushServiceSubscribeFailureTests.kt`, `reviews/push-session-binding/*` and `tasks/*.md` changed. So everything
+checked in rounds one and two still holds for the final revision: migration with `on delete cascade`, native SQL
+upsert, principal session id, sending only to live sessions, the 23503-to-401 Problem Details mapping, OpenAPI
+contract and logging.
 
-- `PushService.subscribe` wraps only the upsert in `try`; a `DataIntegrityViolationException` is turned into
-  `ErrorResponseException(401)` with a Problem Details body ("The login session has ended") only when its cause chain
-  contains an `SQLException` with SQLSTATE `23503`; any other integrity violation is rethrown unchanged. The only
-  foreign key on `push_subscription` is `session_id` (checked all migrations), so 23503 there can only mean the
-  session no longer exists.
-- Transaction: the upsert is a `@Modifying` native query executed immediately (`flushAutomatically`), so the
-  violation surfaces inside the `try`, not at commit. No further statement runs on the aborted transaction; the
-  runtime `ErrorResponseException` leaves the `@Transactional` method, so it rolls back and nothing is stored.
-  `PushController.subscribe` has no surrounding transaction.
-- Status and format: 401 matches how the app treats an unknown or expired cookie (`HttpStatusEntryPoint(401)` in
-  `SecurityConfiguration`), and `ErrorResponseException` is the same mechanism the controller already uses for its
-  403, so the response is `application/problem+json`. The app's ERROR log "Unhandled exception in REST request" no
-  longer occurs; the fix logs at DEBUG with the session id only (no token, keys or endpoint). The parent reported that
-  Hibernate logs the failed statement at WARN only, consistent with the other `DataIntegrityViolationException` catch
-  sites in the codebase.
-- Contract: `PushController` documents the 401 ("Not logged in (no body), or the login session ended during the
-  request (Problem Details)"), which is accurate for both cases; `api/openapi.yaml` contains exactly that response and
-  the parent reported `npm run api:gen` produces no change, so the generated web client is in sync. The web client
-  ignores push subscription errors, so no client change is needed.
-- Test: `PushWebTests` "subscribing with a session that ended during the request gets 401 and stores nothing" covers
-  both upsert paths: the insert path (no row, 401 Problem Details with `status` 401) and the update path (an existing
-  row of the live owner session is not moved to the ended session and keeps its keys).
+### 091428200 (test-writer: `PushServiceSubscribeFailureTests`)
 
-First-round CR-1 status: resolved.
-
-### 7fe4c21c3 (test-writer: `PushSessionLifecycleTests`)
-
-- Real password+TOTP logins, passkey login and a device token against Postgres, WireMock as the push service, a
-  `MutableClock`. Covers: password login and cookie authentication carry the session id; two logins get different
-  ids; a device token principal has no session and gets the 403 Problem Details; a passkey session subscribes and only
-  its own logout ends the subscription; a remembered session keeps pushes past 12 h and loses them exactly at the
-  30-day lifetime boundary (no request sent, row deleted); a new login's expired-session cleanup cascades to the
-  subscription; an expired cookie cannot subscribe (401); version and `updatedAt` stay unchanged on an identical
-  re-subscribe and bump once on a session move; all subscriptions of one session end with it while others stay; a
-  sliding expiry keeps pushes past the first expiry.
-- Tests assert observable behavior (HTTP status, stored rows, requests received by WireMock), use fictitious data,
-  and clean up `app_user` and subscriptions after each test so other classes are not affected.
-- Test-only helper `PushTestSessions` writes `auth_session` rows directly for service-level tests; it is used only in
-  tests and inserts a fictitious account when none exists.
+- Plain MockK unit test of `PushService.subscribe`. The constructor arguments match the current `PushService`
+  signature (repository, VAPID keys, sender, properties, JSON mapper, clock). The relaxed mocks are not used on the
+  path under test: before the upsert, `subscribe` only validates the endpoint and decodes keys, without touching
+  those collaborators.
+- Inputs pass the validation that runs before the upsert: an https endpoint on a fictitious `example.test` host, and
+  real keys from `PushTestBrowser` (uncompressed P-256 key, 16-byte secret). So the tests really reach the `try` block
+  and don't fail early with `InvalidRequestException`.
+- Test 1: the `SQLException` with SQLSTATE 23503 sits two causes deep, like Hibernate wraps it. This exercises the
+  cause-chain walk in `isForeignKeyViolation`. It asserts status 401, the Problem Details `status` and `detail`, and
+  that `findByEndpoint` is never called, which matches the code comment "No further query: the failed statement
+  aborted the transaction".
+- Test 2: SQLSTATE 23505 (unique violation) is rethrown as the same instance, so a non-FK error is not disguised as
+  a logout.
+- Test 3: a `DataIntegrityViolationException` without any `SQLException` cause is rethrown as the same instance.
+  This covers the "no SQL state" branch.
+- The tests assert behavior (exception type, status, body, identity of the rethrown error, no follow-up query), not
+  internal details. Data is fictitious and nothing is logged. Style matches the surrounding tests (Kotest matchers,
+  backtick names, tabs). The parent reported ktlintCheck passing and 3 tests, 0 failures on 091428200.
+- These tests add to the integration test in `PushWebTests` (real Postgres FK violation on the insert and update
+  paths), they don't replace it. Together they cover the mapping at both the unit and the HTTP level.
 
 ### Acceptance criteria
 
 1. Migration with `on delete cascade`, session id in `CockpitPrincipal`, PUT stores it, re-subscribe moves it:
    implemented and covered (`PushSessionBindingTests`, `PushSessionLifecycleTests`, `PushWebTests`).
-2. No pushes to subscriptions of expired sessions, which are deleted: implemented in `PushService.send` and by the
-   DB cascade on session cleanup; covered including the exact expiry boundary.
+2. No pushes to subscriptions of expired sessions, which get deleted: implemented in `PushService.send` and by the
+   DB cascade on session cleanup. Covered, including the exact expiry boundary.
 3. `./gradlew test --tests 'ch.sonensei.cockpit.core.push.*'` with tests for logout, idle expiry and revoked session:
-   the tests exist; the parent reported 127 tests, 0 failures (together with `*OpenApiContractTest`) and
-   `./gradlew check jacocoTestReport` BUILD SUCCESSFUL with 5127 tests, 0 failures, ktlint OK on ed147c713. Not
-   re-run here: Gradle is not available to this reviewer.
+   the tests exist. On ed147c713 the parent reported 127 tests, 0 failures, and `./gradlew check jacocoTestReport`
+   BUILD SUCCESSFUL. On 091428200 the parent reported the new class passing (3 tests) and ktlintCheck OK. I did not
+   re-run these here because this reviewer can't run Gradle.
 
 ## P0 Critical
 
@@ -104,10 +90,10 @@ None.
 ## Dispositions of earlier findings
 
 - [x] **CR-1 (first round) | A subscribe that races with the end of its session answers 500 and logs an ERROR**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/core/push/domain/PushService.kt:75`
-    - Disposition: fixed in ed147c713 and verified in this round (FK violation SQLSTATE 23503 mapped to a 401
-      Problem Details, other violations rethrown, transaction rolled back, documented in OpenAPI, tested for the
-      insert and the update path).
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/core/push/domain/PushService.kt:84`
+    - Disposition: fixed in 78a803dd1 (ed147c713 before the rebase) and verified in round two. FK violation
+      SQLSTATE 23503 is mapped to a 401 Problem Details, other violations are rethrown, the transaction rolls back,
+      and the 401 is documented in OpenAPI. Now also covered by unit tests in 091428200.
 
 ## Review conclusion
 

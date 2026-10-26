@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "push-session-binding",
+  "reviewed_revision": "091428200b36a6101ccd3a1975bf88d95f70bf74",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/push-session-binding/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/push-session-binding/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/push-session-binding/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "subscribe racing with the end of its session gave 500; now 401 Problem Details, nothing stored"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "same race as CR-1, fixed by the same change"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.push.*' --tests '*OpenApiContractTest'", "result": "pass"},
+    {"command": "cd server && ./gradlew check jacocoTestReport", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.push.PushServiceSubscribeFailureTests' ktlintCheck", "result": "pass"},
+    {"command": "npm --prefix web run api:gen (no change in web/src/app/api/generated)", "result": "pass"}
+  ]
+}
