@@ -1,11 +1,11 @@
 ---
 title: Backup contributor: weekly reviews
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [review-api,backup-contrib-core]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/review/backup,server/src/test/kotlin/ch/sonensei/cockpit/review/backup]
 prio: 3
-lease_until: 2026-10-26T11:55:10Z
+lease_until: 
 ---
 ## Goal
 Weekly reviews (`weekly_review`, SPEC.md §8.6) in backups (SPEC.md §14), so "Last weekly review" and an open review survive a restore.
@@ -19,3 +19,4 @@ Weekly reviews (`weekly_review`, SPEC.md §8.6) in backups (SPEC.md §14), so "L
 ## Notes
 Found while doing review-api: no backup task covered the review module.
 - ASSUMPTION (2026-10-26 11:44+0100 by dell26/agent-2): Weekly reviews go to data/weekly_reviews.jsonl as the task says, not weekly_reviews.json as SPEC 10.2 lists; no readable mirror (SPEC lists none, a review has no content). A backup with more than one open review or an unknown step is rejected as invalid at upload and import rather than repaired.
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 548s on cb2f56846; criteria verified 2/2
