@@ -11,7 +11,8 @@ lease_until: 2026-10-26T11:51:54Z
 Contacts with CardDAV servers.
 
 ## Acceptance criteria
-- [ ] sync-collection + writes; `external` Radicale tests
+- [x] sync-collection + writes; `external` Radicale tests
+  - verified (2026-10-26 12:34+0100 by dell26/agent-1): cd server && ./gradlew integrationTest --tests 'ch.sonensei.cockpit.contacts.carddav.*' --rerun (external tag, Radicale 3.5.4.0 via Testcontainers/Podman; sync-collection pull, If-Match/If-None-Match PUT, DELETE, 412 server-wins, purge) on fbf43f537 (prod code = final f6b0cfde5) -> 9 tests, 0 failures; ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.contacts.carddav.*' on f6b0cfde5 -> 58 tests, 0 failures (client same-origin/XXE, discovery, 507 paging, PROPFIND fallback, adoption, CR-2/4/5/6)
 
 ## Notes
 - ASSUMPTION (2026-10-26 11:55+0100 by dell26/agent-1): CardDAV accounts are managed through CardDavAccountService (add/remove) and CardDavContactsSync.createContact only; no REST endpoints, OpenAPI or UI yet (touches is the carddav package only). Follow-up task carddav-api added for API, UI and backup of the account config.
