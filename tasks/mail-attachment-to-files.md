@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [web-mail-read,mail-load-older]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,api/openapi.yaml,web/src/app/features/mail/read]
 prio: 2
-lease_until: 2026-10-26T07:34:40Z
+lease_until: 2026-10-26T07:39:44Z
 ---
 ## Goal
 "Save to Files" in the mail read view stores the attachment in the auto-managed `/Attachments/Mail` folder
