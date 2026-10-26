@@ -371,7 +371,8 @@ class CardDavContactsSync(
 		 */
 		fun pull(created: Set<String>): Int {
 			val token = tx.execute { accounts.findById(accountId).orElse(null)?.syncToken }
-			val listing = syncCollection(token) ?: syncCollection(null) ?: propfindListing()
+			// Without a token, one REPORT: a second one without a token would be refused the same way.
+			val listing = (if (token != null) syncCollection(token) else null) ?: syncCollection(null) ?: propfindListing()
 			var failed = 0
 			listing.removed.forEach(::removedAtServer)
 			val stored = tx.execute { links.findByAccountId(accountId).associate { it.href to it.etag } }!!
@@ -525,8 +526,13 @@ class CardDavContactsSync(
 			val contactId = link.contactId ?: return
 			if (!force && etag != null && etag == link.etag) return
 			val contact = contacts.findById(contactId).orElse(null) ?: return
-			// In the Trash here: the next push deletes the card (or, when it is restored, writes it).
-			if (contact.isDeleted) return
+			// In the Trash here: the next push deletes the card (or, when it is restored, writes it). A card that was gone
+			// at the server (no ETag stored) and is back under the same href gets its ETag, so that push deletes it too
+			// instead of the link being dropped as done when the contact is purged.
+			if (contact.isDeleted) {
+				if (link.etag == null) link.etag = etag
+				return
+			}
 			val updated = service.update(contact.id, changes) {}
 			link.etag = etag
 			link.syncedVersion = updated.version

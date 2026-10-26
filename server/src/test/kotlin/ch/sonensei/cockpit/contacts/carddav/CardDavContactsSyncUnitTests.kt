@@ -395,6 +395,72 @@ class CardDavContactsSyncUnitTests {
 		saved.single().contactId shouldNotBe trashed.id
 	}
 
+	// --- CR-2: no repeated sync-collection without a token; CR-4: a card back under the href of a trashed contact
+
+	@Test
+	fun `without a token a server that refuses sync-collection gets one REPORT, then PROPFIND`() {
+		account.addressbookUrl = book()
+		account.syncToken = null
+		stubReport("sync-collection", 403, """<D:error xmlns:D="DAV:"><D:supported-report/></D:error>""")
+		propfindAt(BOOK, found(BOOK, ADDRESSBOOK))
+
+		val state = sync.sync(account.id)
+
+		state.lastError.shouldBeNull()
+		val reports = requests().filter { it.bodyAsString.contains("sync-collection") }
+		reports.size shouldBe 1
+		reports.single().bodyAsString shouldContain "<D:sync-token></D:sync-token>"
+		requests().count { it.method.value() == "PROPFIND" } shouldBe 1
+	}
+
+	@Test
+	fun `a refused token is retried once without a token`() {
+		account.addressbookUrl = book()
+		account.syncToken = "tok-old"
+		stubReport("<D:sync-token>tok-old</D:sync-token>", 409, "")
+		stubReport("<D:sync-token></D:sync-token>", 207, syncAnswer("", "tok-1"))
+
+		val state = sync.sync(account.id)
+
+		state.lastError.shouldBeNull()
+		state.syncToken shouldBe "tok-1"
+		val reports = requests().filter { it.bodyAsString.contains("sync-collection") }
+		reports.map { it.bodyAsString.contains("tok-old") } shouldContainExactly listOf(true, false)
+		requests().filter { it.method.value() == "PROPFIND" }.shouldBeEmpty()
+	}
+
+	@Test
+	fun `a card back under the href of a contact trashed after its removal gets its ETag, and the next push deletes it`() {
+		account.addressbookUrl = book()
+		account.syncToken = "tok-1"
+		val trashed =
+			Contact(displayName = "Ada Example", source = ContactSource.CARDDAV).apply { softDelete(Clock.fixed(NOW, ZoneOffset.UTC)) }
+		// Removed at the server earlier: the link stays without an ETag, the contact is in the Trash.
+		saved += CardDavLink(trashed.id, account.id, "${BOOK}ada.vcf", etag = null, syncedVersion = trashed.version)
+		every { contacts.findById(trashed.id) } returns Optional.of(trashed)
+		every { links.findById(any()) } answers { Optional.ofNullable(saved.firstOrNull { it.id == firstArg<UUID>() }) }
+		stubReport("sync-collection", 207, syncAnswer(etagEntry("${BOOK}ada.vcf", "e-ada.vcf"), "tok-2"))
+		stubReport("addressbook-multiget", 207, multiget("ada.vcf" to "Ada Back"))
+
+		val first = sync.sync(account.id)
+
+		first.lastError.shouldBeNull()
+		saved.single().etag shouldBe "\"e-ada.vcf\""
+		verify(exactly = 0) { service.update(any(), any(), any()) }
+		verify(exactly = 0) { service.createSynced(any(), any(), any()) }
+		requests().filter { it.method.value() == "DELETE" }.shouldBeEmpty()
+
+		wireMock.resetAll()
+		wireMock.stubFor(request("DELETE", urlPathEqualTo("${BOOK}ada.vcf")).willReturn(aResponse().withStatus(204)))
+		stubReport("sync-collection", 207, syncAnswer("", "tok-3"))
+
+		val second = sync.sync(account.id)
+
+		second.lastError.shouldBeNull()
+		requests().single { it.method.value() == "DELETE" }.url shouldBe "${BOOK}ada.vcf"
+		saved.single().etag.shouldBeNull()
+	}
+
 	@Test
 	fun `an unknown account is not found`() {
 		val unknown = UUID.fromString("0192a5f0-0000-7000-8000-0000000000c2")
