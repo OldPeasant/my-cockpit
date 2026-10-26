@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "task": "gtd-delete-reassign",
+  "reviewed_revision": "4d2582b4785c9e5feb8580e06fa0d96ee335164b",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/gtd-delete-reassign/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/gtd-delete-reassign/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/gtd-delete-reassign/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "deleted-elsewhere move-to target: settings now reloads and explains the 400"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "test-only helper placement/partial reuse in AreaContextWebTests; cosmetic, left as is to keep the reviewed code unchanged"}
+  ],
+  "validation": [
+    {"command": "server/gradlew -p server test --tests 'ch.sonensei.cockpit.gtd.*' jacocoTestReport ktlintCheck", "result": "pass"},
+    {"command": "npm --prefix web run check", "result": "pass"},
+    {"command": "npm --prefix web run coverage", "result": "pass"}
+  ]
+}

@@ -19,24 +19,11 @@ import {
   TaskResponse,
   updateArea,
   updateContext,
-  updateProject,
-  updateTask,
 } from '../../../api/generated';
 import { SILENT_ERRORS } from '../../../core/http';
 import { etag } from '../../gtd/data';
 
-/**
- * A delete stopped while moving the tasks or projects to another context or area, before the
- * context or area itself was deleted; `cause` is the error of that step.
- */
-export class ReassignError extends Error {
-  constructor(override readonly cause: unknown) {
-    super('Moving the assigned items failed');
-    this.name = 'ReassignError';
-  }
-}
-
-/** Page size when collecting the tasks or projects a delete affects. */
+/** Page size when counting the tasks or projects a delete affects. */
 const PAGE_SIZE = 200;
 
 /**
@@ -79,28 +66,18 @@ export class GtdSettingsService {
   }
 
   /**
-   * Deletes `context`. With a `replacement`, its tasks first get that context instead; without
-   * one, the server just removes it from them. A failure while moving the tasks rejects with a
-   * {@link ReassignError} and deletes nothing.
+   * Deletes `context`. With a `replacement`, the server gives all its tasks (also those in the
+   * tickler or the Trash) that context instead, in the same transaction; without one, it just
+   * removes it from them.
    */
   async deleteContext(context: ContextResponse, replacement: string | null): Promise<void> {
-    if (replacement) {
-      await reassigning(async () => {
-        for (const task of await this.tasksWithContext(context.id)) {
-          const contextIds = [
-            ...new Set(task.contextIds.map((id) => (id === context.id ? replacement : id))),
-          ];
-          await this.api.invoke(
-            updateTask,
-            { id: task.id, 'If-Match': etag(task.version), body: { contextIds } },
-            silent(),
-          );
-        }
-      });
-    }
     await this.api.invoke(
       deleteContext,
-      { id: context.id, 'If-Match': etag(context.version) },
+      {
+        id: context.id,
+        'If-Match': etag(context.version),
+        replaceWith: replacement ?? undefined,
+      },
       silent(),
     );
   }
@@ -144,23 +121,15 @@ export class GtdSettingsService {
   }
 
   /**
-   * Deletes `area`. With a `target`, its projects first move to that area; without one, the
-   * server leaves them without an area. A failure while moving the projects rejects with a
-   * {@link ReassignError} and deletes nothing.
+   * Deletes `area`. With a `target`, the server moves all its projects (also those in the Trash)
+   * to that area in the same transaction; without one, it leaves them without an area.
    */
   async deleteArea(area: AreaResponse, target: string | null): Promise<void> {
-    if (target) {
-      await reassigning(async () => {
-        for (const project of await this.projectsInArea(area.id)) {
-          await this.api.invoke(
-            updateProject,
-            { id: project.id, 'If-Match': etag(project.version), body: { areaId: target } },
-            silent(),
-          );
-        }
-      });
-    }
-    await this.api.invoke(deleteArea, { id: area.id, 'If-Match': etag(area.version) }, silent());
+    await this.api.invoke(
+      deleteArea,
+      { id: area.id, 'If-Match': etag(area.version), moveTo: target ?? undefined },
+      silent(),
+    );
   }
 
   private async allTasks(context: string, completed: boolean): Promise<TaskResponse[]> {
@@ -176,15 +145,6 @@ export class GtdSettingsService {
       cursor = page.nextCursor ?? undefined;
     } while (cursor);
     return items;
-  }
-}
-
-/** Runs the reassignment step of a delete; its errors reject as {@link ReassignError}. */
-async function reassigning(step: () => Promise<void>): Promise<void> {
-  try {
-    await step();
-  } catch (error) {
-    throw new ReassignError(error);
   }
 }
 

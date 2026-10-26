@@ -120,23 +120,17 @@ describe('DeleteDialog', () => {
     expect(ref.close.mock.calls[0][0]).toBeFalsy();
   });
 
-  it('says that tasks in the tickler or the Trash only lose the context when moving', async () => {
+  it('no longer warns about the tickler or the Trash when moving (the server moves those too)', async () => {
     await open({ kind: 'context', name: '@home', count: 2, others: OTHERS });
-    expect(root.textContent).not.toContain('tickler');
     await chooseMove();
-    const hint = root.querySelector<HTMLElement>('#delete-move-hint')!;
-    expect(hint.textContent?.trim()).toBe('Tasks in the tickler or the Trash just lose it.');
-    expect(root.querySelector('select.target')!.getAttribute('aria-describedby')).toBe(
-      'delete-move-hint',
-    );
+    expect(root.textContent).not.toContain('tickler');
+    expect(root.textContent).not.toContain('Trash');
+    expect(root.querySelector('select.target')!.hasAttribute('aria-describedby')).toBe(false);
   });
 
-  it('says that projects in the Trash are left without an area when moving', async () => {
+  it('no longer warns about projects in the Trash when moving', async () => {
     await open({ kind: 'area', name: 'Work', count: 1, others: [{ id: 'a-f', name: 'Family' }] });
-    expect(root.querySelector('#delete-move-hint')).toBeNull();
     await chooseMove();
-    expect(root.querySelector('#delete-move-hint')!.textContent?.trim()).toBe(
-      'Projects in the Trash are left without an area.',
-    );
+    expect(root.textContent).not.toContain('Trash');
   });
 });

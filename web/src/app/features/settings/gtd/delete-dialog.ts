@@ -86,7 +86,6 @@ export interface DeleteDialogResult {
             class="target"
             i18n-aria-label="@@gtdSettings.delete.target"
             aria-label="Move to"
-            aria-describedby="delete-move-hint"
             [ngModel]="target()"
             (ngModelChange)="target.set($event)"
           >
@@ -94,15 +93,6 @@ export interface DeleteDialogResult {
               <option [value]="other.id">{{ other.name }}</option>
             }
           </select>
-          @if (data.kind === 'context') {
-            <p id="delete-move-hint" class="hint" i18n="@@gtdSettings.delete.contextMoveHint">
-              Tasks in the tickler or the Trash just lose it.
-            </p>
-          } @else {
-            <p id="delete-move-hint" class="hint" i18n="@@gtdSettings.delete.areaMoveHint">
-              Projects in the Trash are left without an area.
-            </p>
-          }
         }
       }
     </mat-dialog-content>
@@ -141,11 +131,6 @@ export interface DeleteDialogResult {
       background: var(--app-surface-raised);
       color: var(--app-fg);
       font: var(--mat-sys-body-large);
-    }
-    .hint {
-      margin: var(--app-space-1) 0 0 var(--app-space-5);
-      color: var(--app-fg-muted);
-      font: var(--mat-sys-body-small);
     }
     .target:focus-visible {
       outline: 2px solid var(--app-accent);

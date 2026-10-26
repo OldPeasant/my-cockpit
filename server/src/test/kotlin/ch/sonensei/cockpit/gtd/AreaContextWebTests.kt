@@ -282,6 +282,222 @@ class AreaContextWebTests(
 		events.changes("TASK").last() shouldBe (ChangeOp.UPDATED to task.id())
 	}
 
+	@Test
+	fun `deleting a context with replaceWith gives all its tasks the other context, also in the tickler and the Trash`(
+		events: ApplicationEvents,
+	) {
+		val home = created(CONTEXTS, """{"name":"@home"}""")
+		val phone = created(CONTEXTS, """{"name":"@phone"}""")
+		val errands = created(CONTEXTS, """{"name":"@errands"}""")
+		val plain = created(TASKS, """{"title":"Call the plumber","contextIds":["${home.id()}"]}""").id()
+		val both = created(TASKS, """{"title":"Book a table","contextIds":["${home.id()}","${phone.id()}"]}""").id()
+		val tickler = created(TASKS, """{"title":"Renew the passport","contextIds":["${home.id()}"]}""").id()
+		val trashed = created(TASKS, """{"title":"Water the plants","contextIds":["${home.id()}"]}""").id()
+		val other = created(TASKS, """{"title":"Buy milk","contextIds":["${errands.id()}"]}""").id()
+		jdbc.update("update task set tickler_date = date '2099-01-01' where id = ?::uuid", tickler)
+		delete("$TASKS/$trashed", "*").andExpect { status { isNoContent() } }
+
+		delete("$CONTEXTS/${home.id()}?replaceWith=${phone.id()}", home.etag()).andExpect { status { isNoContent() } }
+
+		listOf(plain, both, tickler, trashed).forEach { contextsOf(it) shouldContainExactly listOf(phone.id()) }
+		contextsOf(other) shouldContainExactly listOf(errands.id())
+		list(CONTEXTS).map { it.id() } shouldContainExactly listOf(phone.id(), errands.id())
+		events.changes("CONTEXT").last() shouldBe (ChangeOp.DELETED to home.id())
+		events
+			.changes("TASK")
+			.filter { it.first == ChangeOp.UPDATED }
+			.map { it.second }
+			.toSet() shouldBe setOf(plain, both, tickler)
+	}
+
+	@Test
+	fun `deleting a context with an unknown or its own replaceWith is a 400 and changes nothing`() {
+		val home = created(CONTEXTS, """{"name":"@home"}""")
+		val task = created(TASKS, """{"title":"Call the plumber","contextIds":["${home.id()}"]}""")
+		delete("$CONTEXTS/${home.id()}?replaceWith=${UuidV7.generate()}", home.etag()).isProblem(400, "replaceWith")
+		delete("$CONTEXTS/${home.id()}?replaceWith=${home.id()}", home.etag()).isProblem(400, "replaceWith")
+		delete("$CONTEXTS/${home.id()}?replaceWith=not-a-uuid", home.etag()).andExpect { status { isBadRequest() } }
+		list(CONTEXTS).map { it.id() } shouldContainExactly listOf(home.id())
+		mockMvc.get("$TASKS/${task.id()}").andExpect {
+			jsonPath("$.version") { value(0) }
+			jsonPath("$.contextIds[0]") { value(home.id()) }
+		}
+	}
+
+	@Test
+	fun `deleting an area with moveTo moves all its projects, also those in the Trash`(events: ApplicationEvents) {
+		val home = created(AREAS, """{"title":"Home"}""")
+		val family = created(AREAS, """{"title":"Family"}""")
+		val project = created(PROJECTS, """{"title":"Renovate kitchen","areaId":"${home.id()}"}""").id()
+		val trashed = created(PROJECTS, """{"title":"Paint the fence","areaId":"${home.id()}"}""").id()
+		delete("$PROJECTS/$trashed", "*").andExpect { status { isNoContent() } }
+
+		delete("$AREAS/${home.id()}?moveTo=${family.id()}", home.etag()).andExpect { status { isNoContent() } }
+
+		listOf(project, trashed).forEach {
+			jdbc.queryForObject("select area_id::text from project where id = ?::uuid", String::class.java, it) shouldBe family.id()
+		}
+		mockMvc.get("$PROJECTS/$project").andExpect { jsonPath("$.version") { value(1) } }
+		list(AREAS).map { it.id() } shouldContainExactly listOf(family.id())
+		events.changes("AREA").last() shouldBe (ChangeOp.DELETED to home.id())
+		events.changes("PROJECT").last() shouldBe (ChangeOp.UPDATED to project)
+	}
+
+	@Test
+	fun `deleting an area with an unknown or its own moveTo is a 400 and changes nothing`() {
+		val home = created(AREAS, """{"title":"Home"}""")
+		val project = created(PROJECTS, """{"title":"Renovate kitchen","areaId":"${home.id()}"}""")
+		delete("$AREAS/${home.id()}?moveTo=${UuidV7.generate()}", home.etag()).isProblem(400, "moveTo")
+		delete("$AREAS/${home.id()}?moveTo=${home.id()}", home.etag()).isProblem(400, "moveTo")
+		list(AREAS).map { it.id() } shouldContainExactly listOf(home.id())
+		mockMvc.get("$PROJECTS/${project.id()}").andExpect {
+			jsonPath("$.version") { value(0) }
+			jsonPath("$.areaId") { value(home.id()) }
+		}
+	}
+
+	private fun versionOf(
+		table: String,
+		id: String,
+	): Long = jdbc.queryForObject("select version from $table where id = ?::uuid", Long::class.java, id)!!
+
+	private fun contextsOf(task: String): List<String?> =
+		jdbc.queryForList("select context_id::text from task_context where task_id = ?::uuid", String::class.java, task)
+
+	private fun areaOf(project: String): String? =
+		jdbc.queryForObject("select area_id::text from project where id = ?::uuid", String::class.java, project)
+
+	@Test
+	fun `deleting a context with replaceWith also reaches done tasks and versions trashed tasks without announcing them`(
+		events: ApplicationEvents,
+	) {
+		val home = created(CONTEXTS, """{"name":"@home"}""")
+		val phone = created(CONTEXTS, """{"name":"@phone"}""")
+		val done = created(TASKS, """{"title":"Fix the doorbell","contextIds":["${home.id()}"]}""").id()
+		val trashed = created(TASKS, """{"title":"Sort the photos","contextIds":["${home.id()}"]}""").id()
+		post("$TASKS/$done/complete", "").andExpect { status { isOk() } }
+		delete("$TASKS/$trashed", "*").andExpect { status { isNoContent() } }
+		val doneVersion = versionOf("task", done)
+		val trashedVersion = versionOf("task", trashed)
+
+		delete("$CONTEXTS/${home.id()}?replaceWith=${phone.id()}", home.etag()).andExpect { status { isNoContent() } }
+
+		contextsOf(done) shouldContainExactly listOf(phone.id())
+		contextsOf(trashed) shouldContainExactly listOf(phone.id())
+		versionOf("task", done) shouldBe doneVersion + 1
+		versionOf("task", trashed) shouldBe trashedVersion + 1
+		mockMvc.get("$TASKS/$done").andExpect {
+			status { isOk() }
+			jsonPath("$.completedAt") { exists() }
+			jsonPath("$.contextIds[0]") { value(phone.id()) }
+		}
+		events
+			.changes("TASK")
+			.filter { it.first == ChangeOp.UPDATED && it.second == trashed } shouldBe emptyList()
+		events.changes("TASK").last() shouldBe (ChangeOp.UPDATED to done)
+	}
+
+	@Test
+	fun `deleting a context with replaceWith checks If-Match before the target and reassigns nothing on 428 or 412`(
+		events: ApplicationEvents,
+	) {
+		val home = created(CONTEXTS, """{"name":"@home"}""")
+		val phone = created(CONTEXTS, """{"name":"@phone"}""")
+		val task = created(TASKS, """{"title":"Call the plumber","contextIds":["${home.id()}"]}""").id()
+		val path = "$CONTEXTS/${home.id()}"
+
+		delete("$path?replaceWith=${phone.id()}", null).isProblem(428)
+		delete("$path?replaceWith=${phone.id()}", "\"7\"").isProblem(412)
+		// The version is checked first: a stale ETag wins over an invalid target.
+		delete("$path?replaceWith=${UuidV7.generate()}", "\"7\"").isProblem(412)
+		// An unknown context is a 404 even with a valid target.
+		delete("$CONTEXTS/${UuidV7.generate()}?replaceWith=${phone.id()}", "*").isProblem(404)
+
+		contextsOf(task) shouldContainExactly listOf(home.id())
+		versionOf("task", task) shouldBe 0
+		list(CONTEXTS).map { it.id() } shouldContainExactly listOf(home.id(), phone.id())
+		events.changes("TASK").filter { it.first != ChangeOp.CREATED } shouldBe emptyList()
+		events.changes("CONTEXT").filter { it.first != ChangeOp.CREATED } shouldBe emptyList()
+
+		// "*" matches any version and the target is then validated.
+		delete("$path?replaceWith=${home.id()}", "*").isProblem(400, "replaceWith")
+		delete("$path?replaceWith=${phone.id()}", "*").andExpect { status { isNoContent() } }
+		contextsOf(task) shouldContainExactly listOf(phone.id())
+	}
+
+	@Test
+	fun `a 400 for the replacement context announces nothing`(events: ApplicationEvents) {
+		val home = created(CONTEXTS, """{"name":"@home"}""")
+		created(TASKS, """{"title":"Call the plumber","contextIds":["${home.id()}"]}""")
+		delete("$CONTEXTS/${home.id()}?replaceWith=${UuidV7.generate()}", home.etag()).isProblem(400, "replaceWith")
+		events.changes("TASK").filter { it.first != ChangeOp.CREATED } shouldBe emptyList()
+		events.changes("CONTEXT").filter { it.first != ChangeOp.CREATED } shouldBe emptyList()
+	}
+
+	@Test
+	fun `deleting a context without tasks with replaceWith leaves the replacement as it was`(events: ApplicationEvents) {
+		val home = created(CONTEXTS, """{"name":"@home"}""")
+		val phone = created(CONTEXTS, """{"name":"@phone"}""")
+		delete("$CONTEXTS/${home.id()}?replaceWith=${phone.id()}", home.etag()).andExpect { status { isNoContent() } }
+		mockMvc.get("$CONTEXTS/${phone.id()}").andExpect {
+			status { isOk() }
+			header { string(HttpHeaders.ETAG, phone.etag()) }
+		}
+		events.changes("TASK") shouldBe emptyList()
+	}
+
+	@Test
+	fun `deleting an area with moveTo also moves completed projects and versions trashed ones without announcing them`(
+		events: ApplicationEvents,
+	) {
+		val home = created(AREAS, """{"title":"Home"}""")
+		val family = created(AREAS, """{"title":"Family"}""")
+		val done = created(PROJECTS, """{"title":"Build a shed","areaId":"${home.id()}"}""")
+		val trashed = created(PROJECTS, """{"title":"Paint the fence","areaId":"${home.id()}"}""").id()
+		val untouched = created(PROJECTS, """{"title":"Plan the holidays","areaId":"${family.id()}"}""").id()
+		patch("$PROJECTS/${done.id()}", """{"status":"COMPLETED"}""", done.etag()).andExpect { status { isOk() } }
+		delete("$PROJECTS/$trashed", "*").andExpect { status { isNoContent() } }
+		val doneVersion = versionOf("project", done.id())
+		val trashedVersion = versionOf("project", trashed)
+		val untouchedVersion = versionOf("project", untouched)
+
+		delete("$AREAS/${home.id()}?moveTo=${family.id()}", home.etag()).andExpect { status { isNoContent() } }
+
+		areaOf(done.id()) shouldBe family.id()
+		areaOf(trashed) shouldBe family.id()
+		areaOf(untouched) shouldBe family.id()
+		versionOf("project", done.id()) shouldBe doneVersion + 1
+		versionOf("project", trashed) shouldBe trashedVersion + 1
+		versionOf("project", untouched) shouldBe untouchedVersion
+		mockMvc.get("$PROJECTS/${done.id()}").andExpect {
+			jsonPath("$.status") { value("COMPLETED") }
+			jsonPath("$.areaId") { value(family.id()) }
+		}
+		val updated = events.changes("PROJECT").filter { it.first == ChangeOp.UPDATED }.map { it.second }
+		updated.contains(trashed) shouldBe false
+		updated.last() shouldBe done.id()
+	}
+
+	@Test
+	fun `deleting an area with moveTo checks If-Match before the target and moves nothing on 428 or 412`(events: ApplicationEvents) {
+		val home = created(AREAS, """{"title":"Home"}""")
+		val family = created(AREAS, """{"title":"Family"}""")
+		val project = created(PROJECTS, """{"title":"Renovate kitchen","areaId":"${home.id()}"}""").id()
+		val path = "$AREAS/${home.id()}"
+
+		delete("$path?moveTo=${family.id()}", null).isProblem(428)
+		delete("$path?moveTo=${family.id()}", "\"7\"").isProblem(412)
+		delete("$path?moveTo=${UuidV7.generate()}", "\"7\"").isProblem(412)
+		delete("$path?moveTo=not-a-uuid", home.etag()).andExpect { status { isBadRequest() } }
+		delete("$AREAS/${UuidV7.generate()}?moveTo=${family.id()}", "*").isProblem(404)
+
+		areaOf(project) shouldBe home.id()
+		versionOf("project", project) shouldBe 0
+		list(AREAS).map { it.id() } shouldContainExactly listOf(home.id(), family.id())
+		events.changes("PROJECT").filter { it.first != ChangeOp.CREATED } shouldBe emptyList()
+		events.changes("AREA").filter { it.first != ChangeOp.CREATED } shouldBe emptyList()
+	}
+
 	private companion object {
 		const val AREAS = "/api/v1/areas"
 		const val CONTEXTS = "/api/v1/contexts"

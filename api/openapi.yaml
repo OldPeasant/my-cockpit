@@ -152,13 +152,21 @@ paths:
       - Projects
   /api/v1/areas/{id}:
     delete:
-      description: Deleted for good (areas have no Trash); its projects no longer
-        have an area.
+      description: "Deleted for good (areas have no Trash); its projects (also those\
+        \ in the Trash) no longer have an area, or with `moveTo` move to that area\
+        \ in the same transaction."
       operationId: deleteArea
       parameters:
       - in: path
         name: id
         required: true
+        schema:
+          type: string
+          format: uuid
+      - description: Another area to move the projects to
+        in: query
+        name: moveTo
+        required: false
         schema:
           type: string
           format: uuid
@@ -171,6 +179,12 @@ paths:
       responses:
         "204":
           description: Deleted
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
         "404":
           content:
             application/problem+json:
@@ -2520,12 +2534,21 @@ paths:
       - Projects
   /api/v1/contexts/{id}:
     delete:
-      description: Deleted for good; it is removed from its tasks.
+      description: "Deleted for good; it is removed from its tasks (also those in\
+        \ the tickler or the Trash), or with `replaceWith` replaced there by that\
+        \ context in the same transaction."
       operationId: deleteContext
       parameters:
       - in: path
         name: id
         required: true
+        schema:
+          type: string
+          format: uuid
+      - description: Another context to give its tasks instead
+        in: query
+        name: replaceWith
+        required: false
         schema:
           type: string
           format: uuid
@@ -2538,6 +2561,12 @@ paths:
       responses:
         "204":
           description: Deleted
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invalid or unknown fields
         "404":
           content:
             application/problem+json:

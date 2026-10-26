@@ -13,7 +13,7 @@ import java.util.UUID
 
 /**
  * Areas of focus (SPEC.md §5.1), in the user's order. Changes are announced as [AREA] change events. Deleting an area
- * (no Trash: it holds no content of its own) takes its projects out of it.
+ * (no Trash: it holds no content of its own) takes its projects out of it or moves them to another area.
  */
 @Service
 @Transactional
@@ -78,15 +78,24 @@ class AreaService(
 		return list()
 	}
 
-	/** Deletes the area; its projects (also those in the Trash) no longer have an area. */
+	/**
+	 * Deletes the area; its projects (also those in the Trash) no longer have an area, or with [moveTo] are moved to
+	 * that area, all in this transaction.
+	 *
+	 * @throws InvalidRequestException (400) when [moveTo] is the area itself or no area
+	 */
 	fun delete(
 		id: UUID,
+		moveTo: UUID? = null,
 		checkVersion: (Long) -> Unit,
 	) {
 		val area = load(id)
 		checkVersion(area.version)
+		if (moveTo != null && (moveTo == id || !areas.existsById(moveTo))) {
+			throw InvalidRequestException("moveTo", "must be another existing area")
+		}
 		projects.findByAreaId(id).forEach { project ->
-			project.areaId = null
+			project.areaId = moveTo
 			projects.save(project)
 			if (!project.isDeleted) projectService.changed(project)
 		}

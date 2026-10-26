@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder
 import tools.jackson.databind.json.JsonMapper
@@ -107,16 +108,20 @@ class AreaController(
 	@Operation(
 		operationId = "deleteArea",
 		summary = "Delete an area",
-		description = "Deleted for good (areas have no Trash); its projects no longer have an area.",
+		description =
+			"Deleted for good (areas have no Trash); its projects (also those in the Trash) no longer have an area, " +
+				"or with `moveTo` move to that area in the same transaction.",
 	)
 	@ApiResponse(responseCode = "204", description = "Deleted")
+	@BadRequestResponse
 	@NotFoundResponse
 	@IfMatchResponses
 	fun delete(
 		@PathVariable id: UUID,
+		@Parameter(description = "Another area to move the projects to") @RequestParam(required = false) moveTo: UUID?,
 		@Parameter(description = "ETag of the area") @RequestHeader(HttpHeaders.IF_MATCH, required = false) ifMatch: String?,
 	): ResponseEntity<Void> {
-		areas.delete(id) { ETags.checkIfMatch(ifMatch, it) }
+		areas.delete(id, moveTo) { ETags.checkIfMatch(ifMatch, it) }
 		return ResponseEntity.status(HttpStatus.NO_CONTENT).build()
 	}
 
@@ -208,15 +213,23 @@ class ContextController(
 	): ContextListResponse = ContextListResponse(contexts.order(request.ids!!).map(ContextResponse::of))
 
 	@DeleteMapping("/{id}", produces = [PROBLEM_JSON])
-	@Operation(operationId = "deleteContext", summary = "Delete a context", description = "Deleted for good; it is removed from its tasks.")
+	@Operation(
+		operationId = "deleteContext",
+		summary = "Delete a context",
+		description =
+			"Deleted for good; it is removed from its tasks (also those in the tickler or the Trash), " +
+				"or with `replaceWith` replaced there by that context in the same transaction.",
+	)
 	@ApiResponse(responseCode = "204", description = "Deleted")
+	@BadRequestResponse
 	@NotFoundResponse
 	@IfMatchResponses
 	fun delete(
 		@PathVariable id: UUID,
+		@Parameter(description = "Another context to give its tasks instead") @RequestParam(required = false) replaceWith: UUID?,
 		@Parameter(description = "ETag of the context") @RequestHeader(HttpHeaders.IF_MATCH, required = false) ifMatch: String?,
 	): ResponseEntity<Void> {
-		contexts.delete(id) { ETags.checkIfMatch(ifMatch, it) }
+		contexts.delete(id, replaceWith) { ETags.checkIfMatch(ifMatch, it) }
 		return ResponseEntity.status(HttpStatus.NO_CONTENT).build()
 	}
 

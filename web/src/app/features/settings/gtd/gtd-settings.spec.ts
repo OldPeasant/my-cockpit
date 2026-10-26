@@ -11,7 +11,7 @@ import { provideRouter } from '@angular/router';
 import { AreaResponse, ContextResponse, TaskResponse } from '../../../api/generated';
 import { NotificationService, provideHttp } from '../../../core/http';
 import GtdSettings from './gtd-settings';
-import { GtdSettingsService, ReassignError } from './gtd-settings.service';
+import { GtdSettingsService } from './gtd-settings.service';
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve));
 
@@ -203,7 +203,9 @@ describe('GtdSettings', () => {
       expect(document.querySelector('mat-radio-group')).toBeNull();
       dialogButton('Delete').click();
 
-      (await closedThen({ method: 'DELETE', url: `/api/v1/contexts/${ERRANDS.id}` })).flush(null, {
+      (
+        await closedThen((r) => r.method === 'DELETE' && r.url === `/api/v1/contexts/${ERRANDS.id}`)
+      ).flush(null, {
         status: 204,
         statusText: 'No Content',
       });
@@ -255,28 +257,15 @@ describe('GtdSettings', () => {
       await settle();
       dialogButton('Delete').click();
 
-      // The service collects the tasks again, so it works on their current versions.
-      (
-        await closedThen((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'false')
-      ).flush({ items: tasks });
-      await settle();
-      http
-        .expectOne((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'true')
-        .flush({ items: [] });
-      await settle();
-      const p1 = http.expectOne({ method: 'PATCH', url: '/api/v1/tasks/t1' });
-      expect(p1.request.body).toEqual({ contextIds: [ERRANDS.id] });
-      p1.flush(task('t1', [ERRANDS.id]));
-      await settle();
-      const p2 = http.expectOne({ method: 'PATCH', url: '/api/v1/tasks/t2' });
-      expect(p2.request.body).toEqual({ contextIds: [ERRANDS.id, PHONE.id] });
-      p2.flush(task('t2', [ERRANDS.id, PHONE.id]));
-      await settle();
-      http
-        .expectOne({ method: 'DELETE', url: `/api/v1/contexts/${HOME.id}` })
-        .flush(null, { status: 204, statusText: 'No Content' });
+      // The server reassigns all tasks (also those in the tickler or the Trash) in the delete.
+      const del = await closedThen(
+        (r) => r.method === 'DELETE' && r.url === `/api/v1/contexts/${HOME.id}`,
+      );
+      expect(del.request.params.get('replaceWith')).toBe(ERRANDS.id);
+      del.flush(null, { status: 204, statusText: 'No Content' });
       await settle();
 
+      http.expectNone({ method: 'PATCH' });
       expect(names('contexts')).toEqual(['@phone', '@errands']);
     });
 
@@ -295,7 +284,9 @@ describe('GtdSettings', () => {
       expect(dialogText()).toContain('Leave them without an area');
       dialogButton('Delete').click();
 
-      (await closedThen({ method: 'DELETE', url: `/api/v1/areas/${WORK.id}` })).flush(null, {
+      (
+        await closedThen((r) => r.method === 'DELETE' && r.url === `/api/v1/areas/${WORK.id}`)
+      ).flush(null, {
         status: 204,
         statusText: 'No Content',
       });
@@ -312,10 +303,9 @@ describe('GtdSettings', () => {
       await settle();
       dialogButton('Delete').click();
 
-      (await closedThen({ method: 'DELETE', url: `/api/v1/areas/${FAMILY.id}` })).flush(
-        { status: 412, title: 'Precondition Failed' },
-        { status: 412, statusText: 'Failed' },
-      );
+      (
+        await closedThen((r) => r.method === 'DELETE' && r.url === `/api/v1/areas/${FAMILY.id}`)
+      ).flush({ status: 412, title: 'Precondition Failed' }, { status: 412, statusText: 'Failed' });
       await settle();
       http
         .expectOne({ method: 'GET', url: '/api/v1/areas' })
@@ -903,22 +893,14 @@ describe('GtdSettings', () => {
       expect([...select.options].map((o) => o.textContent)).toEqual(['Family']);
       dialogButton('Delete').click();
 
-      (await closedThen((r) => r.url === '/api/v1/projects')).flush({ items: projects });
-      await settle();
-      const p1 = http.expectOne({ method: 'PATCH', url: '/api/v1/projects/p1' });
-      expect(p1.request.headers.get('If-Match')).toBe('"3"');
-      expect(p1.request.body).toEqual({ areaId: FAMILY.id });
-      p1.flush({ ...projects[0], areaId: FAMILY.id, version: 4 });
-      await settle();
-      const p2 = http.expectOne({ method: 'PATCH', url: '/api/v1/projects/p2' });
-      expect(p2.request.body).toEqual({ areaId: FAMILY.id });
-      p2.flush({ ...projects[1], areaId: FAMILY.id, version: 2 });
-      await settle();
-      http
-        .expectOne({ method: 'DELETE', url: `/api/v1/areas/${WORK.id}` })
-        .flush(null, { status: 204, statusText: 'No Content' });
+      const del = await closedThen(
+        (r) => r.method === 'DELETE' && r.url === `/api/v1/areas/${WORK.id}`,
+      );
+      expect(del.request.params.get('moveTo')).toBe(FAMILY.id);
+      del.flush(null, { status: 204, statusText: 'No Content' });
       await settle();
 
+      http.expectNone({ method: 'PATCH' });
       expect(names('areas')).toEqual(['Family']);
     });
 
@@ -935,93 +917,114 @@ describe('GtdSettings', () => {
       expect(document.querySelector('mat-radio-button[value="move"]')).toBeNull();
     });
 
-    it('keeps the context, does not delete it and blames the tasks when reassigning one fails', async () => {
+    it('keeps the context and shows the error when the server rejects the replacement', async () => {
       await setup();
       button('Delete @home').click();
       await settle();
-      const tasks = [task('t1', [HOME.id])];
-      await flushAssignedTasks(tasks);
+      await flushAssignedTasks([task('t1', [HOME.id])]);
       document.querySelector<HTMLInputElement>('mat-radio-button[value="move"] input')!.click();
       await settle();
       dialogButton('Delete').click();
 
-      (
-        await closedThen((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'false')
-      ).flush({ items: tasks });
-      await settle();
-      http
-        .expectOne((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'true')
-        .flush({ items: [] });
-      await settle();
-      const patch = http.expectOne({ method: 'PATCH', url: '/api/v1/tasks/t1' });
+      const del = await closedThen(
+        (r) => r.method === 'DELETE' && r.url === `/api/v1/contexts/${HOME.id}`,
+      );
       // The first other context is preselected.
-      expect(patch.request.body).toEqual({ contextIds: [PHONE.id] });
-      patch.flush(...problem(412, 'Version mismatch'));
+      expect(del.request.params.get('replaceWith')).toBe(PHONE.id);
+      del.flush(...problem(400, 'No such context'));
       await settle();
 
-      http.expectNone({ method: 'DELETE' });
-      // The context list did not change, so it is not reloaded and not blamed.
+      http.expectNone({ method: 'PATCH' });
       http.expectNone({ method: 'GET', url: '/api/v1/contexts' });
       expect(names('contexts')).toEqual(['@home', '@phone', '@errands']);
-      expect(errorText()).toContain(
-        'Some tasks were changed elsewhere in the meantime, so nothing was deleted. Please try again.',
-      );
-      expect(errorText()).not.toContain('the list now shows the current state');
+      expect(errorText()).toContain('No such context');
       expect(button('Delete @home').disabled).toBe(false);
     });
 
-    it('blames the projects when moving one fails because it was deleted elsewhere', async () => {
-      await setup();
-      button('Delete Work').click();
-      await settle();
-      const projects = [{ id: 'p1', title: 'Fictitious launch', areaId: WORK.id, version: 1 }];
-      http.expectOne((r) => r.url === '/api/v1/projects').flush({ items: projects });
-      await settle();
-      document.querySelector<HTMLInputElement>('mat-radio-button[value="move"] input')!.click();
-      await settle();
-      dialogButton('Delete').click();
-
-      (await closedThen((r) => r.url === '/api/v1/projects')).flush({ items: projects });
-      await settle();
-      http
-        .expectOne({ method: 'PATCH', url: '/api/v1/projects/p1' })
-        .flush(...problem(404, 'No such project'));
-      await settle();
-
-      http.expectNone({ method: 'DELETE' });
-      http.expectNone({ method: 'GET', url: '/api/v1/areas' });
-      expect(names('areas')).toEqual(['Work', 'Family']);
-      expect(errorText()).toContain(
-        'Some projects were changed elsewhere in the meantime, so nothing was deleted. Please try again.',
-      );
-    });
-
-    it('shows the error of the move step itself when it is not a conflict', async () => {
+    it('reloads the list when the context to move to was deleted elsewhere', async () => {
       await setup();
       button('Delete @home').click();
       await settle();
-      const tasks = [task('t1', [HOME.id])];
-      await flushAssignedTasks(tasks);
+      await flushAssignedTasks([task('t1', [HOME.id])]);
       document.querySelector<HTMLInputElement>('mat-radio-button[value="move"] input')!.click();
       await settle();
       dialogButton('Delete').click();
 
       (
-        await closedThen((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'false')
-      ).flush({ items: tasks });
+        await closedThen((r) => r.method === 'DELETE' && r.url === `/api/v1/contexts/${HOME.id}`)
+      ).flush(
+        {
+          status: 400,
+          title: 'Bad Request',
+          detail: 'Request validation failed',
+          errors: [{ field: 'replaceWith', message: 'must be another existing context' }],
+        },
+        { status: 400, statusText: 'Bad Request' },
+      );
       await settle();
-      http
-        .expectOne((r) => r.url === '/api/v1/tasks' && r.params.get('completed') === 'true')
-        .flush({ items: [] });
-      await settle();
-      http
-        .expectOne({ method: 'PATCH', url: '/api/v1/tasks/t1' })
-        .flush(...problem(500, 'Server down'));
+      http.expectOne({ method: 'GET', url: '/api/v1/contexts' }).flush({ items: [HOME, ERRANDS] });
       await settle();
 
-      http.expectNone({ method: 'DELETE' });
+      expect(names('contexts')).toEqual(['@home', '@errands']);
+      expect(errorText()).toContain('The context to move to no longer exists');
+      expect(errorText()).not.toContain('Request validation failed');
+      expect(button('Delete @home').disabled).toBe(false);
+    });
+
+    it('reloads the list when the area to move to was deleted elsewhere', async () => {
+      await setup();
+      button('Delete Work').click();
+      await settle();
+      http
+        .expectOne((r) => r.url === '/api/v1/projects')
+        .flush({ items: [{ id: 'p1', title: 'Fictitious launch', areaId: WORK.id, version: 1 }] });
+      await settle();
+      document.querySelector<HTMLInputElement>('mat-radio-button[value="move"] input')!.click();
+      await settle();
+      dialogButton('Delete').click();
+
+      (
+        await closedThen((r) => r.method === 'DELETE' && r.url === `/api/v1/areas/${WORK.id}`)
+      ).flush(
+        {
+          status: 400,
+          title: 'Bad Request',
+          detail: 'Request validation failed',
+          errors: [{ field: 'moveTo', message: 'must be another existing area' }],
+        },
+        { status: 400, statusText: 'Bad Request' },
+      );
+      await settle();
+      http.expectOne({ method: 'GET', url: '/api/v1/areas' }).flush({ items: [WORK] });
+      await settle();
+
+      expect(names('areas')).toEqual(['Work']);
+      expect(errorText()).toContain('The area to move to no longer exists');
+    });
+
+    it('keeps the list for a 400 whose field error is not on the target', async () => {
+      await setup();
+      button('Delete @phone').click();
+      await settle();
+      await flushAssignedTasks([]);
+      dialogButton('Delete').click();
+
+      (
+        await closedThen((r) => r.method === 'DELETE' && r.url === `/api/v1/contexts/${PHONE.id}`)
+      ).flush(
+        {
+          status: 400,
+          title: 'Bad Request',
+          detail: 'Request validation failed',
+          errors: [{ field: 'moveTo', message: 'must be another existing area' }],
+        },
+        { status: 400, statusText: 'Bad Request' },
+      );
+      await settle();
+
       http.expectNone({ method: 'GET', url: '/api/v1/contexts' });
-      expect(errorText()).toContain('Server down');
+      expect(names('contexts')).toEqual(['@home', '@phone', '@errands']);
+      expect(errorText()).toContain('Request validation failed');
     });
 
     it('reloads the list when the delete itself finds the context changed elsewhere', async () => {
@@ -1031,9 +1034,9 @@ describe('GtdSettings', () => {
       await flushAssignedTasks([]);
       dialogButton('Delete').click();
 
-      (await closedThen({ method: 'DELETE', url: `/api/v1/contexts/${PHONE.id}` })).flush(
-        ...problem(412, 'Version mismatch'),
-      );
+      (
+        await closedThen((r) => r.method === 'DELETE' && r.url === `/api/v1/contexts/${PHONE.id}`)
+      ).flush(...problem(412, 'Version mismatch'));
       await settle();
       http
         .expectOne({ method: 'GET', url: '/api/v1/contexts' })
@@ -1052,9 +1055,9 @@ describe('GtdSettings', () => {
       await settle();
       dialogButton('Delete').click();
 
-      (await closedThen({ method: 'DELETE', url: `/api/v1/areas/${FAMILY.id}` })).flush(
-        ...problem(500, 'Server down'),
-      );
+      (
+        await closedThen((r) => r.method === 'DELETE' && r.url === `/api/v1/areas/${FAMILY.id}`)
+      ).flush(...problem(500, 'Server down'));
       await settle();
 
       expect(names('areas')).toEqual(['Work', 'Family']);
@@ -1105,12 +1108,10 @@ describe('GtdSettings', () => {
       http.expectNone({ method: 'DELETE' });
     });
 
-    it('shows the generic message when moving fails with an error that is not an API error', async () => {
+    it('shows the generic message when deleting fails with an error that is not an API error', async () => {
       await setup();
       const service = TestBed.inject(GtdSettingsService);
-      vi.spyOn(service, 'deleteArea').mockRejectedValue(
-        new ReassignError(new TypeError('fictitious failure')),
-      );
+      vi.spyOn(service, 'deleteArea').mockRejectedValue(new TypeError('fictitious failure'));
       button('Delete Work').click();
       await settle();
       const projects = [{ id: 'p1', title: 'Fictitious launch', areaId: WORK.id, version: 1 }];

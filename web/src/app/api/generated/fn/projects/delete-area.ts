@@ -12,6 +12,11 @@ export interface DeleteArea$Params {
   id: string;
 
 /**
+ * Another area to move the projects to
+ */
+  moveTo?: string;
+
+/**
  * ETag of the area
  */
   'If-Match'?: string;
@@ -21,6 +26,7 @@ export function deleteArea(http: HttpClient, rootUrl: string, params: DeleteArea
   const rb = new RequestBuilder(rootUrl, deleteArea.PATH, 'delete');
   if (params) {
     rb.path('id', params.id, {});
+    rb.query('moveTo', params.moveTo, {});
     rb.header('If-Match', params['If-Match'], {});
   }
 
