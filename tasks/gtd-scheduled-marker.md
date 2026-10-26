@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [web-next-today]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/gtd,web/src/app/features/gtd/today]
 prio: 2
-lease_until: 2026-10-26T08:40:04Z
+lease_until: 2026-10-26T08:43:27Z
 releases: 0
 extended: felix/agent-1
 hold: 
