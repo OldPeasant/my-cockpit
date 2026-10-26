@@ -25,6 +25,7 @@ class CockpitDestinationTest {
     fun moreListsTheSecondaryDestinationsInTheSpecifiedOrder() {
         assertEquals(
             listOf(
+                CockpitDestination.New,
                 CockpitDestination.Next,
                 CockpitDestination.Projects,
                 CockpitDestination.Waiting,

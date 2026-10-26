@@ -16,6 +16,7 @@ import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.Mail
 import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Today
@@ -37,6 +38,7 @@ enum class CockpitDestination(
     Calendar("calendar", R.string.nav_calendar, Icons.Outlined.CalendarMonth, NavSection.BottomBar),
     Mail("mail", R.string.nav_mail, Icons.Outlined.Mail, NavSection.BottomBar),
     More("more", R.string.nav_more, Icons.Outlined.MoreHoriz, NavSection.BottomBar),
+    New("new", R.string.nav_new, Icons.Outlined.NewReleases, NavSection.More),
     Next("next", R.string.nav_next, Icons.Outlined.Checklist, NavSection.More),
     Projects("projects", R.string.nav_projects, Icons.Outlined.AccountTree, NavSection.More),
     Waiting("waiting", R.string.nav_waiting, Icons.Outlined.HourglassEmpty, NavSection.More),

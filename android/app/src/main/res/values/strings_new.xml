@@ -1,0 +1,26 @@
+<resources>
+    <!-- Combined New view (newitems) -->
+    <string name="new_filter_all">All</string>
+    <string name="new_filter_inbox">GTD Inbox</string>
+    <string name="new_filter_mail">Mail</string>
+    <string name="new_source_inbox">GTD Inbox</string>
+    <string name="new_source_mail">Mail</string>
+    <string name="new_to_task">→ Inbox task</string>
+    <string name="new_loading">Loading…</string>
+    <string name="new_empty">Nothing new. Captures and incoming mail show up here.</string>
+    <string name="new_offline">Offline: showing what was loaded last. Mail is read-only until the server can be reached.</string>
+    <string name="new_offline_inbox_at">GTD Inbox as loaded at %1$s.</string>
+    <string name="new_offline_mail_at">Mail as loaded at %1$s.</string>
+    <string name="new_offline_mail_never">Mail could not be loaded yet.</string>
+    <string name="new_inbox_failed">The Inbox could not be loaded.</string>
+    <string name="new_mail_failed">The messages could not be loaded.</string>
+    <string name="new_retry">Retry</string>
+    <string name="new_load_more">Load older messages</string>
+    <string name="new_task_created">Added “%1$s” to the Inbox</string>
+    <string name="new_task_offline">The server could not be reached. No task was created.</string>
+    <string name="new_task_failed">The task could not be created.</string>
+    <string name="new_dismiss">Dismiss</string>
+    <string name="new_task_created_at">Captured %1$s</string>
+    <string name="new_task_hint">Process it in the Inbox to decide what it is.</string>
+    <string name="new_no_subject">(no subject)</string>
+</resources>

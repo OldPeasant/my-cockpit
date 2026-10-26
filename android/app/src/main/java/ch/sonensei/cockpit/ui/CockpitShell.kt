@@ -38,6 +38,7 @@ import ch.sonensei.cockpit.gtd.today.TodayScreen
 import ch.sonensei.cockpit.habits.HabitsScreen
 import ch.sonensei.cockpit.journal.JournalScreen
 import ch.sonensei.cockpit.mail.list.MailScreen
+import ch.sonensei.cockpit.newitems.NewScreen
 import ch.sonensei.cockpit.notes.NotesScreen
 import ch.sonensei.cockpit.reminders.ReminderOpenRequests
 import ch.sonensei.cockpit.review.ReviewScreen
@@ -151,6 +152,7 @@ private fun DestinationContent(
         CockpitDestination.Calendar -> CalendarScreen(modifier)
         CockpitDestination.Mail -> MailScreen(modifier)
         CockpitDestination.More -> MoreScreen(onOpen, modifier)
+        CockpitDestination.New -> NewScreen(modifier)
         CockpitDestination.Next -> NextScreen(modifier)
         CockpitDestination.Projects -> ProjectsScreen(modifier)
         CockpitDestination.Waiting -> WaitingScreen(modifier)

@@ -7,6 +7,7 @@
     <string name="nav_calendar">Calendar</string>
     <string name="nav_mail">Mail</string>
     <string name="nav_more">More</string>
+    <string name="nav_new">New</string>
     <string name="nav_next">Next</string>
     <string name="nav_projects">Projects</string>
     <string name="nav_waiting">Waiting</string>
