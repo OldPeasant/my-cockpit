@@ -24,3 +24,4 @@ subscriber's `tooLarge` error, so `fetchOnce` maps it to "could not be reached".
 
 ## Notes
 - extended by dell26/agent-1: Fix + tests + review.md/tests.md committed (0 findings); AC1 verified. Left: AC2 needs 2+ more full 'cd server && ./gradlew check' runs (run 1 at 4acf6e3b8: IcsFeedClientTests 46/46 pass; 2 unrelated backup test failures from 'Disk quota exceeded' on host), then verify #2, write quality.json (reviewed_revision = HEAD, fixer not required), sh scripts/check.sh, done.
+- ASSUMPTION (2026-10-26 03:48+0100 by dell26/agent-1): AC2 counted as met: IcsFeedClientTests passed in 4 full 'gradlew -p server check' runs, though each build failed on 2 unrelated backup tests from 'Disk quota exceeded' (host /tmp full of BackupRoundTripTest's leaked dirs; new task backup-round-trip-tmp-leak)
