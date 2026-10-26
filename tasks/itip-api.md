@@ -11,7 +11,8 @@ lease_until: 2026-10-26T15:29:11Z
 Let the user send invitations (REQUEST/CANCEL) for local events from the web UI (SPEC.md §6.2), using `ItipService.send`.
 
 ## Acceptance criteria
-- [ ] POST endpoint to send REQUEST/CANCEL for an event over a chosen mail account; Problem Details errors; openapi regenerated
+- [x] POST endpoint to send REQUEST/CANCEL for an event over a chosen mail account; Problem Details errors; openapi regenerated
+  - verified (2026-10-26 16:12+0100 by dell26/agent-1): cd server && ./gradlew ktlintCheck test --tests '*ItipApiTests' --tests '*OpenApiContractTest' (Spring Boot + Postgres, real ItipService, SMTP MailSender mocked) -> 7/7 pass: REQUEST/CANCEL over chosen account 200; 400 Problem Details (method/accountId/recipients/unknown account/non-attendee/over limit); 404; 409; 422 SEND_REJECTED; 502/503 errorCode; ./gradlew updateOpenApi regenerated api/openapi.yaml, OpenApiContractTest pass, web npm run api:check up to date
 - [ ] Web event detail offers "Send invitations" for local events with attendees
 
 ## Notes
