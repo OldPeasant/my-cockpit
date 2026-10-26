@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [p6-smoke]
 touches: [web/e2e/a11y]
 prio: 3
-lease_until: 2026-10-26T09:40:42Z
+lease_until: 2026-10-26T09:45:44Z
 ---
 ## Goal
 Accessible web UI.
