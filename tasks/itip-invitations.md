@@ -5,7 +5,7 @@ owner: r1963macos/agent-1
 deps: [cal-local-api,mail-compose]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/calendar/itip,server/src/test/kotlin/ch/sonensei/cockpit/calendar/itip]
 prio: 3
-lease_until: 2026-10-26T14:42:00Z
+lease_until: 2026-10-26T14:47:00Z
 extended: 
 releases: 1
 ---
