@@ -383,6 +383,21 @@ class CardDavAccountWebTests(
 	}
 
 	@Test
+	fun `POST contacts checks the fields before looking up the address book, so invalid input is 400, not 409`() {
+		val account = insertAccount("Offline server", UNREACHABLE, null, "alice")
+
+		createContact(account, """{}""").isProblem(400, "displayName")
+		createContact(account, """{"displayName":"Robin","emails":[{"address":"not-an-email"}]}""")
+			.isProblem(400, "emails[0].address")
+
+		count("contact") shouldBe 0
+		jdbc
+			.queryForList("select addressbook_url from contacts_carddav_account where id = ?", String::class.java, account)
+			.single()
+			.shouldBeNull()
+	}
+
+	@Test
 	fun `POST contacts to an unknown account is 404`() {
 		createContact(UNKNOWN, """{"displayName":"Robin"}""").isProblem(404)
 

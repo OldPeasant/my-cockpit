@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ContactRequest } from '../../api/generated';
+import { CardDavAccountResponse, ContactRequest } from '../../api/generated';
 import { ContactForm } from './contact-form';
 import { contact } from './testing';
 
@@ -245,5 +245,61 @@ describe('ContactForm', () => {
     fixture.componentRef.setInput('contact', contact(other, { title: 'Lead' }));
     await render();
     expect(values('input[name="title"]')).toEqual(['Lead']);
+  });
+
+  describe('Save to (CardDAV accounts)', () => {
+    const accounts: CardDavAccountResponse[] = [
+      {
+        id: '0192f0c4-0000-7000-8000-0000000000d1',
+        name: 'Home server',
+        url: 'https://dav.example.test/dav/',
+        hasPassword: true,
+        sync: { state: 'OK' },
+      },
+      {
+        id: '0192f0c4-0000-7000-8000-0000000000d2',
+        name: 'Work server',
+        url: 'https://cards.example.test/',
+        hasPassword: false,
+        sync: { state: 'NEVER' },
+      },
+    ];
+
+    it('is hidden without CardDAV accounts', async () => {
+      await create();
+      expect(root.querySelector('.save-to')).toBeNull();
+      await create({ carddavAccounts: [] });
+      expect(root.querySelector('select[name="target"]')).toBeNull();
+    });
+
+    it('is hidden when editing an existing contact, also with accounts', async () => {
+      await create({ contact: contact(ID), carddavAccounts: accounts });
+      expect(root.querySelector('.save-to')).toBeNull();
+    });
+
+    it('offers here only and every account for a new contact and updates target', async () => {
+      await create({ carddavAccounts: accounts });
+      const select = root.querySelector('.save-to select[name="target"]') as HTMLSelectElement;
+      expect(text(root.querySelector('.save-to .label'))).toBe('Save to');
+      expect([...select.options].map((o) => [o.value, text(o)])).toEqual([
+        ['', 'My Cockpit only'],
+        [accounts[0].id, 'Home server (CardDAV, synced)'],
+        [accounts[1].id, 'Work server (CardDAV, synced)'],
+      ]);
+      expect(fixture.componentInstance.target()).toBe('');
+
+      const targets: string[] = [];
+      fixture.componentInstance.target.subscribe((t) => targets.push(t));
+      select.value = accounts[1].id;
+      select.dispatchEvent(new Event('change'));
+      await render();
+      expect(fixture.componentInstance.target()).toBe(accounts[1].id);
+      expect(targets).toEqual([accounts[1].id]);
+
+      // The request itself does not carry the target: the page decides where to send it.
+      await type('input[name="givenName"]', 'Grace');
+      await submit();
+      expect(saved).toEqual([{ givenName: 'Grace' }]);
+    });
   });
 });

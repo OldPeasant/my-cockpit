@@ -104,6 +104,7 @@ class CardDavContactsSync(
 	 * Creates a contact in the address book of [accountId]: a CARDDAV contact now, its card with the next push.
 	 *
 	 * @throws NotFoundException when there is no such account
+	 * @throws ch.sonensei.cockpit.core.web.InvalidRequestException for invalid [fields], before any call to the server
 	 * @throws CardDavException when the address book cannot be found (the first run of a new account looks it up)
 	 */
 	fun createContact(
@@ -111,6 +112,8 @@ class CardDavContactsSync(
 		fields: ContactChanges,
 	): Contact {
 		val account = tx.execute { accounts.findById(accountId).orElse(null) } ?: throw NotFoundException("CardDAV account not found")
+		// Invalid input is a 400 before the address book is looked up at the server.
+		service.validateNew(fields)
 		val run = Run(account)
 		val href = run.addressbook.resolve("${UuidV7.generate()}.vcf").rawPath
 		return tx.execute {

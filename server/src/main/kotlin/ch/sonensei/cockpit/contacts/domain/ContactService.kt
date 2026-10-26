@@ -94,6 +94,19 @@ class ContactService(
 	}
 
 	/**
+	 * Checks [fields] as [create] would, without storing anything: lets a caller reject invalid input before it does
+	 * remote work.
+	 *
+	 * @throws InvalidRequestException (400) for the same reasons as [create]
+	 */
+	@Transactional(readOnly = true)
+	fun validateNew(fields: ContactChanges) {
+		val contact = Contact(displayName = "")
+		apply(contact, fields)
+		validate(contact, checkPhoto = fields.photoFileId != null)
+	}
+
+	/**
 	 * Creates a contact that lives at [source] (not LOCAL) under [externalId], for a provider sync. Validated like
 	 * [create]; the sync passes fields that fit.
 	 */

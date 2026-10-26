@@ -190,7 +190,9 @@ export default class ContactDetail {
       this.editing.set(false);
       void this.loadRelated();
     } catch (error) {
-      if (isConflict(error)) {
+      // A new contact has no version to conflict with: a 409 there (the CardDAV account's address book could not
+      // be found) carries its reason in the Problem Details.
+      if (!this.isNew() && isConflict(error)) {
         // The form keeps the user's edits; the next Save sends them against the current version.
         this.saveError.set(
           $localize`:@@contacts.saveConflict:it was changed elsewhere in the meantime. Your changes are kept: Save again to replace that version, or Cancel to see it.`,

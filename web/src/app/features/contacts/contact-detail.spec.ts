@@ -427,6 +427,142 @@ describe('ContactDetail', () => {
     flushLinks();
   });
 
+  describe('a new contact in a CardDAV account', () => {
+    const HOME = {
+      id: '0192f0c4-0000-7000-8000-0000000000d1',
+      name: 'Home server',
+      url: 'https://dav.example.test/dav/',
+      username: 'alice',
+      hasPassword: true,
+      sync: { state: 'OK' as const },
+    };
+    const WORK = {
+      id: '0192f0c4-0000-7000-8000-0000000000d2',
+      name: 'Work server',
+      url: 'https://cards.example.test/',
+      hasPassword: false,
+      sync: { state: 'NEVER' as const },
+    };
+    const NEW = '0192f0c4-0000-7000-8000-000000000009';
+
+    async function startNew(): Promise<HTMLSelectElement> {
+      await start('/contacts/new');
+      http.expectOne((r) => r.method === 'GET' && r.url === CARDDAV).flush({ items: [HOME, WORK] });
+      await settle();
+      return root.querySelector('.save-to select[name="target"]') as HTMLSelectElement;
+    }
+
+    async function choose(select: HTMLSelectElement, value: string): Promise<void> {
+      select.value = value;
+      select.dispatchEvent(new Event('change'));
+      await settle();
+    }
+
+    async function fillAndSubmit(): Promise<void> {
+      type('input[name="givenName"]', 'Grace');
+      await settle();
+      (root.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+      await settle();
+    }
+
+    it('offers the CardDAV accounts and POSTs to the chosen account', async () => {
+      const select = await startNew();
+      expect([...select.options].map((o) => o.value)).toEqual(['', HOME.id, WORK.id]);
+      await choose(select, WORK.id);
+      await fillAndSubmit();
+
+      http.expectNone((r) => r.method === 'POST' && r.url === '/api/v1/contacts');
+      const req = http.expectOne(`${CARDDAV}/${WORK.id}/contacts`);
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({ givenName: 'Grace' });
+      req.flush(
+        contact(NEW, {
+          displayName: 'Grace',
+          givenName: 'Grace',
+          familyName: undefined,
+          emails: [],
+          source: 'CARDDAV',
+          externalId: `https://cards.example.test/${NEW}.vcf`,
+        }),
+        { status: 201, statusText: 'Created' },
+      );
+      await settle();
+      expect(TestBed.inject(Router).url).toBe(`/contacts/${NEW}`);
+      expect(notifications.info).toHaveBeenCalledWith('Contact “Grace” created');
+      http.expectOne(`/api/v1/contacts/${NEW}`).flush(contact(NEW, { displayName: 'Grace' }));
+      await settle();
+      http.expectOne(`/api/v1/contacts/${NEW}/related`).flush(noRelated(NEW));
+      await settle();
+      flushLinks();
+    });
+
+    it('creates the contact here only when My Cockpit only stays chosen', async () => {
+      const select = await startNew();
+      await choose(select, HOME.id);
+      await choose(select, '');
+      await fillAndSubmit();
+      http.expectNone((r) => r.url.startsWith(CARDDAV));
+      http
+        .expectOne((r) => r.method === 'POST' && r.url === '/api/v1/contacts')
+        .flush(contact(NEW, { displayName: 'Grace' }));
+      await settle();
+      http.expectOne(`/api/v1/contacts/${NEW}`).flush(contact(NEW, { displayName: 'Grace' }));
+      await settle();
+      http.expectOne(`/api/v1/contacts/${NEW}/related`).flush(noRelated(NEW));
+      await settle();
+      flushLinks();
+    });
+
+    it('hides the choice when the accounts cannot be loaded and creates the contact here', async () => {
+      await start('/contacts/new');
+      http
+        .expectOne(CARDDAV)
+        .flush(
+          { status: 500, title: 'Internal Server Error', detail: 'An unexpected error occurred' },
+          { status: 500, statusText: 'Server Error' },
+        );
+      await settle();
+      expect(root.querySelector('.save-to')).toBeNull();
+      expect(root.querySelector('.load-error')).toBeNull();
+      await fillAndSubmit();
+      http
+        .expectOne((r) => r.method === 'POST' && r.url === '/api/v1/contacts')
+        .flush(contact(NEW, { displayName: 'Grace' }));
+      await settle();
+      http.expectOne(`/api/v1/contacts/${NEW}`).flush(contact(NEW, { displayName: 'Grace' }));
+      await settle();
+      http.expectOne(`/api/v1/contacts/${NEW}/related`).flush(noRelated(NEW));
+      await settle();
+      flushLinks();
+    });
+
+    it('shows why the account could not take the contact (409) and keeps the form', async () => {
+      const select = await startNew();
+      await choose(select, WORK.id);
+      await fillAndSubmit();
+      http.expectOne(`${CARDDAV}/${WORK.id}/contacts`).flush(
+        {
+          status: 409,
+          title: 'Conflict',
+          detail: 'Finding the address book: the CardDAV server could not be reached',
+        },
+        { status: 409, statusText: 'Conflict' },
+      );
+      await settle();
+      // Taken out of the queue first, so a failure here does not leave an open request behind.
+      const reloads = http.match('/api/v1/contacts/new');
+      expect(text(root.querySelector('.form-error'))).toBe(
+        'The contact could not be saved: Finding the address book: the CardDAV server could not be reached',
+      );
+      // A new contact has nothing to reload: no request for a contact called "new".
+      expect(reloads.map((r) => r.request.url)).toEqual([]);
+      expect(TestBed.inject(Router).url).toBe('/contacts/new');
+      expect((root.querySelector('input[name="givenName"]') as HTMLInputElement).value).toBe(
+        'Grace',
+      );
+    });
+  });
+
   it('leaves a new contact with Cancel', async () => {
     await start('/contacts/new?q=gr');
     http.expectOne(CARDDAV).flush({ items: [] });

@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { CardDavAccountResponse } from '../../api/generated';
 import { ApiError } from '../../core/http';
@@ -23,8 +23,7 @@ const FIELD_LABELS: Record<string, string> = {
 
 /**
  * The CardDAV accounts the contacts sync with (SPEC.md §8.3): their sync state, syncing one now,
- * removing one (its contacts stay) and adding one. Emits `changed` when the accounts changed, so
- * the page can offer them as a place for new contacts.
+ * removing one (its contacts stay) and adding one.
  */
 @Component({
   selector: 'app-carddav-accounts',
@@ -35,8 +34,6 @@ const FIELD_LABELS: Record<string, string> = {
 })
 export class CardDavAccounts {
   private readonly service = inject(ContactsService);
-
-  readonly changed = output<CardDavAccountResponse[]>();
 
   /** The accounts; null while they load. */
   protected readonly accounts = signal<CardDavAccountResponse[] | null>(null);
@@ -154,7 +151,6 @@ export class CardDavAccounts {
 
   private show(accounts: CardDavAccountResponse[]): void {
     this.accounts.set(accounts);
-    this.changed.emit(accounts);
   }
 
   private setBusy(id: string, on: boolean): void {
