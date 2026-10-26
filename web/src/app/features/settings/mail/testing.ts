@@ -2,6 +2,7 @@ import {
   ConnectionTestResponse,
   MailAccountResponse,
   MailFolderResponse,
+  MailIdentityResponse,
 } from '../../../api/generated';
 
 /** Test data for the mail account settings (fictitious). */
@@ -33,6 +34,21 @@ export function fakeFolder(over: Partial<MailFolderResponse> = {}): MailFolderRe
     role: 'INBOX',
     roleOverridden: false,
     selectable: true,
+    version: 0,
+    ...over,
+  };
+}
+
+export function fakeIdentity(over: Partial<MailIdentityResponse> = {}): MailIdentityResponse {
+  return {
+    id: 'i1',
+    accountId: 'a1',
+    name: 'Info Desk',
+    email: 'info@mail.example.test',
+    isDefault: false,
+    position: 0,
+    createdAt: '2026-10-01T08:00:00Z',
+    updatedAt: '2026-10-01T08:00:00Z',
     version: 0,
     ...over,
   };

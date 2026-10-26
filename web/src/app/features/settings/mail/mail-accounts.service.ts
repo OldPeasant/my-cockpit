@@ -5,13 +5,18 @@ import {
   ConnectionTestResponse,
   createMailAccount,
   CreateMailAccountRequest,
+  createMailIdentity,
+  CreateMailIdentityRequest,
   deleteMailAccount,
+  deleteMailIdentity,
   listMailAccounts,
   listMailFolders,
+  listMailIdentities,
   listOAuthConnections,
   listOAuthProviders,
   MailAccountResponse,
   MailFolderResponse,
+  MailIdentityResponse,
   OAuthConnectionResponse,
   OAuthProviderResponse,
   startOAuthConnection,
@@ -20,6 +25,8 @@ import {
   updateMailAccount,
   UpdateMailAccountRequest,
   updateMailFolder,
+  updateMailIdentity,
+  UpdateMailIdentityRequest,
 } from '../../../api/generated';
 import { SILENT_ERRORS } from '../../../core/http';
 import { BROWSER_NAVIGATE, OAuthSlug } from '../calendars/calendar-sources.service';
@@ -93,6 +100,49 @@ export class MailAccountsService {
     return this.api.invoke(
       updateMailFolder,
       { id: folder.accountId, folderId: folder.id, 'If-Match': `"${folder.version}"`, body },
+      silent(),
+    );
+  }
+
+  /** The further sending identities of an account, in their order. */
+  async identities(accountId: string): Promise<MailIdentityResponse[]> {
+    return (await this.api.invoke(listMailIdentities, { accountId }, silent())).items;
+  }
+
+  /** Adds a sending identity to an account; it comes last. */
+  createIdentity(
+    accountId: string,
+    body: CreateMailIdentityRequest,
+  ): Promise<MailIdentityResponse> {
+    return this.api.invoke(createMailIdentity, { accountId, body }, silent());
+  }
+
+  /** Changes an identity at the version the page showed. */
+  updateIdentity(
+    identity: MailIdentityResponse,
+    body: UpdateMailIdentityRequest,
+  ): Promise<MailIdentityResponse> {
+    return this.api.invoke(
+      updateMailIdentity,
+      {
+        accountId: identity.accountId,
+        identityId: identity.id,
+        'If-Match': `"${identity.version}"`,
+        body,
+      },
+      silent(),
+    );
+  }
+
+  /** Removes an identity. */
+  removeIdentity(identity: MailIdentityResponse): Promise<void> {
+    return this.api.invoke(
+      deleteMailIdentity,
+      {
+        accountId: identity.accountId,
+        identityId: identity.id,
+        'If-Match': `"${identity.version}"`,
+      },
       silent(),
     );
   }

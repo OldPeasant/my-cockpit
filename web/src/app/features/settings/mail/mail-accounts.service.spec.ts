@@ -4,7 +4,7 @@ import { provideRouter } from '@angular/router';
 import { ApiError, NotificationService, provideHttp } from '../../../core/http';
 import { BROWSER_NAVIGATE } from '../calendars/calendar-sources.service';
 import { MailAccountsService } from './mail-accounts.service';
-import { fakeAccount, fakeFolder, TEST_SMTP_FAILED } from './testing';
+import { fakeAccount, fakeFolder, fakeIdentity, TEST_SMTP_FAILED } from './testing';
 
 const ACCOUNTS = '/api/v1/mail/accounts';
 
@@ -133,6 +133,39 @@ describe('MailAccountsService', () => {
     );
 
     await failure;
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('lists, adds, changes and removes identities of an account at their version', async () => {
+    const identity = fakeIdentity({ version: 4 });
+    const listed = service.identities('a1');
+    await tick();
+    http
+      .expectOne({ method: 'GET', url: `${ACCOUNTS}/a1/identities` })
+      .flush({ items: [identity] });
+    expect((await listed).map((i) => i.email)).toEqual(['info@mail.example.test']);
+
+    const created = service.createIdentity('a1', { name: 'Info', email: 'info@mail.example.test' });
+    await tick();
+    const post = http.expectOne({ method: 'POST', url: `${ACCOUNTS}/a1/identities` });
+    expect(post.request.body).toEqual({ name: 'Info', email: 'info@mail.example.test' });
+    post.flush(identity, { status: 201, statusText: 'Created' });
+    expect((await created).id).toBe('i1');
+
+    const updated = service.updateIdentity(identity, { isDefault: true });
+    await tick();
+    const patch = http.expectOne({ method: 'PATCH', url: `${ACCOUNTS}/a1/identities/i1` });
+    expect(patch.request.headers.get('If-Match')).toBe('"4"');
+    expect(patch.request.body).toEqual({ isDefault: true });
+    patch.flush(fakeIdentity({ isDefault: true, version: 5 }));
+    expect((await updated).version).toBe(5);
+
+    const removed = service.removeIdentity(identity);
+    await tick();
+    const del = http.expectOne({ method: 'DELETE', url: `${ACCOUNTS}/a1/identities/i1` });
+    expect(del.request.headers.get('If-Match')).toBe('"4"');
+    del.flush(null, { status: 204, statusText: 'No Content' });
+    await removed;
     expect(notify).not.toHaveBeenCalled();
   });
 

@@ -10,7 +10,7 @@ import { NotificationService, provideHttp } from '../../../core/http';
 import { BROWSER_NAVIGATE } from '../calendars/calendar-sources.service';
 import { fakeConnection } from '../calendars/testing';
 import MailSettings from './mail-settings';
-import { fakeAccount, fakeFolder, TEST_OK, TEST_SMTP_FAILED } from './testing';
+import { fakeAccount, fakeFolder, fakeIdentity, TEST_OK, TEST_SMTP_FAILED } from './testing';
 
 const ACCOUNTS = '/api/v1/mail/accounts';
 
@@ -631,6 +631,25 @@ describe('MailSettings', () => {
     await settle();
 
     expect(root.querySelectorAll('app-mail-folder-roles li').length).toBe(1);
+  });
+
+  it('opens the sending identities of an account', async () => {
+    await setup();
+
+    button('Identities').click();
+    await settle();
+    expect(button('Identities').getAttribute('aria-expanded')).toBe('true');
+    http
+      .expectOne({ method: 'GET', url: `${ACCOUNTS}/a1/identities` })
+      .flush({ items: [fakeIdentity()] });
+    await settle();
+
+    const rows = root.querySelectorAll('app-mail-identities li');
+    expect([...rows].map((r) => r.getAttribute('aria-label'))).toEqual(['info@mail.example.test']);
+
+    button('Identities').click();
+    await settle();
+    expect(root.querySelector('app-mail-identities')).toBeNull();
   });
 
   it('removes an account after confirmation', async () => {

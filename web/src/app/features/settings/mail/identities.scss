@@ -1,0 +1,102 @@
+.identities {
+  display: grid;
+  gap: var(--app-space-3);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+
+  .note {
+    flex: 1 1 18rem;
+  }
+}
+
+.load-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+  color: var(--app-danger);
+
+  p {
+    margin: 0;
+  }
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    gap: var(--app-space-2);
+    padding: var(--app-space-2) 0;
+
+    & + li {
+      border-top: 1px solid var(--app-border);
+    }
+  }
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-3);
+}
+
+.who {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.name,
+.address,
+.extra {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.address,
+.extra {
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-medium);
+}
+
+// "Replies to … · Own signature"
+.extra span + span::before {
+  content: ' · ';
+}
+
+.tag {
+  margin-left: var(--app-space-2);
+  font: var(--mat-sys-body-small);
+}
+
+.danger {
+  color: var(--app-danger);
+}
+
+.danger-fill {
+  --mat-button-filled-container-color: var(--app-danger);
+}
+
+.confirm p {
+  margin: 0 0 var(--app-space-2);
+}
+
+.status {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .summary {
+    flex-wrap: wrap;
+  }
+}

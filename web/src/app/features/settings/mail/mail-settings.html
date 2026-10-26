@@ -5,8 +5,8 @@
     <div class="describe">
       <h3 i18n="@@mailSettings.list">Your accounts</h3>
       <p i18n="@@mailSettings.list.hint">
-        Test the connection, change the name, signature or login, map the folders, and choose which
-        accounts notify you about new mail.
+        Test the connection, change the name, signature or login, add further addresses to send
+        from, map the folders, and choose which accounts notify you about new mail.
       </p>
     </div>
     <div class="control">
@@ -56,6 +56,15 @@
                   i18n="@@mailSettings.edit"
                 >
                   Edit
+                </button>
+                <button
+                  mat-button
+                  type="button"
+                  [attr.aria-expanded]="isOpen(account, 'identities')"
+                  (click)="toggle(account, 'identities')"
+                  i18n="@@mailSettings.identities"
+                >
+                  Identities
                 </button>
                 <button
                   mat-button
@@ -119,6 +128,10 @@
                     (saved)="saved($event)"
                     (cancelled)="toggle(account, 'edit')"
                   />
+                </div>
+              } @else if (isOpen(account, 'identities')) {
+                <div class="panel">
+                  <app-mail-identities [account]="account" />
                 </div>
               } @else if (isOpen(account, 'folders')) {
                 <div class="panel">

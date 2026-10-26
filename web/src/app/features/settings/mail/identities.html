@@ -1,0 +1,184 @@
+<div class="identities">
+  <div class="head">
+    <p class="note" i18n="@@mailIdentities.hint">
+      Further addresses you send from with this account. {{ account().emailAddress }} is always
+      available; change it with Edit.
+    </p>
+    <button
+      mat-stroked-button
+      type="button"
+      [disabled]="editing() === 'new'"
+      (click)="add()"
+      i18n="@@mailIdentities.add"
+    >
+      Add identity
+    </button>
+  </div>
+
+  @if (loadError(); as message) {
+    <div class="load-error" role="alert">
+      <p i18n="@@mailIdentities.loadFailed">Identities could not be loaded: {{ message }}</p>
+      <button mat-button type="button" (click)="load()" i18n="@@settings.retry">Try again</button>
+    </div>
+  } @else if (identities(); as list) {
+    @if (list.length) {
+      <ul class="list">
+        @for (identity of list; track identity.id) {
+          <li [attr.aria-label]="identity.email">
+            @if (editing() === identity.id) {
+              <ng-container *ngTemplateOutlet="identityForm" />
+            } @else {
+              <div class="summary">
+                <div class="who">
+                  <span class="name">{{ identity.name }}</span>
+                  <span class="address">
+                    {{ identity.email }}
+                    @if (identity.isDefault) {
+                      <span class="tag" i18n="@@mailIdentities.default">Default</span>
+                    }
+                  </span>
+                  @if (identity.replyTo || identity.signatureMd) {
+                    <span class="extra">
+                      @if (identity.replyTo) {
+                        <span i18n="@@mailIdentities.replyTo"
+                          >Replies to {{ identity.replyTo }}</span
+                        >
+                      }
+                      @if (identity.signatureMd) {
+                        <span i18n="@@mailIdentities.ownSignature">Own signature</span>
+                      }
+                    </span>
+                  }
+                </div>
+                <div class="actions">
+                  <button
+                    mat-button
+                    type="button"
+                    [attr.aria-label]="editLabel(identity)"
+                    (click)="edit(identity)"
+                    i18n="@@mailIdentities.edit"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    mat-button
+                    type="button"
+                    class="danger"
+                    [attr.aria-label]="removeLabel(identity)"
+                    [attr.aria-expanded]="removing() === identity.id"
+                    (click)="askRemove(identity)"
+                    i18n="@@mailIdentities.remove"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+              @if (removing() === identity.id) {
+                <div
+                  class="confirm"
+                  role="group"
+                  i18n-aria-label="@@mailIdentities.removeConfirmAria"
+                  aria-label="Remove identity"
+                >
+                  <p i18n="@@mailIdentities.removeConfirm">
+                    Stop sending as {{ identity.email }}? Mail already sent stays as it is.
+                  </p>
+                  <div class="actions">
+                    <button
+                      mat-flat-button
+                      type="button"
+                      class="danger-fill"
+                      [disabled]="saving()"
+                      (click)="remove(identity)"
+                      i18n="@@mailIdentities.removeYes"
+                    >
+                      Remove identity
+                    </button>
+                    <button
+                      mat-button
+                      type="button"
+                      (click)="askRemove(identity)"
+                      i18n="@@mailSettings.cancel"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              }
+            }
+          </li>
+        }
+      </ul>
+    } @else if (editing() !== 'new') {
+      <p class="note" i18n="@@mailIdentities.none">
+        No further identities. Mail is sent as {{ account().emailAddress }}.
+      </p>
+    }
+    @if (editing() === 'new') {
+      <div
+        class="new"
+        role="group"
+        i18n-aria-label="@@mailIdentities.newAria"
+        aria-label="New identity"
+      >
+        <ng-container *ngTemplateOutlet="identityForm" />
+      </div>
+    }
+    @if (error(); as message) {
+      <p class="error" role="alert" i18n="@@mailIdentities.saveFailed">
+        The identity could not be saved: {{ message }}
+      </p>
+    } @else if (status(); as text) {
+      <p class="status" role="status">{{ text }}</p>
+    }
+  } @else {
+    <p class="note" role="status" i18n="@@mailIdentities.loading">Loading identities…</p>
+  }
+</div>
+
+<ng-template #identityForm>
+  <form class="mail-form" [formGroup]="form" (submit)="$event.preventDefault(); save()" novalidate>
+    <mat-form-field subscriptSizing="dynamic">
+      <mat-label i18n="@@mailIdentities.field.name">Name</mat-label>
+      <input matInput formControlName="name" maxlength="200" />
+      @if (form.controls.name.touched && form.controls.name.invalid) {
+        <mat-error i18n="@@mailIdentities.field.nameRequired">Enter the name to send as.</mat-error>
+      }
+    </mat-form-field>
+    <mat-form-field subscriptSizing="dynamic">
+      <mat-label i18n="@@mailSettings.field.email">Email address</mat-label>
+      <input matInput formControlName="email" type="email" autocomplete="off" />
+      @if (form.controls.email.touched && form.controls.email.invalid) {
+        <mat-error i18n="@@mailSettings.field.emailRequired">Enter an email address.</mat-error>
+      }
+    </mat-form-field>
+    <mat-form-field subscriptSizing="dynamic">
+      <mat-label i18n="@@mailIdentities.field.replyTo">Reply-To (optional)</mat-label>
+      <input matInput formControlName="replyTo" type="email" autocomplete="off" />
+      <mat-hint i18n="@@mailIdentities.field.replyToHint">Where replies go instead.</mat-hint>
+      @if (form.controls.replyTo.touched && form.controls.replyTo.invalid) {
+        <mat-error i18n="@@mailIdentities.field.replyToInvalid"
+          >Enter one email address, or leave it empty.</mat-error
+        >
+      }
+    </mat-form-field>
+    <mat-slide-toggle formControlName="isDefault" i18n="@@mailIdentities.field.default"
+      >Start new mail with this identity</mat-slide-toggle
+    >
+    <mat-form-field subscriptSizing="dynamic" class="wide">
+      <mat-label i18n="@@mailIdentities.field.signature">Signature (optional)</mat-label>
+      <textarea matInput formControlName="signatureMd" rows="3"></textarea>
+      <mat-hint i18n="@@mailIdentities.field.signatureHint"
+        >Markdown. Replaces the account's signature; empty uses the account's.</mat-hint
+      >
+    </mat-form-field>
+    <div class="actions">
+      <button mat-flat-button type="submit" [disabled]="saving()" i18n="@@mailIdentities.save">
+        Save identity
+      </button>
+      <button mat-button type="button" (click)="cancel()" i18n="@@mailSettings.cancel">
+        Cancel
+      </button>
+    </div>
+  </form>
+</ng-template>

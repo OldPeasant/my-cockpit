@@ -25,6 +25,7 @@ import { OAuthSlug } from '../calendars/calendar-sources.service';
 import { EMAIL_PATTERN, optional, serverForm, serverValue } from './account-form';
 import { AccountEditor } from './account-editor';
 import { FolderRoles } from './folder-roles';
+import { MailIdentities } from './identities';
 import { MailAccountsService } from './mail-accounts.service';
 import { errorMessage } from './messages';
 import { ServerFields } from './server-fields';
@@ -33,7 +34,7 @@ import { ServerFields } from './server-fields';
 export type AccountType = MailAccountResponse['type'];
 
 /** What is open below an account in the list. */
-type Panel = 'edit' | 'folders' | 'remove';
+type Panel = 'edit' | 'identities' | 'folders' | 'remove';
 
 /** A connection test of an account: running, or its result per protocol. */
 export interface TestState {
@@ -52,8 +53,8 @@ const TYPE_LABELS: Record<AccountType, string> = {
 };
 
 /**
- * Settings → Mail (SPEC.md §7.1): the mail accounts with a connection test, their identity,
- * signature, folder roles and new-mail notification, and adding an IMAP/SMTP, Google or
+ * Settings → Mail (SPEC.md §7.1): the mail accounts with a connection test, their identity and
+ * further sending identities, signature, folder roles and new-mail notification, and adding an IMAP/SMTP, Google or
  * Microsoft account. A new account is tested and its folders detected at once.
  */
 @Component({
@@ -62,6 +63,7 @@ const TYPE_LABELS: Record<AccountType, string> = {
   imports: [
     AccountEditor,
     FolderRoles,
+    MailIdentities,
     MatButtonModule,
     MatButtonToggleModule,
     MatFormFieldModule,
