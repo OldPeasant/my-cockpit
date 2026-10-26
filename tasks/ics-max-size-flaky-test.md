@@ -19,7 +19,8 @@ subscriber's `tooLarge` error, so `fetchOnce` maps it to "could not be reached".
 ## Acceptance criteria
 - [x] An oversized Content-Length is always reported as "larger than" (the refusal's own error wins over the IOException the cancelled exchange causes)
   - verified (2026-10-26 03:22+0100 by dell26/agent-1): cd server && ./gradlew check (full suite, HEAD 4acf6e3b8) -> IcsFeedClientTests 46 tests, 0 failures, incl. 50x refused Content-Length and 20x mid-stream refusal asserting 'larger than'; refusal stored before cancel and checked first in send() (code-reviewer: 0 findings)
-- [ ] `IcsFeedClientTests` passes reliably inside the full `server/gradlew -p server check` run (several consecutive runs)
+- [x] `IcsFeedClientTests` passes reliably inside the full `server/gradlew -p server check` run (several consecutive runs)
+  - verified (2026-10-26 03:48+0100 by dell26/agent-1): server/gradlew -p server check --rerun-tasks, 3 consecutive runs at 03a5d5f63 (plus 1 earlier at 4acf6e3b8) -> IcsFeedClientTests 46/46 pass in every run (TEST-...IcsFeedClientTests.xml failures=0 errors=0); each build exits 1 only because BackupRoundTripTest and FilesBackupContributorTests fail with 'java.io.IOException: Disk quota exceeded' (host /tmp tmpfs full of leaked test dirs, task backup-round-trip-tmp-leak)
 
 ## Notes
 - extended by dell26/agent-1: Fix + tests + review.md/tests.md committed (0 findings); AC1 verified. Left: AC2 needs 2+ more full 'cd server && ./gradlew check' runs (run 1 at 4acf6e3b8: IcsFeedClientTests 46/46 pass; 2 unrelated backup test failures from 'Disk quota exceeded' on host), then verify #2, write quality.json (reviewed_revision = HEAD, fixer not required), sh scripts/check.sh, done.
