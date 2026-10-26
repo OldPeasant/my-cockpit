@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-apk-distribution]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/spa,server/src/test/kotlin/ch/sonensei/cockpit/core/spa]
 prio: 2
-lease_until: 2026-10-26T01:25:24Z
+lease_until: 2026-10-26T01:30:28Z
 ---
 ## Goal
 `/download/` is a server prefix (and-apk-distribution, review finding CR-1), but
