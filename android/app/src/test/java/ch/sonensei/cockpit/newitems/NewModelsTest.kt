@@ -60,6 +60,60 @@ class NewModelsTest {
     }
 
     @Test
+    fun nothingNewGivesNoRows() {
+        assertEquals(emptyList<NewRow>(), mergeNew(emptyList(), emptyList(), moreMail = true))
+    }
+
+    @Test
+    fun withNoMailLoadedYetEveryTaskShows() {
+        val rows = mergeNew(listOf(plumber, tiles), emptyList(), moreMail = true)
+
+        assertEquals(listOf("task:${tiles.id}", "task:${plumber.id}"), keys(rows))
+    }
+
+    @Test
+    fun undatedMailsDoNotHoldTasksBack() {
+        val undated = mail("No date", null, 5)
+
+        val rows = mergeNew(listOf(plumber), listOf(undated), moreMail = true)
+
+        assertEquals(listOf("task:${plumber.id}", "mail:${undated.id}"), keys(rows))
+    }
+
+    @Test
+    fun aTaskAsOldAsTheOldestLoadedMailIsShown() {
+        val sameTime = task("Same time", "2026-10-20T09:00:00Z", 7)
+
+        val rows = mergeNew(listOf(sameTime, plumber), listOf(party, invoice), moreMail = true)
+
+        assertEquals(setOf("mail:${party.id}", "mail:${invoice.id}", "task:${sameTime.id}"), keys(rows).toSet())
+    }
+
+    @Test
+    fun aTaskWithoutTimeWaitsUntilTheLastMailPage() {
+        val legacy = plumber.copy(id = UUID.fromString("00000000-0000-4000-8000-000000000006"))
+
+        assertEquals(listOf("mail:${party.id}"), keys(mergeNew(listOf(legacy), listOf(party), moreMail = true)))
+        assertEquals(
+            listOf("mail:${party.id}", "task:${legacy.id}"),
+            keys(mergeNew(listOf(legacy), listOf(party), moreMail = false)),
+        )
+    }
+
+    @Test
+    fun theInboxFilterShowsEvenOldTasksWhileMoreMailIsToLoad() {
+        val rows = mergeNew(listOf(plumber), listOf(party), moreMail = true, filter = NewFilter.INBOX)
+
+        assertEquals(listOf("task:${plumber.id}"), keys(rows))
+    }
+
+    @Test
+    fun rowsSortByTheirOwnTime() {
+        assertEquals(Instant.parse("2026-10-20T09:00:00Z"), NewRow.Mail(invoice).at)
+        assertEquals(Instant.parse("2026-10-20T08:00:00Z"), NewRow.Task(plumber).at)
+    }
+
+    @Test
     fun createdAtReadsTheUuidV7Timestamp() {
         assertEquals(Instant.parse("2026-10-20T10:00:00Z"), createdAt(tiles.id))
         assertNull(createdAt(UUID.fromString("00000000-0000-4000-8000-000000000001")))
