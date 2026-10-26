@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "task": "web-and-birthday-occurrences",
+  "reviewed_revision": "c63c35ae429f8b6a67c391a5350397b0d007d018",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-and-birthday-occurrences/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-and-birthday-occurrences/review.md"},
+    "fixer": {"status": "not_required", "reason": "the final review has no findings; the first review's test gaps (CR-1, CR-2) were closed by test-writer tests, no production code changed"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
