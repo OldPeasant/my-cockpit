@@ -1,11 +1,11 @@
 ---
 title: Accessibility audit
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [p6-smoke]
 touches: [web/e2e/a11y]
 prio: 3
-lease_until: 2026-10-26T10:46:21Z
+lease_until: 
 extended: dell26/agent-1
 ---
 ## Goal
@@ -22,3 +22,4 @@ Accessible web UI.
 - ASSUMPTION (2026-10-26 11:04+0100 by dell26/agent-1): Trash: the 'Delete permanently' button's aria-label changed from 'Delete <title> permanently' to 'Delete permanently: <title>' (WCAG 2.5.3 label-in-name, found by the full e2e run where trash had items); trash-page.ts is outside touches, the criterion requires the fix. The a11y spec now seeds one trashed task.
 - ASSUMPTION (2026-10-26 11:11+0100 by dell26/agent-1): Markdown editor (notes/journal): CodeMirror's defaultHighlightStyle replaced by a same-shaped HighlightStyle using theme tokens (--app-accent, --mat-sys-tertiary/secondary, --app-danger, --app-fg-muted), since its literal colors (#219 URLs) fail AA contrast in dark; adds direct dep @lezer/highlight (already transitive). Outside touches; required by the criterion.
 - extended by dell26/agent-1: Implementation complete: axe-core scan (light+dark, all main pages) + keyboard walkthrough in web/e2e/a11y, fixes for calendar, journal, inbox, trash label-in-name, markdown editor highlight contrast; unit tests committed; .taskcheck passes at 7719939fa. Left: re-run test-writer + code-reviewer on the final code (trash label + markdown HighlightStyle commits 663d94d67..7719939fa are newer than review.md), re-run full Playwright e2e a11y suite, tasks.py verify #1, write quality.json, done.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 82s on b5215d3a1; criteria verified 1/1
