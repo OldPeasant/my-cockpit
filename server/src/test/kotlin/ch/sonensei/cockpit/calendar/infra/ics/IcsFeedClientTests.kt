@@ -377,6 +377,24 @@ class IcsFeedClientTests {
 	}
 
 	@Test
+	fun `a body refused while it is still streaming in is reported as too large every time, not as the cancelled exchange`() {
+		// The refusal cancels the body mid-stream while the server keeps sending: the same race as a refused Content-Length.
+		wireMock.stubFor(
+			get(urlPathEqualTo(FEED)).willReturn(
+				aResponse()
+					.withStatus(200)
+					.withBody(ByteArray(1024 * 1024) { 'A'.code.toByte() })
+					.withChunkedDribbleDelay(4, 4),
+			),
+		)
+		val client = client(properties(maxSize = DataSize.ofKilobytes(16)))
+
+		repeat(REPEATED_STREAMING_REFUSALS) {
+			refused { client.fetch("$base$FEED", null) }.message!! shouldContain "larger than"
+		}
+	}
+
+	@Test
 	fun `the size limit applies to the decompressed feed`() {
 		val bomb = gzip(ByteArray(1024 * 1024) { 'A'.code.toByte() })
 		serve(headers = mapOf("Content-Encoding" to "gzip"), body = bomb)
@@ -666,6 +684,7 @@ class IcsFeedClientTests {
 	companion object {
 		const val FEED = "/calendars/team.ics"
 		const val REPEATED_REFUSALS = 50
+		const val REPEATED_STREAMING_REFUSALS = 20
 
 		val CALENDAR =
 			"""
