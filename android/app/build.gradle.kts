@@ -198,6 +198,10 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
 
     implementation(libs.tink.android)
+    implementation(libs.unifiedpush.connector) {
+        // Its classes are in tink-android already (same version); both on the classpath are duplicate classes.
+        exclude(group = "com.google.crypto.tink", module = "tink")
+    }
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.androidx.glance.appwidget)

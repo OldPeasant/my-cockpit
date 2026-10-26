@@ -24,6 +24,9 @@ abstract class AuthBindings {
 
     @Multibinds
     abstract fun sessionCaches(): Set<SessionCache>
+
+    @Multibinds
+    abstract fun logoutHooks(): Set<LogoutHook>
 }
 
 @Module

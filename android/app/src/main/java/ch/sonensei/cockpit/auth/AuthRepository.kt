@@ -99,6 +99,15 @@ fun interface SessionCache {
 }
 
 /**
+ * Runs at the start of a user logout, while the device is still logged in, e.g. to remove what the server keeps for
+ * this device. Best effort: a hook that throws or takes longer than [AuthRepository.LOGOUT_HOOK_TIMEOUT_MS] does not
+ * stop the logout. Logouts the device did not start (a rejected refresh token, a server change) do not run the hooks.
+ */
+fun interface LogoutHook {
+    suspend fun beforeLogout()
+}
+
+/**
  * Logs the device in (`POST /api/v1/auth/token`) and out (revokes the device, forgets tokens, clears caches).
  *
  * It is the only owner of cache clearing: [logout] clears the caches of a user logout itself, and every other logout
@@ -115,6 +124,7 @@ class AuthRepository internal constructor(
     private val caches: Set<@JvmSuppressWildcards SessionCache>,
     appScope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher,
+    private val logoutHooks: Set<@JvmSuppressWildcards LogoutHook> = emptySet(),
 ) {
     @Inject
     constructor(
@@ -123,7 +133,17 @@ class AuthRepository internal constructor(
         tokenStore: PersistentTokenStore,
         session: AuthSession,
         caches: Set<@JvmSuppressWildcards SessionCache>,
-    ) : this(serverUrls, authApi, tokenStore, session, caches, CoroutineScope(SupervisorJob() + Dispatchers.Default), Dispatchers.IO)
+        logoutHooks: Set<@JvmSuppressWildcards LogoutHook> = emptySet(),
+    ) : this(
+        serverUrls,
+        authApi,
+        tokenStore,
+        session,
+        caches,
+        CoroutineScope(SupervisorJob() + Dispatchers.Default),
+        Dispatchers.IO,
+        logoutHooks,
+    )
 
     /** Serializes [clearCaches], so a cache never runs [SessionCache.clear] twice at the same time. */
     private val cacheClearing = Mutex()
@@ -185,12 +205,21 @@ class AuthRepository internal constructor(
     /**
      * Revokes this device on the server (best effort, so a stolen copy of the refresh token stops working), then
      * forgets the tokens and clears the caches. Offline, the local logout still happens. Once started it cannot be
-     * cancelled (the caller's screen going away must not leave the device logged in); the revocation is bounded
-     * by [REVOKE_TIMEOUT_MS].
+     * cancelled (the caller's screen going away must not leave the device logged in); the [LogoutHook]s that run first
+     * are bounded by [LOGOUT_HOOK_TIMEOUT_MS] each, the revocation by [REVOKE_TIMEOUT_MS].
      */
     suspend fun logout() =
         withContext(NonCancellable) {
             try {
+                logoutHooks.forEach { hook ->
+                    try {
+                        withTimeoutOrNull(LOGOUT_HOOK_TIMEOUT_MS) { hook.beforeLogout() }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        // Best effort: the logout goes on. Not logged: the exception may carry user data.
+                    }
+                }
                 tokenStore.session.value?.deviceId?.let { id ->
                     try {
                         withTimeoutOrNull(REVOKE_TIMEOUT_MS) { authApi.revokeDevice(UUID.fromString(id)) }
@@ -229,6 +258,7 @@ class AuthRepository internal constructor(
     internal companion object {
         const val DEFAULT_RETRY_AFTER_SECONDS = 30L
         const val REVOKE_TIMEOUT_MS = 5_000L
+        const val LOGOUT_HOOK_TIMEOUT_MS = 5_000L
         const val DEVICE_NAME_MAX = 100
     }
 }

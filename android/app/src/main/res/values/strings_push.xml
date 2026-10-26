@@ -1,0 +1,7 @@
+<resources>
+    <!-- New-mail notifications from server pushes (push) -->
+    <string name="push_mail_channel_name">New mail</string>
+    <string name="push_mail_channel_description">New mail in your inboxes, announced by the server</string>
+    <string name="push_mail_title">New mail</string>
+    <string name="push_mail_text">You have new mail</string>
+</resources>
