@@ -390,5 +390,22 @@ describe('MarkdownEditor', () => {
       expect(styleOf(await token('the map'))).toMatch(/text-decoration:\s*underline/);
       expect(styleOf(await token('soon'))).toMatch(/font-style:\s*italic/);
     });
+
+    it('uses no literal color for any token of a richer note', async () => {
+      host.value.set(
+        '## Packing\n\n> Pack light.\n\n- **tent** and `stove`\n- ![map](https://example.org/m.png)\n\n---\n<b>x</b>',
+      );
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(styleOf(await token('tent'))).toMatch(/font-weight:\s*bold/);
+
+      const styled = [...view().contentDOM.querySelectorAll('span')].filter(
+        (s) => s.classList.length > 0,
+      );
+      expect(styled.length).toBeGreaterThan(3);
+      for (const span of styled) {
+        expect(styleOf(span)).not.toMatch(/color:\s*(#|rgb)/);
+      }
+    });
   });
 });
