@@ -18,8 +18,9 @@ extended: dell26/agent-1
       `FilesService` in `specialFolder(MAIL)` (name = attachment filename, taken names get a suffix), returns the
       `FileResponse` (201) and links the file to the message; Problem Details for 404/502/503; integration test
   - verified (2026-10-26 09:32+0100 by dell26/agent-1): server/gradlew -p server integrationTest --offline --tests '*MailAttachmentToFilesGreenMailTests' (GreenMail IMAP + Postgres) -> 3 passed (201 FileResponse in /Attachments/Mail, ' (2)' suffix, FILE->EMAIL link; 404; 502); 503/413 in MailMessageControllerTests within ./gradlew check -> pass
-- [ ] `api/openapi.yaml` and the web client regenerated; `MailReadService.saveToFiles` uses the endpoint;
+- [x] `api/openapi.yaml` and the web client regenerated; `MailReadService.saveToFiles` uses the endpoint;
       `cd server && ./gradlew check` and `cd web && npm run check` pass
+  - verified (2026-10-26 09:32+0100 by dell26/agent-1): npm --prefix web run check (api:check: generated client up to date, lint, 3665 tests, build) -> exit 0; server/gradlew -p server check --offline -> BUILD SUCCESSFUL, 4739 tests 0 failures; mail-read.service.spec asserts saveToFiles POSTs save-to-files
 
 ## Notes
 Found in the web-mail-read review (CR-4). The file goes through the server, so large attachments work too.
