@@ -16,6 +16,7 @@ Podman, as `deploy/.env.example` suggests). `docs/oauth-setup.md` tells owners t
 ## Acceptance criteria
 - [x] `deploy/docker-compose.yml` passes `COCKPIT_OAUTH_PUBLICURL` to the server (unset = default `https://${COCKPIT_DOMAIN}`), and `deploy/.env.example` documents it next to the GOOGLE_*/MS_* variables
   - verified (2026-10-26 01:40+0100 by felix/agent-1): git diff 50c8dd50..0fbcd7ce: server env gets COCKPIT_OAUTH_PUBLICURL: ${COCKPIT_OAUTH_PUBLICURL:-https://${COCKPIT_DOMAIN}}; .env.example documents it in the OAuth block above GOOGLE_*/MS_*
-- [ ] `docker compose -f deploy/docker-compose.yml config` with `COCKPIT_OAUTH_PUBLICURL=https://example.test:8443` shows the value in the server environment, and without it the server falls back to the default
+- [x] `docker compose -f deploy/docker-compose.yml config` with `COCKPIT_OAUTH_PUBLICURL=https://example.test:8443` shows the value in the server environment, and without it the server falls back to the default
+  - verified (2026-10-26 01:40+0100 by felix/agent-1): sh .tmp/cfg.sh (COCKPIT_DOMAIN=cockpit.example.org, docker compose v5.6.1 'config', --env-file /dev/null) -> with COCKPIT_OAUTH_PUBLICURL=https://example.test:8443: server env 'COCKPIT_OAUTH_PUBLICURL: https://example.test:8443'; unset: 'https://cockpit.example.org'; set empty: 'https://cockpit.example.org'
 
 ## Notes
