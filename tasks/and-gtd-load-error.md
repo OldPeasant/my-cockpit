@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-next-today]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/data,android/app/src/test/java/ch/sonensei/cockpit/gtd/data,android/app/src/main/java/ch/sonensei/cockpit/gtd/next,android/app/src/main/java/ch/sonensei/cockpit/gtd/today]
 prio: 2
-lease_until: 2026-10-26T01:10:17Z
+lease_until: 2026-10-26T01:15:18Z
 ---
 ## Goal
 If the first load of a GTD list fails for a reason other than being offline (4xx, unparsable body, disk full), Next/Today show "Loading…" forever (review CR-4 of and-next-today). TaskRepository.observe drops its refresh result.
