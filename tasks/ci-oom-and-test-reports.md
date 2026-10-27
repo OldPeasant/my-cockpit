@@ -1,11 +1,11 @@
 ---
 title: CI: give the Docker server build its heap settings; make failing tests visible
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [Dockerfile,.github/workflows/ci.yml,scripts/check.sh,server/build.gradle.kts,android/app/build.gradle.kts]
 prio: 1
-lease_until: 2026-10-27T19:27:08Z
+lease_until: 
 ---
 ## Goal
 Most CI runs on main fail for two reasons that have nothing to do with the task that was pushed:
@@ -46,3 +46,4 @@ Most CI runs on main fail for two reasons that have nothing to do with the task 
   is one option; keep `--quiet` for everything else. Note that `--quiet` suppresses lifecycle-level test
   logging, so the settings may have to go on the quiet level (`testLogging.quiet { ... }`); check it in the log.
 - ASSUMPTION (2026-10-27 20:06+0100 by dell26/agent-1): The ~96 Spring/Hikari shutdown-hook JSON log lines at the end of the server test run also appear in passing runs; they come from the test JVM's shutdown hooks (not testLogging, which only logs FAILED), so they were treated as existing output outside this task and not silenced.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 72s on 9de9c0118; criteria verified 4/4
