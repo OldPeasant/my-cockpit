@@ -22,9 +22,10 @@ Most CI runs on main fail for two reasons that have nothing to do with the task 
    `fix-flaky-*` task. Fixing the flaky tests themselves is out of scope.
 
 ## Acceptance criteria
-- [ ] The Dockerfile server stage copies `server/gradle.properties` before the Gradle steps, and
+- [x] The Dockerfile server stage copies `server/gradle.properties` before the Gradle steps, and
   `docker build -t cockpit-server:ci .` (the command CI runs; `podman build` on Podman machines) succeeds
   locally with `--no-cache`
+  - verified (2026-10-27 19:45+0100 by dell26/agent-1): Dockerfile server stage: COPY server/gradlew server/settings.gradle.kts server/build.gradle.kts server/gradle.properties ./ before both ./gradlew steps; podman build --no-cache -t cockpit-server:ci . (Podman machine) -> exit 0, 'Successfully tagged localhost/cockpit-server:ci', bootJar/compileKotlin passed, 0 OutOfMemoryError in log
 - [ ] A failing server or android unit test prints its class, method and exception (with the assertion
   message and stack trace) in the job log, while `sh scripts/check.sh` stays quiet otherwise (no per-test
   output for passing tests); shown by temporarily breaking one test in each part and running
