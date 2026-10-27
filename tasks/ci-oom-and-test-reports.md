@@ -37,7 +37,8 @@ Most CI runs on main fail for two reasons that have nothing to do with the task 
   workflow is valid (e.g. `actionlint`, or `python -c "import yaml; yaml.safe_load(open(...))"` if actionlint
   is unavailable)
   - verified (2026-10-27 19:45+0100 by dell26/agent-1): ci.yml: check-server, check-android, integration each get actions/upload-artifact@v4 with if: failure() uploading server/build/reports/tests/ + server/build/test-results/ (server, integration) and android/app/build/reports/tests/ + android/app/build/test-results/ (android), unique names test-reports-{server,android,integration}; actionlint not installed -> python -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))" -> ok
-- [ ] `sh scripts/check.sh` passes
+- [x] `sh scripts/check.sh` passes
+  - verified (2026-10-27 20:05+0100 by dell26/agent-1): sh scripts/check.sh (tfp server web android, broken tests reverted, commit 6e19bbfc0) -> exit 0, '== all checks passed'
 
 ## Notes
 - Diagnosis from `gh run list` / `gh run view --log-failed` on 2026-10-27.
