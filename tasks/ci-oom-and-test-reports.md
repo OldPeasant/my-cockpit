@@ -45,3 +45,4 @@ Most CI runs on main fail for two reasons that have nothing to do with the task 
 - Gradle: `tasks.withType<Test> { testLogging { events("failed"); exceptionFormat = TestExceptionFormat.FULL } }`
   is one option; keep `--quiet` for everything else. Note that `--quiet` suppresses lifecycle-level test
   logging, so the settings may have to go on the quiet level (`testLogging.quiet { ... }`); check it in the log.
+- ASSUMPTION (2026-10-27 20:06+0100 by dell26/agent-1): The ~96 Spring/Hikari shutdown-hook JSON log lines at the end of the server test run also appear in passing runs; they come from the test JVM's shutdown hooks (not testLogging, which only logs FAILED), so they were treated as existing output outside this task and not silenced.
