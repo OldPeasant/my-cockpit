@@ -30,11 +30,12 @@ Most CI runs on main fail for two reasons that have nothing to do with the task 
   message and stack trace) in the job log, while `sh scripts/check.sh` stays quiet otherwise (no per-test
   output for passing tests); shown by temporarily breaking one test in each part and running
   `sh scripts/check.sh server` / `sh scripts/check.sh android` (revert the broken tests before committing)
-- [ ] `.github/workflows/ci.yml` uploads the test reports (`server/build/reports/tests/`,
+- [x] `.github/workflows/ci.yml` uploads the test reports (`server/build/reports/tests/`,
   `server/build/test-results/`, `android/app/build/reports/tests/`, `android/app/build/test-results/`) as
   artifacts when the fast check (server/android) or integration job fails (`if: failure()`), and the
   workflow is valid (e.g. `actionlint`, or `python -c "import yaml; yaml.safe_load(open(...))"` if actionlint
   is unavailable)
+  - verified (2026-10-27 19:45+0100 by dell26/agent-1): ci.yml: check-server, check-android, integration each get actions/upload-artifact@v4 with if: failure() uploading server/build/reports/tests/ + server/build/test-results/ (server, integration) and android/app/build/reports/tests/ + android/app/build/test-results/ (android), unique names test-reports-{server,android,integration}; actionlint not installed -> python -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))" -> ok
 - [ ] `sh scripts/check.sh` passes
 
 ## Notes
