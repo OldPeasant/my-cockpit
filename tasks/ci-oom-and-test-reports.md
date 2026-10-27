@@ -26,10 +26,11 @@ Most CI runs on main fail for two reasons that have nothing to do with the task 
   `docker build -t cockpit-server:ci .` (the command CI runs; `podman build` on Podman machines) succeeds
   locally with `--no-cache`
   - verified (2026-10-27 19:45+0100 by dell26/agent-1): Dockerfile server stage: COPY server/gradlew server/settings.gradle.kts server/build.gradle.kts server/gradle.properties ./ before both ./gradlew steps; podman build --no-cache -t cockpit-server:ci . (Podman machine) -> exit 0, 'Successfully tagged localhost/cockpit-server:ci', bootJar/compileKotlin passed, 0 OutOfMemoryError in log
-- [ ] A failing server or android unit test prints its class, method and exception (with the assertion
+- [x] A failing server or android unit test prints its class, method and exception (with the assertion
   message and stack trace) in the job log, while `sh scripts/check.sh` stays quiet otherwise (no per-test
   output for passing tests); shown by temporarily breaking one test in each part and running
   `sh scripts/check.sh server` / `sh scripts/check.sh android` (revert the broken tests before committing)
+  - verified (2026-10-27 19:53+0100 by dell26/agent-1): Temporarily broke CorrespondenceQueryTest:26 (server) and TestLibrariesSmokeTest:30 (android), ran sh scripts/check.sh server -> exit 1, log shows 'CorrespondenceQueryTest > finds the address as a whole mailbox in a stored header() FAILED' + 'org.opentest4j.AssertionFailedError: expected:<false> but was:<true>' + stack trace, '5150 tests completed, 1 failed', no per-test lines for passing tests; sh scripts/check.sh android -> exit 1, 'TestLibrariesSmokeTest > mockkStubsSuspendFunctionsInsideRunTest FAILED' + 'org.junit.ComparisonFailure: expected:<Hello, [BROKEN]> but was:<Hello, [Ada Example]>' + full stack trace, '2158 tests completed, 1 failed', no passing-test lines; broken tests reverted (git checkout), not committed
 - [x] `.github/workflows/ci.yml` uploads the test reports (`server/build/reports/tests/`,
   `server/build/test-results/`, `android/app/build/reports/tests/`, `android/app/build/test-results/`) as
   artifacts when the fast check (server/android) or integration job fails (`if: failure()`), and the
