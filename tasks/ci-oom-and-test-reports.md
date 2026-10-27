@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [Dockerfile,.github/workflows/ci.yml,scripts/check.sh,server/build.gradle.kts,android/app/build.gradle.kts]
 prio: 1
-lease_until: 2026-10-27T19:02:04Z
+lease_until: 2026-10-27T19:06:55Z
 ---
 ## Goal
 Most CI runs on main fail for two reasons that have nothing to do with the task that was pushed:
