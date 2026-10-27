@@ -6,6 +6,7 @@
 # cancelled, so every finished task gets a complete result; other refs cancel superseded runs.
 # Jobs run in parallel: the fast check split per part (check-tfp, check-server, check-web, check-android,
 # each `sh scripts/check.sh <part>` with only the setup that part needs), integration tests, image build.
+# When a test job fails, its Gradle test reports are uploaded as artifact test-reports-<job>.
 name: CI
 
 on:
@@ -57,6 +58,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - name: sh scripts/check.sh server
         run: sh scripts/check.sh server
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-server
+          path: |
+            server/build/reports/tests/
+            server/build/test-results/
+          if-no-files-found: ignore
 
   check-web:
     name: Fast check (web)
@@ -88,6 +98,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - name: sh scripts/check.sh android
         run: sh scripts/check.sh android
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-android
+          path: |
+            android/app/build/reports/tests/
+            android/app/build/test-results/
+          if-no-files-found: ignore
 
   integration:
     name: Server integration tests
@@ -103,6 +122,15 @@ jobs:
       - name: ./gradlew integrationTest
         working-directory: server
         run: ./gradlew integrationTest
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-integration
+          path: |
+            server/build/reports/tests/
+            server/build/test-results/
+          if-no-files-found: ignore
 
   # The release APK the server offers at /download/android (SPEC.md §11). Signed with the keystore from the secrets
   # ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD; without them

@@ -16,7 +16,8 @@ RUN npm run build
 FROM docker.io/library/eclipse-temurin:21-jdk AS server
 WORKDIR /server
 # Wrapper + build scripts first, so the Gradle distribution and dependencies stay cached.
-COPY server/gradlew server/settings.gradle.kts server/build.gradle.kts ./
+# gradle.properties carries the Gradle/Kotlin daemon heap; the 512 MB default runs out in :compileKotlin.
+COPY server/gradlew server/settings.gradle.kts server/build.gradle.kts server/gradle.properties ./
 COPY server/gradle/ gradle/
 RUN ./gradlew --no-daemon --quiet dependencies > /dev/null
 COPY server/src/main/ src/main/

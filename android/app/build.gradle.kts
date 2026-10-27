@@ -1,3 +1,5 @@
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+import org.gradle.api.tasks.testing.logging.TestLogEvent
 import org.gradle.testing.jacoco.plugins.JacocoTaskExtension
 
 plugins {
@@ -88,6 +90,14 @@ val e2eBaseUrl = providers.gradleProperty("e2eBaseUrl")
 tasks.withType<Test>().configureEach {
     // Robolectric keeps an Android runtime per SDK config; with 2000+ tests the 512 MB default heap runs out.
     maxHeapSize = "2g"
+    // A failing test prints its class, method and full exception in the log; passing tests stay silent.
+    // scripts/check.sh runs Gradle with --quiet, which only shows the quiet level, so both levels are set.
+    testLogging {
+        listOf(this, quiet).forEach {
+            it.events(TestLogEvent.FAILED)
+            it.exceptionFormat = TestExceptionFormat.FULL
+        }
+    }
     extensions.configure<JacocoTaskExtension> {
         // Robolectric loads app classes without a code source location; without this JaCoCo records 0 coverage.
         isIncludeNoLocationClasses = true

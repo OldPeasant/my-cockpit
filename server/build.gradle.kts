@@ -1,3 +1,6 @@
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+import org.gradle.api.tasks.testing.logging.TestLogEvent
+
 plugins {
 	kotlin("jvm") version "2.3.21"
 	kotlin("plugin.spring") version "2.3.21"
@@ -103,6 +106,17 @@ tasks.test {
 	// Gradle's default of 512 MB is too small for the cached Spring contexts plus the 60 MB upload test;
 	// 1 GB ran out of heap once the suite reached ~60 Spring contexts (2026-10-22).
 	maxHeapSize = "2g"
+}
+
+// A failing test prints its class, method and full exception in the log; passing tests stay silent.
+// scripts/check.sh runs Gradle with --quiet, which only shows the quiet level, so both levels are set.
+tasks.withType<Test>().configureEach {
+	testLogging {
+		listOf(this, quiet).forEach {
+			it.events(TestLogEvent.FAILED)
+			it.exceptionFormat = TestExceptionFormat.FULL
+		}
+	}
 }
 
 tasks.register<Test>("integrationTest") {
