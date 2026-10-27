@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "task": "ci-oom-and-test-reports",
+  "reviewed_revision": "6e19bbfc0b62df4303352729bb42b15b2a424c5a",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/ci-oom-and-test-reports/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/ci-oom-and-test-reports/review.md"},
+    "fixer": {"status": "not_required", "reason": "test-writer and code-reviewer reported no findings"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "podman build --no-cache -t cockpit-server:ci .", "result": "pass"},
+    {"command": "python -c \"import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))\"", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
