@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "ci-oom-and-test-reports",
-  "reviewed_revision": "6e19bbfc0b62df4303352729bb42b15b2a424c5a",
+  "reviewed_revision": "a18bdc308cdc0351d2ae5748883eddd5d6ebf2cd",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/ci-oom-and-test-reports/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/ci-oom-and-test-reports/review.md"},
