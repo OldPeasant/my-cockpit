@@ -2,7 +2,7 @@
 title: Android mail: create, rename and delete folders
 status: todo
 owner:
-deps: [mail-folder-manage-api,and-mail-list-read]
+deps: [mail-folder-manage-api,and-mail-list-read,mail-account-label-email]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/list,android/app/src/test/java/ch/sonensei/cockpit/mail/list]
 prio: 2
 ---

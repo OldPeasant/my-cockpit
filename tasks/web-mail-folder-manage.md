@@ -2,7 +2,7 @@
 title: Mail folder tree: create, rename and delete folders
 status: todo
 owner:
-deps: [mail-folder-manage-api,web-mail-list]
+deps: [mail-folder-manage-api,web-mail-list,mail-account-label-email]
 touches: [web/src/app/features/mail/list]
 prio: 2
 ---
