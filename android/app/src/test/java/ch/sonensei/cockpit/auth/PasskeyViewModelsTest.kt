@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.auth
 
+import ch.sonensei.cockpit.core.network.ServerUrlValidation
 import ch.sonensei.cockpit.core.network.generated.models.PasskeyResponse
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -97,6 +98,32 @@ class PasskeyViewModelsTest {
                 assertEquals(result.toString(), error, viewModel.uiState.value.error)
                 assertFalse(viewModel.uiState.value.submitting)
             }
+        }
+
+    @Test
+    fun `an invalid server address on the passkey path keeps the address as understood until the next edit`() =
+        runTest(dispatcher) {
+            coEvery { passkeys.login(any(), any()) } returns
+                LoginResult.InvalidServerUrl(ServerUrlValidation.Reason.HTTPS_REQUIRED, "http://my-cockpit.sonensei.ch")
+            val viewModel = LoginViewModel(auth, passkeys)
+            advanceUntilIdle()
+
+            viewModel.submitPasskey(credentials)
+            advanceUntilIdle()
+            assertEquals(LoginError.SERVER_URL_HTTPS_REQUIRED, viewModel.uiState.value.error)
+            assertEquals("http://my-cockpit.sonensei.ch", viewModel.uiState.value.errorAddress)
+            assertFalse(viewModel.uiState.value.submitting)
+
+            // A new attempt clears the quoted address while it runs and keeps it cleared for other errors.
+            val pending = CompletableDeferred<LoginResult>()
+            coEvery { passkeys.login(any(), any()) } coAnswers { pending.await() }
+            viewModel.submitPasskey(credentials)
+            dispatcher.scheduler.runCurrent()
+            assertNull(viewModel.uiState.value.errorAddress)
+            pending.complete(LoginResult.Network)
+            advanceUntilIdle()
+            assertEquals(LoginError.NETWORK, viewModel.uiState.value.error)
+            assertNull(viewModel.uiState.value.errorAddress)
         }
 
     @Test

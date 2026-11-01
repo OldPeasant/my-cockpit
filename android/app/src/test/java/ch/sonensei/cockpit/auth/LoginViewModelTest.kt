@@ -138,6 +138,51 @@ class LoginViewModelTest {
         }
 
     @Test
+    fun `editing any field forgets the quoted server address`() =
+        runTest(dispatcher) {
+            coEvery { repository.login(any(), any(), any(), any()) } returns
+                LoginResult.InvalidServerUrl(ServerUrlValidation.Reason.HTTPS_REQUIRED, "http://my-cockpit.sonensei.ch")
+            val viewModel = filledIn()
+            viewModel.onServerUrlChange("http://my-cockpit. sonensei. ch")
+            val edits =
+                listOf<(LoginViewModel) -> Unit>(
+                    { it.onUsernameChange("alex2") },
+                    { it.onPasswordChange("pw2") },
+                    { it.onCodeChange("654321") },
+                    { it.onUseRecoveryCodeChange(true) },
+                )
+            edits.forEachIndexed { index, edit ->
+                viewModel.onCodeChange("123456")
+                viewModel.submit()
+                advanceUntilIdle()
+                assertEquals("edit $index", "http://my-cockpit.sonensei.ch", viewModel.uiState.value.errorAddress)
+
+                edit(viewModel)
+                assertNull("edit $index", viewModel.uiState.value.errorAddress)
+            }
+        }
+
+    @Test
+    fun `a later failure that is not about the address shows no quoted address`() =
+        runTest(dispatcher) {
+            coEvery { repository.login(any(), any(), any(), any()) } returnsMany
+                listOf(
+                    LoginResult.InvalidServerUrl(ServerUrlValidation.Reason.MALFORMED, "https://my-cockpit.sonensei?x"),
+                    LoginResult.WrongCredentials,
+                )
+            val viewModel = filledIn()
+
+            viewModel.submit()
+            advanceUntilIdle()
+            assertEquals("https://my-cockpit.sonensei?x", viewModel.uiState.value.errorAddress)
+            viewModel.submit()
+            advanceUntilIdle()
+
+            assertEquals(LoginError.WRONG_CREDENTIALS, viewModel.uiState.value.error)
+            assertNull(viewModel.uiState.value.errorAddress)
+        }
+
+    @Test
     fun `each failure maps to its error`() =
         runTest(dispatcher) {
             val cases =

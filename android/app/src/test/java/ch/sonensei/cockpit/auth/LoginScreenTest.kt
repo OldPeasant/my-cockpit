@@ -1,8 +1,12 @@
 package ch.sonensei.cockpit.auth
 
+import android.text.InputType
+import android.view.View
+import android.view.inputmethod.EditorInfo
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -26,10 +30,12 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
 class LoginScreenTest {
@@ -202,6 +208,75 @@ class LoginScreenTest {
         assertEquals(false, ServerUrlKeyboardOptions.autoCorrectEnabled)
         assertEquals(KeyboardType.Uri, ServerUrlKeyboardOptions.keyboardType)
         assertEquals(KeyboardCapitalization.None, ServerUrlKeyboardOptions.capitalization)
+    }
+
+    @Test
+    fun `the focused server address field asks the keyboard for a URI without autocorrect or capitals`() {
+        lateinit var view: View
+        composeRule.setContent {
+            view = LocalView.current
+            LoginScreen(LoginUiState(), {}, {}, {}, {}, {}, {})
+        }
+
+        composeRule.onNodeWithTag(LoginTags.SERVER_URL).performClick()
+        val info = EditorInfo()
+        val connection = composeRule.runOnIdle { view.onCreateInputConnection(info) }
+
+        assertNotNull("the focused field opened no input connection", connection)
+        assertEquals(InputType.TYPE_CLASS_TEXT, info.inputType and InputType.TYPE_MASK_CLASS)
+        assertEquals(InputType.TYPE_TEXT_VARIATION_URI, info.inputType and InputType.TYPE_MASK_VARIATION)
+        assertEquals(0, info.inputType and InputType.TYPE_TEXT_FLAG_AUTO_CORRECT)
+        val capitals =
+            listOf(InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS, InputType.TYPE_TEXT_FLAG_CAP_WORDS, InputType.TYPE_TEXT_FLAG_CAP_SENTENCES)
+        capitals.forEach { assertEquals(0, info.inputType and it) }
+    }
+
+    @Test
+    fun `a non-address error ignores a leftover address and shows its own message`() {
+        show(LoginUiState(error = LoginError.NETWORK, errorAddress = "https://my-cockpit.sonensei.ch"))
+
+        val error = composeRule.onNodeWithTag(LoginTags.ERROR).performScrollTo()
+        error.assertTextContains("The server cannot be reached", substring = true)
+        error.assert(
+            SemanticsMatcher("does not quote the address") { node ->
+                node.config
+                    .getOrElse(SemanticsProperties.Text) { emptyList() }
+                    .none { it.text.contains("my-cockpit.sonensei.ch") }
+            },
+        )
+    }
+
+    @Test
+    fun `a server address error without an understood address shows the general message`() {
+        var state by mutableStateOf(LoginUiState(error = LoginError.SERVER_URL_HTTPS_REQUIRED, errorAddress = null))
+        composeRule.setContent { LoginScreen(state, {}, {}, {}, {}, {}, {}) }
+
+        composeRule
+            .onNodeWithTag(LoginTags.ERROR)
+            .performScrollTo()
+            .assertTextContains("The server needs an https address. Plain http only works for this device.", substring = true)
+        state = LoginUiState(error = LoginError.SERVER_URL_HTTPS_REQUIRED, errorAddress = "")
+        composeRule
+            .onNodeWithTag(LoginTags.ERROR)
+            .performScrollTo()
+            .assertTextContains("The server needs an https address. Plain http only works for this device.", substring = true)
+    }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `the server address errors quote the address in German`() {
+        var state by mutableStateOf(LoginUiState(error = LoginError.SERVER_URL_MALFORMED, errorAddress = "https://my-cockpit.sonensei?x"))
+        composeRule.setContent { LoginScreen(state, {}, {}, {}, {}, {}, {}) }
+
+        composeRule
+            .onNodeWithTag(LoginTags.ERROR)
+            .performScrollTo()
+            .assertTextContains("„https://my-cockpit.sonensei?x“ ist keine gültige Serveradresse", substring = true)
+        state = LoginUiState(error = LoginError.SERVER_URL_HTTPS_REQUIRED, errorAddress = "http://my-cockpit.sonensei.ch")
+        composeRule
+            .onNodeWithTag(LoginTags.ERROR)
+            .performScrollTo()
+            .assertTextContains("„http://my-cockpit.sonensei.ch“ verwendet einfaches http", substring = true)
     }
 
     @Test

@@ -79,6 +79,51 @@ class ServerUrlTest {
     }
 
     @Test
+    fun `removes the other invisible characters a keyboard may insert`() {
+        val expected = Valid("https://my-cockpit.sonensei.ch/".toHttpUrl())
+        val invisible = listOf('‌', '‍', '⁠', ' ', ' ', ' ', ' ', ' ', ' ', '\u000B', '\u000C', '\r')
+        invisible.forEach {
+            assertEquals("U+%04X".format(it.code), expected, ServerUrlValidator.validate("https://my-cockpit.${it}sonensei.ch"))
+        }
+    }
+
+    @Test
+    fun `an http address with inserted spaces keeps the https rule and quotes the cleaned address`() {
+        assertEquals(
+            Invalid(Reason.HTTPS_REQUIRED, "http://my-cockpit.sonensei.ch"),
+            ServerUrlValidator.validate(" http:// my-cockpit. sonensei. ch "),
+        )
+        assertEquals(Valid("http://localhost:8080/".toHttpUrl()), ServerUrlValidator.validate("http:// localhost: 8080"))
+    }
+
+    @Test
+    fun `a scheme in capitals is kept, an address with only a port or path gets https`() {
+        assertEquals(Valid("https://my-cockpit.sonensei.ch/".toHttpUrl()), ServerUrlValidator.validate("HTTPS://My-Cockpit.Sonensei.CH"))
+        assertEquals(
+            Invalid(Reason.HTTPS_REQUIRED, "HTTP://my-cockpit.sonensei.ch"),
+            ServerUrlValidator.validate("HTTP://my-cockpit.sonensei.ch"),
+        )
+        assertEquals(
+            Valid("https://my-cockpit.sonensei.ch:8443/cockpit/".toHttpUrl()),
+            ServerUrlValidator.validate("my-cockpit.sonensei.ch:8443/cockpit"),
+        )
+        // Without a scheme, even this device gets https: plain http must be typed on purpose.
+        assertEquals(Valid("https://localhost:8080/".toHttpUrl()), ServerUrlValidator.validate("localhost:8080"))
+    }
+
+    @Test
+    fun `understood removes spaces, adds https only when no scheme was typed, and is stable`() {
+        assertEquals("https://my-cockpit.sonensei.ch", ServerUrlValidator.understood(" my-cockpit. sonensei. ch "))
+        assertEquals("http://my-cockpit.sonensei.ch", ServerUrlValidator.understood("http:// my-cockpit.sonensei.ch"))
+        assertEquals("ftp://example.org", ServerUrlValidator.understood("ftp://example.org"))
+        assertEquals("", ServerUrlValidator.understood(" ​ \t"))
+        listOf(" my-cockpit. sonensei. ch ", "http://x", "", "a:b").forEach {
+            val once = ServerUrlValidator.understood(it)
+            assertEquals(it, once, ServerUrlValidator.understood(once))
+        }
+    }
+
+    @Test
     fun `allows http only for localhost and the emulator host`() {
         listOf("http://localhost:8080", "http://127.0.0.1:8080", "http://[::1]:8080", "http://10.0.2.2:8080").forEach {
             assertEquals(it, true, ServerUrlValidator.validate(it) is Valid)

@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -103,6 +104,35 @@ class PasskeyRepositoryTest {
 
             assertEquals(LoginResult.InvalidServerUrl(ServerUrlValidation.Reason.MALFORMED, "ftp://cockpit.example.org"), result)
             assertEquals(0, server.requestCount)
+        }
+
+    @Test
+    fun `an invalid server address reports the address as understood, without spaces and with https added`() =
+        runBlocking {
+            assertEquals(
+                LoginResult.InvalidServerUrl(ServerUrlValidation.Reason.MALFORMED, "https://cockpit.example.org?x"),
+                repository.login(" cockpit. example. org?x", authenticator),
+            )
+            assertEquals(
+                LoginResult.InvalidServerUrl(ServerUrlValidation.Reason.HTTPS_REQUIRED, "http://cockpit.example.org"),
+                repository.login("http:// cockpit.example.org ", authenticator),
+            )
+            assertEquals(0, server.requestCount)
+            assertTrue(authenticator.requests.isEmpty())
+        }
+
+    @Test
+    fun `a passkey login accepts a server address with keyboard-inserted spaces`() =
+        runBlocking {
+            server.enqueue(json(200, AUTH_OPTIONS))
+            server.enqueue(json(200, TOKEN_BODY))
+            authenticator.next = CredentialOutcome.Success(ASSERTION)
+
+            val result = repository.login(serverAddress().map { "$it " }.joinToString(""), authenticator)
+
+            assertEquals(LoginResult.Success, result)
+            assertEquals(serverAddress(), serverUrls.serverUrl.first().toString())
+            assertEquals("/api/v1/auth/passkeys/authentication/options", server.takeRequest().url.encodedPath)
         }
 
     @Test

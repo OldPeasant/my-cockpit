@@ -204,6 +204,29 @@ class AuthRepositoryTest {
         }
 
     @Test
+    fun `a server address with keyboard-inserted spaces signs in and stores the address without them`() =
+        runBlocking {
+            server.enqueue(json(200, TOKEN_BODY))
+            val spaced = " " + serverAddress().map { "$it " }.joinToString("")
+
+            val result = repository.login(spaced, "alex", "fictitious-password", SecondFactor.Totp("123456"))
+
+            assertEquals(LoginResult.Success, result)
+            assertEquals(serverAddress(), repository.serverUrl.first())
+            assertEquals("/api/v1/auth/token", server.takeRequest().url.encodedPath)
+        }
+
+    @Test
+    fun `an invalid server address with inserted spaces reports the address without them`() =
+        runBlocking {
+            assertEquals(
+                LoginResult.InvalidServerUrl(ServerUrlValidation.Reason.HTTPS_REQUIRED, "http://cockpit.example.org"),
+                repository.login("http:// cockpit. example. org ", "alex", "pw", SecondFactor.Totp("123456")),
+            )
+            assertEquals(0, server.requestCount)
+        }
+
+    @Test
     fun `logout revokes this device, forgets the tokens and clears the caches`() =
         runBlocking {
             server.enqueue(json(200, TOKEN_BODY))
