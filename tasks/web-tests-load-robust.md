@@ -36,7 +36,8 @@ and by the owner while closing h-prod-p2. Make the check reliable under load wit
 - [x] Real failures still fail: a deliberately wrong assertion fails the run (then reverted); `cd web && npm run
       check` passes; total `test:ci` time on an idle machine is not more than 20 % slower than before
   - verified (2026-11-01 22:15+0100 by dell26/agent-1): temp spec expect(1+1).toBe(3) + cd web && npm run test:ci -> exit 1, '1 failed | 4053 passed', removed; npm --prefix web run check -> lint clean, 4053 passed, build ok; idle full suite alternating base/new (same host, load 15-24 from the runs themselves): base 36.8 s / 40.2 s vs new 39.4 s / 39.8 s Vitest duration (~+3 %, < 20 %)
-- [ ] `docs/ARCHITECTURE.md` (web testing section) notes the timeout/worker settings in one or two lines
+- [x] `docs/ARCHITECTURE.md` (web testing section) notes the timeout/worker settings in one or two lines
+  - verified (2026-11-01 22:15+0100 by dell26/agent-1): docs/ARCHITECTURE.md Conventions: added 3 lines on web/vitest.config.mts 20 s test/hook timeouts and web/src/test-setup.ts per-test TestBed/timer reset
 
 ## Notes
 Requested by the owner (2026-11-01). Only test infrastructure and the named slow spec; no production code. If other
