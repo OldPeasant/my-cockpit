@@ -51,22 +51,31 @@ object ServerUrlValidator {
 
     private val SCHEME = Regex("^[A-Za-z][A-Za-z0-9+.-]*://")
 
+    /** Hosts that only result from a mistyped scheme (e.g. `https//host` becomes `https://https//host`). */
+    private val SCHEME_NAMES = setOf("http", "https")
+
     /**
      * Turns what the user typed into the address the app uses: keyboards insert spaces (e.g. after each dot), so all
-     * whitespace (including non-breaking and other Unicode spaces) is removed, and an address without a scheme gets
-     * `https://`.
+     * whitespace (including non-breaking and other Unicode spaces) and invisible characters are removed, and an
+     * address without a scheme gets `https://`.
      */
     fun understood(raw: String): String {
-        val compact = raw.filterNot { it.isWhitespace() || it in INVISIBLE }
-        return if (compact.isEmpty() || SCHEME.containsMatchIn(compact)) compact else "https://$compact"
+        val compact = compact(raw)
+        return if (isSchemeAdded(compact)) "https://$compact" else compact
     }
 
+    /**
+     * Checks [raw] after [understood]. If the app added the scheme and the host is then `http` or `https`, the user
+     * mistyped a scheme (`https//host`, `http:/host`): that is MALFORMED, not a server named `https`.
+     */
     fun validate(raw: String): ServerUrlValidation {
+        val compact = compact(raw)
         val address = understood(raw)
         val url =
             address
                 .toHttpUrlOrNull()
                 ?.takeIf { it.username.isEmpty() && it.password.isEmpty() && it.query == null && it.fragment == null }
+                ?.takeUnless { isSchemeAdded(compact) && it.host.lowercase() in SCHEME_NAMES }
                 ?: return ServerUrlValidation.Invalid(ServerUrlValidation.Reason.MALFORMED, address)
         if (!url.isHttps && url.host !in CLEARTEXT_HOSTS) {
             return ServerUrlValidation.Invalid(ServerUrlValidation.Reason.HTTPS_REQUIRED, address)
@@ -74,6 +83,10 @@ object ServerUrlValidator {
         val normalized = if (url.encodedPath.endsWith("/")) url else url.newBuilder().addPathSegment("").build()
         return ServerUrlValidation.Valid(normalized)
     }
+
+    private fun compact(raw: String): String = raw.filterNot { it.isWhitespace() || it in INVISIBLE }
+
+    private fun isSchemeAdded(compact: String): Boolean = compact.isNotEmpty() && !SCHEME.containsMatchIn(compact)
 }
 
 /** The server base URL the user configured, kept in DataStore. */

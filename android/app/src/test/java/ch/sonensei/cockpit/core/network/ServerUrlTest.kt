@@ -81,10 +81,28 @@ class ServerUrlTest {
     @Test
     fun `removes the other invisible characters a keyboard may insert`() {
         val expected = Valid("https://my-cockpit.sonensei.ch/".toHttpUrl())
-        val invisible = listOf('‌', '‍', '⁠', ' ', ' ', ' ', ' ', ' ', ' ', '\u000B', '\u000C', '\r')
+        val invisible =
+            listOf('\u200C', '\u200D', '\u2060', '\u2028', '\u2029', '\u1680', '\u2000', '\u200A', '\u205F') +
+                listOf('\u000B', '\u000C', '\r')
         invisible.forEach {
             assertEquals("U+%04X".format(it.code), expected, ServerUrlValidator.validate("https://my-cockpit.${it}sonensei.ch"))
         }
+    }
+
+    @Test
+    fun `a mistyped scheme is malformed, not a server named http or https`() {
+        listOf(
+            "https//my-cockpit.sonensei.ch" to "https://https//my-cockpit.sonensei.ch",
+            "http//my-cockpit.sonensei.ch" to "https://http//my-cockpit.sonensei.ch",
+            "http:/x" to "https://http:/x",
+            "HTTPS//my-cockpit.sonensei.ch" to "https://HTTPS//my-cockpit.sonensei.ch",
+            "https //my-cockpit. sonensei.ch" to "https://https//my-cockpit.sonensei.ch",
+        ).forEach { (typed, address) ->
+            assertEquals(typed, Invalid(Reason.MALFORMED, address), ServerUrlValidator.validate(typed))
+        }
+        // Typed on purpose, a scheme stays as it is; a host merely starting with http is a normal host.
+        assertEquals(Valid("https://https/".toHttpUrl()), ServerUrlValidator.validate("https://https"))
+        assertEquals(Valid("https://httpserver.example.org/".toHttpUrl()), ServerUrlValidator.validate("httpserver.example.org"))
     }
 
     @Test
@@ -116,7 +134,7 @@ class ServerUrlTest {
         assertEquals("https://my-cockpit.sonensei.ch", ServerUrlValidator.understood(" my-cockpit. sonensei. ch "))
         assertEquals("http://my-cockpit.sonensei.ch", ServerUrlValidator.understood("http:// my-cockpit.sonensei.ch"))
         assertEquals("ftp://example.org", ServerUrlValidator.understood("ftp://example.org"))
-        assertEquals("", ServerUrlValidator.understood(" ​ \t"))
+        assertEquals("", ServerUrlValidator.understood("\u00A0\u200B \t"))
         listOf(" my-cockpit. sonensei. ch ", "http://x", "", "a:b").forEach {
             val once = ServerUrlValidator.understood(it)
             assertEquals(it, once, ServerUrlValidator.understood(once))
