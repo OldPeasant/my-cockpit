@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "task": "mail-delete-stale-trash",
+  "reviewed_revision": "4b98a9cacd6a5305912320386b3e73113dc928a2",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/mail-delete-stale-trash/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-delete-stale-trash/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/mail-delete-stale-trash/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: GreenMail tests started background resyncs they never waited for; fixed by the fixer (awaitUncached/awaitUidValidity)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: a changed UIDVALIDITY failed with NOT_FOUND but started no resync; fixed by the fixer (Remote.Invalidated requests a resync)"},
+    {"id": "CR-1 (second review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "a Trash delete could remove a row a concurrent sync relocated; fixed by the parent worker in a one-line change: applyToRows only touches rows still at the UID the server command used, with unit tests; third review confirmed the fix, 0 findings"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintFormat check jacocoTestReport", "result": "pass"},
+    {"command": "cd server && ./gradlew integrationTest --tests '*MailActionGreenMailTests*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
