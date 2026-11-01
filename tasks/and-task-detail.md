@@ -40,3 +40,4 @@ existing API: `GET/PATCH/DELETE /api/v1/tasks/{id}` (ETag/If-Match), `POST /task
 Requested by the owner (2026-11-01): "I can't open any [task] by selecting one", with editing. Out of scope:
 creating new tasks here (capture covers that), recurrence editing (show the rule read-only if present), project
 detail editing.
+- ASSUMPTION (2026-11-01 23:26+0100 by dell26/agent-2): Edit happens in a form opened by an Edit button (title, notes, project, contexts, due date/time, estimate, energy, creativity) with Save/Cancel pinned on top, not per-field inline editing; checklist and actions work directly on the detail view.
