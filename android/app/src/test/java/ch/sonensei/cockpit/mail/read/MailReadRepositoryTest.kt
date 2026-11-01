@@ -168,4 +168,25 @@ class MailReadRepositoryTest {
             assertEquals(MailResult.Ok(MailActionOutcome(false)), repository.act(id(1), MailListAction.SPAM))
             assertEquals(MailResult.Offline, repository.act(id(1), MailListAction.SPAM))
         }
+
+    @Test
+    fun `only the result for the mail acted on counts, and a success carries no error code`() =
+        runBlocking {
+            // The server answered for another mail only: this one was not moved.
+            server.enqueue(json("""{"results":[{"id":"${id(2)}","ok":true}]}"""))
+            server.enqueue(
+                json(
+                    """{"results":[{"id":"${id(2)}","ok":false,"errorCode":"NOT_FOUND"},
+                    |{"id":"${id(1)}","ok":true,"errorCode":"IGNORED_ON_SUCCESS"}]}
+                    """.trimMargin().replace("\n", ""),
+                ),
+            )
+            server.enqueue(json("""{"title":"Bad request"}""", code = 400))
+
+            assertEquals(MailResult.Ok(MailActionOutcome(false)), repository.act(id(1), MailListAction.ARCHIVE))
+            assertEquals("""{"action":"ARCHIVE","ids":["${id(1)}"]}""", server.takeRequest().body!!.utf8())
+            assertEquals(MailResult.Ok(MailActionOutcome(true)), repository.act(id(1), MailListAction.DELETE))
+            assertEquals("""{"action":"DELETE","ids":["${id(1)}"]}""", server.takeRequest().body!!.utf8())
+            assertEquals(MailResult.Failed(400), repository.act(id(1), MailListAction.SPAM))
+        }
 }

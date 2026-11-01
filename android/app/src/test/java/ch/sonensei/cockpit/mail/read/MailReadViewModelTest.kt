@@ -289,6 +289,29 @@ class MailReadViewModelTest {
         }
 
     @Test
+    fun `a running spam keeps the view busy, ignores a second tap, and offline it fails without a server code`() =
+        runTest(dispatcher) {
+            val pending = CompletableDeferred<MailResult<MailActionOutcome>>()
+            coEvery { reader.act(id(1), MailListAction.SPAM) } coAnswers { pending.await() }
+            val vm = opened()
+            advanceUntilIdle()
+
+            vm.act(MailListAction.SPAM)
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.busy)
+            vm.act(MailListAction.SPAM)
+            vm.act(MailListAction.DELETE)
+            pending.complete(MailResult.Offline)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { reader.act(id(1), MailListAction.SPAM) }
+            coVerify(exactly = 0) { reader.act(id(1), MailListAction.DELETE) }
+            assertEquals(MailReadNotice.ActionFailed(MailListAction.SPAM, null), vm.uiState.value.notice)
+            assertFalse(vm.uiState.value.removed)
+            assertFalse(vm.uiState.value.busy)
+        }
+
+    @Test
     fun `a mail closed and opened again is loaded again with its current state`() =
         runTest(dispatcher) {
             coEvery { reader.act(id(1), MailListAction.ARCHIVE) } returns MailResult.Ok(MailActionOutcome(false))

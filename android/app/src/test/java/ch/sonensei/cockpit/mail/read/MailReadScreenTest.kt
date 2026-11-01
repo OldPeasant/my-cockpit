@@ -21,6 +21,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -236,6 +237,49 @@ class MailReadScreenTest {
         composeRule
             .onNodeWithTag(MailReadTags.NOTICE)
             .assertTextEquals("The mail could not be moved to spam. Server error: CONNECTION_FAILED")
+    }
+
+    @Test
+    fun `a failed spam without a server code says only that it failed`() {
+        show(MailReadUiState(message = message, notice = MailReadNotice.ActionFailed(MailListAction.SPAM)))
+        composeRule.onNodeWithTag(MailReadTags.NOTICE).assertTextEquals("The mail could not be moved to spam.")
+    }
+
+    @Test
+    fun `a missing role folder names the folder of the action`() {
+        show(MailReadUiState(message = message, notice = MailReadNotice.ActionFailed(MailListAction.ARCHIVE, "NO_ROLE_FOLDER")))
+        composeRule
+            .onNodeWithTag(MailReadTags.NOTICE)
+            .assertTextEquals("The mail could not be archived. This account has no Archive folder.")
+    }
+
+    @Test
+    fun `a delete without a Trash folder names the Trash folder`() {
+        show(MailReadUiState(message = message, notice = MailReadNotice.ActionFailed(MailListAction.DELETE, "NO_ROLE_FOLDER")))
+        composeRule
+            .onNodeWithTag(MailReadTags.NOTICE)
+            .assertTextContains("This account has no Trash folder.", substring = true)
+    }
+
+    @Test
+    fun `the spam button comes after archive and delete`() {
+        show(MailReadUiState(message = message))
+
+        fun left(action: MailListAction) =
+            composeRule
+                .onNodeWithTag(MailReadTags.action(action))
+                .fetchSemanticsNode()
+                .boundsInRoot.left
+        assertTrue(left(MailListAction.ARCHIVE) < left(MailListAction.DELETE))
+        assertTrue(left(MailListAction.DELETE) < left(MailListAction.SPAM))
+    }
+
+    @Test
+    fun `the spam button is disabled while an action runs`() {
+        show(MailReadUiState(message = message, busy = true))
+        composeRule.onNodeWithContentDescription("Move to spam").assertIsNotEnabled()
+        composeRule.onNodeWithTag(MailReadTags.action(MailListAction.SPAM)).performClick()
+        assertEquals(emptyList<String>(), calls)
     }
 
     @Test
