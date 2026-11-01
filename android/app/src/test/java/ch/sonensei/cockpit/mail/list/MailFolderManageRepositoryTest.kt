@@ -148,6 +148,26 @@ class MailFolderManageRepositoryTest {
         }
 
     @Test
+    fun `an unreadable answer to create or rename is a failure without status`() =
+        runBlocking {
+            server.enqueue(json("""{"id":"not-a-folder"}""", 201))
+            server.enqueue(json("not json"))
+
+            assertEquals(MailResult.Failed(null), repository.createFolder(account, null, "Receipts"))
+            assertEquals(MailResult.Failed(null), repository.renameFolder(projects, "Clients"))
+        }
+
+    @Test
+    fun `a folder listed without a version still sends a quoted If-Match, so the server answers 412 instead of 428`() =
+        runBlocking {
+            server.enqueue(MockResponse.Builder().code(204).build())
+
+            repository.deleteFolder(projects.copy(version = 0))
+
+            assertEquals("\"0\"", server.takeRequest().headers["If-Match"])
+        }
+
+    @Test
     fun `no connection at all is offline`() =
         runBlocking {
             server.close()
