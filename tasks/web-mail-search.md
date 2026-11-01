@@ -33,3 +33,4 @@ Requested by the owner (2026-11-01). Server unchanged. Out of scope: Android mai
 filters beyond the query text (from:, date ranges), changes to the Ctrl+K palette.
 - ASSUMPTION (2026-11-01 09:44+0100 by dell26/agent-1): Changing folder (route) clears an active mail search: a search is for the folder it was started in; the server-search option stays as chosen.
 - ASSUMPTION (2026-11-01 09:44+0100 by dell26/agent-1): Search results are not refetched on live change events (a server search is slow and itself loads mail); actions still update them optimistically, resubmitting refreshes.
+- ASSUMPTION (2026-11-01 09:44+0100 by dell26/agent-1): Search results are always flat (one row per message) even in the Conversations view, since GET /mail/search returns messages; limit is the server default page size (50).
