@@ -204,9 +204,9 @@ class ReminderUiTest {
         composeRule.waitForIdle()
 
         composeRule.onNodeWithTag(ReminderPromptTags.CARD).assertIsDisplayed()
-        composeRule.onNodeWithTag(screenTag(CockpitDestination.Today)).assertIsDisplayed()
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.Dashboard)).assertIsDisplayed()
         val card = composeRule.onNodeWithTag(ReminderPromptTags.CARD).fetchSemanticsNode().boundsInRoot
-        val screen = composeRule.onNodeWithTag(screenTag(CockpitDestination.Today)).fetchSemanticsNode().boundsInRoot
+        val screen = composeRule.onNodeWithTag(screenTag(CockpitDestination.Dashboard)).fetchSemanticsNode().boundsInRoot
         assertTrue("prompt above the content", card.bottom <= screen.top)
     }
 
@@ -356,7 +356,7 @@ class ReminderUiTest {
             navController = rememberNavController()
             CockpitTheme { CockpitShell(navController) }
         }
-        composeRule.onNodeWithTag(screenTag(CockpitDestination.Today)).assertIsDisplayed()
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.Dashboard)).assertIsDisplayed()
 
         val reminder = reminder(1, minutes = 0, type = ReminderItemResponse.Type.TASK).toScheduled()!!
         assertTrue(ReminderOpenRequests.offer(openItemIntent(context, reminder)))
@@ -386,7 +386,7 @@ class ReminderUiTest {
             navController = rememberNavController()
             CockpitTheme { CockpitShell(navController) }
         }
-        composeRule.onNodeWithTag(screenTag(CockpitDestination.Today)).assertIsDisplayed()
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.Dashboard)).assertIsDisplayed()
 
         ReminderOpenRequests.offer(openItemIntent(context, reminder(1, minutes = 0).toScheduled()!!))
         composeRule.waitForIdle()
@@ -397,7 +397,7 @@ class ReminderUiTest {
         composeRule.runOnIdle { navController.popBackStack() }
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithTag(screenTag(CockpitDestination.Today)).assertIsDisplayed()
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.Dashboard)).assertIsDisplayed()
     }
 
     @Test
@@ -439,7 +439,7 @@ class ReminderUiTest {
                 "BOOKMARK" to CockpitDestination.Bookmarks,
                 "JOURNAL_ENTRY" to CockpitDestination.Journal,
                 "HABIT" to CockpitDestination.Habits,
-                "SOMETHING_NEW" to CockpitDestination.Today,
+                "SOMETHING_NEW" to CockpitDestination.Dashboard,
             )
         expected.forEach { (type, destination) -> assertEquals(type, destination, OpenItemRequest(type, "x").destination) }
         assertEquals(ReminderItemResponse.Type.entries.size + 1, expected.size)

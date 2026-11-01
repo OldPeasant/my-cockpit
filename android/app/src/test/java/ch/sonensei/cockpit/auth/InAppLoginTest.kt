@@ -81,7 +81,7 @@ class InAppLoginTest {
         composeRule.onNodeWithTag(LoginTags.SUBMIT).performScrollTo().performClick()
 
         composeRule.waitUntil(WAIT_MS) {
-            composeRule.onAllNodesWithTag(screenTag(CockpitDestination.Today)).fetchSemanticsNodes().isNotEmpty()
+            composeRule.onAllNodesWithTag(screenTag(CockpitDestination.Dashboard)).fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onNodeWithTag(LoginTags.SCREEN).assertDoesNotExist()
         assertEquals(DeviceSession(AuthTokens("access-1", "refresh-1"), DEVICE_ID), tokenStore.session.value)

@@ -159,136 +159,148 @@ sealed interface DashboardResult<out T> {
  * failing module only breaks its widget. Read only: nothing here changes data.
  */
 @Singleton
-class DashboardRepository
+class DashboardRepository(
+    private val settings: SettingsApi,
+    private val tasks: TasksApi,
+    private val projects: ProjectsApi,
+    private val calendars: CalendarsApi,
+    private val mail: MailApi,
+    private val habits: HabitsApi,
+    private val reviews: WeeklyReviewApi,
+    private val bookmarks: BookmarksApi,
+    private val notes: NotesApi,
+    /** Its zone is the user's: "today" and the event days are local days. */
+    private val clock: Clock,
+) {
     @Inject
     constructor(
-        private val settings: SettingsApi,
-        private val tasks: TasksApi,
-        private val projects: ProjectsApi,
-        private val calendars: CalendarsApi,
-        private val mail: MailApi,
-        private val habits: HabitsApi,
-        private val reviews: WeeklyReviewApi,
-        private val bookmarks: BookmarksApi,
-        private val notes: NotesApi,
-        private val clock: Clock,
-    ) {
-        /** The shown widgets in their order, from the user settings the web dashboard writes. */
-        suspend fun layout(): DashboardResult<List<WidgetId>> = call { parseLayout(body(settings.getSettings())[LAYOUT_SETTING]) }
+        settings: SettingsApi,
+        tasks: TasksApi,
+        projects: ProjectsApi,
+        calendars: CalendarsApi,
+        mail: MailApi,
+        habits: HabitsApi,
+        reviews: WeeklyReviewApi,
+        bookmarks: BookmarksApi,
+        notes: NotesApi,
+    ) : this(settings, tasks, projects, calendars, mail, habits, reviews, bookmarks, notes, Clock.systemDefaultZone())
 
-        suspend fun load(widget: WidgetId): DashboardResult<WidgetData> =
-            call {
-                when (widget) {
-                    WidgetId.TODAY -> today()
-                    WidgetId.INBOX -> inbox()
-                    WidgetId.UPCOMING -> WidgetData.Upcoming(events(ZonedDateTime.now(clock), UPCOMING_DAYS))
-                    WidgetId.WAITING_OVERDUE ->
-                        WidgetData.WaitingOverdue(tasks(TasksApi.ListListTasks.WAITING, TasksApi.DueListTasks.OVERDUE))
-                    WidgetId.STALLED_PROJECTS ->
-                        WidgetData.StalledProjects(
-                            body(projects.listProjects(ProjectsApi.StatusListProjects.ACTIVE, stalled = true, limit = PAGE))
-                                .items
-                                .map { DashboardItem(it.id, it.title) },
+    /** The shown widgets in their order, from the user settings the web dashboard writes. */
+    suspend fun layout(): DashboardResult<List<WidgetId>> = call { parseLayout(body(settings.getSettings())[LAYOUT_SETTING]) }
+
+    suspend fun load(widget: WidgetId): DashboardResult<WidgetData> =
+        call {
+            when (widget) {
+                WidgetId.TODAY -> today()
+                WidgetId.INBOX -> inbox()
+                WidgetId.UPCOMING -> WidgetData.Upcoming(events(ZonedDateTime.now(clock), UPCOMING_DAYS))
+                WidgetId.WAITING_OVERDUE ->
+                    WidgetData.WaitingOverdue(tasks(TasksApi.ListListTasks.WAITING, TasksApi.DueListTasks.OVERDUE))
+                WidgetId.STALLED_PROJECTS ->
+                    WidgetData.StalledProjects(
+                        body(projects.listProjects(ProjectsApi.StatusListProjects.ACTIVE, stalled = true, limit = PAGE))
+                            .items
+                            .map { DashboardItem(it.id, it.title) },
+                    )
+                WidgetId.WEEKLY_REVIEW ->
+                    body(reviews.getWeeklyReviewStatus()).let { status ->
+                        WidgetData.WeeklyReview(
+                            status.daysSinceLastReview,
+                            status.current?.let { ReviewStep.valueOf(it.step.value).number },
                         )
-                    WidgetId.WEEKLY_REVIEW ->
-                        body(reviews.getWeeklyReviewStatus()).let { status ->
-                            WidgetData.WeeklyReview(
-                                status.daysSinceLastReview,
-                                status.current?.let { ReviewStep.valueOf(it.step.value).number },
-                            )
-                        }
-                    WidgetId.READ_LATER ->
-                        body(bookmarks.listBookmarks(readLater = true, read = false, limit = PAGE)).let { page ->
-                            WidgetData.ReadLater(page.items.map { DashboardItem(it.id, it.displayTitle) }, page.nextCursor != null)
-                        }
-                    WidgetId.PINNED_NOTES ->
-                        body(notes.listNotes(pinned = true, limit = PAGE)).let { page ->
-                            WidgetData.PinnedNotes(page.items.map { DashboardItem(it.id, it.displayTitle) }, page.nextCursor != null)
-                        }
-                }
+                    }
+                WidgetId.READ_LATER ->
+                    body(bookmarks.listBookmarks(readLater = true, read = false, limit = PAGE)).let { page ->
+                        WidgetData.ReadLater(page.items.map { DashboardItem(it.id, it.displayTitle) }, page.nextCursor != null)
+                    }
+                WidgetId.PINNED_NOTES ->
+                    body(notes.listNotes(pinned = true, limit = PAGE)).let { page ->
+                        WidgetData.PinnedNotes(page.items.map { DashboardItem(it.id, it.displayTitle) }, page.nextCursor != null)
+                    }
             }
-
-        private suspend fun today(): WidgetData.Today =
-            coroutineScope {
-                val overdue = async { tasks(due = TasksApi.DueListTasks.OVERDUE) }
-                val due = async { tasks(due = TasksApi.DueListTasks.TODAY) }
-                val events = async { events(ZonedDateTime.now(clock).toLocalDate().atStartOfDay(clock.zone), 1) }
-                val habitsDue = body(habits.listHabits(archived = false)).items.filter { it.stats.dueToday }
-                WidgetData.Today(
-                    tasks = (overdue.await() + due.await()).distinctBy { it.id },
-                    events = events.await(),
-                    habitsDue = habitsDue.size,
-                    habitsDone = habitsDue.count { it.stats.doneToday },
-                )
-            }
-
-        private suspend fun inbox(): WidgetData.Inbox =
-            coroutineScope {
-                val inboxTasks = async { body(tasks.listTasks(list = TasksApi.ListListTasks.INBOX, limit = PAGE)) }
-                val messages = body(mail.messages(accountId = null, folderId = null, cursor = null, limit = PAGE))
-                val unread = messages.items.count { !it.seen }
-                val taskPage = inboxTasks.await()
-                WidgetData.Inbox(
-                    tasks = Count(taskPage.items.size, taskPage.nextCursor != null),
-                    // Only a page with unread mail may have cut some off: never "0+".
-                    unreadMail = Count(unread, unread > 0 && messages.nextCursor != null),
-                )
-            }
-
-        private suspend fun tasks(
-            list: TasksApi.ListListTasks? = null,
-            due: TasksApi.DueListTasks,
-        ): List<DashboardTask> = body(tasks.listTasks(list = list, due = due, limit = PAGE)).items.map(TaskResponse::toDashboardTask)
-
-        /** The occurrences from [from] for [days] local days (counted from its midnight), cancelled ones left out. */
-        private suspend fun events(
-            from: ZonedDateTime,
-            days: Long,
-        ): List<DashboardEvent> {
-            val end = from.toLocalDate().plusDays(days).atStartOfDay(from.zone)
-            return body(calendars.listEventOccurrences(from.toOffsetDateTime(), end.toOffsetDateTime()))
-                .items
-                .filter { it.status != OccurrenceResponse.Status.CANCELLED }
-                .map { it.toDashboardEvent() }
         }
 
-        private suspend fun <T> call(block: suspend () -> T): DashboardResult<T> =
-            try {
-                DashboardResult.Ok(block())
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: IOException) {
-                DashboardResult.Offline
-            } catch (e: DashboardHttpFailure) {
-                if (e.status >= SERVER_ERROR) DashboardResult.Offline else DashboardResult.Failed
-            } catch (_: SerializationException) {
-                DashboardResult.Failed
-            } catch (_: IllegalArgumentException) {
-                DashboardResult.Failed
-            } catch (_: DateTimeException) {
-                DashboardResult.Failed
-            }
-
-        private fun OccurrenceResponse.toDashboardEvent(): DashboardEvent {
-            val date = start?.atZoneSameInstant(clock.zone)?.toLocalDate() ?: startDate ?: throw DateTimeException("no start")
-            return DashboardEvent(
-                key = "$eventId:${occurrence ?: date}",
-                title = title,
-                date = date,
-                start = if (allDay) null else start?.toInstant(),
+    private suspend fun today(): WidgetData.Today =
+        coroutineScope {
+            val overdue = async { tasks(due = TasksApi.DueListTasks.OVERDUE) }
+            val due = async { tasks(due = TasksApi.DueListTasks.TODAY) }
+            val events = async { events(ZonedDateTime.now(clock).toLocalDate().atStartOfDay(clock.zone), 1) }
+            val habitsDue = body(habits.listHabits(archived = false)).items.filter { it.stats.dueToday }
+            WidgetData.Today(
+                tasks = (overdue.await() + due.await()).distinctBy { it.id },
+                events = events.await(),
+                habitsDue = habitsDue.size,
+                habitsDone = habitsDue.count { it.stats.doneToday },
             )
         }
 
-        companion object {
-            /** Page size of the lists a widget counts: beyond it, the count shows as "N+". */
-            const val PAGE = 50
-
-            /** How far ahead the Upcoming events widget looks. */
-            const val UPCOMING_DAYS = 7L
-
-            private const val SERVER_ERROR = 500
+    private suspend fun inbox(): WidgetData.Inbox =
+        coroutineScope {
+            val inboxTasks = async { body(tasks.listTasks(list = TasksApi.ListListTasks.INBOX, limit = PAGE)) }
+            val messages = body(mail.messages(accountId = null, folderId = null, cursor = null, limit = PAGE))
+            val unread = messages.items.count { !it.seen }
+            val taskPage = inboxTasks.await()
+            WidgetData.Inbox(
+                tasks = Count(taskPage.items.size, taskPage.nextCursor != null),
+                // Only a page with unread mail may have cut some off: never "0+".
+                unreadMail = Count(unread, unread > 0 && messages.nextCursor != null),
+            )
         }
+
+    private suspend fun tasks(
+        list: TasksApi.ListListTasks? = null,
+        due: TasksApi.DueListTasks,
+    ): List<DashboardTask> = body(tasks.listTasks(list = list, due = due, limit = PAGE)).items.map(TaskResponse::toDashboardTask)
+
+    /** The occurrences from [from] for [days] local days (counted from its midnight), cancelled ones left out. */
+    private suspend fun events(
+        from: ZonedDateTime,
+        days: Long,
+    ): List<DashboardEvent> {
+        val end = from.toLocalDate().plusDays(days).atStartOfDay(from.zone)
+        return body(calendars.listEventOccurrences(from.toOffsetDateTime(), end.toOffsetDateTime()))
+            .items
+            .filter { it.status != OccurrenceResponse.Status.CANCELLED }
+            .map { it.toDashboardEvent() }
     }
+
+    private suspend fun <T> call(block: suspend () -> T): DashboardResult<T> =
+        try {
+            DashboardResult.Ok(block())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: IOException) {
+            DashboardResult.Offline
+        } catch (e: DashboardHttpFailure) {
+            if (e.status >= SERVER_ERROR) DashboardResult.Offline else DashboardResult.Failed
+        } catch (_: SerializationException) {
+            DashboardResult.Failed
+        } catch (_: IllegalArgumentException) {
+            DashboardResult.Failed
+        } catch (_: DateTimeException) {
+            DashboardResult.Failed
+        }
+
+    private fun OccurrenceResponse.toDashboardEvent(): DashboardEvent {
+        val date = start?.atZoneSameInstant(clock.zone)?.toLocalDate() ?: startDate ?: throw DateTimeException("no start")
+        return DashboardEvent(
+            key = "$eventId:${occurrence ?: date}",
+            title = title,
+            date = date,
+            start = if (allDay) null else start?.toInstant(),
+        )
+    }
+
+    companion object {
+        /** Page size of the lists a widget counts: beyond it, the count shows as "N+". */
+        const val PAGE = 50
+
+        /** How far ahead the Upcoming events widget looks. */
+        const val UPCOMING_DAYS = 7L
+
+        private const val SERVER_ERROR = 500
+    }
+}
 
 private fun TaskResponse.toDashboardTask() = DashboardTask(id, title, dueDate)
 

@@ -13,7 +13,7 @@
     <string name="dashboard_failed">This widget could not be loaded.</string>
     <string name="dashboard_retry_hint">Pull down to try again.</string>
     <string name="dashboard_today_empty">Nothing due today.</string>
-    <string name="dashboard_today_habits">Habits: %1$d of %2$d done</string>
+    <string name="dashboard_today_habits">Habits done: %1$d/%2$d</string>
     <string name="dashboard_overdue">Overdue</string>
     <string name="dashboard_all_day">All day</string>
     <plurals name="dashboard_inbox_tasks">

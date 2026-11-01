@@ -8,10 +8,10 @@ import org.junit.Test
 
 class CockpitDestinationTest {
     @Test
-    fun bottomBarHoldsTodayInboxCalendarMailMoreInThatOrder() {
+    fun bottomBarHoldsDashboardInboxCalendarMailMoreInThatOrder() {
         assertEquals(
             listOf(
-                CockpitDestination.Today,
+                CockpitDestination.Dashboard,
                 CockpitDestination.Inbox,
                 CockpitDestination.Calendar,
                 CockpitDestination.Mail,
@@ -25,6 +25,7 @@ class CockpitDestinationTest {
     fun moreListsTheSecondaryDestinationsInTheSpecifiedOrder() {
         assertEquals(
             listOf(
+                CockpitDestination.Today,
                 CockpitDestination.New,
                 CockpitDestination.Next,
                 CockpitDestination.Projects,
@@ -54,8 +55,8 @@ class CockpitDestinationTest {
     }
 
     @Test
-    fun startDestinationIsTodayInTheBottomBar() {
-        assertSame(CockpitDestination.Today, CockpitDestination.start)
+    fun startDestinationIsDashboardInTheBottomBar() {
+        assertSame(CockpitDestination.Dashboard, CockpitDestination.start)
         assertTrue(CockpitDestination.start in CockpitDestination.bottomBar)
     }
 

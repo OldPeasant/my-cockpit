@@ -235,7 +235,7 @@ class SearchRouteInAppTest {
         searchForPlan()
 
         composeRule.onNodeWithContentDescription("Back").performClick()
-        waitForTag(screenTag(CockpitDestination.Today))
+        waitForTag(screenTag(CockpitDestination.Dashboard))
 
         composeRule.onNodeWithTag(SEARCH_SCREEN_TAG).assertDoesNotExist()
     }

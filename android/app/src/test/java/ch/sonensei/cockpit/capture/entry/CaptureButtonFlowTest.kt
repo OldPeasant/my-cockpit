@@ -95,7 +95,7 @@ class CaptureButtonFlowTest {
     private fun launchShell(): ActivityScenario<MainActivity> =
         ActivityScenario.launch(MainActivity::class.java).also {
             main = it
-            composeRule.onNodeWithTag(screenTag(CockpitDestination.Today)).assertIsDisplayed()
+            composeRule.onNodeWithTag(screenTag(CockpitDestination.Dashboard)).assertIsDisplayed()
         }
 
     /** The intent the shell started for the sheet, launched as Android would (in the same task: no new-task flag). */
@@ -152,7 +152,7 @@ class CaptureButtonFlowTest {
                 .fetchSemanticsNodes()
                 .isNotEmpty()
         }
-        composeRule.onNodeWithTag(screenTag(CockpitDestination.Today)).assertIsDisplayed()
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.Dashboard)).assertIsDisplayed()
     }
 
     @Test

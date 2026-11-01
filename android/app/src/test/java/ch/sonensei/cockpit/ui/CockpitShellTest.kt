@@ -46,9 +46,9 @@ class CockpitShellTest {
     }
 
     @Test
-    fun startsOnTodayWithTodaySelected() {
-        assertShown(CockpitDestination.Today)
-        tab("Today").assertIsSelected()
+    fun startsOnDashboardWithDashboardSelected() {
+        assertShown(CockpitDestination.Dashboard)
+        tab("Dashboard").assertIsSelected()
         tab("Inbox").assertIsNotSelected()
     }
 
@@ -59,7 +59,7 @@ class CockpitShellTest {
             "Calendar" to CockpitDestination.Calendar,
             "Mail" to CockpitDestination.Mail,
             "More" to CockpitDestination.More,
-            "Today" to CockpitDestination.Today,
+            "Dashboard" to CockpitDestination.Dashboard,
         ).forEach { (label, destination) ->
             tab(label).performClick()
             composeRule.waitForIdle()

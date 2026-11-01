@@ -13,7 +13,7 @@
     <string name="dashboard_failed">Dieses Widget konnte nicht geladen werden.</string>
     <string name="dashboard_retry_hint">Zum erneuten Versuch nach unten ziehen.</string>
     <string name="dashboard_today_empty">Heute ist nichts fällig.</string>
-    <string name="dashboard_today_habits">Gewohnheiten: %1$d von %2$d erledigt</string>
+    <string name="dashboard_today_habits">Erledigte Gewohnheiten: %1$d/%2$d</string>
     <string name="dashboard_overdue">Überfällig</string>
     <string name="dashboard_all_day">Ganztägig</string>
     <plurals name="dashboard_inbox_tasks">

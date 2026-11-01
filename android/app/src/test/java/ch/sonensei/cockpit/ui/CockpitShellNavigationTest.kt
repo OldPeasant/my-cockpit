@@ -104,18 +104,18 @@ class CockpitShellNavigationTest {
     }
 
     @Test
-    fun systemBackFromATabReturnsToToday() {
+    fun systemBackFromATabReturnsToDashboard() {
         tab("Inbox").performClick()
         tab("Mail").performClick()
 
         pressSystemBack()
 
-        assertShown(CockpitDestination.Today)
-        tab("Today").assertIsSelected()
+        assertShown(CockpitDestination.Dashboard)
+        tab("Dashboard").assertIsSelected()
     }
 
     @Test
-    fun switchingTabsKeepsOnlyTodayBelowTheCurrentTab() {
+    fun switchingTabsKeepsOnlyDashboardBelowTheCurrentTab() {
         tab("Inbox").performClick()
         tab("Calendar").performClick()
         tab("Inbox").performClick()
@@ -123,7 +123,7 @@ class CockpitShellNavigationTest {
         composeRule.waitForIdle()
 
         assertEquals("mail", currentRoute())
-        assertEquals("today", previousRoute())
+        assertEquals("dashboard", previousRoute())
     }
 
     @Test
@@ -133,16 +133,16 @@ class CockpitShellNavigationTest {
         composeRule.waitForIdle()
 
         assertEquals("inbox", currentRoute())
-        assertEquals("today", previousRoute())
+        assertEquals("dashboard", previousRoute())
     }
 
     @Test
-    fun reselectingTodayLeavesNothingBelowIt() {
+    fun reselectingDashboardLeavesNothingBelowIt() {
         tab("Calendar").performClick()
-        tab("Today").performClick()
+        tab("Dashboard").performClick()
         composeRule.waitForIdle()
 
-        assertEquals("today", currentRoute())
+        assertEquals("dashboard", currentRoute())
         assertNull(previousRoute())
     }
 
@@ -211,22 +211,22 @@ class CockpitShellNavigationTest {
             "inbox-draft",
             composeRule.runOnUiThread { navController.currentBackStackEntry!!.savedStateHandle.get<String>("probe") },
         )
-        assertEquals("today", previousRoute())
+        assertEquals("dashboard", previousRoute())
     }
 
     @Test
-    fun moreListReopenedAfterASubScreenHasOnlyTodayBelowIt() {
+    fun moreListReopenedAfterASubScreenHasOnlyDashboardBelowIt() {
         openMoreItem("Habits")
         tab("Inbox").performClick()
         tab("More").performClick()
         composeRule.waitForIdle()
 
         assertEquals("more", currentRoute())
-        assertEquals("today", previousRoute())
+        assertEquals("dashboard", previousRoute())
 
         pressSystemBack()
 
-        assertShown(CockpitDestination.Today)
+        assertShown(CockpitDestination.Dashboard)
         assertNull(previousRoute())
     }
 

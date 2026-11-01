@@ -146,6 +146,6 @@ class CockpitShellSearchTest {
         composeRule.onNodeWithText("Search everything").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Back").performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag(screenTag(CockpitDestination.Today)).assertIsDisplayed()
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.Dashboard)).assertIsDisplayed()
     }
 }

@@ -92,7 +92,7 @@ class AppStartRoutingTest {
 
         scenario = ActivityScenario.launch(MainActivity::class.java)
 
-        composeRule.onNodeWithTag(screenTag(CockpitDestination.Today)).assertIsDisplayed()
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.Dashboard)).assertIsDisplayed()
         composeRule.onNodeWithTag(LoginTags.SCREEN).assertDoesNotExist()
     }
 
@@ -114,7 +114,7 @@ class AppStartRoutingTest {
     fun `a logout by the network layer also shows the login screen`() {
         tokenStore.login(AuthTokens("access-1", "refresh-1"), null)
         scenario = ActivityScenario.launch(MainActivity::class.java)
-        composeRule.onNodeWithTag(screenTag(CockpitDestination.Today)).assertIsDisplayed()
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.Dashboard)).assertIsDisplayed()
 
         session.logout(LogoutReason.REFRESH_REJECTED)
 
@@ -128,7 +128,7 @@ class AppStartRoutingTest {
 
         tokenStore.login(AuthTokens("access-1", "refresh-1"), null)
 
-        composeRule.onNodeWithTag(screenTag(CockpitDestination.Today)).assertIsDisplayed()
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.Dashboard)).assertIsDisplayed()
         composeRule.onNodeWithTag(LoginTags.SCREEN).assertDoesNotExist()
     }
 
@@ -172,7 +172,7 @@ class AppStartRoutingTest {
     fun `a logout by the network layer also clears the cached files`() {
         tokenStore.login(AuthTokens("access-1", "refresh-1"), null)
         scenario = ActivityScenario.launch(MainActivity::class.java)
-        composeRule.onNodeWithTag(screenTag(CockpitDestination.Today)).assertIsDisplayed()
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.Dashboard)).assertIsDisplayed()
         val cached = cachedFile()
 
         session.logout(LogoutReason.REFRESH_REJECTED)

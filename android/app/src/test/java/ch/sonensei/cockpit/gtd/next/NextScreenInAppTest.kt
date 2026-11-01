@@ -31,7 +31,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import javax.inject.Inject
 
-/** Inside the Hilt activity the Next and Today tabs show the real screens, not the placeholder. */
+/** Inside the Hilt activity the Next and Today screens show the real screens, not the placeholder. */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
 @Config(application = HiltTestApplication::class)
@@ -59,9 +59,12 @@ class NextScreenInAppTest {
     }
 
     @Test
-    fun `the start screen Today is the real Today view`() {
+    fun `the Today screen is the real Today view`() {
         scenario = ActivityScenario.launch(MainActivity::class.java)
 
+        composeRule.onNode(hasText("More") and isSelectable()).performClick()
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.More)).performScrollToNode(hasText("Today"))
+        composeRule.onNodeWithText("Today").performClick()
         composeRule.onNodeWithTag(screenTag(CockpitDestination.Today)).assertIsDisplayed()
         composeRule.onNodeWithText("This part of your cockpit is not built yet.").assertDoesNotExist()
         composeRule.waitUntil(WAIT_MS) {
