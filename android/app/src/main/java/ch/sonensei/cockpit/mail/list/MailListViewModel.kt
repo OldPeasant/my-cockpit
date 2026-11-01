@@ -227,7 +227,7 @@ class MailListViewModel
             val search = state.value.search ?: return
             val text = query.trim().take(MAX_QUERY)
             if (text.isEmpty()) return
-            runSearch(MailSearchState(search.mailbox, query = text, loading = true))
+            runSearch(MailSearchState(search.mailbox, query = text, loading = true, version = search.version))
         }
 
         /**
@@ -248,7 +248,7 @@ class MailListViewModel
                 if (text == search.query) {
                     search.copy(server = true, loading = true, message = null)
                 } else {
-                    MailSearchState(search.mailbox, query = text, server = true, loading = true)
+                    MailSearchState(search.mailbox, query = text, server = true, loading = true, version = search.version)
                 },
             )
         }

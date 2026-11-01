@@ -14,6 +14,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -268,6 +269,86 @@ class MailSearchViewModelEdgeCasesTest {
             serverAnswer.complete(MailResult.Ok(MailSearchResult(listOf(mail(6), mail(5)))))
             advanceUntilIdle()
             assertEquals(listOf(id(6), id(5)), vm.shown.results.map { it.id })
+        }
+
+    @Test
+    fun `the version changes with each answer, not when a search starts, fails, or a result is read or removed`() =
+        runTest(dispatcher) {
+            coEvery { repo.search("x", Mailbox.Unified, false) } returns MailResult.Ok(MailSearchResult(listOf(mail(5))))
+            coEvery { repo.search("x", Mailbox.Unified, true) } returnsMany
+                listOf(MailResult.Offline, MailResult.Failed(500), MailResult.Ok(MailSearchResult(listOf(mail(6), mail(5)))))
+            val vm = loaded()
+            advanceUntilIdle()
+            vm.openSearch()
+            assertEquals(0L, vm.shown.version)
+
+            vm.search("x")
+            assertEquals(0L, vm.shown.version)
+            advanceUntilIdle()
+            val first = vm.shown.version
+            assertNotEquals(0L, first)
+
+            // The same query again is a new answer: the list starts at the top again.
+            vm.search("x")
+            assertTrue(vm.shown.loading)
+            assertEquals(first, vm.shown.version)
+            advanceUntilIdle()
+            val again = vm.shown.version
+            assertNotEquals(first, again)
+
+            vm.searchOnServer()
+            assertEquals(again, vm.shown.version)
+            advanceUntilIdle()
+            assertEquals(MailListMessage.OFFLINE, vm.shown.message)
+            assertEquals(again, vm.shown.version)
+
+            vm.retrySearch()
+            advanceUntilIdle()
+            assertEquals(MailListMessage.FAILED, vm.shown.message)
+            assertEquals(again, vm.shown.version)
+            assertEquals(listOf(id(5)), vm.shown.results.map { it.id })
+
+            vm.retrySearch()
+            advanceUntilIdle()
+            val server = vm.shown.version
+            assertNotEquals(again, server)
+            assertNotEquals(first, server)
+            assertEquals(listOf(id(6), id(5)), vm.shown.results.map { it.id })
+
+            vm.markSeen(id(6))
+            vm.removed(id(5))
+            assertEquals(listOf(id(6)), vm.shown.results.map { it.id })
+            assertEquals(server, vm.shown.version)
+        }
+
+    @Test
+    fun `a late answer of an older search leaves the version, and a search opened again gets a new one`() =
+        runTest(dispatcher) {
+            val old = CompletableDeferred<MailResult<MailSearchResult>>()
+            coEvery { repo.search("old", Mailbox.Unified, false) } coAnswers { old.await() }
+            coEvery { repo.search("new", Mailbox.Unified, false) } returns MailResult.Ok(MailSearchResult(listOf(mail(9))))
+            val vm = loaded()
+            advanceUntilIdle()
+            vm.openSearch()
+            vm.search("old")
+            advanceUntilIdle()
+            vm.search("new")
+            advanceUntilIdle()
+            val shown = vm.shown.version
+
+            old.complete(MailResult.Ok(MailSearchResult(listOf(mail(5)))))
+            advanceUntilIdle()
+            assertEquals(shown, vm.shown.version)
+            assertEquals(listOf(id(9)), vm.shown.results.map { it.id })
+
+            vm.closeSearch()
+            vm.openSearch()
+            assertEquals(0L, vm.shown.version)
+            vm.search("new")
+            advanceUntilIdle()
+            // Not the version of the search before closing either, so the list of the new search starts at the top.
+            assertNotEquals(shown, vm.shown.version)
+            assertNotEquals(0L, vm.shown.version)
         }
 
     @Test

@@ -190,6 +190,34 @@ class MailSearchRouteInAppTest {
         coVerify(exactly = 2) { mail.search("report", Mailbox.Unified, false) }
     }
 
+    @Test
+    fun `a failed search on the server keeps the place in the results, the answer to retry starts at the top`() {
+        coEvery { mail.search("report", Mailbox.Unified, false) } returns
+            MailResult.Ok(MailSearchResult((100 until 130).map { summary(it) }))
+        coEvery { mail.search("report", Mailbox.Unified, true) } returnsMany
+            listOf(MailResult.Offline, MailResult.Ok(MailSearchResult((99 until 130).map { summary(it) })))
+        openMail()
+        composeRule.onNodeWithTag(MailListTags.SEARCH_OPEN).performClick()
+        waitFor(MailListTags.SEARCH_FIELD)
+        composeRule.onNodeWithTag(MailListTags.SEARCH_FIELD).performTextInput("report")
+        composeRule.onNodeWithTag(MailListTags.SEARCH_FIELD).performImeAction()
+        waitFor(MailListTags.row(id(100)))
+        composeRule.onNodeWithTag(MailListTags.SEARCH_RESULTS).performScrollToNode(hasTestTag(MailListTags.row(id(125))))
+
+        composeRule.onNodeWithTag(MailListTags.SEARCH_SERVER).performClick()
+        waitFor(MailListTags.RETRY)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(MailListTags.row(id(125))).assertExists()
+        composeRule.onNodeWithTag(MailListTags.row(id(100))).assertDoesNotExist()
+
+        composeRule.onNodeWithTag(MailListTags.RETRY).performClick()
+        // The newer mail found on the server comes first; the list shows it instead of keeping row 125 by its key.
+        waitFor(MailListTags.row(id(99)))
+        composeRule.onNodeWithTag(MailListTags.RETRY).assertDoesNotExist()
+        coVerify(exactly = 2) { mail.search("report", Mailbox.Unified, true) }
+    }
+
     private companion object {
         const val WAIT_MS = 5_000L
     }
