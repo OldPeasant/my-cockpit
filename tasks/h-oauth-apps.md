@@ -5,8 +5,10 @@ owner:
 deps: [oauth-connections]
 quality: exempt
 quality_reason: human configuration task, no code
-hold: HUMAN TASK for the owner: put the Google client id/secret into the production .env (docs/oauth-setup.md)
+hold: 
 prio: 2
+releases: 0
+extended: 
 ---
 ## Goal
 Owner registers the Google OAuth app following docs/oauth-setup.md (SPEC.md §13.3). Microsoft/Azure is
