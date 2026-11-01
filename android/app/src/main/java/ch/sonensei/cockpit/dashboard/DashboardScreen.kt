@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Dashboard
@@ -24,6 +25,9 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -119,9 +123,20 @@ fun DashboardContent(
     onOpen: (CockpitDestination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val listState = rememberLazyListState()
+    // A keyed list keeps its first visible card when the order changes, so the default order shown before the
+    // layout loads would push the user's first card above the screen: a new order starts at the top again.
+    var shownOrder by remember { mutableStateOf(state.widgets) }
+    LaunchedEffect(state.widgets) {
+        if (state.widgets != shownOrder) {
+            shownOrder = state.widgets
+            listState.scrollToItem(0)
+        }
+    }
     PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = onRefresh, modifier = modifier.fillMaxSize()) {
         LazyColumn(
             Modifier.fillMaxSize().testTag(DashboardTags.LIST),
+            state = listState,
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp + LocalFabClearance.current),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {

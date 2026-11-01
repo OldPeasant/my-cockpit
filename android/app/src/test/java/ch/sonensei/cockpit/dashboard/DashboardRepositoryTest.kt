@@ -104,7 +104,10 @@ class DashboardRepositoryTest {
             else -> throw AssertionError("$widget: $result after ${paths()}")
         }
 
-    private fun paths(): List<String> = requests.map { "${it.url.encodedPath}?${it.url.encodedQuery.orEmpty()}" }
+    private fun paths(): List<String> =
+        synchronized(requests) {
+            requests.toList()
+        }.map { "${it.url.encodedPath}?${it.url.encodedQuery.orEmpty()}" }
 
     @Before
     fun setUp() {
