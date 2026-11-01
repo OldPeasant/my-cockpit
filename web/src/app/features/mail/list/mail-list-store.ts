@@ -8,6 +8,7 @@ import {
   MAIL_MAX_PAGE_SIZE,
   MAIL_PAGE_SIZE,
   MailAction,
+  MailPage,
   MailScope,
   MailService,
   MailSummary,
@@ -45,6 +46,10 @@ const CHANGED_FIELDS: Partial<Record<MailAction, readonly (keyof MailSummary)[]>
  * - Live: a `MAIL_FOLDER` change event for the shown folder (any folder for the unified Inbox), a
  *   `MAIL_ACCOUNT` event and every SSE reconnect refetch the loaded part of the list. A refetch
  *   that would overwrite a running action's optimistic state waits until the action is done.
+ * - Search: a scope with `search` lists the matching messages, flat and in one page. Search results
+ *   are not refetched live (a search on the server is slow and loads mail itself); an action still
+ *   changes them optimistically. Repeating a search on the server keeps the cached results shown
+ *   until the server's answer arrives.
  */
 @Injectable()
 export class MailListStore {
@@ -61,6 +66,10 @@ export class MailListStore {
   /** The item the keyboard works on (`j`/`k`). */
   readonly cursorId = signal<string | null>(null);
   readonly selectedIds = signal<ReadonlySet<string>>(new Set());
+  /** What the shown search found beyond its items; null without a search or while it loads. */
+  readonly searchResult = signal<{ hasMore: boolean; failedAccountIds: string[] } | null>(null);
+  /** A search on the server runs while the cached results of the same query are shown. */
+  readonly searchingServer = signal(false);
 
   /** The selected items that are loaded, in list order. */
   readonly selection = computed(() => {
@@ -115,25 +124,64 @@ export class MailListStore {
   }
 
   /** Shows a scope from its first page, with nothing selected. */
-  async load(scope: MailScope): Promise<void> {
+  async load(requested: MailScope): Promise<void> {
+    const scope: MailScope = requested.search ? { ...requested, threaded: false } : requested;
     const seq = ++this.loadSeq;
     this.listGeneration++;
+    const keep = this.keepsResults(this.scope(), scope);
     this.scope.set(scope);
-    this.items.set(null);
     this.nextCursor.set(null);
     this.loadError.set(null);
     this.moreError.set(null);
     this.selectedIds.set(new Set());
-    this.cursorId.set(null);
+    this.searchingServer.set(keep);
+    if (!keep) {
+      this.items.set(null);
+      this.cursorId.set(null);
+      this.searchResult.set(null);
+    }
     try {
-      const page = await this.mail.list(scope);
+      const page = await this.firstPage(scope);
       if (seq !== this.loadSeq) return;
       this.items.set(page.items);
       this.nextCursor.set(page.nextCursor);
-      this.cursorId.set(page.items[0]?.id ?? null);
+      const cursor = this.cursorId();
+      if (!cursor || !page.items.some((item) => item.id === cursor))
+        this.cursorId.set(page.items[0]?.id ?? null);
     } catch (error) {
-      if (seq === this.loadSeq) this.loadError.set(errorMessage(error));
+      if (seq === this.loadSeq) {
+        this.items.set(null);
+        this.searchResult.set(null);
+        this.loadError.set(errorMessage(error));
+      }
+    } finally {
+      if (seq === this.loadSeq) this.searchingServer.set(false);
     }
+  }
+
+  /**
+   * Whether loading `next` after `shown` keeps the shown items until it answers: a search repeated
+   * on the server, whose cached results are already listed.
+   */
+  private keepsResults(shown: MailScope, next: MailScope): boolean {
+    return (
+      !!next.search?.server &&
+      !!shown.search &&
+      shown.search.query === next.search.query &&
+      shown.folderId === next.folderId &&
+      this.items() !== null &&
+      this.loadError() === null
+    );
+  }
+
+  /** The first page of a scope: a page of the list, or a search's results (and its extras). */
+  private async firstPage(scope: MailScope): Promise<MailPage> {
+    const search = scope.search;
+    if (!search) return this.mail.list(scope);
+    const result = await this.mail.search(search.query, scope.folderId, search.server);
+    if (this.scope() === scope)
+      this.searchResult.set({ hasMore: result.hasMore, failedAccountIds: result.failedAccountIds });
+    return { items: result.items, nextCursor: null };
   }
 
   reload(): Promise<void> {
@@ -174,7 +222,7 @@ export class MailListStore {
    * the selection on the items still there. Waits while an action runs.
    */
   async refresh(): Promise<void> {
-    if (this.items() === null) return;
+    if (this.items() === null || this.scope().search) return;
     if (this.running > 0) {
       this.refreshQueued = true;
       return;

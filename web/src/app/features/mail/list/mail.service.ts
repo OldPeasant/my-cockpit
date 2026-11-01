@@ -14,6 +14,7 @@ import {
   MailActionResultResponse,
   MailFolderResponse,
   MailMessageSummaryResponse,
+  searchMail,
   updateMailFolder,
 } from '../../../api/generated';
 import { SILENT_ERRORS } from '../../../core/http';
@@ -35,13 +36,32 @@ export interface MailPage {
   nextCursor: string | null;
 }
 
+/** The answer of a mail search (SPEC.md §7.3 "Search"). */
+export interface MailSearchResult {
+  /** Newest first. */
+  items: MailSummary[];
+  /** More messages match than were returned: only the newest are listed. */
+  hasMore: boolean;
+  /** Ids of the accounts whose server could not be searched (only with `server`). */
+  failedAccountIds: string[];
+}
+
 /**
  * What the mail list shows: the unified Inbox of all accounts (`folderId` null) or one folder.
- * `threaded` lists one item per conversation.
+ * `threaded` lists one item per conversation. With `search`, the list shows the messages of that
+ * scope (all folders of all accounts instead of the unified Inbox) matching the query, never
+ * threaded.
  */
 export interface MailScope {
   folderId: string | null;
   threaded: boolean;
+  search?: MailSearch | null;
+}
+
+/** A search of the mail list: the query text, and whether the mail servers are searched too. */
+export interface MailSearch {
+  query: string;
+  server: boolean;
 }
 
 /**
@@ -111,6 +131,30 @@ export class MailService {
     return {
       items: (page.items ?? []).filter((item): item is MailSummary => !!item.id),
       nextCursor: page.nextCursor ?? null,
+    };
+  }
+
+  /**
+   * Messages matching `query` in one folder, or in all folders of all accounts (`folderId` null).
+   * `server` also searches the mail servers, including mail older than the sync window.
+   */
+  async search(
+    query: string,
+    folderId: string | null,
+    server: boolean,
+    limit = MAIL_PAGE_SIZE,
+  ): Promise<MailSearchResult> {
+    const response = await this.api.invoke(
+      searchMail,
+      { q: query, folderId: folderId ?? undefined, server: server || undefined, limit },
+      silent(),
+    );
+    return {
+      items: (response.items ?? []).filter((item): item is MailSummary => !!item.id),
+      hasMore: response.hasMore ?? false,
+      failedAccountIds: (response.server?.failures ?? [])
+        .map((failure) => failure.accountId)
+        .filter((id): id is string => !!id),
     };
   }
 

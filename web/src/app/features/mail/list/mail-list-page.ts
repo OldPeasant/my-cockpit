@@ -20,8 +20,9 @@ import { folderLabel, MailFolderTree } from './mail-folder-tree';
 import { MailFoldersStore } from './mail-folders-store';
 import { MailListStore } from './mail-list-store';
 import { MailMoveDialog, MailMoveDialogData } from './mail-move-dialog';
+import { isTypingTarget } from '../../../shell/hotkeys';
 import { mailShortcutFor, MailShortcut } from './mail-shortcuts';
-import { MailAction, MailSummary } from './mail.service';
+import { MailAction, MailScope, MailSearch, MailSummary } from './mail.service';
 
 /** `localStorage` key of the threaded/flat choice. */
 export const THREADED_KEY = 'cockpit.mail.threaded';
@@ -30,7 +31,8 @@ export const THREADED_KEY = 'cockpit.mail.threaded';
  * The mail list (SPEC.md §7.3): the unified Inbox (`/mail`) or one folder (`/mail/folders/:id`)
  * beside the folder tree, flat or by conversation, loading older mail while scrolling. Items can be
  * selected; the toolbar and the Gmail-like keys act on the selection, else on the item under the
- * keyboard cursor.
+ * keyboard cursor. The search box (`/` focuses it) lists the matching messages of the folder, or of
+ * all folders for the unified Inbox, optionally also searched on the mail servers.
  */
 @Component({
   selector: 'app-mail-list-page',
@@ -50,6 +52,23 @@ export default class MailListPage {
 
   protected readonly threaded = signal(storedThreaded());
   protected readonly folderId = signal<string | null>(null);
+  /** The submitted search; null shows the folder's list. */
+  protected readonly search = signal<MailSearch | null>(null);
+  /** The "also search on the server" option, applied to the current and the next searches. */
+  protected readonly serverSearch = signal(false);
+  /** Whether the shown list has one item per conversation (search results never do). */
+  protected readonly listThreaded = computed(() => this.store.scope().threaded);
+  /** The accounts whose server could not be searched, by address, comma-separated. */
+  protected readonly failedAccounts = computed(() => {
+    const ids = this.store.searchResult()?.failedAccountIds ?? [];
+    const accounts = this.folders.accountById();
+    return ids
+      .map(
+        (id) =>
+          accounts.get(id)?.emailAddress || $localize`:@@mail.search.unknownAccount:an account`,
+      )
+      .join(', ');
+  });
   protected readonly folder = computed(() => {
     const id = this.folderId();
     return id ? (this.folders.folderById().get(id) ?? null) : null;
@@ -86,6 +105,7 @@ export default class MailListPage {
   );
 
   private readonly sentinel = viewChild<ElementRef<HTMLElement>>('sentinel');
+  private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
 
   constructor() {
     void this.folders.load();
@@ -93,7 +113,11 @@ export default class MailListPage {
       .paramMap.pipe(takeUntilDestroyed(inject(DestroyRef)))
       .subscribe((params) => {
         this.folderId.set(params.get('folderId'));
-        void this.store.load({ folderId: this.folderId(), threaded: this.threaded() });
+        // Another folder starts from its list: a search was for the folder shown before.
+        this.search.set(null);
+        const input = this.searchInput()?.nativeElement;
+        if (input) input.value = '';
+        void this.store.load(this.scope());
       });
 
     // Infinite scroll: the next page loads when the end of the list comes into view.
@@ -129,7 +153,49 @@ export default class MailListPage {
     } catch {
       // Storage may be unavailable (private mode): the choice then lasts for this page only.
     }
-    void this.store.load({ folderId: this.folderId(), threaded });
+    void this.store.load(this.scope());
+  }
+
+  private scope(): MailScope {
+    const scope: MailScope = { folderId: this.folderId(), threaded: this.threaded() };
+    const search = this.search();
+    return search ? { ...scope, search } : scope;
+  }
+
+  /** Enter in the search box: searches for its text, or shows the list again when it is blank. */
+  protected submitSearch(event: Event, text: string): void {
+    event.preventDefault();
+    const query = text.trim();
+    if (!query) return this.clearSearch();
+    this.search.set({ query, server: this.serverSearch() });
+    void this.store.load(this.scope());
+  }
+
+  /** An emptied search box (e.g. its clear button) shows the list again. */
+  protected onSearchInput(text: string): void {
+    if (!text) this.clearSearch();
+  }
+
+  /** Escape in the search box empties it and shows the list again. */
+  protected onSearchEscape(event: Event, input: HTMLInputElement): void {
+    event.preventDefault();
+    input.value = '';
+    this.clearSearch();
+  }
+
+  /** Turns the server option on or off; a shown search is repeated with it. */
+  protected setServerSearch(server: boolean): void {
+    this.serverSearch.set(server);
+    const search = this.search();
+    if (!search || search.server === server) return;
+    this.search.set({ ...search, server });
+    void this.store.load(this.scope());
+  }
+
+  protected clearSearch(): void {
+    if (!this.search()) return;
+    this.search.set(null);
+    void this.store.load(this.scope());
   }
 
   protected act(action: MailAction): void {
@@ -164,6 +230,11 @@ export default class MailListPage {
 
   protected onKeydown(event: KeyboardEvent): void {
     if (this.dialog.openDialogs.length) return;
+    if (isSearchKey(event)) {
+      event.preventDefault();
+      this.searchInput()?.nativeElement.focus();
+      return;
+    }
     const shortcut = mailShortcutFor(event);
     if (!shortcut) return;
     event.preventDefault();
@@ -240,7 +311,7 @@ export default class MailListPage {
   }
 
   protected unread(item: MailSummary): boolean {
-    return this.threaded() ? (item.threadUnread ?? 0) > 0 : !item.seen;
+    return this.listThreaded() ? (item.threadUnread ?? 0) > 0 : !item.seen;
   }
 
   protected sender(item: MailSummary): string {
@@ -276,6 +347,19 @@ export function senderName(from: MailAddressResponse[] | undefined): string {
     .map((address) => address.name || address.address || '')
     .filter(Boolean);
   return names.length ? names.join(', ') : $localize`:@@mail.unknownSender:(unknown sender)`;
+}
+
+/** `/` outside a text field focuses the search box (as in Gmail). */
+function isSearchKey(event: KeyboardEvent): boolean {
+  return (
+    event.key === '/' &&
+    !event.defaultPrevented &&
+    !event.isComposing &&
+    !event.ctrlKey &&
+    !event.altKey &&
+    !event.metaKey &&
+    !isTypingTarget(event.target)
+  );
 }
 
 function storedThreaded(): boolean {

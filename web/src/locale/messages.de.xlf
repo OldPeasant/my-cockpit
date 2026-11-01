@@ -8648,6 +8648,78 @@
           <context context-type="linenumber">120,122</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="mail.search.placeholder" datatype="html">
+        <source>Search mail</source>
+        <target state="translated">E-Mails durchsuchen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
+          <context context-type="linenumber">133,134</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.search.label" datatype="html">
+        <source>Search mail</source>
+        <target state="translated">E-Mails durchsuchen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
+          <context context-type="linenumber">135,137</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.search.server" datatype="html">
+        <source>Also search older mail on the server</source>
+        <target state="translated">Auch ältere E-Mails auf dem Server suchen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
+          <context context-type="linenumber">144,146</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.search.resultsFor" datatype="html">
+        <source>Results for “<x id="INTERPOLATION" equiv-text="{{ current.query }}"/>”</source>
+        <target state="translated">Ergebnisse für „<x id="INTERPOLATION" equiv-text="{{ current.query }}"/>“</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
+          <context context-type="linenumber">151,152</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.search.searchingServer" datatype="html">
+        <source> Searching on the server… </source>
+        <target state="translated">Suche auf dem Server…</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
+          <context context-type="linenumber">154,157</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.search.serverFailed" datatype="html">
+        <source> The server of <x id="INTERPOLATION" equiv-text="{{ accounts }}"/> could not be searched; only cached messages are shown for it. </source>
+        <target state="translated">Der Server von <x id="INTERPOLATION" equiv-text="{{ accounts }}"/> konnte nicht durchsucht werden; dafür werden nur zwischengespeicherte Nachrichten angezeigt.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
+          <context context-type="linenumber">159,161</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.search.hasMore" datatype="html">
+        <source> Only the newest results are listed. Refine the search to find older ones. </source>
+        <target state="translated">Nur die neuesten Ergebnisse werden angezeigt. Verfeinere die Suche, um ältere zu finden.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
+          <context context-type="linenumber">165,167</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.search.empty" datatype="html">
+        <source>No messages found</source>
+        <target state="translated">Keine Nachrichten gefunden</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
+          <context context-type="linenumber">279,281</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.search.unknownAccount" datatype="html">
+        <source>an account</source>
+        <target state="translated">einem Konto</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.ts</context>
+          <context context-type="linenumber">66</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="mail.noAccounts" datatype="html">
         <source>No mail account is set up yet.</source>
         <target state="translated">Es ist noch kein E-Mail-Konto eingerichtet.</target>
@@ -8749,11 +8821,11 @@
         </context-group>
       </trans-unit>
       <trans-unit id="mail.keysHint" datatype="html">
-        <source> Keys: j/k next/previous, o or click open, x select, e archive, # delete, Shift+I read, u unread, s star, v move, ! spam </source>
-        <target state="translated">Tasten: j/k nächste/vorherige, o oder Klick öffnen, x auswählen, e archivieren, # löschen, Umschalt+I gelesen, u ungelesen, s Stern, v verschieben, ! Spam</target>
+        <source> Keys: j/k next/previous, o or click open, x select, e archive, # delete, Shift+I read, u unread, s star, v move, ! spam, / search </source>
+        <target state="translated">Tasten: j/k nächste/vorherige, o oder Klick öffnen, x auswählen, e archivieren, # löschen, Umschalt+I gelesen, u ungelesen, s Stern, v verschieben, ! Spam, / suchen</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
-          <context context-type="linenumber">239,242</context>
+          <context context-type="linenumber">288,291</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.folder" datatype="html">
