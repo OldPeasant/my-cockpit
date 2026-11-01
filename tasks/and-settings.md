@@ -25,7 +25,8 @@ essentials" (2026-11-01): no account setup on the phone, that stays on the web.
   - verified (2026-11-01 17:45+0100 by dell26/agent-1): android/gradlew -p android --max-workers=2 ktlintCheck lintDebug createDebugUnitTestCoverageReport -> BUILD SUCCESSFUL, 2536 tests 0 failures; SettingsScreenTest passkeys and logout present, placeholder gone; InAppPasskeyTest and AppStartRoutingTest pass
 - [x] All new UI strings exist in English and German (`res/values`, `res/values-de`)
   - verified (2026-11-01 17:45+0100 by dell26/agent-1): android/gradlew -p android --max-workers=2 ktlintCheck lintDebug createDebugUnitTestCoverageReport -> BUILD SUCCESSFUL; SettingsStringsTest 2 (every settings string in values and values-de with same placeholders) pass; lintDebug clean
-- [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+- [x] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+  - verified (2026-11-01 17:45+0100 by dell26/agent-1): android/gradlew -p android --max-workers=2 ktlintCheck lintDebug createDebugUnitTestCoverageReport -> BUILD SUCCESSFUL, 2536 tests 0 failures; settings: AndroidSettingsEnvironmentTest 11, CaptureFailureTest 3, SettingsScreenTest 21, SettingsServerChangeTest 3, SettingsStringsTest 2, SettingsViewModelTest 17 all pass; changed-file coverage 95.7% lines (reviews/and-settings/tests.md)
 
 ## Notes
 Requested by the owner (2026-11-01) after trying the Android app on the phone. Out of scope: web settings sections (GTD defaults, accounts, integrations, backup).
