@@ -6,6 +6,7 @@ deps: [and-shell,and-capture-queue,and-reminders,unifiedpush-android-client]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/settings,android/app/src/test/java/ch/sonensei/cockpit/settings,android/app/src/main/res/values/strings_settings.xml,android/app/src/main/res/values-de/strings_settings.xml]
 prio: 2
 lease_until: 2026-11-01T16:41:11Z
+extended: dell26/agent-1
 ---
 ## Goal
 The Android Settings screen shows only passkeys and logout; the rest is a placeholder. The owner chose "phone
@@ -27,3 +28,4 @@ Requested by the owner (2026-11-01) after trying the Android app on the phone. O
 - ASSUMPTION (2026-11-01 16:35+0100 by dell26/agent-1): 'Last sync result' = the capture queue's newest lastError (failed: {error}), else 'waiting' when captures are pending, else 'everything synced'; the app stores no success timestamp, so none is shown.
 - ASSUMPTION (2026-11-01 16:35+0100 by dell26/agent-1): Distributor picker: an in-app dialog listing installed UnifiedPush distributors; switching deletes the old registration on the server, unregisters it, saves the new distributor and registers a new instance id. With none installed the button opens https://unifiedpush.org/users/distributors/.
 - ASSUMPTION (2026-11-01 16:35+0100 by dell26/agent-1): Signed-in user name comes from GET /api/v1/auth/me (MeResponse.username), loaded when the screen opens; offline shows 'cannot be reached' with Retry. Edited InAppPasskeyTest/AppStartRoutingTest (auth tests, outside touches) to scroll to passkeys/Log out, which the new sections push below the fold.
+- extended by dell26/agent-1: Implementation + fixes for CR-1..CR-5 committed (fixer reports settings tests 57/57 and lint pass). Left: rerun test-writer (tests.md is missing) and code-reviewer on final code, run 'cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug', record verify for criteria 1-7, write quality.json, .taskcheck, done.
