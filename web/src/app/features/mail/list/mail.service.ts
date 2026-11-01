@@ -3,6 +3,8 @@ import { inject, Injectable } from '@angular/core';
 import {
   Api,
   applyMailAction,
+  createMailFolder,
+  deleteMailFolder,
   getMailThread,
   listMailAccounts,
   listMailFolders,
@@ -12,6 +14,7 @@ import {
   MailActionResultResponse,
   MailFolderResponse,
   MailMessageSummaryResponse,
+  updateMailFolder,
 } from '../../../api/generated';
 import { SILENT_ERRORS } from '../../../core/http';
 
@@ -55,6 +58,42 @@ export class MailService {
 
   async folders(accountId: string): Promise<MailFolderResponse[]> {
     return (await this.api.invoke(listMailFolders, { id: accountId }, silent())).items;
+  }
+
+  /** Creates a folder on the mail server, under `parentId` or at the top level. */
+  async createFolder(
+    accountId: string,
+    name: string,
+    parentId?: string | null,
+  ): Promise<MailFolderResponse> {
+    return this.api.invoke(
+      createMailFolder,
+      { id: accountId, body: { name, parentId: parentId ?? undefined } },
+      silent(),
+    );
+  }
+
+  /** Renames a folder on the mail server (same parent); its subfolders move along. */
+  async renameFolder(folder: MailFolderResponse, name: string): Promise<MailFolderResponse> {
+    return this.api.invoke(
+      updateMailFolder,
+      {
+        id: folder.accountId,
+        folderId: folder.id,
+        'If-Match': `"${folder.version}"`,
+        body: { name },
+      },
+      silent(),
+    );
+  }
+
+  /** Deletes a folder with its subfolders and their messages on the mail server. */
+  async deleteFolder(folder: MailFolderResponse): Promise<void> {
+    await this.api.invoke(
+      deleteMailFolder,
+      { id: folder.accountId, folderId: folder.id, 'If-Match': `"${folder.version}"` },
+      silent(),
+    );
   }
 
   /** One page of the scope, newest first. */

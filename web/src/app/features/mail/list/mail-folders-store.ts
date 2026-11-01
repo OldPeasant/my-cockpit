@@ -80,6 +80,64 @@ export class MailFoldersStore {
     }
   }
 
+  /**
+   * Shows a folder created on the server at once, then reloads the folders in the background (the
+   * server may have changed others, e.g. a parent that became a group).
+   */
+  added(folder: MailFolderResponse): void {
+    this.updateAccount(folder.accountId, (folders) => [
+      ...folders.filter((other) => other.id !== folder.id),
+      folder,
+    ]);
+    void this.load();
+  }
+
+  /**
+   * Shows a renamed folder at once: its subfolders move along (their paths change, their ids stay).
+   * Then reloads the folders in the background for their new versions.
+   */
+  renamed(before: MailFolderResponse, after: MailFolderResponse): void {
+    this.updateAccount(before.accountId, (folders) =>
+      folders.map((folder) => {
+        if (folder.id === before.id) return after;
+        if (!isBelow(folder, before)) return folder;
+        return { ...folder, path: after.path + folder.path.slice(before.path.length) };
+      }),
+    );
+    void this.load();
+  }
+
+  /** Drops a deleted folder and its subfolders at once; returns their ids. */
+  removed(deleted: MailFolderResponse): Set<string> {
+    const ids = new Set(this.subtree(deleted).map((folder) => folder.id));
+    this.updateAccount(deleted.accountId, (folders) =>
+      folders.filter((folder) => !ids.has(folder.id)),
+    );
+    void this.load();
+    return ids;
+  }
+
+  /** The folder and every folder below it. */
+  subtree(root: MailFolderResponse): MailFolderResponse[] {
+    const tree = (this.trees() ?? []).find((candidate) => candidate.account.id === root.accountId);
+    return (tree?.folders ?? [])
+      .map((node) => node.folder)
+      .filter((folder) => folder.id === root.id || isBelow(folder, root));
+  }
+
+  private updateAccount(
+    accountId: string,
+    change: (folders: MailFolderResponse[]) => MailFolderResponse[],
+  ): void {
+    this.trees.update((trees) =>
+      trees?.map((tree) =>
+        tree.account.id === accountId
+          ? { ...tree, folders: folderTree(change(tree.folders.map((node) => node.folder))) }
+          : tree,
+      ) ?? null,
+    );
+  }
+
   /** The selectable folders of an account other than `exceptId`, in tree order. */
   moveTargets(accountId: string, exceptId?: string | null): FolderNode[] {
     const tree = (this.trees() ?? []).find((candidate) => candidate.account.id === accountId);
@@ -118,6 +176,16 @@ export function folderTree(folders: MailFolderResponse[]): FolderNode[] {
   };
   walk(null, 0);
   return nodes;
+}
+
+/** Whether `folder` lies somewhere below `ancestor` (same account, path under its path). */
+function isBelow(folder: MailFolderResponse, ancestor: MailFolderResponse): boolean {
+  return (
+    !!ancestor.delimiter &&
+    folder.accountId === ancestor.accountId &&
+    folder.id !== ancestor.id &&
+    folder.path.startsWith(ancestor.path + ancestor.delimiter)
+  );
 }
 
 function parentPath(folder: MailFolderResponse): string | null {

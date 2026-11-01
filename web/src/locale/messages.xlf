@@ -12932,6 +12932,185 @@
           <context context-type="linenumber">29,30</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="mail.folder.error.unknown" datatype="html">
+        <source>Something went wrong.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-dialogs.ts</context>
+          <context context-type="linenumber">21</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.error.unreachable" datatype="html">
+        <source>The server cannot be reached. Check the connection and try again.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-dialogs.ts</context>
+          <context context-type="linenumber">25</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.error.invalid" datatype="html">
+        <source>The mail server does not accept this name.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-dialogs.ts</context>
+          <context context-type="linenumber">27</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.error.stale" datatype="html">
+        <source>The folder was changed or removed elsewhere. The folder list was reloaded; try again.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-dialogs.ts</context>
+          <context context-type="linenumber">30</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.error.conflict" datatype="html">
+        <source>A folder with this name already exists here.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-dialogs.ts</context>
+          <context context-type="linenumber">32</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.error.mailServer" datatype="html">
+        <source>The mail server could not be reached or refused the change.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-dialogs.ts</context>
+          <context context-type="linenumber">34</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.name" datatype="html">
+        <source>Folder name</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-dialogs.ts</context>
+          <context context-type="linenumber">70,72</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.name.required" datatype="html">
+        <source>Enter a name.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-dialogs.ts</context>
+          <context context-type="linenumber">79,80</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.name.delimiter" datatype="html">
+        <source>A name cannot contain <x id="INTERPOLATION" equiv-text="{{ data.delimiter }}"/>.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-dialogs.ts</context>
+          <context context-type="linenumber">82,83</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.cancel" datatype="html">
+        <source> Cancel </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-dialogs.ts</context>
+          <context context-type="linenumber">98,100</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-dialogs.ts</context>
+          <context context-type="linenumber">210,212</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.delete.title" datatype="html">
+        <source>Delete “<x id="INTERPOLATION" equiv-text="{{ data.name }}"/>”?</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-dialogs.ts</context>
+          <context context-type="linenumber">180,181</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.delete.text" datatype="html">
+        <source>The folder and all its messages are deleted on the mail server too. This cannot be undone.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-dialogs.ts</context>
+          <context context-type="linenumber">185,187</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.delete.textWithSubfolders" datatype="html">
+        <source>The folder, its <x id="ICU" equiv-text="{data.subfolders, plural, =1 {subfolder} other {{{ data.subfolders }} subfolders}}" xid="4614368623163705350"/> and all their messages are deleted on the mail server too. This cannot be undone.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-dialogs.ts</context>
+          <context context-type="linenumber">190,193</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="7535244772076407996" datatype="html">
+        <source>{VAR_PLURAL, plural, =1 {subfolder} other {<x id="INTERPOLATION"/> subfolders}}</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-dialogs.ts</context>
+          <context context-type="linenumber">191</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.delete.confirm" datatype="html">
+        <source> Delete folder </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-dialogs.ts</context>
+          <context context-type="linenumber">220,222</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.newSubfolder" datatype="html">
+        <source> New subfolder </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-tree.ts</context>
+          <context context-type="linenumber">106,108</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.rename" datatype="html">
+        <source> Rename </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-tree.ts</context>
+          <context context-type="linenumber">117,119</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.delete" datatype="html">
+        <source> Delete </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-tree.ts</context>
+          <context context-type="linenumber">128,130</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.newIn" datatype="html">
+        <source>New folder in <x id="account" equiv-text="account.emailAddress"/></source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-tree.ts</context>
+          <context context-type="linenumber">150</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.actions" datatype="html">
+        <source>Actions for <x id="folder" equiv-text="folderLabel(folder)"/></source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-tree.ts</context>
+          <context context-type="linenumber">154</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.newSubfolder.title" datatype="html">
+        <source>New folder in <x id="folder" equiv-text="folderLabel(parent)"/></source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-tree.ts</context>
+          <context context-type="linenumber">183</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.new.title" datatype="html">
+        <source>New folder</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-tree.ts</context>
+          <context context-type="linenumber">184</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.create" datatype="html">
+        <source>Create</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-tree.ts</context>
+          <context context-type="linenumber">190</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.rename.title" datatype="html">
+        <source>Rename <x id="folder" equiv-text="folderLabel(folder)"/></source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-tree.ts</context>
+          <context context-type="linenumber">206</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.folder.rename.confirm" datatype="html">
+        <source>Rename</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-tree.ts</context>
+          <context context-type="linenumber">207</context>
+        </context-group>
+      </trans-unit>
     </body>
   </file>
 </xliff>

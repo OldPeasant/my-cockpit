@@ -1,9 +1,14 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
-import { MailFolderResponse } from '../../../api/generated';
+import { MatDialog } from '@angular/material/dialog';
+import { provideRouter, Router } from '@angular/router';
+import { MailAccountResponse, MailFolderResponse } from '../../../api/generated';
+import { ChangeEventsService } from '../../../core/events';
+import { ApiError } from '../../../core/http';
+import { MailFolderDeleteDialogData, MailFolderNameDialogData } from './mail-folder-dialogs';
 import { folderLabel, MailFolderTree } from './mail-folder-tree';
 import { AccountTree, folderTree, MailFoldersStore } from './mail-folders-store';
-import { signal } from '@angular/core';
+import { FakeEvents } from './mail-testing';
+import { MailService } from './mail.service';
 
 function folder(
   id: string,
@@ -22,6 +27,17 @@ function folder(
     ...extra,
   };
 }
+
+const WORK = {
+  id: 'acc-1',
+  displayName: 'Ann Example',
+  emailAddress: 'work@example.test',
+} as MailAccountResponse;
+const HOME = {
+  id: 'acc-2',
+  displayName: 'Ann Example',
+  emailAddress: 'home@example.test',
+} as MailAccountResponse;
 
 describe('folderLabel', () => {
   it.each([
@@ -42,40 +58,92 @@ describe('folderLabel', () => {
 
 describe('MailFolderTree', () => {
   let fixture: ComponentFixture<MailFolderTree>;
-  let store: {
-    trees: ReturnType<typeof signal<AccountTree[] | null>>;
-    error: ReturnType<typeof signal<string | null>>;
+  let store: MailFoldersStore;
+  let mail: {
+    accounts: ReturnType<typeof vi.fn>;
+    folders: ReturnType<typeof vi.fn>;
+    createFolder: ReturnType<typeof vi.fn>;
+    renameFolder: ReturnType<typeof vi.fn>;
+    deleteFolder: ReturnType<typeof vi.fn>;
   };
+  let opened: { component: unknown; data: unknown }[];
 
   const el = () => fixture.nativeElement as HTMLElement;
 
   beforeEach(() => {
-    store = { trees: signal<AccountTree[] | null>(null), error: signal<string | null>(null) };
+    // The background reload after a change never answers: the tests see the local update alone.
+    mail = {
+      accounts: vi.fn(() => new Promise(() => undefined)),
+      folders: vi.fn(() => new Promise(() => undefined)),
+      createFolder: vi.fn(),
+      renameFolder: vi.fn(),
+      deleteFolder: vi.fn(),
+    };
     TestBed.configureTestingModule({
       imports: [MailFolderTree],
-      providers: [provideRouter([]), { provide: MailFoldersStore, useValue: store }],
+      providers: [
+        provideRouter([]),
+        MailFoldersStore,
+        { provide: MailService, useValue: mail },
+        { provide: ChangeEventsService, useValue: new FakeEvents() },
+      ],
     });
+    store = TestBed.inject(MailFoldersStore);
+    opened = [];
+    const dialog = TestBed.inject(MatDialog);
+    vi.spyOn(dialog, 'open').mockImplementation(((component: unknown, config?: { data?: unknown }) => {
+      opened.push({ component, data: config?.data });
+      return { afterClosed: () => ({ subscribe: () => undefined }) };
+    }) as unknown as MatDialog['open']);
     fixture = TestBed.createComponent(MailFolderTree);
   });
 
-  function show(current: string | null) {
+  afterEach(() => {
+    document.querySelectorAll('.cdk-overlay-container').forEach((node) => (node.innerHTML = ''));
+  });
+
+  const standard = () => [
+    folder('in', 'INBOX', { role: 'INBOX' }),
+    folder('g', '[Gmail]', { selectable: false }),
+    folder('gt', '[Gmail]/Bin', { role: 'TRASH' }),
+    folder('p', 'Projects'),
+    folder('pa', 'Projects/Alpha'),
+    folder('pa1', 'Projects/Alpha/Old'),
+  ];
+
+  function show(current: string | null, folders = standard()) {
     store.trees.set([
+      { account: WORK, folders: folderTree(folders) },
       {
-        account: { id: 'acc-1', displayName: 'Ann Example', emailAddress: 'work@example.test' },
-        folders: folderTree([
-          folder('in', 'INBOX', { role: 'INBOX' }),
-          folder('g', '[Gmail]', { selectable: false }),
-          folder('gt', '[Gmail]/Bin', { role: 'TRASH' }),
-        ]),
-      },
-      {
-        account: { id: 'acc-2', displayName: 'Ann Example', emailAddress: 'home@example.test' },
+        account: HOME,
         folders: folderTree([folder('h-in', 'INBOX', { role: 'INBOX', accountId: 'acc-2' })]),
       },
     ] as AccountTree[]);
     fixture.componentRef.setInput('current', current);
     fixture.detectChanges();
   }
+
+  const item = (text: string) =>
+    [...el().querySelectorAll<HTMLElement>('li.node')].find(
+      (li) => li.querySelector('.row')?.textContent?.trim() === text,
+    );
+
+  /** Opens a folder's menu and returns the labels of its entries. */
+  async function menu(text: string): Promise<HTMLButtonElement[]> {
+    const trigger = item(text)?.querySelector<HTMLButtonElement>('button.folder-menu');
+    if (!trigger) return [];
+    trigger.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    return [...document.querySelectorAll<HTMLButtonElement>('.mat-mdc-menu-panel button')];
+  }
+  const labels = (buttons: HTMLButtonElement[]) => buttons.map((b) => b.textContent?.trim());
+
+  const nameData = () => opened.at(-1)!.data as MailFolderNameDialogData;
+  const deleteData = () => opened.at(-1)!.data as MailFolderDeleteDialogData;
+  const rows = () =>
+    [...el().querySelectorAll<HTMLElement>('section.account')][0].querySelectorAll('li .row');
+  const shown = () => [...rows()].map((row) => row.textContent?.trim());
 
   it('shows only the unified Inbox, marked current, before the folders load', () => {
     fixture.detectChanges();
@@ -102,11 +170,21 @@ describe('MailFolderTree', () => {
     expect(links.map((a) => [a.textContent?.trim(), a.getAttribute('href')])).toEqual([
       ['Inbox', '/mail/folders/in'],
       ['Trash', '/mail/folders/gt'],
+      ['Projects', '/mail/folders/p'],
+      ['Alpha', '/mail/folders/pa'],
+      ['Old', '/mail/folders/pa1'],
     ]);
     const group = sections[0].querySelector('span.group');
     expect(group?.textContent?.trim()).toBe('[Gmail]');
     const items = [...sections[0].querySelectorAll<HTMLElement>('li')];
-    expect(items.map((li) => li.style.getPropertyValue('--depth'))).toEqual(['0', '0', '1']);
+    expect(items.map((li) => li.style.getPropertyValue('--depth'))).toEqual([
+      '0',
+      '0',
+      '1',
+      '0',
+      '1',
+      '2',
+    ]);
   });
 
   it('marks the shown folder as the current page, and not the unified Inbox', () => {
@@ -122,5 +200,189 @@ describe('MailFolderTree', () => {
     expect(el().querySelector('[role="alert"]')?.textContent?.trim()).toBe(
       'The folders could not be loaded.',
     );
+  });
+
+  describe('actions', () => {
+    it('gives each account a labelled "New folder" button', () => {
+      show(null);
+      const buttons = [...el().querySelectorAll<HTMLButtonElement>('button.add')];
+      expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual([
+        'New folder in work@example.test',
+        'New folder in home@example.test',
+      ]);
+      expect(buttons.every((b) => b.type === 'button')).toBe(true);
+    });
+
+    it('offers New subfolder, Rename and Delete for an ordinary folder', async () => {
+      show(null);
+      const trigger = item('Alpha')!.querySelector('button.folder-menu')!;
+      expect(trigger.getAttribute('aria-label')).toBe('Actions for Alpha');
+      expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
+      expect(labels(await menu('Alpha'))).toEqual(['New subfolder', 'Rename', 'Delete']);
+    });
+
+    it('opens the menu from a focusable button and closes it with Escape', async () => {
+      show(null);
+      const trigger = item('Alpha')!.querySelector<HTMLButtonElement>('button.folder-menu')!;
+      expect(trigger.tagName).toBe('BUTTON');
+      expect(trigger.tabIndex).toBe(0);
+      const entries = await menu('Alpha');
+      expect(trigger.getAttribute('aria-expanded')).toBe('true');
+      expect(entries.every((entry) => entry.getAttribute('role') === 'menuitem')).toBe(true);
+
+      document
+        .querySelector('.mat-mdc-menu-panel')!
+        .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('offers only New subfolder for INBOX', async () => {
+      show(null);
+      expect(labels(await menu('Inbox'))).toEqual(['New subfolder']);
+    });
+
+    it('treats a folder named INBOX without a role as INBOX', async () => {
+      show(null, [folder('in', 'inbox'), folder('x', 'Other')]);
+      expect(labels(await menu('inbox'))).toEqual(['New subfolder']);
+    });
+
+    it('does not offer Delete for a folder with a role, nor for one holding it', async () => {
+      show(null);
+      expect(labels(await menu('Trash'))).toEqual(['New subfolder', 'Rename']);
+      document.querySelectorAll('.cdk-overlay-container').forEach((n) => (n.innerHTML = ''));
+      expect(labels(await menu('[Gmail]'))).toEqual(['New subfolder', 'Rename']);
+    });
+
+    it('does not offer New subfolder in a flat namespace', async () => {
+      show(null, [
+        folder('in', 'INBOX', { role: 'INBOX', delimiter: undefined }),
+        folder('f', 'Flat', { delimiter: undefined }),
+      ]);
+      expect(labels(await menu('Flat'))).toEqual(['Rename', 'Delete']);
+      // INBOX has nothing left to offer: no menu at all.
+      expect(item('Inbox')!.querySelector('button.folder-menu')).toBeNull();
+    });
+
+    it('creates a top-level folder and shows it at once', async () => {
+      show(null);
+      el().querySelector<HTMLButtonElement>('button.add')!.click();
+      expect(nameData().title).toBe('New folder');
+      expect(nameData().confirm).toBe('Create');
+      expect(nameData().delimiter).toBe('/');
+      mail.createFolder.mockResolvedValue(folder('n', 'Receipts', { version: 1 }));
+
+      await nameData().save('Receipts');
+      fixture.detectChanges();
+
+      expect(mail.createFolder).toHaveBeenCalledWith('acc-1', 'Receipts', undefined);
+      expect(shown()).toContain('Receipts');
+      expect(mail.accounts).toHaveBeenCalled();
+    });
+
+    it('creates a subfolder under the folder of the menu', async () => {
+      show(null);
+      (await menu('Projects'))[0].click();
+      expect(nameData().title).toBe('New folder in Projects');
+      mail.createFolder.mockResolvedValue(folder('pb', 'Projects/Beta'));
+
+      await nameData().save('Beta');
+      fixture.detectChanges();
+
+      expect(mail.createFolder).toHaveBeenCalledWith('acc-1', 'Beta', 'p');
+      expect(shown()).toEqual(['Inbox', '[Gmail]', 'Trash', 'Projects', 'Alpha', 'Old', 'Beta']);
+      expect(item('Beta')!.style.getPropertyValue('--depth')).toBe('1');
+    });
+
+    it('renames a folder and moves its subfolders along at once', async () => {
+      show(null);
+      (await menu('Alpha'))[1].click();
+      expect(nameData().title).toBe('Rename Alpha');
+      expect(nameData().name).toBe('Alpha');
+      mail.renameFolder.mockResolvedValue(folder('pa', 'Projects/Zulu', { version: 3 }));
+
+      await nameData().save('Zulu');
+      fixture.detectChanges();
+
+      expect(mail.renameFolder).toHaveBeenCalledWith(expect.objectContaining({ id: 'pa' }), 'Zulu');
+      expect(shown()).toEqual(['Inbox', '[Gmail]', 'Trash', 'Projects', 'Zulu', 'Old']);
+      expect(store.folderById().get('pa1')?.path).toBe('Projects/Zulu/Old');
+      expect(item('Old')!.style.getPropertyValue('--depth')).toBe('2');
+    });
+
+    it('lets a failed save reject, so the dialog keeps it, without changing the tree', async () => {
+      show(null);
+      el().querySelector<HTMLButtonElement>('button.add')!.click();
+      const taken = new ApiError(409, 'Conflict', 'Name taken');
+      mail.createFolder.mockRejectedValue(taken);
+
+      await expect(nameData().save('Projects')).rejects.toBe(taken);
+
+      expect(shown()).toEqual(['Inbox', '[Gmail]', 'Trash', 'Projects', 'Alpha', 'Old']);
+      expect(mail.accounts).not.toHaveBeenCalled();
+    });
+
+    it.each([404, 412])('reloads the folders when the folder changed elsewhere (%s)', async (status) => {
+      show(null);
+      (await menu('Alpha'))[1].click();
+      mail.renameFolder.mockRejectedValue(new ApiError(status, 'Stale'));
+
+      await expect(nameData().save('Zulu')).rejects.toBeInstanceOf(ApiError);
+
+      expect(mail.accounts).toHaveBeenCalled();
+    });
+
+    it('asks before deleting, counting the subfolders, and removes the folder at once', async () => {
+      show(null);
+      (await menu('Projects'))[2].click();
+      expect(deleteData().name).toBe('Projects');
+      expect(deleteData().subfolders).toBe(2);
+      expect(mail.deleteFolder).not.toHaveBeenCalled();
+      mail.deleteFolder.mockResolvedValue(undefined);
+
+      await deleteData().remove();
+      fixture.detectChanges();
+
+      expect(mail.deleteFolder).toHaveBeenCalledWith(expect.objectContaining({ id: 'p' }));
+      expect(shown()).toEqual(['Inbox', '[Gmail]', 'Trash']);
+    });
+
+    it('navigates to the unified Inbox when the shown folder is deleted', async () => {
+      show('pa1');
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      (await menu('Projects'))[2].click();
+      mail.deleteFolder.mockResolvedValue(undefined);
+
+      await deleteData().remove();
+
+      expect(navigate).toHaveBeenCalledWith(['/mail']);
+    });
+
+    it('stays on the shown folder when another one is deleted', async () => {
+      show('in');
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      (await menu('Old'))[2].click();
+      expect(deleteData().subfolders).toBe(0);
+      mail.deleteFolder.mockResolvedValue(undefined);
+
+      await deleteData().remove();
+
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('keeps the folder and the page when the delete fails', async () => {
+      show('pa');
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      (await menu('Alpha'))[2].click();
+      mail.deleteFolder.mockRejectedValue(new ApiError(502, 'Bad gateway'));
+
+      await expect(deleteData().remove()).rejects.toBeInstanceOf(ApiError);
+      fixture.detectChanges();
+
+      expect(shown()).toContain('Alpha');
+      expect(navigate).not.toHaveBeenCalled();
+    });
   });
 });
