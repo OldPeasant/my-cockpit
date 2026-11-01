@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "and-trash",
-  "reviewed_revision": "cb01f6d7c6e6e3db77eef71028592c4ba196e89b",
+  "reviewed_revision": "705c68e2372250980f4fdd1bc8fbd1f27ddc0c7d",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/and-trash/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/and-trash/review.md"},
