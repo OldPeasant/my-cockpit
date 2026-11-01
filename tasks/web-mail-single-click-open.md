@@ -19,8 +19,9 @@ read view existed). Requested by the owner (2026-10-30). Android already opens o
 - [x] The row's checkbox still only toggles the selection and does not open the message; the toolbar actions and
       keyboard shortcuts (j/k, x, e, #, ...) work as before, and `o` and Enter on the focused row open it
   - verified (2026-11-01 07:28+0100 by dell26/agent-1): npx ng test --include mail-list-page.spec.ts -> 59 passed: checkbox click selects without navigating, x/e act on a clicked row, o and Enter (Tab-focused and j-focused) open once, Ctrl/Cmd/Shift+Enter left to browser; e2e mail-list (keys/toolbar against GreenMail) passed in the 38-test run
-- [ ] The double-click handler is removed (the first click already opens), and the keys hint under the list says
+- [x] The double-click handler is removed (the first click already opens), and the keys hint under the list says
       "o or click open" instead of "o or double-click open" (localized string updated)
+  - verified (2026-11-01 07:28+0100 by dell26/agent-1): dblclick handler removed (spec: dblclick triggers no navigation); hint 'o or click open' asserted by spec; ng extract-i18n -> mail.keysHint source matches messages.xlf; messages.de.xlf target 'o oder Klick öffnen'
 - [ ] Unit tests: a click navigates to the message, a checkbox click does not, `o`/Enter open; the existing
       web-mail-list tests that expected a click to only move the cursor are updated; `cd web && npm run check` passes
 
