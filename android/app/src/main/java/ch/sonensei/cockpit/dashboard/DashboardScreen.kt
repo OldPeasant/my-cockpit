@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.dashboard
 
+import android.text.format.DateFormat
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -25,11 +26,13 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -279,18 +282,21 @@ private fun Events(
 ) {
     val zone = ZoneId.systemDefault()
     val times = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
-    val dates = DateTimeFormatter.ofPattern("EEE d MMM")
+    val locale = LocalConfiguration.current.locales[0]
+    val dates = DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, "EEEdMMM"), locale)
     events.take(MAX_ROWS).forEach { event ->
-        val time = event.start?.atZone(zone)?.format(times) ?: stringResource(R.string.dashboard_all_day)
-        val prefix = if (withDate) "${event.date.format(dates)} · $time" else time
-        Row {
-            Text(
-                prefix,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(end = 8.dp),
-            )
-            Text(event.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        key(event.key) {
+            val time = event.start?.atZone(zone)?.format(times) ?: stringResource(R.string.dashboard_all_day)
+            val prefix = if (withDate) "${event.date.format(dates)} · $time" else time
+            Row {
+                Text(
+                    prefix,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(end = 8.dp),
+                )
+                Text(event.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
     if (events.size > MAX_ROWS) Muted(stringResource(R.string.dashboard_more))

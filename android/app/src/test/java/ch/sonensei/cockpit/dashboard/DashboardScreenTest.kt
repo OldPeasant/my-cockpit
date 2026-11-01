@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.dashboard
 
+import android.text.format.DateFormat
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -26,6 +27,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.util.Locale
 import java.util.UUID
 
 /** The dashboard alone, driven by states the tests control. */
@@ -266,7 +268,10 @@ class DashboardScreenTest {
         val events = (1..6).map { DashboardEvent("e:$it", "Dentist $it", day, start) }
         show(DashboardUiState(widgets = listOf(WidgetId.UPCOMING), states = mapOf(WidgetId.UPCOMING to ready(WidgetData.Upcoming(events)))))
         val time = start.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
-        val prefix = "${day.format(DateTimeFormatter.ofPattern("EEE d MMM"))} · $time"
+        // The day uses the locale's own pattern for weekday, day and month (e.g. "Fri, Oct 23" in English).
+        val locale = Locale.getDefault()
+        val dayText = day.format(DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, "EEEdMMM"), locale))
+        val prefix = "$dayText · $time"
         composeRule.onAllNodes(hasText(prefix), useUnmergedTree = true).assertCountEquals(5)
         composeRule.onNode(hasText("Dentist 5"), useUnmergedTree = true).assertIsDisplayed()
         composeRule.onNode(hasText("Dentist 6"), useUnmergedTree = true).assertDoesNotExist()
