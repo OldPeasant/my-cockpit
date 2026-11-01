@@ -24,7 +24,8 @@ as the Android start screen (2026-11-01). Reuse the endpoints the web dashboard 
   - verified (2026-11-01 22:55+0100 by dell26/agent-1): same full android run (2727 pass): DashboardViewModelTest (failing widget isolated, refresh reloads all, newer refresh drops older answer), DashboardScreenTest (error line in card, others render), DashboardInAppTest (pull to refresh reloads layout + widgets) pass
 - [x] All new UI strings exist in English and German (`res/values`, `res/values-de`)
   - verified (2026-11-01 22:55+0100 by dell26/agent-1): same full android run (2727 pass): DashboardStringsTest (values/ and values-de/strings_dashboard.xml have the same strings/plurals and placeholders) and DashboardScreenTest @Config(qualifiers=de) pass; lintDebug clean (no MissingTranslation)
-- [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+- [x] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+  - verified (2026-11-01 22:55+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug on ea2c26853 -> BUILD SUCCESSFUL, 2727 tests 0 failures; 60 dashboard tests (ViewModel, Repository, Layout, Strings, Compose screen + in-app Robolectric)
 
 ## Notes
 Requested by the owner (2026-11-01) after trying the Android app on the phone. Changing the start destination touches the shell navigation; keep other tasks' shell changes when merging.
