@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -276,6 +277,51 @@ class DashboardScreenTest {
         composeRule.onNode(hasText("Dentist 5"), useUnmergedTree = true).assertIsDisplayed()
         composeRule.onNode(hasText("Dentist 6"), useUnmergedTree = true).assertDoesNotExist()
         composeRule.onNode(hasText("and more"), useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    private fun showUpcomingAllDay(day: LocalDate) =
+        show(
+            DashboardUiState(
+                widgets = listOf(WidgetId.UPCOMING),
+                states =
+                    mapOf(
+                        WidgetId.UPCOMING to
+                            ready(WidgetData.Upcoming(listOf(DashboardEvent("e:1", "Harvest festival", day, start = null)))),
+                    ),
+            ),
+        )
+
+    @Test
+    fun `an upcoming all-day event reads its day in English order`() {
+        showUpcomingAllDay(LocalDate.of(2026, 10, 23))
+        composeRule.onNode(hasText("Fri, Oct 23 · All day"), useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `in German an upcoming day reads in German order with German names`() {
+        showUpcomingAllDay(LocalDate.of(2026, 10, 23))
+        composeRule.onNode(hasText("Fr., 23. Okt. · Ganztägig"), useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    /** Only a new order jumps to the top: a reload with the same layout keeps where the user scrolled to. */
+    @Test
+    fun `a reload with the same order keeps the scroll position`() {
+        var state by mutableStateOf(DashboardUiState(states = allReady))
+        composeRule.setContent {
+            CockpitTheme { DashboardContent(state, onRefresh = {}, onOpen = {}) }
+        }
+        scrollTo(WidgetId.PINNED_NOTES)
+        composeRule.onNodeWithTag(DashboardTags.card(WidgetId.PINNED_NOTES)).assertIsDisplayed()
+
+        // As a refresh does: same widgets, every one loading again, then answered again.
+        state = DashboardUiState(states = allReady.mapValues { it.value.copy(loading = true) }, refreshing = true)
+        composeRule.waitForIdle()
+        state = DashboardUiState(states = allReady)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(DashboardTags.card(WidgetId.PINNED_NOTES)).assertIsDisplayed()
+        composeRule.onNodeWithTag(DashboardTags.card(WidgetId.TODAY)).assertIsNotDisplayed()
     }
 
     @Test
