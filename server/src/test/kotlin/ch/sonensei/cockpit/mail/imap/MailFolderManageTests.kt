@@ -42,11 +42,18 @@ import org.springframework.test.context.event.ApplicationEvents
 import org.springframework.test.context.event.RecordApplicationEvents
 import org.springframework.transaction.support.TransactionTemplate
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Edge cases of folder create/rename/delete against a scripted IMAP store with the real database: results the server
  * refuses (`false` or a thrown `NO`/`BAD`) become SERVER_REJECTED and leave the cache alone, flat namespaces, failing
- * (UN)SUBSCRIBE, and subtree matching that does not confuse `Projects` with `Projectsx`. `/` is the delimiter.
+ * (UN)SUBSCRIBE, subtree matching that does not confuse `Projects` with `Projectsx`, and the per-account serialization
+ * of sync and rename. `/` is the delimiter.
  */
 @SpringBootTest
 @WithCockpitUser
@@ -361,6 +368,17 @@ class MailFolderManageTests(
 		verify(exactly = 0) { pool.withStore(any(), any<(IMAPStore) -> Any?>()) }
 	}
 
+	@Test
+	fun `rename refuses blank names and the delimiter with 400 before contacting the server`() {
+		val projects = cache("Clients/Projects")
+
+		shouldThrow<InvalidRequestException> { service.rename(account.id, projects.id, "  ", etag(projects)) }
+		shouldThrow<InvalidRequestException> { service.rename(account.id, projects.id, "Q3/plans", etag(projects)) }
+
+		verify(exactly = 0) { pool.withStore(any(), any<(IMAPStore) -> Any?>()) }
+		reload(projects).path shouldBe "Clients/Projects"
+	}
+
 	// --- delete ---
 
 	@Test
@@ -420,7 +438,168 @@ class MailFolderManageTests(
 		folders.findById(theirs.id).isPresent shouldBe true
 	}
 
+	// --- serialization of sync and changes (per account) ---
+
+	/** A folder as `LIST "" "*"` returns it. */
+	private fun listed(path: String): IMAPFolder =
+		mockk<IMAPFolder>(relaxed = true).also {
+			every { it.fullName } returns path
+			every { it.name } returns path.substringAfterLast('/')
+			every { it.separator } returns '/'
+			every { it.attributes } returns emptyArray()
+		}
+
+	/**
+	 * Scripts `Projects` (with `Projects/Sub`) to be renamed to `Work` on the server: `LIST` shows the old or the new
+	 * paths depending on whether the RENAME has run. Returns the cached folders.
+	 */
+	private fun projectsToBeRenamed(): Pair<MailFolder, MailFolder> {
+		val projects = cache("Projects")
+		val sub = cache("Projects/Sub")
+		existsRemotely("Projects")
+		val before = arrayOf<Folder>(listed("INBOX"), listed("Projects"), listed("Projects/Sub"))
+		val after = arrayOf<Folder>(listed("INBOX"), listed("Work"), listed("Work/Sub"))
+		every { root.list("*") } answers { if (renamedOnServer.get()) after else before }
+		remoteFolder("Projects").let { f ->
+			every { f.renameTo(any()) } answers {
+				renamedOnServer.set(true)
+				true
+			}
+		}
+		return projects to sub
+	}
+
+	private val renamedOnServer = AtomicBoolean(false)
+
+	private fun CountDownLatch.awaitBriefly() = await(WAIT_SECONDS, TimeUnit.SECONDS) shouldBe true
+
+	private fun <T> Future<T>.result(): T = get(WAIT_SECONDS, TimeUnit.SECONDS)
+
+	/** Waits (bounded) until [thread] is parked, i.e. blocked on the account lock rather than running. */
+	private fun awaitParked(thread: AtomicReference<Thread>) {
+		val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(WAIT_SECONDS)
+		while (thread.get()?.state !in setOf(Thread.State.WAITING, Thread.State.TIMED_WAITING)) {
+			check(System.nanoTime() < deadline) { "The second call never blocked" }
+			Thread.onSpinWait()
+		}
+	}
+
+	@Test
+	fun `a sync started while a RENAME runs waits for the rename and then keeps the folder and subfolder ids`() {
+		val (projects, sub) = projectsToBeRenamed()
+		val renaming = CountDownLatch(1)
+		val release = CountDownLatch(1)
+		remoteFolder("Projects").let { f ->
+			every { f.renameTo(any()) } answers {
+				renamedOnServer.set(true)
+				renaming.countDown()
+				release.awaitBriefly()
+				true
+			}
+		}
+		val ifMatch = etag(projects)
+		val syncThread = AtomicReference<Thread>()
+		val executor = Executors.newFixedThreadPool(2)
+		try {
+			val rename = executor.submit<MailFolder> { service.rename(account.id, projects.id, "Work", ifMatch) }
+			renaming.awaitBriefly()
+			val sync =
+				executor.submit<List<MailFolder>> {
+					syncThread.set(Thread.currentThread())
+					service.sync(account.id)
+				}
+
+			awaitParked(syncThread)
+			// The server already has the new name, but the sync must not list it before the rename updated the cache.
+			sync.isDone shouldBe false
+			verify(exactly = 0) { root.list(any()) }
+			release.countDown()
+
+			rename.result().path shouldBe "Work"
+			val synced = sync.result().associate { it.path to it.id }
+			synced["Work"] shouldBe projects.id
+			synced["Work/Sub"] shouldBe sub.id
+		} finally {
+			release.countDown()
+			executor.shutdownNow()
+		}
+		cachedPaths() shouldBe listOf("INBOX", "Work", "Work/Sub")
+		reload(projects).name shouldBe "Work"
+	}
+
+	@Test
+	fun `a rename requested while a sync lists the server waits until the sync has stored its result`() {
+		val (projects, sub) = projectsToBeRenamed()
+		val listing = CountDownLatch(1)
+		val release = CountDownLatch(1)
+		val before = arrayOf<Folder>(listed("INBOX"), listed("Projects"), listed("Projects/Sub"))
+		every { root.list("*") } answers {
+			listing.countDown()
+			release.awaitBriefly()
+			before
+		}
+		val ifMatch = etag(projects)
+		val renameThread = AtomicReference<Thread>()
+		val executor = Executors.newFixedThreadPool(2)
+		try {
+			val sync = executor.submit<List<MailFolder>> { service.sync(account.id) }
+			listing.awaitBriefly()
+			val rename =
+				executor.submit<MailFolder> {
+					renameThread.set(Thread.currentThread())
+					service.rename(account.id, projects.id, "Work", ifMatch)
+				}
+
+			awaitParked(renameThread)
+			rename.isDone shouldBe false
+			remoteFolder("Projects").let { f -> verify(exactly = 0) { f.renameTo(any()) } }
+			release.countDown()
+
+			sync.result().map { it.path } shouldBe listOf("INBOX", "Projects", "Projects/Sub")
+			rename.result().id shouldBe projects.id
+		} finally {
+			release.countDown()
+			executor.shutdownNow()
+		}
+		reload(projects).path shouldBe "Work"
+		reload(sub).path shouldBe "Work/Sub"
+		cachedPaths() shouldBe listOf("INBOX", "Work", "Work/Sub")
+	}
+
+	@Test
+	fun `a RENAME in progress does not block a sync of another account`() {
+		val (projects, _) = projectsToBeRenamed()
+		val other = accounts.saveAndFlush(account("other.person@example.test"))
+		val renaming = CountDownLatch(1)
+		val release = CountDownLatch(1)
+		remoteFolder("Projects").let { f ->
+			every { f.renameTo(any()) } answers {
+				renaming.countDown()
+				release.awaitBriefly()
+				true
+			}
+		}
+		val ifMatch = etag(projects)
+		val executor = Executors.newSingleThreadExecutor()
+		try {
+			val rename = executor.submit<MailFolder> { service.rename(account.id, projects.id, "Work", ifMatch) }
+			renaming.awaitBriefly()
+
+			// Runs on the test thread: it would hang (and fail the bounded wait in the rename) if the lock were global.
+			service.sync(other.id).map { it.path } shouldBe listOf("INBOX", "Projects", "Projects/Sub")
+			rename.isDone shouldBe false
+			release.countDown()
+
+			rename.result().path shouldBe "Work"
+		} finally {
+			release.countDown()
+			executor.shutdownNow()
+		}
+	}
+
 	companion object {
+		private const val WAIT_SECONDS = 10L
+
 		private val REMOTE_PATHS =
 			listOf(
 				"Projects",

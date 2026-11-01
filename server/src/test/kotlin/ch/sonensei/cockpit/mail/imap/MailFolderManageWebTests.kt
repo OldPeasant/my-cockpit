@@ -99,6 +99,21 @@ class MailFolderManageWebTests(
 	}
 
 	@Test
+	fun `an explicit null name is 400 on name and neither renames nor changes the role`() {
+		listOf(patch("""{"name": null}"""), patch("""{"name": null, "role": "ARCHIVE"}"""), patch("""{"name": null, "automatic": true}"""))
+			.forEach {
+				it.andExpect {
+					status { isBadRequest() }
+					content { contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON) }
+					jsonPath("$.errors[0].field") { value("name") }
+				}
+			}
+
+		verify(exactly = 0) { service.rename(any(), any(), any(), any()) }
+		verify(exactly = 0) { service.overrideRole(any(), any(), any(), any(), any()) }
+	}
+
+	@Test
 	fun `a role or automatic without a name changes only the role`() {
 		patch("""{"role": "ARCHIVE"}""").andExpect {
 			status { isOk() }
