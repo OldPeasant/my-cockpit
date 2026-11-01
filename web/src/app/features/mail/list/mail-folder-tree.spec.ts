@@ -91,7 +91,10 @@ describe('MailFolderTree', () => {
     store = TestBed.inject(MailFoldersStore);
     opened = [];
     const dialog = TestBed.inject(MatDialog);
-    vi.spyOn(dialog, 'open').mockImplementation(((component: unknown, config?: { data?: unknown }) => {
+    vi.spyOn(dialog, 'open').mockImplementation(((
+      component: unknown,
+      config?: { data?: unknown },
+    ) => {
       opened.push({ component, data: config?.data });
       return { afterClosed: () => ({ subscribe: () => undefined }) };
     }) as unknown as MatDialog['open']);
@@ -324,15 +327,18 @@ describe('MailFolderTree', () => {
       expect(mail.accounts).not.toHaveBeenCalled();
     });
 
-    it.each([404, 412])('reloads the folders when the folder changed elsewhere (%s)', async (status) => {
-      show(null);
-      (await menu('Alpha'))[1].click();
-      mail.renameFolder.mockRejectedValue(new ApiError(status, 'Stale'));
+    it.each([404, 412])(
+      'reloads the folders when the folder changed elsewhere (%s)',
+      async (status) => {
+        show(null);
+        (await menu('Alpha'))[1].click();
+        mail.renameFolder.mockRejectedValue(new ApiError(status, 'Stale'));
 
-      await expect(nameData().save('Zulu')).rejects.toBeInstanceOf(ApiError);
+        await expect(nameData().save('Zulu')).rejects.toBeInstanceOf(ApiError);
 
-      expect(mail.accounts).toHaveBeenCalled();
-    });
+        expect(mail.accounts).toHaveBeenCalled();
+      },
+    );
 
     it('asks before deleting, counting the subfolders, and removes the folder at once', async () => {
       show(null);
@@ -370,6 +376,121 @@ describe('MailFolderTree', () => {
       await deleteData().remove();
 
       expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('navigates to the unified Inbox when the deleted folder itself is shown', async () => {
+      show('pa');
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      (await menu('Alpha'))[2].click();
+      expect(deleteData().subfolders).toBe(1);
+      mail.deleteFolder.mockResolvedValue(undefined);
+
+      await deleteData().remove();
+      fixture.detectChanges();
+
+      expect(navigate).toHaveBeenCalledWith(['/mail']);
+      expect(shown()).toEqual(['Inbox', '[Gmail]', 'Trash', 'Projects']);
+    });
+
+    it('does not navigate when the unified Inbox is shown and a folder is deleted', async () => {
+      show(null);
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      (await menu('Projects'))[2].click();
+      mail.deleteFolder.mockResolvedValue(undefined);
+
+      await deleteData().remove();
+
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('does not navigate when a sibling sharing the path prefix of the shown folder is deleted', async () => {
+      show('p2', [...standard(), folder('p2', 'Projects2')]);
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      (await menu('Projects'))[2].click();
+      expect(deleteData().subfolders).toBe(2);
+      mail.deleteFolder.mockResolvedValue(undefined);
+
+      await deleteData().remove();
+      fixture.detectChanges();
+
+      expect(navigate).not.toHaveBeenCalled();
+      expect(shown()).toContain('Projects2');
+    });
+
+    it.each([404, 412])(
+      'reloads the folders when a delete finds the folder stale (%s)',
+      async (status) => {
+        show('pa');
+        const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+        (await menu('Alpha'))[2].click();
+        mail.deleteFolder.mockRejectedValue(new ApiError(status, 'Stale'));
+
+        await expect(deleteData().remove()).rejects.toBeInstanceOf(ApiError);
+
+        expect(mail.accounts).toHaveBeenCalled();
+        expect(navigate).not.toHaveBeenCalled();
+      },
+    );
+
+    it('reloads the folders when the parent of a new subfolder is gone (404)', async () => {
+      show(null);
+      (await menu('Projects'))[0].click();
+      mail.createFolder.mockRejectedValue(new ApiError(404, 'Not Found'));
+
+      await expect(nameData().save('Beta')).rejects.toBeInstanceOf(ApiError);
+
+      expect(mail.accounts).toHaveBeenCalled();
+    });
+
+    it('does not reload on an error that is not about a stale folder', async () => {
+      show(null);
+      (await menu('Alpha'))[1].click();
+      mail.renameFolder.mockRejectedValue(new Error('offline'));
+
+      await expect(nameData().save('Zulu')).rejects.toThrow('offline');
+
+      expect(mail.accounts).not.toHaveBeenCalled();
+      expect(shown()).toContain('Alpha');
+    });
+
+    it('creates a folder in the account of the clicked button', async () => {
+      show(null);
+      el().querySelectorAll<HTMLButtonElement>('button.add')[1].click();
+      mail.createFolder.mockResolvedValue(folder('h-new', 'Receipts', { accountId: 'acc-2' }));
+
+      await nameData().save('Receipts');
+      fixture.detectChanges();
+
+      expect(mail.createFolder).toHaveBeenCalledWith('acc-2', 'Receipts', undefined);
+      const home = [...el().querySelectorAll('section.account')][1];
+      expect([...home.querySelectorAll('li .row')].map((r) => r.textContent?.trim())).toEqual([
+        'Inbox',
+        'Receipts',
+      ]);
+      expect(shown()).not.toContain('Receipts');
+    });
+
+    it('passes no delimiter to the new-folder dialog of a flat account', () => {
+      show(null, [
+        folder('in', 'INBOX', { role: 'INBOX', delimiter: undefined }),
+        folder('f', 'Flat', { delimiter: undefined }),
+      ]);
+      el().querySelector<HTMLButtonElement>('button.add')!.click();
+      expect(nameData().delimiter).toBeUndefined();
+    });
+
+    it("passes the folder's delimiter to the rename and subfolder dialogs", async () => {
+      show(null, [
+        folder('in', 'INBOX', { role: 'INBOX', delimiter: '.' }),
+        folder('d', 'Dotted', { delimiter: '.' }),
+        folder('e', 'Elsewhere', { delimiter: '.' }),
+      ]);
+      (await menu('Dotted'))[0].click();
+      expect(nameData().delimiter).toBe('.');
+      document.querySelectorAll('.cdk-overlay-container').forEach((n) => (n.innerHTML = ''));
+      (await menu('Elsewhere'))[1].click();
+      expect(nameData().title).toBe('Rename Elsewhere');
+      expect(nameData().delimiter).toBe('.');
     });
 
     it('keeps the folder and the page when the delete fails', async () => {

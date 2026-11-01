@@ -99,6 +99,91 @@ describe('MailService', () => {
     expect(await result).toEqual(results);
   });
 
+  describe('folder changes', () => {
+    const projects = {
+      id: 'f-proj',
+      accountId: 'acc-1',
+      path: 'Projects',
+      name: 'Projects',
+      delimiter: '/',
+      roleOverridden: false,
+      selectable: true,
+      version: 4,
+    };
+
+    it('creates a top-level folder: POST with the name and no parent, silently', async () => {
+      const result = service.createFolder('acc-1', 'Receipts');
+      const req = await request('/api/v1/mail/accounts/acc-1/folders');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({ name: 'Receipts' });
+      expect(req.request.headers.has('If-Match')).toBe(false);
+      expect(req.request.context.get(SILENT_ERRORS)).toBe(true);
+      const created = { ...projects, id: 'f-new', path: 'Receipts', name: 'Receipts', version: 0 };
+      req.flush(created, { status: 201, statusText: 'Created' });
+      expect(await result).toEqual(created);
+    });
+
+    it('treats a null parent as the top level', async () => {
+      const result = service.createFolder('acc-1', 'Receipts', null);
+      const req = await request('/api/v1/mail/accounts/acc-1/folders');
+      expect(req.request.body).toEqual({ name: 'Receipts' });
+      req.flush({ ...projects, id: 'f-new', path: 'Receipts', name: 'Receipts' });
+      await result;
+    });
+
+    it('creates a subfolder under its parent', async () => {
+      const result = service.createFolder('acc-1', 'Beta', 'f-proj');
+      const req = await request('/api/v1/mail/accounts/acc-1/folders');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({ name: 'Beta', parentId: 'f-proj' });
+      req.flush({ ...projects, id: 'f-beta', path: 'Projects/Beta', name: 'Beta' });
+      expect((await result).path).toBe('Projects/Beta');
+    });
+
+    it('renames a folder: PATCH with the name and its version as quoted If-Match', async () => {
+      const result = service.renameFolder(projects, 'Clients');
+      const req = await request('/api/v1/mail/accounts/acc-1/folders/f-proj');
+      expect(req.request.method).toBe('PATCH');
+      expect(req.request.headers.get('If-Match')).toBe('"4"');
+      expect(req.request.body).toEqual({ name: 'Clients' });
+      expect(req.request.context.get(SILENT_ERRORS)).toBe(true);
+      req.flush({ ...projects, path: 'Clients', name: 'Clients', version: 5 });
+      expect(await result).toEqual(
+        expect.objectContaining({ id: 'f-proj', path: 'Clients', version: 5 }),
+      );
+    });
+
+    it('deletes a folder: DELETE with its version as quoted If-Match and no body', async () => {
+      const result = service.deleteFolder({ ...projects, version: 0 });
+      const req = await request('/api/v1/mail/accounts/acc-1/folders/f-proj');
+      expect(req.request.method).toBe('DELETE');
+      expect(req.request.headers.get('If-Match')).toBe('"0"');
+      expect(req.request.body).toBeNull();
+      expect(req.request.context.get(SILENT_ERRORS)).toBe(true);
+      req.flush(null, { status: 204, statusText: 'No Content' });
+      await expect(result).resolves.toBeUndefined();
+    });
+
+    it.each([
+      ['create', () => service.createFolder('acc-1', 'Projects'), 'POST', 409, 'Name taken'],
+      ['rename', () => service.renameFolder(projects, 'X'), 'PATCH', 412, 'Version mismatch'],
+      ['delete', () => service.deleteFolder(projects), 'DELETE', 404, 'Folder not found'],
+    ] as const)(
+      'rejects a failed %s with the ApiError and its status, without a toast',
+      async (_, call, method, status, detail) => {
+        const result = call() as Promise<unknown>;
+        await tick();
+        const req = http.expectOne((r) => r.method === method);
+        req.flush({ status, title: 'Error', detail }, { status, statusText: 'Error' });
+        const error = await result.catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).status).toBe(status);
+        expect((error as ApiError).userMessage).toBe(detail);
+        expect(notifications.error).not.toHaveBeenCalled();
+      },
+    );
+  });
+
   it('rejects with an ApiError and does not toast', async () => {
     const result = service.apply('READ', ['m-1']);
     const req = await request('/api/v1/mail/messages/actions');
