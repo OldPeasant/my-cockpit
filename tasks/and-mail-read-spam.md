@@ -21,8 +21,9 @@ The Android mail read view gets a Spam button next to Archive and Delete, matchi
   - verified (2026-11-01 06:47+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest -> MailReadScreenTest 'the route moves the mail to spam and closes, or stays open with the server's error' (NO_ROLE_FOLDER keeps view open with 'This account has no Spam folder.', success -> removed+close), MailReadViewModelTest spam refused/offline/success tests, MailReadRepositoryTest errorCode tests pass
 - [x] The new string is in the app's string resources (all existing locales)
   - verified (2026-11-01 06:47+0100 by dell26/agent-1): mail_spam, mail_spam_failed, mail_read_no_role_folder, mail_read_action_error added to values/strings_mail.xml and values-de/strings_mail.xml (the only two locales); ./gradlew lintDebug -> passes (no MissingTranslation); MailReadSpamGermanTest (de locale) 3 tests pass
-- [ ] Unit test (ViewModel) and Compose UI test for the button, success and error;
+- [x] Unit test (ViewModel) and Compose UI test for the button, success and error;
       `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+  - verified (2026-11-01 06:47+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug (full, at 9ec36835c) -> BUILD SUCCESSFUL, 2175 tests, 0 failures/errors/skipped; includes ViewModel + Compose UI tests for button, success and error
 
 ## Notes
 The only change in `mail/list` is the enum value in `MailModels.kt`. Adding the string touches the shared
