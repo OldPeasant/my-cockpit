@@ -20,7 +20,8 @@ The Logbook (done tasks, SPEC.md §5) exists on the web only. Use `GET /api/v1/t
   - verified (2026-11-01 20:20+0100 by dell26/agent-2): cd android && ./gradlew testDebugUnitTest: LogbookScreenTest/ViewModelTest loading, empty, error+retry, stale states using shared Centered/LoadFailed/StaleBanner -> pass
 - [x] All new UI strings exist in English and German (`res/values`, `res/values-de`)
   - verified (2026-11-01 20:20+0100 by dell26/agent-2): cd android && ./gradlew testDebugUnitTest lintDebug: LogbookStringsTest + German Compose tests, lint MissingTranslation clean; 15 strings in values and values-de -> pass
-- [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+- [x] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+  - verified (2026-11-01 20:20+0100 by dell26/agent-2): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport -> BUILD SUCCESSFUL, 2667 tests 0 failures; ViewModel + Compose UI tests; task coverage 98% lines; sh scripts/check.sh -> all checks passed
 
 ## Notes
 Requested by the owner (2026-11-01) after trying the Android app on the phone.
