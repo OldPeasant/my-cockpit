@@ -15,6 +15,7 @@ lease_until:
 Owner deploys phase 1 and runs the demo script on production.
 
 ## Acceptance criteria
-- [ ] Phase 1 demo steps work on the production URL
+- [x] Phase 1 demo steps work on the production URL
+  - verified (2026-11-01 06:31+0100 by Peter Gürtler): done
 
 ## Notes
