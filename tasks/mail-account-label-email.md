@@ -13,9 +13,10 @@ sender name ("Your name" in Settings), so several accounts of the same person lo
 (2026-10-30): email address only, on web and Android.
 
 ## Acceptance criteria
-- [ ] Web, `web/src/app/features/mail/list`: the account heading in the folder tree (`mail-folder-tree.ts`, text and
+- [x] Web, `web/src/app/features/mail/list`: the account heading in the folder tree (`mail-folder-tree.ts`, text and
       `aria-label`), the account line under the folder title (`accountName` in `mail-list-page.ts`) and the account
       chip on messages in "All inboxes" (`accountOf`) show the account's email address instead of its display name
+  - verified (2026-11-01 06:09+0100 by dell26/agent-1): web: mail-folder-tree.ts heading text+aria-label, mail-list-page.ts accountName/accountOf now use emailAddress; npx ng test --watch=false --include='src/app/features/mail/list/**/*.spec.ts' -> 193 passed (folder-tree spec asserts aria-label/h2 = work@/home@example.test; list-page specs assert account line + All-inboxes chips = acc-1/acc-2@example.test with both accounts named 'Ann Example')
 - [ ] Android, `mail/list`: the account title in the folder picker and the account chip on messages show the email
       address (`MailModels.kt` maps the account's label from `emailAddress`, no longer from `displayName`)
 - [ ] The display name is unchanged everywhere else: it stays the sender name in compose and identities, and the
