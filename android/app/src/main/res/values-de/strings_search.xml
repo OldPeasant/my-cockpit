@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="search_action">Suchen</string>
+    <string name="search_title">Suche</string>
+    <string name="search_placeholder">Alles durchsuchen</string>
+    <string name="search_clear">Suche löschen</string>
+    <string name="search_hint">Findet Aufgaben, Projekte, Notizen, Termine, E-Mails, Kontakte, Dateien, Lesezeichen und Journaleinträge.</string>
+    <string name="search_nothing_found">Nichts gefunden</string>
+    <string name="search_offline">Keine Verbindung zum Server. Die Suche braucht den Server.</string>
+    <string name="search_failed">Die Suche ist fehlgeschlagen.</string>
+    <string name="search_retry">Erneut versuchen</string>
+    <string name="search_no_browser">Kein Browser auf diesem Telefon kann das Element öffnen.</string>
+
+    <string name="search_filter_tasks">Aufgaben</string>
+    <string name="search_filter_projects">Projekte</string>
+    <string name="search_filter_notes">Notizen</string>
+    <string name="search_filter_events">Termine</string>
+    <string name="search_filter_emails">E-Mails</string>
+    <string name="search_filter_contacts">Kontakte</string>
+    <string name="search_filter_files">Dateien</string>
+    <string name="search_filter_bookmarks">Lesezeichen</string>
+    <string name="search_filter_journal">Journal</string>
+
+    <string name="search_type_task">Aufgaben</string>
+    <string name="search_type_project">Projekte</string>
+    <string name="search_type_note">Notizen</string>
+    <string name="search_type_event">Termine</string>
+    <string name="search_type_email">E-Mails</string>
+    <string name="search_type_file">Dateien</string>
+    <string name="search_type_folder">Ordner</string>
+    <string name="search_type_contact">Kontakte</string>
+    <string name="search_type_bookmark">Lesezeichen</string>
+    <string name="search_type_journal">Journal</string>
+    <string name="search_type_habit">Gewohnheiten</string>
+    <string name="search_type_other">Andere</string>
+</resources>

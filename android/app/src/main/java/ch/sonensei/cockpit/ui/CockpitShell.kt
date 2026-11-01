@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -21,6 +22,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -45,11 +47,16 @@ import ch.sonensei.cockpit.journal.JournalScreen
 import ch.sonensei.cockpit.mail.list.MailScreen
 import ch.sonensei.cockpit.newitems.NewScreen
 import ch.sonensei.cockpit.notes.NotesScreen
+import ch.sonensei.cockpit.reminders.OpenItemRequest
 import ch.sonensei.cockpit.reminders.ReminderOpenRequests
 import ch.sonensei.cockpit.review.ReviewScreen
+import ch.sonensei.cockpit.search.SearchItemScreen
+import ch.sonensei.cockpit.search.SearchRoutes
+import ch.sonensei.cockpit.search.SearchScreen
 import ch.sonensei.cockpit.settings.SettingsScreen
 import ch.sonensei.cockpit.ui.navigation.CockpitDestination
 import ch.sonensei.cockpit.ui.navigation.NavSection
+import java.util.UUID
 
 /** Test tag of the content area of a destination, so tests can tell which screen is shown. */
 fun screenTag(destination: CockpitDestination): String = "screen:${destination.route}"
@@ -73,7 +80,9 @@ internal fun CockpitShellFrame(
     destinationContent: @Composable (CockpitDestination, (CockpitDestination) -> Unit, Modifier) -> Unit,
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
-    val current = CockpitDestination.fromRoute(backStackEntry?.destination?.route)
+    val route = backStackEntry?.destination?.route
+    val current = CockpitDestination.fromRoute(route)
+    val searching = SearchRoutes.isSearch(route)
     val selected = CockpitDestination.bottomBarItemFor(current)
     val showsFab = current != null && current !in CockpitDestination.withOwnFab
 
@@ -86,15 +95,24 @@ internal fun CockpitShellFrame(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(current?.labelRes ?: R.string.app_name)) },
+                title = { Text(stringResource(titleRes(current, backStackEntry))) },
                 navigationIcon = {
-                    if (current?.section == NavSection.More) {
+                    if (current?.section == NavSection.More || searching) {
                         IconButton(onClick = { navController.navigateUp() }) {
                             Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.nav_back))
                         }
                     }
                 },
                 actions = {
+                    // Global search from every screen of the shell (SPEC.md §4.4).
+                    if (current != null) {
+                        IconButton(
+                            onClick = { navController.navigate(SearchRoutes.SEARCH) { launchSingleTop = true } },
+                            modifier = Modifier.testTag(SEARCH_ACTION_TAG),
+                        ) {
+                            Icon(Icons.Outlined.Search, contentDescription = stringResource(R.string.search_action))
+                        }
+                    }
                     if (current in CockpitDestination.withOwnFab) CaptureButton(CaptureButtonPlacement.AppBarAction)
                 },
             )
@@ -131,10 +149,44 @@ internal fun CockpitShellFrame(
                         }
                     }
                 }
+                composable(SearchRoutes.SEARCH) {
+                    SearchScreen(
+                        openItem = { type, id -> navController.navigate(SearchRoutes.item(type, id)) },
+                        openScreen = { navController.open(it) },
+                        modifier = Modifier.testTag(SEARCH_SCREEN_TAG),
+                    )
+                }
+                composable(SearchRoutes.ITEM) { entry ->
+                    val type = entry.arguments?.getString(SearchRoutes.ARG_TYPE).orEmpty()
+                    val id = entry.arguments?.getString(SearchRoutes.ARG_ID)?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                    if (id != null) {
+                        SearchItemScreen(type, id, onClose = { navController.navigateUp() })
+                    }
+                }
             }
         }
     }
 }
+
+/** Test tags of the app bar's search action and of the search screen. */
+internal const val SEARCH_ACTION_TAG = "shell-search"
+internal const val SEARCH_SCREEN_TAG = "screen:search"
+
+/** The app bar title: the destination's label, "Search" on the search screen, the item type's screen for an opened item. */
+private fun titleRes(
+    current: CockpitDestination?,
+    entry: NavBackStackEntry?,
+): Int =
+    when {
+        current != null -> current.labelRes
+        entry?.destination?.route == SearchRoutes.SEARCH -> R.string.search_title
+        entry?.destination?.route == SearchRoutes.ITEM ->
+            entry.arguments
+                ?.getString(SearchRoutes.ARG_TYPE)
+                ?.let { OpenItemRequest(it, "").destination.labelRes }
+                ?: R.string.search_title
+        else -> R.string.app_name
+    }
 
 /** The space the shell's capture FAB takes at the bottom of [destination]'s content: none where the screen has its own FAB. */
 internal fun fabClearance(destination: CockpitDestination): Dp =

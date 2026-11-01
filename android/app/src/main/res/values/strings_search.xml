@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="search_action">Search</string>
+    <string name="search_title">Search</string>
+    <string name="search_placeholder">Search everything</string>
+    <string name="search_clear">Clear search</string>
+    <string name="search_hint">Find tasks, projects, notes, events, emails, contacts, files, bookmarks and journal entries.</string>
+    <string name="search_nothing_found">Nothing found</string>
+    <string name="search_offline">No connection to the server. Search needs the server.</string>
+    <string name="search_failed">The search failed.</string>
+    <string name="search_retry">Try again</string>
+    <string name="search_no_browser">No browser on this phone can open the item.</string>
+
+    <string name="search_filter_tasks">Tasks</string>
+    <string name="search_filter_projects">Projects</string>
+    <string name="search_filter_notes">Notes</string>
+    <string name="search_filter_events">Events</string>
+    <string name="search_filter_emails">Emails</string>
+    <string name="search_filter_contacts">Contacts</string>
+    <string name="search_filter_files">Files</string>
+    <string name="search_filter_bookmarks">Bookmarks</string>
+    <string name="search_filter_journal">Journal</string>
+
+    <string name="search_type_task">Tasks</string>
+    <string name="search_type_project">Projects</string>
+    <string name="search_type_note">Notes</string>
+    <string name="search_type_event">Events</string>
+    <string name="search_type_email">Emails</string>
+    <string name="search_type_file">Files</string>
+    <string name="search_type_folder">Folders</string>
+    <string name="search_type_contact">Contacts</string>
+    <string name="search_type_bookmark">Bookmarks</string>
+    <string name="search_type_journal">Journal</string>
+    <string name="search_type_habit">Habits</string>
+    <string name="search_type_other">Other</string>
+</resources>
