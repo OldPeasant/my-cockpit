@@ -7,6 +7,10 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.serialization.SerializationException
 import retrofit2.Response
 import retrofit2.Retrofit
@@ -42,17 +46,24 @@ fun interface RestoredItemLists {
     suspend fun reload(type: String)
 }
 
-/** The Trash (SPEC.md §4.2) on the server: no local cache, the screen loads what it shows. */
+/**
+ * The Trash (SPEC.md §4.2) on the server: no local cache, the screen loads what it shows. The lists reloaded after a
+ * restore are reloaded in [appScope], so the reload neither delays the restore nor stops when the screen is left.
+ */
 @Singleton
 class TrashRepository internal constructor(
     private val api: TrashApi,
     private val lists: RestoredItemLists,
+    private val appScope: CoroutineScope,
 ) {
-    @Inject
-    constructor(api: TrashApi, gtd: GtdSync) : this(
+    internal constructor(api: TrashApi, gtd: GtdSync, appScope: CoroutineScope) : this(
         api,
         RestoredItemLists { type -> if (type in GTD_TYPES) gtd.refreshAll() },
+        appScope,
     )
+
+    @Inject
+    constructor(api: TrashApi, gtd: GtdSync) : this(api, gtd, CoroutineScope(SupervisorJob() + Dispatchers.Default))
 
     /** Every deleted item, most recently deleted first (the server's order). */
     suspend fun list(): TrashResult<List<TrashItem>> =
@@ -67,12 +78,15 @@ class TrashRepository internal constructor(
             all.distinctBy { it.key }
         }
 
-    /** Takes [item] out of the Trash; its own list is reloaded afterwards where the app caches it. */
+    /**
+     * Takes [item] out of the Trash. Returns as soon as the server restored it; its own list is reloaded afterwards,
+     * in the background, where the app caches it.
+     */
     suspend fun restore(item: TrashItem): TrashResult<Unit> {
         val result = load { expectSuccess(api.restoreTrashItem(item.type, item.id)) }
         if (result is TrashResult.Ok) {
             // The restore itself worked: a reload that fails only delays the item until the next sync.
-            load { lists.reload(item.type) }
+            appScope.launch { load { lists.reload(item.type) } }
         }
         return result
     }

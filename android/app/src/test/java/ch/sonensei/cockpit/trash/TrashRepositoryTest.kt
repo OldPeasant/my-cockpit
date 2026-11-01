@@ -7,6 +7,11 @@ import ch.sonensei.cockpit.gtd.data.RefreshResult
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -26,6 +31,9 @@ import java.util.UUID
 class TrashRepositoryTest {
     private val server = MockWebServer()
     private val reloaded = mutableListOf<String>()
+
+    /** Runs the background reload at once, up to its first suspension, so the tests see it without waiting. */
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
     private lateinit var trash: TrashRepository
 
     private fun id(n: Int): UUID = UUID.fromString("00000000-0000-7000-8000-%012d".format(n))
@@ -62,11 +70,14 @@ class TrashRepositoryTest {
                 .baseUrl(server.url("/"))
                 .addConverterFactory(Serializer.kotlinxSerializationJson.asConverterFactory("application/json".toMediaType()))
                 .build()
-        trash = TrashRepository(retrofit.create(TrashApi::class.java)) { reloaded += it }
+        trash = TrashRepository(retrofit.create(TrashApi::class.java), { reloaded += it }, appScope)
     }
 
     @After
-    fun tearDown() = server.close()
+    fun tearDown() {
+        appScope.cancel()
+        server.close()
+    }
 
     @Test
     fun `loads every page and maps the items`() =
@@ -224,16 +235,34 @@ class TrashRepositoryTest {
     @Test
     fun `a reload that fails after a restore does not fail the restore`() =
         runBlocking {
-            val failing = TrashRepository(trashApi()) { throw IOException("fictitious outage") }
+            val failing = TrashRepository(trashApi(), { throw IOException("fictitious outage") }, appScope)
             server.enqueue(status(204))
             assertEquals(TrashResult.Ok(Unit), failing.restore(trashItem(1, "TASK")))
+        }
+
+    @Test
+    fun `a restore returns without waiting for the reload of its lists`() =
+        runBlocking {
+            val gate = CompletableDeferred<Unit>()
+            val slow =
+                TrashRepository(trashApi(), { type ->
+                    gate.await()
+                    reloaded += type
+                }, appScope)
+            server.enqueue(status(204))
+
+            assertEquals(TrashResult.Ok(Unit), slow.restore(trashItem(1, "TASK")))
+            assertEquals(emptyList<String>(), reloaded)
+
+            gate.complete(Unit)
+            assertEquals(listOf("TASK"), reloaded)
         }
 
     @Test
     fun `restoring a task or project reloads the GTD cache, other types do not`() =
         runBlocking {
             val gtd = mockk<GtdSync> { coEvery { refreshAll() } returns RefreshResult.Refreshed }
-            val wired = TrashRepository(trashApi(), gtd)
+            val wired = TrashRepository(trashApi(), gtd, appScope)
             repeat(11) { server.enqueue(status(204)) }
 
             wired.restore(trashItem(1, "NOTE"))
@@ -245,6 +274,17 @@ class TrashRepositoryTest {
             listOf("EVENT", "EMAIL", "FILE", "FOLDER", "CONTACT", "BOOKMARK", "JOURNAL_ENTRY", "HABIT")
                 .forEachIndexed { i, type -> wired.restore(trashItem(10 + i, type)) }
             coVerify(exactly = 2) { gtd.refreshAll() }
+        }
+
+    @Test
+    fun `the injected repository reloads the GTD cache in the background after a task restore`() =
+        runBlocking {
+            val gtd = mockk<GtdSync> { coEvery { refreshAll() } returns RefreshResult.Refreshed }
+            server.enqueue(status(204))
+
+            assertEquals(TrashResult.Ok(Unit), TrashRepository(trashApi(), gtd).restore(trashItem(1, "TASK")))
+
+            coVerify(exactly = 1, timeout = 5_000) { gtd.refreshAll() }
         }
 
     @Test
