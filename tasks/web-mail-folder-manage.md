@@ -24,8 +24,9 @@ folders through the API from mail-folder-manage-api. Requested by the owner (202
 - [x] Usable with the keyboard (menus and dialogs focusable, Escape closes), labels localized like the rest of the
       mail feature
   - verified (2026-11-01 08:48+0100 by dell26/agent-1): same run -> passed: menu trigger is a focusable button, mat-menu items role=menuitem, Escape closes menu and both dialogs, initial focus marked (name field / Cancel); src/locale/*.spec.ts -> 7 passed (all new mail.folder.* units have German targets). Real focus movement not observable in jsdom; npm run build:de fails only on 16 calendar.invite.* units from another task already on main, none from this task
-- [ ] Unit tests for the actions, the dialogs, the error cases and the navigation after delete;
+- [x] Unit tests for the actions, the dialogs, the error cases and the navigation after delete;
       `cd web && npm run check` passes
+  - verified (2026-11-01 08:48+0100 by dell26/agent-1): cd web && npm run coverage at fe5785342 (test-writer) -> 185 files / 3989 tests passed; sh scripts/check.sh (.taskcheck incl. cd web && npm run check: api:check, lint, e2e:typecheck, test:ci, ng build) at fe5785342 -> all checks passed
 
 ## Notes
 Use the frontend-design skill for the menu and dialogs, matching the existing mail list and move dialog.
