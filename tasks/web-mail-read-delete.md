@@ -1,11 +1,11 @@
 ---
 title: Mail read view: Delete button
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [web-mail-read]
 touches: [web/src/app/features/mail/read]
 prio: 2
-lease_until: 2026-11-01T06:29:26Z
+lease_until: 
 ---
 ## Goal
 The mail read view (`/mail/messages/:id`) has a Delete button, so a message can be deleted right after
@@ -32,3 +32,4 @@ Requested by the owner (2026-10-30). Only Delete is in scope; Archive/Spam/Move 
 - ASSUMPTION (2026-11-01 06:55+0100 by dell26/agent-1): The task names MailService.act('DELETE',[id]); the list's MailService method is apply(action, ids), so the read view calls apply('DELETE',[id]) and treats a per-id result with ok=false (or no result) as a failure, showing its server detail
 - ASSUMPTION (2026-11-01 06:55+0100 by dell26/agent-1): The originating list is read from the router's previous navigation when the read page is created (/mail or /mail/folders/:id, else /mail), so mail-list code (outside touches) stays unchanged; after delete the app navigates there with replaceUrl so Back does not reopen the deleted message. Error = toast via NotificationService.error, the read view's existing action-error pattern
 - ASSUMPTION (2026-11-01 06:55+0100 by dell26/agent-1): Added only the 4 new mailRead units to messages.xlf/messages.de.xlf by hand instead of committing the full npm run i18n:extract output: extraction also pulls in untranslated calendar.invite.* strings from itip-api (missing on main), which would fail messages-de.spec and is outside this task
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 85s on 86a300a40; criteria verified 4/4
