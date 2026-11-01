@@ -33,10 +33,11 @@ management yet; record the decisions below with `tasks.py assume`.
       command the server rejects -> 502 with `errorCode` (shared mail connection handler). Each change publishes the
       account's folder change event, so open clients refresh the folder tree
   - verified (2026-11-01 07:11+0100 by dell26/agent-2): cd server && ./gradlew integrationTest --tests '*Folder*GreenMail*' --rerun -> 13/13 passed; ./gradlew check --rerun-tasks -> BUILD SUCCESSFUL (MailFolderManageWebTests 11 passed); covers 400 blank/delimiter/null name, 409 taken, 404, 412/428, 502 SERVER_REJECTED, MAIL_FOLDER events
-- [ ] `api/openapi.yaml` and the web client regenerated (`api/README.md`); GreenMail integration tests for create
+- [x] `api/openapi.yaml` and the web client regenerated (`api/README.md`); GreenMail integration tests for create
       (top level and nested), rename with subfolders and messages (ids kept), delete (messages detached, linked ones
       kept), and the refused cases; `cd server && ./gradlew check` and
       `./gradlew integrationTest --tests '*Folder*GreenMail*'` pass
+  - verified (2026-11-01 07:11+0100 by dell26/agent-2): api/openapi.yaml + web/src/app/api/generated regenerated (commit ecf9c14be); cd server && ./gradlew check --rerun-tasks -> BUILD SUCCESSFUL; ./gradlew integrationTest --tests '*Folder*GreenMail*' --rerun -> 13/13 passed
 
 ## Notes
 Server only; the web UI is web-mail-folder-manage, an Android UI is not planned yet. Deleting a folder that still
