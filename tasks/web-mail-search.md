@@ -1,11 +1,11 @@
 ---
 title: Mail view: search box with 'search on server' option
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [mail-search,web-mail-list]
 touches: [web/src/app/features/mail/list,web/src/locale]
 prio: 2
-lease_until: 2026-11-01T09:21:43Z
+lease_until: 
 ---
 ## Goal
 The Mail view (`/mail`, `/mail/folders/:id`) has its own search box (SPEC.md §7.3 "Search"). Today mail
@@ -40,3 +40,4 @@ filters beyond the query text (from:, date ranges), changes to the Ctrl+K palett
 - ASSUMPTION (2026-11-01 09:44+0100 by dell26/agent-1): Search results are not refetched on live change events (a server search is slow and itself loads mail); actions still update them optimistically, resubmitting refreshes.
 - ASSUMPTION (2026-11-01 09:44+0100 by dell26/agent-1): Search results are always flat (one row per message) even in the Conversations view, since GET /mail/search returns messages; limit is the server default page size (50).
 - ASSUMPTION (2026-11-01 09:44+0100 by dell26/agent-1): Repeating a search with 'Also search older mail on the server' keeps the cached results visible with a 'Searching on the server...' status until the answer arrives; an HTTP error replaces them with the usual load error.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 62s on 7c5578c7a; criteria verified 5/5
