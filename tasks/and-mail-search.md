@@ -12,7 +12,8 @@ Android counterpart of web-mail-search. Use `GET /api/v1/mail/search` (folderId/
 for IMAP SEARCH, `server.failures`, `hasMore`); server unchanged.
 
 ## Acceptance criteria
-- [ ] The mail list has a search action; submitting a query searches the current folder (or all folders from the unified inbox) and shows results in the usual message rows; tapping one opens the read view; closing search returns to the folder list
+- [x] The mail list has a search action; submitting a query searches the current folder (or all folders from the unified inbox) and shows results in the usual message rows; tapping one opens the read view; closing search returns to the folder list
+  - verified (2026-11-01 15:14+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.*' (Robolectric, rev 9535590b) -> pass: MailSearchRouteInAppTest (Hilt MainActivity: search action, submit, results rows, tap opens read view, back to results, back/X to mailbox), MailSearchViewModelTest (folder scope vs unified all folders), MailSearchRepositoryTest (MockWebServer: q/accountId/folderId on /api/v1/mail/search)
 - [ ] A "Search on server" option repeats the search with `server=true`; accounts in `server.failures` are named in a non-blocking message; `hasMore` shows a hint that only the newest results are listed
 - [ ] Loading, empty and error states follow the mail list's existing patterns
 - [ ] All new UI strings exist in English and German (`res/values`, `res/values-de`)
