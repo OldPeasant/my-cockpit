@@ -18,11 +18,12 @@ back and shows the error until the next poll. Found by the owner on a real accou
 works for some messages and fails for others.
 
 ## Acceptance criteria
-- [ ] `MailActionService`: DELETE on a message in the Trash folder whose UID is no longer in that folder on the server
+- [x] `MailActionService`: DELETE on a message in the Trash folder whose UID is no longer in that folder on the server
       (the folder exists and its UIDVALIDITY matches) succeeds for that id: the outcome is ok, the cached row is removed
       the same way as after a permanent delete (detached when linked, else deleted; unindexed from search), and a
       `MAIL_FOLDER` change event is published for the folder. A changed UIDVALIDITY or a missing folder still fails
       with NOT_FOUND, because the message may still exist under another UID
+  - verified (2026-11-01 09:30+0100 by dell26/agent-1): cd server && ./gradlew ktlintFormat check jacocoTestReport (at c63607475) -> BUILD SUCCESSFUL; MailActionServiceTests 45/0 failures incl. Trash all-gone/mixed/linked-detached/changed-UIDVALIDITY/missing-folder/no-UIDVALIDITY cases; GreenMail (a)(b) + Trash UIDVALIDITY test pass (integrationTest 20/0)
 - [ ] Any other action that finds some of its messages missing in their source folder still reports NOT_FOUND for
       those ids, and starts a sync of that folder in the background (not blocking the response, through
       `MailHeaderSyncService` so the sync lock applies). The stale rows then disappear from the cache, and the
