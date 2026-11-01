@@ -20,7 +20,8 @@ for IMAP SEARCH, `server.failures`, `hasMore`); server unchanged.
   - verified (2026-11-01 15:14+0100 by dell26/agent-1): MailSearchScreenTest/MailSearchScreenEdgeCasesTest (Robolectric, rev 9535590b) -> pass: loading = LinearProgressIndicator like the list, empty text 'No mail found.', OFFLINE/FAILED via the list's ListMessage + Retry (retrySearch tested in MailSearchViewModelTest)
 - [x] All new UI strings exist in English and German (`res/values`, `res/values-de`)
   - verified (2026-11-01 15:14+0100 by dell26/agent-1): 10 mail_search_* keys in android/app/src/main/res/values/strings_mail.xml and values-de/strings_mail.xml; ./gradlew lintDebug (MissingTranslation is an error) -> pass; MailSearchScreenTest 'the search speaks German' (@Config qualifiers=de) -> pass
-- [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+- [x] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+  - verified (2026-11-01 15:14+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport (rev 9535590b) -> exit 0, 2361 tests 0 failed; new: MailSearchViewModelTest+EdgeCases, MailSearchScreenTest+EdgeCases, MailSearchRouteInAppTest, MailSearchRepositoryTest (48 tests); MailSearchContent.kt 98.9% lines, MailListViewModel.kt 100% lines
 
 ## Notes
 Requested by the owner (2026-11-01) after trying the Android app on the phone.
