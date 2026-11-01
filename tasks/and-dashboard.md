@@ -14,7 +14,8 @@ The web dashboard (SPEC.md §8.7, `web/src/app/features/dashboard`) has no Andro
 as the Android start screen (2026-11-01). Reuse the endpoints the web dashboard uses; server unchanged.
 
 ## Acceptance criteria
-- [ ] A Dashboard destination shows the §8.7 widgets the web dashboard shows: Today (tasks + events + habits), Inbox count (tasks + unread mail), Stalled projects, Waiting For overdue, Upcoming events, Read-later queue, Pinned notes, Last weekly review; each card opens the matching Android screen
+- [x] A Dashboard destination shows the §8.7 widgets the web dashboard shows: Today (tasks + events + habits), Inbox count (tasks + unread mail), Stalled projects, Waiting For overdue, Upcoming events, Read-later queue, Pinned notes, Last weekly review; each card opens the matching Android screen
+  - verified (2026-11-01 22:55+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug on ea2c26853 -> pass (2727 tests, 0 failures); DashboardRepositoryTest (17: all 8 widgets query the web dashboard endpoints), DashboardScreenTest (19: card contents, each card navigates to WidgetId.destination), DashboardInAppTest (9: real Hilt activity routing) pass
 - [ ] Which widgets are shown and their order follow the user's dashboard configuration from the web (read-only on the phone) if the server stores it; otherwise all widgets in the §8.7 order
 - [ ] The app opens on the Dashboard after login and on launch; the bottom navigation includes it
 - [ ] One failing widget shows an error in its card without breaking the others; pull to refresh reloads all
