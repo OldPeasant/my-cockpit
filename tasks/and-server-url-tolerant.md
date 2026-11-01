@@ -22,3 +22,4 @@ why. Make the server address field forgiving (`core/network/ServerUrl.kt` `Serve
 
 ## Notes
 Requested by the owner (2026-11-01) after trying the Android app on the phone. Out of scope: the web app.
+- ASSUMPTION (2026-11-01 15:33+0100 by dell26/agent-1): Besides Unicode whitespace, zero-width characters (U+200B-200D, U+2060, U+FEFF) are also removed from the server address: they are invisible and never valid in a URL.
