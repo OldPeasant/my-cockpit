@@ -504,15 +504,18 @@ private fun MailboxPicker(
                 }
                 folders.forEach { folder ->
                     val label = folderLabel(folder)
-                    DropdownMenuItem(
-                        text = { Text(label, modifier = Modifier.padding(start = (folder.depth * 12).dp)) },
-                        onClick = {
-                            expanded = false
-                            select(Mailbox.Folder(account.id, folder.id))
-                        },
-                        trailingIcon = { FolderMenu(folder, label, folderActions) { expanded = false } },
-                        modifier = Modifier.testTag(MailListTags.folder(folder.id)),
-                    )
+                    // The actions sit beside the row, not in it, so a tap on the row always opens the folder.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        DropdownMenuItem(
+                            text = { Text(label, modifier = Modifier.padding(start = (folder.depth * 12).dp)) },
+                            onClick = {
+                                expanded = false
+                                select(Mailbox.Folder(account.id, folder.id))
+                            },
+                            modifier = Modifier.weight(1f).testTag(MailListTags.folder(folder.id)),
+                        )
+                        FolderMenu(folder, label, folderActions) { expanded = false }
+                    }
                 }
             }
         }
