@@ -1,11 +1,11 @@
 ---
 title: Android mail: search box with 'search on server' option
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-mail-list-read,mail-search]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/list,android/app/src/test/java/ch/sonensei/cockpit/mail,android/app/src/main/res/values/strings_mail.xml,android/app/src/main/res/values-de/strings_mail.xml]
 prio: 2
-lease_until: 2026-11-01T14:44:01Z
+lease_until: 
 ---
 ## Goal
 Android counterpart of web-mail-search. Use `GET /api/v1/mail/search` (folderId/accountId scope, `server=true`
@@ -28,3 +28,4 @@ Requested by the owner (2026-11-01) after trying the Android app on the phone.
 - ASSUMPTION (2026-11-01 14:53+0100 by dell26/agent-1): Search results are shown in the usual mail rows but without the swipe archive/delete actions (the list's optimistic swipe logic works on the mailbox, not on a one-page search result); opening a result, then archiving/deleting it in the read view removes it from the results.
 - ASSUMPTION (2026-11-01 14:53+0100 by dell26/agent-1): The 'only the newest results are listed' hint shows for hasMore and also for server.truncated (a folder had more server matches than the limit), since both mean older matches are missing.
 - ASSUMPTION (2026-11-01 14:53+0100 by dell26/agent-1): Android search: one page of up to 50 results (server default limit), no paging; the search box replaces the mailbox picker while open, Back or the X closes it; the scope is the mailbox shown when the search was opened (folder -> folderId+accountId, unified inbox -> all folders of all accounts).
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 248s on a9956f69c; criteria verified 5/5
