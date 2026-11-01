@@ -23,10 +23,11 @@ management yet; record the decisions below with `tasks.py assume`.
       paths, and cached messages keep their ids, so links stay valid. When the server gives the renamed folder a new
       UIDVALIDITY, the next sync resyncs it as it does today
   - verified (2026-11-01 07:11+0100 by dell26/agent-2): cd server && ./gradlew integrationTest --tests '*Folder*GreenMail*' --rerun -> 13/13 passed; ./gradlew check --rerun-tasks -> BUILD SUCCESSFUL; covers rename with subfolders and messages (ids/links kept), name-only body keeps role, INBOX rename refused
-- [ ] `DELETE /api/v1/mail/accounts/{id}/folders/{folderId}` (If-Match) deletes the folder and its subfolders on the
+- [x] `DELETE /api/v1/mail/accounts/{id}/folders/{folderId}` (If-Match) deletes the folder and its subfolders on the
       server and from the cache. Cached messages of deleted folders are kept as detached link targets, as the folder
       sync already does for vanished folders. INBOX and folders with a role (Archive, Trash, Drafts, Sent, Spam) cannot
       be deleted: 409 Problem. INBOX cannot be renamed either
+  - verified (2026-11-01 07:11+0100 by dell26/agent-2): cd server && ./gradlew integrationTest --tests '*Folder*GreenMail*' --rerun -> 13/13 passed; ./gradlew check --rerun-tasks -> BUILD SUCCESSFUL; covers delete with subfolders (messages detached, linked kept), INBOX/role/role-subtree delete -> 409
 - [ ] Errors as Problem Details: empty name or a name containing the delimiter -> 400; name already taken under that
       parent -> 409; unknown account or folder -> 404; stale or missing If-Match -> 412/428; unreachable server or a
       command the server rejects -> 502 with `errorCode` (shared mail connection handler). Each change publishes the
