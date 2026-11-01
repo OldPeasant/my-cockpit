@@ -1,10 +1,11 @@
 ---
 title: Android: global search
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [and-shell,p0-search-core,and-capture-button]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/search,android/app/src/main/java/ch/sonensei/cockpit/ui,android/app/src/test/java/ch/sonensei/cockpit/search,android/app/src/test/java/ch/sonensei/cockpit/ui,android/app/src/main/res/values/strings_search.xml,android/app/src/main/res/values-de/strings_search.xml]
 prio: 2
+lease_until: 2026-11-01T14:24:31Z
 ---
 ## Goal
 Global search (SPEC.md §4.4, web Ctrl+K) is missing on Android. Use the existing `GET /api/v1/search?q=&types=`;
