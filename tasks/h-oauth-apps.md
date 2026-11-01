@@ -1,6 +1,6 @@
 ---
 title: HUMAN: register Google OAuth app
-status: in_progress
+status: done
 owner: Peter Gürtler
 deps: [oauth-connections]
 quality: exempt
@@ -21,3 +21,4 @@ deferred (ADR 0003): no Azure app, no MS_CLIENT_ID.
 
 ## Notes
 - 2026-10-20: Google Cloud project, consent screen and web client registered by the owner; .env entry pending the deploy
+- done by Peter Gürtler: check skipped (--skip-check); criteria verified 1/1
