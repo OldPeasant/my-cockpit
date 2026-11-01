@@ -4,21 +4,22 @@ Date: 2026-11-01
 
 Task: and-capture-button - Android: in-app capture button on every screen
 
-Scope: `git diff 3b902c15d..HEAD -- android` (implementation commit 0d921566c, tests commit 7347b4cbd)
+Scope: re-review of the final code. `git merge-base HEAD origin/main`..HEAD, `android/` only (the and-capture-button commits: implementation, tests, the CR-1/CR-2 fix commit, and the fixer's FAB-clearance commit for the GTD list bottoms). Focus: whether earlier findings CR-1 and CR-2 are resolved, and whether the fixes add new problems.
 
 Requirements:
-- `tasks/and-capture-button.md` acceptance criteria and the two recorded assumptions (reuse of `CaptureActivity` in the app task without an attachment picker; FAB everywhere except Calendar/Mail/Notes/Files, which get an app-bar action; pending count as a badge)
-- `SPEC.md` §2 (quick capture from every screen), §9.3 (offline capture queue)
-- `docs/ARCHITECTURE.md`, `AGENTS.md` project notes (EN/DE strings, lint, feature folders)
-- `reviews/and-capture-button/tests.md`
+- `tasks/and-capture-button.md` acceptance criteria and its four recorded assumptions (reuse of `CaptureActivity` in the app task; FAB everywhere except Calendar/Mail/Notes/Files; FAB clearance via a CompositionLocal for the GTD snackbars; bottom content padding for the GTD lists)
+- `SPEC.md` §2 and §9.3, `AGENTS.md` project notes, `docs/QUALITY.md`
+- previous `reviews/and-capture-button/review.md` (CR-1, CR-2) and `reviews/and-capture-button/fixes.md`
 
 Git range:
 - Branch: main
-- HEAD: 7347b4cbd
-- Base/start: 3b902c15d5d5b7c30adc86f831f569be8be4aa72
-- Commits reviewed: 2
+- HEAD: a3e3ef1590de6c69351820031225ddacd84ad565
+- Base/start: `git merge-base HEAD origin/main` (fixes.md records 21f4c93132a459c2c8e8af31f820803e16126865; origin/main is 9047beca89b6183436af3f2932918d8bd9fa150f)
+- Commits reviewed: the task's commits from e60df51ed (implementation) up to HEAD, including ba954ad05 (CR-1/CR-2 fixes) and 7d76ff00e (list FAB clearance, fixer report)
 
-Summary: 0 P0, 0 P1, 1 P2, 1 P3
+Method note: Bash was not available to the reviewer in this run, so the commit list and diff could not be printed with git. Instead, the reviewer read in full the final versions of every file that fixes.md and the task assumptions name: `ui/FabClearance.kt`, `ui/CockpitShell.kt`, `capture/entry/CaptureButton.kt`, `gtd/today/TodayScreen.kt`, `gtd/lists/ListUi.kt`, `gtd/projects/ProjectsScreen.kt`, the relevant part of `gtd/next/NextScreen.kt`, `ui/FabClearanceTest.kt` and `capture/entry/CaptureButtonTest.kt`. The earlier review had already covered the unchanged rest of the implementation (strings, manifest, `withOwnFab` placement).
+
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## P0 Critical
 
@@ -30,32 +31,36 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | New shell FAB covers the Undo action of the task-completion snackbar on Today, Next, Waiting, Someday and Projects**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/ui/CockpitShell.kt:91`
-    - Category: Correctness
-    - Problem: The capture FAB is now placed in the shell `Scaffold`'s `floatingActionButton` slot on every screen without its own FAB. The GTD list screens show their snackbars from their own `SnackbarHost` aligned `BottomCenter` inside the content (`gtd/today/TodayScreen.kt:111`, `gtd/next/NextScreen.kt:162`, `gtd/lists/ListUi.kt:99`, `gtd/projects/ProjectsScreen.kt:171`), not through the Scaffold's `snackbarHost` slot. The completion snackbar carries an "Undo" action (`gtd/next/TaskListUi.kt:193-196`, `SnackbarDuration.Long`), which Material 3 lays out at the end of the snackbar. The Scaffold FAB (16 dp above the bottom bar, end-aligned, drawn after the content) sits in the same bottom-end area as that action, so on a phone the FAB lies over the Undo button. Before this change these screens had no FAB, so this is a regression caused by the task. The same applies to the last rows of the lists, which have no bottom content padding for the FAB, but the snackbar action is the important case.
-    - Why it matters: Completing a task by mistake is meant to be reversible through Undo. With the FAB on top, a tap meant for Undo opens the capture sheet instead, and the undo window ends.
-    - Suggested fix: Make sure the FAB and the snackbar don't overlap. One option is to move these screens' snackbars into the shell Scaffold's `snackbarHost` slot (Scaffold then places the snackbar above the FAB). Another is to give the in-content `SnackbarHost` and the lists bottom padding equal to the FAB's height plus spacing on screens that show the shell FAB. Add a Compose test that shows the completion snackbar inside the shell and checks that the Undo action is not covered by the FAB bounds.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | A quick double tap opens two stacked capture sheets**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/capture/entry/CaptureButton.kt:86,91`
-    - Category: Correctness
-    - Problem: `onClick` calls `context.startActivity(captureSheetIntent(context))` on every tap. The intent has no flags, and `CaptureActivity` is declared without a launch mode (`AndroidManifest.xml:60-67`). Two taps before the translucent sheet covers the button therefore start two `CaptureActivity` instances in the app task.
-    - Why it matters: After saving in the first sheet, the user sees a second empty sheet instead of the screen they came from. This partly undoes criterion 3 ("Closing the sheet returns to the screen the user was on") in a common case: a hasty double tap.
-    - Suggested fix: Add `Intent.FLAG_ACTIVITY_SINGLE_TOP` to `captureSheetIntent`. This keeps the sheet in the app task, and the existing test that checks for no `FLAG_ACTIVITY_NEW_TASK` still passes. You can also ignore clicks while a launch is pending. Extend the intent test to assert the flag.
+None.
+
+## Status of earlier findings
+
+- **CR-1 (FAB covers the Undo action of the GTD snackbars): resolved.**
+    - `ui/FabClearance.kt` defines `LocalFabClearance`, which defaults to 0 dp. `ShellFabClearance` is 72 dp: the 56 dp FAB plus the Scaffold's 16 dp spacing.
+    - `CockpitShellFrame` (`ui/CockpitShell.kt:127-131`) provides the clearance for each destination through `fabClearance(destination)`. It is 0 dp exactly on `CockpitDestination.withOwnFab`, the same set that decides `showsFab`, so the two can't drift apart.
+    - All four in-content `SnackbarHost`s are padded by it: `TodayScreen.kt:116`, `NextScreen.kt:167`, `ListUi.kt:104` and `ProjectsScreen.kt:173`.
+    - The five GTD lists also get `contentPadding = PaddingValues(bottom = LocalFabClearance.current)`: Today, Next, Waiting/Someday through `LiveTaskListContent`, the Projects list and the project detail. So the trailing row actions ("Follow up", "Activate", "Make next step") can be scrolled out from under the FAB.
+    - The geometry holds. The NavHost content ends at the Scaffold's inner padding (above the bottom bar), and the Scaffold places the FAB 16 dp above that edge, so 72 dp puts the snackbar's bottom at the FAB's top.
+    - `FabClearanceTest` covers three things: the clearance for every destination; a padded vs. unpadded snackbar, where the unpadded one is a control that must overlap; and the real `SomedayContent` inside the real shell frame, checking that neither the Undo action nor the last row's action lies under the FAB. fixes.md records a negative run, which failed as expected with the list padding removed.
+    - `CockpitShell`'s public signature is unchanged. `CockpitShellFrame` is `internal` and only moves the existing body out.
+    - The gtd/ edits are outside the task's `touches`. They are one-line, consistent and covered by recorded assumptions, which the parent and humans can revisit.
+- **CR-2 (a quick double tap stacks two capture sheets): resolved as suggested.**
+    - `captureSheetIntent` (`CaptureButton.kt:96`) adds `Intent.FLAG_ACTIVITY_SINGLE_TOP` and still has no `FLAG_ACTIVITY_NEW_TASK`, so the sheet stays in the app task.
+    - Both intent tests (FAB on the start screen, app-bar action on Notes) assert both flags (`CaptureButtonTest.kt:121-122, 190-191`).
+    - Remaining limitation (accepted, not a finding): SINGLE_TOP only takes effect once the first sheet is on top, so two taps delivered before the first launch is processed could still race. The previous review said debouncing was optional, and fixes.md documents this limitation.
 
 ## Notes (not findings)
 
-- Correctness against the criteria checks out:
-    - placement through `CockpitDestination.withOwnFab`, and the four screens' own FABs confirmed in `CalendarWithEditor.kt`, `MailScreen.kt`, `NotesScreen.kt` and `FilesScreen.kt`;
-    - the sheet stays in the app task: no `FLAG_ACTIVITY_NEW_TASK`, so the manifest's `taskAffinity=""` does not apply;
-    - EN/DE strings and plurals are present;
-    - the badge text is hidden from accessibility services, and the button description carries the count.
-- The `GeneratedComponentManagerHolder` guard in `capturePendingCount()` follows the same pattern as several existing screens, so it is not a finding.
-- Evidence (`tasks.py verify`) is not recorded yet. The test report says criteria 2 ("works in airplane mode") and 3 (the real task/back stack) were run only under Robolectric, with a `RecordingScheduler` instead of a device in airplane mode. The parent should record those parts as what was actually run, or skip them with a reason, rather than claim on-device behavior.
+- `fabClearance()` (`CockpitShell.kt:140-147`) is wrapped oddly over several lines, probably by `ktlintFormat`. It is purely cosmetic.
+- Other shell-FAB screens without padded lists (Inbox, Habits, New, Review, Contacts, More) have no row controls that only sit at the end, from reading fixes.md and the recorded assumption. The previous review did not raise them, and they stay out of scope.
+- Evidence: fixes.md reports `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passed (2263 tests). It also reports that `.taskcheck` failed only on load-induced web vitest timeouts in files this task does not touch. The parent must re-run `.taskcheck` before `done`. As noted in the previous review:
+    - Criterion 2's "works in airplane mode" and criterion 3's real back-stack behavior were exercised only under Robolectric. The parent should record them as such, or skip the on-device part with a reason.
+    - The reviewer could not run tests in this session.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
