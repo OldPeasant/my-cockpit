@@ -8,12 +8,14 @@ import ch.sonensei.cockpit.gtd.data.ProjectRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onStart
@@ -98,19 +100,25 @@ class LogbookViewModel internal constructor(
     private var pagesLoaded = 0
     private var moreJob: Job? = null
 
+    /**
+     * Reloads on task changes and on request while the screen is shown: it runs only while [uiState] has subscribers
+     * (as the other live lists), and a new subscription reloads at once (as many pages as were shown), because
+     * [LogbookRepository.changes] starts with an emission.
+     */
+    private val reloading: Flow<Unit> =
+        flow {
+            emit(Unit)
+            merge(repository.changes(), reloads).collectLatest { reload() }
+        }
+
     val uiState: StateFlow<LogbookUiState> =
         combine(
             state,
             projects.observe().map { cached -> cached.data.associate { it.id to it.title } }.onStart { emit(emptyMap()) },
             contexts.observe().map { cached -> cached.data.associateBy { it.id } }.onStart { emit(emptyMap()) },
-        ) { current, projectTitles, contextsById -> current.copy(projects = projectTitles, contexts = contextsById) }
+            reloading,
+        ) { current, projectTitles, contextsById, _ -> current.copy(projects = projectTitles, contexts = contextsById) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), state.value)
-
-    init {
-        viewModelScope.launch {
-            merge(repository.changes(), reloads).collectLatest { reload() }
-        }
-    }
 
     fun retry() {
         reloads.tryEmit(Unit)

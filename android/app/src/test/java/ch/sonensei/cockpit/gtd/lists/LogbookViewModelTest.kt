@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -518,5 +519,55 @@ class LogbookViewModelTest {
                     ?.title,
             )
         }
+    }
+
+    @Test
+    fun `nothing is loaded before the screen subscribes`() =
+        runTest(UnconfinedTestDispatcher()) {
+            coEvery { repository.page(null) } returns page(taxes)
+            val vm = LogbookViewModel(repository, projects, contexts, clock)
+            changes.emit(Unit)
+            coVerify(exactly = 0) { repository.page(any()) }
+            backgroundScope.launch { vm.uiState.collect {} }
+            assertEquals(listOf(taxes), vm.uiState.value.tasks)
+            coVerify(exactly = 1) { repository.page(null) }
+        }
+
+    @Test
+    fun `changes are ignored once the screen is gone past the stop timeout, and it reloads when shown again`() =
+        runTest(UnconfinedTestDispatcher()) {
+            pages(null, { page(taxes, next = "c2") }, { page(late, taxes, next = "c2") }, { page(late, taxes, next = "c2") })
+            pages("c2", { page(call, next = "c3") }, { page(call, next = "c3") }, { page(call, next = "c3") })
+            val vm = LogbookViewModel(repository, projects, contexts, clock)
+            val shown = backgroundScope.launch { vm.uiState.collect {} }
+            vm.loadMore()
+            assertEquals(listOf(taxes, call), vm.uiState.value.tasks)
+            shown.cancel()
+
+            // Within the stop timeout the screen still follows changes (e.g. a configuration change).
+            changes.emit(Unit)
+            coVerify(exactly = 2) { repository.page(null) }
+            coVerify(exactly = 2) { repository.page("c2") }
+
+            advanceTimeBy(STOP_TIMEOUT_MS + 1)
+            changes.emit(Unit)
+            vm.retry()
+            coVerify(exactly = 2) { repository.page(null) }
+            coVerify(exactly = 2) { repository.page("c2") }
+
+            // Shown again: one reload of as many pages as were shown, keeping what was loaded meanwhile.
+            assertEquals(listOf(late, taxes, call), vm.uiState.value.tasks)
+            backgroundScope.launch { vm.uiState.collect {} }
+            coVerify(exactly = 3) { repository.page(null) }
+            coVerify(exactly = 3) { repository.page("c2") }
+            val state = vm.uiState.value
+            assertEquals(listOf(late, taxes, call), state.tasks)
+            assertTrue(state.loaded)
+            assertFalse(state.loading)
+            assertTrue(state.canLoadMore)
+        }
+
+    private companion object {
+        const val STOP_TIMEOUT_MS = 5_000L
     }
 }
