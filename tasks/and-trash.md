@@ -22,7 +22,8 @@ The Trash (SPEC.md §4.x: deleted items, purged after 30 days) exists on the web
   - verified (2026-11-01 18:10+0100 by felix/agent-1): TrashScreenTest 'loading shows the progress bar', 'an empty Trash says so', 'a failed load says why and retries' (same LinearProgress/empty/error+retry pattern as Bookmarks), TrashViewModelTest load/error tests -> pass
 - [x] All new UI strings exist in English and German (`res/values`, `res/values-de`)
   - verified (2026-11-01 18:10+0100 by felix/agent-1): diff of string names in res/values/strings_trash.xml vs res/values-de/strings_trash.xml -> identical (32 entries); TrashScreenTest 'the rows are German on a German phone' -> pass; lintDebug (MissingTranslation) clean
-- [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+- [x] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+  - verified (2026-11-01 18:10+0100 by felix/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL (test-writer full run: 2549 tests, 0 failed); trash tests 69 pass (ViewModel 17, Screen 19, Route 7, Repository 21, Models 5); trash package coverage 98.1% lines / 87.4% branches (JaCoCo)
 
 ## Notes
 Requested by the owner (2026-11-01) after trying the Android app on the phone.
