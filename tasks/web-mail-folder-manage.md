@@ -15,8 +15,9 @@ folders through the API from mail-folder-manage-api. Requested by the owner (202
 - [x] Each account in the folder tree has a "New folder" action, and each folder a menu with "New subfolder", "Rename"
       and "Delete". Delete and Rename are not shown for INBOX, and Delete is not shown for folders with a role
   - verified (2026-11-01 08:48+0100 by dell26/agent-1): cd web && npx ng test --watch=false --include='src/app/features/mail/list/*.spec.ts' at fe5785342 -> 307 passed; mail-folder-tree.spec 'actions' tests: per-account New folder button, folder menu New subfolder/Rename/Delete, INBOX only New subfolder (also lowercase inbox), no Delete for role folder or folder holding one
-- [ ] New folder and Rename open a small dialog with the name; errors from the server (name taken, invalid name,
+- [x] New folder and Rename open a small dialog with the name; errors from the server (name taken, invalid name,
       server unreachable) are shown in the dialog, which stays open. After success the tree shows the change at once
+  - verified (2026-11-01 08:48+0100 by dell26/agent-1): same run -> passed: mail-folder-dialogs.spec name dialog shows 409/400/0/502 errors and stays open, retry closes; mail-folder-tree.spec create/subfolder/rename update the tree at once (rename moves subfolders), store spec added/renamed/removed
 - [ ] Delete asks for confirmation, saying that the folder's messages and subfolders are deleted on the mail server
       too. Deleting the folder that is currently shown navigates to the unified Inbox
 - [ ] Usable with the keyboard (menus and dialogs focusable, Escape closes), labels localized like the rest of the
