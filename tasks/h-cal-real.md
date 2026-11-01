@@ -1,7 +1,7 @@
 ---
 title: HUMAN: connect real calendars
-status: todo
-owner: 
+status: in_progress
+owner: Peter Gürtler
 hold: given back 3 times; last: Auto-claimed by agent-2 by mistake (only ready task): h-* tasks are human-only; owner must verify with a real Google calendar. No work done. Suggest tasks.py claim skip h-* t
 releases: 3
 extended: 
