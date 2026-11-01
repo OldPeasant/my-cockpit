@@ -13,7 +13,8 @@ quick-settings tile, app shortcut, share). SPEC.md §2 "Quick capture must be re
 in-app entry that opens the same capture sheet as `capture/entry/CaptureActivity` (offline queue, SPEC.md §9.3).
 
 ## Acceptance criteria
-- [ ] Every top-level screen of the app shell shows a capture button ("+" FAB or app-bar action, consistent across screens); screens that already have their own FAB (Notes, Files, Mail, Calendar) keep it and get the capture action in the app bar instead, so there are never two FABs
+- [x] Every top-level screen of the app shell shows a capture button ("+" FAB or app-bar action, consistent across screens); screens that already have their own FAB (Notes, Files, Mail, Calendar) keep it and get the capture action in the app bar instead, so there are never two FABs
+  - verified (2026-11-01 15:02+0100 by dell26/agent-2): CaptureButtonTest 'every screen has exactly one capture button and screens with their own FAB get it in the app bar' + FabClearanceTest per-destination tests (Robolectric Compose UI); cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> 2268 tests pass; sh scripts/check.sh -> all checks passed
 - [ ] The button opens the capture sheet (text, notes, attachment as in the widget's sheet); saving writes to the offline capture queue and works in airplane mode; the pending count updates
 - [ ] Closing the sheet returns to the screen the user was on
 - [ ] All new UI strings exist in English and German (`res/values`, `res/values-de`)
