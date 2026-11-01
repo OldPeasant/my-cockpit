@@ -45,7 +45,6 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.os.ConfigurationCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -58,7 +57,6 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
-import java.util.Locale
 
 /**
  * The Trash screen. Its view model comes from Hilt, so outside a Hilt activity (the shell's navigation tests, previews)
@@ -143,7 +141,7 @@ fun TrashContent(
 ) {
     val snackbarHost = remember { SnackbarHostState() }
     TrashSnackbarEffect(state.snackbar, snackbarHost, callbacks.dismiss)
-    val locale = ConfigurationCompat.getLocales(LocalConfiguration.current)[0] ?: Locale.getDefault()
+    val locale = LocalConfiguration.current.locales[0]
     val dates = remember(locale) { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale) }
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
