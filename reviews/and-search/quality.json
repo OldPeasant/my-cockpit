@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "task": "and-search",
+  "reviewed_revision": "6103f0beabac081ccda237d7aa9f48c74901ed08",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-search/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-search/review.md"},
+    "fixer": {"status": "not_required", "reason": "no defects found; the only finding (CR-1, P3) needed an assumption record, not a code change"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "routing choice (notes/emails/contacts in-app, other types via web deep link) recorded with tasks.py assume and-search"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.search.*' --tests 'ch.sonensei.cockpit.ui.CockpitShellSearchTest'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
