@@ -18,7 +18,8 @@ for IMAP SEARCH, `server.failures`, `hasMore`); server unchanged.
   - verified (2026-11-01 15:14+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.list.MailSearch*' (rev 9535590b) -> 48 pass: server=true sent (MailSearchRepositoryTest), Search on server button repeats with server=true keeping cached results (ViewModel + Screen tests), failed account named by label in non-blocking note with results still shown, hasMore hint (MailSearchScreenTest, MailSearchRouteInAppTest)
 - [x] Loading, empty and error states follow the mail list's existing patterns
   - verified (2026-11-01 15:14+0100 by dell26/agent-1): MailSearchScreenTest/MailSearchScreenEdgeCasesTest (Robolectric, rev 9535590b) -> pass: loading = LinearProgressIndicator like the list, empty text 'No mail found.', OFFLINE/FAILED via the list's ListMessage + Retry (retrySearch tested in MailSearchViewModelTest)
-- [ ] All new UI strings exist in English and German (`res/values`, `res/values-de`)
+- [x] All new UI strings exist in English and German (`res/values`, `res/values-de`)
+  - verified (2026-11-01 15:14+0100 by dell26/agent-1): 10 mail_search_* keys in android/app/src/main/res/values/strings_mail.xml and values-de/strings_mail.xml; ./gradlew lintDebug (MissingTranslation is an error) -> pass; MailSearchScreenTest 'the search speaks German' (@Config qualifiers=de) -> pass
 - [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
 
 ## Notes
