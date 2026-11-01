@@ -649,4 +649,154 @@ class BookmarksViewModelTest {
             advanceUntilIdle()
             coVerify(exactly = 0) { repo.list(any(), any()) }
         }
+
+    @Test
+    fun `a save conflict whose reload is offline reopens the sent version, one whose bookmark is gone does not reopen`() =
+        runTest(dispatcher) {
+            val draft = BookmarkDraft("Mine", "kotlin", "Notes for the fictitious article")
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1), bookmark(2)))
+            coEvery { repo.save(any(), draft) } returns BookmarksResult.Failed(409)
+            coEvery { repo.get(id(1)) } returns BookmarksResult.Offline
+            coEvery { repo.get(id(2)) } returns BookmarksResult.Failed(404)
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.edit(bookmark(1))
+            vm.save(draft)
+            advanceUntilIdle()
+            assertEquals(BookmarkFailure.CONFLICT, failure(vm))
+            assertEquals(bookmark(1), vm.uiState.value.editing)
+            assertEquals(draft, vm.uiState.value.draft)
+
+            vm.cancelEdit()
+            assertNull(vm.uiState.value.editing)
+            assertNull(vm.uiState.value.draft)
+
+            vm.edit(bookmark(2))
+            vm.save(draft)
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.editing)
+            assertNull(vm.uiState.value.draft)
+            assertEquals(
+                listOf(id(1)),
+                vm.uiState.value.bookmarks
+                    .map { it.id },
+            )
+        }
+
+    @Test
+    fun `a failed save does not take over the editor of another bookmark opened meanwhile`() =
+        runTest(dispatcher) {
+            val answer = CompletableDeferred<BookmarksResult<Bookmark>>()
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1), bookmark(2)))
+            coEvery { repo.save(bookmark(1), any()) } coAnswers { answer.await() }
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.edit(bookmark(1))
+            vm.save(BookmarkDraft("Mine", "", ""))
+            runCurrent()
+            vm.edit(bookmark(2))
+            answer.complete(BookmarksResult.Offline)
+            advanceUntilIdle()
+
+            assertEquals(BookmarkFailure.OFFLINE, failure(vm))
+            assertEquals(bookmark(2), vm.uiState.value.editing)
+            assertNull(vm.uiState.value.draft)
+        }
+
+    @Test
+    fun `marking a bookmark read during a pulled refresh restarts the load, still marked as pulled`() =
+        runTest(dispatcher) {
+            val stale = CompletableDeferred<BookmarksResult<List<Bookmark>>>()
+            val fresh = CompletableDeferred<BookmarksResult<List<Bookmark>>>()
+            var loads = 0
+            coEvery { repo.list(any(), any()) } coAnswers {
+                when (++loads) {
+                    1 -> BookmarksResult.Ok(listOf(bookmark(1), bookmark(2)))
+                    2 -> stale.await()
+                    else -> fresh.await()
+                }
+            }
+            val read = bookmark(1, readAt = Instant.EPOCH, version = 2)
+            coEvery { repo.setRead(bookmark(1), read = true) } returns BookmarksResult.Ok(read)
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.refresh(pulled = true)
+            runCurrent()
+            vm.toggleRead(bookmark(1))
+            runCurrent()
+            // The read bookmark left the queue; the pulled refresh goes on with a new load.
+            assertEquals(
+                listOf(id(2)),
+                vm.uiState.value.bookmarks
+                    .map { it.id },
+            )
+            assertTrue(vm.uiState.value.loading)
+            assertTrue(vm.uiState.value.refreshing)
+            coVerify(exactly = 3) { repo.list(any(), any()) }
+
+            stale.complete(BookmarksResult.Ok(listOf(bookmark(1), bookmark(2))))
+            advanceUntilIdle()
+            assertEquals(
+                listOf(id(2)),
+                vm.uiState.value.bookmarks
+                    .map { it.id },
+            )
+            assertTrue(vm.uiState.value.loading)
+
+            fresh.complete(BookmarksResult.Ok(listOf(bookmark(2), bookmark(3))))
+            advanceUntilIdle()
+            assertEquals(
+                listOf(id(2), id(3)),
+                vm.uiState.value.bookmarks
+                    .map { it.id },
+            )
+            assertFalse(vm.uiState.value.loading)
+            assertFalse(vm.uiState.value.refreshing)
+        }
+
+    @Test
+    fun `a change without a running load does not start one`() =
+        runTest(dispatcher) {
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1), bookmark(2)))
+            coEvery { repo.delete(bookmark(1)) } returns BookmarksResult.Ok(Unit)
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.delete(bookmark(1))
+            advanceUntilIdle()
+            assertFalse(vm.uiState.value.loading)
+            coVerify(exactly = 1) { repo.list(any(), any()) }
+        }
+
+    @Test
+    fun `trashing the same bookmark twice gives two snackbars`() =
+        runTest(dispatcher) {
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1)))
+            coEvery { repo.delete(any()) } returns BookmarksResult.Ok(Unit)
+            coEvery { repo.restore(id(1)) } returns BookmarksResult.Ok(Unit)
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.delete(bookmark(1))
+            advanceUntilIdle()
+            val first = vm.uiState.value.snackbar as BookmarksSnackbar.Trashed
+            vm.undo(first)
+            advanceUntilIdle()
+            vm.delete(bookmark(1))
+            advanceUntilIdle()
+            val second = vm.uiState.value.snackbar as BookmarksSnackbar.Trashed
+            assertEquals(first.bookmark, second.bookmark)
+            assertNotEquals(first, second)
+            // The end of the first (undone) snackbar does not clear the second.
+            vm.dismiss(first)
+            assertEquals(second, vm.uiState.value.snackbar)
+        }
 }
