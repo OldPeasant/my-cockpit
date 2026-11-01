@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-bookmarks-share,and-shell]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/bookmarks,android/app/src/test/java/ch/sonensei/cockpit/bookmarks,android/app/src/main/res/values/strings_bookmarks.xml,android/app/src/main/res/values-de/strings_bookmarks.xml]
 prio: 2
-lease_until: 2026-11-01T13:43:27Z
+lease_until: 2026-11-01T13:48:30Z
 ---
 ## Goal
 The Android Bookmarks tab is still a placeholder ("This part of your cockpit is not built yet"); only the share
