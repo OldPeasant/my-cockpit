@@ -24,8 +24,9 @@ client `web/src/app/api/generated/fn/mail-search/search-mail.ts`); this task onl
       warning; the cached results are still shown. `hasMore` shows a hint that only the newest results
       are listed
   - verified (2026-11-01 10:01+0100 by dell26/agent-1): same vitest run: 'Also search older mail on the server' checkbox repeats with server=true, keeps cached rows with 'Searching on the server…', failed accounts named by address in a role=status warning with results shown, hasMore hint shown -> pass
-- [ ] Loading, empty ("No messages found") and error states use the mail list's existing patterns; the
+- [x] Loading, empty ("No messages found") and error states use the mail list's existing patterns; the
       list's keyboard shortcuts don't fire while typing in the field, and `/` focuses it
+  - verified (2026-11-01 10:01+0100 by dell26/agent-1): same vitest run: loading note, load-error with Try again re-running the search, 'No messages found'; j/k/x/e/s/u/v/o/#// shortcuts don't fire while typing in the field, '/' focuses it (not with modifiers/in other inputs/dialogs) -> pass
 - [ ] New UI strings are in `web/src/locale` (English + German)
 - [ ] Unit tests cover scoped search, server search incl. failures, clearing, and the empty/error states;
       `cd web && npm run check` passes
