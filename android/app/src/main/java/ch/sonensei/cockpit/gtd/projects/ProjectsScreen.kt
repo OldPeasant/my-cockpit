@@ -67,6 +67,7 @@ import ch.sonensei.cockpit.gtd.lists.LiveTaskRow
 import ch.sonensei.cockpit.gtd.lists.LoadError
 import ch.sonensei.cockpit.gtd.lists.StaleBanner
 import ch.sonensei.cockpit.gtd.next.OfflineBanner
+import ch.sonensei.cockpit.ui.LocalFabClearance
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
 import java.time.format.DateTimeFormatter
@@ -168,7 +169,7 @@ fun ProjectsContent(
                 ProjectList(state, callbacks)
             }
         }
-        SnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter))
+        SnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter).padding(bottom = LocalFabClearance.current))
     }
     state.detail?.prompt?.let { NextStepDialog(state, it, callbacks) }
 }

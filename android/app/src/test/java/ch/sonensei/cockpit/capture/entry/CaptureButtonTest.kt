@@ -119,6 +119,7 @@ class CaptureButtonTest {
         val started = shadowOf(composeRule.activity).nextStartedActivity
         assertEquals(CaptureActivity::class.java.name, started.component?.className)
         assertEquals(0, started.flags and Intent.FLAG_ACTIVITY_NEW_TASK)
+        assertEquals(Intent.FLAG_ACTIVITY_SINGLE_TOP, started.flags and Intent.FLAG_ACTIVITY_SINGLE_TOP)
     }
 
     @Test
@@ -187,6 +188,7 @@ class CaptureButtonTest {
         val started = shadowOf(composeRule.activity).nextStartedActivity
         assertEquals(CaptureActivity::class.java.name, started.component?.className)
         assertEquals(0, started.flags and Intent.FLAG_ACTIVITY_NEW_TASK)
+        assertEquals(Intent.FLAG_ACTIVITY_SINGLE_TOP, started.flags and Intent.FLAG_ACTIVITY_SINGLE_TOP)
     }
 
     private companion object {

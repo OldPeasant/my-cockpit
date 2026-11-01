@@ -89,8 +89,11 @@ fun CaptureButton(
     )
 }
 
-/** The intent behind the in-app button: in the app's own task, so closing the sheet returns to the app. */
-fun captureSheetIntent(context: Context): Intent = Intent(context, CaptureActivity::class.java)
+/**
+ * The intent behind the in-app button: in the app's own task, so closing the sheet returns to the app. Single top, so
+ * a quick double tap opens one sheet, not two stacked ones.
+ */
+fun captureSheetIntent(context: Context): Intent = Intent(context, CaptureActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
 
 /** The queue's pending count from Hilt; 0 outside a Hilt activity (the shell's navigation tests, previews). */
 @Composable

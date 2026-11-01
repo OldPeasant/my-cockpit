@@ -40,6 +40,7 @@ import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.gtd.data.Creativity
 import ch.sonensei.cockpit.gtd.data.Energy
 import ch.sonensei.cockpit.gtd.data.GtdTask
+import ch.sonensei.cockpit.ui.LocalFabClearance
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
 import java.util.UUID
@@ -159,7 +160,7 @@ fun NextContent(
                 !state.loading -> Empty(state, callbacks)
             }
         }
-        SnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter))
+        SnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter).padding(bottom = LocalFabClearance.current))
     }
 }
 

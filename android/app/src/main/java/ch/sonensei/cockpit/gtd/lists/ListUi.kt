@@ -36,6 +36,7 @@ import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.next.CompletionSnackbar
 import ch.sonensei.cockpit.gtd.next.CompletionSnackbarEffect
 import ch.sonensei.cockpit.gtd.next.TaskListTags
+import ch.sonensei.cockpit.ui.LocalFabClearance
 import java.util.UUID
 
 /** Test tags of the Waiting For, Someday and project detail lists. */
@@ -96,7 +97,7 @@ fun LiveTaskListContent(
                 else -> Centered(empty, LiveListTags.EMPTY)
             }
         }
-        SnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter))
+        SnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter).padding(bottom = LocalFabClearance.current))
     }
 }
 

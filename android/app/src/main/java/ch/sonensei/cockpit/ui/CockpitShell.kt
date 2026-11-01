@@ -13,11 +13,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -55,15 +58,24 @@ fun screenTag(destination: CockpitDestination): String = "screen:${destination.r
  * App frame: top bar with the current title, bottom bar with the main destinations, and the navigation host, with
  * [prompts] (e.g. the reminder permission prompt) above the content. Opens the item of a tapped reminder notification.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CockpitShell(
     navController: NavHostController = rememberNavController(),
     prompts: @Composable () -> Unit = {},
+) = CockpitShellFrame(navController, prompts) { destination, onOpen, modifier -> DestinationContent(destination, onOpen, modifier) }
+
+/** The shell with replaceable screen content, so tests can place their own content inside the real frame. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun CockpitShellFrame(
+    navController: NavHostController,
+    prompts: @Composable () -> Unit,
+    destinationContent: @Composable (CockpitDestination, (CockpitDestination) -> Unit, Modifier) -> Unit,
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val current = CockpitDestination.fromRoute(backStackEntry?.destination?.route)
     val selected = CockpitDestination.bottomBarItemFor(current)
+    val showsFab = current != null && current !in CockpitDestination.withOwnFab
 
     LaunchedEffect(navController) {
         ReminderOpenRequests.requests.collect { request ->
@@ -89,7 +101,7 @@ fun CockpitShell(
         },
         // Quick capture on every screen (SPEC.md §2), and never a second FAB next to a screen's own.
         floatingActionButton = {
-            if (current != null && current !in CockpitDestination.withOwnFab) CaptureButton(CaptureButtonPlacement.Fab)
+            if (showsFab) CaptureButton(CaptureButtonPlacement.Fab)
         },
         bottomBar = {
             NavigationBar {
@@ -113,17 +125,26 @@ fun CockpitShell(
             ) {
                 CockpitDestination.entries.forEach { destination ->
                     composable(destination.route) {
-                        DestinationContent(
-                            destination = destination,
-                            onOpen = { navController.navigate(it.route) },
-                            modifier = Modifier.testTag(screenTag(destination)),
-                        )
+                        // Screens with their own snackbars keep them above the shell's FAB (LocalFabClearance).
+                        CompositionLocalProvider(LocalFabClearance provides fabClearance(destination)) {
+                            destinationContent(destination, { navController.navigate(it.route) }, Modifier.testTag(screenTag(destination)))
+                        }
                     }
                 }
             }
         }
     }
 }
+
+/** The space the shell's capture FAB takes at the bottom of [destination]'s content: none where the screen has its own FAB. */
+internal fun fabClearance(destination: CockpitDestination): Dp =
+    if (destination in
+        CockpitDestination.withOwnFab
+    ) {
+        0.dp
+    } else {
+        ShellFabClearance
+    }
 
 /** Opens [destination] from outside the shell (a notification): as a tab, or a More screen on top of the current one. */
 private fun NavHostController.open(destination: CockpitDestination) {

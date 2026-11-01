@@ -37,6 +37,7 @@ import ch.sonensei.cockpit.gtd.next.LoadFailedBanner
 import ch.sonensei.cockpit.gtd.next.OfflineBanner
 import ch.sonensei.cockpit.gtd.next.TaskListTags
 import ch.sonensei.cockpit.gtd.next.TaskRow
+import ch.sonensei.cockpit.ui.LocalFabClearance
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
 
@@ -108,7 +109,7 @@ fun TodayContent(
                 else -> Centered(stringResource(R.string.today_empty), TodayTags.EMPTY)
             }
         }
-        SnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter))
+        SnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter).padding(bottom = LocalFabClearance.current))
     }
 }
 
