@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [web-mail-read-delete]
 touches: [web/src/app/features/mail/read]
 prio: 2
-lease_until: 2026-11-01T08:14:52Z
+lease_until: 2026-11-01T08:19:55Z
 ---
 ## Goal
 The mail read view (`/mail/messages/:id`) gets Archive and Spam buttons next to the Delete button from
