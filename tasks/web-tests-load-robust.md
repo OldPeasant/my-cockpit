@@ -22,9 +22,10 @@ and by the owner while closing h-prod-p2. Make the check reliable under load wit
       unit-test builder. Demonstrated with a temporary spec that times out in its first test: the file reports
       exactly that one failure, the next tests pass (then remove the demo spec)
   - verified (2026-11-01 22:15+0100 by dell26/agent-1): temp spec web/src/app/zz-timeout-demo.spec.ts (first test sets fake timers, leaves an HttpTestingController request open and never resolves, 300 ms timeout; afterEach http.verify(); then 4 TestBed tests), ng test --watch=false --include it: old config (angular.json from f7c452d10, no setupFiles) -> 5 failed of 5 ('Cannot configure the test module...'); new config (src/test-setup.ts resets TestBed + real timers in a global beforeEach) -> 1 failed (timeout + verify error), 4 passed. Demo spec removed
-- [ ] Timeouts suit a shared host: the unit-test runner uses a higher default test and hook timeout (e.g. 15-20 s)
+- [x] Timeouts suit a shared host: the unit-test runner uses a higher default test and hook timeout (e.g. 15-20 s)
       and/or a bounded number of workers, set in the builder/Vitest config, not per test. Record the chosen values
       and the reason with `tasks.py assume`
+  - verified (2026-11-01 22:15+0100 by dell26/agent-1): web/vitest.config.mts via angular.json test.options.runnerConfig: testTimeout 20000, hookTimeout 20000, workers left default; values and reason recorded with tasks.py assume; ARCHITECTURE.md documents them
 - [ ] The slowest tests are made cheaper instead of only given more time: at least the real 50 MB SHA-256 test in
       `web/src/app/features/files/upload/upload.service.spec.ts` (e.g. smaller input, or the large case moved out of
       `test:ci`). The 10 slowest test files of a full run are listed in the evidence before/after
