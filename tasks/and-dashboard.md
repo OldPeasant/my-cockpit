@@ -20,7 +20,8 @@ as the Android start screen (2026-11-01). Reuse the endpoints the web dashboard 
   - verified (2026-11-01 22:55+0100 by dell26/agent-1): same full android run (2727 pass): DashboardLayoutTest (4: order, :hidden, unknown/duplicate entries, default §8.7 order) and DashboardViewModelTest/DashboardInAppTest (configured order shown, read-only GET settings dashboardWidgets) pass
 - [x] The app opens on the Dashboard after login and on launch; the bottom navigation includes it
   - verified (2026-11-01 22:55+0100 by dell26/agent-1): same full android run (2727 pass): DashboardInAppTest 'with stored tokens the app opens on the real dashboard, selected in the bottom bar' + login/shell tests (start destination = Dashboard, first bottom-bar item) pass
-- [ ] One failing widget shows an error in its card without breaking the others; pull to refresh reloads all
+- [x] One failing widget shows an error in its card without breaking the others; pull to refresh reloads all
+  - verified (2026-11-01 22:55+0100 by dell26/agent-1): same full android run (2727 pass): DashboardViewModelTest (failing widget isolated, refresh reloads all, newer refresh drops older answer), DashboardScreenTest (error line in card, others render), DashboardInAppTest (pull to refresh reloads layout + widgets) pass
 - [ ] All new UI strings exist in English and German (`res/values`, `res/values-de`)
 - [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
 
