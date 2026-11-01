@@ -24,3 +24,4 @@ why. Make the server address field forgiving (`core/network/ServerUrl.kt` `Serve
 Requested by the owner (2026-11-01) after trying the Android app on the phone. Out of scope: the web app.
 - ASSUMPTION (2026-11-01 15:33+0100 by dell26/agent-1): Besides Unicode whitespace, zero-width characters (U+200B-200D, U+2060, U+FEFF) are also removed from the server address: they are invisible and never valid in a URL.
 - ASSUMPTION (2026-11-01 15:33+0100 by dell26/agent-1): The address-quoting error is used for both server address errors (malformed and https-required); if nothing is left after removing spaces, the previous general message is shown instead of empty quotes.
+- ASSUMPTION (2026-11-01 15:33+0100 by dell26/agent-1): Any scheme-like prefix (letters followed by ://) counts as a scheme, so ftp://x stays malformed instead of becoming https://ftp://x; host:port without :// gets https://.
