@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [web-files-upload-preview]
 touches: [web/angular.json,web/vitest.config.ts,web/src/test-setup.ts,web/src/app/features/files/upload/upload.service.spec.ts,docs/ARCHITECTURE.md]
 prio: 1
-lease_until: 2026-11-01T21:38:33Z
+lease_until: 2026-11-01T21:43:34Z
 ---
 ## Goal
 `cd web && npm run test:ci` (part of `.taskcheck`) fails when the host is busy (other agents' Gradle builds, load
