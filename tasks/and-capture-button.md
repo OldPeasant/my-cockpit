@@ -21,7 +21,8 @@ in-app entry that opens the same capture sheet as `capture/entry/CaptureActivity
   - verified (2026-11-01 15:02+0100 by dell26/agent-2): CaptureButtonFlowTest save and cancel from FAB/app-bar: sheet finishes, shell stays on Today/Notes, intent has no NEW_TASK (Robolectric, no real-device back stack); ./gradlew testDebugUnitTest -> pass
 - [x] All new UI strings exist in English and German (`res/values`, `res/values-de`)
   - verified (2026-11-01 15:02+0100 by dell26/agent-2): res/values + res/values-de strings_capture_entry.xml; CaptureButtonTest 'the button is described in German'; ./gradlew lintDebug (MissingTranslation) -> pass
-- [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+- [x] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+  - verified (2026-11-01 15:02+0100 by dell26/agent-2): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL, 2268 tests 0 failures; changed-line coverage 100/101 (reviews/and-capture-button/tests.md); sh scripts/check.sh -> all checks passed
 
 ## Notes
 Requested by the owner (2026-11-01) after trying the Android app on the phone. Out of scope: changes to widget, tile, shortcut or share target behavior.
