@@ -37,3 +37,4 @@ and by the owner while closing h-prod-p2. Make the check reliable under load wit
 Requested by the owner (2026-11-01). Only test infrastructure and the named slow spec; no production code. If other
 specs are among the slowest, fix them only when the change is local to the spec and they are not in another
 in-progress task's `touches`.
+- ASSUMPTION (2026-11-01 22:13+0100 by dell26/agent-1): Web unit tests: testTimeout and hookTimeout 20 s in web/vitest.config.mts (builder runnerConfig); worker count left at Vitest's default. Why: under load 4x cores, healthy component tests take up to ~10x their idle time (0.5 s -> several s), 20 s gives headroom while a hung test still fails; bounding workers would slow the idle run (>20 % budget) and does not help when the load comes from other processes
