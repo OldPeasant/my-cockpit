@@ -14,10 +14,11 @@ cannot filter by folder. The server API exists (`GET /api/v1/mail/search`, task 
 client `web/src/app/api/generated/fn/mail-search/search-mail.ts`); this task only adds the web UI.
 
 ## Acceptance criteria
-- [ ] The mail list toolbar has a search field. Submitting a query (Enter) calls `GET /api/v1/mail/search`
+- [x] The mail list toolbar has a search field. Submitting a query (Enter) calls `GET /api/v1/mail/search`
       scoped to the current folder (`folderId`), or to all folders when the unified Inbox is shown, and the
       list shows the results newest first in the usual message rows; opening a result opens the read view.
       Clearing the field (or Escape) returns to the normal folder list
+  - verified (2026-11-01 10:00+0100 by dell26/agent-1): mail-list-page.spec.ts + mail-list-store.spec.ts search specs (cd web && npx ng test --watch=false --include='src/app/features/mail/**/*.spec.ts' -> 604 passed): Enter searches GET /mail/search with folderId of the folder / none for unified Inbox, results flat newest first, row opens /mail/messages/:id; emptying field, blank submit and Escape reload the folder list
 - [ ] A "Search on server" option (checkbox or button, e.g. "Also search older mail on the server") repeats
       the search with `server=true`. Accounts listed in `server.failures` are named in a non-blocking
       warning; the cached results are still shown. `hasMore` shows a hint that only the newest results
