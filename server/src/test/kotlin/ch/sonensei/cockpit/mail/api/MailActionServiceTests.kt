@@ -538,6 +538,27 @@ class MailActionServiceTests {
 	}
 
 	@Test
+	fun `a move with a message gone from its folder moves the present one by its COPYUID and fails the gone one with a resync`() {
+		val gone = cached(inbox, 7)
+		val present = cached(inbox, 8)
+		val onlyPresent = mockk<Message>()
+		every { remoteInbox.getMessagesByUID(longArrayOf(7, 8)) } returns arrayOf(null, onlyPresent)
+		every { remoteInbox.moveUIDMessages(arrayOf<Message>(onlyPresent), remoteProjects) } returns arrayOf(AppendUID(UIDVALIDITY, 41))
+
+		val outcomes = service.apply(listOf(gone.id, present.id), MailAction.MOVE, projects.id)
+
+		outcomes.map { it.id to it.errorCode } shouldBe listOf(gone.id to "NOT_FOUND", present.id to null)
+		present.folderId shouldBe projects.id
+		present.uid shouldBe 41
+		gone.folderId shouldBe inbox.id
+		gone.uid shouldBe 7
+		verify(exactly = 0) { messages.delete(any()) }
+		verify(exactly = 1) { resync.request(inbox.id) }
+		verify(exactly = 0) { resync.request(projects.id) }
+		verify { changes.publish(MailFolderService.FOLDER_EVENT, projects.id, ChangeOp.UPDATED) }
+	}
+
+	@Test
 	fun `an action that finds all its messages starts no resync`() {
 		val message = cached(inbox, 7)
 		onServer(remoteInbox, 7)
