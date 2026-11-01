@@ -1178,6 +1178,58 @@ describe('MailReadPage', () => {
       expect(mail.applies).toEqual([]);
     });
 
+    it('are not offered when the message could not be loaded', async () => {
+      await create(new ApiError(404, 'Not found'));
+      expect(button('Archive')).toBeUndefined();
+      expect(button('Spam')).toBeUndefined();
+      expect(press('e').defaultPrevented).toBe(false);
+      expect(press('!').defaultPrevented).toBe(false);
+      await flush();
+      expect(mail.applies).toEqual([]);
+    });
+
+    it('ignores e and ! while the next message loads', async () => {
+      await open(message(), deferred<MailMessageResponse>().promise);
+      params.next(convertToParamMap({ id: 'next-message' }));
+      fixture.detectChanges();
+      await flush();
+      fixture.detectChanges();
+      expect(press('e').defaultPrevented).toBe(false);
+      expect(press('!').defaultPrevented).toBe(false);
+      await flush();
+      expect(mail.applies).toEqual([]);
+    });
+
+    it('ignores e and ! while a dialog is open', async () => {
+      await open();
+      const dialog = TestBed.inject(MatDialog);
+      const ref = dialog.open(StubDialog, { enterAnimationDuration: 0, exitAnimationDuration: 0 });
+      await flush();
+      try {
+        expect(press('e').defaultPrevented).toBe(false);
+        expect(press('!').defaultPrevented).toBe(false);
+        await flush();
+        expect(mail.applies).toEqual([]);
+      } finally {
+        ref.close();
+        await flush();
+      }
+    });
+
+    it('does not leave a message the user moved to while the archive ran', async () => {
+      await open();
+      const pending = deferred<ActionAnswer>();
+      mail.answer = pending.promise;
+      button('Archive')!.click();
+      service.answers.push(message({ id: 'other' }));
+      params.next(convertToParamMap({ id: 'other' }));
+      await flush();
+      pending.resolve([{ id: ID, ok: true }]);
+      await flush();
+      expect(mail.applies).toEqual([{ action: 'ARCHIVE', ids: [ID] }]);
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
     it('sit next to Delete in the action bar, with their shortcuts in the title', async () => {
       await open();
       const group = button('Delete')!.closest('[role="group"]')!;
@@ -1314,7 +1366,7 @@ class StubDialog {}
 @Component({ selector: 'app-stub-list', template: '<p class="list">list</p>' })
 class StubList {}
 
-describe('MailReadPage Delete: back to the list it was opened from', () => {
+describe('MailReadPage Archive, Spam and Delete: back to the list it was opened from', () => {
   let mail: FakeMailService;
 
   /** Opens the message after visiting the given pages in order (none: opened directly). */
@@ -1347,13 +1399,51 @@ describe('MailReadPage Delete: back to the list it was opened from', () => {
     return harness;
   }
 
-  async function clickDelete(harness: RouterTestingHarness): Promise<string> {
+  /** Clicks an action bar button and returns the URL the app ends up on. */
+  async function clickAction(harness: RouterTestingHarness, label: string): Promise<string> {
     [...harness.routeNativeElement!.querySelectorAll('button')]
-      .find((b) => b.textContent?.trim() === 'Delete')!
+      .find((b) => b.textContent?.trim() === label)!
       .click();
     await flush();
     await harness.fixture.whenStable();
     return TestBed.inject(Router).url;
+  }
+
+  const clickDelete = (harness: RouterTestingHarness) => clickAction(harness, 'Delete');
+
+  for (const [label, action] of [
+    ['Archive', 'ARCHIVE'],
+    ['Spam', 'SPAM'],
+  ] as const) {
+    describe(label, () => {
+      it('returns to the folder the message was opened from', async () => {
+        const harness = await openFrom('/mail/folders/f-work');
+        expect(await clickAction(harness, label)).toBe('/mail/folders/f-work');
+        expect(mail.applies).toEqual([{ action, ids: [ID] }]);
+        expect(harness.routeNativeElement!.querySelector('.list')).not.toBeNull();
+      });
+
+      it('returns to the unified Inbox when opened from another page', async () => {
+        expect(await clickAction(await openFrom('/notes'), label)).toBe('/mail');
+      });
+
+      it('replaces the message in the history, so Back does not open it again', async () => {
+        const harness = await openFrom('/notes', '/mail/folders/f-work');
+        expect(await clickAction(harness, label)).toBe('/mail/folders/f-work');
+        const location = TestBed.inject(Location);
+        location.back();
+        expect(location.path()).toBe('/mail/folders/f-work');
+        location.back();
+        expect(location.path()).toBe('/notes');
+      });
+
+      it('stays on the message when the action fails', async () => {
+        const harness = await openFrom('/mail/folders/f-work');
+        mail.answer = [{ id: ID, ok: false, error: 'NO_ROLE_FOLDER', detail: 'No folder' }];
+        expect(await clickAction(harness, label)).toBe(`/mail/messages/${ID}`);
+        expect(harness.routeNativeElement!.querySelector('.list')).toBeNull();
+      });
+    });
   }
 
   it('returns to the folder the message was opened from', async () => {
