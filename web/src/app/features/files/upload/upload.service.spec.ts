@@ -39,11 +39,15 @@ interface Payload {
   data: Uint8Array<ArrayBuffer>;
   chunk: number;
   digest: string;
-  /** Whether the File really has the bytes (else a small File claims {@link BIG_SIZE}). */
+  /** Whether chunks are large, so only their first and last byte are compared. */
   real: boolean;
 }
 
-/** A real 50 MB + 1 byte file in 3 chunks of 20 MB: used where the full size matters. */
+/**
+ * A 5 MB + 1 byte file in 3 chunks of 2 MB that reports {@link BIG_SIZE} as its size: every byte of
+ * every chunk is real, so the chunk slicing and the incremental SHA-256 over megabyte-sized chunks are
+ * checked against WebCrypto, without hashing 50 MB (seconds per run, far more on a busy host).
+ */
 let REAL: Payload;
 /**
  * A 2007-byte file reporting {@link BIG_SIZE} as its size, in 3 chunks of 1000 bytes: it takes the
@@ -52,12 +56,12 @@ let REAL: Payload;
 let LIGHT: Payload;
 let payload: Payload;
 
-/** The time budget of the test with the real 50 MB file (hashing it is slow under coverage). */
-const REAL_FILE_TIMEOUT = 60_000;
+/** How long the test with the real file waits for a request (hashing it is slow under coverage). */
+const REAL_FILE_TIMEOUT = 20_000;
 
 function bigFile(name = 'holiday.mp4', type = 'video/mp4'): File {
   const file = new File([payload.data], name, { type });
-  if (!payload.real) Object.defineProperty(file, 'size', { value: BIG_SIZE });
+  if (payload.data.length !== BIG_SIZE) Object.defineProperty(file, 'size', { value: BIG_SIZE });
   return file;
 }
 
@@ -92,8 +96,8 @@ function session(receivedChunks: number[] = [], id = UPLOAD_ID): UploadResponse 
 const problem = (status: number, title: string, detail?: string) => ({ status, title, detail });
 
 beforeAll(async () => {
-  const real = pattern(BIG_SIZE);
-  REAL = { data: real, chunk: 20 * MB, digest: await sha256Hex(real), real: true };
+  const real = pattern(5 * MB + 1);
+  REAL = { data: real, chunk: 2 * MB, digest: await sha256Hex(real), real: true };
   const light = pattern(2007);
   LIGHT = { data: light, chunk: 1000, digest: await sha256Hex(light), real: false };
 });
@@ -126,8 +130,8 @@ describe('UploadService', () => {
   let http: HttpTestingController;
   let notifications: { error: ReturnType<typeof vi.fn>; info: ReturnType<typeof vi.fn> };
   /**
-   * How long {@link next} and {@link until} wait. Hashing the real 50 MB file takes seconds when the
-   * code is instrumented for coverage, so that test raises it (see {@link REAL_FILE_TIMEOUT}).
+   * How long {@link next} and {@link until} wait. Hashing the real file is slower when the code is
+   * instrumented for coverage, so that test raises it (see {@link REAL_FILE_TIMEOUT}).
    */
   let waitTimeout = 5000;
 
@@ -418,7 +422,7 @@ describe('UploadService', () => {
       expect(job.result()).toEqual(result);
       expect(job.uploadId).toBeNull();
       expect(uploaded).toEqual([result]);
-    }, REAL_FILE_TIMEOUT);
+    });
 
     it('leaves out an unknown mime type when creating the upload', async () => {
       const [job] = service.upload([bigFile('backup.bin', '')], null);

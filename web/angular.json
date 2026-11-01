@@ -105,7 +105,9 @@
         "test": {
           "builder": "@angular/build:unit-test",
           "options": {
-            "isolate": true
+            "isolate": true,
+            "runnerConfig": "vitest.config.mts",
+            "setupFiles": ["src/test-setup.ts"]
           }
         },
         "lint": {
