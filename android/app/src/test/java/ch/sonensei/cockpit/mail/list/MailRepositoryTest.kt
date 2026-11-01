@@ -155,7 +155,8 @@ class MailRepositoryTest {
 
             val accounts = (repository.accounts() as MailResult.Ok).value
 
-            // The account without a display name is named by its address, and sorts before "Work".
+            // Accounts are labelled and sorted by their address; the display name stays the sender name.
+            assertEquals(listOf("alias@example.net", "me@example.org"), accounts.map { it.account.label })
             assertEquals(listOf("alias@example.net", "Work"), accounts.map { it.account.name })
             val work = accounts.single { it.account.id == id(80) }
             assertEquals(listOf(90, 91, 92, 96, 93, 94).map(::id), work.folders.map { it.id })

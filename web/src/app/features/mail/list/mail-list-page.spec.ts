@@ -61,7 +61,9 @@ describe('MailListPage', () => {
     } = {},
   ) {
     mail = new FakeMail();
-    mail.accounts = () => Promise.resolve([account('acc-1', 'Work'), account('acc-2', 'Home')]);
+    // Same sender name on both accounts: the screens must label them by email address.
+    mail.accounts = () =>
+      Promise.resolve([account('acc-1', 'Ann Example'), account('acc-2', 'Ann Example')]);
     mail.folders = (id: string) =>
       Promise.resolve(
         id === 'acc-1'
@@ -151,7 +153,7 @@ describe('MailListPage', () => {
   it('shows the folder with its title, account, unread and cursor state', async () => {
     await create();
     expect(el().querySelector('h1')?.textContent).toBe('Inbox');
-    expect(el().querySelector('.heading .account')?.textContent).toBe('Work');
+    expect(el().querySelector('.heading .account')?.textContent).toBe('acc-1@example.test');
     expect(rows().map((row) => row.querySelector('.subject')?.textContent)).toEqual([
       'Report',
       'Lunch',
@@ -176,12 +178,12 @@ describe('MailListPage', () => {
   it('shows the unified Inbox with account names when there are several accounts', async () => {
     await create(null);
     expect(el().querySelector('h1')?.textContent).toBe('All inboxes');
-    expect(rows()[0].querySelector('.account-chip')?.textContent).toBe('Work');
+    expect(rows()[0].querySelector('.account-chip')?.textContent).toBe('acc-1@example.test');
     const tree = el().querySelector('app-mail-folder-tree')!;
     expect(tree.querySelector('[aria-current="page"]')?.textContent?.trim()).toBe('All inboxes');
     expect([...tree.querySelectorAll('h2')].map((h) => h.textContent?.trim())).toEqual([
-      'Work',
-      'Home',
+      'acc-1@example.test',
+      'acc-2@example.test',
     ]);
   });
 

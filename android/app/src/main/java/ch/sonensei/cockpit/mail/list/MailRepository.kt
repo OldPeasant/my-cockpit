@@ -21,7 +21,7 @@ class MailRepository
         /** Every account by name, with its selectable folders. */
         suspend fun accounts(): MailResult<List<MailAccountFolders>> =
             mailCall {
-                val accounts = mailBody(api.accounts()).items.map { it.toAccount() }.sortedBy { it.name.lowercase() }
+                val accounts = mailBody(api.accounts()).items.map { it.toAccount() }.sortedBy { it.label.lowercase() }
                 coroutineScope {
                     accounts
                         .map { account ->

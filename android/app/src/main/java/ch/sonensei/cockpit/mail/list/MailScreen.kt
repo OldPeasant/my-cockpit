@@ -400,7 +400,7 @@ private fun MailRow(
                     )
                 }
                 account?.let {
-                    Text(it.name, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
+                    Text(it.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
                 }
             }
         }
@@ -435,7 +435,7 @@ private fun MailboxPicker(
             state.accounts.forEach { (account, folders) ->
                 HorizontalDivider()
                 Text(
-                    account.name,
+                    account.label,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).testTag(MailListTags.account(account.id)),

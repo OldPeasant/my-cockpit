@@ -27,8 +27,8 @@ class MailListScreenStatesTest {
     private fun id(n: Int): UUID = UUID.fromString("00000000-0000-7000-8000-%012d".format(n))
 
     private val clock = Clock.fixed(Instant.parse("2026-10-21T08:00:00Z"), ZoneId.of("Europe/Zurich"))
-    private val work = MailAccount(id(80), "Work", "me@example.org")
-    private val home = MailAccount(id(81), "Home", "me@example.net")
+    private val work = MailAccount(id(80), "Ann Example", "me@example.org")
+    private val home = MailAccount(id(81), "Ann Example", "me@example.net")
     private val trash = MailFolder(id(92), work.id, "Deleted Items", "Deleted Items", FolderRole.TRASH, 0)
     private val sub = MailFolder(id(93), work.id, "2026", "Projects/2026", null, 1)
 
@@ -213,8 +213,8 @@ class MailListScreenStatesTest {
         val accounts = listOf(MailAccountFolders(work, emptyList()), MailAccountFolders(home, emptyList()))
         show(MailListUiState(accounts = accounts, messages = listOf(mail(1), mail(2, account = home)), loaded = true))
 
-        composeRule.onNodeWithTag(MailListTags.row(id(1))).assertTextContains("Work")
-        composeRule.onNodeWithTag(MailListTags.row(id(2))).assertTextContains("Home")
+        composeRule.onNodeWithTag(MailListTags.row(id(1))).assertTextContains("me@example.org")
+        composeRule.onNodeWithTag(MailListTags.row(id(2))).assertTextContains("me@example.net")
     }
 
     @Test

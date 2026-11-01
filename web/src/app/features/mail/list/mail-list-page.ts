@@ -63,7 +63,7 @@ export default class MailListPage {
   });
   protected readonly accountName = computed(() => {
     const folder = this.folder();
-    return folder ? (this.folders.accountById().get(folder.accountId)?.displayName ?? '') : '';
+    return folder ? (this.folders.accountById().get(folder.accountId)?.emailAddress ?? '') : '';
   });
   /** Account names are shown on items when they can come from several accounts. */
   protected readonly showAccount = computed(
@@ -241,7 +241,7 @@ export default class MailListPage {
   }
 
   protected accountOf(item: MailSummary): string {
-    return (item.accountId && this.folders.accountById().get(item.accountId)?.displayName) || '';
+    return (item.accountId && this.folders.accountById().get(item.accountId)?.emailAddress) || '';
   }
 
   /** `shortTime` today, the day and month this year, else the full date. */

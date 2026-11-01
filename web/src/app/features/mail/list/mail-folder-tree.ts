@@ -25,9 +25,9 @@ import { MailFoldersStore } from './mail-folders-store';
         <p class="error" role="alert">{{ error }}</p>
       }
       @for (tree of store.trees() ?? []; track tree.account.id) {
-        <section class="account" [attr.aria-label]="tree.account.displayName">
+        <section class="account" [attr.aria-label]="tree.account.emailAddress">
           <h2 class="account-name" [title]="tree.account.emailAddress">
-            {{ tree.account.displayName }}
+            {{ tree.account.emailAddress }}
           </h2>
           <ul>
             @for (node of tree.folders; track node.folder.id) {

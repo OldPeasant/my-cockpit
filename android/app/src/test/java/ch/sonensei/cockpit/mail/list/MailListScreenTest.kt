@@ -32,8 +32,8 @@ class MailListScreenTest {
     private fun id(n: Int): UUID = UUID.fromString("00000000-0000-7000-8000-%012d".format(n))
 
     private val clock = Clock.fixed(Instant.parse("2026-10-21T08:00:00Z"), ZoneId.of("Europe/Zurich"))
-    private val work = MailAccount(id(80), "Work", "me@example.org")
-    private val home = MailAccount(id(81), "Home", "me@example.net")
+    private val work = MailAccount(id(80), "Ann Example", "me@example.org")
+    private val home = MailAccount(id(81), "Ann Example", "me@example.net")
     private val workInbox = MailFolder(id(90), work.id, "INBOX", "INBOX", FolderRole.INBOX, 0)
     private val workArchive = MailFolder(id(91), work.id, "Archives", "Archives", FolderRole.ARCHIVE, 0)
     private val projects = MailFolder(id(92), work.id, "Projects", "Projects", null, 0)
@@ -134,8 +134,8 @@ class MailListScreenTest {
         show(MailListUiState(accounts = accounts, messages = listOf(mail(1)), loaded = true))
 
         composeRule.onNodeWithTag(MailListTags.MAILBOX).assertTextContains("All inboxes", substring = true).performClick()
-        composeRule.onNodeWithTag(MailListTags.account(work.id)).assertTextContains("Work")
-        composeRule.onNodeWithTag(MailListTags.account(home.id)).assertTextContains("Home")
+        composeRule.onNodeWithTag(MailListTags.account(work.id)).assertTextContains("me@example.org")
+        composeRule.onNodeWithTag(MailListTags.account(home.id)).assertTextContains("me@example.net")
         composeRule.onNodeWithTag(MailListTags.folder(workInbox.id)).assertTextContains("Inbox")
         composeRule.onNodeWithTag(MailListTags.folder(projects.id)).performClick()
         composeRule.onNodeWithTag(MailListTags.MAILBOX).performClick()

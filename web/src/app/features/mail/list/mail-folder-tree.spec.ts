@@ -61,7 +61,7 @@ describe('MailFolderTree', () => {
   function show(current: string | null) {
     store.trees.set([
       {
-        account: { id: 'acc-1', displayName: 'Work', emailAddress: 'work@example.test' },
+        account: { id: 'acc-1', displayName: 'Ann Example', emailAddress: 'work@example.test' },
         folders: folderTree([
           folder('in', 'INBOX', { role: 'INBOX' }),
           folder('g', '[Gmail]', { selectable: false }),
@@ -69,7 +69,7 @@ describe('MailFolderTree', () => {
         ]),
       },
       {
-        account: { id: 'acc-2', displayName: 'Home', emailAddress: 'home@example.test' },
+        account: { id: 'acc-2', displayName: 'Ann Example', emailAddress: 'home@example.test' },
         folders: folderTree([folder('h-in', 'INBOX', { role: 'INBOX', accountId: 'acc-2' })]),
       },
     ] as AccountTree[]);
@@ -88,7 +88,15 @@ describe('MailFolderTree', () => {
   it('lists every account with its folders as links and groups as plain text', () => {
     show(null);
     const sections = [...el().querySelectorAll('section.account')];
-    expect(sections.map((s) => s.getAttribute('aria-label'))).toEqual(['Work', 'Home']);
+    // Both accounts share the sender name; the email address tells them apart.
+    expect(sections.map((s) => s.getAttribute('aria-label'))).toEqual([
+      'work@example.test',
+      'home@example.test',
+    ]);
+    expect(sections.map((s) => s.querySelector('h2')?.textContent?.trim())).toEqual([
+      'work@example.test',
+      'home@example.test',
+    ]);
     expect(sections[0].querySelector('h2')?.getAttribute('title')).toBe('work@example.test');
     const links = [...sections[0].querySelectorAll<HTMLAnchorElement>('a.row')];
     expect(links.map((a) => [a.textContent?.trim(), a.getAttribute('href')])).toEqual([

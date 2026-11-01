@@ -21,9 +21,13 @@ sealed interface MailResult<out T> {
 
 data class MailAccount(
     val id: UUID,
+    /** The sender name ("Your name" in Settings); compose and identities use it. */
     val name: String,
     val address: String,
-)
+) {
+    /** How the mail screens label the account: its email address, so accounts of the same person differ. */
+    val label: String get() = address.ifBlank { name }
+}
 
 /** The special folders of SPEC.md §7.2, in the order the folder list shows them. */
 enum class FolderRole { INBOX, DRAFTS, SENT, ARCHIVE, SPAM, TRASH }

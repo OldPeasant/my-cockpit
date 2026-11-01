@@ -27,6 +27,19 @@ class MailModelsTest {
     }
 
     @Test
+    fun `an account is labelled by its address, so accounts with the same sender name differ`() {
+        val work = MailAccountDto("${id(80)}", "Ann Example", "ann@work.example").toAccount()
+        val home = MailAccountDto("${id(81)}", "Ann Example", "ann@home.example").toAccount()
+        assertEquals("ann@work.example", work.label)
+        assertEquals("ann@home.example", home.label)
+        // The sender name stays the display name, for compose and identities.
+        assertEquals("Ann Example", work.name)
+        assertEquals("", MailAccountDto("${id(80)}").toAccount().label)
+        // Without an address the label falls back to the sender name.
+        assertEquals("Ann Example", MailAccount(id(82), "Ann Example", " ").label)
+    }
+
+    @Test
     fun `a folder's depth follows its path and delimiter`() {
         assertEquals(0, folder("INBOX").toFolder().depth)
         assertEquals(2, folder("INBOX/Projects/2026", name = "2026").toFolder().depth)
