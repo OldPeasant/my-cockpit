@@ -24,7 +24,8 @@ bookmarks feature (`web/src/app/features/bookmarks`) is the reference for behavi
   - verified (2026-11-01 14:41+0100 by dell26/agent-1): same run -> pass: BookmarksRouteTest reloads on lifecycle RESUMED showing a bookmark shared meanwhile; ViewModelTest reloads when CaptureQueue pendingCount drops
 - [x] All new UI strings exist in English and German (`res/values`, `res/values-de`)
   - verified (2026-11-01 14:41+0100 by dell26/agent-1): values/ and values-de/strings_bookmarks.xml both 32 keys; ScreenTest 'translated to German' passes; ./gradlew lintDebug (MissingTranslation enforced) -> 0 errors 0 warnings
-- [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+- [x] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+  - verified (2026-11-01 14:41+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck createDebugUnitTestCoverageReport lintDebug (runs full testDebugUnitTest) -> exit 0; 2313 tests 0 failures; lint 0 errors 0 warnings; bookmarks 67 tests (ViewModel, Screen/Route Robolectric Compose, Repository, Models)
 
 ## Notes
 Requested by the owner (2026-11-01) after trying the Android app on the phone. Out of scope: snapshot (offline copy) viewer if the API only serves HTML for the web; open the snapshot via the web deep link instead and record that.
