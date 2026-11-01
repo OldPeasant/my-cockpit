@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [mail-search,web-mail-list]
 touches: [web/src/app/features/mail/list,web/src/locale]
 prio: 2
-lease_until: 2026-11-01T09:01:39Z
+lease_until: 2026-11-01T09:06:40Z
 ---
 ## Goal
 The Mail view (`/mail`, `/mail/folders/:id`) has its own search box (SPEC.md §7.3 "Search"). Today mail
