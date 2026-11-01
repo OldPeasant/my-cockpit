@@ -249,8 +249,12 @@ export type { UpdateMailAccount$Params as UpdateMailAccount$Params } from './fn/
 export { updateMailAccount as updateMailAccount } from './fn/mail-accounts/update-mail-account';
 export type { ListMailFolders$Params as ListMailFolders$Params } from './fn/mail-accounts/list-mail-folders';
 export { listMailFolders as listMailFolders } from './fn/mail-accounts/list-mail-folders';
+export type { CreateMailFolder$Params as CreateMailFolder$Params } from './fn/mail-accounts/create-mail-folder';
+export { createMailFolder as createMailFolder } from './fn/mail-accounts/create-mail-folder';
 export type { SyncMailFolders$Params as SyncMailFolders$Params } from './fn/mail-accounts/sync-mail-folders';
 export { syncMailFolders as syncMailFolders } from './fn/mail-accounts/sync-mail-folders';
+export type { DeleteMailFolder$Params as DeleteMailFolder$Params } from './fn/mail-accounts/delete-mail-folder';
+export { deleteMailFolder as deleteMailFolder } from './fn/mail-accounts/delete-mail-folder';
 export type { UpdateMailFolder$Params as UpdateMailFolder$Params } from './fn/mail-accounts/update-mail-folder';
 export { updateMailFolder as updateMailFolder } from './fn/mail-accounts/update-mail-folder';
 export type { TestMailAccountConnection$Params as TestMailAccountConnection$Params } from './fn/mail-accounts/test-mail-account-connection';

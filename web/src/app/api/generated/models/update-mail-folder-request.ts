@@ -9,6 +9,11 @@ export interface UpdateMailFolderRequest {
   automatic?: boolean;
 
   /**
+   * Renames the folder (same parent) on the server
+   */
+  name?: string;
+
+  /**
    * The role to set by hand; null for no role. Ignored when automatic is true
    */
   role?: 'INBOX' | 'SENT' | 'DRAFTS' | 'TRASH' | 'ARCHIVE' | 'SPAM';

@@ -13,9 +13,12 @@ import ch.sonensei.cockpit.mail.model.MailFolderRepository
 import ch.sonensei.cockpit.mail.model.MailFolderRole
 import ch.sonensei.cockpit.mail.search.MailSearchIndex
 import jakarta.mail.Folder
+import jakarta.mail.FolderNotFoundException
 import jakarta.mail.MessagingException
 import jakarta.persistence.EntityManager
 import jakarta.persistence.LockModeType
+import org.eclipse.angus.mail.iap.BadCommandException
+import org.eclipse.angus.mail.iap.CommandFailedException
 import org.eclipse.angus.mail.imap.IMAPFolder
 import org.eclipse.angus.mail.imap.IMAPStore
 import org.slf4j.LoggerFactory
@@ -200,7 +203,8 @@ class MailFolderService(
 					val target = store.getFolder(newPath)
 					when {
 						target.exists() -> Outcome.TAKEN
-						!source.renameTo(target) -> Outcome.REJECTED
+						// Gone on the server (the next sync uncaches it): nothing to rename.
+						!source.exists() || !source.renameTo(target) -> Outcome.REJECTED
 						else -> {
 							// Not every server moves the subscription along with the folder.
 							runCatching { target.isSubscribed = true }.onFailure { log.debug("SUBSCRIBE failed after RENAME", it) }
@@ -309,11 +313,20 @@ class MailFolderService(
 			?: throw NotFoundException("Mail account not found")
 	}
 
-	/** Runs IMAP commands: a refused command is an outcome of [block], any other failure a [MailConnectionException]. */
+	/**
+	 * Runs IMAP commands. Angus reports most refused commands (`NO`) as a `false` result of [block]; a `NO` or `BAD`
+	 * it throws instead becomes [MailConnectionError.SERVER_REJECTED], any other failure a [MailConnectionException].
+	 */
 	private fun <T> remote(block: () -> T): T =
 		try {
 			block()
 		} catch (e: MessagingException) {
+			if (e is FolderNotFoundException ||
+				generateSequence<Throwable>(e) { it.cause }.any { it is CommandFailedException || it is BadCommandException }
+			) {
+				log.debug("The mail server refused a folder command", e)
+				throw MailConnectionException(MailConnectionError.SERVER_REJECTED, e)
+			}
 			throw MailConnectionException.of(e)
 		}
 

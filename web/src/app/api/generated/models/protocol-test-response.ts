@@ -6,7 +6,7 @@ export interface ProtocolTestResponse {
   /**
    * Why it failed; absent when ok
    */
-  errorCode?: 'AUTHENTICATION_FAILED' | 'TLS_FAILED' | 'TIMEOUT' | 'CONNECTION_FAILED' | 'OAUTH_RECONNECT_REQUIRED' | 'OAUTH_UNAVAILABLE' | 'POOL_EXHAUSTED';
+  errorCode?: 'AUTHENTICATION_FAILED' | 'TLS_FAILED' | 'TIMEOUT' | 'CONNECTION_FAILED' | 'OAUTH_RECONNECT_REQUIRED' | 'OAUTH_UNAVAILABLE' | 'POOL_EXHAUSTED' | 'SERVER_REJECTED';
 
   /**
    * A fixed, displayable message for errorCode

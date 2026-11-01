@@ -64,6 +64,7 @@ export type { CreateEventRequest } from './models/create-event-request';
 export type { CreateFolderRequest } from './models/create-folder-request';
 export type { CreateLinkRequest } from './models/create-link-request';
 export type { CreateMailAccountRequest } from './models/create-mail-account-request';
+export type { CreateMailFolderRequest } from './models/create-mail-folder-request';
 export type { CreateMailIdentityRequest } from './models/create-mail-identity-request';
 export type { CreateNoteRequest } from './models/create-note-request';
 export type { CreateProjectRequest } from './models/create-project-request';

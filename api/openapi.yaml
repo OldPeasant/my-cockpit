@@ -4864,6 +4864,64 @@ paths:
       summary: The account's folders (cached)
       tags:
       - Mail accounts
+    post:
+      description: "Creates the folder on the server (`CREATE`, then `SUBSCRIBE`)\
+        \ under `parentId` or at the top level, using the server's hierarchy delimiter,\
+        \ and caches it."
+      operationId: createMailFolder
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMailFolderRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailFolderResponse"
+          description: Created; the folder with its ETag
+          headers:
+            ETag:
+              schema:
+                type: string
+              style: simple
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "An empty name, or one containing the hierarchy delimiter"
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such account or parent folder
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The name is already taken under that parent
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The mail server could not be reached or refused the command;
+            `errorCode` says why
+      summary: Create a folder
+      tags:
+      - Mail accounts
   /api/v1/mail/accounts/{id}/folders/sync:
     post:
       description: "Adds new folders, removes vanished ones (their cached messages\
@@ -4901,11 +4959,76 @@ paths:
       tags:
       - Mail accounts
   /api/v1/mail/accounts/{id}/folders/{folderId}:
+    delete:
+      description: "Deletes the folder and its subfolders on the server and from the\
+        \ cache, with the messages in them. Their cached messages stay as link targets\
+        \ without folder. INBOX and folders with a role (or holding one) cannot be\
+        \ deleted."
+      operationId: deleteMailFolder
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: path
+        name: folderId
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - description: The folder's ETag
+        in: header
+        name: If-Match
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such account or folder
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: INBOX or a folder with a role
+        "412":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is stale
+        "428":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: If-Match is missing
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The mail server could not be reached or refused the command;
+            `errorCode` says why
+      summary: Delete a folder
+      tags:
+      - Mail accounts
     patch:
       description: "`{\"role\": \"ARCHIVE\"}` makes the folder the account's Archive\
         \ (the folder that had the role loses it); `{\"role\": null}` gives it no\
         \ role. Either way detection leaves it alone from then on. `{\"automatic\"\
-        : true}` hands the folder back to detection on the next sync."
+        : true}` hands the folder back to detection on the next sync. `{\"name\":\
+        \ \"New name\"}` renames the folder on the server (`RENAME`, same parent)\
+        \ without touching its role; its subfolders move along, and the ids of the\
+        \ folders and their messages stay. INBOX cannot be renamed."
       operationId: updateMailFolder
       parameters:
       - in: path
@@ -4949,13 +5072,21 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
-          description: Invalid request
+          description: "Invalid request, an empty name or one containing the hierarchy\
+            \ delimiter"
         "404":
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
-          description: No such folder
+          description: No such account or folder
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "INBOX cannot be renamed, or the name is already taken under\
+            \ that parent"
         "412":
           content:
             application/problem+json:
@@ -4968,7 +5099,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
           description: If-Match is missing
-      summary: Set a folder's role by hand
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The mail server could not be reached or refused the command;
+            `errorCode` says why
+      summary: Rename a folder or set its role by hand
       tags:
       - Mail accounts
   /api/v1/mail/accounts/{id}/test:
@@ -10946,6 +11084,21 @@ components:
       required:
       - emailAddress
       - type
+    CreateMailFolderRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: "The new folder's name (one path segment, without the hierarchy\
+            \ delimiter)"
+          maxLength: 200
+          minLength: 0
+        parentId:
+          type: string
+          format: uuid
+          description: The folder to create it in; absent for the top level
+      required:
+      - name
     CreateMailIdentityRequest:
       type: object
       properties:
@@ -12893,6 +13046,7 @@ components:
           - OAUTH_RECONNECT_REQUIRED
           - OAUTH_UNAVAILABLE
           - POOL_EXHAUSTED
+          - SERVER_REJECTED
         message:
           type: string
           description: A fixed message for the error code
@@ -13602,6 +13756,7 @@ components:
           - OAUTH_RECONNECT_REQUIRED
           - OAUTH_UNAVAILABLE
           - POOL_EXHAUSTED
+          - SERVER_REJECTED
         message:
           type: string
           description: "A fixed, displayable message for errorCode"
@@ -14712,6 +14867,11 @@ components:
         automatic:
           type: boolean
           description: "true: let detection choose the role again on the next sync"
+        name:
+          type: string
+          description: Renames the folder (same parent) on the server
+          maxLength: 200
+          minLength: 0
         role:
           type: string
           description: The role to set by hand; null for no role. Ignored when automatic
