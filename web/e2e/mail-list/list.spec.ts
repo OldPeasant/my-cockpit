@@ -60,7 +60,7 @@ test.describe('Mail list', () => {
       await expect(page.getByRole('heading', { level: 1 })).toHaveText('All inboxes');
       await expect(row(page, subjects.report)).toBeVisible();
       const tree = page.getByRole('navigation', { name: 'Mail folders' });
-      const accountTree = tree.getByRole('region', { name: `E2E list ${run}` });
+      const accountTree = tree.getByRole('region', { name: address });
       await accountTree.getByRole('link', { name: 'Inbox' }).click();
       await expect(page).toHaveURL(new RegExp(`/mail/folders/${inbox.id}$`));
       await expect(page.getByRole('heading', { level: 1 })).toHaveText('Inbox');

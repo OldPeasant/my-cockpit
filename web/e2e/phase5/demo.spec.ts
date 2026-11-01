@@ -334,7 +334,7 @@ test.describe('Phase 5 demo', () => {
 function accountTree(page: Page): Locator {
   return page
     .getByRole('navigation', { name: 'Mail folders' })
-    .getByRole('region', { name: ACCOUNT_NAME });
+    .getByRole('region', { name: ADDRESS });
 }
 
 function row(page: Page, subject: string): Locator {
