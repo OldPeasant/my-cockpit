@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [and-shell,p0-trash-core,and-search]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/trash,android/app/src/main/java/ch/sonensei/cockpit/ui,android/app/src/test/java/ch/sonensei/cockpit/trash,android/app/src/main/res/values/strings_trash.xml,android/app/src/main/res/values-de/strings_trash.xml]
 prio: 2
-lease_until: 2026-11-01T17:44:55Z
+lease_until: 2026-11-01T17:49:58Z
 extended: 
 releases: 1
 ---
