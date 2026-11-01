@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "web-mail-single-click-open",
+  "reviewed_revision": "de35fb9364638b443b0f43aac0d27dc6d78084ca",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-mail-single-click-open/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-mail-single-click-open/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-mail-single-click-open/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "e2e specs (mail-read, mail-compose, phase5 demo) double-clicked button.open; now single-click a.open, e2e 38 passed"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "focusCursor comment said button, now link"}
+  ],
+  "validation": [
+    {"command": "cd web && npx ng test --watch=false --include src/app/features/mail/list/mail-list-page.spec.ts", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "cd web && npm run e2e -- e2e/mail-read e2e/mail-compose e2e/mail-list e2e/phase5/demo.spec.ts", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
