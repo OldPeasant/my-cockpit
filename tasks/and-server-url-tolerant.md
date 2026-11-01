@@ -1,10 +1,11 @@
 ---
 title: Android login: server address tolerates keyboard-inserted spaces
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [and-login]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/core/network,android/app/src/main/java/ch/sonensei/cockpit/auth,android/app/src/test/java/ch/sonensei/cockpit/core/network,android/app/src/test/java/ch/sonensei/cockpit/auth]
 prio: 2
+lease_until: 2026-11-01T14:44:29Z
 ---
 ## Goal
 On the phone, the keyboard inserted a space after each dot, so `https://my-cockpit. sonensei. ch` was rejected
