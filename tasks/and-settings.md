@@ -13,7 +13,8 @@ The Android Settings screen shows only passkeys and logout; the rest is a placeh
 essentials" (2026-11-01): no account setup on the phone, that stays on the web.
 
 ## Acceptance criteria
-- [ ] Server section: shows the configured server address and lets the user change it, reusing `ServerUrlRepository.setServerUrl` (changing the origin logs out, as today); shows the signed-in user name
+- [x] Server section: shows the configured server address and lets the user change it, reusing `ServerUrlRepository.setServerUrl` (changing the origin logs out, as today); shows the signed-in user name
+  - verified (2026-11-01 17:45+0100 by dell26/agent-1): android/gradlew -p android --max-workers=2 ktlintCheck lintDebug createDebugUnitTestCoverageReport -> BUILD SUCCESSFUL, 2536 tests 0 failures; SettingsViewModelTest (server form, saveServer via ServerUrlRepository.setServerUrl, user name, save failure), SettingsServerChangeTest 3 and SettingsScreenTest server section pass
 - [ ] Notifications section: shows whether notifications are allowed, whether exact alarms (reminders) are allowed, and the UnifiedPush distributor state, each with a button that opens the matching system settings or distributor picker; existing app-side toggles (if any) for reminders and new-mail notifications are shown here, no new server settings are invented
 - [ ] Capture section: number of captures waiting to sync, last sync result, and a "Sync now" button that enqueues the existing capture upload work
 - [ ] About section: app version name and code, and a button that opens `<server>/download/android` in the browser to get a newer APK
