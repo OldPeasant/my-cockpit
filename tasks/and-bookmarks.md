@@ -22,7 +22,8 @@ bookmarks feature (`web/src/app/features/bookmarks`) is the reference for behavi
   - verified (2026-11-01 14:41+0100 by dell26/agent-1): same run -> pass: ScreenTest pull-to-refresh swipe calls refresh, loading bar, empty states per view/tag, error banner with retry, offline texts (EN/DE)
 - [x] A bookmark saved via the share target appears in the list without restarting the app
   - verified (2026-11-01 14:41+0100 by dell26/agent-1): same run -> pass: BookmarksRouteTest reloads on lifecycle RESUMED showing a bookmark shared meanwhile; ViewModelTest reloads when CaptureQueue pendingCount drops
-- [ ] All new UI strings exist in English and German (`res/values`, `res/values-de`)
+- [x] All new UI strings exist in English and German (`res/values`, `res/values-de`)
+  - verified (2026-11-01 14:41+0100 by dell26/agent-1): values/ and values-de/strings_bookmarks.xml both 32 keys; ScreenTest 'translated to German' passes; ./gradlew lintDebug (MissingTranslation enforced) -> 0 errors 0 warnings
 - [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
 
 ## Notes
