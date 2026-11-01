@@ -26,3 +26,4 @@ reading it, without going back to the list first. Today Delete only exists in th
 Requested by the owner (2026-10-30). Only Delete is in scope; Archive/Spam/Move in the read view and
 "open the next message after deleting" are not.
 - ASSUMPTION (2026-11-01 06:55+0100 by dell26/agent-1): The task names MailService.act('DELETE',[id]); the list's MailService method is apply(action, ids), so the read view calls apply('DELETE',[id]) and treats a per-id result with ok=false (or no result) as a failure, showing its server detail
+- ASSUMPTION (2026-11-01 06:55+0100 by dell26/agent-1): The originating list is read from the router's previous navigation when the read page is created (/mail or /mail/folders/:id, else /mail), so mail-list code (outside touches) stays unchanged; after delete the app navigates there with replaceUrl so Back does not reopen the deleted message. Error = toast via NotificationService.error, the read view's existing action-error pattern
