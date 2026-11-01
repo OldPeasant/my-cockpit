@@ -21,6 +21,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import retrofit2.Retrofit
@@ -211,6 +212,22 @@ class TrashRepositoryTest {
             val broken = item(1, "TASK", "Broken").replace("2026-10-01T09:00:00Z", "yesterday")
             server.enqueue(json("""{"items":[$broken]}"""))
             assertEquals(TrashResult.Failed(null), trash.list())
+        }
+
+    @Test
+    fun `an id that is no UUID fails the load`() =
+        runBlocking {
+            val broken = item(1, "TASK", "Broken").replace(id(1).toString(), "not-a-uuid")
+            server.enqueue(json("""{"items":[$broken]}"""))
+            assertEquals(TrashResult.Failed(null), trash.list())
+        }
+
+    @Test
+    fun `a load answered without a body is a failure, not an empty Trash`() =
+        runBlocking {
+            server.enqueue(status(204))
+            val result = trash.list()
+            assertTrue("expected a failure, got $result", result is TrashResult.Failed)
         }
 
     @Test
