@@ -20,3 +20,4 @@ The Logbook (done tasks, SPEC.md §5) exists on the web only. Use `GET /api/v1/t
 
 ## Notes
 Requested by the owner (2026-11-01) after trying the Android app on the phone.
+- ASSUMPTION (2026-11-01 19:43+0100 by dell26/agent-2): No Android GTD list opens a task on tap (there is no Android task detail view), so tapping a Logbook row opens a read-only detail dialog (completion time, project, contexts, notes) with Reopen/Close; Reopen is also a row button like Follow up/Activate
