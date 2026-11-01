@@ -123,7 +123,7 @@ class MailFolderManageViewModelTest {
                     MailResult.Failed(409) to FolderEditError.NAME_TAKEN,
                     MailResult.Failed(400) to FolderEditError.INVALID_NAME,
                     MailResult.Offline to FolderEditError.UNREACHABLE,
-                    MailResult.Failed(404) to FolderEditError.FAILED,
+                    MailResult.Failed(403) to FolderEditError.FAILED,
                     MailResult.Failed(null) to FolderEditError.FAILED,
                 )
             vm.startRenameFolder(projects)
@@ -190,6 +190,58 @@ class MailFolderManageViewModelTest {
             assertNull(vm.uiState.value.folderEdit)
             assertEquals(MailListMessage.FOLDER_CHANGED, vm.uiState.value.message)
             coVerify(atLeast = 2) { repo.accounts() }
+        }
+
+    @Test
+    fun `a folder already gone when renaming closes the dialog, reloads the folders and says so`() =
+        runTest(dispatcher) {
+            coEvery { repo.renameFolder(projects, "Clients") } returns MailResult.Failed(404)
+            val vm = loaded()
+            advanceUntilIdle()
+            coEvery { repo.accounts() } returns MailResult.Ok(listOf(MailAccountFolders(account, listOf(inbox))))
+
+            vm.startRenameFolder(projects)
+            vm.submitFolderEdit("Clients")
+            advanceUntilIdle()
+
+            assertNull(vm.uiState.value.folderEdit)
+            assertEquals(MailListMessage.FOLDER_CHANGED, vm.uiState.value.message)
+            assertEquals(listOf(inbox), vm.folders())
+        }
+
+    @Test
+    fun `a folder already gone when deleting closes the dialog, reloads the folders and says so`() =
+        runTest(dispatcher) {
+            coEvery { repo.deleteFolder(projects) } returns MailResult.Failed(404)
+            val vm = loaded()
+            advanceUntilIdle()
+            coEvery { repo.accounts() } returns MailResult.Ok(listOf(MailAccountFolders(account, listOf(inbox))))
+
+            vm.startDeleteFolder(projects)
+            vm.submitFolderEdit()
+            advanceUntilIdle()
+
+            assertNull(vm.uiState.value.folderEdit)
+            assertEquals(MailListMessage.FOLDER_CHANGED, vm.uiState.value.message)
+            assertEquals(listOf(inbox), vm.folders())
+        }
+
+    @Test
+    fun `a 404 when creating stays in the open dialog`() =
+        runTest(dispatcher) {
+            coEvery { repo.createFolder(account.id, projects, "Beta") } returns MailResult.Failed(404)
+            val vm = loaded()
+            advanceUntilIdle()
+
+            vm.startCreateFolder(account.id, projects)
+            vm.submitFolderEdit("Beta")
+            advanceUntilIdle()
+
+            assertEquals(
+                FolderEdit(FolderEditKind.CREATE, account.id, projects, error = FolderEditError.FAILED),
+                vm.uiState.value.folderEdit,
+            )
+            assertNull(vm.uiState.value.message)
         }
 
     @Test

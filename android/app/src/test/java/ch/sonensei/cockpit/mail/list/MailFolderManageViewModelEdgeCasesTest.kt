@@ -143,7 +143,7 @@ class MailFolderManageViewModelEdgeCasesTest {
             val deleteCases =
                 listOf(
                     MailResult.Offline to FolderEditError.UNREACHABLE,
-                    MailResult.Failed(404) to FolderEditError.FAILED,
+                    MailResult.Failed(403) to FolderEditError.FAILED,
                     MailResult.Failed(null) to FolderEditError.FAILED,
                 )
             vm.startDeleteFolder(workAlpha)

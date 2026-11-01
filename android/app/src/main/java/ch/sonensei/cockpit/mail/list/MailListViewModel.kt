@@ -80,6 +80,13 @@ class MailListViewModel
         val uiState: StateFlow<MailListUiState> = state.asStateFlow()
 
         private var loadJob: Job? = null
+        private var folderJob: Job? = null
+
+        /**
+         * Who may still write the folder lists: each load, folder reload and applied folder change takes the next
+         * number, and an answer is only stored while its number is the newest, so an older snapshot never undoes a change.
+         */
+        private var folderGeneration = 0L
 
         /** Loads the accounts and the first page of the current mailbox again. */
         fun refresh() = load(state.value.mailbox)
@@ -228,8 +235,9 @@ class MailListViewModel
 
         /**
          * Applies the answer to [edit] (`true` when it succeeded). A success changes the folder list at once (and reloads
-         * it for what else moved, such as renamed subfolders), also when the dialog was closed meanwhile. A stale ETag
-         * reloads the folders and says so; other failures are shown in the dialog, which stays open.
+         * it for what else moved, such as renamed subfolders), also when the dialog was closed meanwhile. A stale ETag, or
+         * a folder to rename or delete that is gone already, reloads the folders and says so; other failures are shown in
+         * the dialog, which stays open.
          */
         private fun <T> finishFolderEdit(
             edit: FolderEdit,
@@ -237,10 +245,14 @@ class MailListViewModel
             change: (List<MailAccountFolders>, T) -> List<MailAccountFolders>,
         ): Boolean {
             fun FolderEdit?.after(next: FolderEdit?) = if (this == edit) next else this
-            val stale = result is MailResult.Failed && result.status == PRECONDITION_FAILED
+            val stale =
+                result is MailResult.Failed &&
+                    (result.status == PRECONDITION_FAILED || (result.status == NOT_FOUND && edit.kind != FolderEditKind.CREATE))
             when {
-                result is MailResult.Ok ->
+                result is MailResult.Ok -> {
+                    folderGeneration++
                     state.update { it.copy(accounts = change(it.accounts, result.value), folderEdit = it.folderEdit.after(null)) }
+                }
                 stale -> state.update { it.copy(folderEdit = it.folderEdit.after(null), message = MailListMessage.FOLDER_CHANGED) }
                 else ->
                     state.update {
@@ -251,11 +263,15 @@ class MailListViewModel
             return result is MailResult.Ok
         }
 
-        /** Loads the folder lists again, leaving the mails alone. */
+        /** Loads the folder lists again, leaving the mails alone; a reload still running is dropped. */
         private fun reloadFolders() {
-            viewModelScope.launch {
-                (repository.accounts() as? MailResult.Ok)?.let { result -> state.update { it.copy(accounts = result.value) } }
-            }
+            folderJob?.cancel()
+            val generation = ++folderGeneration
+            folderJob =
+                viewModelScope.launch {
+                    val result = repository.accounts() as? MailResult.Ok ?: return@launch
+                    if (generation == folderGeneration) state.update { it.copy(accounts = result.value) }
+                }
         }
 
         /** Loads the accounts and the first page of [mailbox]; a load still running is dropped. */
@@ -264,10 +280,14 @@ class MailListViewModel
             state.update { it.copy(loading = true, loadingMore = false) }
             loadJob =
                 viewModelScope.launch {
+                    val generation = ++folderGeneration
                     val accounts = repository.accounts()
                     val result = repository.messages(mailbox, null)
                     state.update { current ->
-                        val withAccounts = (accounts as? MailResult.Ok)?.let { current.copy(accounts = it.value) } ?: current
+                        val withAccounts =
+                            (accounts as? MailResult.Ok)
+                                ?.takeIf { generation == folderGeneration }
+                                ?.let { current.copy(accounts = it.value) } ?: current
                         when (result) {
                             is MailResult.Ok -> {
                                 val (messages, cursor) = mergeFirstPage(current, mailbox, result.value)
@@ -309,6 +329,7 @@ class MailListViewModel
 private const val PRECONDITION_FAILED = 412
 private const val BAD_REQUEST = 400
 private const val CONFLICT = 409
+private const val NOT_FOUND = 404
 
 private fun folderError(
     kind: FolderEditKind,

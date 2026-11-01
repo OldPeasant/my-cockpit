@@ -138,12 +138,16 @@ class MailFolderManageRepositoryTest {
             server.enqueue(problem(400))
             server.enqueue(problem(412))
             server.enqueue(problem(412))
+            server.enqueue(problem(404))
+            server.enqueue(problem(404))
             server.enqueue(problem(502))
 
             assertEquals(MailResult.Failed(409), repository.createFolder(account, null, "Projects"))
             assertEquals(MailResult.Failed(400), repository.renameFolder(projects, "a/b"))
             assertEquals(MailResult.Failed(412), repository.renameFolder(projects, "Clients"))
             assertEquals(MailResult.Failed(412), repository.deleteFolder(projects))
+            assertEquals(MailResult.Failed(404), repository.renameFolder(projects, "Clients"))
+            assertEquals(MailResult.Failed(404), repository.deleteFolder(projects))
             assertEquals(MailResult.Offline, repository.deleteFolder(projects))
         }
 
