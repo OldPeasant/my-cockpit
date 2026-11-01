@@ -1,11 +1,11 @@
 ---
 title: Mail actions: a message already gone from Trash counts as deleted, stale rows are cleaned up
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [mail-actions-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,server/src/test/kotlin/ch/sonensei/cockpit/mail/api]
 prio: 2
-lease_until: 
+lease_until: 2026-11-01T08:10:40Z
 releases: 1
 extended: 
 ---
