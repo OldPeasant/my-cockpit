@@ -6,6 +6,7 @@ deps: [mail-imap]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/imap,server/src/test/kotlin/ch/sonensei/cockpit/mail/imap,api/openapi.yaml,web/src/app/api/generated]
 prio: 2
 lease_until: 2026-11-01T06:19:35Z
+extended: dell26/agent-2
 ---
 ## Goal
 The owner can create, rename and delete folders of a mail account from My Cockpit, instead of using another mail
@@ -42,3 +43,4 @@ holds messages is allowed (the web client asks for confirmation); messages are n
 - ASSUMPTION (2026-11-01 06:07+0100 by dell26/agent-2): Create under a parent on a server without hierarchy delimiter -> 400 on name. Rename only checks the cache + server for a taken target; RENAME also re-SUBSCRIBEs the new name (best effort), DELETE UNSUBSCRIBEs (best effort).
 - ASSUMPTION (2026-11-01 06:28+0100 by dell26/agent-2): Folder sync, role override, create, rename and delete are serialized per account by an in-process lock held across the IMAP commands and the cache update (fixes a rename/sync race that would recreate folders with new ids). Assumes one server instance, as deployed; the existing DB row lock stays for the cache step.
 - ASSUMPTION (2026-11-01 06:28+0100 by dell26/agent-2): PATCH folder with an explicit {"name": null} is refused with 400 on 'name' instead of being read as an absent name (which would clear the role).
+- extended by dell26/agent-2: Implementation complete and committed (create/rename/delete API, per-account lock, null-name 400, GreenMail tests, regenerated openapi + web client); scripts/check.sh passes. tests.md is current (final code d0d9f495a-equivalent). Left: (1) re-run code-reviewer on final code (review.md predates the CR-1/CR-2 fixes in 7bd11afe6); fixes were made by the parent rather than the fixer, so record that in quality.json or run fixer for fixes.md; (2) run cd server && ./gradlew check and ./gradlew integrationTest --tests '*Folder*GreenMail*', record verify 1-5; (3) write+commit reviews/mail-folder-manage-api/quality.json; (4) tasks.py done.
