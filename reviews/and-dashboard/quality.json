@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "task": "and-dashboard",
+  "reviewed_revision": "ea2c268532aec034131e08cce1024a6d4deb4845",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-dashboard/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-dashboard/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-dashboard/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "start screen did not reload when the app returned to the foreground; DashboardRoute uses LifecycleResumeEffect like CalendarRoute (c371dc0fc), tests in DashboardInAppTest (c371dc0fc, ea2c26853)"},
+    {"id": "CR-1-round1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "upcoming event day used a fixed English pattern; now getBestDateTimePattern(locale, EEEdMMM) with EN/DE tests"},
+    {"id": "CR-2-round1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "DashboardEvent.key was unused; event rows are now wrapped in key(event.key)"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.dashboard.*'", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
