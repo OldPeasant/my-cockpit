@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "and-server-url-tolerant",
+  "reviewed_revision": "d8207bce85f1343a90223c94c4a7bc13ba819593",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-server-url-tolerant/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-server-url-tolerant/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-server-url-tolerant/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "mistyped scheme (https//host) was accepted as a server named https; now MALFORMED with the quoted address"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "raw invisible characters in ServerUrlTest replaced by \\u escapes"}
+  ],
+  "validation": [
+    {"command": "android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport -q --no-daemon", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
