@@ -22,8 +22,8 @@ class SearchModelsTest {
     ) = SearchHit(id, type, "Fictitious item", null, deepLink)
 
     @Test
-    fun `notes, emails and contacts open in their Android detail view`() {
-        for (type in listOf("NOTE", "EMAIL", "CONTACT")) {
+    fun `tasks, notes, emails and contacts open in their Android detail view`() {
+        for (type in listOf("TASK", "NOTE", "EMAIL", "CONTACT")) {
             assertEquals(SearchTarget.InApp(type, id), searchTarget(hit(type), server))
             assertEquals(SearchTarget.InApp(type, id), searchTarget(hit(type, deepLink = null), null))
         }
@@ -32,8 +32,8 @@ class SearchModelsTest {
     @Test
     fun `other items open their web deep link below the server`() {
         assertEquals(
-            SearchTarget.Web("https://cockpit.example.org/tasks/$id"),
-            searchTarget(hit("TASK", "/tasks/$id"), server),
+            SearchTarget.Web("https://cockpit.example.org/projects/$id"),
+            searchTarget(hit("PROJECT", "/projects/$id"), server),
         )
         assertEquals(
             SearchTarget.Web("https://cockpit.example.org/calendar/events/$id"),
@@ -61,8 +61,7 @@ class SearchModelsTest {
 
     @Test
     fun `without a deep link or a server the item's list screen opens`() {
-        assertEquals(SearchTarget.Screen(CockpitDestination.Next), searchTarget(hit("TASK", deepLink = null), server))
-        assertEquals(SearchTarget.Screen(CockpitDestination.Next), searchTarget(hit("TASK"), null))
+        assertEquals(SearchTarget.Screen(CockpitDestination.Projects), searchTarget(hit("PROJECT", deepLink = null), server))
         assertEquals(SearchTarget.Screen(CockpitDestination.Projects), searchTarget(hit("PROJECT"), null))
         assertEquals(SearchTarget.Screen(CockpitDestination.Calendar), searchTarget(hit("EVENT"), null))
         assertEquals(SearchTarget.Screen(CockpitDestination.Files), searchTarget(hit("FILE"), null))

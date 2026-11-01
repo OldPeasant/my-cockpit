@@ -25,6 +25,7 @@ import ch.sonensei.cockpit.core.network.ServerUrlRepository
 import ch.sonensei.cockpit.mail.read.MailReadTags
 import ch.sonensei.cockpit.ui.SEARCH_ACTION_TAG
 import ch.sonensei.cockpit.ui.SEARCH_SCREEN_TAG
+import ch.sonensei.cockpit.ui.TASK_DETAIL_SCREEN_TAG
 import ch.sonensei.cockpit.ui.navigation.CockpitDestination
 import ch.sonensei.cockpit.ui.screenTag
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -156,15 +157,25 @@ class SearchRouteInAppTest {
     }
 
     @Test
-    fun `a task with a deep link opens in the browser below the server`() {
+    fun `an event with a deep link opens in the browser below the server`() {
         searchForPlan()
 
-        tap(TASK_ID)
+        tap(EVENT_ID)
 
         val started = shadowOf(activity()).nextStartedActivity
         assertNotNull("the browser was not started", started)
         assertEquals(Intent.ACTION_VIEW, started.action)
-        assertEquals(server.url("/tasks/$TASK_ID").toString(), started.dataString)
+        assertEquals(server.url("/calendar/events/$EVENT_ID").toString(), started.dataString)
+    }
+
+    @Test
+    fun `a task opens the Android task detail screen, not the browser`() {
+        searchForPlan()
+
+        tap(TASK_ID)
+        waitForTag(TASK_DETAIL_SCREEN_TAG)
+
+        assertNull(shadowOf(activity()).nextStartedActivity)
     }
 
     @Test
@@ -172,7 +183,7 @@ class SearchRouteInAppTest {
         searchForPlan()
         shadowOf(ApplicationProvider.getApplicationContext<Application>()).checkActivities(true)
 
-        tap(TASK_ID)
+        tap(EVENT_ID)
 
         assertEquals("No browser on this phone can open the item.", ShadowToast.getTextOfLatestToast())
         assertNull(shadowOf(activity()).nextStartedActivity)
@@ -257,6 +268,7 @@ class SearchRouteInAppTest {
         val CONTACT_ID: UUID = UUID.fromString("0192f0a4-7b1c-7cde-8f00-00000000b003")
         val MAIL_ID: UUID = UUID.fromString("0192f0a4-7b1c-7cde-8f00-00000000b004")
         val NOTE_ID: UUID = UUID.fromString("0192f0a4-7b1c-7cde-8f00-00000000b005")
+        val EVENT_ID: UUID = UUID.fromString("0192f0a4-7b1c-7cde-8f00-00000000b006")
         const val PROBLEM = """{"type":"about:blank","title":"Fictitious problem","status":404}"""
         const val UPDATED = "\"updatedAt\":\"2026-10-01T09:00:00Z\""
         val SEARCH_JSON =
@@ -269,7 +281,9 @@ class SearchRouteInAppTest {
               $UPDATED}]},
              {"type":"CONTACT","items":[{"id":"$CONTACT_ID","type":"CONTACT","title":"Paula Planer","deepLink":"/contacts/$CONTACT_ID",
               $UPDATED}]},
-             {"type":"NOTE","items":[{"id":"$NOTE_ID","type":"NOTE","title":"Planning notes","deepLink":"/notes/$NOTE_ID",$UPDATED}]}
+             {"type":"NOTE","items":[{"id":"$NOTE_ID","type":"NOTE","title":"Planning notes","deepLink":"/notes/$NOTE_ID",$UPDATED}]},
+             {"type":"EVENT","items":[{"id":"$EVENT_ID","type":"EVENT","title":"Planning meeting",
+              "deepLink":"/calendar/events/$EVENT_ID",$UPDATED}]}
             ]}
             """.trimIndent()
         val CONTACT_JSON =
