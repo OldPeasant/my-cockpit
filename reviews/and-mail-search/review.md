@@ -4,19 +4,18 @@ Date: 2026-11-01
 
 Task: and-mail-search - Android mail: search box with 'search on server' option
 
-Scope: second pass, `git diff 4f351d00b af2f5113a -- android` (final code after the fixes and the parent's replacement of the scroll-to-top logic)
+Scope: third pass, `git diff 4f351d00b 9535590b -- android` (whole task diff). The focus is the change since the previous review revision, `git diff af2f5113a 9535590b -- android`.
 
 Requirements:
 - tasks/and-mail-search.md acceptance criteria and recorded assumptions
-- api/openapi.yaml `GET /api/v1/mail/search` and its response schemas
-- AGENTS.md project notes, existing Android mail list conventions (MailListViewModel, MailScreen, MailRepository)
-- First-pass report (CR-1, CR-2, CR-3) and reviews/and-mail-search/fixes.md
+- AGENTS.md project notes, existing Android mail list conventions (MailListViewModel, MailScreen)
+- Previous review of revision af2f5113a (no findings)
 
 Git range:
 - Branch: main
-- HEAD: af2f5113a
+- HEAD: 9535590b17461d540e8af6eb4828070b5f416d4b
 - Base/start: 4f351d00b
-- Commits reviewed: 2 code commits (7cc2dddb0 implementation, af2f5113a fixes); the other commits in the range touch only `tasks/`
+- Commits reviewed: 3 code commits (7cc2dddb0 implementation, af2f5113a fixes, 9535590b version handling and tests). The other commits in the range touch only `tasks/`.
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
@@ -36,19 +35,24 @@ None.
 
 None.
 
-## Verification of earlier findings
+## Change since the previous review
 
-- CR-1 (scroll position after the read view): resolved. `MailRoute` hoists `searchState` (MailScreen.kt:118) next to `listState` and passes it to `MailSearchContent`/`Results`. That keeps the place while `MailListContent` is out of composition. The scroll-to-top collector (MailScreen.kt:322-328) lives in `MailRoute`, so it stays active while the read view is open. It drops the value seen on (re)composition, so going back from a result or a configuration change keeps the place. `MailSearchState.version` is set to the search generation only on an `Ok` answer (MailListViewModel.kt:204). Generations increase monotonically and `closeSearch` takes one too, so every answer has a distinct version, including the first answer of a reopened search. StateFlow conflation cannot hide an answer. `markSeen`, `removed`, a search starting, and a failure all leave the version unchanged, so none of them scroll. `requestScrollToItem` drops the last known first-item key for the next measure. That fixes the case where the server answer prepends newer rows ([5] then [6, 5]) and key-based positioning would keep row 5 at the top. The route test `search on server asks the servers ...` (waits for row 6) covers that case. `MailSearchViewModelEdgeCasesTest` covers the version rules (lines 274-350).
-- CR-2 (server search with an edited box): resolved. The box text is lifted into `MailSearchContent`. The server button sends that text and is disabled while it is blank. `searchOnServer(query)` trims and caps it. For the shown query it keeps the cached results; an edited query starts from an empty server state. The `canSearchServer` guard is still applied. Screen and ViewModel tests cover edited, blank and same-text cases.
-- CR-3 (system Back untested): already covered. `MailSearchScreenEdgeCasesTest` `the system back closes an open search` uses the composition's `OnBackPressedDispatcher`. The route test closes search with the activity's back dispatcher.
-- The swipe test now ignores `open` calls but still asserts that no archive or delete happened and that no custom accessibility actions exist. That is not a weakening, because rows open on a tap by design.
+- Production change: in MailListViewModel.kt:230 (`search`) and MailListViewModel.kt:251 (`searchOnServer` with an edited query), the fresh `MailSearchState` now carries over `search.version` instead of the default 0. `retrySearch` and `searchOnServer` for the shown query already used `copy` and kept the version.
+- Effect on the scroll collector (MailScreen.kt:123-129, `map { search?.version }.distinctUntilChanged().drop(1)`): before this change, starting a new search after an answer emitted 0 and scrolled to the top while loading, then scrolled again on the answer. Now only the answer scrolls, because `version` changes only on an `Ok` answer (`version = generation`, MailListViewModel.kt:290). That is the documented intent ("each answer replacing the results starts at the top").
+- No regression found:
+  - `searchGeneration` increases monotonically and `closeSearch` takes one too. Every `Ok` answer therefore gets a version that differs from every earlier one, including the version carried over from a previous search and the first answer after a reopened search, which starts at 0 again through `openSearch`.
+  - Failures (`Offline`, `Failed`) and stale or cancelled answers leave the version unchanged, as before.
+  - An edited query clears the results while loading. The list keeps its old offset over an empty list until the answer arrives, and the answer's new version then calls `requestScrollToItem(0)`. A failed edited search shows the error state over empty results, so the stale offset has no visible effect.
+- Tests: `MailSearchViewModelEdgeCasesTest` adds two tests:
+  - the version is unchanged when a search starts, fails, or a result is read or removed, and it changes with each answer, including a repeated identical query and a successful retry;
+  - a late answer of an older search does not change the version, and a reopened search gets a new non-zero version.
+
+  `MailSearchRouteInAppTest` adds a route test: a failed server search keeps the scroll place, and the successful retry shows the newer first row. These tests assert behavior through public state and UI tags, not internals.
 
 ## Other checks without findings
 
-- Out-of-order results: `searchGeneration` together with job cancellation still blocks stale answers, including failures and answers that arrive after close. An answer that arrives while the read view is open still applies `requestScrollToItem` when the list comes back. That is intended, because the results changed.
-- Returning from the read view: the box text is rebuilt from `search.query`, so the box always shows the query of the listed results.
-- API contract, loading/empty/error states, strings in `values` and `values-de`, and the absence of secret logging or unsafe input are unchanged since the first pass, which verified them.
-- Note for the parent's evidence: the reported run was `ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.*'`. Criterion 5 also names the full `testDebugUnitTest` and `lintDebug`, which must be run on this revision before the criterion is recorded.
+- The rest of the task diff matches the revision reviewed before, and its earlier conclusions still apply: API use of `GET /api/v1/mail/search`, loading, empty and error states, the failure and hasMore/truncated hints, strings in `values` and `values-de`, out-of-order protection, and no logging of secrets or mail content.
+- Note for the parent's evidence: the run reported on this revision was `ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.*'`. Criterion 5 names the full `ktlintCheck testDebugUnitTest lintDebug`. Record that run's result once it finishes, before ticking the criterion.
 
 ## Review conclusion
 

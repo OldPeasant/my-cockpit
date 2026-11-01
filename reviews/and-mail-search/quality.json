@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "task": "and-mail-search",
+  "reviewed_revision": "619b7f18aadb897a04c5a3712cb61f3ca0cd218c",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-mail-search/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-mail-search/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-mail-search/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "search results keep their scroll position across the read view (hoisted LazyListState in MailRoute); each answer scrolls to the top via MailSearchState.version + requestScrollToItem (af2f5113a, 9535590b), route tests added"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "Search on server searches the text in the box, disabled while blank (af2f5113a), screen and ViewModel tests added"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "system Back closing search is covered by MailSearchScreenEdgeCasesTest and MailSearchRouteInAppTest"},
+    {"id": "TW-1", "source": "test-writer", "severity": "P3", "disposition": "fixed",
+     "note": "a new search kept version 0 while loading (spurious scroll); now carries the previous version (9535590b), version test passes"},
+    {"id": "route-server-test", "source": "test-writer", "severity": "P2", "disposition": "fixed",
+     "note": "server answer prepending rows was hidden above the viewport (keyed position kept); fixed with requestScrollToItem on each answer version"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.*'", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
