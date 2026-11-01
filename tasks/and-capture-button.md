@@ -21,3 +21,4 @@ in-app entry that opens the same capture sheet as `capture/entry/CaptureActivity
 
 ## Notes
 Requested by the owner (2026-11-01) after trying the Android app on the phone. Out of scope: changes to widget, tile, shortcut or share target behavior.
+- ASSUMPTION (2026-11-01 14:02+0100 by dell26/agent-2): In-app capture button launches the existing CaptureActivity (same translucent sheet as widget/tile/shortcut) in the app's own task instead of re-implementing the sheet inside the shell; finishing it returns to the current screen. The widget's sheet has no attachment picker, so the in-app sheet has none either (criterion says 'as in the widget's sheet').
