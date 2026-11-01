@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [mail-folder-manage-api,and-mail-list-read,mail-account-label-email,and-mail-read-spam]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/list,android/app/src/test/java/ch/sonensei/cockpit/mail/list]
 prio: 2
-lease_until: 2026-11-01T06:59:49Z
+lease_until: 2026-11-01T07:04:52Z
 ---
 ## Goal
 The Android mail screen lets the owner create, rename and delete folders of a mail account through the API from
