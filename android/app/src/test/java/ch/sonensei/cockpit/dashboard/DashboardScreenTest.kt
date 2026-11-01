@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.dashboard
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -16,10 +17,15 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.ui.navigation.CockpitDestination
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.util.UUID
 
 /** The dashboard alone, driven by states the tests control. */
@@ -196,6 +202,130 @@ class DashboardScreenTest {
         assertCardShows(WidgetId.PINNED_NOTES, "Note 5")
         composeRule.onNode(hasText("Note 6"), useUnmergedTree = true).assertDoesNotExist()
         assertCardShows(WidgetId.PINNED_NOTES, "and more")
+    }
+
+    /**
+     * Before the layout loads the default order shows (Today first); when the stored layout puts another widget first,
+     * that widget must be the card at the top, not scrolled away above the screen.
+     */
+    @Test
+    fun `when the stored layout arrives its first card is at the top`() {
+        // As the view model starts: every widget in the default order, loading.
+        var state by mutableStateOf(DashboardUiState())
+        composeRule.setContent {
+            CockpitTheme { DashboardContent(state, onRefresh = {}, onOpen = {}) }
+        }
+        composeRule.onNodeWithTag(DashboardTags.card(WidgetId.TODAY)).assertIsDisplayed()
+
+        // The user's layout puts Inbox (second by default) first.
+        val layout = listOf(WidgetId.INBOX, WidgetId.TODAY, WidgetId.WEEKLY_REVIEW)
+        state = DashboardUiState(widgets = layout)
+        composeRule.waitForIdle()
+        state = DashboardUiState(widgets = layout, states = allReady)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(DashboardTags.card(WidgetId.INBOX)).assertIsDisplayed()
+        val list = composeRule.onNodeWithTag(DashboardTags.LIST).fetchSemanticsNode().boundsInRoot
+        val inbox = composeRule.onNodeWithTag(DashboardTags.card(WidgetId.INBOX)).fetchSemanticsNode().boundsInRoot
+        val today = composeRule.onNodeWithTag(DashboardTags.card(WidgetId.TODAY)).fetchSemanticsNode().boundsInRoot
+        assertTrue("first configured card at the top of the list", inbox.top >= list.top && inbox.top < today.top)
+    }
+
+    @Test
+    fun `overdue tasks show their due date, tasks due today do not`() {
+        val overdue = LocalDate.now().minusDays(3)
+        show(
+            DashboardUiState(
+                widgets = listOf(WidgetId.WAITING_OVERDUE),
+                states =
+                    mapOf(
+                        WidgetId.WAITING_OVERDUE to
+                            ready(
+                                WidgetData.WaitingOverdue(
+                                    listOf(
+                                        DashboardTask(id(1), "Quote from the plumber", overdue),
+                                        DashboardTask(id(2), "Signed lease back", LocalDate.now()),
+                                    ),
+                                ),
+                            ),
+                    ),
+            ),
+        )
+        val date = overdue.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
+        composeRule.onNode(hasText("Quote from the plumber"), useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNode(hasText("Signed lease back"), useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onAllNodes(hasText("Overdue", substring = true), useUnmergedTree = true).assertCountEquals(1)
+        composeRule.onNode(hasText("Overdue · $date"), useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNode(hasText("Nothing overdue."), useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `upcoming events show their day and time, and more than five events a more hint`() {
+        val day = LocalDate.of(2026, 10, 23)
+        val start = day.atTime(9, 30).atZone(ZoneId.systemDefault()).toInstant()
+        val events = (1..6).map { DashboardEvent("e:$it", "Dentist $it", day, start) }
+        show(DashboardUiState(widgets = listOf(WidgetId.UPCOMING), states = mapOf(WidgetId.UPCOMING to ready(WidgetData.Upcoming(events)))))
+        val time = start.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
+        val prefix = "${day.format(DateTimeFormatter.ofPattern("EEE d MMM"))} · $time"
+        composeRule.onAllNodes(hasText(prefix), useUnmergedTree = true).assertCountEquals(5)
+        composeRule.onNode(hasText("Dentist 5"), useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNode(hasText("Dentist 6"), useUnmergedTree = true).assertDoesNotExist()
+        composeRule.onNode(hasText("and more"), useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun `more than five tasks show five and a more hint, a short read-later list with more on the server too`() {
+        val tasks = (1..6).map { DashboardTask(id(it), "Call supplier $it", LocalDate.now()) }
+        show(
+            DashboardUiState(
+                widgets = listOf(WidgetId.TODAY, WidgetId.READ_LATER),
+                states =
+                    mapOf(
+                        WidgetId.TODAY to ready(WidgetData.Today(tasks, emptyList(), habitsDue = 0, habitsDone = 0)),
+                        WidgetId.READ_LATER to ready(WidgetData.ReadLater(listOf(DashboardItem(id(9), "A long read")), more = true)),
+                    ),
+            ),
+        )
+        composeRule.onNode(hasText("Call supplier 5"), useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNode(hasText("Call supplier 6"), useUnmergedTree = true).assertDoesNotExist()
+        composeRule.onNode(hasText("Nothing due today."), useUnmergedTree = true).assertDoesNotExist()
+        composeRule.onAllNodes(hasText("and more"), useUnmergedTree = true).assertCountEquals(2)
+    }
+
+    @Test
+    fun `a failed widget without data says it could not be loaded and how to retry`() {
+        show(
+            DashboardUiState(
+                widgets = listOf(WidgetId.INBOX),
+                states = mapOf(WidgetId.INBOX to WidgetState(loading = false, error = WidgetError.FAILED)),
+            ),
+        )
+        composeRule
+            .onNode(hasText("This widget could not be loaded. Pull down to try again."), useUnmergedTree = true)
+            .assertIsDisplayed()
+        composeRule.onNodeWithTag(DashboardTags.loading(WidgetId.INBOX), useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `in German the cards and messages are German`() {
+        show(
+            DashboardUiState(
+                widgets = listOf(WidgetId.INBOX, WidgetId.WEEKLY_REVIEW, WidgetId.PINNED_NOTES),
+                states =
+                    mapOf(
+                        WidgetId.INBOX to ready(WidgetData.Inbox(Count(1, more = false), Count(50, more = true))),
+                        WidgetId.WEEKLY_REVIEW to ready(WidgetData.WeeklyReview(daysSinceLastReview = 6, openStep = 4)),
+                        WidgetId.PINNED_NOTES to WidgetState(loading = false, error = WidgetError.OFFLINE),
+                    ),
+            ),
+        )
+        composeRule.onNode(hasText("Eingang"), useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNode(hasText("1 Aufgabe zu bearbeiten"), useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNode(hasText("50+ ungelesene E-Mails"), useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNode(hasText("Letzter Wochenrückblick"), useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNode(hasText("Rückblick läuft: Schritt 4 von 8"), useUnmergedTree = true).assertIsDisplayed()
+        assertCardShows(WidgetId.PINNED_NOTES, "Der Server ist nicht erreichbar.")
     }
 
     @Test

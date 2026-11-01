@@ -364,6 +364,21 @@ class DashboardRepositoryTest {
         }
 
     @Test
+    fun `a failing inbox task call fails the inbox widget even when mail answers`() =
+        runBlocking {
+            answer("/api/v1/tasks?list=INBOX&completed=false&limit=50", status(401))
+            answer("/api/v1/mail/messages?limit=50", json("""{"items":[${mailJson(3, seen = false)}]}"""))
+            assertEquals(DashboardResult.Failed, dashboard.load(WidgetId.INBOX))
+        }
+
+    @Test
+    fun `an empty success body is a failed widget`() =
+        runBlocking {
+            answer("/api/v1/weekly-reviews/status", MockResponse.Builder().code(204).build())
+            assertEquals(DashboardResult.Failed, dashboard.load(WidgetId.WEEKLY_REVIEW))
+        }
+
+    @Test
     fun `an unknown review step is a failed widget, not a crash`() =
         runBlocking {
             answer(
