@@ -12,7 +12,7 @@ import {
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, PRIMARY_OUTLET, Router, RouterLink, UrlTree } from '@angular/router';
 import { map } from 'rxjs';
 import {
   ItemRefDto,
@@ -22,6 +22,8 @@ import {
 } from '../../../api/generated';
 import { ApiError, NotificationService } from '../../../core/http';
 import { LinkedItems } from '../../../shared/links';
+import { MailService } from '../list/mail.service';
+import { mailShortcutFor } from '../list/mail-shortcuts';
 import { formatBytes } from './format-bytes';
 import { ImageAllowlist } from './image-allowlist';
 import { MailFrame } from './mail-frame';
@@ -40,7 +42,8 @@ export const TEXT_PREVIEW_LIMIT = 100_000;
 /**
  * Reading one message (SPEC.md §7.3): headers, the sanitized body in a sandboxed frame (or the
  * plain text), "load images" (once or always for the sender), attachments (download, preview, save
- * to Files), the GTD actions and the linked items. Opening an unread message marks it read.
+ * to Files), the GTD actions, Delete (button or `#`, then back to the list it was opened from) and
+ * the linked items. Opening an unread message marks it read.
  */
 @Component({
   selector: 'app-mail-read-page',
@@ -48,11 +51,16 @@ export const TEXT_PREVIEW_LIMIT = 100_000;
   imports: [DatePipe, LinkedItems, MailFrame, MatButtonModule, RouterLink],
   templateUrl: './mail-read-page.html',
   styleUrl: './mail-read-page.scss',
+  host: { '(document:keydown)': 'onKeydown($event)' },
 })
 export default class MailReadPage {
   private readonly service = inject(MailReadService);
   private readonly allowlist = inject(ImageAllowlist);
   private readonly notifications = inject(NotificationService);
+  private readonly mail = inject(MailService);
+  private readonly router = inject(Router);
+  /** The mail list this message was opened from, where Delete returns to. */
+  private readonly origin = mailListOrigin(this.router);
 
   /** The message id (route parameter). */
   protected readonly id = toSignal(
@@ -71,6 +79,8 @@ export default class MailReadPage {
   /** Attachments being saved to Files, by message id and part id (part ids repeat across messages). */
   protected readonly saving = signal<ReadonlySet<string>>(new Set());
   protected readonly preview = signal<Preview | null>(null);
+  /** Whether a Delete request runs. */
+  protected readonly deleting = signal(false);
 
   /** The linked items panel (by reference, so tests can stand in for it). */
   private readonly links = viewChild<{ reload(): Promise<void> }>('links');
@@ -158,6 +168,44 @@ export default class MailReadPage {
     } finally {
       this.busy.set(null);
     }
+  }
+
+  /**
+   * Deletes the message with the list's mail action (the server moves it to Trash, or removes it
+   * there) and returns to the list it was opened from. A failure keeps the message open.
+   */
+  protected async delete(): Promise<void> {
+    const id = this.message()?.id;
+    if (!id || this.state() !== 'ready' || this.deleting()) return;
+    this.deleting.set(true);
+    try {
+      const results = await this.mail.apply('DELETE', [id]);
+      const result = results.find((entry) => entry.id === id);
+      if (!result?.ok) {
+        const reason = result?.detail || $localize`:@@mailRead.unexpected:Something went wrong.`;
+        this.notifications.error(
+          $localize`:@@mailRead.deleteFailed:The message could not be deleted: ${reason}:reason:`,
+        );
+        return;
+      }
+      // The user may have left this message (or the page) while the request ran: stay there.
+      if (this.destroyed || this.message()?.id !== id) return;
+      // Replaces the deleted message in the history, so Back does not open it again.
+      await this.router.navigateByUrl(this.origin, { replaceUrl: true });
+    } catch (error) {
+      this.notifications.error(
+        $localize`:@@mailRead.deleteFailed:The message could not be deleted: ${messageOf(error)}:reason:`,
+      );
+    } finally {
+      this.deleting.set(false);
+    }
+  }
+
+  /** `#` deletes, as in the list (never while typing). */
+  protected onKeydown(event: KeyboardEvent): void {
+    if (this.state() !== 'ready' || mailShortcutFor(event) !== 'delete') return;
+    event.preventDefault();
+    void this.delete();
   }
 
   protected downloadUrl(part: MailAttachmentResponse): string {
@@ -283,6 +331,24 @@ export default class MailReadPage {
       }
     }
   }
+}
+
+/**
+ * The mail list (`/mail` or `/mail/folders/:id`) the navigation to this page came from, else the
+ * unified Inbox. Read once when the page is created: moving to another message keeps it.
+ */
+function mailListOrigin(router: Router): string {
+  const from = router.currentNavigation()?.previousNavigation?.finalUrl;
+  const path = from ? primaryPath(from) : [];
+  if (path.length === 1 && path[0] === 'mail') return '/mail';
+  if (path.length === 3 && path[0] === 'mail' && path[1] === 'folders' && path[2]) {
+    return `/mail/folders/${encodeURIComponent(path[2])}`;
+  }
+  return '/mail';
+}
+
+function primaryPath(url: UrlTree): string[] {
+  return url.root.children[PRIMARY_OUTLET]?.segments.map((segment) => segment.path) ?? [];
 }
 
 function savingKey(messageId: string, partId: string): string {

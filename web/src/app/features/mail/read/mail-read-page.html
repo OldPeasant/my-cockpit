@@ -69,6 +69,20 @@
           Create note
         </button>
       </div>
+      <div class="actions" role="group" i18n-aria-label="@@mailRead.manageAria" aria-label="Manage">
+        <button
+          mat-stroked-button
+          type="button"
+          class="delete"
+          [disabled]="deleting()"
+          (click)="delete()"
+          i18n-title="@@mailRead.deleteTitle"
+          title="Delete (#)"
+          i18n="@@mailRead.delete"
+        >
+          Delete
+        </button>
+      </div>
     }
   </nav>
 

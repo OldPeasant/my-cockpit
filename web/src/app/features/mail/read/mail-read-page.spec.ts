@@ -1,10 +1,18 @@
 import { Component, input } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, ParamMap, provideRouter } from '@angular/router';
+import {
+  ActivatedRoute,
+  convertToParamMap,
+  ParamMap,
+  provideRouter,
+  Router,
+} from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { BehaviorSubject } from 'rxjs';
 import { ItemRefDto, MailMessageResponse } from '../../../api/generated';
 import { ApiError, NotificationService } from '../../../core/http';
 import { LinkedItems } from '../../../shared/links';
+import { MailAction, MailService } from '../list/mail.service';
 import { IMAGE_ALLOWLIST_KEY } from './image-allowlist';
 import { MAIL_FRAME_SANDBOX } from './mail-frame';
 import MailReadPage, { TEXT_PREVIEW_LIMIT } from './mail-read-page';
@@ -103,9 +111,26 @@ class FakeReadService {
   }
 }
 
+/** What a mail action answers: per-id results, or an error for the whole request. */
+type ActionAnswer = { id: string; ok: boolean; detail?: string }[] | Error;
+
+class FakeMailService {
+  applies: { action: MailAction; ids: string[] }[] = [];
+  /** The answer of the next `apply`; by default every id succeeds. */
+  answer?: ActionAnswer | Promise<ActionAnswer>;
+
+  async apply(action: MailAction, ids: string[]) {
+    this.applies.push({ action, ids });
+    const answer = (await this.answer) ?? ids.map((id) => ({ id, ok: true }));
+    if (answer instanceof Error) throw answer;
+    return answer;
+  }
+}
+
 describe('MailReadPage', () => {
   let fixture: ComponentFixture<MailReadPage>;
   let service: FakeReadService;
+  let mail: FakeMailService;
   let params: BehaviorSubject<ParamMap>;
   let notifications: { info: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
 
@@ -115,6 +140,7 @@ describe('MailReadPage', () => {
   async function create(...answers: Answer[]) {
     service = new FakeReadService();
     service.answers = answers;
+    mail = new FakeMailService();
     setup?.(service);
     params = new BehaviorSubject(convertToParamMap({ id: ID }));
     notifications = { info: vi.fn(), error: vi.fn() };
@@ -124,6 +150,7 @@ describe('MailReadPage', () => {
         provideRouter([]),
         { provide: ActivatedRoute, useValue: { paramMap: params } },
         { provide: MailReadService, useValue: service },
+        { provide: MailService, useValue: mail },
         { provide: NotificationService, useValue: notifications },
       ],
     });
@@ -906,5 +933,235 @@ describe('MailReadPage', () => {
       expect(notifications.error).toHaveBeenCalledWith('The file is too large');
       expect(action('report.pdf', 'Save to Files').disabled).toBe(false);
     });
+  });
+
+  describe('Delete', () => {
+    const deleteButton = () => button('Delete');
+    const press = (key: string, init: KeyboardEventInit = {}, target: EventTarget = document) => {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+      target.dispatchEvent(event);
+      return event;
+    };
+    let navigate: ReturnType<typeof vi.spyOn>;
+
+    async function open(...answers: Answer[]) {
+      await create(...answers);
+      navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    }
+
+    it('is not offered before the message has loaded', async () => {
+      await create(deferred<MailMessageResponse>().promise);
+      expect(deleteButton()).toBeUndefined();
+      expect(press('#').defaultPrevented).toBe(false);
+      expect(mail.applies).toEqual([]);
+    });
+
+    it('is not offered when the message could not be loaded', async () => {
+      await create(new ApiError(404, 'Not found'));
+      expect(deleteButton()).toBeUndefined();
+      expect(press('#').defaultPrevented).toBe(false);
+      expect(mail.applies).toEqual([]);
+    });
+
+    it('deletes the message with the mail action and returns to the unified Inbox', async () => {
+      await open();
+      expect(deleteButton()!.getAttribute('title')).toBe('Delete (#)');
+      deleteButton()!.click();
+      await flush();
+      expect(mail.applies).toEqual([{ action: 'DELETE', ids: [ID] }]);
+      expect(navigate).toHaveBeenCalledWith('/mail', { replaceUrl: true });
+      expect(notifications.error).not.toHaveBeenCalled();
+    });
+
+    it('is disabled while the request runs, so it cannot run twice', async () => {
+      await open();
+      const pending = deferred<ActionAnswer>();
+      mail.answer = pending.promise;
+      deleteButton()!.click();
+      fixture.detectChanges();
+      expect(deleteButton()!.disabled).toBe(true);
+      deleteButton()!.click();
+      press('#');
+      expect(mail.applies).toHaveLength(1);
+
+      pending.resolve([{ id: ID, ok: true }]);
+      await flush();
+      fixture.detectChanges();
+      expect(navigate).toHaveBeenCalledTimes(1);
+      expect(deleteButton()!.disabled).toBe(false);
+    });
+
+    it('stays open and shows the server reason when the message could not be deleted', async () => {
+      await open();
+      mail.answer = [{ id: ID, ok: false, detail: 'The mail server refused the change' }];
+      deleteButton()!.click();
+      await flush();
+      fixture.detectChanges();
+      expect(navigate).not.toHaveBeenCalled();
+      expect(notifications.error).toHaveBeenCalledWith(
+        'The message could not be deleted: The mail server refused the change',
+      );
+      expect(el().querySelector('h1')?.textContent?.trim()).toBe('Quarterly report');
+      expect(deleteButton()!.disabled).toBe(false);
+    });
+
+    it('reports a failed request with the API error and enables the button again', async () => {
+      await open();
+      mail.answer = new ApiError(409, 'Conflict', 'The account is being synced');
+      deleteButton()!.click();
+      await flush();
+      fixture.detectChanges();
+      expect(navigate).not.toHaveBeenCalled();
+      expect(notifications.error).toHaveBeenCalledWith(
+        'The message could not be deleted: The account is being synced',
+      );
+      expect(deleteButton()!.disabled).toBe(false);
+    });
+
+    it('reports an unexpected failure, or a missing result, in general words', async () => {
+      await open();
+      mail.answer = new TypeError('Failed to fetch');
+      deleteButton()!.click();
+      await flush();
+      expect(notifications.error).toHaveBeenLastCalledWith(
+        'The message could not be deleted: Something went wrong.',
+      );
+      mail.answer = [];
+      deleteButton()!.click();
+      await flush();
+      expect(notifications.error).toHaveBeenLastCalledWith(
+        'The message could not be deleted: Something went wrong.',
+      );
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('does not leave a message the user moved to while the delete ran', async () => {
+      await open();
+      const pending = deferred<ActionAnswer>();
+      mail.answer = pending.promise;
+      deleteButton()!.click();
+      service.answers.push(message({ id: 'other' }));
+      params.next(convertToParamMap({ id: 'other' }));
+      await flush();
+      pending.resolve([{ id: ID, ok: true }]);
+      await flush();
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    describe('the # key', () => {
+      it('deletes, as in the list', async () => {
+        await open();
+        const event = press('#');
+        await flush();
+        expect(event.defaultPrevented).toBe(true);
+        expect(mail.applies).toEqual([{ action: 'DELETE', ids: [ID] }]);
+        expect(navigate).toHaveBeenCalledWith('/mail', { replaceUrl: true });
+      });
+
+      it('also deletes when typed with AltGr (Swiss German keyboards)', async () => {
+        await open();
+        press('#', { ctrlKey: true, altKey: true });
+        await flush();
+        expect(mail.applies).toHaveLength(1);
+      });
+
+      it('does nothing while typing in an input or editor', async () => {
+        await open();
+        const input = document.createElement('input');
+        const editor = document.createElement('div');
+        editor.contentEditable = 'true';
+        // jsdom does not derive isContentEditable from the attribute.
+        Object.defineProperty(editor, 'isContentEditable', { value: true });
+        document.body.append(input, editor);
+        try {
+          expect(press('#', {}, input).defaultPrevented).toBe(false);
+          expect(press('#', {}, editor).defaultPrevented).toBe(false);
+          await flush();
+          expect(mail.applies).toEqual([]);
+        } finally {
+          input.remove();
+          editor.remove();
+        }
+      });
+
+      it('ignores other keys, chords and an auto-repeated #', async () => {
+        await open();
+        press('e');
+        press('#', { metaKey: true });
+        press('#', { repeat: true });
+        await flush();
+        expect(mail.applies).toEqual([]);
+      });
+    });
+  });
+});
+
+@Component({ selector: 'app-stub-list', template: '<p class="list">list</p>' })
+class StubList {}
+
+describe('MailReadPage Delete: back to the list it was opened from', () => {
+  let mail: FakeMailService;
+
+  async function openFrom(from: string | null): Promise<RouterTestingHarness> {
+    mail = new FakeMailService();
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          { path: 'mail', component: StubList },
+          { path: 'mail/folders/:folderId', component: StubList },
+          { path: 'notes', component: StubList },
+          { path: 'mail/messages/:id', component: MailReadPage },
+        ]),
+        { provide: MailReadService, useValue: new FakeReadService() },
+        { provide: MailService, useValue: mail },
+        { provide: NotificationService, useValue: { info: vi.fn(), error: vi.fn() } },
+      ],
+    });
+    TestBed.overrideComponent(MailReadPage, {
+      remove: { imports: [LinkedItems] },
+      add: { imports: [StubLinkedItems] },
+    });
+    const harness = await RouterTestingHarness.create();
+    if (from) await harness.navigateByUrl(from);
+    await harness.navigateByUrl(`/mail/messages/${ID}`);
+    await flush();
+    harness.detectChanges();
+    return harness;
+  }
+
+  async function clickDelete(harness: RouterTestingHarness): Promise<string> {
+    [...harness.routeNativeElement!.querySelectorAll('button')]
+      .find((b) => b.textContent?.trim() === 'Delete')!
+      .click();
+    await flush();
+    await harness.fixture.whenStable();
+    return TestBed.inject(Router).url;
+  }
+
+  it('returns to the folder the message was opened from', async () => {
+    const harness = await openFrom('/mail/folders/f-archive');
+    expect(await clickDelete(harness)).toBe('/mail/folders/f-archive');
+    expect(mail.applies).toEqual([{ action: 'DELETE', ids: [ID] }]);
+    expect(harness.routeNativeElement!.querySelector('.list')).not.toBeNull();
+  });
+
+  it('returns to the unified Inbox it was opened from', async () => {
+    expect(await clickDelete(await openFrom('/mail'))).toBe('/mail');
+  });
+
+  it('returns to the unified Inbox when opened from another page', async () => {
+    expect(await clickDelete(await openFrom('/notes'))).toBe('/mail');
+  });
+
+  it('returns to the unified Inbox when opened directly', async () => {
+    expect(await clickDelete(await openFrom(null))).toBe('/mail');
+  });
+
+  it('keeps the origin when moving on to another message', async () => {
+    const harness = await openFrom('/mail/folders/f-work');
+    await harness.navigateByUrl('/mail/messages/0192f0c4-0000-7000-8000-00000000a002');
+    await flush();
+    harness.detectChanges();
+    expect(await clickDelete(harness)).toBe('/mail/folders/f-work');
   });
 });
