@@ -1,11 +1,11 @@
 ---
 title: Android mail: create, rename and delete folders
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [mail-folder-manage-api,and-mail-list-read,mail-account-label-email,and-mail-read-spam]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/list,android/app/src/test/java/ch/sonensei/cockpit/mail/list]
 prio: 2
-lease_until: 2026-11-01T07:45:17Z
+lease_until: 
 ---
 ## Goal
 The Android mail screen lets the owner create, rename and delete folders of a mail account through the API from
@@ -36,3 +36,4 @@ Adding string resources touches the shared `strings.xml` files: add lines only, 
 - ASSUMPTION (2026-11-01 07:50+0100 by dell26/agent-1): Rename goes through a hand-written MailApi.renameFolder (PATCH with body {name} only): the generated UpdateMailFolderRequest always serializes role:null (encodeDefaults, explicit nulls), which the server reads as 'remove the role'. Create and delete use the generated MailAccountsApi.
 - ASSUMPTION (2026-11-01 07:50+0100 by dell26/agent-1): Folder actions are an overflow (MoreVert) button beside each folder in the picker plus a New-folder icon next to each account label; a 412 closes the dialog and shows the list message with the reload; a 409 on delete (folder holds a special folder) is shown in the confirm dialog. New strings live in new strings_mail_folders.xml files (en, de).
 - ASSUMPTION (2026-11-01 08:22+0100 by dell26/agent-1): A 404 on rename/delete (folder already gone elsewhere) is handled like a 412: dialog closes, folders reload, folder-changed message (review finding). Left as is (P3): if the shown folder turns out gone that way, the screen does not switch to the unified Inbox.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 88s on 6fa853e04; criteria verified 6/6
