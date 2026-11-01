@@ -1,7 +1,7 @@
 ---
 title: HUMAN: register Google OAuth app
-status: todo
-owner:
+status: in_progress
+owner: Peter Gürtler
 deps: [oauth-connections]
 quality: exempt
 quality_reason: human configuration task, no code
@@ -9,6 +9,7 @@ hold:
 prio: 2
 releases: 0
 extended: 
+lease_until: 
 ---
 ## Goal
 Owner registers the Google OAuth app following docs/oauth-setup.md (SPEC.md §13.3). Microsoft/Azure is
