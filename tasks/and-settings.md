@@ -1,11 +1,11 @@
 ---
 title: Android: Settings screen (server, notifications, capture queue, app version)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-shell,and-capture-queue,and-reminders,unifiedpush-android-client]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/settings,android/app/src/test/java/ch/sonensei/cockpit/settings,android/app/src/main/res/values/strings_settings.xml,android/app/src/main/res/values-de/strings_settings.xml]
 prio: 2
-lease_until: 2026-11-01T17:17:33Z
+lease_until: 
 extended: dell26/agent-1
 ---
 ## Goal
@@ -37,3 +37,4 @@ Requested by the owner (2026-11-01) after trying the Android app on the phone. O
 - ASSUMPTION (2026-11-01 16:35+0100 by dell26/agent-1): Signed-in user name comes from GET /api/v1/auth/me (MeResponse.username), loaded when the screen opens; offline shows 'cannot be reached' with Retry. Edited InAppPasskeyTest/AppStartRoutingTest (auth tests, outside touches) to scroll to passkeys/Log out, which the new sections push below the fold.
 - extended by dell26/agent-1: Implementation + fixes for CR-1..CR-5 committed (fixer reports settings tests 57/57 and lint pass). Left: rerun test-writer (tests.md is missing) and code-reviewer on final code, run 'cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug', record verify for criteria 1-7, write quality.json, .taskcheck, done.
 - ASSUMPTION (2026-11-01 17:38+0100 by dell26/agent-1): Review P3 (re-review CR-1): leaving Settings mid distributor switch cancels the switch (runs in viewModelScope; lock is per environment instance). Accepted for now: needs Back within one network round trip, effect is push off until next app start; follow-up could run the switch NonCancellable with a process-wide lock.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 104s on f21f39c73; criteria verified 7/7
