@@ -27,11 +27,12 @@ works for some messages and fails for others.
       those ids, and starts a sync of that folder in the background (not blocking the response, through
       `MailHeaderSyncService` so the sync lock applies). The stale rows then disappear from the cache, and the
       list refreshes through the folder's change event. A failing background sync is logged and does not fail the action
-- [ ] GreenMail integration tests (`MailActionGreenMailTests`): (a) a message deleted from Trash by another IMAP client,
+- [x] GreenMail integration tests (`MailActionGreenMailTests`): (a) a message deleted from Trash by another IMAP client,
       then DELETE through the API -> ok, row gone, nothing left on the server; (b) a mix of present and already-gone
       messages in one Trash delete -> all ok; (c) a MOVE of a message deleted from its folder by another client ->
       NOT_FOUND, and after the background sync the row is no longer cached. Run with
       `cd server && ./gradlew integrationTest --tests '*MailActionGreenMailTests*'`
+  - verified (2026-11-01 08:53+0100 by dell26/agent-1): cd server && ./gradlew integrationTest --tests '*MailActionGreenMailTests*' (GreenMail, at aedab811d) -> BUILD SUCCESSFUL, 20 tests 0 failures, incl. (a) 'a delete in Trash of a message another client already deleted there is ok and removes the row', (b) 'a delete in Trash of present and already gone messages reports all ok', (c) 'a move of a message another client deleted fails with NOT_FOUND and a background sync drops the row'
 - [ ] Unit tests in `MailActionServiceTests` for the new outcomes; `cd server && ./gradlew check` passes
 
 ## Notes
