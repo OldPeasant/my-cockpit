@@ -222,4 +222,17 @@ class SearchRepositoryTest {
             val result = search.search("plan", emptySet())
             assertNull((result as SearchResult.Failed).status)
         }
+
+    @Test
+    fun `a hit with a malformed id fails without a status instead of crashing`() =
+        runBlocking {
+            server.enqueue(
+                json(
+                    """{"groups":[{"type":"TASK","items":[""" +
+                        """{"id":"not-a-uuid","type":"TASK","title":"Plan trip","updatedAt":"2026-10-01T09:00:00Z"}]}]}""",
+                ),
+            )
+
+            assertEquals(SearchResult.Failed(null), search.search("plan", emptySet()))
+        }
 }
