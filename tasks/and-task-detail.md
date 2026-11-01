@@ -1,10 +1,11 @@
 ---
 title: Android: task detail screen with editing
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [and-dashboard,and-logbook,and-search,and-gtd-data]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/java/ch/sonensei/cockpit/gtd/next,android/app/src/main/java/ch/sonensei/cockpit/gtd/today,android/app/src/main/java/ch/sonensei/cockpit/gtd/lists,android/app/src/main/java/ch/sonensei/cockpit/gtd/projects,android/app/src/main/java/ch/sonensei/cockpit/search,android/app/src/main/java/ch/sonensei/cockpit/dashboard,android/app/src/main/java/ch/sonensei/cockpit/ui,android/app/src/test/java/ch/sonensei/cockpit/gtd,android/app/src/test/java/ch/sonensei/cockpit/search,android/app/src/test/java/ch/sonensei/cockpit/dashboard,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml]
 prio: 2
+lease_until: 2026-11-01T22:23:51Z
 ---
 ## Goal
 In the Android app a task can't be opened: rows in Next, Today, Projects, Waiting, Someday and Logbook only have
