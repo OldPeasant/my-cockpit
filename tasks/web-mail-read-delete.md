@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [web-mail-read]
 touches: [web/src/app/features/mail/read]
 prio: 2
-lease_until: 2026-11-01T06:14:20Z
+lease_until: 2026-11-01T06:19:21Z
 ---
 ## Goal
 The mail read view (`/mail/messages/:id`) has a Delete button, so a message can be deleted right after
