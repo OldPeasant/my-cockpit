@@ -193,12 +193,12 @@ class AuthRepositoryTest {
     fun `an invalid server address is rejected before any request`() =
         runBlocking {
             assertEquals(
-                LoginResult.InvalidServerUrl(ServerUrlValidation.Reason.HTTPS_REQUIRED),
+                LoginResult.InvalidServerUrl(ServerUrlValidation.Reason.HTTPS_REQUIRED, "http://cockpit.example.org"),
                 repository.login("http://cockpit.example.org", "alex", "pw", SecondFactor.Totp("123456")),
             )
             assertEquals(
-                LoginResult.InvalidServerUrl(ServerUrlValidation.Reason.MALFORMED),
-                repository.login("not a url", "alex", "pw", SecondFactor.Totp("123456")),
+                LoginResult.InvalidServerUrl(ServerUrlValidation.Reason.MALFORMED, "https://notaurl?"),
+                repository.login("not a url?", "alex", "pw", SecondFactor.Totp("123456")),
             )
             assertEquals(0, server.requestCount)
         }

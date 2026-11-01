@@ -116,7 +116,7 @@ class PasskeyRepository internal constructor(
         credentials: PasskeyCredentials,
     ): LoginResult {
         val validation = serverUrls.setServerUrl(serverUrl)
-        if (validation is ServerUrlValidation.Invalid) return LoginResult.InvalidServerUrl(validation.reason)
+        if (validation is ServerUrlValidation.Invalid) return LoginResult.InvalidServerUrl(validation.reason, validation.address)
         val ceremony =
             when (val started = call { ceremonyApi.startAuthentication() }) {
                 is Call.Ok -> started.body

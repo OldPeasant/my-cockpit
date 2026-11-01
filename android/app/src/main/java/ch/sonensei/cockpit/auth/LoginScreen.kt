@@ -39,6 +39,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
@@ -47,6 +48,15 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
+
+/** Keyboards must not autocorrect (it inserts spaces after dots) or capitalize the server address. */
+internal val ServerUrlKeyboardOptions =
+    KeyboardOptions(
+        capitalization = KeyboardCapitalization.None,
+        autoCorrectEnabled = false,
+        keyboardType = KeyboardType.Uri,
+        imeAction = ImeAction.Next,
+    )
 
 /** Test tags of the login form. */
 object LoginTags {
@@ -134,7 +144,7 @@ fun LoginScreen(
                             isError = state.error == LoginError.SERVER_URL_MALFORMED || state.error == LoginError.SERVER_URL_HTTPS_REQUIRED,
                             singleLine = true,
                             enabled = editable,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
+                            keyboardOptions = ServerUrlKeyboardOptions,
                             modifier = Modifier.fillMaxWidth().testTag(LoginTags.SERVER_URL),
                         )
                     }
@@ -182,7 +192,7 @@ fun LoginScreen(
                     Text(stringResource(if (state.useRecoveryCode) R.string.login_use_totp else R.string.login_use_recovery_code))
                 }
 
-                state.error?.let { ErrorMessage(it) }
+                state.error?.let { ErrorMessage(it, state.errorAddress) }
 
                 Button(
                     onClick = onSubmit,
@@ -227,7 +237,10 @@ private fun SectionLabel(
 }
 
 @Composable
-private fun ErrorMessage(error: LoginError) {
+private fun ErrorMessage(
+    error: LoginError,
+    address: String?,
+) {
     Surface(
         color = MaterialTheme.colorScheme.errorContainer,
         contentColor = MaterialTheme.colorScheme.onErrorContainer,
@@ -240,12 +253,24 @@ private fun ErrorMessage(error: LoginError) {
                 ).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
     ) {
         Text(
-            text = stringResource(error.messageRes()),
+            text = address?.takeIf { it.isNotEmpty() }?.let { addressMessage(error, it) } ?: stringResource(error.messageRes()),
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(12.dp),
         )
     }
 }
+
+/** A server address error that quotes the address as the app understood it; null for other errors. */
+@Composable
+private fun addressMessage(
+    error: LoginError,
+    address: String,
+): String? =
+    when (error) {
+        LoginError.SERVER_URL_MALFORMED -> stringResource(R.string.login_error_server_url_malformed_address, address)
+        LoginError.SERVER_URL_HTTPS_REQUIRED -> stringResource(R.string.login_error_server_url_https_required_address, address)
+        else -> null
+    }
 
 @StringRes
 private fun LoginError.messageRes(): Int =

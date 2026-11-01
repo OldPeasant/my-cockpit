@@ -19,6 +19,8 @@
     </plurals>
     <string name="login_error_server_url_malformed">Gib die Serveradresse als http(s)-URL ein, ohne Benutzername, Query oder Fragment.</string>
     <string name="login_error_server_url_https_required">Der Server braucht eine https-Adresse. Einfaches http funktioniert nur auf diesem Gerät.</string>
+    <string name="login_error_server_url_malformed_address">„%1$s“ ist keine gültige Serveradresse. Gib sie als http(s)-URL ein, ohne Benutzername, Query oder Fragment.</string>
+    <string name="login_error_server_url_https_required_address">„%1$s“ verwendet einfaches http. Der Server braucht eine https-Adresse; einfaches http funktioniert nur auf diesem Gerät.</string>
     <string name="login_error_invalid_request">Der Server konnte die Anmeldeanfrage nicht lesen. Fülle alle Felder aus und versuche es erneut.</string>
     <string name="login_error_wrong_credentials">Benutzername, Passwort oder Code ist falsch. Prüfe sie und gib einen neuen Code ein.</string>
     <string name="login_error_too_many_attempts">Zu viele fehlgeschlagene Versuche. Die Anmeldung ist kurz pausiert.</string>

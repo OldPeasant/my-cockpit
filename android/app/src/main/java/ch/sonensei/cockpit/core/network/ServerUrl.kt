@@ -27,8 +27,10 @@ sealed interface ServerUrlValidation {
         val url: HttpUrl,
     ) : ServerUrlValidation
 
+    /** [address] is the address as the validator understood it (spaces removed, scheme added), shown to the user. */
     data class Invalid(
         val reason: Reason,
+        val address: String,
     ) : ServerUrlValidation
 
     enum class Reason {
@@ -44,15 +46,30 @@ object ServerUrlValidator {
     /** Hosts that may use plain http: this device, and the development machine as seen from the emulator. */
     val CLEARTEXT_HOSTS = setOf("localhost", "127.0.0.1", "::1", "10.0.2.2")
 
+    /** Characters that are not whitespace for [Char.isWhitespace] but are still invisible in a typed address. */
+    private val INVISIBLE = setOf('\u200B', '\u200C', '\u200D', '\u2060', '\uFEFF')
+
+    private val SCHEME = Regex("^[A-Za-z][A-Za-z0-9+.-]*://")
+
+    /**
+     * Turns what the user typed into the address the app uses: keyboards insert spaces (e.g. after each dot), so all
+     * whitespace (including non-breaking and other Unicode spaces) is removed, and an address without a scheme gets
+     * `https://`.
+     */
+    fun understood(raw: String): String {
+        val compact = raw.filterNot { it.isWhitespace() || it in INVISIBLE }
+        return if (compact.isEmpty() || SCHEME.containsMatchIn(compact)) compact else "https://$compact"
+    }
+
     fun validate(raw: String): ServerUrlValidation {
+        val address = understood(raw)
         val url =
-            raw
-                .trim()
+            address
                 .toHttpUrlOrNull()
                 ?.takeIf { it.username.isEmpty() && it.password.isEmpty() && it.query == null && it.fragment == null }
-                ?: return ServerUrlValidation.Invalid(ServerUrlValidation.Reason.MALFORMED)
+                ?: return ServerUrlValidation.Invalid(ServerUrlValidation.Reason.MALFORMED, address)
         if (!url.isHttps && url.host !in CLEARTEXT_HOSTS) {
-            return ServerUrlValidation.Invalid(ServerUrlValidation.Reason.HTTPS_REQUIRED)
+            return ServerUrlValidation.Invalid(ServerUrlValidation.Reason.HTTPS_REQUIRED, address)
         }
         val normalized = if (url.encodedPath.endsWith("/")) url else url.newBuilder().addPathSegment("").build()
         return ServerUrlValidation.Valid(normalized)

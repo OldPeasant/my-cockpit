@@ -121,12 +121,30 @@ class LoginViewModelTest {
         }
 
     @Test
+    fun `an invalid server address keeps the address as understood until the next edit`() =
+        runTest(dispatcher) {
+            coEvery { repository.login(any(), any(), any(), any()) } returns
+                LoginResult.InvalidServerUrl(ServerUrlValidation.Reason.MALFORMED, "https://my-cockpit.sonensei?x")
+            val viewModel = filledIn()
+
+            viewModel.submit()
+            advanceUntilIdle()
+            assertEquals(LoginError.SERVER_URL_MALFORMED, viewModel.uiState.value.error)
+            assertEquals("https://my-cockpit.sonensei?x", viewModel.uiState.value.errorAddress)
+
+            viewModel.onServerUrlChange("https://my-cockpit.sonensei.ch")
+            assertNull(viewModel.uiState.value.error)
+            assertNull(viewModel.uiState.value.errorAddress)
+        }
+
+    @Test
     fun `each failure maps to its error`() =
         runTest(dispatcher) {
             val cases =
                 mapOf(
-                    LoginResult.InvalidServerUrl(ServerUrlValidation.Reason.MALFORMED) to LoginError.SERVER_URL_MALFORMED,
-                    LoginResult.InvalidServerUrl(ServerUrlValidation.Reason.HTTPS_REQUIRED) to LoginError.SERVER_URL_HTTPS_REQUIRED,
+                    LoginResult.InvalidServerUrl(ServerUrlValidation.Reason.MALFORMED, "https://x") to LoginError.SERVER_URL_MALFORMED,
+                    LoginResult.InvalidServerUrl(ServerUrlValidation.Reason.HTTPS_REQUIRED, "http://x") to
+                        LoginError.SERVER_URL_HTTPS_REQUIRED,
                     LoginResult.InvalidRequest to LoginError.INVALID_REQUEST,
                     LoginResult.Network to LoginError.NETWORK,
                     LoginResult.ServerError to LoginError.SERVER,

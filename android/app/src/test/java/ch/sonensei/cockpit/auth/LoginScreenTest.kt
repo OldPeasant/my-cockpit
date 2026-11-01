@@ -20,6 +20,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -171,6 +173,35 @@ class LoginScreenTest {
             state = LoginUiState(error = error)
             composeRule.onNodeWithTag(LoginTags.ERROR).performScrollTo().assertTextContains(message, substring = true)
         }
+    }
+
+    @Test
+    fun `a server address error quotes the address as the app understood it`() {
+        var state by mutableStateOf(LoginUiState(error = LoginError.SERVER_URL_MALFORMED, errorAddress = "https://my-cockpit.sonensei?x"))
+        composeRule.setContent { LoginScreen(state, {}, {}, {}, {}, {}, {}) }
+
+        composeRule
+            .onNodeWithTag(LoginTags.ERROR)
+            .performScrollTo()
+            .assertTextContains("\"https://my-cockpit.sonensei?x\" is not a valid server address", substring = true)
+        state = LoginUiState(error = LoginError.SERVER_URL_HTTPS_REQUIRED, errorAddress = "http://my-cockpit.sonensei.ch")
+        composeRule
+            .onNodeWithTag(LoginTags.ERROR)
+            .performScrollTo()
+            .assertTextContains("\"http://my-cockpit.sonensei.ch\" uses plain http", substring = true)
+        // Nothing understood (e.g. only invisible characters): the general message instead of empty quotes.
+        state = LoginUiState(error = LoginError.SERVER_URL_MALFORMED, errorAddress = "")
+        composeRule
+            .onNodeWithTag(LoginTags.ERROR)
+            .performScrollTo()
+            .assertTextContains("Enter the server address as an http(s) URL", substring = true)
+    }
+
+    @Test
+    fun `the server address keyboard neither autocorrects nor capitalizes`() {
+        assertEquals(false, ServerUrlKeyboardOptions.autoCorrectEnabled)
+        assertEquals(KeyboardType.Uri, ServerUrlKeyboardOptions.keyboardType)
+        assertEquals(KeyboardCapitalization.None, ServerUrlKeyboardOptions.capitalization)
     }
 
     @Test

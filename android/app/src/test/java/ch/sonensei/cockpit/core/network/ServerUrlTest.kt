@@ -54,12 +54,37 @@ class ServerUrlTest {
     }
 
     @Test
+    fun `removes all whitespace the keyboard inserted, including Unicode spaces`() {
+        val expected = Valid("https://my-cockpit.sonensei.ch/".toHttpUrl())
+        assertEquals(expected, ServerUrlValidator.validate("https://my-cockpit. sonensei. ch "))
+        assertEquals(expected, ServerUrlValidator.validate("\u00A0https://my-cockpit.\u2009sonensei.\u202Fch\u3000\t\n"))
+        assertEquals(expected, ServerUrlValidator.validate("https://my-\u200Bcockpit.sonensei.ch\uFEFF"))
+    }
+
+    @Test
+    fun `an address without scheme gets https`() {
+        assertEquals(Valid("https://my-cockpit.sonensei.ch/".toHttpUrl()), ServerUrlValidator.validate("my-cockpit.sonensei.ch"))
+        assertEquals(Valid("https://example.org/cockpit/".toHttpUrl()), ServerUrlValidator.validate(" example. org/cockpit"))
+        assertEquals(
+            Invalid(Reason.HTTPS_REQUIRED, "http://my-cockpit.sonensei.ch"),
+            ServerUrlValidator.validate("http://my-cockpit.sonensei.ch"),
+        )
+    }
+
+    @Test
+    fun `an invalid address carries the address as understood`() {
+        assertEquals(Invalid(Reason.MALFORMED, "https://mycockpit?x"), ServerUrlValidator.validate("my cockpit?x"))
+        assertEquals(Invalid(Reason.MALFORMED, "ftp://example.org"), ServerUrlValidator.validate("ftp:// example.org"))
+        assertEquals(Invalid(Reason.MALFORMED, ""), ServerUrlValidator.validate("  "))
+    }
+
+    @Test
     fun `allows http only for localhost and the emulator host`() {
         listOf("http://localhost:8080", "http://127.0.0.1:8080", "http://[::1]:8080", "http://10.0.2.2:8080").forEach {
             assertEquals(it, true, ServerUrlValidator.validate(it) is Valid)
         }
         listOf("http://cockpit.example.org", "http://192.168.1.10:8080").forEach {
-            assertEquals(it, Invalid(Reason.HTTPS_REQUIRED), ServerUrlValidator.validate(it))
+            assertEquals(it, Invalid(Reason.HTTPS_REQUIRED, it), ServerUrlValidator.validate(it))
         }
     }
 
@@ -67,14 +92,13 @@ class ServerUrlTest {
     fun `rejects malformed URLs`() {
         listOf(
             "",
-            "cockpit.example.org",
             "ftp://example.org",
             "https://user:pw@example.org",
             "https://user@example.org",
             "https://:pw@example.org",
             "https://example.org/?a=1",
             "https://example.org/#x",
-        ).forEach { assertEquals(it, Invalid(Reason.MALFORMED), ServerUrlValidator.validate(it)) }
+        ).forEach { assertEquals(it, Reason.MALFORMED, (ServerUrlValidator.validate(it) as Invalid).reason) }
     }
 
     @Test
@@ -85,7 +109,10 @@ class ServerUrlTest {
             val repository = ServerUrlRepository(PreferenceDataStoreFactory.create(scope = scope) { file }, session)
 
             assertNull(repository.serverUrl.first())
-            assertEquals(Invalid(Reason.HTTPS_REQUIRED), repository.setServerUrl("http://cockpit.example.org"))
+            assertEquals(
+                Invalid(Reason.HTTPS_REQUIRED, "http://cockpit.example.org"),
+                repository.setServerUrl("http://cockpit.example.org"),
+            )
             assertNull(repository.serverUrl.first())
             repository.setServerUrl("https://cockpit.example.org/base")
             assertEquals("https://cockpit.example.org/base/".toHttpUrl(), repository.serverUrl.first())
@@ -98,7 +125,7 @@ class ServerUrlTest {
             assertEquals(it, true, ServerUrlValidator.validate(it) is Valid)
         }
         listOf("http://localhost.example.org", "http://10.0.2.3:8080", "http://127.0.0.2", "http://my-localhost").forEach {
-            assertEquals(it, Invalid(Reason.HTTPS_REQUIRED), ServerUrlValidator.validate(it))
+            assertEquals(it, Invalid(Reason.HTTPS_REQUIRED, it), ServerUrlValidator.validate(it))
         }
     }
 
@@ -110,7 +137,7 @@ class ServerUrlTest {
         )
         assertEquals(Valid("http://localhost:8080/".toHttpUrl()), ServerUrlValidator.validate("http://localhost:8080/"))
         listOf("   ", "https://", "https://example.org:99999").forEach {
-            assertEquals(it, Invalid(Reason.MALFORMED), ServerUrlValidator.validate(it))
+            assertEquals(it, Reason.MALFORMED, (ServerUrlValidator.validate(it) as Invalid).reason)
         }
     }
 
@@ -132,7 +159,7 @@ class ServerUrlTest {
             reopened.setServerUrl("http://10.0.2.2:8080")
             assertEquals("http://10.0.2.2:8080/".toHttpUrl(), reopened.serverUrl.first())
             // An invalid URL leaves the previous one in place.
-            assertEquals(Invalid(Reason.MALFORMED), reopened.setServerUrl("not a url"))
+            assertEquals(Invalid(Reason.MALFORMED, "https://notaurl?"), reopened.setServerUrl("not a url?"))
             assertEquals("http://10.0.2.2:8080/".toHttpUrl(), reopened.serverUrl.first())
             secondScope.cancel()
         }

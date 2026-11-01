@@ -48,8 +48,10 @@ sealed interface SecondFactor {
 sealed interface LoginResult {
     data object Success : LoginResult
 
+    /** [address] is the server address as the app understood it, so the user can see what is wrong. */
     data class InvalidServerUrl(
         val reason: ServerUrlValidation.Reason,
+        val address: String,
     ) : LoginResult
 
     /** The server refused the request as incomplete (400). */
@@ -165,7 +167,7 @@ class AuthRepository internal constructor(
         secondFactor: SecondFactor,
     ): LoginResult {
         val validation = serverUrls.setServerUrl(serverUrl)
-        if (validation is ServerUrlValidation.Invalid) return LoginResult.InvalidServerUrl(validation.reason)
+        if (validation is ServerUrlValidation.Invalid) return LoginResult.InvalidServerUrl(validation.reason, validation.address)
         val request =
             TokenRequest(
                 deviceName = deviceName(),

@@ -19,6 +19,8 @@
     </plurals>
     <string name="login_error_server_url_malformed">Enter the server address as an http(s) URL, without user name, query or fragment.</string>
     <string name="login_error_server_url_https_required">The server needs an https address. Plain http only works for this device.</string>
+    <string name="login_error_server_url_malformed_address">\"%1$s\" is not a valid server address. Enter it as an http(s) URL, without user name, query or fragment.</string>
+    <string name="login_error_server_url_https_required_address">\"%1$s\" uses plain http. The server needs an https address; plain http only works for this device.</string>
     <string name="login_error_invalid_request">The server could not read the sign-in request. Fill in every field and try again.</string>
     <string name="login_error_wrong_credentials">Username, password or code is wrong. Check them and enter a new code.</string>
     <string name="login_error_too_many_attempts">Too many failed attempts. Sign-in is paused for a moment.</string>

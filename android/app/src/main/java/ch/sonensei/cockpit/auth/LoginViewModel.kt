@@ -37,6 +37,8 @@ data class LoginUiState(
     val useRecoveryCode: Boolean = false,
     val submitting: Boolean = false,
     val error: LoginError? = null,
+    /** With a server address error: the address as the app understood it (spaces removed, scheme added). */
+    val errorAddress: String? = null,
     /** Seconds until the server accepts the next attempt after a 429; 0 when there is no wait. */
     val retryAfterSeconds: Long = 0,
 ) {
@@ -52,7 +54,7 @@ data class LoginUiState(
 
     override fun toString(): String =
         "LoginUiState(serverUrl=$serverUrl, username=$username, useRecoveryCode=$useRecoveryCode, " +
-            "submitting=$submitting, error=$error, retryAfterSeconds=$retryAfterSeconds)"
+            "submitting=$submitting, error=$error, errorAddress=$errorAddress, retryAfterSeconds=$retryAfterSeconds)"
 }
 
 /** State of the login form; a successful login stores the tokens, which switches the app to the shell. */
@@ -75,21 +77,21 @@ class LoginViewModel
             }
         }
 
-        fun onServerUrlChange(value: String) = state.update { it.copy(serverUrl = value, error = it.errorAfterEdit()) }
+        fun onServerUrlChange(value: String) = state.update { it.copy(serverUrl = value, error = it.errorAfterEdit(), errorAddress = null) }
 
-        fun onUsernameChange(value: String) = state.update { it.copy(username = value, error = it.errorAfterEdit()) }
+        fun onUsernameChange(value: String) = state.update { it.copy(username = value, error = it.errorAfterEdit(), errorAddress = null) }
 
-        fun onPasswordChange(value: String) = state.update { it.copy(password = value, error = it.errorAfterEdit()) }
+        fun onPasswordChange(value: String) = state.update { it.copy(password = value, error = it.errorAfterEdit(), errorAddress = null) }
 
-        fun onCodeChange(value: String) = state.update { it.copy(code = value, error = it.errorAfterEdit()) }
+        fun onCodeChange(value: String) = state.update { it.copy(code = value, error = it.errorAfterEdit(), errorAddress = null) }
 
         fun onUseRecoveryCodeChange(value: Boolean) =
-            state.update { it.copy(useRecoveryCode = value, code = "", error = it.errorAfterEdit()) }
+            state.update { it.copy(useRecoveryCode = value, code = "", error = it.errorAfterEdit(), errorAddress = null) }
 
         fun submit() {
             val form = state.value
             if (!form.canSubmit) return
-            state.update { it.copy(submitting = true, error = null) }
+            state.update { it.copy(submitting = true, error = null, errorAddress = null) }
             viewModelScope.launch {
                 val factor = if (form.useRecoveryCode) SecondFactor.RecoveryCode(form.code) else SecondFactor.Totp(form.code)
                 val result = repository.login(form.serverUrl, form.username, form.password, factor)
@@ -102,7 +104,7 @@ class LoginViewModel
         fun submitPasskey(credentials: PasskeyCredentials) {
             val form = state.value
             if (!form.canSubmitPasskey) return
-            state.update { it.copy(submitting = true, error = null) }
+            state.update { it.copy(submitting = true, error = null, errorAddress = null) }
             viewModelScope.launch {
                 val result = passkeys.login(form.serverUrl, credentials)
                 state.update { it.after(result) }
@@ -116,6 +118,7 @@ class LoginViewModel
                 is LoginResult.InvalidServerUrl ->
                     copy(
                         submitting = false,
+                        errorAddress = result.address,
                         error =
                             when (result.reason) {
                                 ServerUrlValidation.Reason.MALFORMED -> LoginError.SERVER_URL_MALFORMED

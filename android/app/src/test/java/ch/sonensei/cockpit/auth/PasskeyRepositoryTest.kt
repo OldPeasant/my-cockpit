@@ -101,7 +101,7 @@ class PasskeyRepositoryTest {
         runBlocking {
             val result = repository.login("ftp://cockpit.example.org", authenticator)
 
-            assertEquals(LoginResult.InvalidServerUrl(ServerUrlValidation.Reason.MALFORMED), result)
+            assertEquals(LoginResult.InvalidServerUrl(ServerUrlValidation.Reason.MALFORMED, "ftp://cockpit.example.org"), result)
             assertEquals(0, server.requestCount)
         }
 
