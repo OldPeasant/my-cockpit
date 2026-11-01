@@ -49,7 +49,10 @@ enum class MailAction {
 	/** To the account's Archive folder. */
 	ARCHIVE,
 
-	/** To the account's Trash folder; permanently deleted when already in Trash. */
+	/**
+	 * To the account's Trash folder; permanently deleted when already in Trash. A message in Trash that is already gone
+	 * from it on the server (deleted by another client, Trash emptied) counts as deleted: its cached row is removed.
+	 */
 	DELETE,
 
 	/** To the account's Spam folder. */
@@ -100,6 +103,12 @@ data class MailActionOutcome(
  * delete expunges only the deleted messages with `UID EXPUNGE` when the server supports UIDPLUS, else with a plain
  * `EXPUNGE`. Folders whose content changed publish a `MAIL_FOLDER` change event.
  *
+ * The cache of folders other than the Inbox is only polled, so it can list messages that are gone from the server. A
+ * permanent delete in Trash counts such messages as deleted (ok, the row is removed like after the expunge), as long
+ * as the folder exists and its UIDVALIDITY matches the cached one; otherwise the message may still exist under another
+ * UID and the id fails with NOT_FOUND. Any other action fails such ids with NOT_FOUND and starts a background sync of
+ * the folder ([MailFolderResync]), which removes the stale rows and announces the folder.
+ *
  * The cache is updated after the server command, per source folder, without the lock of the header sync. When a
  * concurrent writer (another action, a sync) changed the same rows, the update is retried once on freshly read rows;
  * if that fails as well, the cache is left as it is and the next sync of the folders concerned repairs it. Either way
@@ -116,6 +125,7 @@ class MailActionService(
 	private val transactions: TransactionTemplate,
 	private val changes: ChangeEventPublisher,
 	private val searchIndex: MailSearchIndex,
+	private val resync: MailFolderResync,
 ) {
 	private val log = LoggerFactory.getLogger(javaClass)
 
@@ -192,9 +202,13 @@ class MailActionService(
 				Remote.Rejected -> return requested.map { failure(it, MailActionError.REJECTED) }
 				is Remote.Done -> remote
 			}
-		updateCache(source, group.map { it.second }.filter { it.uid !in done.missing }, operation, done.newUids)
+		// The UIDVALIDITY was checked on the server: a UID missing from Trash is a message deleted there for good.
+		val goneCountsAsDone = operation == Operation.Expunge && source.uidValidity != null
+		val stale = if (goneCountsAsDone) emptySet() else done.missing
+		updateCache(source, group.map { it.second }.filter { it.uid !in stale }, operation, done.newUids)
+		if (stale.isNotEmpty()) resync.request(source.id)
 		return group.map { (id, message) ->
-			if (message.uid in done.missing) failure(id, MailActionError.NOT_FOUND) else MailActionOutcome.ok(id)
+			if (message.uid in stale) failure(id, MailActionError.NOT_FOUND) else MailActionOutcome.ok(id)
 		}
 	}
 

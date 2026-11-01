@@ -45,6 +45,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.post
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
+import java.time.Duration
 import java.util.Properties
 import java.util.UUID
 
@@ -418,8 +419,8 @@ class MailActionGreenMailTests(
 		uidsOnServer("Archive").keys shouldBe setOf("Fictitious message 1", "Fictitious message 3")
 		reloaded(first).folderId shouldBe folder("Archive").id
 		reloaded(third).folderId shouldBe folder("Archive").id
-		// The vanished message is not moved in the cache; the next INBOX sync removes it.
-		reloaded(second).folderId shouldBe folder("INBOX").id
+		// The vanished message is not moved in the cache; the background sync of INBOX removes it.
+		awaitUncached(second)
 	}
 
 	@Test
@@ -429,6 +430,74 @@ class MailActionGreenMailTests(
 
 		act("DELETE", first.id).codes() shouldBe listOf("NOT_FOUND")
 		uidsOnServer("Trash").keys.shouldBeEmpty()
+	}
+
+	/** Waits for the background sync an action started to remove the stale row of [message]. */
+	private fun awaitUncached(message: MailMessage) {
+		val deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos()
+		while (messages.findById(message.id).isPresent && System.nanoTime() < deadline) Thread.sleep(50)
+		messages.findById(message.id).isPresent shouldBe false
+	}
+
+	/** Moves the INBOX messages [rows] to Trash through the API; returns them as cached there. */
+	private fun trashed(vararg rows: MailMessage): List<MailMessage> {
+		act("DELETE", *rows.map { it.id }.toTypedArray()).okIds().size shouldBe rows.size
+		return rows.map { reloaded(it) }.onEach { it.folderId shouldBe folder("Trash").id }
+	}
+
+	@Test
+	fun `a delete in Trash of a message another client already deleted there is ok and removes the row`() {
+		val (first) = inboxWith(1)
+		trashed(first)
+		deleteOnServer("Trash", "Fictitious message 1")
+
+		act("DELETE", first.id).okIds() shouldContainExactly listOf(first.id.toString())
+
+		messages.findById(first.id).isPresent shouldBe false
+		cached("Trash").shouldBeEmpty()
+		uidsOnServer("Trash").keys.shouldBeEmpty()
+		uidsOnServer("INBOX").keys.shouldBeEmpty()
+	}
+
+	@Test
+	fun `a delete in Trash of present and already gone messages reports all ok`() {
+		val (first, second, third) = inboxWith(3)
+		trashed(first, second, third)
+		deleteOnServer("Trash", "Fictitious message 2")
+
+		val result = act("DELETE", first.id, second.id, third.id)
+
+		result.codes() shouldBe listOf(null, null, null)
+		listOf(first, second, third).forEach { messages.findById(it.id).isPresent shouldBe false }
+		uidsOnServer("Trash").keys.shouldBeEmpty()
+	}
+
+	@Test
+	fun `a delete in Trash whose UIDVALIDITY changed still fails with NOT_FOUND`() {
+		val (first) = inboxWith(1)
+		trashed(first)
+		jdbc.update("update mail_folder set uidvalidity = uidvalidity + 1 where id = ?", folder("Trash").id)
+
+		act("DELETE", first.id).codes() shouldBe listOf("NOT_FOUND")
+
+		uidsOnServer("Trash").keys shouldBe setOf("Fictitious message 1")
+		reloaded(first).folderId shouldBe folder("Trash").id
+	}
+
+	@Test
+	fun `a move of a message another client deleted fails with NOT_FOUND and a background sync drops the row`() {
+		val (first, second) = inboxWith(2)
+		act("MOVE", first.id, targetFolderId = folder("Projects").id)
+		val moved = reloaded(first)
+		moved.folderId shouldBe folder("Projects").id
+		deleteOnServer("Projects", "Fictitious message 1")
+
+		act("MOVE", first.id, targetFolderId = folder("Archive").id).codes() shouldBe listOf("NOT_FOUND")
+
+		uidsOnServer("Archive").keys.shouldBeEmpty()
+		awaitUncached(first)
+		cached("Projects").shouldBeEmpty()
+		cached("INBOX").map { it.id } shouldContainExactly listOf(second.id)
 	}
 
 	@Test

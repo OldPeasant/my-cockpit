@@ -60,6 +60,7 @@ class MailActionServiceTests {
 	private val links = mockk<LinkService>()
 	private val changes = mockk<ChangeEventPublisher>(relaxed = true)
 	private val searchIndex = mockk<MailSearchIndex>(relaxed = true)
+	private val resync = mockk<MailFolderResync>(relaxUnitFun = true)
 	private val service =
 		MailActionService(
 			locator,
@@ -71,6 +72,7 @@ class MailActionServiceTests {
 			TransactionTemplate(mockk<PlatformTransactionManager>(relaxed = true)),
 			changes,
 			searchIndex,
+			resync,
 		)
 
 	private val account =
@@ -515,6 +517,119 @@ class MailActionServiceTests {
 		gone.folderId shouldBe inbox.id
 		gone.uid shouldBe 7
 		verify(exactly = 0) { changes.publish(any<Enum<*>>(), any(), any()) }
+		verify(exactly = 1) { resync.request(inbox.id) }
+	}
+
+	@Test
+	fun `messages gone from their folder start a background resync of that folder only`() {
+		val gone = cached(projects, 7)
+		val present = cached(inbox, 8)
+		every { remoteProjects.uidValidity } returns UIDVALIDITY
+		every { remoteProjects.isOpen } returns true
+		every { remoteProjects.getMessagesByUID(longArrayOf(7)) } returns arrayOf(null)
+		onServer(remoteInbox, 8)
+
+		service.apply(listOf(gone.id, present.id), MailAction.FLAG, null).map { it.errorCode } shouldBe listOf("NOT_FOUND", null)
+		verify(exactly = 1) { resync.request(projects.id) }
+		verify(exactly = 0) { resync.request(inbox.id) }
+		gone.flagged shouldBe false
+		verify(exactly = 0) { messages.delete(any()) }
+	}
+
+	@Test
+	fun `an action that finds all its messages starts no resync`() {
+		val message = cached(inbox, 7)
+		onServer(remoteInbox, 7)
+
+		service.apply(listOf(message.id), MailAction.READ, null) shouldBe listOf(MailActionOutcome.ok(message.id))
+		verify(exactly = 0) { resync.request(any()) }
+	}
+
+	@Test
+	fun `a delete in Trash of a message already gone from Trash is ok and removes the row like an expunge`() {
+		val gone = cached(trash, 3)
+		every { remoteTrash.getMessagesByUID(longArrayOf(3)) } returns arrayOf(null)
+
+		service.apply(listOf(gone.id), MailAction.DELETE, null) shouldBe listOf(MailActionOutcome.ok(gone.id))
+
+		verify(exactly = 0) { remoteTrash.setFlags(any<Array<Message>>(), any<Flags>(), any()) }
+		verify(exactly = 0) { remoteTrash.expunge() }
+		verify(exactly = 0) { remoteTrash.expunge(any()) }
+		verify { messages.delete(gone) }
+		verify { searchIndex.unindex(gone.id) }
+		verify { changes.publish(MailFolderService.FOLDER_EVENT, trash.id, ChangeOp.UPDATED) }
+		verify(exactly = 0) { resync.request(any()) }
+	}
+
+	@Test
+	fun `a delete in Trash of present and already gone messages expunges the present ones and reports all ok`() {
+		val gone = cached(trash, 3)
+		val present = cached(trash, 4)
+		val onlyPresent = mockk<Message>()
+		every { remoteTrash.getMessagesByUID(longArrayOf(3, 4)) } returns arrayOf(null, onlyPresent)
+
+		val outcomes = service.apply(listOf(gone.id, present.id), MailAction.DELETE, null)
+
+		outcomes shouldBe listOf(MailActionOutcome.ok(gone.id), MailActionOutcome.ok(present.id))
+		verify { remoteTrash.setFlags(arrayOf<Message>(onlyPresent), Flags(Flags.Flag.DELETED), true) }
+		verify { remoteTrash.expunge(arrayOf<Message>(onlyPresent)) }
+		verify { messages.delete(gone) }
+		verify { messages.delete(present) }
+		cache.isEmpty() shouldBe true
+		verify(exactly = 1) { changes.publish(MailFolderService.FOLDER_EVENT, trash.id, ChangeOp.UPDATED) }
+		verify(exactly = 0) { resync.request(any()) }
+	}
+
+	@Test
+	fun `a linked message already gone from Trash is detached by a delete, not deleted`() {
+		val gone = cached(trash, 3)
+		every { links.linksOf(ItemRef(ItemType.EMAIL, gone.id)) } returns listOf(mockk<ResolvedLink>())
+		every { remoteTrash.getMessagesByUID(longArrayOf(3)) } returns arrayOf(null)
+
+		service.apply(listOf(gone.id), MailAction.DELETE, null) shouldBe listOf(MailActionOutcome.ok(gone.id))
+
+		verify(exactly = 0) { messages.delete(any()) }
+		gone.uid shouldBe null
+		gone.isLocated shouldBe false
+		verify { searchIndex.unindex(gone.id) }
+	}
+
+	@Test
+	fun `a delete in Trash whose UIDVALIDITY changed still fails with NOT_FOUND and keeps the row`() {
+		val message = cached(trash, 3)
+		every { remoteTrash.uidValidity } returns UIDVALIDITY + 1
+
+		service.apply(listOf(message.id), MailAction.DELETE, null).single().errorCode shouldBe "NOT_FOUND"
+
+		verify(exactly = 0) { remoteTrash.getMessagesByUID(any<LongArray>()) }
+		verify(exactly = 0) { messages.delete(any()) }
+		message.uid shouldBe 3
+		verify(exactly = 0) { changes.publish(any<Enum<*>>(), any(), any()) }
+	}
+
+	@Test
+	fun `a delete in a Trash folder missing on the server still fails with NOT_FOUND and keeps the row`() {
+		val message = cached(trash, 3)
+		every { remoteTrash.open(Folder.READ_WRITE) } throws FolderNotFoundException(remoteTrash, "Trash does not exist")
+
+		service.apply(listOf(message.id), MailAction.DELETE, null).single().errorCode shouldBe "NOT_FOUND"
+
+		verify(exactly = 0) { messages.delete(any()) }
+		message.uid shouldBe 3
+		verify(exactly = 0) { changes.publish(any<Enum<*>>(), any(), any()) }
+	}
+
+	@Test
+	fun `a delete in a Trash folder without a cached UIDVALIDITY treats a missing message as stale, not deleted`() {
+		trash.uidValidity = null
+		val message = cached(trash, 3)
+		every { remoteTrash.getMessagesByUID(longArrayOf(3)) } returns arrayOf(null)
+
+		service.apply(listOf(message.id), MailAction.DELETE, null).single().errorCode shouldBe "NOT_FOUND"
+
+		verify(exactly = 0) { messages.delete(any()) }
+		message.uid shouldBe 3
+		verify { resync.request(trash.id) }
 	}
 
 	@Test
