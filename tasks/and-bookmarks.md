@@ -16,7 +16,8 @@ bookmarks feature (`web/src/app/features/bookmarks`) is the reference for behavi
 ## Acceptance criteria
 - [x] The Bookmarks tab lists bookmarks with title, site/domain, favicon or preview image where the API provides one, and tags; views "Read later" (the queue, default) and "All", plus a tag filter and a search field
   - verified (2026-11-01 14:41+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.bookmarks.*' -> 67 passed (BookmarksScreenTest rows show title/site/favicon-or-initial/tags, view switch Read later default/All, tag filter, search; BookmarksViewModelTest queue/all/tag/search; RepositoryTest query params)
-- [ ] Tapping a bookmark opens its URL in the browser (Custom Tab or default browser); actions per bookmark: mark read/unread, edit title/tags/notes, delete (to Trash, with undo snackbar where the app has that pattern)
+- [x] Tapping a bookmark opens its URL in the browser (Custom Tab or default browser); actions per bookmark: mark read/unread, edit title/tags/notes, delete (to Trash, with undo snackbar where the app has that pattern)
+  - verified (2026-11-01 14:41+0100 by dell26/agent-1): same run -> pass: BookmarksRouteTest tap starts ACTION_VIEW with URL + no-browser snackbar; ScreenTest/ViewModelTest mark read/unread, edit title/tags/notes (draft kept on failure), delete to Trash with undo snackbar (restore endpoint, MockWebServer RepositoryTest)
 - [ ] Pull to refresh; loading, empty and error states follow the app's existing list screens (e.g. Notes, Files)
 - [ ] A bookmark saved via the share target appears in the list without restarting the app
 - [ ] All new UI strings exist in English and German (`res/values`, `res/values-de`)
