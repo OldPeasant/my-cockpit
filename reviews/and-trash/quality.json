@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "task": "and-trash",
+  "reviewed_revision": "cb01f6d7c6e6e3db77eef71028592c4ba196e89b",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-trash/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-trash/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-trash/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "GTD restore no longer waits for the full GTD cache refresh; reload runs in the background (05716be3, before rebase d6e92bf8)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "production restore-reload binding now tested through the @Inject constructor (05716be3, before rebase d6e92bf8)"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.trash.*'", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
