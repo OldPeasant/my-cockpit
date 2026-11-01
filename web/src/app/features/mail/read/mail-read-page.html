@@ -73,9 +73,33 @@
         <button
           mat-stroked-button
           type="button"
+          class="archive"
+          [disabled]="!!triaging()"
+          (click)="triage('ARCHIVE')"
+          i18n-title="@@mailRead.archiveTitle"
+          title="Archive (e)"
+          i18n="@@mailRead.archive"
+        >
+          Archive
+        </button>
+        <button
+          mat-stroked-button
+          type="button"
+          class="spam"
+          [disabled]="!!triaging()"
+          (click)="triage('SPAM')"
+          i18n-title="@@mailRead.spamTitle"
+          title="Spam (!)"
+          i18n="@@mailRead.spam"
+        >
+          Spam
+        </button>
+        <button
+          mat-stroked-button
+          type="button"
           class="delete"
-          [disabled]="deleting()"
-          (click)="delete()"
+          [disabled]="!!triaging()"
+          (click)="triage('DELETE')"
           i18n-title="@@mailRead.deleteTitle"
           title="Delete (#)"
           i18n="@@mailRead.delete"

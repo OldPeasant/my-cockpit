@@ -115,7 +115,7 @@ class FakeReadService {
 }
 
 /** What a mail action answers: per-id results, or an error for the whole request. */
-type ActionAnswer = { id: string; ok: boolean; detail?: string }[] | Error;
+type ActionAnswer = { id: string; ok: boolean; error?: string; detail?: string }[] | Error;
 
 class FakeMailService {
   applies: { action: MailAction; ids: string[] }[] = [];
@@ -1146,12 +1146,164 @@ describe('MailReadPage', () => {
 
       it('ignores other keys, chords and an auto-repeated #', async () => {
         await open();
-        press('e');
+        press('x');
         press('#', { metaKey: true });
         press('#', { repeat: true });
         await flush();
         expect(mail.applies).toEqual([]);
       });
+    });
+  });
+
+  describe('Archive and Spam', () => {
+    const press = (key: string, init: KeyboardEventInit = {}, target: EventTarget = document) => {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+      target.dispatchEvent(event);
+      return event;
+    };
+    const triageButtons = () => ['Archive', 'Spam', 'Delete'].map((label) => button(label)!);
+    let navigate: ReturnType<typeof vi.spyOn>;
+
+    async function open(...answers: Answer[]) {
+      await create(...answers);
+      navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    }
+
+    it('are not offered before the message has loaded', async () => {
+      await create(deferred<MailMessageResponse>().promise);
+      expect(button('Archive')).toBeUndefined();
+      expect(button('Spam')).toBeUndefined();
+      expect(press('e').defaultPrevented).toBe(false);
+      expect(press('!').defaultPrevented).toBe(false);
+      expect(mail.applies).toEqual([]);
+    });
+
+    it('sit next to Delete in the action bar, with their shortcuts in the title', async () => {
+      await open();
+      const group = button('Delete')!.closest('[role="group"]')!;
+      expect([...group.querySelectorAll('button')].map((b) => b.textContent?.trim())).toEqual([
+        'Archive',
+        'Spam',
+        'Delete',
+      ]);
+      expect(button('Archive')!.getAttribute('title')).toBe('Archive (e)');
+      expect(button('Spam')!.getAttribute('title')).toBe('Spam (!)');
+    });
+
+    for (const [label, action, key] of [
+      ['Archive', 'ARCHIVE', 'e'],
+      ['Spam', 'SPAM', '!'],
+    ] as const) {
+      describe(label, () => {
+        it(`calls the ${action} mail action and returns to the list`, async () => {
+          await open();
+          button(label)!.click();
+          await flush();
+          expect(mail.applies).toEqual([{ action, ids: [ID] }]);
+          expect(navigate).toHaveBeenCalledWith('/mail', { replaceUrl: true });
+          expect(notifications.error).not.toHaveBeenCalled();
+        });
+
+        it('disables all three buttons while it runs, so nothing runs twice', async () => {
+          await open();
+          const pending = deferred<ActionAnswer>();
+          mail.answer = pending.promise;
+          button(label)!.click();
+          fixture.detectChanges();
+          expect(triageButtons().map((b) => b.disabled)).toEqual([true, true, true]);
+          for (const b of triageButtons()) b.click();
+          press('e');
+          press('!');
+          press('#');
+          expect(mail.applies).toEqual([{ action, ids: [ID] }]);
+
+          pending.resolve([{ id: ID, ok: true }]);
+          await flush();
+          fixture.detectChanges();
+          expect(navigate).toHaveBeenCalledTimes(1);
+          expect(triageButtons().map((b) => b.disabled)).toEqual([false, false, false]);
+        });
+
+        it(`runs with the ${key} key, as in the list`, async () => {
+          await open();
+          const event = press(key);
+          await flush();
+          expect(event.defaultPrevented).toBe(true);
+          expect(mail.applies).toEqual([{ action, ids: [ID] }]);
+          expect(navigate).toHaveBeenCalledWith('/mail', { replaceUrl: true });
+        });
+
+        it(`ignores ${key} while typing in an input or editor, or as a chord or repeat`, async () => {
+          await open();
+          const input = document.createElement('input');
+          const editor = document.createElement('div');
+          editor.contentEditable = 'true';
+          Object.defineProperty(editor, 'isContentEditable', { value: true });
+          document.body.append(input, editor);
+          try {
+            expect(press(key, {}, input).defaultPrevented).toBe(false);
+            expect(press(key, {}, editor).defaultPrevented).toBe(false);
+            press(key, { metaKey: true });
+            press(key, { repeat: true });
+            await flush();
+            expect(mail.applies).toEqual([]);
+          } finally {
+            input.remove();
+            editor.remove();
+          }
+        });
+      });
+    }
+
+    it('also marks as spam when ! is typed with Shift', async () => {
+      await open();
+      press('!', { shiftKey: true });
+      await flush();
+      expect(mail.applies).toEqual([{ action: 'SPAM', ids: [ID] }]);
+    });
+
+    it('stays open with the server reason when the account has no Archive folder', async () => {
+      await open();
+      const detail =
+        'The account has no folder with the role this action needs (Archive, Trash or Spam)';
+      mail.answer = [{ id: ID, ok: false, error: 'NO_ROLE_FOLDER', detail }];
+      button('Archive')!.click();
+      await flush();
+      fixture.detectChanges();
+      expect(navigate).not.toHaveBeenCalled();
+      expect(notifications.error).toHaveBeenCalledWith(
+        `The message could not be archived: ${detail}`,
+      );
+      expect(el().querySelector('h1')?.textContent?.trim()).toBe('Quarterly report');
+      expect(triageButtons().map((b) => b.disabled)).toEqual([false, false, false]);
+    });
+
+    it('stays open with the server reason when the account has no Spam folder', async () => {
+      await open();
+      mail.answer = [{ id: ID, ok: false, error: 'NO_ROLE_FOLDER', detail: 'No Spam folder' }];
+      press('!');
+      await flush();
+      expect(navigate).not.toHaveBeenCalled();
+      expect(notifications.error).toHaveBeenCalledWith(
+        'The message could not be marked as spam: No Spam folder',
+      );
+    });
+
+    it('reports a failed request with the API error', async () => {
+      await open();
+      mail.answer = new ApiError(409, 'Conflict', 'The account is being synced');
+      button('Spam')!.click();
+      await flush();
+      expect(navigate).not.toHaveBeenCalled();
+      expect(notifications.error).toHaveBeenCalledWith(
+        'The message could not be marked as spam: The account is being synced',
+      );
+      mail.answer = new TypeError('Failed to fetch');
+      button('Archive')!.click();
+      await flush();
+      expect(notifications.error).toHaveBeenLastCalledWith(
+        'The message could not be archived: Something went wrong.',
+      );
     });
   });
 });

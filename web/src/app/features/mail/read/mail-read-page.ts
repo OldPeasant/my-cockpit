@@ -23,14 +23,27 @@ import {
 } from '../../../api/generated';
 import { ApiError, NotificationService } from '../../../core/http';
 import { LinkedItems } from '../../../shared/links';
-import { MailService } from '../list/mail.service';
-import { mailShortcutFor } from '../list/mail-shortcuts';
+import { MailAction, MailService } from '../list/mail.service';
+import { MailShortcut, mailShortcutFor } from '../list/mail-shortcuts';
 import { formatBytes } from './format-bytes';
 import { ImageAllowlist } from './image-allowlist';
 import { MailFrame } from './mail-frame';
 import { attachmentUrl, MailGtdAction, MailReadService } from './mail-read.service';
 
 type State = 'loading' | 'notFound' | 'failed' | 'ready';
+
+/** The mail actions that take the message out of the list it was opened from. */
+type TriageAction = Extract<MailAction, 'ARCHIVE' | 'SPAM' | 'DELETE'>;
+
+/** The list's shortcuts that the read view takes too. */
+const TRIAGE_SHORTCUTS: ReadonlyMap<MailShortcut, TriageAction> = new Map<
+  MailShortcut,
+  TriageAction
+>([
+  ['archive', 'ARCHIVE'],
+  ['spam', 'SPAM'],
+  ['delete', 'DELETE'],
+]);
 
 /** An attachment preview: an image (by URL) or the start of a text file. */
 type Preview =
@@ -43,8 +56,8 @@ export const TEXT_PREVIEW_LIMIT = 100_000;
 /**
  * Reading one message (SPEC.md §7.3): headers, the sanitized body in a sandboxed frame (or the
  * plain text), "load images" (once or always for the sender), attachments (download, preview, save
- * to Files), the GTD actions, Delete (button or `#`, then back to the list it was opened from) and
- * the linked items. Opening an unread message marks it read.
+ * to Files), the GTD actions, Archive, Spam and Delete (buttons or `e`, `!`, `#`, then back to the
+ * list it was opened from) and the linked items. Opening an unread message marks it read.
  */
 @Component({
   selector: 'app-mail-read-page',
@@ -61,7 +74,7 @@ export default class MailReadPage {
   private readonly mail = inject(MailService);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
-  /** The mail list this message was opened from, where Delete returns to. */
+  /** The mail list this message was opened from, where Archive, Spam and Delete return to. */
   private readonly origin = mailListOrigin(this.router);
 
   /** The message id (route parameter). */
@@ -81,8 +94,8 @@ export default class MailReadPage {
   /** Attachments being saved to Files, by message id and part id (part ids repeat across messages). */
   protected readonly saving = signal<ReadonlySet<string>>(new Set());
   protected readonly preview = signal<Preview | null>(null);
-  /** Whether a Delete request runs. */
-  protected readonly deleting = signal(false);
+  /** The Archive, Spam or Delete request that runs (one at a time). */
+  protected readonly triaging = signal<TriageAction | null>(null);
 
   /** The linked items panel (by reference, so tests can stand in for it). */
   private readonly links = viewChild<{ reload(): Promise<void> }>('links');
@@ -173,42 +186,44 @@ export default class MailReadPage {
   }
 
   /**
-   * Deletes the message with the list's mail action (the server moves it to Trash, or removes it
-   * there) and returns to the list it was opened from. A failure keeps the message open.
+   * Archives, marks as spam or deletes the message with the list's mail action (the server moves it
+   * to the account's Archive, Spam or Trash folder, or removes it from Trash) and returns to the list
+   * it was opened from. A failure (e.g. no Archive or Spam folder) keeps the message open.
    */
-  protected async delete(): Promise<void> {
+  protected async triage(action: TriageAction): Promise<void> {
     const id = this.message()?.id;
-    if (!id || this.state() !== 'ready' || this.deleting()) return;
-    this.deleting.set(true);
+    if (!id || this.state() !== 'ready' || this.triaging()) return;
+    this.triaging.set(action);
     try {
-      const results = await this.mail.apply('DELETE', [id]);
+      const results = await this.mail.apply(action, [id]);
       const result = results.find((entry) => entry.id === id);
       if (!result?.ok) {
         const reason = result?.detail || $localize`:@@mailRead.unexpected:Something went wrong.`;
-        this.notifications.error(
-          $localize`:@@mailRead.deleteFailed:The message could not be deleted: ${reason}:reason:`,
-        );
+        this.notifications.error(triageFailed(action, reason));
         return;
       }
       // The user may have left this message (or the page) while the request ran: stay there.
       if (this.destroyed || this.message()?.id !== id) return;
-      // Replaces the deleted message in the history, so Back does not open it again.
+      // Replaces the message in the history, so Back does not open it again.
       await this.router.navigateByUrl(this.origin, { replaceUrl: true });
     } catch (error) {
-      this.notifications.error(
-        $localize`:@@mailRead.deleteFailed:The message could not be deleted: ${messageOf(error)}:reason:`,
-      );
+      this.notifications.error(triageFailed(action, messageOf(error)));
     } finally {
-      this.deleting.set(false);
+      this.triaging.set(null);
     }
   }
 
-  /** `#` deletes, as in the list (never while typing or while a dialog is open). */
+  /**
+   * `e` archives, `!` marks as spam and `#` deletes, as in the list (never while typing or while a
+   * dialog is open).
+   */
   protected onKeydown(event: KeyboardEvent): void {
-    if (this.dialog.openDialogs.length) return;
-    if (this.state() !== 'ready' || mailShortcutFor(event) !== 'delete') return;
+    if (this.dialog.openDialogs.length || this.state() !== 'ready') return;
+    const shortcut = mailShortcutFor(event);
+    const action = shortcut ? TRIAGE_SHORTCUTS.get(shortcut) : undefined;
+    if (!action) return;
     event.preventDefault();
-    void this.delete();
+    void this.triage(action);
   }
 
   protected downloadUrl(part: MailAttachmentResponse): string {
@@ -363,6 +378,17 @@ function previewKind(part: MailAttachmentResponse): 'image' | 'text' | null {
   if (['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(type)) return 'image';
   if (type.startsWith('text/')) return 'text';
   return null;
+}
+
+function triageFailed(action: TriageAction, reason: string): string {
+  switch (action) {
+    case 'ARCHIVE':
+      return $localize`:@@mailRead.archiveFailed:The message could not be archived: ${reason}:reason:`;
+    case 'SPAM':
+      return $localize`:@@mailRead.spamFailed:The message could not be marked as spam: ${reason}:reason:`;
+    case 'DELETE':
+      return $localize`:@@mailRead.deleteFailed:The message could not be deleted: ${reason}:reason:`;
+  }
 }
 
 function messageOf(error: unknown): string {
