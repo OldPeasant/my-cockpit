@@ -16,8 +16,9 @@ The Android mail read view gets a Spam button next to Archive and Delete, matchi
       after Archive and Delete, with an icon, a TalkBack label and a test tag like the other actions. It is disabled
       while an action runs, like the others
   - verified (2026-11-01 06:47+0100 by dell26/agent-1): MailListAction.SPAM added; Spam ToolbarButton after Archive/Delete (Icons.Outlined.Report, contentDescription 'Move to spam', tag mail-read-action:SPAM, shared enabled flag). cd android && ./gradlew testDebugUnitTest -> MailReadScreenTest 'the spam button comes after archive and delete', 'the spam button has a TalkBack label', 'the spam button is disabled while an action runs', 'the actions wait while one runs' pass
-- [ ] On success the view closes as after Archive/Delete. On failure the view stays open and shows the server's error,
+- [x] On success the view closes as after Archive/Delete. On failure the view stays open and shows the server's error,
       e.g. when the account has no Spam folder (NO_ROLE_FOLDER)
+  - verified (2026-11-01 06:47+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest -> MailReadScreenTest 'the route moves the mail to spam and closes, or stays open with the server's error' (NO_ROLE_FOLDER keeps view open with 'This account has no Spam folder.', success -> removed+close), MailReadViewModelTest spam refused/offline/success tests, MailReadRepositoryTest errorCode tests pass
 - [ ] The new string is in the app's string resources (all existing locales)
 - [ ] Unit test (ViewModel) and Compose UI test for the button, success and error;
       `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
