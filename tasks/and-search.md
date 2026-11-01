@@ -14,7 +14,8 @@ server unchanged.
 ## Acceptance criteria
 - [x] A search action in the app bar of every top-level screen opens a search screen with a field that searches as you type (debounced) via `/api/v1/search`; optional type filter chips (tasks, projects, notes, events, emails, contacts, files, bookmarks, journal)
   - verified (2026-11-01 15:53+0100 by dell26/agent-2): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.search.*' --tests 'ch.sonensei.cockpit.ui.CockpitShellSearchTest' -> 72 passed, 0 failed; CockpitShellSearchTest (search action on every destination opens search), SearchViewModelTest debounce (last text only), SearchRepositoryTest filter->types, SearchScreenTest filter chips, SearchRouteInAppTest typing hits /api/v1/search (MockWebServer)
-- [ ] Results show type icon, title and subtitle; tapping one opens the item in the matching Android screen where one exists; items without an Android detail screen open their web deep link in the browser
+- [x] Results show type icon, title and subtitle; tapping one opens the item in the matching Android screen where one exists; items without an Android detail screen open their web deep link in the browser
+  - verified (2026-11-01 15:54+0100 by dell26/agent-2): same focused gradle run -> pass; SearchScreenTest results show headings/titles/subtitles/type icons; SearchRouteInAppTest: contact/email/note open in-app screens, task deep link opens browser below server URL, no-browser fallback; SearchModelsTest routing
 - [ ] Loading, empty ("Nothing found") and error states; works with the on-screen keyboard (IME search action)
 - [ ] All new UI strings exist in English and German (`res/values`, `res/values-de`)
 - [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
