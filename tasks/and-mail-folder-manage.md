@@ -28,3 +28,4 @@ mail-folder-manage-api, like the web folder tree does (web-mail-folder-manage). 
 ## Notes
 Adding string resources touches the shared `strings.xml` files: add lines only, and on a conflict keep both sides.
 - ASSUMPTION (2026-11-01 07:50+0100 by dell26/agent-1): Rename goes through a hand-written MailApi.renameFolder (PATCH with body {name} only): the generated UpdateMailFolderRequest always serializes role:null (encodeDefaults, explicit nulls), which the server reads as 'remove the role'. Create and delete use the generated MailAccountsApi.
+- ASSUMPTION (2026-11-01 07:50+0100 by dell26/agent-1): Folder actions are an overflow (MoreVert) button beside each folder in the picker plus a New-folder icon next to each account label; a 412 closes the dialog and shows the list message with the reload; a 409 on delete (folder holds a special folder) is shown in the confirm dialog. New strings live in new strings_mail_folders.xml files (en, de).
