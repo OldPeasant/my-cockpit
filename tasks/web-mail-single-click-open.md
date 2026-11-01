@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [web-mail-list,mail-account-label-email]
 touches: [web/src/app/features/mail/list]
 prio: 2
-lease_until: 2026-11-01T06:39:33Z
+lease_until: 2026-11-01T06:44:35Z
 ---
 ## Goal
 In the web mail list a single click on a message opens it in the read view, as in most webmail. Today a click only
