@@ -1,11 +1,11 @@
 ---
 title: Android: Bookmarks screen (list, read later, open, edit)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-bookmarks-share,and-shell]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/bookmarks,android/app/src/test/java/ch/sonensei/cockpit/bookmarks,android/app/src/main/res/values/strings_bookmarks.xml,android/app/src/main/res/values-de/strings_bookmarks.xml]
 prio: 2
-lease_until: 2026-11-01T14:03:42Z
+lease_until: 
 ---
 ## Goal
 The Android Bookmarks tab is still a placeholder ("This part of your cockpit is not built yet"); only the share
@@ -34,3 +34,4 @@ Requested by the owner (2026-11-01) after trying the Android app on the phone. O
 - ASSUMPTION (2026-11-01 14:08+0100 by dell26/agent-1): Site icons: Android loads the server-provided https favicon directly from the site (separate Coil loader without the Cockpit token, memory cache only), falling back to the site's initial; the web deliberately shows no remote favicon (CSP/IP). The API has no preview image, so only favicons are shown.
 - ASSUMPTION (2026-11-01 14:08+0100 by dell26/agent-1): Opening uses ACTION_VIEW (default browser), not Custom Tabs: androidx.browser is not a dependency and the criterion allows either. Snapshot viewer is out of scope; no snapshot action on Android.
 - ASSUMPTION (2026-11-01 14:08+0100 by dell26/agent-1): Share target appears without restart: the list reloads on every resume (LifecycleResumeEffect) and whenever CaptureQueue.status pendingCount drops (a queued share was sent). Undo after delete uses POST /trash/BOOKMARK/{id}/restore via the screen's own Retrofit interface (no TrashApi binding, to avoid clashing with and-trash). The tag filter applies in both views.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 75s on b866d9ec1; criteria verified 6/6
