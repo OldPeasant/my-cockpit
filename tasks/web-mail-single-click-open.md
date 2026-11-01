@@ -16,8 +16,9 @@ read view existed). Requested by the owner (2026-10-30). Android already opens o
 - [x] A single click on a list row opens `/mail/messages/:id`. The row is a real link (`routerLink`), so Ctrl/Cmd-click
       and middle-click open the message in a new tab and the browser shows the target on hover
   - verified (2026-11-01 07:28+0100 by dell26/agent-1): mail-list-page.spec.ts (vitest, 59 passed): rows are a[href=/mail/messages/{id}] via routerLink, plain click navigates via router, Ctrl/Cmd/middle click not prevented (left to browser); npm run e2e -- e2e/mail-read e2e/mail-compose e2e/mail-list e2e/phase5/demo.spec.ts against docker-compose.e2e stack (chromium) -> 38 passed, read/compose/phase5 open the message with a single click on a.open
-- [ ] The row's checkbox still only toggles the selection and does not open the message; the toolbar actions and
+- [x] The row's checkbox still only toggles the selection and does not open the message; the toolbar actions and
       keyboard shortcuts (j/k, x, e, #, ...) work as before, and `o` and Enter on the focused row open it
+  - verified (2026-11-01 07:28+0100 by dell26/agent-1): npx ng test --include mail-list-page.spec.ts -> 59 passed: checkbox click selects without navigating, x/e act on a clicked row, o and Enter (Tab-focused and j-focused) open once, Ctrl/Cmd/Shift+Enter left to browser; e2e mail-list (keys/toolbar against GreenMail) passed in the 38-test run
 - [ ] The double-click handler is removed (the first click already opens), and the keys hint under the list says
       "o or click open" instead of "o or double-click open" (localized string updated)
 - [ ] Unit tests: a click navigates to the message, a checkbox click does not, `o`/Enter open; the existing
