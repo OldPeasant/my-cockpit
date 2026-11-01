@@ -5,8 +5,10 @@ owner:
 deps: [p5-smoke,h-oauth-apps,h-cal-real]
 quality: exempt
 quality_reason: human verification task, no code
-hold: HUMAN TASK for the owner: deploy phase 5, connect real mail accounts
+hold: 
 prio: 2
+releases: 0
+extended: 
 ---
 ## Goal
 Owner connects Gmail and triages a day of mail (Microsoft 365 deferred, ADR 0003).
