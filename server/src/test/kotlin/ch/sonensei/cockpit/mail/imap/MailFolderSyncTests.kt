@@ -38,9 +38,9 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.event.ApplicationEvents
 import org.springframework.test.context.event.RecordApplicationEvents
 import org.springframework.transaction.support.TransactionTemplate
-import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Folder sync against a scripted IMAP folder list (SPECIAL-USE attributes, which GreenMail does not send) with the real
@@ -443,12 +443,15 @@ class MailFolderSyncTests(
 	}
 
 	@Test
-	fun `two parallel first syncs of one account both succeed and store every folder once`() {
+	fun `two parallel first syncs of one account run one after the other and store every folder once`() {
 		remote = listOf("INBOX" to emptyList(), "Sent" to listOf("\\Sent"), "Projects" to emptyList())
-		// Both syncs have read the server's list before either stores it, so both start from an empty cache.
-		val bothListed = CyclicBarrier(2)
+		// The per-account lock covers listing and storing, so the second sync lists only after the first has stored.
+		val listing = AtomicInteger()
+		val maxListing = AtomicInteger()
 		every { root.list("*") } answers {
-			bothListed.await(10, TimeUnit.SECONDS)
+			maxListing.accumulateAndGet(listing.incrementAndGet(), ::maxOf)
+			Thread.sleep(200)
+			listing.decrementAndGet()
 			remote.map { (path, attributes) -> imapFolder(path, attributes) }.toTypedArray()
 		}
 		val executor = Executors.newFixedThreadPool(2)
@@ -459,6 +462,7 @@ class MailFolderSyncTests(
 		} finally {
 			executor.shutdownNow()
 		}
+		maxListing.get() shouldBe 1
 		folders.findByAccountIdOrderByPathAsc(account.id).map { it.path } shouldBe listOf("INBOX", "Projects", "Sent")
 		stored()["Sent"] shouldBe MailFolderRole.SENT
 	}

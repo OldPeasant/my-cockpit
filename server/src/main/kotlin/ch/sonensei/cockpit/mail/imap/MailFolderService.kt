@@ -25,6 +25,9 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * The folder list of an account (SPEC.md §7.2): [sync] reads it from the server and updates the cached `mail_folder`
@@ -44,6 +47,19 @@ class MailFolderService(
 ) {
 	private val log = LoggerFactory.getLogger(javaClass)
 
+	/**
+	 * One lock per account, held across the IMAP commands and the cache update of [sync], [overrideRole], [create],
+	 * [rename] and [delete]. Without it a folder sync listing the server before a rename and storing after it (or the
+	 * other way round) would take the renamed folder for a vanished one and recreate it with new ids, detaching its
+	 * messages. The database row lock alone cannot cover this, because the IMAP commands run outside a transaction.
+	 */
+	private val accountLocks = ConcurrentHashMap<UUID, ReentrantLock>()
+
+	private fun <T> serialized(
+		accountId: UUID,
+		block: () -> T,
+	): T = accountLocks.computeIfAbsent(accountId) { ReentrantLock() }.withLock(block)
+
 	/** The cached folders of an account, by path. */
 	fun list(accountId: UUID): List<MailFolder> {
 		account(accountId)
@@ -56,7 +72,12 @@ class MailFolderService(
 	 *
 	 * @throws MailConnectionException when the server cannot be reached or rejects the login
 	 */
-	fun sync(accountId: UUID): List<MailFolder> {
+	fun sync(accountId: UUID): List<MailFolder> =
+		serialized(accountId) {
+			syncSerialized(accountId)
+		}
+
+	private fun syncSerialized(accountId: UUID): List<MailFolder> {
 		val account = account(accountId)
 		val remote = pool.withStore(account) { store -> listRemote(store) }
 		return checkNotNull(
@@ -73,6 +94,17 @@ class MailFolderService(
 	 * detection (the role is then recomputed on the next [sync]). A folder that had [role] before loses it.
 	 */
 	fun overrideRole(
+		accountId: UUID,
+		folderId: UUID,
+		role: MailFolderRole?,
+		automatic: Boolean,
+		ifMatch: String?,
+	): MailFolder =
+		serialized(accountId) {
+			overrideRoleSerialized(accountId, folderId, role, automatic, ifMatch)
+		}
+
+	private fun overrideRoleSerialized(
 		accountId: UUID,
 		folderId: UUID,
 		role: MailFolderRole?,
@@ -110,6 +142,12 @@ class MailFolderService(
 	 * @throws MailConnectionException when the server cannot be reached or refuses the command
 	 */
 	fun create(
+		accountId: UUID,
+		name: String,
+		parentId: UUID?,
+	): MailFolder = serialized(accountId) { createSerialized(accountId, name, parentId) }
+
+	private fun createSerialized(
 		accountId: UUID,
 		name: String,
 		parentId: UUID?,
@@ -181,6 +219,13 @@ class MailFolderService(
 		folderId: UUID,
 		name: String,
 		ifMatch: String?,
+	): MailFolder = serialized(accountId) { renameSerialized(accountId, folderId, name, ifMatch) }
+
+	private fun renameSerialized(
+		accountId: UUID,
+		folderId: UUID,
+		name: String,
+		ifMatch: String?,
 	): MailFolder {
 		val account = account(accountId)
 		val folder = folder(accountId, folderId)
@@ -240,6 +285,12 @@ class MailFolderService(
 	 * @throws MailConnectionException when the server cannot be reached or refuses the command
 	 */
 	fun delete(
+		accountId: UUID,
+		folderId: UUID,
+		ifMatch: String?,
+	) = serialized(accountId) { deleteSerialized(accountId, folderId, ifMatch) }
+
+	private fun deleteSerialized(
 		accountId: UUID,
 		folderId: UUID,
 		ifMatch: String?,

@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.mail.imap
 
 import ch.sonensei.cockpit.core.web.ETags
+import ch.sonensei.cockpit.core.web.InvalidRequestException
 import ch.sonensei.cockpit.mail.model.MailAccount
 import ch.sonensei.cockpit.mail.model.MailAccountType
 import ch.sonensei.cockpit.mail.model.MailFolder
@@ -290,6 +291,8 @@ class MailAccountController(
 		@RequestHeader(HttpHeaders.IF_MATCH, required = false) ifMatch: String?,
 		@Valid @RequestBody request: UpdateMailFolderRequest,
 	): ResponseEntity<MailFolderResponse> {
+		// An explicit null is refused rather than read as "no name": that would clear the role (legacy body).
+		if (request.nameSent && request.name == null) throw InvalidRequestException("name", "must not be null")
 		var etag = ifMatch
 		var folder: MailFolder? = null
 		request.name?.let { name ->
@@ -595,6 +598,14 @@ class UpdateMailFolderRequest {
 	@field:Size(max = MAX_FOLDER_NAME)
 	@field:Schema(description = "Renames the folder (same parent) on the server")
 	var name: String? = null
+		set(value) {
+			field = value
+			nameSent = true
+		}
+
+	@get:JsonIgnore
+	var nameSent: Boolean = false
+		private set
 
 	@get:JsonIgnore
 	var roleSent: Boolean = false
@@ -602,7 +613,7 @@ class UpdateMailFolderRequest {
 
 	/** The role is changed when it or `automatic` is sent, or (as before renaming existed) when the name is not. */
 	@get:JsonIgnore
-	val changesRole: Boolean get() = roleSent || automatic != null || name == null
+	val changesRole: Boolean get() = roleSent || automatic != null || !nameSent
 }
 
 data class MailFolderResponse(
