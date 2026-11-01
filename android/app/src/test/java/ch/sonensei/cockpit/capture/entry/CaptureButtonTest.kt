@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -32,6 +33,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -113,6 +115,74 @@ class CaptureButtonTest {
     fun `tapping the button opens the capture sheet in the app's task`() {
         composeRule.setContent { CockpitTheme { CockpitShell() } }
         composeRule.onNodeWithTag(CaptureButtonTags.FAB).performClick()
+
+        val started = shadowOf(composeRule.activity).nextStartedActivity
+        assertEquals(CaptureActivity::class.java.name, started.component?.className)
+        assertEquals(0, started.flags and Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+
+    @Test
+    fun `one pending capture is described in the singular form and shown in the badge`() {
+        composeRule.setContent { CockpitTheme { CaptureButtonContent(CaptureButtonPlacement.AppBarAction, 1, onClick = {}) } }
+
+        composeRule.onNodeWithTag(CaptureButtonTags.ACTION).assertContentDescriptionEquals("Capture to Inbox, 1 to sync")
+        composeRule.onNodeWithTag(CaptureButtonTags.FAB).assertDoesNotExist()
+        composeRule.onNodeWithTag(CaptureButtonTags.BADGE, useUnmergedTree = true).assertExists()
+        // The badge's number is not read out a second time: only the button's description carries it.
+        composeRule.onNodeWithText("1", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a large count keeps the exact number in the description`() {
+        composeRule.setContent { CockpitTheme { CaptureButtonContent(CaptureButtonPlacement.Fab, 150, onClick = {}) } }
+
+        composeRule.onNodeWithTag(CaptureButtonTags.BADGE, useUnmergedTree = true).assertExists()
+        composeRule.onNodeWithTag(CaptureButtonTags.FAB).assertContentDescriptionEquals("Capture to Inbox, 150 to sync")
+    }
+
+    @Test
+    fun `both placements call the click handler`() {
+        var clicks = 0
+        composeRule.setContent {
+            CockpitTheme {
+                CaptureButtonContent(CaptureButtonPlacement.Fab, 0, onClick = { clicks++ })
+                CaptureButtonContent(CaptureButtonPlacement.AppBarAction, 0, onClick = { clicks++ })
+            }
+        }
+        composeRule.onNodeWithTag(CaptureButtonTags.FAB).performClick()
+        composeRule.onNodeWithTag(CaptureButtonTags.ACTION).performClick()
+
+        assertEquals(2, clicks)
+    }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `the button is described in German`() {
+        val count = MutableStateFlow(0)
+        composeRule.setContent {
+            CockpitTheme {
+                val pending = produceState(0) { count.collect { value = it } }.value
+                CaptureButtonContent(CaptureButtonPlacement.Fab, pending, onClick = {})
+            }
+        }
+        composeRule.onNodeWithTag(CaptureButtonTags.FAB).assertContentDescriptionEquals("Im Eingang erfassen")
+
+        count.value = 2
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(CaptureButtonTags.FAB).assertContentDescriptionEquals("Im Eingang erfassen, 2 zu synchronisieren")
+    }
+
+    @Test
+    fun `the app-bar action on a screen with its own FAB opens the capture sheet in the app's task`() {
+        lateinit var navController: NavHostController
+        composeRule.setContent {
+            navController = rememberNavController()
+            CockpitTheme { CockpitShell(navController) }
+        }
+        composeRule.runOnUiThread { navController.navigate(CockpitDestination.Notes.route) }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(CaptureButtonTags.ACTION).performClick()
 
         val started = shadowOf(composeRule.activity).nextStartedActivity
         assertEquals(CaptureActivity::class.java.name, started.component?.className)
