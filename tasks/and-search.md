@@ -20,7 +20,8 @@ server unchanged.
   - verified (2026-11-01 15:54+0100 by dell26/agent-2): same focused gradle run -> pass; SearchViewModelTest/SearchScreenTest loading, 'Nothing found', offline/failed + retry, out-of-order answers; IME search action via performImeAction in SearchScreenTest and SearchRouteInAppTest
 - [x] All new UI strings exist in English and German (`res/values`, `res/values-de`)
   - verified (2026-11-01 15:54+0100 by dell26/agent-2): same focused gradle run -> pass incl. SearchModelsTest 'every search string exists in German and is not blank' (34 strings in values/ and values-de/strings_search.xml) + 2 German SearchScreenTest; lintDebug (MissingTranslation) -> pass
-- [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+- [x] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+  - verified (2026-11-01 15:57+0100 by dell26/agent-2): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug via sh scripts/check.sh (full .taskcheck: tfp+server+web+android) -> all checks passed, exit 0; focused search suite 72 passed; JaCoCo changed lines 377/381 (99%)
 
 ## Notes
 Requested by the owner (2026-11-01) after trying the Android app on the phone. If and-capture-button is in progress at the same time, both add app-bar actions in the shell: keep both.
