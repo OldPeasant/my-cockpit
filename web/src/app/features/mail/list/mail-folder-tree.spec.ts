@@ -434,6 +434,59 @@ describe('MailFolderTree', () => {
       },
     );
 
+    it('hides Delete once the reload after a refused delete (409) shows the folder has a role', async () => {
+      show(null);
+      (await menu('Alpha'))[2].click();
+      mail.deleteFolder.mockRejectedValue(new ApiError(409, 'Conflict'));
+      mail.accounts.mockResolvedValue([WORK, HOME]);
+      mail.folders.mockImplementation(async (accountId: string) =>
+        accountId === 'acc-1'
+          ? standard().map((f) => (f.id === 'pa' ? { ...f, role: 'ARCHIVE' as const } : f))
+          : [folder('h-in', 'INBOX', { role: 'INBOX', accountId: 'acc-2' })],
+      );
+
+      await expect(deleteData().remove()).rejects.toBeInstanceOf(ApiError);
+      await vi.waitFor(() => expect(store.folderById().get('pa')?.role).toBe('ARCHIVE'));
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(mail.deleteFolder).toHaveBeenCalledTimes(1);
+      expect(shown()).toEqual(['Inbox', '[Gmail]', 'Trash', 'Projects', 'Archive', 'Old']);
+      expect(labels(await menu('Archive'))).toEqual(['New subfolder', 'Rename']);
+    });
+
+    it.each([
+      ['502', new ApiError(502, 'Bad gateway')],
+      ['0', new ApiError(0, 'Unreachable')],
+      ['a non-API error', new Error('offline')],
+      ['a non-API error carrying status 404', Object.assign(new Error('odd'), { status: 404 })],
+    ])(
+      'neither reloads nor removes the folder when the delete fails with %s',
+      async (_label, failure) => {
+        show('pa');
+        const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+        (await menu('Alpha'))[2].click();
+        mail.deleteFolder.mockRejectedValue(failure);
+
+        await expect(deleteData().remove()).rejects.toBe(failure);
+        fixture.detectChanges();
+
+        expect(mail.accounts).not.toHaveBeenCalled();
+        expect(shown()).toContain('Alpha');
+        expect(navigate).not.toHaveBeenCalled();
+      },
+    );
+
+    it('does not reload when a rename is refused with 409 (the name is taken)', async () => {
+      show(null);
+      (await menu('Alpha'))[1].click();
+      mail.renameFolder.mockRejectedValue(new ApiError(409, 'Conflict'));
+
+      await expect(nameData().save('Old')).rejects.toBeInstanceOf(ApiError);
+
+      expect(mail.accounts).not.toHaveBeenCalled();
+    });
+
     it('treats a folder already gone on the server (404) as deleted, and leaves it if shown', async () => {
       show('pa1');
       const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);

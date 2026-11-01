@@ -4,23 +4,29 @@ Date: 2026-11-01
 
 Task: web-mail-folder-manage - Mail folder tree: create, rename and delete folders
 
-Scope: implementation commit 9c4f96d52 (`git diff f27bdf89f..9c4f96d52`), rebased unchanged as 3447cbb95 (`git range-diff` reports the patches identical). Files: web/src/app/features/mail/list/ (mail-folder-tree.ts/.scss/.spec.ts, mail-folder-dialogs.ts/.spec.ts, mail-folders-store.ts, mail.service.ts) and web/src/locale/messages.xlf, messages.de.xlf (only this task's 25 units).
+Scope: second review round, final code at 0fa8fd22d (`git diff f27bdf89f..0fa8fd22d`). This is the implementation 3447cbb95, the test-writer commit 63e2ee051 and the fix commit 0fa8fd22d. Files reviewed: web/src/app/features/mail/list/ (mail-folder-tree.ts/.scss/.spec.ts, mail-folder-dialogs.ts/.spec.ts, mail-folders-store.ts/.spec.ts, mail.service.ts/.spec.ts) and this task's units in web/src/locale/messages.xlf and messages.de.xlf. The fix delta `git diff 3447cbb95..0fa8fd22d -- web/src` was read line by line. The production files were read in full at the final revision.
 
 Requirements:
 - tasks/web-mail-folder-manage.md acceptance criteria and the recorded assumptions
-- api/openapi.yaml, /api/v1/mail/accounts/{id}/folders (POST) and /folders/{folderId} (PATCH, DELETE)
+- api/openapi.yaml, deleteMailFolder (404 "No such account or folder", 409 "INBOX or a folder with a role", 412 stale If-Match), plus the create and rename operations
 - AGENTS.md project notes (i18n, ETag/If-Match, lint conventions)
-- Existing conventions in web/src/app/features (quoted-version If-Match, silent API errors shown in place)
+- reviews/web-mail-folder-manage/review.md (first round) and fixes.md
 
 Git range:
 - Branch: main
-- HEAD: 3447cbb95a98432a38bc43ae32aad2c3c0655f81 (same patch as 9c4f96d522a6618c4f67056cfb25c4d97da66d68)
+- HEAD: 0fa8fd22d40387b317b138b74d569833f7893058
 - Base/start: f27bdf89f0f3ec14d4faa2077df0a7752dd9381f
-- Commits reviewed: 1
+- Commits reviewed: 3 task commits (3447cbb95, 63e2ee051, 0fa8fd22d). Board-only commits in the range were not reviewed.
 
-Uncommitted changes: web/src/app/features/mail/list/mail.service.spec.ts is modified in the working tree. It adds HTTP-level tests for createFolder/renameFolder/deleteFolder, probably from the test-writer. This review covers committed code only, so those tests are not counted here.
+Uncommitted changes: none in the working tree when this review ran. Only committed code was reviewed.
 
-Summary: 0 P0, 0 P1, 1 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
+
+## Status of first-round findings
+
+- **CR-1 (P2) A 409 on Delete showed the name-conflict text: fixed.** `folderErrorMessage(error, action)` (mail-folder-dialogs.ts:23) returns the new `@@mail.folder.error.deleteRefused` text for a 409 when `action` is `'delete'`. The delete dialog passes `'delete'` (mail-folder-dialogs.ts:261). The text matches the API's 409 meaning. In mail-folder-tree.ts, the tree's delete passes `[409]` to `reloadingOnStale` (lines 238 and 248-263), so a refused delete reloads the folders. That brings in the role and hides Delete. The new unit is in both xlf files exactly once, and the German target is filled in. Tests cover it: the 409 text on delete vs save, the other statuses reading the same on delete, the delete dialog showing the 409 text and staying open, and the tree reloading on a delete 409 while keeping the folder and the page.
+- **CR-2 (P3) A 404 on delete started a retry loop: fixed.** mail-folder-tree.ts:229-234 swallows only an `ApiError` with status 404 from `deleteFolder` and then runs the same path as a success. That path calls `store.removed`, which drops the folder locally and starts a background reload. If the shown folder was in the subtree, the page navigates to `/mail`. Because the callback resolves, the dialog closes with `true`. All other errors still reject, and 412/409 still reload. Tests cover a 404 on the shown folder (navigates) and on another folder (no navigation). The earlier test expecting a rejection on 404 was changed to cover 412 and 409. That change follows from the changed requirement and does not weaken the suite.
+- **CR-3 (P3) Malformed import block: fixed.** The `@angular/forms` import at mail-folder-dialogs.ts:2-8 is now formatted the way Prettier formats it.
 
 ## P0 Critical
 
@@ -32,37 +38,20 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | A 409 on Delete shows "A folder with this name already exists here."**
-    - File: `web/src/app/features/mail/list/mail-folder-dialogs.ts:31`
-    - Category: Correctness
-    - Problem: `folderErrorMessage` maps every 409 to the name-conflict text, and the delete dialog uses the same function (`mail-folder-dialogs.ts:254`). For DELETE, the API's 409 means "INBOX or a folder with a role" (openapi.yaml, deleteMailFolder 409). The tree hides Delete only for roles it knows about. The store does not reload on an UPDATED folder event for a folder it already has (`mail-folders-store.ts:56`), so a role given elsewhere (another tab, or detection during a sync) can stay unknown locally. Delete then returns 409 and the confirmation dialog shows a message about a name being taken. Also, `reloadingOnStale` does not reload on 409, so the menu keeps offering Delete.
-    - Why it matters: the delete error is wrong and confusing, and the user has no way to see why the delete was refused. Criterion 2's error handling is meant to explain server errors, and Delete reuses that path.
-    - Suggested fix: give the delete dialog its own 409 text (for example "This folder or one inside it has a role and cannot be deleted."), for instance through a context parameter on `folderErrorMessage`. Reload the folders on a delete 409 so the role appears and Delete is hidden. Add a test for the delete 409 text.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | A folder deleted elsewhere leaves the delete dialog in a retry loop and the page on the removed folder**
-    - File: `web/src/app/features/mail/list/mail-folder-tree.ts:220`
-    - Category: Correctness
-    - Problem: if DELETE returns 404 (the folder is already gone on the server), `remove` throws before `store.removed` and the navigation run. The dialog shows "The folder was changed or removed elsewhere. The folder list was reloaded; try again." Retrying sends the same request and gets 404 again. If that folder was the one on screen, the page does not go to the unified Inbox, even though the folder no longer exists.
-    - Why it matters: this is a small edge case, but it asks for a retry that can never succeed, and the user stays on a removed folder.
-    - Suggested fix: treat 404 on delete as success. Drop the folder locally, navigate if it was shown, and close the dialog. Or at least navigate and close.
-
-- [ ] **CR-3 | Malformed import block in mail-folder-dialogs.ts**
-    - File: `web/src/app/features/mail/list/mail-folder-dialogs.ts:2-5`
-    - Category: Quality
-    - Problem: `ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';` is crammed onto one line inside an otherwise multi-line import. Prettier would not produce this. `npm run check` does not run Prettier, so nothing caught it.
-    - Why it matters: it does not match the formatting of the rest of the codebase and will cause unrelated diff noise the next time someone formats the file.
-    - Suggested fix: run `npx prettier --write` on the file.
+None.
 
 ## Acceptance criteria check
 
-1. Account "New folder" button (`button.add`) and a folder menu with New subfolder / Rename / Delete: met. INBOX (by role or by the name INBOX in any case) gets no Rename or Delete. Folders with a role, or holding one, get no Delete (assumption recorded). Tests in mail-folder-tree.spec.ts.
-2. Name dialog shows the localized server errors (409/400/0/502, plus 404/412 with a reload) and stays open. After success the tree updates locally at once via `store.added`/`store.renamed`, then reloads in the background. A newer load supersedes an older one through `seq`, so an older load cannot overwrite the local change. Met, apart from CR-1, which affects the delete dialog.
-3. The delete confirmation says the folder's messages and subfolders are deleted on the mail server too, with an ICU plural for the subfolder count. Deleting the shown folder, or a folder above it, navigates to `/mail` (the unified Inbox; its href is checked in the spec). Met.
-4. Keyboard: the menu triggers are real buttons and stay focusable while visually hidden (opacity, shown on focus-visible). The mat-menu has menuitem roles and Escape closes it. The dialogs use cdkFocusInitial (Cancel in the delete dialog) and close on Escape. Labels use i18n/$localize with ids under `mail.folder.*`, and all 25 units have German targets with no duplicate ids. Met.
-5. Unit tests cover the actions, the dialogs, the error cases and the navigation after delete. Met for the committed code; the gap is the delete 409 case (CR-1). The parent reports `npm run check` passed at 9c4f96d52 (3936 tests); this review did not run it again.
+1. Each account has a "New folder" button (`button.add`). Each folder has a menu with New subfolder, Rename and Delete. INBOX (by role, or by its name in any case) gets no Rename or Delete. A folder with a role, or holding one, gets no Delete (assumption recorded). New subfolder is hidden for flat namespaces (assumption recorded). Met. Tests are in mail-folder-tree.spec.ts.
+2. The name dialog shows localized server errors (409 taken, 400 invalid, 0 unreachable, 502 mail server, 404/412 stale plus a reload) and stays open. `disableClose` is set while a save runs, and a second submit is blocked. After success, `store.added` or `store.renamed` updates the tree at once, then a background reload follows. The store's `seq` guard stops an older load from overwriting a newer one. Met.
+3. The delete confirmation says the folder's messages and subfolders are deleted on the mail server too, and uses an ICU plural for the subfolder count. Deleting the shown folder, or a folder above it, navigates to `/mail`. Deleting a sibling that only shares a path prefix does not. A 404 now counts as a completed delete. Met.
+4. Keyboard: the menu triggers are real buttons that can take focus. The mat-menu items have menuitem roles, and Escape closes the menu. The dialogs set cdkFocusInitial (on Cancel in the delete dialog) and close on Escape, except while a change runs. The labels use i18n/$localize with `mail.folder.*` ids, and every unit has a German target. Met.
+5. Unit tests cover the actions, both dialogs, the error cases (including the delete 409 and 404), the navigation after delete, the store's local updates, and the service's HTTP contract (method, body, quoted If-Match, silent errors). fixes.md records a passing focused run (9 files, 301 tests) and `npm run lint`. This review did not run `npm run check` itself, so the parent's final `npm run check` / `.taskcheck` run is still the evidence for that part of the criterion.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 (wrong delete error message, no reload on 409) should be fixed. CR-2 and CR-3 are minor.
+No material issues found.
