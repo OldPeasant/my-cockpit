@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="mail_folder_new">New folder</string>
     <string name="mail_folder_new_in">New folder in %1$s</string>
     <string name="mail_folder_new_sub">New subfolder</string>
     <string name="mail_folder_rename">Rename</string>
