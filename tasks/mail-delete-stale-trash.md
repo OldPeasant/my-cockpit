@@ -37,3 +37,4 @@ The API contract does not change (same request and result shape), so `api/openap
 are; update the KDoc of `MailAction.DELETE` and of `MailActionService`. The web list needs no change: an ok outcome
 already keeps the message removed. A related, unconfirmed suspect is a race between an action's cache update and a
 concurrent header sync (the action does not take the sync lock); fix it here only if the tests show it.
+- ASSUMPTION (2026-11-01 07:52+0100 by dell26/agent-2): The background resync runs on its own virtual-thread executor (new MailFolderResync in mail/api), merging requests for a folder whose sync is still pending; failures are logged at INFO/WARN without server responses.
