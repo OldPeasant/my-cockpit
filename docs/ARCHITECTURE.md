@@ -210,6 +210,9 @@ Rules:
 - Web unit tests run with Vitest `isolate: true` (`web/angular.json` `test` target), so each spec file
   gets a fresh module graph. `app.i18n.spec.ts` needs this (Angular caches i18n template constants on
   first render); don't remove it for speed.
+- Web unit tests share busy hosts: `web/vitest.config.mts` (builder `runnerConfig`) sets 20 s test and hook
+  timeouts, and `web/src/test-setup.ts` (`setupFiles`) resets the TestBed and real timers before every
+  test, so one timeout fails one test, not the rest of its file. Make slow tests cheaper; don't raise timeouts per test.
 
 ## Coverage
 
