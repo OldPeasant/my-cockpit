@@ -17,9 +17,10 @@ reading it, without going back to the list first. Today Delete only exists in th
       mail actions API (`MailService.act('DELETE', [id])`, as the list does, so the server stays unchanged)
       and is disabled while the request runs
   - verified (2026-11-01 07:05+0100 by dell26/agent-1): npm --prefix web run test:ci -- --include src/app/features/mail/read/mail-read-page.spec.ts --include src/locale/messages-de.spec.ts at 0ec379e65 -> 76 passed; Delete tests: button absent while loading/failed, shown when ready, calls MailService.apply('DELETE',[id]) (the list's action method), disabled while pending and second click/# ignored
-- [ ] On success the app returns to the mail list the message was opened from (the unified Inbox if that
+- [x] On success the app returns to the mail list the message was opened from (the unified Inbox if that
       is unknown), and the message is no longer shown there. On failure the read view stays open and shows
       an error, using the view's existing error pattern
+  - verified (2026-11-01 07:05+0100 by dell26/agent-1): same focused run (76 passed): RouterTestingHarness tests delete and land on /mail/folders/f-archive when opened there, /mail when opened from /mail, /notes, /mail/compose or directly, origin kept across message->message; failure cases (ok=false detail, ApiError 409, TypeError, missing result) keep the read view open and toast 'The message could not be deleted: ...' via NotificationService.error. List gone-ness: the list page builds a fresh component-scoped store and reloads from the server on open (mail-list-page.ts constructor; full web suite 3882 passed). No browser e2e run for this (list behavior is web-mail-list's)
 - [ ] The `#` key in the read view also deletes, as in the list (not while typing in an input or editor)
 - [ ] Unit tests cover the button, the shortcut, success navigation and the error case; `cd web && npm run check` passes
 
