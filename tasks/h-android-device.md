@@ -5,8 +5,10 @@ owner:
 deps: [p3-smoke,and-apk-distribution]
 quality: exempt
 quality_reason: human device test, no code
-hold: HUMAN TASK for the owner: install the APK on your phone, run the phase 3 (H) steps
+hold: 
 prio: 2
+releases: 0
+extended: 
 ---
 ## Goal
 Owner installs the APK and runs the (H) steps of phase 3.
