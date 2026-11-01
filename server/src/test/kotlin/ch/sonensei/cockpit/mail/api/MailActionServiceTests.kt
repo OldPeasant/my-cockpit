@@ -707,6 +707,90 @@ class MailActionServiceTests {
 	}
 
 	@Test
+	fun `a delete in Trash of a UID gone from Trash leaves a row a sync relocated to another UID in Trash meanwhile`() {
+		val message = cached(trash, 3)
+		every { links.linksOf(ItemRef(ItemType.EMAIL, message.id)) } returns listOf(mockk<ResolvedLink>())
+		every { remoteTrash.getMessagesByUID(longArrayOf(3)) } returns arrayOf(null)
+		// A full sync of Trash found the message again under a new UID after the action read the row at UID 3.
+		val relocated = MailMessage(account.id, trash.id, 30, message.id)
+		every { messages.findAllById(listOf(message.id)) } returns listOf(relocated)
+
+		service.apply(listOf(message.id), MailAction.DELETE, null) shouldBe listOf(MailActionOutcome.ok(message.id))
+
+		relocated.uid shouldBe 30
+		relocated.folderId shouldBe trash.id
+		relocated.isLocated shouldBe true
+		verify(exactly = 0) { messages.delete(any()) }
+		verify(exactly = 0) { searchIndex.unindex(any()) }
+	}
+
+	@Test
+	fun `a delete in Trash removes the rows still at the expunged UID and leaves a relocated one alone`() {
+		val expunged = cached(trash, 3)
+		val moved = cached(trash, 4)
+		val found = onServer(remoteTrash, 3, 4)
+		val relocated = MailMessage(account.id, trash.id, 40, moved.id)
+		every { messages.findAllById(listOf(expunged.id, moved.id)) } returns listOf(expunged, relocated)
+
+		service.apply(listOf(expunged.id, moved.id), MailAction.DELETE, null) shouldBe
+			listOf(MailActionOutcome.ok(expunged.id), MailActionOutcome.ok(moved.id))
+
+		verify { remoteTrash.expunge(found) }
+		verify { messages.delete(expunged) }
+		verify { searchIndex.unindex(expunged.id) }
+		verify(exactly = 0) { messages.delete(refEq(relocated)) }
+		verify(exactly = 0) { searchIndex.unindex(moved.id) }
+		relocated.uid shouldBe 40
+	}
+
+	@Test
+	fun `a delete in Trash of a UID gone from Trash leaves a row a sync detached meanwhile`() {
+		val message = cached(trash, 3)
+		every { remoteTrash.getMessagesByUID(longArrayOf(3)) } returns arrayOf(null)
+		// A sync already noticed the message is gone and kept the row detached (an item links to it).
+		val detached = MailMessage(account.id, trash.id, 3, message.id).apply { detach() }
+		every { messages.findAllById(listOf(message.id)) } returns listOf(detached)
+
+		service.apply(listOf(message.id), MailAction.DELETE, null) shouldBe listOf(MailActionOutcome.ok(message.id))
+
+		verify(exactly = 0) { messages.delete(any()) }
+		verify(exactly = 0) { searchIndex.unindex(any()) }
+		verify(exactly = 0) { links.linksOf(any()) }
+		detached.isLocated shouldBe false
+	}
+
+	@Test
+	fun `a flag action leaves a row a sync relocated to another UID in the same folder meanwhile`() {
+		val message = cached(inbox, 7)
+		val found = onServer(remoteInbox, 7)
+		val relocated = MailMessage(account.id, inbox.id, 70, message.id)
+		every { messages.findAllById(listOf(message.id)) } returns listOf(relocated)
+
+		service.apply(listOf(message.id), MailAction.FLAG, null) shouldBe listOf(MailActionOutcome.ok(message.id))
+
+		verify { remoteInbox.setFlags(found, Flags(Flags.Flag.FLAGGED), true) }
+		relocated.flagged shouldBe false
+		relocated.uid shouldBe 70
+		verify { changes.publish(MailFolderService.FOLDER_EVENT, inbox.id, ChangeOp.UPDATED) }
+	}
+
+	@Test
+	fun `a move leaves a row a sync relocated to another UID in the source folder meanwhile`() {
+		val message = cached(inbox, 7)
+		val found = onServer(remoteInbox, 7)
+		every { remoteInbox.moveUIDMessages(found, remoteProjects) } returns arrayOf(AppendUID(UIDVALIDITY, 41))
+		val relocated = MailMessage(account.id, inbox.id, 70, message.id)
+		every { messages.findAllById(listOf(message.id)) } returns listOf(relocated)
+
+		service.apply(listOf(message.id), MailAction.MOVE, projects.id) shouldBe listOf(MailActionOutcome.ok(message.id))
+
+		relocated.folderId shouldBe inbox.id
+		relocated.uid shouldBe 70
+		verify(exactly = 0) { messages.delete(any()) }
+		verify(exactly = 0) { searchIndex.unindex(any()) }
+	}
+
+	@Test
 	fun `a COPYUID is trusted when the target folder has no cached UIDVALIDITY yet`() {
 		projects.uidValidity = null
 		val message = cached(inbox, 7)
