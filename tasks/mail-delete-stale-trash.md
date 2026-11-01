@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [mail-actions-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,server/src/test/kotlin/ch/sonensei/cockpit/mail/api]
 prio: 2
-lease_until: 2026-11-01T07:34:25Z
+lease_until: 2026-11-01T07:39:27Z
 ---
 ## Goal
 Deleting messages from Trash fails with NOT_FOUND ("The message does not exist or is no longer on the server") for
