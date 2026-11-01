@@ -25,3 +25,4 @@ The Android mail read view gets a Spam button next to Archive and Delete, matchi
 The only change in `mail/list` is the enum value in `MailModels.kt`. Adding the string touches the shared
 `strings.xml` files: add lines only, and on a conflict keep both sides.
 - ASSUMPTION (2026-11-01 06:38+0100 by dell26/agent-1): Read view actions now go through MailReadRepository.act, which keeps the server's per-item errorCode (MailRepository.act only returns ok); NO_ROLE_FOLDER is shown localized ('This account has no Spam folder.'), other codes as 'Server error: CODE'. The server's English detail text is not shown. Updated the mock in mail/list/MailRouteInAppTest (test only, outside touches).
+- ASSUMPTION (2026-11-01 06:38+0100 by dell26/agent-1): Spam button: icon Icons.Outlined.Report, label 'Move to spam' / 'Als Spam verschieben', tag mail-read-action:SPAM, placed after Delete. Web counterpart (web-mail-read-archive-spam) is not done yet, so wording was chosen here.
