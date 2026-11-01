@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "task": "mail-folder-manage-api",
+  "reviewed_revision": "427f62045c88404583f91f8107504ff15e76491d",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/mail-folder-manage-api/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-folder-manage-api/review.md"},
+    "fixer": {"status": "not_required", "reason": "The final review (review.md, HEAD 427f62045) has only two P3 findings, both accepted below; no code changed after it. Note for humans: the first review's CR-1 (rename/sync race) and CR-2 ({\"name\": null} cleared the role) were fixed by the parent worker itself in 41a47b156, not by the fixer sub-agent; the final review and tests.md cover that code and confirm both fixes."}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "A message sync that updates the folder row in the milliseconds between the server RENAME and the cache path rewrite makes the rename answer 409. The window is tiny and the client sees an error. Left as is."},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "The accountLocks map keeps one ReentrantLock per requested account id, unknown ids included. Only a logged-in caller can add entries and this is a single-user app, so the memory cost is negligible. Left as is."}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew check --rerun-tasks", "result": "pass"},
+    {"command": "cd server && ./gradlew integrationTest --tests '*Folder*GreenMail*' --rerun", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
