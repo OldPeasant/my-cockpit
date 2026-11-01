@@ -14,9 +14,10 @@ client and waiting for the next folder poll. Requested by the owner (2026-10-30)
 management yet; record the decisions below with `tasks.py assume`.
 
 ## Acceptance criteria
-- [ ] `POST /api/v1/mail/accounts/{id}/folders` (`{"name", "parentId"?}`) creates the folder on the IMAP server
+- [x] `POST /api/v1/mail/accounts/{id}/folders` (`{"name", "parentId"?}`) creates the folder on the IMAP server
       (`CREATE`, then `SUBSCRIBE`), under the parent folder or at the top level, using the server's hierarchy
       delimiter, and caches it. Returns 201 with the folder and its ETag
+  - verified (2026-11-01 07:11+0100 by dell26/agent-2): cd server && ./gradlew integrationTest --tests '*Folder*GreenMail*' --rerun (GreenMail) -> BUILD SUCCESSFUL, MailFolderManageGreenMailTests 13/13 passed; ./gradlew check --rerun-tasks -> BUILD SUCCESSFUL (MailFolderManageTests 23, MailFolderManageWebTests 11 passed); covers create top level + nested, CREATE+SUBSCRIBE, 201+ETag
 - [ ] `PATCH /api/v1/mail/accounts/{id}/folders/{folderId}` additionally takes `{"name"}` (the existing role update
       stays as it is, with If-Match): `RENAME` on the server, the cached folder and all its subfolders get their new
       paths, and cached messages keep their ids, so links stay valid. When the server gives the renamed folder a new
