@@ -13,9 +13,10 @@ web-mail-read-delete, so a message can be triaged right after reading it. Reques
 The Android read view already has Archive and Delete.
 
 ## Acceptance criteria
-- [ ] Once the message has loaded, the read view's action bar shows Archive and Spam buttons. They call the existing
+- [x] Once the message has loaded, the read view's action bar shows Archive and Spam buttons. They call the existing
       mail actions API (`ARCHIVE`, `SPAM`) the same way the Delete button does, and all three are disabled while one
       of them runs
+  - verified (2026-11-01 09:15+0100 by dell26/agent-2): npx ng test --watch=false --include src/app/features/mail/read (web) -> 132 passed; spec checks Archive/Spam buttons appear only after load, call MailService.apply ARCHIVE/SPAM via shared triage() with Delete, all three disabled while one runs
 - [ ] On success the app returns to the mail list the message was opened from (as after Delete). On failure the view
       stays open and shows the server's error, e.g. when the account has no Archive or Spam folder (NO_ROLE_FOLDER)
 - [ ] Keyboard shortcuts as in the list: `e` archives, `!` marks as spam (not while typing in an input or editor)
