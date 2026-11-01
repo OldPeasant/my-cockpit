@@ -11,6 +11,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, PRIMARY_OUTLET, Router, RouterLink, UrlTree } from '@angular/router';
 import { map } from 'rxjs';
@@ -59,6 +60,7 @@ export default class MailReadPage {
   private readonly notifications = inject(NotificationService);
   private readonly mail = inject(MailService);
   private readonly router = inject(Router);
+  private readonly dialog = inject(MatDialog);
   /** The mail list this message was opened from, where Delete returns to. */
   private readonly origin = mailListOrigin(this.router);
 
@@ -201,8 +203,9 @@ export default class MailReadPage {
     }
   }
 
-  /** `#` deletes, as in the list (never while typing). */
+  /** `#` deletes, as in the list (never while typing or while a dialog is open). */
   protected onKeydown(event: KeyboardEvent): void {
+    if (this.dialog.openDialogs.length) return;
     if (this.state() !== 'ready' || mailShortcutFor(event) !== 'delete') return;
     event.preventDefault();
     void this.delete();

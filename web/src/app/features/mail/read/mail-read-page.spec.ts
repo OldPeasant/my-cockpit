@@ -2,6 +2,7 @@ import { Location } from '@angular/common';
 import { provideLocationMocks } from '@angular/common/testing';
 import { Component, input } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { MatDialog } from '@angular/material/dialog';
 import {
   ActivatedRoute,
   convertToParamMap,
@@ -1120,6 +1121,29 @@ describe('MailReadPage', () => {
         }
       });
 
+      it('does nothing while a dialog is open, and deletes again once it is closed', async () => {
+        await open();
+        const dialog = TestBed.inject(MatDialog);
+        // No animations: jsdom never ends them, so the dialog would not finish closing.
+        const ref = dialog.open(StubDialog, {
+          enterAnimationDuration: 0,
+          exitAnimationDuration: 0,
+        });
+        await flush();
+        expect(dialog.openDialogs).toHaveLength(1);
+        expect(press('#').defaultPrevented).toBe(false);
+        await flush();
+        expect(mail.applies).toEqual([]);
+        expect(navigate).not.toHaveBeenCalled();
+
+        ref.close();
+        await flush();
+        expect(dialog.openDialogs).toHaveLength(0);
+        expect(press('#').defaultPrevented).toBe(true);
+        await flush();
+        expect(mail.applies).toEqual([{ action: 'DELETE', ids: [ID] }]);
+      });
+
       it('ignores other keys, chords and an auto-repeated #', async () => {
         await open();
         press('e');
@@ -1131,6 +1155,9 @@ describe('MailReadPage', () => {
     });
   });
 });
+
+@Component({ selector: 'app-stub-dialog', template: '<p>dialog</p>' })
+class StubDialog {}
 
 @Component({ selector: 'app-stub-list', template: '<p class="list">list</p>' })
 class StubList {}
