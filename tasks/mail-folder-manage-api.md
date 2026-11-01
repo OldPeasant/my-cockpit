@@ -36,3 +36,4 @@ management yet; record the decisions below with `tasks.py assume`.
 ## Notes
 Server only; the web UI is web-mail-folder-manage, an Android UI is not planned yet. Deleting a folder that still
 holds messages is allowed (the web client asks for confirmation); messages are not moved to Trash first.
+- ASSUMPTION (2026-11-01 06:06+0100 by dell26/agent-2): Folder names are trimmed; a name also may not be 'INBOX' (any case) at the top level (409). A server refusal (NO/BAD, or folder not found) is a new MailConnectionError SERVER_REJECTED -> 502 via the shared MailConnectionAdvice.
