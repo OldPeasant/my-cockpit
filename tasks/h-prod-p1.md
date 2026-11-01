@@ -1,6 +1,6 @@
 ---
 title: HUMAN: phase 1 on production
-status: in_progress
+status: done
 owner: Peter Gürtler
 deps: [p1-smoke,h-deploy-p0]
 quality: exempt
@@ -19,3 +19,4 @@ Owner deploys phase 1 and runs the demo script on production.
   - verified (2026-11-01 06:31+0100 by Peter Gürtler): done
 
 ## Notes
+- done by Peter Gürtler: `sh scripts/check.sh` passed in 97s on d69971fe1; criteria verified 1/1
