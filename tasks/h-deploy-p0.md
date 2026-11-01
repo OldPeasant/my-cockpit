@@ -15,7 +15,8 @@ lease_until:
 The owner deploys the stack with the real domain (SPEC.md §13.3).
 
 ## Acceptance criteria
-- [ ] DNS record points to the server; `deploy/gen-env.sh` run; `docker compose up -d`; valid TLS certificate
+- [x] DNS record points to the server; `deploy/gen-env.sh` run; `docker compose up -d`; valid TLS certificate
+  - verified (2026-11-01 06:00+0100 by Peter Gürtler): The app works
 - [ ] Setup + TOTP login works on the production URL (demo Phase 0 step 6)
 
 ## Notes
