@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nav_trash">Trash</string>
+    <string name="trash_hint">Deleted items stay here for 30 days, then they are deleted permanently.</string>
+    <string name="trash_empty">The Trash is empty. Deleted tasks, notes, emails and other items show up here.</string>
+    <string name="trash_offline">No connection to the server. These are the last loaded items.</string>
+    <string name="trash_offline_empty">No connection to the server. The Trash could not be loaded.</string>
+    <string name="trash_failed">The Trash could not be loaded.</string>
+    <string name="trash_retry">Try again</string>
+    <string name="trash_deleted_at">Deleted %1$s</string>
+    <string name="trash_purge_today">Deleted permanently today</string>
+    <plurals name="trash_purge_in_days">
+        <item quantity="one">Deleted permanently in %d day</item>
+        <item quantity="other">Deleted permanently in %d days</item>
+    </plurals>
+    <string name="trash_restore_item">Restore %1$s</string>
+    <string name="trash_purge_item">Delete permanently: %1$s</string>
+    <string name="trash_purge_title">Delete permanently?</string>
+    <string name="trash_purge_text">“%1$s” will be deleted permanently, with its links. This cannot be undone.</string>
+    <string name="trash_purge_confirm">Delete permanently</string>
+    <string name="trash_purge_cancel">Cancel</string>
+    <string name="trash_restored">Restored “%1$s”</string>
+    <string name="trash_purged">Deleted “%1$s” permanently</string>
+    <string name="trash_change_offline">No connection to the server: “%1$s” was not changed.</string>
+    <string name="trash_change_failed">“%1$s” could not be changed.</string>
+
+    <string name="trash_type_task">Task</string>
+    <string name="trash_type_project">Project</string>
+    <string name="trash_type_note">Note</string>
+    <string name="trash_type_event">Event</string>
+    <string name="trash_type_email">Email</string>
+    <string name="trash_type_file">File</string>
+    <string name="trash_type_folder">Folder</string>
+    <string name="trash_type_contact">Contact</string>
+    <string name="trash_type_bookmark">Bookmark</string>
+    <string name="trash_type_journal">Journal entry</string>
+    <string name="trash_type_habit">Habit</string>
+    <string name="trash_type_other">Item</string>
+</resources>

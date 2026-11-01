@@ -54,6 +54,7 @@ import ch.sonensei.cockpit.search.SearchItemScreen
 import ch.sonensei.cockpit.search.SearchRoutes
 import ch.sonensei.cockpit.search.SearchScreen
 import ch.sonensei.cockpit.settings.SettingsScreen
+import ch.sonensei.cockpit.trash.TrashScreen
 import ch.sonensei.cockpit.ui.navigation.CockpitDestination
 import ch.sonensei.cockpit.ui.navigation.NavSection
 import java.util.UUID
@@ -246,6 +247,7 @@ private fun DestinationContent(
         CockpitDestination.Journal -> JournalScreen(modifier)
         CockpitDestination.Habits -> HabitsScreen(modifier)
         CockpitDestination.Review -> ReviewScreen(modifier)
+        CockpitDestination.Trash -> TrashScreen(modifier)
         CockpitDestination.Settings -> SettingsScreen(modifier)
     }
 }

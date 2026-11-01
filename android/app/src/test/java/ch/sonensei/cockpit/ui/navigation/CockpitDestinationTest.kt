@@ -37,6 +37,7 @@ class CockpitDestinationTest {
                 CockpitDestination.Journal,
                 CockpitDestination.Habits,
                 CockpitDestination.Review,
+                CockpitDestination.Trash,
                 CockpitDestination.Settings,
             ),
             CockpitDestination.moreItems,

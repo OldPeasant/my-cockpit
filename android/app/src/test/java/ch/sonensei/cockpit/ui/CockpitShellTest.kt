@@ -85,6 +85,7 @@ class CockpitShellTest {
             "Journal",
             "Habits",
             "Review",
+            "Trash",
             "Settings",
         ).forEach { moreItem(it).assertExists() }
     }

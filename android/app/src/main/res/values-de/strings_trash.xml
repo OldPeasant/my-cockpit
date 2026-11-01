@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nav_trash">Papierkorb</string>
+    <string name="trash_hint">Gelöschte Elemente bleiben 30 Tage hier, danach werden sie endgültig gelöscht.</string>
+    <string name="trash_empty">Der Papierkorb ist leer. Gelöschte Aufgaben, Notizen, E-Mails und andere Elemente erscheinen hier.</string>
+    <string name="trash_offline">Keine Verbindung zum Server. Das sind die zuletzt geladenen Elemente.</string>
+    <string name="trash_offline_empty">Keine Verbindung zum Server. Der Papierkorb konnte nicht geladen werden.</string>
+    <string name="trash_failed">Der Papierkorb konnte nicht geladen werden.</string>
+    <string name="trash_retry">Erneut versuchen</string>
+    <string name="trash_deleted_at">Gelöscht am %1$s</string>
+    <string name="trash_purge_today">Wird heute endgültig gelöscht</string>
+    <plurals name="trash_purge_in_days">
+        <item quantity="one">Wird in %d Tag endgültig gelöscht</item>
+        <item quantity="other">Wird in %d Tagen endgültig gelöscht</item>
+    </plurals>
+    <string name="trash_restore_item">%1$s wiederherstellen</string>
+    <string name="trash_purge_item">Endgültig löschen: %1$s</string>
+    <string name="trash_purge_title">Endgültig löschen?</string>
+    <string name="trash_purge_text">„%1$s“ wird mit seinen Verknüpfungen endgültig gelöscht. Das lässt sich nicht rückgängig machen.</string>
+    <string name="trash_purge_confirm">Endgültig löschen</string>
+    <string name="trash_purge_cancel">Abbrechen</string>
+    <string name="trash_restored">„%1$s“ wiederhergestellt</string>
+    <string name="trash_purged">„%1$s“ endgültig gelöscht</string>
+    <string name="trash_change_offline">Keine Verbindung zum Server: „%1$s“ wurde nicht geändert.</string>
+    <string name="trash_change_failed">„%1$s“ konnte nicht geändert werden.</string>
+
+    <string name="trash_type_task">Aufgabe</string>
+    <string name="trash_type_project">Projekt</string>
+    <string name="trash_type_note">Notiz</string>
+    <string name="trash_type_event">Termin</string>
+    <string name="trash_type_email">E-Mail</string>
+    <string name="trash_type_file">Datei</string>
+    <string name="trash_type_folder">Ordner</string>
+    <string name="trash_type_contact">Kontakt</string>
+    <string name="trash_type_bookmark">Lesezeichen</string>
+    <string name="trash_type_journal">Journaleintrag</string>
+    <string name="trash_type_habit">Gewohnheit</string>
+    <string name="trash_type_other">Element</string>
+</resources>

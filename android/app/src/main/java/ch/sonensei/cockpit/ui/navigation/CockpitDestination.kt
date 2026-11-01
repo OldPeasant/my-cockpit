@@ -8,6 +8,7 @@ import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.Contacts
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.EventRepeat
 import androidx.compose.material.icons.outlined.Folder
@@ -50,6 +51,7 @@ enum class CockpitDestination(
     Journal("journal", R.string.nav_journal, Icons.AutoMirrored.Outlined.MenuBook, NavSection.More),
     Habits("habits", R.string.nav_habits, Icons.Outlined.Repeat, NavSection.More),
     Review("review", R.string.nav_review, Icons.Outlined.EventRepeat, NavSection.More),
+    Trash("trash", R.string.nav_trash, Icons.Outlined.Delete, NavSection.More),
     Settings("settings", R.string.nav_settings, Icons.Outlined.Settings, NavSection.More),
     ;
 
