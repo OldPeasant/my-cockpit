@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [and-shell,and-next-today,web-dashboard,and-logbook]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/dashboard,android/app/src/main/java/ch/sonensei/cockpit/ui,android/app/src/test/java/ch/sonensei/cockpit/dashboard,android/app/src/main/res/values/strings_dashboard.xml,android/app/src/main/res/values-de/strings_dashboard.xml]
 prio: 2
-lease_until: 2026-11-01T21:08:11Z
+lease_until: 2026-11-01T21:13:16Z
 extended: felix/agent-1
 ---
 ## Goal
