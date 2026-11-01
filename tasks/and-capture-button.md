@@ -1,11 +1,11 @@
 ---
 title: Android: in-app capture button on every screen
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [and-capture-entrypoints,and-shell]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/ui,android/app/src/main/java/ch/sonensei/cockpit/capture/entry,android/app/src/test/java/ch/sonensei/cockpit/ui,android/app/src/test/java/ch/sonensei/cockpit/capture]
 prio: 2
-lease_until: 2026-11-01T14:19:14Z
+lease_until: 
 ---
 ## Goal
 On the web, quick capture is a button on every screen; on Android it is only reachable from outside the app (widget,
@@ -30,3 +30,4 @@ Requested by the owner (2026-11-01) after trying the Android app on the phone. O
 - ASSUMPTION (2026-11-01 14:02+0100 by dell26/agent-2): Placement: '+' FAB on every shell screen except Calendar, Mail, Notes, Files (CockpitDestination.withOwnFab), which get an app-bar action instead. The pending count is shown as a badge on the button and in its content description; the widget keeps its own count.
 - ASSUMPTION (2026-11-01 14:17+0100 by dell26/agent-2): To keep the shell's new capture FAB from covering the Undo snackbar (review CR-1), the shell provides a FAB clearance via a CompositionLocal in ui/ and the gtd screens' SnackbarHosts (Today, Next, lists, Projects; outside this task's touches) pad by it: one-line edits, the smallest fix that keeps snackbars owned by their screens.
 - ASSUMPTION (2026-11-01 14:47+0100 by dell26/agent-2): The GTD lists (Today, Next, Waiting/Someday, Projects, project detail) also get bottom content padding equal to the shell FAB clearance so the last row's trailing button is not covered (fixer, from review CR-1 remark); lists on Inbox, Habits, New, Review, Contacts, More are left unpadded since no control there becomes unreachable.
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 76s on b10df2c31; criteria verified 5/5
