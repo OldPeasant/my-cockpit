@@ -338,4 +338,203 @@ class BookmarksViewModelTest {
         vm.noBrowser()
         assertEquals(BookmarksSnackbar.NoBrowser, vm.uiState.value.snackbar)
     }
+
+    @Test
+    fun `a first load that fails shows nothing loaded and says why, failing tags keep the old ones`() =
+        runTest(dispatcher) {
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Offline andThen BookmarksResult.Ok(listOf(bookmark(1)))
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+            assertFalse(vm.uiState.value.loaded)
+            assertFalse(vm.uiState.value.loading)
+            assertEquals(BookmarksMessage.OFFLINE, vm.uiState.value.message)
+            assertEquals(2, vm.uiState.value.tags.size)
+
+            coEvery { repo.tags() } returns BookmarksResult.Failed(400)
+            vm.refresh()
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.loaded)
+            assertNull(vm.uiState.value.message)
+            assertEquals(listOf(bookmark(1)), vm.uiState.value.bookmarks)
+            assertEquals(2, vm.uiState.value.tags.size)
+        }
+
+    @Test
+    fun `choosing the shown view or no tag again does not reload`() =
+        runTest(dispatcher) {
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1)))
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.selectView(BookmarkView.QUEUE)
+            vm.selectTag(null)
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.list(any(), any()) }
+            assertTrue(vm.uiState.value.loaded)
+        }
+
+    @Test
+    fun `a second change of a bookmark while the first runs is ignored`() =
+        runTest(dispatcher) {
+            val answer = CompletableDeferred<BookmarksResult<Bookmark>>()
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1)))
+            coEvery { repo.setRead(any(), any()) } coAnswers { answer.await() }
+            coEvery { repo.delete(any()) } returns BookmarksResult.Ok(Unit)
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.toggleRead(bookmark(1))
+            runCurrent()
+            vm.toggleRead(bookmark(1))
+            vm.delete(bookmark(1))
+            runCurrent()
+            answer.complete(BookmarksResult.Ok(bookmark(1, readAt = Instant.EPOCH, version = 2)))
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { repo.setRead(any(), any()) }
+            coVerify(exactly = 0) { repo.delete(any()) }
+            assertTrue(
+                vm.uiState.value.busy
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `after a conflict the next try sends the reloaded version, even from an outdated row`() =
+        runTest(dispatcher) {
+            val theirs = bookmark(1, "Theirs", version = 5)
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1)))
+            coEvery { repo.setRead(bookmark(1), true) } returns BookmarksResult.Failed(409)
+            coEvery { repo.get(id(1)) } returns BookmarksResult.Ok(theirs)
+            coEvery { repo.setRead(theirs, true) } returns BookmarksResult.Ok(theirs.copy(readAt = Instant.EPOCH, version = 6))
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.toggleRead(bookmark(1))
+            advanceUntilIdle()
+            assertEquals(BookmarksSnackbar.Failed(BookmarkFailure.CONFLICT), vm.uiState.value.snackbar)
+
+            // The row the user taps may still hold version 1: the latest loaded one is sent.
+            vm.toggleRead(bookmark(1))
+            advanceUntilIdle()
+            coVerify { repo.setRead(theirs, true) }
+            assertTrue(
+                vm.uiState.value.bookmarks
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `a conflict whose bookmark is gone drops it, one that cannot be reloaded keeps it`() =
+        runTest(dispatcher) {
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1), bookmark(2)))
+            coEvery { repo.delete(bookmark(1)) } returns BookmarksResult.Failed(412)
+            coEvery { repo.get(id(1)) } returns BookmarksResult.Failed(404)
+            coEvery { repo.delete(bookmark(2)) } returns BookmarksResult.Failed(412)
+            coEvery { repo.get(id(2)) } returns BookmarksResult.Offline
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.delete(bookmark(1))
+            advanceUntilIdle()
+            assertEquals(
+                listOf(id(2)),
+                vm.uiState.value.bookmarks
+                    .map { it.id },
+            )
+            assertEquals(BookmarksSnackbar.Failed(BookmarkFailure.CONFLICT), vm.uiState.value.snackbar)
+
+            vm.delete(bookmark(2))
+            advanceUntilIdle()
+            assertEquals(listOf(bookmark(2)), vm.uiState.value.bookmarks)
+        }
+
+    @Test
+    fun `a refused change says it failed, deleting a bookmark gone meanwhile just drops it`() =
+        runTest(dispatcher) {
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1), bookmark(2)))
+            coEvery { repo.save(bookmark(1), any()) } returns BookmarksResult.Failed(400)
+            coEvery { repo.delete(bookmark(2)) } returns BookmarksResult.Failed(404)
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.edit(bookmark(1))
+            vm.save(BookmarkDraft("Title", "", ""))
+            advanceUntilIdle()
+            assertEquals(BookmarksSnackbar.Failed(BookmarkFailure.FAILED), vm.uiState.value.snackbar)
+            assertEquals(bookmark(1), vm.uiState.value.bookmarks[0])
+            // Tags are reloaded only after a saved change.
+            coVerify(exactly = 1) { repo.tags() }
+
+            vm.dismiss(vm.uiState.value.snackbar!!)
+            vm.delete(bookmark(2))
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.snackbar)
+            assertEquals(listOf(bookmark(1)), vm.uiState.value.bookmarks)
+        }
+
+    @Test
+    fun `saving with nothing being edited does nothing`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.save(BookmarkDraft("Title", "", ""))
+            advanceUntilIdle()
+            coVerify(exactly = 0) { repo.save(any(), any()) }
+        }
+
+    @Test
+    fun `an edit in all bookmarks stays in place`() =
+        runTest(dispatcher) {
+            val draft = BookmarkDraft("New", "", "")
+            val saved = bookmark(2, "New", tags = emptyList(), version = 2)
+            coEvery { repo.list(BookmarkView.ALL, null) } returns BookmarksResult.Ok(listOf(bookmark(1), bookmark(2), bookmark(3)))
+            coEvery { repo.save(bookmark(2), draft) } returns BookmarksResult.Ok(saved)
+            val vm = viewModel()
+            vm.selectView(BookmarkView.ALL)
+            advanceUntilIdle()
+
+            vm.edit(bookmark(2))
+            vm.save(draft)
+            advanceUntilIdle()
+            assertEquals(listOf(bookmark(1), saved, bookmark(3)), vm.uiState.value.bookmarks)
+        }
+
+    @Test
+    fun `dismissing an older snackbar keeps a newer one`() =
+        runTest(dispatcher) {
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1)))
+            coEvery { repo.delete(any()) } returns BookmarksResult.Offline
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.delete(bookmark(1))
+            advanceUntilIdle()
+            val older = vm.uiState.value.snackbar!!
+            vm.noBrowser()
+
+            // The first snackbar's end must not hide the second one.
+            vm.dismiss(older)
+            assertEquals(BookmarksSnackbar.NoBrowser, vm.uiState.value.snackbar)
+            vm.dismiss(BookmarksSnackbar.NoBrowser)
+            assertNull(vm.uiState.value.snackbar)
+        }
+
+    @Test
+    fun `a share sent before the first load does not load the list`() =
+        runTest(dispatcher) {
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1)))
+            pending.value = 1
+            viewModel()
+            advanceUntilIdle()
+            pending.value = 0
+            advanceUntilIdle()
+            coVerify(exactly = 0) { repo.list(any(), any()) }
+        }
 }

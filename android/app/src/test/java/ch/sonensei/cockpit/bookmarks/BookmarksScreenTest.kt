@@ -3,6 +3,8 @@ package ch.sonensei.cockpit.bookmarks
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -12,6 +14,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import org.junit.Assert.assertEquals
@@ -196,6 +200,71 @@ class BookmarksScreenTest {
         composeRule.onNodeWithText("Undo").performClick()
         composeRule.waitForIdle()
         assertEquals(listOf("undo ${article.id}"), calls)
+    }
+
+    @Test
+    fun `a failed change and a missing browser are told in a snackbar`() {
+        var state by mutableStateOf(BookmarksUiState(loaded = true, snackbar = BookmarksSnackbar.Failed(BookmarkFailure.CONFLICT)))
+        composeRule.setContent { CockpitTheme { BookmarksContent(state, callbacks) } }
+        composeRule.onNodeWithText("The bookmark was changed elsewhere", substring = true).assertExists()
+        state = state.copy(snackbar = BookmarksSnackbar.Failed(BookmarkFailure.OFFLINE))
+        composeRule.onNodeWithText("Can't reach the server. Nothing was changed.").assertExists()
+        state = state.copy(snackbar = BookmarksSnackbar.Failed(BookmarkFailure.FAILED))
+        composeRule.onNodeWithText("The bookmark could not be changed.").assertExists()
+        state = state.copy(snackbar = BookmarksSnackbar.NoBrowser)
+        composeRule.onNodeWithText("No app on this device opens web pages.").assertExists()
+    }
+
+    @Test
+    fun `a snackbar that times out without undo reports itself dismissed`() {
+        show(BookmarksUiState(loaded = true, snackbar = BookmarksSnackbar.Trashed(article)))
+        composeRule.onNodeWithText("Moved “Slow reading” to the Trash").assertExists()
+        composeRule.mainClock.advanceTimeBy(15_000)
+        composeRule.waitForIdle()
+        assertEquals(listOf("dismiss"), calls)
+    }
+
+    @Test
+    fun `a failed load says so, and retry waits while a load runs`() {
+        show(BookmarksUiState(loaded = false, loading = true, message = BookmarksMessage.FAILED))
+        composeRule.onNodeWithTag(BookmarksTags.MESSAGE).assertExists()
+        composeRule.onNodeWithText("The bookmarks could not be loaded.").assertExists()
+        composeRule.onNodeWithTag(BookmarksTags.RETRY).assertIsNotEnabled()
+        composeRule.onNodeWithTag(BookmarksTags.EMPTY).assertDoesNotExist()
+    }
+
+    @Test
+    fun `pulling the list down asks to refresh, and a pulled refresh shows no extra progress bar`() {
+        var state by mutableStateOf(BookmarksUiState(bookmarks = listOf(article), loaded = true))
+        composeRule.setContent { CockpitTheme { BookmarksContent(state, callbacks) } }
+        composeRule.onNodeWithTag(BookmarksTags.LIST).performTouchInput { swipeDown() }
+        composeRule.waitForIdle()
+        assertEquals(listOf("refresh"), calls)
+
+        state = state.copy(loading = true, refreshing = true)
+        composeRule.onNodeWithTag(BookmarksTags.LOADING).assertDoesNotExist()
+    }
+
+    @Test
+    fun `an untitled bookmark is saved with a blank title, tags and notes`() {
+        show(BookmarksUiState(bookmarks = listOf(read), view = BookmarkView.ALL, loaded = true, editing = read))
+        composeRule.onNodeWithTag(BookmarksTags.EDIT_SAVE).performClick()
+        assertEquals(listOf("save ${BookmarkDraft("", "", "")}"), calls)
+    }
+
+    @Test
+    fun `the tag filter marks the chosen tag`() {
+        show(
+            BookmarksUiState(
+                bookmarks = listOf(article),
+                tags = listOf(BookmarkTag("reading", 1), BookmarkTag("focus", 1)),
+                tag = "Focus",
+                loaded = true,
+            ),
+        )
+        composeRule.onNodeWithTag(BookmarksTags.tag("focus")).assertIsSelected()
+        composeRule.onNodeWithTag(BookmarksTags.tag("reading")).assertIsNotSelected()
+        composeRule.onNodeWithTag(BookmarksTags.ALL_TAGS).assertIsNotSelected()
     }
 
     @Test
