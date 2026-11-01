@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "and-capture-button",
+  "reviewed_revision": "24840de251f260261d0bdf477a8c01adbc42d354",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-capture-button/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-capture-button/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-capture-button/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "shell capture FAB covered GTD snackbar Undo and last list rows; LocalFabClearance pads snackbars and lists; re-review confirms resolved"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "double tap stacked two sheets; intent uses FLAG_ACTIVITY_SINGLE_TOP; re-review confirms resolved"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport --continue", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
