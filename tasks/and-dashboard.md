@@ -1,11 +1,11 @@
 ---
 title: Android: Dashboard as start screen
 status: in_progress
-owner: dell26/agent-2
+owner: felix/agent-1
 deps: [and-shell,and-next-today,web-dashboard,and-logbook]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/dashboard,android/app/src/main/java/ch/sonensei/cockpit/ui,android/app/src/test/java/ch/sonensei/cockpit/dashboard,android/app/src/main/res/values/strings_dashboard.xml,android/app/src/main/res/values-de/strings_dashboard.xml]
 prio: 2
-lease_until: 2026-11-01T19:45:53Z
+lease_until: 2026-11-01T20:06:04Z
 ---
 ## Goal
 The web dashboard (SPEC.md §8.7, `web/src/app/features/dashboard`) has no Android counterpart. The owner wants it
