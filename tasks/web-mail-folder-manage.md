@@ -18,8 +18,9 @@ folders through the API from mail-folder-manage-api. Requested by the owner (202
 - [x] New folder and Rename open a small dialog with the name; errors from the server (name taken, invalid name,
       server unreachable) are shown in the dialog, which stays open. After success the tree shows the change at once
   - verified (2026-11-01 08:48+0100 by dell26/agent-1): same run -> passed: mail-folder-dialogs.spec name dialog shows 409/400/0/502 errors and stays open, retry closes; mail-folder-tree.spec create/subfolder/rename update the tree at once (rename moves subfolders), store spec added/renamed/removed
-- [ ] Delete asks for confirmation, saying that the folder's messages and subfolders are deleted on the mail server
+- [x] Delete asks for confirmation, saying that the folder's messages and subfolders are deleted on the mail server
       too. Deleting the folder that is currently shown navigates to the unified Inbox
+  - verified (2026-11-01 08:48+0100 by dell26/agent-1): same run -> passed: delete dialog text says messages and subfolders are deleted on the mail server too (with subfolder count), deletes only on confirm; deleting the shown folder or its ancestor navigates to /mail, other folder does not
 - [ ] Usable with the keyboard (menus and dialogs focusable, Escape closes), labels localized like the rest of the
       mail feature
 - [ ] Unit tests for the actions, the dialogs, the error cases and the navigation after delete;
