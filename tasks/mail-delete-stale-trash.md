@@ -24,10 +24,11 @@ works for some messages and fails for others.
       `MAIL_FOLDER` change event is published for the folder. A changed UIDVALIDITY or a missing folder still fails
       with NOT_FOUND, because the message may still exist under another UID
   - verified (2026-11-01 09:30+0100 by dell26/agent-1): cd server && ./gradlew ktlintFormat check jacocoTestReport (at c63607475) -> BUILD SUCCESSFUL; MailActionServiceTests 45/0 failures incl. Trash all-gone/mixed/linked-detached/changed-UIDVALIDITY/missing-folder/no-UIDVALIDITY cases; GreenMail (a)(b) + Trash UIDVALIDITY test pass (integrationTest 20/0)
-- [ ] Any other action that finds some of its messages missing in their source folder still reports NOT_FOUND for
+- [x] Any other action that finds some of its messages missing in their source folder still reports NOT_FOUND for
       those ids, and starts a sync of that folder in the background (not blocking the response, through
       `MailHeaderSyncService` so the sync lock applies). The stale rows then disappear from the cache, and the
       list refreshes through the folder's change event. A failing background sync is logged and does not fail the action
+  - verified (2026-11-01 09:30+0100 by dell26/agent-1): MailActionServiceTests (NOT_FOUND + MailFolderResync.request for the affected folder only, partial MOVE) + MailFolderResyncTests 6/0 (background executor, failure logged, request during running sync) via ./gradlew check at c63607475 -> pass; GreenMail (c) move of a gone message -> NOT_FOUND and row dropped after background sync -> pass
 - [x] GreenMail integration tests (`MailActionGreenMailTests`): (a) a message deleted from Trash by another IMAP client,
       then DELETE through the API -> ok, row gone, nothing left on the server; (b) a mix of present and already-gone
       messages in one Trash delete -> all ok; (c) a MOVE of a message deleted from its folder by another client ->
