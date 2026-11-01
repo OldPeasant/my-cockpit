@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bookmarks_view_queue">Später lesen</string>
+    <string name="bookmarks_view_all">Alle Lesezeichen</string>
+    <string name="bookmarks_all_tags">Alle</string>
+    <string name="bookmarks_search">Lesezeichen durchsuchen</string>
+    <string name="bookmarks_search_clear">Suche löschen</string>
+    <string name="bookmarks_empty_queue">Nichts zum Später-Lesen. Teile einen Link mit Cockpit, um ihn hier zu speichern.</string>
+    <string name="bookmarks_empty_all">Noch keine Lesezeichen. Teile einen Link mit Cockpit, um eines zu speichern.</string>
+    <string name="bookmarks_empty_tag">Keine Lesezeichen mit dem Tag %1$s.</string>
+    <string name="bookmarks_empty_search">Keine Lesezeichen passen zu „%1$s“.</string>
+    <string name="bookmarks_offline">Der Server ist nicht erreichbar. Die zuletzt geladenen Lesezeichen werden angezeigt.</string>
+    <string name="bookmarks_failed">Die Lesezeichen konnten nicht geladen werden.</string>
+    <string name="bookmarks_retry">Erneut versuchen</string>
+    <string name="bookmarks_site_read">%1$s · Gelesen</string>
+    <string name="bookmarks_actions">Aktionen für %1$s</string>
+    <string name="bookmarks_mark_read">Als gelesen markieren</string>
+    <string name="bookmarks_mark_unread">Als ungelesen markieren</string>
+    <string name="bookmarks_edit">Bearbeiten</string>
+    <string name="bookmarks_delete">In den Papierkorb</string>
+    <string name="bookmarks_edit_heading">Lesezeichen bearbeiten</string>
+    <string name="bookmarks_field_title">Titel</string>
+    <string name="bookmarks_field_tags">Tags</string>
+    <string name="bookmarks_field_tags_hint">Getrennt durch Leerzeichen oder Kommas</string>
+    <string name="bookmarks_field_notes">Notizen</string>
+    <string name="bookmarks_save">Speichern</string>
+    <string name="bookmarks_cancel">Abbrechen</string>
+    <string name="bookmarks_trashed">„%1$s“ in den Papierkorb verschoben</string>
+    <string name="bookmarks_undo">Rückgängig</string>
+    <string name="bookmarks_change_offline">Der Server ist nicht erreichbar. Es wurde nichts geändert.</string>
+    <string name="bookmarks_change_conflict">Das Lesezeichen wurde anderswo geändert und neu geladen. Versuche es noch einmal.</string>
+    <string name="bookmarks_change_failed">Das Lesezeichen konnte nicht geändert werden.</string>
+    <string name="bookmarks_no_browser">Auf diesem Gerät gibt es keine App, die Webseiten öffnet.</string>
+</resources>

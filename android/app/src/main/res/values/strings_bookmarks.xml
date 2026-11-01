@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bookmarks_view_queue">Read later</string>
+    <string name="bookmarks_view_all">All bookmarks</string>
+    <string name="bookmarks_all_tags">All</string>
+    <string name="bookmarks_search">Search bookmarks</string>
+    <string name="bookmarks_search_clear">Clear search</string>
+    <string name="bookmarks_empty_queue">Nothing to read later. Share a link to Cockpit to save it here.</string>
+    <string name="bookmarks_empty_all">No bookmarks yet. Share a link to Cockpit to save one.</string>
+    <string name="bookmarks_empty_tag">No bookmarks tagged %1$s.</string>
+    <string name="bookmarks_empty_search">No bookmarks match “%1$s”.</string>
+    <string name="bookmarks_offline">Can\'t reach the server. Showing the last loaded bookmarks.</string>
+    <string name="bookmarks_failed">The bookmarks could not be loaded.</string>
+    <string name="bookmarks_retry">Retry</string>
+    <string name="bookmarks_site_read">%1$s · Read</string>
+    <string name="bookmarks_actions">Actions for %1$s</string>
+    <string name="bookmarks_mark_read">Mark as read</string>
+    <string name="bookmarks_mark_unread">Mark as unread</string>
+    <string name="bookmarks_edit">Edit</string>
+    <string name="bookmarks_delete">Move to Trash</string>
+    <string name="bookmarks_edit_heading">Edit bookmark</string>
+    <string name="bookmarks_field_title">Title</string>
+    <string name="bookmarks_field_tags">Tags</string>
+    <string name="bookmarks_field_tags_hint">Separated by spaces or commas</string>
+    <string name="bookmarks_field_notes">Notes</string>
+    <string name="bookmarks_save">Save</string>
+    <string name="bookmarks_cancel">Cancel</string>
+    <string name="bookmarks_trashed">Moved “%1$s” to the Trash</string>
+    <string name="bookmarks_undo">Undo</string>
+    <string name="bookmarks_change_offline">Can\'t reach the server. Nothing was changed.</string>
+    <string name="bookmarks_change_conflict">The bookmark was changed elsewhere and has been reloaded. Try again.</string>
+    <string name="bookmarks_change_failed">The bookmark could not be changed.</string>
+    <string name="bookmarks_no_browser">No app on this device opens web pages.</string>
+</resources>
