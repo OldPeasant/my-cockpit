@@ -13,8 +13,9 @@ moves the keyboard cursor, and opening needs a double-click or `o` (an assumptio
 read view existed). Requested by the owner (2026-10-30). Android already opens on a single tap.
 
 ## Acceptance criteria
-- [ ] A single click on a list row opens `/mail/messages/:id`. The row is a real link (`routerLink`), so Ctrl/Cmd-click
+- [x] A single click on a list row opens `/mail/messages/:id`. The row is a real link (`routerLink`), so Ctrl/Cmd-click
       and middle-click open the message in a new tab and the browser shows the target on hover
+  - verified (2026-11-01 07:28+0100 by dell26/agent-1): mail-list-page.spec.ts (vitest, 59 passed): rows are a[href=/mail/messages/{id}] via routerLink, plain click navigates via router, Ctrl/Cmd/middle click not prevented (left to browser); npm run e2e -- e2e/mail-read e2e/mail-compose e2e/mail-list e2e/phase5/demo.spec.ts against docker-compose.e2e stack (chromium) -> 38 passed, read/compose/phase5 open the message with a single click on a.open
 - [ ] The row's checkbox still only toggles the selection and does not open the message; the toolbar actions and
       keyboard shortcuts (j/k, x, e, #, ...) work as before, and `o` and Enter on the focused row open it
 - [ ] The double-click handler is removed (the first click already opens), and the keys hint under the list says
