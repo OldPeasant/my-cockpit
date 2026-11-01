@@ -27,8 +27,9 @@ mail-folder-manage-api, like the web folder tree does (web-mail-folder-manage). 
   - verified (2026-11-01 08:22+0100 by dell26/agent-1): MailFolderManageRepositoryTest (MockWebServer) at 43b25565f: rename and delete send If-Match with the folder version through MailApi/MailRepository (generated MailAccountsApi for create/delete; rename hand-written, see assumption); ViewModelTest: 412 (and 404) reloads folders and shows the folder-changed message -> pass; ./gradlew testDebugUnitTest -> 2246 tests, 0 failures
 - [x] Strings in the app's string resources (all existing locales), TalkBack labels on the new actions
   - verified (2026-11-01 08:22+0100 by dell26/agent-1): strings_mail_folders.xml in values and values-de (all existing locales); MailFolderManageGermanTest renders German strings; screen tests find each new action by its TalkBack contentDescription; cd android && ./gradlew lintDebug -> clean -> pass
-- [ ] Unit tests (ViewModel, repository) and Compose UI tests for the actions, dialogs, errors and the switch after
+- [x] Unit tests (ViewModel, repository) and Compose UI tests for the actions, dialogs, errors and the switch after
       delete; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+  - verified (2026-11-01 08:22+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport at 43b25565f -> BUILD SUCCESSFUL, 2246 tests, 0 failures; 71 folder tests (ViewModel, repository, Robolectric Compose UI); task-changed lines 99.6% covered
 
 ## Notes
 Adding string resources touches the shared `strings.xml` files: add lines only, and on a conflict keep both sides.
