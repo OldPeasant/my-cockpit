@@ -25,3 +25,4 @@ read view existed). Requested by the owner (2026-10-30). Android already opens o
 ## Notes
 Keeping the scroll position and cursor when coming back from the read view is welcome but not required here.
 - ASSUMPTION (2026-11-01 07:15+0100 by dell26/agent-1): Enter on a focused mail row is handled by the row (keydown.enter -> preventDefault, move cursor, navigate) instead of relying on native link activation, so it behaves like o and is unit-testable; Ctrl/Cmd+Enter stays native (new tab). Locale files (web/src/locale) edited although outside touches, as the criterion requires the localized hint.
+- ASSUMPTION (2026-11-01 07:25+0100 by dell26/agent-1): Fixed two stale e2e locators outside touches (web/e2e/phase5/demo.spec.ts accountTree, web/e2e/mail-list/list.spec.ts): mail-account-label-email labels folder-tree regions by email address, so the phase 5 demo failed before reaching the row click this task changed; needed to run the e2e evidence.
