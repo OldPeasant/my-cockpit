@@ -22,6 +22,7 @@ import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.HourglassEmpty
 import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material.icons.outlined.Report
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,7 +55,7 @@ import java.util.UUID
 
 /**
  * One mail, opened from a list. [onSeen] runs once it is shown (opening marks it read), [onRemoved] when it was
- * archived or deleted here; the view is closed by [onClose].
+ * archived, deleted or moved to spam here; the view is closed by [onClose].
  */
 @Composable
 fun MailReadRoute(
@@ -125,7 +126,7 @@ internal object MailReadTags {
 }
 
 /**
- * The read view: toolbar (back, GTD actions, archive, delete), headers, then the sanitized HTML in [body] (a locked-down
+ * The read view: toolbar (back, GTD actions, archive, delete, spam), headers, then the sanitized HTML in [body] (a locked-down
  * WebView; replaceable in tests) or the plain text of a text-only mail.
  */
 @Composable
@@ -171,6 +172,9 @@ private fun Toolbar(
         ToolbarButton(Icons.Outlined.Delete, R.string.mail_delete, MailReadTags.action(MailListAction.DELETE), enabled) {
             callbacks.act(MailListAction.DELETE)
         }
+        ToolbarButton(Icons.Outlined.Report, R.string.mail_spam, MailReadTags.action(MailListAction.SPAM), enabled) {
+            callbacks.act(MailListAction.SPAM)
+        }
     }
 }
 
@@ -201,11 +205,7 @@ private fun Notice(notice: MailReadNotice) {
                     MailGtdAction.TASK -> stringResource(R.string.mail_read_task_failed)
                     MailGtdAction.WAITING -> stringResource(R.string.mail_read_waiting_failed)
                 }
-            is MailReadNotice.ActionFailed ->
-                when (notice.action) {
-                    MailListAction.ARCHIVE -> stringResource(R.string.mail_archive_failed)
-                    MailListAction.DELETE -> stringResource(R.string.mail_delete_failed)
-                }
+            is MailReadNotice.ActionFailed -> actionFailed(notice)
         }
     val color = if (notice is MailReadNotice.Created) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
     Text(
@@ -215,6 +215,34 @@ private fun Notice(notice: MailReadNotice) {
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag(MailReadTags.NOTICE),
     )
 }
+
+/** "Could not …", followed by the server's reason when it gave one. */
+@Composable
+private fun actionFailed(notice: MailReadNotice.ActionFailed): String {
+    val failed =
+        when (notice.action) {
+            MailListAction.ARCHIVE -> stringResource(R.string.mail_archive_failed)
+            MailListAction.DELETE -> stringResource(R.string.mail_delete_failed)
+            MailListAction.SPAM -> stringResource(R.string.mail_spam_failed)
+        }
+    val reason =
+        when (val code = notice.errorCode) {
+            null -> null
+            NO_ROLE_FOLDER -> stringResource(R.string.mail_read_no_role_folder, stringResource(roleFolder(notice.action)))
+            else -> stringResource(R.string.mail_read_action_error, code)
+        }
+    return if (reason == null) failed else "$failed $reason"
+}
+
+private const val NO_ROLE_FOLDER = "NO_ROLE_FOLDER"
+
+/** The folder role an action moves the mail to. */
+private fun roleFolder(action: MailListAction) =
+    when (action) {
+        MailListAction.ARCHIVE -> R.string.mail_folder_archive
+        MailListAction.DELETE -> R.string.mail_folder_trash
+        MailListAction.SPAM -> R.string.mail_folder_spam
+    }
 
 @Composable
 private fun Error(

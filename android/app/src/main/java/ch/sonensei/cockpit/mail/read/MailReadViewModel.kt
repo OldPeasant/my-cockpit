@@ -28,8 +28,10 @@ sealed interface MailReadNotice {
         val action: MailGtdAction,
     ) : MailReadNotice
 
+    /** [errorCode] is the server's reason for refusing (e.g. `NO_ROLE_FOLDER`), `null` when it gave none or was unreachable. */
     data class ActionFailed(
         val action: MailListAction,
+        val errorCode: String? = null,
     ) : MailReadNotice
 }
 
@@ -40,11 +42,11 @@ data class MailReadUiState(
     /** An action is running: the buttons wait for it. */
     val busy: Boolean = false,
     val notice: MailReadNotice? = null,
-    /** The message was archived or deleted: the view closes. */
+    /** The message was archived, deleted or moved to spam: the view closes. */
     val removed: Boolean = false,
 )
 
-/** One message (SPEC.md §7.3): opening it marks it read; archive, delete, "→ Inbox task" and "→ Waiting For". */
+/** One message (SPEC.md §7.3): opening it marks it read; archive, delete, spam, "→ Inbox task" and "→ Waiting For". */
 @HiltViewModel
 class MailReadViewModel
     @Inject
@@ -109,8 +111,14 @@ class MailReadViewModel
 
         fun act(action: MailListAction) =
             run { messageId, opened ->
-                val done = (mail.act(messageId, action) as? MailResult.Ok)?.value == true
-                updateFor(opened) { if (done) it.copy(removed = true) else it.copy(notice = MailReadNotice.ActionFailed(action)) }
+                val outcome = (reader.act(messageId, action) as? MailResult.Ok)?.value
+                updateFor(opened) {
+                    if (outcome?.ok == true) {
+                        it.copy(removed = true)
+                    } else {
+                        it.copy(notice = MailReadNotice.ActionFailed(action, outcome?.errorCode))
+                    }
+                }
             }
 
         private fun run(block: suspend (messageId: UUID, opened: Int) -> Unit) {

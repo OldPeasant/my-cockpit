@@ -194,7 +194,7 @@ class MailReadViewModelTest {
         runTest(dispatcher) {
             val pending = CompletableDeferred<MailResult<String>>()
             coEvery { reader.gtd(id(1), MailGtdAction.TASK) } coAnswers { pending.await() }
-            coEvery { mail.act(id(1), MailListAction.DELETE) } returns MailResult.Ok(true)
+            coEvery { reader.act(id(1), MailListAction.DELETE) } returns MailResult.Ok(MailActionOutcome(true))
             val vm = opened()
             advanceUntilIdle()
 
@@ -207,7 +207,7 @@ class MailReadViewModelTest {
             advanceUntilIdle()
 
             coVerify(exactly = 1) { reader.gtd(id(1), MailGtdAction.TASK) }
-            coVerify(exactly = 0) { mail.act(any(), any()) }
+            coVerify(exactly = 0) { reader.act(any(), any()) }
             assertFalse(vm.uiState.value.removed)
         }
 
@@ -222,7 +222,7 @@ class MailReadViewModelTest {
             advanceUntilIdle()
 
             coVerify(exactly = 0) { reader.gtd(any(), any()) }
-            coVerify(exactly = 0) { mail.act(any(), any()) }
+            coVerify(exactly = 0) { reader.act(any(), any()) }
             assertFalse(vm.uiState.value.busy)
         }
 
@@ -230,7 +230,7 @@ class MailReadViewModelTest {
     fun `archived or deleted on the server, the mail is removed and the view closes`() =
         runTest(dispatcher) {
             MailListAction.entries.forEach { action ->
-                coEvery { mail.act(id(1), action) } returns MailResult.Ok(true)
+                coEvery { reader.act(id(1), action) } returns MailResult.Ok(MailActionOutcome(true))
                 val vm = opened()
                 advanceUntilIdle()
 
@@ -239,15 +239,15 @@ class MailReadViewModelTest {
 
                 assertTrue("$action", vm.uiState.value.removed)
                 assertNull(vm.uiState.value.notice)
-                coVerify(exactly = 1) { mail.act(id(1), action) }
+                coVerify(exactly = 1) { reader.act(id(1), action) }
             }
         }
 
     @Test
     fun `a refused or offline archive or delete stays open and says so`() =
         runTest(dispatcher) {
-            coEvery { mail.act(id(1), MailListAction.ARCHIVE) } returns MailResult.Ok(false)
-            coEvery { mail.act(id(1), MailListAction.DELETE) } returns MailResult.Offline
+            coEvery { reader.act(id(1), MailListAction.ARCHIVE) } returns MailResult.Ok(MailActionOutcome(false))
+            coEvery { reader.act(id(1), MailListAction.DELETE) } returns MailResult.Offline
             val vm = opened()
             advanceUntilIdle()
 
@@ -264,9 +264,34 @@ class MailReadViewModelTest {
         }
 
     @Test
+    fun `spam refused by the server stays open with its error code, then succeeds`() =
+        runTest(dispatcher) {
+            coEvery { reader.act(id(1), MailListAction.SPAM) } returns MailResult.Ok(MailActionOutcome(false, "NO_ROLE_FOLDER"))
+            val vm = opened()
+            advanceUntilIdle()
+
+            vm.act(MailListAction.SPAM)
+            advanceUntilIdle()
+            assertEquals(MailReadNotice.ActionFailed(MailListAction.SPAM, "NO_ROLE_FOLDER"), vm.uiState.value.notice)
+            assertFalse(vm.uiState.value.removed)
+            assertFalse(vm.uiState.value.busy)
+
+            coEvery { reader.act(id(1), MailListAction.SPAM) } returns MailResult.Failed(400)
+            vm.act(MailListAction.SPAM)
+            advanceUntilIdle()
+            assertEquals(MailReadNotice.ActionFailed(MailListAction.SPAM), vm.uiState.value.notice)
+
+            coEvery { reader.act(id(1), MailListAction.SPAM) } returns MailResult.Ok(MailActionOutcome(true))
+            vm.act(MailListAction.SPAM)
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.removed)
+            assertNull(vm.uiState.value.notice)
+        }
+
+    @Test
     fun `a mail closed and opened again is loaded again with its current state`() =
         runTest(dispatcher) {
-            coEvery { mail.act(id(1), MailListAction.ARCHIVE) } returns MailResult.Ok(false)
+            coEvery { reader.act(id(1), MailListAction.ARCHIVE) } returns MailResult.Ok(MailActionOutcome(false))
             val vm = opened(MailResult.Ok(message(seen = true)))
             advanceUntilIdle()
             vm.act(MailListAction.ARCHIVE)
@@ -368,8 +393,8 @@ class MailReadViewModelTest {
             assertEquals(MailReadUiState(), vm.uiState.value)
 
             // An archive that ends after the view closed does not close the next mail opened.
-            val archived = CompletableDeferred<MailResult<Boolean>>()
-            coEvery { mail.act(id(1), MailListAction.ARCHIVE) } coAnswers { archived.await() }
+            val archived = CompletableDeferred<MailResult<MailActionOutcome>>()
+            coEvery { reader.act(id(1), MailListAction.ARCHIVE) } coAnswers { archived.await() }
             coEvery { reader.message(id(1)) } returns MailResult.Ok(message())
             coEvery { reader.message(id(2)) } returns MailResult.Ok(message(n = 2))
             vm.open(id(1))
@@ -378,7 +403,7 @@ class MailReadViewModelTest {
             advanceUntilIdle()
             vm.close()
             vm.open(id(2))
-            archived.complete(MailResult.Ok(true))
+            archived.complete(MailResult.Ok(MailActionOutcome(true)))
             advanceUntilIdle()
 
             assertEquals(

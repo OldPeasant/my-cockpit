@@ -83,6 +83,7 @@ enum class MailListAction(
 ) {
     ARCHIVE("ARCHIVE"),
     DELETE("DELETE"),
+    SPAM("SPAM"),
 }
 
 internal fun MailAccountDto.toAccount() =

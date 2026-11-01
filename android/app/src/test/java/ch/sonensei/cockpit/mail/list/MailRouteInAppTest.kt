@@ -15,6 +15,7 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import ch.sonensei.cockpit.MainActivity
 import ch.sonensei.cockpit.auth.PersistentTokenStore
 import ch.sonensei.cockpit.core.network.AuthTokens
+import ch.sonensei.cockpit.mail.read.MailActionOutcome
 import ch.sonensei.cockpit.mail.read.MailMessage
 import ch.sonensei.cockpit.mail.read.MailReadRepository
 import ch.sonensei.cockpit.mail.read.MailReadTags
@@ -166,7 +167,7 @@ class MailRouteInAppTest {
 
     @Test
     fun `a mail deleted in the read view leaves the list`() {
-        coEvery { mail.act(id(2), MailListAction.DELETE) } returns MailResult.Ok(true)
+        coEvery { reader.act(id(2), MailListAction.DELETE) } returns MailResult.Ok(MailActionOutcome(true))
         openMail()
         composeRule.onNodeWithTag(MailListTags.row(id(2))).performClick()
         waitFor(MailReadTags.action(MailListAction.DELETE))
@@ -176,7 +177,7 @@ class MailRouteInAppTest {
         waitFor(MailListTags.row(id(1)))
 
         composeRule.onNodeWithTag(MailListTags.row(id(2))).assertDoesNotExist()
-        coVerify(exactly = 1) { mail.act(id(2), MailListAction.DELETE) }
+        coVerify(exactly = 1) { reader.act(id(2), MailListAction.DELETE) }
     }
 
     private companion object {

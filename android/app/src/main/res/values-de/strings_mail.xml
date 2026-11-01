@@ -39,4 +39,8 @@
     <string name="mail_read_waiting_created">Zu „Warten auf“ hinzugefügt: %1$s</string>
     <string name="mail_read_task_failed">Die Aufgabe konnte nicht erstellt werden.</string>
     <string name="mail_read_waiting_failed">Der Eintrag für „Warten auf“ konnte nicht erstellt werden.</string>
+    <string name="mail_spam">Als Spam verschieben</string>
+    <string name="mail_spam_failed">Die E-Mail konnte nicht in den Spam verschoben werden.</string>
+    <string name="mail_read_no_role_folder">Dieses Konto hat keinen Ordner „%1$s“.</string>
+    <string name="mail_read_action_error">Fehler des Servers: %1$s</string>
 </resources>

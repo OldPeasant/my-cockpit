@@ -1,7 +1,9 @@
 package ch.sonensei.cockpit.mail.read
 
+import ch.sonensei.cockpit.mail.list.MailActionRequestDto
 import ch.sonensei.cockpit.mail.list.MailAddressDto
 import ch.sonensei.cockpit.mail.list.MailApi
+import ch.sonensei.cockpit.mail.list.MailListAction
 import ch.sonensei.cockpit.mail.list.MailMessageDto
 import ch.sonensei.cockpit.mail.list.MailResult
 import ch.sonensei.cockpit.mail.list.display
@@ -37,10 +39,16 @@ data class MailMessage(
     val attachments: List<MailAttachment>,
 )
 
+/** How the server answered an action on one mail: [ok], or refused with its [errorCode] (e.g. `NO_ROLE_FOLDER`). */
+data class MailActionOutcome(
+    val ok: Boolean,
+    val errorCode: String? = null,
+)
+
 /** What the GTD actions created (SPEC.md §7.3 "→ Inbox task", "→ Waiting For"). */
 enum class MailGtdAction { TASK, WAITING }
 
-/** One message and its GTD actions on the server. */
+/** One message, its GTD actions and archive/delete/spam on the server. */
 @Singleton
 class MailReadRepository
     @Inject
@@ -61,6 +69,20 @@ class MailReadRepository
                         MailGtdAction.WAITING -> mailBody(api.toWaiting(id.toString()))
                     }
                 item.title.orEmpty()
+            }
+
+        /** Archives, deletes or moves [id] to spam; a refusal keeps the server's error code, so the view can show it. */
+        suspend fun act(
+            id: UUID,
+            action: MailListAction,
+        ): MailResult<MailActionOutcome> =
+            mailCall {
+                val result =
+                    mailBody(api.act(MailActionRequestDto(action.wire, listOf(id.toString())))).results.firstOrNull {
+                        it.id ==
+                            id.toString()
+                    }
+                MailActionOutcome(ok = result?.ok == true, errorCode = result?.errorCode?.takeIf { result.ok.not() })
             }
     }
 

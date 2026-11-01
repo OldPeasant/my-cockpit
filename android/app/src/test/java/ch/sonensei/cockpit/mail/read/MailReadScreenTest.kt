@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -79,6 +80,7 @@ class MailReadScreenTest {
             MailReadTags.gtd(MailGtdAction.WAITING),
             MailReadTags.action(MailListAction.ARCHIVE),
             MailReadTags.action(MailListAction.DELETE),
+            MailReadTags.action(MailListAction.SPAM),
         )
 
     @Test
@@ -128,13 +130,13 @@ class MailReadScreenTest {
     }
 
     @Test
-    fun `the toolbar asks for back, the GTD actions, archive and delete`() {
+    fun `the toolbar asks for back, the GTD actions, archive, delete and spam`() {
         show(MailReadUiState(message = message))
 
         composeRule.onNodeWithTag(MailReadTags.BACK).performClick()
         actionTags.forEach { composeRule.onNodeWithTag(it).assertIsEnabled().performClick() }
 
-        assertEquals(listOf("back", "gtd TASK", "gtd WAITING", "act ARCHIVE", "act DELETE"), calls)
+        assertEquals(listOf("back", "gtd TASK", "gtd WAITING", "act ARCHIVE", "act DELETE", "act SPAM"), calls)
     }
 
     @Test
@@ -215,12 +217,65 @@ class MailReadScreenTest {
     }
 
     @Test
+    fun `the spam button has a TalkBack label`() {
+        show(MailReadUiState(message = message))
+        composeRule.onNodeWithContentDescription("Move to spam").assertIsEnabled()
+    }
+
+    @Test
+    fun `a failed spam without a Spam folder shows the server's reason`() {
+        show(MailReadUiState(message = message, notice = MailReadNotice.ActionFailed(MailListAction.SPAM, "NO_ROLE_FOLDER")))
+        composeRule
+            .onNodeWithTag(MailReadTags.NOTICE)
+            .assertTextEquals("The mail could not be moved to spam. This account has no Spam folder.")
+    }
+
+    @Test
+    fun `another server error code is shown as it came`() {
+        show(MailReadUiState(message = message, notice = MailReadNotice.ActionFailed(MailListAction.SPAM, "CONNECTION_FAILED")))
+        composeRule
+            .onNodeWithTag(MailReadTags.NOTICE)
+            .assertTextEquals("The mail could not be moved to spam. Server error: CONNECTION_FAILED")
+    }
+
+    @Test
+    fun `the route moves the mail to spam and closes, or stays open with the server's error`() {
+        val reader = mockk<MailReadRepository>()
+        val mail = mockk<MailRepository>()
+        coEvery { reader.message(id(1)) } returns MailResult.Ok(message)
+        coEvery { reader.act(id(1), MailListAction.SPAM) } returns MailResult.Ok(MailActionOutcome(false, "NO_ROLE_FOLDER"))
+        val vm = MailReadViewModel(reader, mail)
+
+        composeRule.setContent {
+            CockpitTheme {
+                MailReadRoute(
+                    id = id(1),
+                    onClose = { calls += "close" },
+                    onRemoved = { calls += "removed $it" },
+                    viewModel = vm,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(MailReadTags.action(MailListAction.SPAM)).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(MailReadTags.NOTICE).assertTextContains("no Spam folder", substring = true)
+        composeRule.onNodeWithTag(MailReadTags.SUBJECT).assertTextEquals("Quarterly report")
+        assertEquals(emptyList<String>(), calls)
+
+        coEvery { reader.act(id(1), MailListAction.SPAM) } returns MailResult.Ok(MailActionOutcome(true))
+        composeRule.onNodeWithTag(MailReadTags.action(MailListAction.SPAM)).performClick()
+        composeRule.waitForIdle()
+        assertEquals(listOf("removed ${id(1)}", "close"), calls)
+    }
+
+    @Test
     fun `the route opens the mail, reports it seen, and after a delete reports it removed and closes`() {
         val reader = mockk<MailReadRepository>()
         val mail = mockk<MailRepository>()
         coEvery { reader.message(id(1)) } returns MailResult.Ok(message.copy(seen = false))
         coEvery { mail.markRead(id(1)) } returns MailResult.Ok(true)
-        coEvery { mail.act(id(1), MailListAction.DELETE) } returns MailResult.Ok(true)
+        coEvery { reader.act(id(1), MailListAction.DELETE) } returns MailResult.Ok(MailActionOutcome(true))
         val vm = MailReadViewModel(reader, mail)
 
         composeRule.setContent {

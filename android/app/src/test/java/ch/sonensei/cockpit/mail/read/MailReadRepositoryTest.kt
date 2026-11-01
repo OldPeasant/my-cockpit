@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.mail.read
 
 import ch.sonensei.cockpit.core.network.generated.infrastructure.Serializer
 import ch.sonensei.cockpit.mail.list.MailApi
+import ch.sonensei.cockpit.mail.list.MailListAction
 import ch.sonensei.cockpit.mail.list.MailResult
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.MockResponse
@@ -149,5 +150,22 @@ class MailReadRepositoryTest {
 
             assertEquals(MailResult.Failed(409), repository.gtd(id(1), MailGtdAction.TASK))
             assertEquals(MailResult.Offline, repository.gtd(id(1), MailGtdAction.WAITING))
+        }
+
+    @Test
+    fun `spam posts the action and keeps the server's error code of a refusal`() =
+        runBlocking {
+            server.enqueue(json("""{"results":[{"id":"${id(1)}","ok":true}]}"""))
+            server.enqueue(json("""{"results":[{"id":"${id(1)}","ok":false,"errorCode":"NO_ROLE_FOLDER","detail":"No Spam folder"}]}"""))
+            server.enqueue(json("""{"results":[]}"""))
+            server.enqueue(status(503))
+
+            assertEquals(MailResult.Ok(MailActionOutcome(true)), repository.act(id(1), MailListAction.SPAM))
+            val request = server.takeRequest()
+            assertEquals("/api/v1/mail/messages/actions", request.url.encodedPath)
+            assertEquals("""{"action":"SPAM","ids":["${id(1)}"]}""", request.body!!.utf8())
+            assertEquals(MailResult.Ok(MailActionOutcome(false, "NO_ROLE_FOLDER")), repository.act(id(1), MailListAction.SPAM))
+            assertEquals(MailResult.Ok(MailActionOutcome(false)), repository.act(id(1), MailListAction.SPAM))
+            assertEquals(MailResult.Offline, repository.act(id(1), MailListAction.SPAM))
         }
 }
