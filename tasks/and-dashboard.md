@@ -1,11 +1,11 @@
 ---
 title: Android: Dashboard as start screen
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [and-shell,and-next-today,web-dashboard,and-logbook]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/dashboard,android/app/src/main/java/ch/sonensei/cockpit/ui,android/app/src/test/java/ch/sonensei/cockpit/dashboard,android/app/src/main/res/values/strings_dashboard.xml,android/app/src/main/res/values-de/strings_dashboard.xml]
 prio: 2
-lease_until: 
+lease_until: 2026-11-01T21:50:13Z
 extended: 
 releases: 1
 ---
