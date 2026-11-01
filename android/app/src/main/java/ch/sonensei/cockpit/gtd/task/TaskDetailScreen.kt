@@ -751,12 +751,42 @@ private fun EditForm(
     callbacks: TaskDetailCallbacks,
 ) {
     val enabled = !state.busy
+    Column(Modifier.fillMaxSize().testTag(TaskDetailTags.FORM)) {
+        // Cancel and Save stay in reach while the long form scrolls below them.
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(R.string.task_detail_edit),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f).semantics { heading() },
+            )
+            TextButton(onClick = callbacks.cancelEditing, enabled = enabled, modifier = Modifier.testTag(TaskDetailTags.CANCEL)) {
+                Text(stringResource(R.string.task_detail_cancel))
+            }
+            Button(onClick = callbacks.save, enabled = enabled, modifier = Modifier.testTag(TaskDetailTags.SAVE)) {
+                Text(stringResource(R.string.task_detail_save))
+            }
+        }
+        HorizontalDivider()
+        EditFields(state, draft, callbacks, enabled)
+    }
+}
+
+@Composable
+private fun EditFields(
+    state: TaskDetailUiState,
+    draft: TaskDraft,
+    callbacks: TaskDetailCallbacks,
+    enabled: Boolean,
+) {
     Column(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 96.dp)
-            .testTag(TaskDetailTags.FORM),
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         OutlinedTextField(
@@ -844,14 +874,6 @@ private fun EditForm(
                     enabled = enabled,
                     modifier = Modifier.testTag(TaskDetailTags.creativity(creativity)),
                 )
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.End)) {
-            TextButton(onClick = callbacks.cancelEditing, enabled = enabled, modifier = Modifier.testTag(TaskDetailTags.CANCEL)) {
-                Text(stringResource(R.string.task_detail_cancel))
-            }
-            Button(onClick = callbacks.save, enabled = enabled, modifier = Modifier.testTag(TaskDetailTags.SAVE)) {
-                Text(stringResource(R.string.task_detail_save))
             }
         }
     }
