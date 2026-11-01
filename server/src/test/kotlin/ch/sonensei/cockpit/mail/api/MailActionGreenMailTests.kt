@@ -272,6 +272,7 @@ class MailActionGreenMailTests(
 		results[1]["errorCode"].asString() shouldBe "NOT_FOUND"
 		results[2]["errorCode"].asString() shouldBe "NOT_FOUND"
 		onServer("INBOX").getValue("Fictitious message 1") shouldBe (false to true)
+		awaitUncached(second)
 	}
 
 	@Test
@@ -389,14 +390,18 @@ class MailActionGreenMailTests(
 	}
 
 	@Test
-	fun `a source folder whose UIDVALIDITY changed fails the ids with NOT_FOUND`() {
+	fun `a source folder whose UIDVALIDITY changed fails the ids with NOT_FOUND and a background sync repairs it`() {
 		val (first) = inboxWith(1)
+		val uidValidity = checkNotNull(folder("INBOX").uidValidity)
 		jdbc.update("update mail_folder set uidvalidity = uidvalidity + 1 where id = ?", folder("INBOX").id)
 
 		act("READ", first.id).codes() shouldBe listOf("NOT_FOUND")
 
 		onServer("INBOX").getValue("Fictitious message 1") shouldBe (false to false)
 		reloaded(first).seen shouldBe false
+		awaitUidValidity("INBOX", uidValidity)
+		// The sync found the message again by Message-ID: the same id works again.
+		act("READ", first.id).okIds() shouldContainExactly listOf(first.id.toString())
 	}
 
 	@Test
@@ -430,6 +435,7 @@ class MailActionGreenMailTests(
 
 		act("DELETE", first.id).codes() shouldBe listOf("NOT_FOUND")
 		uidsOnServer("Trash").keys.shouldBeEmpty()
+		awaitUncached(first)
 	}
 
 	/** Waits for the background sync an action started to remove the stale row of [message]. */
@@ -437,6 +443,16 @@ class MailActionGreenMailTests(
 		val deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos()
 		while (messages.findById(message.id).isPresent && System.nanoTime() < deadline) Thread.sleep(50)
 		messages.findById(message.id).isPresent shouldBe false
+	}
+
+	/** Waits for the background sync an action started to store the server's [uidValidity] for the folder at [path]. */
+	private fun awaitUidValidity(
+		path: String,
+		uidValidity: Long,
+	) {
+		val deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos()
+		while (folder(path).uidValidity != uidValidity && System.nanoTime() < deadline) Thread.sleep(50)
+		folder(path).uidValidity shouldBe uidValidity
 	}
 
 	/** Moves the INBOX messages [rows] to Trash through the API; returns them as cached there. */
@@ -476,12 +492,14 @@ class MailActionGreenMailTests(
 	fun `a delete in Trash whose UIDVALIDITY changed still fails with NOT_FOUND`() {
 		val (first) = inboxWith(1)
 		trashed(first)
+		val uidValidity = checkNotNull(folder("Trash").uidValidity)
 		jdbc.update("update mail_folder set uidvalidity = uidvalidity + 1 where id = ?", folder("Trash").id)
 
 		act("DELETE", first.id).codes() shouldBe listOf("NOT_FOUND")
 
 		uidsOnServer("Trash").keys shouldBe setOf("Fictitious message 1")
 		reloaded(first).folderId shouldBe folder("Trash").id
+		awaitUidValidity("Trash", uidValidity)
 	}
 
 	@Test

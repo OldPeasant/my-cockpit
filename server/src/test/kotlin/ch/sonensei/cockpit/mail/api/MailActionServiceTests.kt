@@ -479,13 +479,14 @@ class MailActionServiceTests {
 	}
 
 	@Test
-	fun `a source folder with another UIDVALIDITY than cached fails the ids with NOT_FOUND`() {
+	fun `a source folder with another UIDVALIDITY than cached fails the ids with NOT_FOUND and starts a resync`() {
 		val message = cached(inbox, 7)
 		every { remoteInbox.uidValidity } returns UIDVALIDITY + 1
 
 		service.apply(listOf(message.id), MailAction.READ, null).single().errorCode shouldBe "NOT_FOUND"
 		verify(exactly = 0) { remoteInbox.getMessagesByUID(any<LongArray>()) }
 		message.seen shouldBe false
+		verify(exactly = 1) { resync.request(inbox.id) }
 	}
 
 	@Test
@@ -595,7 +596,7 @@ class MailActionServiceTests {
 	}
 
 	@Test
-	fun `a delete in Trash whose UIDVALIDITY changed still fails with NOT_FOUND and keeps the row`() {
+	fun `a delete in Trash whose UIDVALIDITY changed still fails with NOT_FOUND, keeps the row and starts a resync`() {
 		val message = cached(trash, 3)
 		every { remoteTrash.uidValidity } returns UIDVALIDITY + 1
 
@@ -605,10 +606,11 @@ class MailActionServiceTests {
 		verify(exactly = 0) { messages.delete(any()) }
 		message.uid shouldBe 3
 		verify(exactly = 0) { changes.publish(any<Enum<*>>(), any(), any()) }
+		verify(exactly = 1) { resync.request(trash.id) }
 	}
 
 	@Test
-	fun `a delete in a Trash folder missing on the server still fails with NOT_FOUND and keeps the row`() {
+	fun `a delete in a Trash folder missing on the server still fails with NOT_FOUND, keeps the row and starts no resync`() {
 		val message = cached(trash, 3)
 		every { remoteTrash.open(Folder.READ_WRITE) } throws FolderNotFoundException(remoteTrash, "Trash does not exist")
 
@@ -617,6 +619,7 @@ class MailActionServiceTests {
 		verify(exactly = 0) { messages.delete(any()) }
 		message.uid shouldBe 3
 		verify(exactly = 0) { changes.publish(any<Enum<*>>(), any(), any()) }
+		verify(exactly = 0) { resync.request(any()) }
 	}
 
 	@Test
@@ -633,13 +636,14 @@ class MailActionServiceTests {
 	}
 
 	@Test
-	fun `a source folder deleted on the server fails the ids with NOT_FOUND`() {
+	fun `a source folder deleted on the server fails the ids with NOT_FOUND and starts no resync`() {
 		val message = cached(inbox, 7)
 		every { remoteInbox.open(Folder.READ_WRITE) } throws FolderNotFoundException(remoteInbox, "INBOX does not exist")
 
 		service.apply(listOf(message.id), MailAction.FLAG, null).single().errorCode shouldBe "NOT_FOUND"
 		message.flagged shouldBe false
 		verify(exactly = 0) { changes.publish(any<Enum<*>>(), any(), any()) }
+		verify(exactly = 0) { resync.request(any()) }
 	}
 
 	@Test

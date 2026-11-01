@@ -107,7 +107,9 @@ data class MailActionOutcome(
  * permanent delete in Trash counts such messages as deleted (ok, the row is removed like after the expunge), as long
  * as the folder exists and its UIDVALIDITY matches the cached one; otherwise the message may still exist under another
  * UID and the id fails with NOT_FOUND. Any other action fails such ids with NOT_FOUND and starts a background sync of
- * the folder ([MailFolderResync]), which removes the stale rows and announces the folder.
+ * the folder ([MailFolderResync]), which removes the stale rows and announces the folder. A source folder whose
+ * UIDVALIDITY changed fails every id with NOT_FOUND and is resynced in the background as well; a source folder missing
+ * on the server is not (the folder-list sync handles it).
  *
  * The cache is updated after the server command, per source folder, without the lock of the header sync. When a
  * concurrent writer (another action, a sync) changed the same rows, the update is retried once on freshly read rows;
@@ -199,6 +201,11 @@ class MailActionService(
 		val done =
 			when (remote) {
 				Remote.Gone -> return requested.map { failure(it, MailActionError.NOT_FOUND) }
+				Remote.Invalidated -> {
+					// Every cached UID of the folder is invalid; the sync finds the messages again by Message-ID.
+					resync.request(source.id)
+					return requested.map { failure(it, MailActionError.NOT_FOUND) }
+				}
 				Remote.Rejected -> return requested.map { failure(it, MailActionError.REJECTED) }
 				is Remote.Done -> remote
 			}
@@ -260,7 +267,7 @@ class MailActionService(
 			throw MailConnectionException.of(e)
 		}
 		try {
-			if (source.uidValidity != null && folder.uidValidity != source.uidValidity) return Remote.Gone
+			if (source.uidValidity != null && folder.uidValidity != source.uidValidity) return Remote.Invalidated
 			val found = folder.getMessagesByUID(uids.toLongArray())
 			val missing = uids.filterIndexed { i, _ -> found[i] == null }.toSet()
 			val present = uids.filterIndexed { i, _ -> found[i] != null }
@@ -462,7 +469,11 @@ class MailActionService(
 			val newUids: Map<Long, AppendUID>,
 		) : Remote
 
+		/** The source folder does not exist on the server; the folder-list sync handles it. */
 		data object Gone : Remote
+
+		/** The source folder's UIDVALIDITY differs from the cached one. */
+		data object Invalidated : Remote
 
 		data object Rejected : Remote
 	}
