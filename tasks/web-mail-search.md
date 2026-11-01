@@ -19,10 +19,11 @@ client `web/src/app/api/generated/fn/mail-search/search-mail.ts`); this task onl
       list shows the results newest first in the usual message rows; opening a result opens the read view.
       Clearing the field (or Escape) returns to the normal folder list
   - verified (2026-11-01 10:00+0100 by dell26/agent-1): mail-list-page.spec.ts + mail-list-store.spec.ts search specs (cd web && npx ng test --watch=false --include='src/app/features/mail/**/*.spec.ts' -> 604 passed): Enter searches GET /mail/search with folderId of the folder / none for unified Inbox, results flat newest first, row opens /mail/messages/:id; emptying field, blank submit and Escape reload the folder list
-- [ ] A "Search on server" option (checkbox or button, e.g. "Also search older mail on the server") repeats
+- [x] A "Search on server" option (checkbox or button, e.g. "Also search older mail on the server") repeats
       the search with `server=true`. Accounts listed in `server.failures` are named in a non-blocking
       warning; the cached results are still shown. `hasMore` shows a hint that only the newest results
       are listed
+  - verified (2026-11-01 10:01+0100 by dell26/agent-1): same vitest run: 'Also search older mail on the server' checkbox repeats with server=true, keeps cached rows with 'Searching on the server…', failed accounts named by address in a role=status warning with results shown, hasMore hint shown -> pass
 - [ ] Loading, empty ("No messages found") and error states use the mail list's existing patterns; the
       list's keyboard shortcuts don't fire while typing in the field, and `/` focuses it
 - [ ] New UI strings are in `web/src/locale` (English + German)
