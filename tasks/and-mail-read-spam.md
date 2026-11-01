@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-mail-list-read,mail-account-label-email]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/read,android/app/src/test/java/ch/sonensei/cockpit/mail/read,android/app/src/main/java/ch/sonensei/cockpit/mail/list/MailModels.kt]
 prio: 2
-lease_until: 2026-11-01T05:54:16Z
+lease_until: 2026-11-01T05:59:13Z
 ---
 ## Goal
 The Android mail read view gets a Spam button next to Archive and Delete, matching the web read view
