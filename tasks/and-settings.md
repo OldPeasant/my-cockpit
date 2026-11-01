@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-shell,and-capture-queue,and-reminders,unifiedpush-android-client]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/settings,android/app/src/test/java/ch/sonensei/cockpit/settings,android/app/src/main/res/values/strings_settings.xml,android/app/src/main/res/values-de/strings_settings.xml]
 prio: 2
-lease_until: 2026-11-01T16:10:31Z
+lease_until: 2026-11-01T16:12:20Z
 ---
 ## Goal
 The Android Settings screen shows only passkeys and logout; the rest is a placeholder. The owner chose "phone
