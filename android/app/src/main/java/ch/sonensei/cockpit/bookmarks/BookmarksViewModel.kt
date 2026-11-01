@@ -6,6 +6,7 @@ import ch.sonensei.cockpit.capture.queue.CaptureQueue
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,17 +25,27 @@ enum class BookmarkFailure { OFFLINE, CONFLICT, FAILED }
 
 /** A short note at the bottom of the screen. */
 sealed interface BookmarksSnackbar {
+    /**
+     * Tells two notes with the same content apart (the view model numbers them), so each one is shown and the end of
+     * one never clears another.
+     */
+    val id: Long
+
     /** [bookmark] went to the Trash; Undo takes it out again. */
     data class Trashed(
         val bookmark: Bookmark,
+        override val id: Long = 0,
     ) : BookmarksSnackbar
 
     data class Failed(
         val failure: BookmarkFailure,
+        override val id: Long = 0,
     ) : BookmarksSnackbar
 
     /** No app on the device opens web addresses. */
-    data object NoBrowser : BookmarksSnackbar
+    data object NoBrowser : BookmarksSnackbar {
+        override val id: Long get() = 0
+    }
 }
 
 data class BookmarksUiState(
@@ -57,6 +68,8 @@ data class BookmarksUiState(
     val busy: Set<UUID> = emptySet(),
     /** The bookmark being edited. */
     val editing: Bookmark? = null,
+    /** What the editor starts with instead of [editing]'s values: the unsaved edit of a save that failed. */
+    val draft: BookmarkDraft? = null,
     val snackbar: BookmarksSnackbar? = null,
 ) {
     /** What the list shows: the bookmarks matching the search. */
@@ -81,6 +94,9 @@ class BookmarksViewModel internal constructor(
 
     private var loadJob: Job? = null
 
+    /** The number of the last snackbar shown. */
+    private var snackbars = 0L
+
     init {
         viewModelScope.launch {
             var before: Int? = null
@@ -103,6 +119,8 @@ class BookmarksViewModel internal constructor(
                 val tags = async { bookmarks.tags() }
                 val list = bookmarks.list(view, tag)
                 val tagList = tags.await()
+                // A newer load replaced this one meanwhile: its list is outdated.
+                ensureActive()
                 state.update {
                     it.copy(
                         bookmarks = (list as? BookmarksResult.Ok)?.value ?: it.bookmarks,
@@ -141,15 +159,18 @@ class BookmarksViewModel internal constructor(
     /** Marks [bookmark] as read, or as unread again. */
     fun toggleRead(bookmark: Bookmark) = change(bookmark) { bookmarks.setRead(it, read = !it.read) }
 
-    fun edit(bookmark: Bookmark) = state.update { it.copy(editing = bookmark) }
+    fun edit(bookmark: Bookmark) = state.update { it.copy(editing = bookmark, draft = null) }
 
-    fun cancelEdit() = state.update { it.copy(editing = null) }
+    fun cancelEdit() = state.update { it.copy(editing = null, draft = null) }
 
-    /** Saves the edited title, tags and notes; the dialog closes once the change is sent. */
+    /**
+     * Saves the edited title, tags and notes; the dialog closes once the change is sent. If the save fails, the
+     * dialog opens again with [draft] (after a conflict on the reloaded version), so nothing typed is lost.
+     */
     fun save(draft: BookmarkDraft) {
         val bookmark = state.value.editing ?: return
-        state.update { it.copy(editing = null) }
-        change(bookmark, reloadTags = true) { bookmarks.save(it, draft) }
+        state.update { it.copy(editing = null, draft = null) }
+        change(bookmark, reloadTags = true, onFailure = { latest -> reopen(latest, draft) }) { bookmarks.save(it, draft) }
     }
 
     /** Moves [bookmark] to the Trash; the snackbar offers to undo it. */
@@ -157,11 +178,11 @@ class BookmarksViewModel internal constructor(
         run(bookmark) { current ->
             when (val result = bookmarks.delete(current)) {
                 is BookmarksResult.Ok -> {
-                    state.update { it.copy(bookmarks = it.bookmarks.filterNot { b -> b.id == current.id }) }
-                    show(BookmarksSnackbar.Trashed(current))
+                    remove(current.id)
+                    show(BookmarksSnackbar.Trashed(current, nextSnackbar()))
                     reloadTags()
                 }
-                else -> failed(current.id, result)
+                else -> failed(current, result)
             }
         }
 
@@ -171,7 +192,7 @@ class BookmarksViewModel internal constructor(
         viewModelScope.launch {
             when (val result = bookmarks.restore(trashed.bookmark.id)) {
                 is BookmarksResult.Ok -> refresh()
-                else -> show(BookmarksSnackbar.Failed(failure(result)))
+                else -> show(BookmarksSnackbar.Failed(failure(result), nextSnackbar()))
             }
         }
     }
@@ -179,11 +200,13 @@ class BookmarksViewModel internal constructor(
     fun noBrowser() = show(BookmarksSnackbar.NoBrowser)
 
     /** The snackbar was shown and is gone; a newer one stays. */
-    fun dismiss(snackbar: BookmarksSnackbar) = state.update { if (it.snackbar === snackbar) it.copy(snackbar = null) else it }
+    fun dismiss(snackbar: BookmarksSnackbar) = state.update { if (it.snackbar == snackbar) it.copy(snackbar = null) else it }
 
+    /** Runs [action] on [bookmark]; [onFailure] gets its latest known version when it failed (`null`: it is gone). */
     private fun change(
         bookmark: Bookmark,
         reloadTags: Boolean = false,
+        onFailure: (Bookmark?) -> Unit = {},
         action: suspend (Bookmark) -> BookmarksResult<Bookmark>,
     ) = run(bookmark) { current ->
         when (val result = action(current)) {
@@ -191,7 +214,18 @@ class BookmarksViewModel internal constructor(
                 put(result.value)
                 if (reloadTags) reloadTags()
             }
-            else -> failed(current.id, result)
+            else -> onFailure(failed(current, result))
+        }
+    }
+
+    /** Opens the editor again with the unsaved [draft], unless the bookmark is gone or another one is being edited. */
+    private fun reopen(
+        latest: Bookmark?,
+        draft: BookmarkDraft,
+    ) {
+        if (latest == null) return
+        state.update {
+            if (it.editing != null) it else it.copy(editing = latest, draft = draft)
         }
     }
 
@@ -213,32 +247,51 @@ class BookmarksViewModel internal constructor(
     }
 
     /** Shows the new state of a bookmark: replaced in place, or dropped when it left the view. */
-    private fun put(bookmark: Bookmark) =
+    private fun put(bookmark: Bookmark) {
         state.update {
             val stays = it.belongs(bookmark)
             it.copy(bookmarks = it.bookmarks.mapNotNull { b -> if (b.id != bookmark.id) b else bookmark.takeIf { stays } })
         }
+        reloadIfLoading()
+    }
 
-    /** A refused change: a bookmark gone meanwhile is dropped, an outdated one is loaded again for the next try. */
+    /** Drops a bookmark that is gone from the view. */
+    private fun remove(id: UUID) {
+        state.update { it.copy(bookmarks = it.bookmarks.filterNot { b -> b.id == id }) }
+        reloadIfLoading()
+    }
+
+    /**
+     * A load that started before a local change would bring back the old state of the changed bookmark (a deleted or
+     * read one again): it is replaced by a new load.
+     */
+    private fun reloadIfLoading() {
+        if (loadJob?.isActive == true) refresh(pulled = state.value.refreshing)
+    }
+
+    /**
+     * A refused change: a bookmark gone meanwhile is dropped, an outdated one is loaded again for the next try.
+     * Returns the latest known version of [current], or `null` when it is gone.
+     */
     private suspend fun failed(
-        id: UUID,
+        current: Bookmark,
         result: BookmarksResult<*>,
-    ) {
+    ): Bookmark? {
         val status = (result as? BookmarksResult.Failed)?.status
         if (status == BookmarksRepository.NOT_FOUND) {
-            state.update { it.copy(bookmarks = it.bookmarks.filterNot { b -> b.id == id }) }
-            return
+            remove(current.id)
+            return null
         }
-        show(BookmarksSnackbar.Failed(failure(result)))
-        if (status in BookmarksRepository.CONFLICTS) {
-            when (val fresh = bookmarks.get(id)) {
-                is BookmarksResult.Ok -> put(fresh.value)
-                is BookmarksResult.Failed ->
-                    if (fresh.status == BookmarksRepository.NOT_FOUND) {
-                        state.update { it.copy(bookmarks = it.bookmarks.filterNot { b -> b.id == id }) }
-                    }
-                BookmarksResult.Offline -> Unit
+        show(BookmarksSnackbar.Failed(failure(result), nextSnackbar()))
+        if (status !in BookmarksRepository.CONFLICTS) return current
+        return when (val fresh = bookmarks.get(current.id)) {
+            is BookmarksResult.Ok -> fresh.value.also { put(it) }
+            is BookmarksResult.Failed -> {
+                if (fresh.status != BookmarksRepository.NOT_FOUND) return current
+                remove(current.id)
+                null
             }
+            BookmarksResult.Offline -> current
         }
     }
 
@@ -250,6 +303,8 @@ class BookmarksViewModel internal constructor(
         }
 
     private fun show(snackbar: BookmarksSnackbar) = state.update { it.copy(snackbar = snackbar) }
+
+    private fun nextSnackbar() = ++snackbars
 
     private fun reloadTags() {
         viewModelScope.launch {

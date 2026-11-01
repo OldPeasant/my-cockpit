@@ -16,6 +16,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -50,6 +51,117 @@ class BookmarksViewModelTest {
     fun tearDown() = Dispatchers.resetMain()
 
     private fun viewModel() = BookmarksViewModel(repo, pending)
+
+    /** The kind of the failure snackbar shown. */
+    private fun failure(vm: BookmarksViewModel) = (vm.uiState.value.snackbar as BookmarksSnackbar.Failed).failure
+
+    @Test
+    fun `two equal failures in a row are two snackbars, and the end of the first keeps the second`() =
+        runTest(dispatcher) {
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1), bookmark(2)))
+            coEvery { repo.setRead(any(), any()) } returns BookmarksResult.Offline
+            coEvery { repo.delete(any()) } returns BookmarksResult.Offline
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.toggleRead(bookmark(1))
+            advanceUntilIdle()
+            val first = vm.uiState.value.snackbar!!
+            vm.delete(bookmark(2))
+            advanceUntilIdle()
+            val second = vm.uiState.value.snackbar!!
+            assertEquals(BookmarkFailure.OFFLINE, failure(vm))
+            // Equal content, but a snackbar of its own: the screen shows it again.
+            assertNotEquals(first, second)
+
+            vm.dismiss(first)
+            assertEquals(second, vm.uiState.value.snackbar)
+            vm.dismiss(second)
+            assertNull(vm.uiState.value.snackbar)
+
+            vm.delete(bookmark(2))
+            advanceUntilIdle()
+            assertEquals(BookmarkFailure.OFFLINE, failure(vm))
+        }
+
+    @Test
+    fun `a failed save opens the editor again with the draft, after a conflict on the reloaded version`() =
+        runTest(dispatcher) {
+            val draft = BookmarkDraft("Mine", "kotlin", "Long notes typed on the train")
+            val theirs = bookmark(1, "Theirs", version = 5)
+            val saved = bookmark(1, "Mine", tags = listOf("kotlin"), description = draft.notes, version = 6)
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1), bookmark(2)))
+            coEvery { repo.save(bookmark(1), draft) } returns BookmarksResult.Offline andThen BookmarksResult.Failed(412)
+            coEvery { repo.get(id(1)) } returns BookmarksResult.Ok(theirs)
+            coEvery { repo.save(theirs, draft) } returns BookmarksResult.Ok(saved)
+            coEvery { repo.save(bookmark(2), any()) } returns BookmarksResult.Failed(404)
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.edit(bookmark(1))
+            vm.save(draft)
+            assertNull(vm.uiState.value.editing)
+            advanceUntilIdle()
+            assertEquals(BookmarkFailure.OFFLINE, failure(vm))
+            assertEquals(bookmark(1), vm.uiState.value.editing)
+            assertEquals(draft, vm.uiState.value.draft)
+
+            vm.save(draft)
+            advanceUntilIdle()
+            assertEquals(BookmarkFailure.CONFLICT, failure(vm))
+            assertEquals(theirs, vm.uiState.value.editing)
+            assertEquals(draft, vm.uiState.value.draft)
+
+            vm.save(draft)
+            advanceUntilIdle()
+            coVerify { repo.save(theirs, draft) }
+            assertNull(vm.uiState.value.editing)
+            assertNull(vm.uiState.value.draft)
+            assertEquals(saved, vm.uiState.value.bookmarks[0])
+
+            // A bookmark gone meanwhile is not edited again.
+            vm.edit(bookmark(2))
+            vm.save(BookmarkDraft("Gone", "", ""))
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.editing)
+            assertNull(vm.uiState.value.draft)
+        }
+
+    @Test
+    fun `a load that started before a change does not bring the old bookmark back`() =
+        runTest(dispatcher) {
+            val stale = CompletableDeferred<BookmarksResult<List<Bookmark>>>()
+            var loads = 0
+            coEvery { repo.list(any(), any()) } coAnswers {
+                when (++loads) {
+                    1 -> BookmarksResult.Ok(listOf(bookmark(1), bookmark(2)))
+                    2 -> stale.await()
+                    else -> BookmarksResult.Ok(listOf(bookmark(2)))
+                }
+            }
+            coEvery { repo.delete(bookmark(1)) } returns BookmarksResult.Ok(Unit)
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+
+            // A reload (resume, a sent share) is running while the user deletes a bookmark.
+            vm.refresh()
+            runCurrent()
+            vm.delete(bookmark(1))
+            advanceUntilIdle()
+            stale.complete(BookmarksResult.Ok(listOf(bookmark(1), bookmark(2))))
+            advanceUntilIdle()
+
+            assertEquals(
+                listOf(id(2)),
+                vm.uiState.value.bookmarks
+                    .map { it.id },
+            )
+            assertFalse(vm.uiState.value.loading)
+            coVerify(exactly = 3) { repo.list(any(), any()) }
+        }
 
     @Test
     fun `starts with the read-later queue, then switches to all bookmarks and filters by tag`() =
@@ -230,7 +342,7 @@ class BookmarksViewModelTest {
 
             vm.toggleRead(bookmark(1))
             advanceUntilIdle()
-            assertEquals(BookmarksSnackbar.Failed(BookmarkFailure.CONFLICT), vm.uiState.value.snackbar)
+            assertEquals(BookmarkFailure.CONFLICT, failure(vm))
             assertEquals(theirs, vm.uiState.value.bookmarks[0])
 
             vm.toggleRead(bookmark(2))
@@ -253,7 +365,7 @@ class BookmarksViewModelTest {
 
             vm.delete(bookmark(1))
             advanceUntilIdle()
-            assertEquals(BookmarksSnackbar.Failed(BookmarkFailure.OFFLINE), vm.uiState.value.snackbar)
+            assertEquals(BookmarkFailure.OFFLINE, failure(vm))
             assertEquals(listOf(bookmark(1)), vm.uiState.value.bookmarks)
             vm.dismiss(vm.uiState.value.snackbar!!)
             assertNull(vm.uiState.value.snackbar)
@@ -298,7 +410,7 @@ class BookmarksViewModelTest {
             val vm = viewModel()
             vm.undo(BookmarksSnackbar.Trashed(bookmark(1)))
             advanceUntilIdle()
-            assertEquals(BookmarksSnackbar.Failed(BookmarkFailure.OFFLINE), vm.uiState.value.snackbar)
+            assertEquals(BookmarkFailure.OFFLINE, failure(vm))
         }
 
     @Test
@@ -416,7 +528,7 @@ class BookmarksViewModelTest {
 
             vm.toggleRead(bookmark(1))
             advanceUntilIdle()
-            assertEquals(BookmarksSnackbar.Failed(BookmarkFailure.CONFLICT), vm.uiState.value.snackbar)
+            assertEquals(BookmarkFailure.CONFLICT, failure(vm))
 
             // The row the user taps may still hold version 1: the latest loaded one is sent.
             vm.toggleRead(bookmark(1))
@@ -447,7 +559,7 @@ class BookmarksViewModelTest {
                 vm.uiState.value.bookmarks
                     .map { it.id },
             )
-            assertEquals(BookmarksSnackbar.Failed(BookmarkFailure.CONFLICT), vm.uiState.value.snackbar)
+            assertEquals(BookmarkFailure.CONFLICT, failure(vm))
 
             vm.delete(bookmark(2))
             advanceUntilIdle()
@@ -467,7 +579,7 @@ class BookmarksViewModelTest {
             vm.edit(bookmark(1))
             vm.save(BookmarkDraft("Title", "", ""))
             advanceUntilIdle()
-            assertEquals(BookmarksSnackbar.Failed(BookmarkFailure.FAILED), vm.uiState.value.snackbar)
+            assertEquals(BookmarkFailure.FAILED, failure(vm))
             assertEquals(bookmark(1), vm.uiState.value.bookmarks[0])
             // Tags are reloaded only after a saved change.
             coVerify(exactly = 1) { repo.tags() }

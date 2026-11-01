@@ -204,7 +204,7 @@ fun BookmarksContent(
         Column(Modifier.fillMaxSize()) {
             ViewSwitch(state.view, callbacks.selectView)
             SearchField(state.query, callbacks.search)
-            state.message?.let { ListMessage(it, state.loading, callbacks.retry) }
+            state.message?.let { ListMessage(it, state.loaded, state.loading, callbacks.retry) }
             if (state.tags.isNotEmpty()) TagFilter(state, callbacks.selectTag)
             if (state.loading && !state.refreshing) {
                 LinearProgressIndicator(Modifier.fillMaxWidth().testTag(BookmarksTags.LOADING))
@@ -237,7 +237,7 @@ fun BookmarksContent(
         }
         SnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter))
     }
-    state.editing?.let { BookmarkEditor(it, callbacks.save, callbacks.cancelEdit) }
+    state.editing?.let { BookmarkEditor(it, state.draft, callbacks.save, callbacks.cancelEdit) }
 }
 
 @Composable
@@ -312,12 +312,16 @@ private fun EmptyText(state: BookmarksUiState) {
 @Composable
 private fun ListMessage(
     message: BookmarksMessage,
+    /** Bookmarks of this view and tag are shown; offline, the message then says they are the last loaded ones. */
+    loaded: Boolean,
     loading: Boolean,
     onRetry: () -> Unit,
 ) {
     val (text, color) =
         when (message) {
-            BookmarksMessage.OFFLINE -> R.string.bookmarks_offline to MaterialTheme.colorScheme.secondaryContainer
+            BookmarksMessage.OFFLINE ->
+                (if (loaded) R.string.bookmarks_offline else R.string.bookmarks_offline_empty) to
+                    MaterialTheme.colorScheme.secondaryContainer
             BookmarksMessage.FAILED -> R.string.bookmarks_failed to MaterialTheme.colorScheme.errorContainer
         }
     Surface(color = color, modifier = Modifier.fillMaxWidth().padding(top = 8.dp).testTag(BookmarksTags.MESSAGE)) {
@@ -502,12 +506,14 @@ private fun RowMenu(
 @Composable
 private fun BookmarkEditor(
     bookmark: Bookmark,
+    /** The unsaved edit of a failed save, shown instead of the bookmark's values. */
+    draft: BookmarkDraft?,
     onSave: (BookmarkDraft) -> Unit,
     onCancel: () -> Unit,
 ) {
-    var title by rememberSaveable(bookmark.id) { mutableStateOf(bookmark.title.orEmpty()) }
-    var tags by rememberSaveable(bookmark.id) { mutableStateOf(bookmark.tags.joinToString(" ")) }
-    var notes by rememberSaveable(bookmark.id) { mutableStateOf(bookmark.description.orEmpty()) }
+    var title by rememberSaveable(bookmark.id) { mutableStateOf(draft?.title ?: bookmark.title.orEmpty()) }
+    var tags by rememberSaveable(bookmark.id) { mutableStateOf(draft?.tags ?: bookmark.tags.joinToString(" ")) }
+    var notes by rememberSaveable(bookmark.id) { mutableStateOf(draft?.notes ?: bookmark.description.orEmpty()) }
     AlertDialog(
         onDismissRequest = onCancel,
         title = { Text(stringResource(R.string.bookmarks_edit_heading)) },

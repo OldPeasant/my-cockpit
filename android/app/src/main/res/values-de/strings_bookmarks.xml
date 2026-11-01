@@ -10,6 +10,7 @@
     <string name="bookmarks_empty_tag">Keine Lesezeichen mit dem Tag %1$s.</string>
     <string name="bookmarks_empty_search">Keine Lesezeichen passen zu „%1$s“.</string>
     <string name="bookmarks_offline">Der Server ist nicht erreichbar. Die zuletzt geladenen Lesezeichen werden angezeigt.</string>
+    <string name="bookmarks_offline_empty">Der Server ist nicht erreichbar.</string>
     <string name="bookmarks_failed">Die Lesezeichen konnten nicht geladen werden.</string>
     <string name="bookmarks_retry">Erneut versuchen</string>
     <string name="bookmarks_site_read">%1$s · Gelesen</string>

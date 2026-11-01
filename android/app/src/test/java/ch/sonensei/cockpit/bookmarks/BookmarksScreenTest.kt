@@ -176,6 +176,49 @@ class BookmarksScreenTest {
     }
 
     @Test
+    fun `offline with nothing loaded for the view does not claim to show the last bookmarks`() {
+        var state by mutableStateOf(BookmarksUiState(view = BookmarkView.ALL, loaded = false, message = BookmarksMessage.OFFLINE))
+        composeRule.setContent { CockpitTheme { BookmarksContent(state, callbacks) } }
+        composeRule.onNodeWithText("Can't reach the server.").assertExists()
+        composeRule.onNodeWithText("Showing the last loaded bookmarks", substring = true).assertDoesNotExist()
+
+        state = state.copy(bookmarks = listOf(article), loaded = true)
+        composeRule.onNodeWithText("Can't reach the server. Showing the last loaded bookmarks.").assertExists()
+    }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `offline with nothing loaded is translated to German`() {
+        show(BookmarksUiState(loaded = false, message = BookmarksMessage.OFFLINE))
+        composeRule.onNodeWithText("Der Server ist nicht erreichbar.").assertExists()
+    }
+
+    @Test
+    fun `the editor opened again after a failed save shows the unsaved draft`() {
+        val draft = BookmarkDraft("Mine", "deep", "Notes typed before the save failed")
+        show(BookmarksUiState(bookmarks = listOf(article), loaded = true, editing = article, draft = draft))
+        composeRule.onNodeWithTag(BookmarksTags.EDIT_TITLE).assertTextContains("Mine")
+        composeRule.onNodeWithTag(BookmarksTags.EDIT_TAGS).assertTextContains("deep")
+        composeRule.onNodeWithTag(BookmarksTags.EDIT_NOTES).assertTextContains("Notes typed before the save failed")
+        composeRule.onNodeWithTag(BookmarksTags.EDIT_SAVE).performClick()
+        assertEquals(listOf("save $draft"), calls)
+    }
+
+    @Test
+    fun `an equal failure after another is shown again and reports its own end`() {
+        val dismissed = mutableListOf<Long>()
+        var state by mutableStateOf(BookmarksUiState(loaded = true, snackbar = BookmarksSnackbar.Failed(BookmarkFailure.OFFLINE, id = 1)))
+        composeRule.setContent { CockpitTheme { BookmarksContent(state, callbacks.copy(dismiss = { dismissed += it.id })) } }
+        composeRule.onNodeWithText("Can't reach the server. Nothing was changed.").assertExists()
+
+        state = state.copy(snackbar = BookmarksSnackbar.Failed(BookmarkFailure.OFFLINE, id = 2))
+        composeRule.onNodeWithText("Can't reach the server. Nothing was changed.").assertExists()
+        composeRule.mainClock.advanceTimeBy(15_000)
+        composeRule.waitForIdle()
+        assertEquals(2L, dismissed.last())
+    }
+
+    @Test
     fun `the editor shows the bookmark and saves the draft`() {
         show(BookmarksUiState(bookmarks = listOf(article), loaded = true, editing = article))
         composeRule.onNodeWithTag(BookmarksTags.EDIT_TITLE).performTextReplacement("Attention")

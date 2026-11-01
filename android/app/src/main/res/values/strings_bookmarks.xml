@@ -10,6 +10,7 @@
     <string name="bookmarks_empty_tag">No bookmarks tagged %1$s.</string>
     <string name="bookmarks_empty_search">No bookmarks match “%1$s”.</string>
     <string name="bookmarks_offline">Can\'t reach the server. Showing the last loaded bookmarks.</string>
+    <string name="bookmarks_offline_empty">Can\'t reach the server.</string>
     <string name="bookmarks_failed">The bookmarks could not be loaded.</string>
     <string name="bookmarks_retry">Retry</string>
     <string name="bookmarks_site_read">%1$s · Read</string>
