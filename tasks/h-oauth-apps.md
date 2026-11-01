@@ -17,7 +17,7 @@ deferred (ADR 0003): no Azure app, no MS_CLIENT_ID.
 
 ## Acceptance criteria
 - [x] Google client id/secret in the production `.env`; consent screen configured; redirect URI matches
-  - verified (2026-11-01 13:45+0100 by Peter Gürtler): It woriks
+  - verified (2026-11-01 13:45+0100 by Peter Gürtler): Google client id/secret in production deploy/.env, redirect URI registered; connected Google account in Settings → Integrations -> works
 
 ## Notes
 - 2026-10-20: Google Cloud project, consent screen and web client registered by the owner; .env entry pending the deploy
