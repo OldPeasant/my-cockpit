@@ -1,11 +1,13 @@
 ---
 title: Mail actions: a message already gone from Trash counts as deleted, stale rows are cleaned up
-status: in_progress
-owner: dell26/agent-2
+status: todo
+owner: 
 deps: [mail-actions-api]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,server/src/test/kotlin/ch/sonensei/cockpit/mail/api]
 prio: 2
-lease_until: 2026-11-01T07:59:41Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 Deleting messages from Trash fails with NOT_FOUND ("The message does not exist or is no longer on the server") for
@@ -39,3 +41,4 @@ already keeps the message removed. A related, unconfirmed suspect is a race betw
 concurrent header sync (the action does not take the sync lock); fix it here only if the tests show it.
 - ASSUMPTION (2026-11-01 07:52+0100 by dell26/agent-2): The background resync runs on its own virtual-thread executor (new MailFolderResync in mail/api), merging requests for a folder whose sync is still pending; failures are logged at INFO/WARN without server responses.
 - ASSUMPTION (2026-11-01 07:52+0100 by dell26/agent-2): A Trash folder without a cached UIDVALIDITY cannot prove the missing UID was deleted, so DELETE there keeps NOT_FOUND and starts a resync instead of counting it as deleted.
+- release by dell26/agent-2: Implementation done and committed (Trash DELETE of gone UIDs counts as deleted; other actions NOT_FOUND + background resync via MailFolderResync; UIDVALIDITY change -> NOT_FOUND + resync; GreenMail tests a/b/c + unit tests). Second code-review (review.md) is committed: 0 P0-P2, 1 optional P3 (CR-1: Trash delete may remove a row a concurrent full sync just relocated; applyToRows should only remove rows whose uid equals the missing UID) - fix it or record it as deferred. LEFT: (1) decide on/fix the P3 (if code changes, re-run code-reviewer); (2) run test-writer on the final code -> reviews/mail-delete-stale-trash/tests.md is missing (last commit e5e847242 added one unit test from the interrupted test-writer run); (3) run ./gradlew check and integrationTest --tests '*MailActionGreenMailTests*' (passed 20/20 per fixes.md, re-run), record tasks.py verify 1-4; (4) write quality.json, sh scripts/check.sh, done.
