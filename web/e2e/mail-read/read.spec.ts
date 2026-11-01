@@ -57,7 +57,7 @@ test.describe('Mail read view', () => {
 
     await page.goto('/mail');
     const row = page.locator('li.item').filter({ hasText: subject });
-    await row.locator('button.open').dblclick();
+    await row.locator('a.open').click();
     await expect(page).toHaveURL(/\/mail\/messages\/[0-9a-f-]{36}$/);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(subject);
 

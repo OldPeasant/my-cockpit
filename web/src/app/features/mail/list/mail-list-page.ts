@@ -228,7 +228,7 @@ export default class MailListPage {
   }
 
   /**
-   * Roving focus: after a key moved the cursor, focus follows it to the row's button, so assistive
+   * Roving focus: after a key moved the cursor, focus follows it to the row's link, so assistive
    * technology announces the message the next key acts on.
    */
   private focusCursor(): void {

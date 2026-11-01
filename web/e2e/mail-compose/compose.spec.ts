@@ -59,7 +59,7 @@ test.describe('Mail compose', () => {
     expect(upload.ok(), `POST /api/v1/files: ${upload.status()}`).toBe(true);
 
     await page.goto('/mail');
-    await page.locator('li.item').filter({ hasText: subject }).locator('button.open').dblclick();
+    await page.locator('li.item').filter({ hasText: subject }).locator('a.open').click();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(subject);
 
     await page.getByRole('link', { name: 'Reply', exact: true }).click();

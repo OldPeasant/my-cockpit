@@ -343,7 +343,7 @@ function row(page: Page, subject: string): Locator {
 
 /** Opens a message of the shown list in the read view. */
 async function open(page: Page, subject: string): Promise<void> {
-  await row(page, subject).locator('button.open').dblclick();
+  await row(page, subject).locator('a.open').click();
   await expect(page).toHaveURL(/\/mail\/messages\/[0-9a-f-]{36}$/);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(subject);
 }
