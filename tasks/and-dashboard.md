@@ -22,3 +22,4 @@ as the Android start screen (2026-11-01). Reuse the endpoints the web dashboard 
 ## Notes
 Requested by the owner (2026-11-01) after trying the Android app on the phone. Changing the start destination touches the shell navigation; keep other tasks' shell changes when merging.
 - ASSUMPTION (2026-11-01 21:09+0100 by felix/agent-1): Bottom bar keeps 5 items (Material max): Dashboard replaces Today there; Today moves to the top of the More list and the Dashboard's Today card opens it
+- ASSUMPTION (2026-11-01 21:09+0100 by felix/agent-1): Unknown reminder item types (OpenItemRequest fallback = CockpitDestination.start) now open the Dashboard instead of Today
