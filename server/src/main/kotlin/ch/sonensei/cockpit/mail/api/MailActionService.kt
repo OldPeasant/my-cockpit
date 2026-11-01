@@ -353,10 +353,10 @@ class MailActionService(
 		newUids: Map<Long, AppendUID>,
 	) {
 		if (moved.isEmpty()) return
-		val ids = moved.map { it.id }
+		val expected = moved.associate { it.id to checkNotNull(it.uid) }
 		for (attempt in 1..CACHE_ATTEMPTS) {
 			try {
-				transactions.executeWithoutResult { applyToRows(source, ids, operation, newUids) }
+				transactions.executeWithoutResult { applyToRows(source, expected, operation, newUids) }
 				break
 			} catch (e: OptimisticLockingFailureException) {
 				cacheConflict(attempt, e)
@@ -369,13 +369,17 @@ class MailActionService(
 		if (operation is Operation.Move) changes.publish(MailFolderService.FOLDER_EVENT, operation.destination.id, ChangeOp.UPDATED)
 	}
 
+	/**
+	 * Applies [operation] to the rows of [expected] (id to the UID the server command used) that are still at that UID
+	 * in [source]. A row a concurrent sync relocated meanwhile is left alone: the command did not concern its new UID.
+	 */
 	private fun applyToRows(
 		source: MailFolder,
-		ids: List<UUID>,
+		expected: Map<UUID, Long>,
 		operation: Operation,
 		newUids: Map<Long, AppendUID>,
 	) {
-		val rows = messages.findAllById(ids).filter { it.folderId == source.id && it.uid != null }
+		val rows = messages.findAllById(expected.keys.toList()).filter { it.folderId == source.id && it.uid != null && it.uid == expected[it.id] }
 		for (row in rows) {
 			when (operation) {
 				is Operation.SetFlag ->
