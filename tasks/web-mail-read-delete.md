@@ -21,7 +21,8 @@ reading it, without going back to the list first. Today Delete only exists in th
       is unknown), and the message is no longer shown there. On failure the read view stays open and shows
       an error, using the view's existing error pattern
   - verified (2026-11-01 07:05+0100 by dell26/agent-1): same focused run (76 passed): RouterTestingHarness tests delete and land on /mail/folders/f-archive when opened there, /mail when opened from /mail, /notes, /mail/compose or directly, origin kept across message->message; failure cases (ok=false detail, ApiError 409, TypeError, missing result) keep the read view open and toast 'The message could not be deleted: ...' via NotificationService.error. List gone-ness: the list page builds a fresh component-scoped store and reloads from the server on open (mail-list-page.ts constructor; full web suite 3882 passed). No browser e2e run for this (list behavior is web-mail-list's)
-- [ ] The `#` key in the read view also deletes, as in the list (not while typing in an input or editor)
+- [x] The `#` key in the read view also deletes, as in the list (not while typing in an input or editor)
+  - verified (2026-11-01 07:05+0100 by dell26/agent-1): same focused run (76 passed): '#' deletes and preventDefaults, also with AltGr (Ctrl+Alt); ignored in input and contenteditable, with Meta, auto-repeat, while loading, and while a MatDialog is open (CR-1 fix, test fails without the guard)
 - [ ] Unit tests cover the button, the shortcut, success navigation and the error case; `cd web && npm run check` passes
 
 ## Notes
