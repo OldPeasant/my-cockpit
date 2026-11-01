@@ -16,7 +16,8 @@ server unchanged.
   - verified (2026-11-01 15:53+0100 by dell26/agent-2): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.search.*' --tests 'ch.sonensei.cockpit.ui.CockpitShellSearchTest' -> 72 passed, 0 failed; CockpitShellSearchTest (search action on every destination opens search), SearchViewModelTest debounce (last text only), SearchRepositoryTest filter->types, SearchScreenTest filter chips, SearchRouteInAppTest typing hits /api/v1/search (MockWebServer)
 - [x] Results show type icon, title and subtitle; tapping one opens the item in the matching Android screen where one exists; items without an Android detail screen open their web deep link in the browser
   - verified (2026-11-01 15:54+0100 by dell26/agent-2): same focused gradle run -> pass; SearchScreenTest results show headings/titles/subtitles/type icons; SearchRouteInAppTest: contact/email/note open in-app screens, task deep link opens browser below server URL, no-browser fallback; SearchModelsTest routing
-- [ ] Loading, empty ("Nothing found") and error states; works with the on-screen keyboard (IME search action)
+- [x] Loading, empty ("Nothing found") and error states; works with the on-screen keyboard (IME search action)
+  - verified (2026-11-01 15:54+0100 by dell26/agent-2): same focused gradle run -> pass; SearchViewModelTest/SearchScreenTest loading, 'Nothing found', offline/failed + retry, out-of-order answers; IME search action via performImeAction in SearchScreenTest and SearchRouteInAppTest
 - [ ] All new UI strings exist in English and German (`res/values`, `res/values-de`)
 - [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
 
