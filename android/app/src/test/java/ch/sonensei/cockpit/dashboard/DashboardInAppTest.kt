@@ -221,6 +221,29 @@ class DashboardInAppTest {
         composeRule.onNodeWithTag(screenTag(CockpitDestination.Dashboard)).assertIsDisplayed()
     }
 
+    /**
+     * The app is fully in the background (the activity is stopped, not only paused) while the data changes elsewhere:
+     * nothing loads while it is stopped, and when the user comes back the card shows the new data, not the old one.
+     */
+    @Test
+    fun `after the app was in the background the cards show what changed meanwhile`() {
+        launch()
+        composeRule.onNode(hasText("3 tasks to process"), useUnmergedTree = true).assertExists()
+
+        scenario!!.moveToState(Lifecycle.State.CREATED)
+        coEvery { repo.load(WidgetId.INBOX) } returns DashboardResult.Ok(WidgetData.Inbox(Count(5, more = false), Count(0, more = false)))
+        composeRule.waitForIdle()
+        coVerify(exactly = 1) { repo.layout() }
+
+        scenario!!.moveToState(Lifecycle.State.RESUMED)
+        composeRule.waitUntil(WAIT_MS) {
+            composeRule.onAllNodes(hasText("5 tasks to process"), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
+
+        composeRule.onNode(hasText("3 tasks to process"), useUnmergedTree = true).assertDoesNotExist()
+        coVerify(exactly = 2) { repo.layout() }
+    }
+
     private companion object {
         const val WAIT_MS = 5_000L
     }
