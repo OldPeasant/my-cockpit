@@ -153,6 +153,9 @@ export default class MailListPage {
     } catch {
       // Storage may be unavailable (private mode): the choice then lasts for this page only.
     }
+    // Search results are always flat: the choice applies when the search is cleared,
+    // instead of re-running a (possibly slow server) search with the same result.
+    if (this.search()) return;
     void this.store.load(this.scope());
   }
 

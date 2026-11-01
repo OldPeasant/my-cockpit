@@ -806,6 +806,31 @@ describe('MailListPage', () => {
       expect(rows()[0].classList).toContain('unread');
     });
 
+    it('keeps a server search on a view switch and lists conversations after clearing it', async () => {
+      await create();
+      serverBox().click();
+      await submit('report');
+      await answer(found);
+      const toggle = [...el().querySelectorAll<HTMLButtonElement>('.views button')];
+      toggle[1].click();
+      await flush();
+      fixture.detectChanges();
+      expect(localStorage.getItem(THREADED_KEY)).toBe('true');
+      // No new search, no folder list: the shown results stay as they are.
+      expect(mail.searches).toHaveLength(1);
+      expect(mail.lists).toHaveLength(1);
+      expect(subjects()).toEqual(['Newer report', 'Older report']);
+      expect(info()?.textContent).not.toContain('Searching on the server…');
+
+      field().value = '';
+      field().dispatchEvent(new Event('input'));
+      await flush();
+      fixture.detectChanges();
+      expect(mail.lists).toHaveLength(2);
+      expect(mail.lists[1].scope).toEqual({ folderId: 'inbox-1', threaded: true });
+      expect(mail.searches).toHaveLength(1);
+    });
+
     it('opens a result in the read view', async () => {
       await create();
       await submit('report');
