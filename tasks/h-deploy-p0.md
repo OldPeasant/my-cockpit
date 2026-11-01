@@ -5,8 +5,10 @@ owner:
 deps: [p0-smoke]
 quality: exempt
 quality_reason: human deployment task, no code
-hold: HUMAN TASK for the owner: deploy to the server (SPEC.md §13.3). Claim with TASK_OWNER=<you> python tasks.py claim h-deploy-p0 --force
+hold: 
 prio: 2
+releases: 0
+extended: 
 ---
 ## Goal
 The owner deploys the stack with the real domain (SPEC.md §13.3).
@@ -16,3 +18,4 @@ The owner deploys the stack with the real domain (SPEC.md §13.3).
 - [ ] Setup + TOTP login works on the production URL (demo Phase 0 step 6)
 
 ## Notes
+- unhold by Peter Gürtler: Done
