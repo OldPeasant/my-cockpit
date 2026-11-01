@@ -21,3 +21,4 @@ for IMAP SEARCH, `server.failures`, `hasMore`); server unchanged.
 ## Notes
 Requested by the owner (2026-11-01) after trying the Android app on the phone.
 - ASSUMPTION (2026-11-01 14:53+0100 by dell26/agent-1): Search results are shown in the usual mail rows but without the swipe archive/delete actions (the list's optimistic swipe logic works on the mailbox, not on a one-page search result); opening a result, then archiving/deleting it in the read view removes it from the results.
+- ASSUMPTION (2026-11-01 14:53+0100 by dell26/agent-1): The 'only the newest results are listed' hint shows for hasMore and also for server.truncated (a folder had more server matches than the limit), since both mean older matches are missing.
