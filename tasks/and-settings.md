@@ -19,7 +19,8 @@ essentials" (2026-11-01): no account setup on the phone, that stays on the web.
   - verified (2026-11-01 17:45+0100 by dell26/agent-1): android/gradlew -p android --max-workers=2 ktlintCheck lintDebug createDebugUnitTestCoverageReport -> BUILD SUCCESSFUL, 2536 tests 0 failures; SettingsViewModelTest/SettingsScreenTest notification, exact alarm and distributor states and buttons, AndroidSettingsEnvironmentTest 11 (distributor switch order, lock) pass; no existing app-side toggles exist (assumption)
 - [x] Capture section: number of captures waiting to sync, last sync result, and a "Sync now" button that enqueues the existing capture upload work
   - verified (2026-11-01 17:45+0100 by dell26/agent-1): android/gradlew -p android --max-workers=2 ktlintCheck lintDebug createDebugUnitTestCoverageReport -> BUILD SUCCESSFUL, 2536 tests 0 failures; SettingsViewModelTest capture count/last result/Sync now via CaptureSyncScheduler.schedule, CaptureFailureTest 3, SettingsScreenTest capture section (incl. German failure text) pass
-- [ ] About section: app version name and code, and a button that opens `<server>/download/android` in the browser to get a newer APK
+- [x] About section: app version name and code, and a button that opens `<server>/download/android` in the browser to get a newer APK
+  - verified (2026-11-01 17:45+0100 by dell26/agent-1): android/gradlew -p android --max-workers=2 ktlintCheck lintDebug createDebugUnitTestCoverageReport -> BUILD SUCCESSFUL, 2536 tests 0 failures; SettingsScreenTest/SettingsViewModelTest about section: version name and code and the server/download/android link pass
 - [ ] Passkeys and logout stay; the placeholder is gone
 - [ ] All new UI strings exist in English and German (`res/values`, `res/values-de`)
 - [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
