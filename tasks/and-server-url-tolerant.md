@@ -21,7 +21,8 @@ why. Make the server address field forgiving (`core/network/ServerUrl.kt` `Serve
   - verified (2026-11-01 16:09+0100 by dell26/agent-1): LoginScreenTest (Robolectric): ServerUrlKeyboardOptions = Uri, capitalization None, autoCorrectEnabled false, and the focused field's EditorInfo inputType has URI class without autocorrect/cap flags; android testDebugUnitTest on d8207bce -> pass. Not tried on a physical keyboard (no device)
 - [x] When the address is still invalid, the error shows the address as the app understood it (e.g. `"https://my-cockpit.sonensei" is not a valid server address`) so the user can see what is wrong
   - verified (2026-11-01 16:09+0100 by dell26/agent-1): ServerUrlTest/AuthRepositoryTest/PasskeyRepositoryTest Invalid carries understood address; LoginViewModelTest/PasskeyViewModelsTest keep it until next edit; LoginScreenTest renders '"https://my-cockpit.sonensei" is not a valid server address'; android testDebugUnitTest on d8207bce -> 2407 tests, 0 failures
-- [ ] All new UI strings exist in English and German (`res/values`, `res/values-de`)
+- [x] All new UI strings exist in English and German (`res/values`, `res/values-de`)
+  - verified (2026-11-01 16:09+0100 by dell26/agent-1): New strings in res/values/strings_auth.xml and res/values-de/strings_auth.xml; LoginScreenTest 'the server address errors quote the address in German' (@Config qualifiers=de) passes; android lintDebug (MissingTranslation) on d8207bce -> pass
 - [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
 
 ## Notes
