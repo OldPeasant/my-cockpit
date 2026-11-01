@@ -20,8 +20,9 @@ sender name ("Your name" in Settings), so several accounts of the same person lo
 - [x] Android, `mail/list`: the account title in the folder picker and the account chip on messages show the email
       address (`MailModels.kt` maps the account's label from `emailAddress`, no longer from `displayName`)
   - verified (2026-11-01 06:09+0100 by dell26/agent-1): android: MailAccount.label (MailModels.kt, = emailAddress, fallback name) used for picker account title, message chip and sort; android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL (MailListScreenTest picker titles = me@example.org/me@example.net, MailListScreenStatesTest chips, MailModelsTest label, MailRepositoryTest sort by label; all with same display name 'Ann Example')
-- [ ] The display name is unchanged everywhere else: it stays the sender name in compose and identities, and the
+- [x] The display name is unchanged everywhere else: it stays the sender name in compose and identities, and the
       Settings account list keeps showing name and address
+  - verified (2026-11-01 06:09+0100 by dell26/agent-1): git diff origin/main...HEAD --stat touches only web/.../mail/list and android/.../mail/list (+tests); MailAccount.name still = displayName (MailModelsTest asserts name 'Ann Example'); compose/identities/settings untouched; android+web full suites pass (compose/settings tests included) -> unchanged behaviour
 - [ ] Unit tests on both platforms assert the email address (two accounts with the same display name are told apart);
       `cd web && npm run check` and `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` pass
 
