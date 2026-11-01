@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "task": "and-mail-read-spam",
+  "reviewed_revision": "9ec36835c49fb34a994b1a220960ac8417d296ae",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-mail-read-spam/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-mail-read-spam/review.md"},
+    "fixer": {"status": "not_required", "reason": "No P0-P2 findings and no bugs reported; the only finding (CR-1, P3) is accepted without a code change."}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "MailReadRepository.act duplicates the action request of MailRepository.act to keep errorCode; the task allows only the enum change in mail/list, unify later"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
