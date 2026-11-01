@@ -30,8 +30,9 @@ and by the owner while closing h-prod-p2. Make the check reliable under load wit
       `web/src/app/features/files/upload/upload.service.spec.ts` (e.g. smaller input, or the large case moved out of
       `test:ci`). The 10 slowest test files of a full run are listed in the evidence before/after
   - verified (2026-11-01 22:15+0100 by dell26/agent-1): real-file upload test now hashes 5 MB+1 in 2 MB chunks instead of 50 MB: ng test --watch=false JSON reporter, idle, alternating runs: test 1803/1689 ms (base) -> 235/200 ms (new). 10 slowest files before (base-1, ms): journal-page 16280, linked-items 9541, security-settings 7573, mail-read-page 6919, event-dialog 6603, task-detail 5840, calendar-view 5668, files-page 5595, app.spec 5387, note-editor-page 5319. After (new-2): journal-page 17769, linked-items 10277, mail-read-page 8737, event-dialog 8537, security-settings 8484, calendar-view 7403, note-editor-page 7319, files-page 7129, task-detail 7038, mail-settings 6933 (these are 50-80 tests of ~100-300 ms each, no single hot spot; left as is)
-- [ ] Under load the suite passes: `npm run test:ci` run 3 times while the machine is busy (e.g. `stress-ng --cpu
+- [x] Under load the suite passes: `npm run test:ci` run 3 times while the machine is busy (e.g. `stress-ng --cpu
       <2x cores>` or a parallel `./gradlew check` in `server/`) -> 0 failures each time; record the load average
+  - verified (2026-11-01 22:15+0100 by dell26/agent-1): node .tmp/burn.mjs (32 busy-loop processes = 2x the 16 cores) + cd web && npm run test:ci x2 -> 4053 passed, 0 failed each (load avg 24.6->49.1, 49.1->50.7; 197 s, 150 s); 3rd run with 64 burners (4x cores) -> 4053 passed, 0 failed (load avg 49.6->80.1, 250 s)
 - [ ] Real failures still fail: a deliberately wrong assertion fails the run (then reverted); `cd web && npm run
       check` passes; total `test:ci` time on an idle machine is not more than 20 % slower than before
 - [ ] `docs/ARCHITECTURE.md` (web testing section) notes the timeout/worker settings in one or two lines
