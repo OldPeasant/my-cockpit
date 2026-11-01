@@ -1,10 +1,11 @@
 ---
 title: Android mail: search box with 'search on server' option
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [and-mail-list-read,mail-search]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/list,android/app/src/test/java/ch/sonensei/cockpit/mail,android/app/src/main/res/values/strings_mail.xml,android/app/src/main/res/values-de/strings_mail.xml]
 prio: 2
+lease_until: 2026-11-01T14:08:11Z
 ---
 ## Goal
 Android counterpart of web-mail-search. Use `GET /api/v1/mail/search` (folderId/accountId scope, `server=true`
