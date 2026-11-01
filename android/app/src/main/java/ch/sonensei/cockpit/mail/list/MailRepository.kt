@@ -18,7 +18,7 @@ class MailRepository
     constructor(
         private val api: MailApi,
     ) {
-        /** Every account by name, with its selectable folders. */
+        /** Every account by its label (email address), with its selectable folders. */
         suspend fun accounts(): MailResult<List<MailAccountFolders>> =
             mailCall {
                 val accounts = mailBody(api.accounts()).items.map { it.toAccount() }.sortedBy { it.label.lowercase() }

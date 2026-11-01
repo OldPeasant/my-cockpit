@@ -187,6 +187,28 @@ describe('MailListPage', () => {
     ]);
   });
 
+  it('tells accounts with the same sender name apart by email address', async () => {
+    await create(null, {
+      firstPage: {
+        items: [
+          summary('a', { subject: 'Report', accountId: 'acc-1', folderId: 'inbox-1' }),
+          summary('h', { subject: 'Dinner', accountId: 'acc-2', folderId: 'inbox-2' }),
+        ],
+        nextCursor: null,
+      },
+    });
+    expect(rows().map((row) => row.querySelector('.account-chip')?.textContent)).toEqual([
+      'acc-1@example.test',
+      'acc-2@example.test',
+    ]);
+    expect(el().textContent).not.toContain('Ann Example');
+
+    params.next(convertToParamMap({ folderId: 'inbox-2' }));
+    await flush();
+    fixture.detectChanges();
+    expect(el().querySelector('.heading .account')?.textContent).toBe('acc-2@example.test');
+  });
+
   it('moves the cursor with j/k and selects with x', async () => {
     await create();
     press('j');
