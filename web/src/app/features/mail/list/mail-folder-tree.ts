@@ -223,24 +223,39 @@ export class MailFolderTree {
         data: {
           name: folderLabel(folder),
           subfolders: this.store.subtree(folder).length - 1,
+          // 409: INBOX or a role the tree did not know about; the reload shows it and hides Delete.
           remove: () =>
             this.reloadingOnStale(async () => {
-              await this.mail.deleteFolder(folder);
+              try {
+                await this.mail.deleteFolder(folder);
+              } catch (error) {
+                // Already gone on the server (404): what the owner wanted, so drop it here too.
+                if (!(error instanceof ApiError && error.status === 404)) throw error;
+              }
               const removed = this.store.removed(folder);
               const current = this.current();
               if (current !== null && removed.has(current)) void this.router.navigate(['/mail']);
-            }),
+            }, [409]),
         },
       },
     );
   }
 
-  /** A folder changed or removed elsewhere (404, 412): reload the folders, then report it. */
-  private async reloadingOnStale(change: () => Promise<void>): Promise<void> {
+  /**
+   * A folder changed or removed elsewhere (404, 412), or another status the caller names: reload
+   * the folders, then report it.
+   */
+  private async reloadingOnStale(
+    change: () => Promise<void>,
+    alsoOn: readonly number[] = [],
+  ): Promise<void> {
     try {
       await change();
     } catch (error) {
-      if (error instanceof ApiError && (error.status === 404 || error.status === 412)) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 404 || error.status === 412 || alsoOn.includes(error.status))
+      ) {
         void this.store.load();
       }
       throw error;

@@ -38,6 +38,20 @@ describe('folderErrorMessage', () => {
     expect(folderErrorMessage(new ApiError(status, 'Server title', 'Server detail'))).toBe(text);
   });
 
+  it('explains a 409 on delete as a folder that cannot be deleted, not a taken name', () => {
+    expect(folderErrorMessage(new ApiError(409, 'Conflict'), 'delete')).toBe(
+      'This folder cannot be deleted: it is the Inbox or has a role.',
+    );
+    expect(folderErrorMessage(new ApiError(409, 'Conflict'), 'save')).toBe(
+      'A folder with this name already exists here.',
+    );
+  });
+
+  it.each([0, 400, 412, 502])('explains status %s on delete as on save', (status) => {
+    const error = new ApiError(status, 'Server title', 'Server detail');
+    expect(folderErrorMessage(error, 'delete')).toBe(folderErrorMessage(error));
+  });
+
   it("falls back to the server's text for other statuses", () => {
     expect(folderErrorMessage(new ApiError(500, 'Server title', 'Server detail'))).toBe(
       'Server detail',
@@ -312,6 +326,21 @@ describe('MailFolderDeleteDialog', () => {
     );
     expect(closed).toBe(false);
     expect(confirmButton().disabled).toBe(false);
+  });
+
+  it('says why the server refused the delete (409), and stays open', async () => {
+    await open();
+    remove.mockRejectedValue(new ApiError(409, 'Conflict'));
+    let closed = false;
+    ref.afterClosed().subscribe(() => (closed = true));
+
+    confirmButton().click();
+    await settle();
+
+    expect(el.querySelector('[role="alert"]')?.textContent?.trim()).toBe(
+      'This folder cannot be deleted: it is the Inbox or has a role.',
+    );
+    expect(closed).toBe(false);
   });
 
   it('cannot be closed while deleting, disables both buttons and deletes only once', async () => {

@@ -12960,6 +12960,13 @@
           <context context-type="linenumber">30</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="mail.folder.error.deleteRefused" datatype="html">
+        <source>This folder cannot be deleted: it is the Inbox or has a role.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-folder-dialogs.ts</context>
+          <context context-type="linenumber">37</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="mail.folder.error.conflict" datatype="html">
         <source>A folder with this name already exists here.</source>
         <context-group purpose="location">

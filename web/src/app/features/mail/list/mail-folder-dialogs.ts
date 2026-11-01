@@ -2,7 +2,10 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import {
   FormControl,
   FormGroup,
-  ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
+  ReactiveFormsModule,
+  ValidationErrors,
+  Validators,
+} from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -14,9 +17,10 @@ export const MAX_FOLDER_NAME_LENGTH = 200;
 
 /**
  * What a failed folder change tells the owner, by status: the server's texts are English, these
- * follow the UI language. Unknown statuses fall back to the server's text.
+ * follow the UI language. Unknown statuses fall back to the server's text. A 409 means a name is
+ * taken, except on delete, where the folder is INBOX or has a role (or holds one).
  */
-export function folderErrorMessage(error: unknown): string {
+export function folderErrorMessage(error: unknown, action: 'save' | 'delete' = 'save'): string {
   if (!(error instanceof ApiError)) {
     return $localize`:@@mail.folder.error.unknown:Something went wrong.`;
   }
@@ -29,6 +33,9 @@ export function folderErrorMessage(error: unknown): string {
     case 412:
       return $localize`:@@mail.folder.error.stale:The folder was changed or removed elsewhere. The folder list was reloaded; try again.`;
     case 409:
+      if (action === 'delete') {
+        return $localize`:@@mail.folder.error.deleteRefused:This folder cannot be deleted: it is the Inbox or has a role.`;
+      }
       return $localize`:@@mail.folder.error.conflict:A folder with this name already exists here.`;
     case 502:
       return $localize`:@@mail.folder.error.mailServer:The mail server could not be reached or refused the change.`;
@@ -251,7 +258,7 @@ export class MailFolderDeleteDialog {
       await this.data.remove();
       this.ref.close(true);
     } catch (error) {
-      this.error.set(folderErrorMessage(error));
+      this.error.set(folderErrorMessage(error, 'delete'));
     } finally {
       this.ref.disableClose = false;
       this.deleting.set(false);

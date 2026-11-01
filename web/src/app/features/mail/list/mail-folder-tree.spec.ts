@@ -417,20 +417,49 @@ describe('MailFolderTree', () => {
       expect(shown()).toContain('Projects2');
     });
 
-    it.each([404, 412])(
-      'reloads the folders when a delete finds the folder stale (%s)',
+    it.each([412, 409])(
+      'reloads the folders and keeps the folder when the server refuses the delete (%s)',
       async (status) => {
         show('pa');
         const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
         (await menu('Alpha'))[2].click();
-        mail.deleteFolder.mockRejectedValue(new ApiError(status, 'Stale'));
+        mail.deleteFolder.mockRejectedValue(new ApiError(status, 'Refused'));
 
         await expect(deleteData().remove()).rejects.toBeInstanceOf(ApiError);
+        fixture.detectChanges();
 
         expect(mail.accounts).toHaveBeenCalled();
         expect(navigate).not.toHaveBeenCalled();
+        expect(shown()).toContain('Alpha');
       },
     );
+
+    it('treats a folder already gone on the server (404) as deleted, and leaves it if shown', async () => {
+      show('pa1');
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      (await menu('Alpha'))[2].click();
+      mail.deleteFolder.mockRejectedValue(new ApiError(404, 'Not Found'));
+
+      // Resolving lets the dialog close instead of offering a retry that can never work.
+      await expect(deleteData().remove()).resolves.toBeUndefined();
+      fixture.detectChanges();
+
+      expect(shown()).toEqual(['Inbox', '[Gmail]', 'Trash', 'Projects']);
+      expect(navigate).toHaveBeenCalledWith(['/mail']);
+    });
+
+    it('stays on the shown folder when another folder is already gone (404)', async () => {
+      show('in');
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      (await menu('Old'))[2].click();
+      mail.deleteFolder.mockRejectedValue(new ApiError(404, 'Not Found'));
+
+      await deleteData().remove();
+      fixture.detectChanges();
+
+      expect(shown()).not.toContain('Old');
+      expect(navigate).not.toHaveBeenCalled();
+    });
 
     it('reloads the folders when the parent of a new subfolder is gone (404)', async () => {
       show(null);
