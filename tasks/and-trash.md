@@ -16,7 +16,8 @@ The Trash (SPEC.md §4.x: deleted items, purged after 30 days) exists on the web
 ## Acceptance criteria
 - [x] Trash is reachable from the More screen and lists deleted items of all types with type icon, title, deletion date and days until purge
   - verified (2026-11-01 18:10+0100 by felix/agent-1): android/gradlew -p android testDebugUnitTest (Robolectric Compose): CockpitShellTest.trashOpensFromTheMoreListAndBackReturnsToIt + TrashScreenTest 'rows show type, title, deletion date and days until purge', TrashRepositoryTest (all types listed, paged) -> pass
-- [ ] Restore and delete forever per item (delete forever asks for confirmation); after restore the item is back in its list
+- [x] Restore and delete forever per item (delete forever asks for confirmation); after restore the item is back in its list
+  - verified (2026-11-01 18:10+0100 by felix/agent-1): TrashScreenTest 'delete forever asks for confirmation', TrashRouteTest 'restore takes the item out of the list'/'delete forever runs only after the confirmation', TrashViewModelTest restore/delete tests, TrashRepositoryTest restore triggers GtdSync.refreshAll for TASK/PROJECT -> 69 trash tests pass
 - [ ] Loading, empty and error states follow the app's existing list screens
 - [ ] All new UI strings exist in English and German (`res/values`, `res/values-de`)
 - [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
