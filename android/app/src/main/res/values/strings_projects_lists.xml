@@ -60,4 +60,21 @@
     <string name="projects_prompt_new">New next step</string>
     <string name="projects_prompt_add">Add as next step</string>
     <string name="projects_prompt_skip">Skip</string>
+
+    <!-- Logbook: done tasks -->
+    <string name="nav_logbook">Logbook</string>
+    <string name="logbook_empty">Nothing completed yet. Tasks you finish show up here.</string>
+    <string name="logbook_today">Today</string>
+    <string name="logbook_yesterday">Yesterday</string>
+    <string name="logbook_open">Show details</string>
+    <string name="logbook_reopen">Reopen</string>
+    <string name="logbook_reopen_label">Reopen %1$s</string>
+    <string name="logbook_reopened">Reopened %1$s</string>
+    <string name="logbook_close">Close</string>
+    <string name="logbook_completed_at">Completed %1$s</string>
+    <string name="logbook_project">Project: %1$s</string>
+    <string name="logbook_contexts">Contexts: %1$s</string>
+    <string name="logbook_loading_more">Loading more…</string>
+    <string name="logbook_more_offline">Offline: older tasks could not be loaded.</string>
+    <string name="logbook_more_failed">Older tasks could not be loaded.</string>
 </resources>

@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material.icons.outlined.Today
 import androidx.compose.ui.graphics.vector.ImageVector
 import ch.sonensei.cockpit.R
@@ -44,6 +45,7 @@ enum class CockpitDestination(
     Projects("projects", R.string.nav_projects, Icons.Outlined.AccountTree, NavSection.More),
     Waiting("waiting", R.string.nav_waiting, Icons.Outlined.HourglassEmpty, NavSection.More),
     Someday("someday", R.string.nav_someday, Icons.Outlined.Lightbulb, NavSection.More),
+    Logbook("logbook", R.string.nav_logbook, Icons.Outlined.TaskAlt, NavSection.More),
     Notes("notes", R.string.nav_notes, Icons.Outlined.Description, NavSection.More),
     Files("files", R.string.nav_files, Icons.Outlined.Folder, NavSection.More),
     Contacts("contacts", R.string.nav_contacts, Icons.Outlined.Contacts, NavSection.More),

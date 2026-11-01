@@ -172,7 +172,7 @@ internal fun StaleBanner(
 }
 
 @Composable
-private fun LoadFailed(
+internal fun LoadFailed(
     error: LoadError,
     retry: () -> Unit,
 ) {
@@ -228,6 +228,7 @@ fun ActionSnackbarEffect(
                             ActionSnackbar.Kind.FOLLOW_UP -> R.string.waiting_followed_up
                             ActionSnackbar.Kind.COMPLETED -> R.string.tasks_completed
                             ActionSnackbar.Kind.NEXT_STEP -> R.string.projects_next_step_set
+                            ActionSnackbar.Kind.REOPENED -> R.string.logbook_reopened
                         },
                         snackbar.title,
                     )

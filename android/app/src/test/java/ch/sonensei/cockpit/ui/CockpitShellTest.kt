@@ -78,6 +78,7 @@ class CockpitShellTest {
             "Projects",
             "Waiting",
             "Someday",
+            "Logbook",
             "Notes",
             "Files",
             "Contacts",

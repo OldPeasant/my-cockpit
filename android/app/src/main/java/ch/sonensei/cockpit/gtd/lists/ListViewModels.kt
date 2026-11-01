@@ -34,7 +34,7 @@ data class ActionSnackbar(
     val title: String,
     val outcome: ActionOutcome,
 ) {
-    enum class Kind { ACTIVATED, FOLLOW_UP, COMPLETED, NEXT_STEP }
+    enum class Kind { ACTIVATED, FOLLOW_UP, COMPLETED, NEXT_STEP, REOPENED }
 }
 
 data class TaskListUiState(
