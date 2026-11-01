@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.gtd.next
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.gtd.data.GtdContext
 import ch.sonensei.cockpit.gtd.data.GtdTask
+import ch.sonensei.cockpit.gtd.task.LocalTaskOpener
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -126,7 +128,7 @@ fun TaskRow(
         ).joinToString("   ")
     val due = task.dueDate?.let { dueText(it, task.dueTime, today) }
     ListItem(
-        modifier = modifier.testTag(TaskListTags.row(task.id)),
+        modifier = modifier.testTag(TaskListTags.row(task.id)).opensTask(task),
         leadingContent = {
             val label = stringResource(R.string.tasks_complete, task.title)
             Checkbox(
@@ -155,6 +157,13 @@ fun TaskRow(
                 }
             },
     )
+}
+
+/** Tapping the row (outside its checkbox and buttons) opens the task's detail screen, where the shell provides that. */
+@Composable
+fun Modifier.opensTask(task: GtdTask): Modifier {
+    val opener = LocalTaskOpener.current ?: return this
+    return clickable(onClickLabel = stringResource(R.string.task_detail_open)) { opener.open(task.id, task) }
 }
 
 /** "3 days overdue", "Due today 14:30", "Due Oct 24"; the flag says whether it is late. */

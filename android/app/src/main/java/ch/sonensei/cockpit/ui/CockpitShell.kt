@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -43,6 +44,12 @@ import ch.sonensei.cockpit.gtd.lists.SomedayScreen
 import ch.sonensei.cockpit.gtd.lists.WaitingScreen
 import ch.sonensei.cockpit.gtd.next.NextScreen
 import ch.sonensei.cockpit.gtd.projects.ProjectsScreen
+import ch.sonensei.cockpit.gtd.task.LocalTaskOpener
+import ch.sonensei.cockpit.gtd.task.TaskDetailNavigation
+import ch.sonensei.cockpit.gtd.task.TaskDetailScreen
+import ch.sonensei.cockpit.gtd.task.TaskOpener
+import ch.sonensei.cockpit.gtd.task.TaskRoutes
+import ch.sonensei.cockpit.gtd.task.TaskSnapshots
 import ch.sonensei.cockpit.gtd.today.TodayScreen
 import ch.sonensei.cockpit.habits.HabitsScreen
 import ch.sonensei.cockpit.journal.JournalScreen
@@ -85,7 +92,8 @@ internal fun CockpitShellFrame(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val route = backStackEntry?.destination?.route
     val current = CockpitDestination.fromRoute(route)
-    val searching = SearchRoutes.isSearch(route)
+    // Search, its opened items and the task detail screen lie on top of a screen: they get a Back arrow.
+    val stacked = SearchRoutes.isSearch(route) || TaskRoutes.isDetail(route)
     val selected = CockpitDestination.bottomBarItemFor(current)
     val showsFab = current != null && current !in CockpitDestination.withOwnFab
 
@@ -95,12 +103,21 @@ internal fun CockpitShellFrame(
         }
     }
 
+    // Task rows of every screen open the task detail screen on top of the current one; Back returns there.
+    val openTask =
+        remember(navController) {
+            TaskOpener { id, snapshot ->
+                snapshot?.let(TaskSnapshots::put)
+                navController.navigate(TaskRoutes.detail(id))
+            }
+        }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(titleRes(current, backStackEntry))) },
                 navigationIcon = {
-                    if (current?.section == NavSection.More || searching) {
+                    if (current?.section == NavSection.More || stacked) {
                         IconButton(onClick = { navController.navigateUp() }) {
                             Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.nav_back))
                         }
@@ -139,33 +156,63 @@ internal fun CockpitShellFrame(
     ) { innerPadding ->
         Column(Modifier.padding(innerPadding)) {
             prompts()
-            NavHost(
-                navController = navController,
-                startDestination = CockpitDestination.start.route,
-                modifier = Modifier.weight(1f),
-            ) {
-                CockpitDestination.entries.forEach { destination ->
-                    composable(destination.route) {
-                        // Screens with their own snackbars keep them above the shell's FAB (LocalFabClearance).
-                        CompositionLocalProvider(LocalFabClearance provides fabClearance(destination)) {
-                            destinationContent(destination, { navController.open(it) }, Modifier.testTag(screenTag(destination)))
-                        }
-                    }
+            CompositionLocalProvider(LocalTaskOpener provides openTask) {
+                CockpitNavHost(navController, destinationContent, Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+/** The screens of the shell: its destinations, search with its opened items, and the task detail screen. */
+@Composable
+private fun CockpitNavHost(
+    navController: NavHostController,
+    destinationContent: @Composable (CockpitDestination, (CockpitDestination) -> Unit, Modifier) -> Unit,
+    modifier: Modifier,
+) {
+    NavHost(
+        navController = navController,
+        startDestination = CockpitDestination.start.route,
+        modifier = modifier,
+    ) {
+        CockpitDestination.entries.forEach { destination ->
+            composable(destination.route) {
+                // Screens with their own snackbars keep them above the shell's FAB (LocalFabClearance).
+                CompositionLocalProvider(LocalFabClearance provides fabClearance(destination)) {
+                    destinationContent(destination, { navController.open(it) }, Modifier.testTag(screenTag(destination)))
                 }
-                composable(SearchRoutes.SEARCH) {
-                    SearchScreen(
-                        openItem = { type, id -> navController.navigate(SearchRoutes.item(type, id)) },
-                        openScreen = { navController.open(it) },
-                        modifier = Modifier.testTag(SEARCH_SCREEN_TAG),
-                    )
-                }
-                composable(SearchRoutes.ITEM) { entry ->
-                    val type = entry.arguments?.getString(SearchRoutes.ARG_TYPE).orEmpty()
-                    val id = entry.arguments?.getString(SearchRoutes.ARG_ID)?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-                    if (id != null) {
-                        SearchItemScreen(type, id, onClose = { navController.navigateUp() })
-                    }
-                }
+            }
+        }
+        composable(SearchRoutes.SEARCH) {
+            SearchScreen(
+                openItem = { type, id ->
+                    navController.navigate(if (type == "TASK") TaskRoutes.detail(id) else SearchRoutes.item(type, id))
+                },
+                openScreen = { navController.open(it) },
+                modifier = Modifier.testTag(SEARCH_SCREEN_TAG),
+            )
+        }
+        composable(SearchRoutes.ITEM) { entry ->
+            val type = entry.arguments?.getString(SearchRoutes.ARG_TYPE).orEmpty()
+            val id = entry.arguments?.getString(SearchRoutes.ARG_ID)?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+            if (id != null) {
+                SearchItemScreen(type, id, onClose = { navController.navigateUp() })
+            }
+        }
+        composable(TaskRoutes.DETAIL) { entry ->
+            val id = entry.arguments?.getString(TaskRoutes.ARG_ID)?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+            if (id != null) {
+                TaskDetailScreen(
+                    id = id,
+                    navigation =
+                        TaskDetailNavigation(
+                            close = { navController.navigateUp() },
+                            openTask = { navController.navigate(TaskRoutes.detail(it)) },
+                            openItem = { type, item -> navController.navigate(SearchRoutes.item(type, item)) },
+                            openScreen = { navController.open(it) },
+                        ),
+                    modifier = Modifier.testTag(TASK_DETAIL_SCREEN_TAG),
+                )
             }
         }
     }
@@ -174,6 +221,7 @@ internal fun CockpitShellFrame(
 /** Test tags of the app bar's search action and of the search screen. */
 internal const val SEARCH_ACTION_TAG = "shell-search"
 internal const val SEARCH_SCREEN_TAG = "screen:search"
+internal const val TASK_DETAIL_SCREEN_TAG = "screen:task"
 
 /** The app bar title: the destination's label, "Search" on the search screen, the item type's screen for an opened item. */
 private fun titleRes(
@@ -183,6 +231,7 @@ private fun titleRes(
     when {
         current != null -> current.labelRes
         entry?.destination?.route == SearchRoutes.SEARCH -> R.string.search_title
+        TaskRoutes.isDetail(entry?.destination?.route) -> R.string.task_detail_title
         entry?.destination?.route == SearchRoutes.ITEM ->
             entry.arguments
                 ?.getString(SearchRoutes.ARG_TYPE)

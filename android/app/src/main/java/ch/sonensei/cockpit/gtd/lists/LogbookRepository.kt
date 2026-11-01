@@ -11,7 +11,9 @@ import ch.sonensei.cockpit.gtd.next.Completion
 import ch.sonensei.cockpit.gtd.next.CompletionMessage
 import ch.sonensei.cockpit.gtd.next.CompletionResult
 import ch.sonensei.cockpit.gtd.next.TaskCompletionRepository
+import ch.sonensei.cockpit.gtd.task.TaskEdits
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.merge
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -53,7 +55,7 @@ class LogbookRepository
         private val completion: TaskCompletionRepository,
     ) {
         /** Emits at once and on every task change while collected: the Logbook should be reloaded. */
-        fun changes(): Flow<Unit> = triggers.on(ChangeTypes.TASK)
+        fun changes(): Flow<Unit> = merge(triggers.on(ChangeTypes.TASK), TaskEdits.changes)
 
         /** The page after [cursor] (the first page for `null`), newest completion first. */
         suspend fun page(cursor: String?): LogbookLoad {

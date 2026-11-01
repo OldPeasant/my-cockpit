@@ -18,6 +18,7 @@ import ch.sonensei.cockpit.gtd.data.TaskRepository
 import ch.sonensei.cockpit.gtd.data.TaskView
 import ch.sonensei.cockpit.gtd.data.allPages
 import ch.sonensei.cockpit.gtd.data.body
+import ch.sonensei.cockpit.gtd.task.TaskEdits
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.conflate
@@ -111,14 +112,17 @@ class TaskListsRepository
         fun observe(
             list: TaskList,
             reloads: Flow<Unit>,
-        ): Flow<Live<List<GtdTask>>> = liveLoad(connectivity, triggers.on(ChangeTypes.TASK), reloads) { load(list = list) }
+        ): Flow<Live<List<GtdTask>>> = liveLoad(connectivity, taskChanges(), reloads) { load(list = list) }
 
         /** The open tasks of a project in the project's order; reloaded like [observe]. */
         fun observeProject(
             projectId: UUID,
             reloads: Flow<Unit>,
         ): Flow<Live<List<GtdTask>>> =
-            liveLoad(connectivity, triggers.on(ChangeTypes.TASK), reloads) { load(projectId = projectId).sortedBy { it.position } }
+            liveLoad(connectivity, taskChanges(), reloads) { load(projectId = projectId).sortedBy { it.position } }
+
+        /** Task changes from the server and from the task detail screen of this app. */
+        private fun taskChanges(): Flow<Unit> = merge(triggers.on(ChangeTypes.TASK), TaskEdits.changes)
 
         /** Someday's "Activate": the task becomes a next action. */
         suspend fun activate(task: GtdTask): ActionOutcome =

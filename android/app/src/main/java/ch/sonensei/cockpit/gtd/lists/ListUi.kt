@@ -37,6 +37,7 @@ import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.next.CompletionSnackbar
 import ch.sonensei.cockpit.gtd.next.CompletionSnackbarEffect
 import ch.sonensei.cockpit.gtd.next.TaskListTags
+import ch.sonensei.cockpit.gtd.next.opensTask
 import ch.sonensei.cockpit.ui.LocalFabClearance
 import java.util.UUID
 
@@ -118,7 +119,7 @@ fun LiveTaskRow(
     action: (@Composable () -> Unit)? = null,
 ) {
     ListItem(
-        modifier = modifier.testTag(TaskListTags.row(task.id)),
+        modifier = modifier.testTag(TaskListTags.row(task.id)).opensTask(task),
         leadingContent = {
             val label = stringResource(R.string.tasks_complete, task.title)
             Checkbox(

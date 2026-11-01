@@ -80,7 +80,7 @@ sealed interface SearchTarget {
 
 /** Item types the Android app has a detail view for, shown by [SearchItemScreen]. */
 object SearchItemTypes {
-    val inApp: Set<String> = setOf("NOTE", "EMAIL", "CONTACT")
+    val inApp: Set<String> = setOf("TASK", "NOTE", "EMAIL", "CONTACT")
 }
 
 /**

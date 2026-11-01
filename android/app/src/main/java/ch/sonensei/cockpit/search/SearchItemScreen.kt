@@ -20,6 +20,8 @@ import ch.sonensei.cockpit.contacts.ContactDetailCallbacks
 import ch.sonensei.cockpit.contacts.ContactDetailContent
 import ch.sonensei.cockpit.contacts.ContactDetailViewModel
 import ch.sonensei.cockpit.contacts.ContactIntents
+import ch.sonensei.cockpit.gtd.task.TaskDetailNavigation
+import ch.sonensei.cockpit.gtd.task.TaskDetailScreen
 import ch.sonensei.cockpit.mail.compose.ComposeMode
 import ch.sonensei.cockpit.mail.compose.MailComposeRoute
 import ch.sonensei.cockpit.mail.read.MailReadRoute
@@ -29,7 +31,7 @@ import java.util.UUID
 
 /**
  * An item opened from the search results in its Android detail view (one of [SearchItemTypes.inApp]): the note editor,
- * a mail (with reply and forward), or a contact. [onClose] leaves it, back to the results.
+ * a mail (with reply and forward), a contact, or a task (the shell opens tasks on their own route, this is a fallback). [onClose] leaves it, back to the results.
  */
 @Composable
 fun SearchItemScreen(
@@ -46,6 +48,7 @@ fun SearchItemScreen(
             NoteEditorRoute(id = id, key = id.toString(), onClose = { onClose() }, modifier = modifier)
         "EMAIL" -> SearchMail(id, onClose, modifier)
         "CONTACT" -> SearchContact(id, onClose, modifier)
+        "TASK" -> TaskDetailScreen(id, TaskDetailNavigation(close = onClose), modifier)
         else -> LaunchedEffect(type) { onClose() }
     }
 }

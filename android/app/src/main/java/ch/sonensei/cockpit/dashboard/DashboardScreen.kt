@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.dashboard
 
 import android.text.format.DateFormat
 import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -42,6 +43,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.gtd.task.LocalTaskOpener
 import ch.sonensei.cockpit.ui.LocalFabClearance
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import ch.sonensei.cockpit.ui.navigation.CockpitDestination
@@ -50,6 +52,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.util.UUID
 
 /**
  * The dashboard, the app's start screen. Its view model comes from Hilt, so outside a Hilt activity (the shell's
@@ -91,6 +94,8 @@ internal object DashboardTags {
     fun error(widget: WidgetId) = "dashboard-error:${widget.key}"
 
     fun loading(widget: WidgetId) = "dashboard-loading:${widget.key}"
+
+    fun task(id: UUID) = "dashboard-task:$id"
 }
 
 /** The screen a widget's card opens. */
@@ -257,9 +262,13 @@ private fun Items(
 private fun Tasks(tasks: List<DashboardTask>) {
     val today = LocalDate.now()
     val dates = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+    val opener = LocalTaskOpener.current
+    val openLabel = stringResource(R.string.task_detail_open)
     tasks.take(MAX_ROWS).forEach { task ->
         val due = task.dueDate
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // A task opens its detail screen (where the shell provides it); the rest of the card opens the card's screen.
+        val open = opener?.let { Modifier.clickable(onClickLabel = openLabel) { it.open(task.id, null) } } ?: Modifier
+        Row(open.testTag(DashboardTags.task(task.id)), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 task.title,
                 style = MaterialTheme.typography.bodyMedium,

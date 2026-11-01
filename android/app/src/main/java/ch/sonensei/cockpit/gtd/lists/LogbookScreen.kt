@@ -46,6 +46,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.gtd.next.TaskListTags
+import ch.sonensei.cockpit.gtd.task.LocalTaskOpener
 import ch.sonensei.cockpit.ui.LocalFabClearance
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
@@ -212,11 +213,15 @@ private fun LogbookRow(
 ) {
     val task = done.task
     val where = whereText(done, state)
+    val opener = LocalTaskOpener.current
     ListItem(
         modifier =
             Modifier
                 .testTag(TaskListTags.row(task.id))
-                .clickable(onClickLabel = stringResource(R.string.logbook_open)) { callbacks.open(done) },
+                .clickable(onClickLabel = stringResource(R.string.logbook_open)) {
+                    // In the shell the detail screen opens; elsewhere (screen tests) the Logbook's own dialog.
+                    opener?.open(task.id, task) ?: callbacks.open(done)
+                },
         leadingContent = { Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
         headlineContent = { Text(task.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
         supportingContent = where?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },

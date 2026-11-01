@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The task detail screen, opened from the task lists, search and the Dashboard -->
+    <string name="task_detail_title">Aufgabe</string>
+    <string name="task_detail_open">Aufgabe öffnen</string>
+    <string name="task_detail_loading">Aufgabe wird geladen…</string>
+    <string name="task_detail_not_found">Diese Aufgabe gibt es nicht mehr. Sie wurde in den Papierkorb verschoben oder gelöscht.</string>
+    <string name="task_detail_error_failed">Die Aufgabe konnte nicht geladen werden.</string>
+    <string name="task_detail_error_offline">Offline: Diese Aufgabe ist nicht auf diesem Gerät gespeichert.</string>
+    <string name="task_detail_retry">Erneut versuchen</string>
+    <string name="task_detail_offline">Offline: Angezeigt wird die Kopie aus der Liste. Änderungen brauchen eine Verbindung.</string>
+    <string name="task_detail_offline_from">Offline: Angezeigt wird die Kopie vom %1$s. Änderungen brauchen eine Verbindung.</string>
+    <string name="task_detail_no_browser">Keine App kann diesen Link öffnen.</string>
+
+    <string name="task_detail_status_done">Erledigt</string>
+    <string name="task_detail_status_done_on">Erledigt am %1$s</string>
+    <string name="task_detail_list_inbox">Eingang</string>
+    <string name="task_detail_list_next">Nächste</string>
+    <string name="task_detail_list_waiting">Warten auf</string>
+    <string name="task_detail_list_someday">Irgendwann</string>
+    <string name="task_detail_list_scheduled">Geplant</string>
+
+    <string name="task_detail_complete">Erledigen</string>
+    <string name="task_detail_reopen">Wieder öffnen</string>
+    <string name="task_detail_edit">Bearbeiten</string>
+    <string name="task_detail_more">Weitere Aktionen</string>
+    <string name="task_detail_move_next">Zu Nächste</string>
+    <string name="task_detail_move_someday">Zu Irgendwann</string>
+    <string name="task_detail_move_waiting">Zu Warten auf</string>
+    <string name="task_detail_delete">In den Papierkorb</string>
+    <string name="task_detail_waiting_title">Auf wen wartest du?</string>
+    <string name="task_detail_waiting_person">Person</string>
+
+    <string name="task_detail_project">Projekt</string>
+    <string name="task_detail_project_none">Kein Projekt</string>
+    <string name="task_detail_project_unknown">Unbekanntes Projekt</string>
+    <string name="task_detail_contexts">Kontexte</string>
+    <string name="task_detail_contexts_none">Noch keine Kontexte.</string>
+    <string name="task_detail_due">Fällig</string>
+    <string name="task_detail_scheduled">Beginnt</string>
+    <string name="task_detail_tickler">Kommt zurück</string>
+    <string name="task_detail_estimate">Schätzung</string>
+    <string name="task_detail_minutes">%1$d Min.</string>
+    <string name="task_detail_energy">Energie</string>
+    <string name="task_detail_creativity">Kreativität</string>
+    <string name="task_detail_waiting_for">Warten auf</string>
+    <string name="task_detail_waiting_since">seit %1$s</string>
+    <string name="task_detail_repeat">Wiederholung</string>
+    <string name="task_detail_none">Keine</string>
+    <string name="task_detail_notes">Notizen</string>
+    <string name="task_detail_notes_hint">Markdown</string>
+
+    <string name="task_detail_checklist">Checkliste</string>
+    <string name="task_detail_checklist_empty">Keine Einträge in der Checkliste.</string>
+    <string name="task_detail_item_toggle">%1$s abhaken</string>
+    <string name="task_detail_item_rename">Eintrag umbenennen</string>
+    <string name="task_detail_item_delete">%1$s löschen</string>
+    <string name="task_detail_item_new">Neuer Eintrag</string>
+    <string name="task_detail_item_add">Hinzufügen</string>
+
+    <string name="task_detail_links">Verknüpfte Elemente</string>
+    <string name="task_detail_link_open">Verknüpftes Element öffnen</string>
+    <string name="task_detail_link_untitled">Ohne Titel</string>
+    <string name="task_detail_link_unavailable">im Papierkorb</string>
+
+    <string name="task_detail_title_label">Titel</string>
+    <string name="task_detail_estimate_label">Schätzung (Minuten)</string>
+    <string name="task_detail_due_pick">Datum wählen</string>
+    <string name="task_detail_due_time_pick">Uhrzeit hinzufügen</string>
+    <string name="task_detail_due_time_clear">Keine Uhrzeit</string>
+    <string name="task_detail_due_clear">Kein Fälligkeitsdatum</string>
+    <string name="task_detail_save">Speichern</string>
+    <string name="task_detail_cancel">Abbrechen</string>
+    <string name="task_detail_ok">OK</string>
+    <string name="task_detail_error_required">Gib einen Titel ein.</string>
+    <string name="task_detail_error_too_long">Höchstens %1$d Zeichen.</string>
+    <string name="task_detail_error_estimate">Gib ganze Minuten ein, höchstens %1$d.</string>
+    <string name="task_detail_error_invalid">Dieser Wert ist ungültig.</string>
+
+    <string name="task_detail_message_offline">Nicht gespeichert: Der Server ist nicht erreichbar. Versuche es wieder, wenn du online bist.</string>
+    <string name="task_detail_message_conflict">Diese Aufgabe wurde anderswo geändert. Sie zeigt jetzt ihren aktuellen Stand; nichts wurde überschrieben.</string>
+    <string name="task_detail_message_not_found">Diese Aufgabe gibt es nicht mehr.</string>
+    <string name="task_detail_message_failed">Der Server hat die Änderung abgelehnt.</string>
+    <string name="task_detail_message_invalid">Nicht gespeichert: %1$s</string>
+    <string name="task_detail_message_saved">Gespeichert</string>
+    <string name="task_detail_message_completed">Aufgabe erledigt</string>
+    <string name="task_detail_message_reopened">Aufgabe wieder geöffnet</string>
+    <string name="task_detail_message_moved">Verschoben nach %1$s</string>
+    <string name="task_detail_message_deleted">Aufgabe in den Papierkorb verschoben</string>
+    <string name="task_detail_message_restored">Aufgabe wiederhergestellt</string>
+    <string name="task_detail_undo">Rückgängig</string>
+</resources>
