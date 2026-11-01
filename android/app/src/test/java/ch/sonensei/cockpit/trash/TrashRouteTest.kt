@@ -1,11 +1,16 @@
 package ch.sonensei.cockpit.trash
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import io.mockk.coEvery
@@ -34,6 +39,12 @@ class TrashRouteTest {
 
     private val repo = mockk<TrashRepository>()
 
+    /** The lifecycle the route sees; a test moves it to the background and back. */
+    private class TestOwner : LifecycleOwner {
+        val registry = LifecycleRegistry(this)
+        override val lifecycle: Lifecycle get() = registry
+    }
+
     private fun show() {
         val viewModel = TrashViewModel(repo)
         composeRule.setContent { CockpitTheme { TrashRoute(viewModel = viewModel) } }
@@ -55,6 +66,30 @@ class TrashRouteTest {
 
         coVerify(exactly = 1) { repo.list() }
         composeRule.onNodeWithTag(TrashTags.item(task)).assertExists()
+        composeRule.onNodeWithTag(TrashTags.item(note)).assertExists()
+    }
+
+    @Test
+    fun `the Trash loads again when the app comes back to it`() {
+        val owner = TestOwner().apply { registry.currentState = Lifecycle.State.RESUMED }
+        coEvery { repo.list() } returns TrashResult.Ok(listOf(task, note)) andThen TrashResult.Ok(listOf(note))
+        val viewModel = TrashViewModel(repo)
+        composeRule.setContent {
+            CompositionLocalProvider(LocalLifecycleOwner provides owner) {
+                CockpitTheme { TrashRoute(viewModel = viewModel) }
+            }
+        }
+        composeRule.waitForIdle()
+        coVerify(exactly = 1) { repo.list() }
+        composeRule.onNodeWithTag(TrashTags.item(task)).assertExists()
+
+        // Meanwhile the task was deleted for good elsewhere (e.g. on the web).
+        composeRule.runOnIdle { owner.registry.currentState = Lifecycle.State.CREATED }
+        composeRule.runOnIdle { owner.registry.currentState = Lifecycle.State.RESUMED }
+        composeRule.waitForIdle()
+
+        coVerify(exactly = 2) { repo.list() }
+        composeRule.onNodeWithTag(TrashTags.item(task)).assertDoesNotExist()
         composeRule.onNodeWithTag(TrashTags.item(note)).assertExists()
     }
 
