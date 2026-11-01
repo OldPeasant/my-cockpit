@@ -1,10 +1,11 @@
 ---
 title: Android: Logbook (completed tasks, reopen)
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [and-projects-lists,and-gtd-data,and-trash]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/lists,android/app/src/main/java/ch/sonensei/cockpit/ui,android/app/src/test/java/ch/sonensei/cockpit/gtd,android/app/src/main/res/values/strings_projects_lists.xml,android/app/src/main/res/values-de/strings_projects_lists.xml]
 prio: 2
+lease_until: 2026-11-01T18:53:47Z
 ---
 ## Goal
 The Logbook (done tasks, SPEC.md §5) exists on the web only. Use `GET /api/v1/tasks?completed=true` and
