@@ -20,3 +20,4 @@ server unchanged.
 
 ## Notes
 Requested by the owner (2026-11-01) after trying the Android app on the phone. If and-capture-button is in progress at the same time, both add app-bar actions in the shell: keep both.
+- ASSUMPTION (2026-11-01 15:53+0100 by dell26/agent-2): Search hits for notes, emails and contacts open in-app detail screens; tasks, projects, events (and other types) open their web deep link in the browser, because the Android project/event/task screens cannot yet be opened by item id from outside their own feature
