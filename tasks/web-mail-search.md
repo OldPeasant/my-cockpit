@@ -27,7 +27,8 @@ client `web/src/app/api/generated/fn/mail-search/search-mail.ts`); this task onl
 - [x] Loading, empty ("No messages found") and error states use the mail list's existing patterns; the
       list's keyboard shortcuts don't fire while typing in the field, and `/` focuses it
   - verified (2026-11-01 10:01+0100 by dell26/agent-1): same vitest run: loading note, load-error with Try again re-running the search, 'No messages found'; j/k/x/e/s/u/v/o/#// shortcuts don't fire while typing in the field, '/' focuses it (not with modifiers/in other inputs/dialogs) -> pass
-- [ ] New UI strings are in `web/src/locale` (English + German)
+- [x] New UI strings are in `web/src/locale` (English + German)
+  - verified (2026-11-01 10:01+0100 by dell26/agent-1): web/src/locale messages.xlf + messages.de.xlf have 9 new mail.search.* units and updated mail.keysHint with German targets; src/locale/messages-de.spec.ts (placeholders/targets in step) -> pass in vitest run
 - [ ] Unit tests cover scoped search, server search incl. failures, clearing, and the empty/error states;
       `cd web && npm run check` passes
 
