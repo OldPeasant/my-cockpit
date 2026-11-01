@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [mail-imap]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/imap,server/src/test/kotlin/ch/sonensei/cockpit/mail/imap,api/openapi.yaml,web/src/app/api/generated]
 prio: 2
-lease_until: 2026-11-01T05:49:24Z
+lease_until: 2026-11-01T05:54:27Z
 ---
 ## Goal
 The owner can create, rename and delete folders of a mail account from My Cockpit, instead of using another mail
