@@ -23,3 +23,4 @@ bookmarks feature (`web/src/app/features/bookmarks`) is the reference for behavi
 
 ## Notes
 Requested by the owner (2026-11-01) after trying the Android app on the phone. Out of scope: snapshot (offline copy) viewer if the API only serves HTML for the web; open the snapshot via the web deep link instead and record that.
+- ASSUMPTION (2026-11-01 14:08+0100 by dell26/agent-1): Search is client-side over the loaded bookmarks of the current view/tag (title, site, URL, notes, tags; every word must match): GET /bookmarks has no text query param and the server is unchanged by the task.
