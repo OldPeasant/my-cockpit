@@ -567,6 +567,66 @@ class LogbookViewModelTest {
             assertTrue(state.canLoadMore)
         }
 
+    @Test
+    fun `coming back within the stop timeout, e g after a rotation, does not reload`() =
+        runTest(UnconfinedTestDispatcher()) {
+            coEvery { repository.page(null) } returns page(taxes)
+            val vm = LogbookViewModel(repository, projects, contexts, clock)
+            val shown = backgroundScope.launch { vm.uiState.collect {} }
+            shown.cancel()
+            advanceTimeBy(STOP_TIMEOUT_MS - 1)
+            backgroundScope.launch { vm.uiState.collect {} }
+            advanceTimeBy(STOP_TIMEOUT_MS * 2)
+            coVerify(exactly = 1) { repository.page(null) }
+            assertEquals(listOf(taxes), vm.uiState.value.tasks)
+            changes.emit(Unit)
+            coVerify(exactly = 2) { repository.page(null) }
+        }
+
+    @Test
+    fun `a first load cut off by leaving the screen loads again when shown again, and its late answer is ignored`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val cutOff = CompletableDeferred<LogbookLoad>()
+            pages(null, { cutOff.await() }, { page(late, taxes) })
+            val vm = LogbookViewModel(repository, projects, contexts, clock)
+            val shown = backgroundScope.launch { vm.uiState.collect {} }
+            assertTrue(vm.uiState.value.loading)
+            shown.cancel()
+            advanceTimeBy(STOP_TIMEOUT_MS + 1)
+            cutOff.complete(page(old))
+            assertEquals(emptyList<LoggedTask>(), vm.uiState.value.tasks)
+
+            backgroundScope.launch { vm.uiState.collect {} }
+            coVerify(exactly = 2) { repository.page(null) }
+            val state = vm.uiState.value
+            assertEquals(listOf(late, taxes), state.tasks)
+            assertFalse(state.loading)
+            assertTrue(state.loaded)
+            assertNull(state.error)
+        }
+
+    @Test
+    fun `a reopen that finishes after the screen is gone removes the task, and the logbook reloads when shown again`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val answer = CompletableDeferred<ActionOutcome>()
+            pages(null, { page(taxes, call) }, { page(call) })
+            coEvery { repository.reopen(taxes) } coAnswers { answer.await() }
+            val vm = LogbookViewModel(repository, projects, contexts, clock)
+            val shown = backgroundScope.launch { vm.uiState.collect {} }
+            vm.reopen(taxes)
+            shown.cancel()
+            advanceTimeBy(STOP_TIMEOUT_MS + 1)
+            answer.complete(ActionOutcome.DONE)
+            coVerify(exactly = 1) { repository.page(null) }
+
+            backgroundScope.launch { vm.uiState.collect {} }
+            coVerify(exactly = 2) { repository.page(null) }
+            val state = vm.uiState.value
+            assertEquals(listOf(call), state.tasks)
+            assertTrue(state.busy.isEmpty())
+            assertEquals(ActionSnackbar(ActionSnackbar.Kind.REOPENED, "Task 1", ActionOutcome.DONE), state.action)
+        }
+
     private companion object {
         const val STOP_TIMEOUT_MS = 5_000L
     }
