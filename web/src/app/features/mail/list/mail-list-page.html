@@ -151,11 +151,11 @@
                 (change)="store.toggleSelected(item.id)"
                 [attr.aria-label]="selectLabel(item)"
               />
-              <button
-                type="button"
+              <a
                 class="open"
+                [routerLink]="['/mail/messages', item.id]"
                 (click)="store.setCursor(item.id)"
-                (dblclick)="open(item.id)"
+                (keydown.enter)="openFromKey($event, item.id)"
               >
                 <span class="from">
                   {{ sender(item) }}
@@ -206,7 +206,7 @@
                     item.receivedAt | date: dateFormat(item)
                   }}</time>
                 </span>
-              </button>
+              </a>
             </li>
           }
         </ul>
@@ -236,8 +236,8 @@
     }
 
     <p class="keys" i18n="@@mail.keysHint">
-      Keys: j/k next/previous, o or double-click open, x select, e archive, # delete, Shift+I read,
-      u unread, s star, v move, ! spam
+      Keys: j/k next/previous, o or click open, x select, e archive, # delete, Shift+I read, u
+      unread, s star, v move, ! spam
     </p>
   </section>
 </div>

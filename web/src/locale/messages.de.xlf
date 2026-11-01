@@ -8749,8 +8749,8 @@
         </context-group>
       </trans-unit>
       <trans-unit id="mail.keysHint" datatype="html">
-        <source> Keys: j/k next/previous, o or double-click open, x select, e archive, # delete, Shift+I read, u unread, s star, v move, ! spam </source>
-        <target state="translated">Tasten: j/k nächste/vorherige, o oder Doppelklick öffnen, x auswählen, e archivieren, # löschen, Umschalt+I gelesen, u ungelesen, s Stern, v verschieben, ! Spam</target>
+        <source> Keys: j/k next/previous, o or click open, x select, e archive, # delete, Shift+I read, u unread, s star, v move, ! spam </source>
+        <target state="translated">Tasten: j/k nächste/vorherige, o oder Klick öffnen, x auswählen, e archivieren, # löschen, Umschalt+I gelesen, u ungelesen, s Stern, v verschieben, ! Spam</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
           <context context-type="linenumber">239,242</context>

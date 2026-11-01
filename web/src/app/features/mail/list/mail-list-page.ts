@@ -217,6 +217,17 @@ export default class MailListPage {
   }
 
   /**
+   * Enter on a focused row opens it like `o`, moving the cursor there first. The browser would follow
+   * the row's link on its own; handling it here keeps one path for both keys. Ctrl/Cmd+Enter is not
+   * matched by `keydown.enter`, so the browser still opens the link in a new tab then.
+   */
+  protected openFromKey(event: Event, id: string): void {
+    event.preventDefault();
+    this.store.setCursor(id);
+    this.open(id);
+  }
+
+  /**
    * Roving focus: after a key moved the cursor, focus follows it to the row's button, so assistive
    * technology announces the message the next key acts on.
    */

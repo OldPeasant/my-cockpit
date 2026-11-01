@@ -354,7 +354,7 @@ describe('MailListPage', () => {
 
   it('moves focus with the keyboard cursor to its row', async () => {
     await create();
-    const open = (index: number) => rows()[index].querySelector('button.open');
+    const open = (index: number) => rows()[index].querySelector('a.open');
     press('j');
     expect(document.activeElement).toBe(open(1));
     press('j', { repeat: true });
@@ -450,19 +450,76 @@ describe('MailListPage', () => {
     });
   });
 
-  it('moves the cursor to a clicked row without opening or selecting it', async () => {
-    await create();
-    rows()[2].querySelector<HTMLButtonElement>('button.open')!.click();
-    fixture.detectChanges();
-    expect(rows()[2].getAttribute('aria-current')).toBe('true');
-    expect(rows()[2].classList).not.toContain('selected');
-  });
-
   describe('opening a message', () => {
     const navigations = () => {
       const router = TestBed.inject(Router);
       return vi.spyOn(router, 'navigate').mockResolvedValue(true);
     };
+    const urlNavigations = () => {
+      const router = TestBed.inject(Router);
+      return vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    };
+    const link = (index: number) => rows()[index].querySelector<HTMLAnchorElement>('a.open')!;
+    const navigatedTo = (spy: ReturnType<typeof urlNavigations>) =>
+      spy.mock.calls.map(([url]) => TestBed.inject(Router).serializeUrl(url as never));
+
+    it('makes each row a link to its message', async () => {
+      await create();
+      expect(rows().map((_, index) => link(index).getAttribute('href'))).toEqual([
+        '/mail/messages/a',
+        '/mail/messages/b',
+        '/mail/messages/c',
+      ]);
+      expect(el().querySelector('li.item button')).toBeNull();
+    });
+
+    it('opens a clicked row and moves the cursor to it without selecting it', async () => {
+      await create();
+      const navigate = urlNavigations();
+      const event = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+      link(2).dispatchEvent(event);
+      fixture.detectChanges();
+      expect(event.defaultPrevented).toBe(true);
+      expect(navigatedTo(navigate)).toEqual(['/mail/messages/c']);
+      expect(rows()[2].getAttribute('aria-current')).toBe('true');
+      expect(rows()[2].classList).not.toContain('selected');
+      expect(mail.applies).toEqual([]);
+    });
+
+    it('leaves Ctrl/Cmd-click and middle-click to the browser (new tab)', async () => {
+      await create();
+      const navigate = urlNavigations();
+      const clicks = [
+        new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true }),
+        new MouseEvent('click', { bubbles: true, cancelable: true, metaKey: true }),
+        new MouseEvent('click', { bubbles: true, cancelable: true, button: 1 }),
+      ];
+      // Records whether the page let the browser act, then stops jsdom from following the link.
+      const leftToBrowser: boolean[] = [];
+      const record = (event: Event) => {
+        leftToBrowser.push(!event.defaultPrevented);
+        event.preventDefault();
+      };
+      document.addEventListener('click', record);
+      try {
+        for (const click of clicks) link(1).dispatchEvent(click);
+      } finally {
+        document.removeEventListener('click', record);
+      }
+      expect(navigate).not.toHaveBeenCalled();
+      expect(leftToBrowser).toEqual([true, true, true]);
+    });
+
+    it('only selects on a checkbox click, without opening', async () => {
+      await create();
+      const navigate = navigations();
+      const byUrl = urlNavigations();
+      rows()[1].querySelector<HTMLInputElement>('input[type=checkbox]')!.click();
+      fixture.detectChanges();
+      expect(rows()[1].classList).toContain('selected');
+      expect(navigate).not.toHaveBeenCalled();
+      expect(byUrl).not.toHaveBeenCalled();
+    });
 
     it('opens the cursor message with o', async () => {
       await create();
@@ -474,13 +531,33 @@ describe('MailListPage', () => {
       expect(mail.applies).toEqual([]);
     });
 
-    it('opens a row on double-click', async () => {
+    it('opens the focused row with Enter, once', async () => {
       await create();
       const navigate = navigations();
-      rows()[2]
-        .querySelector('button.open')!
-        .dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      const byUrl = urlNavigations();
+      press('j');
+      press('j');
+      const event = press('Enter', {}, document.activeElement!);
+      fixture.detectChanges();
+      expect(event.defaultPrevented).toBe(true);
       expect(navigate).toHaveBeenCalledExactlyOnceWith(['/mail/messages', 'c']);
+      expect(byUrl).not.toHaveBeenCalled();
+      expect(rows()[2].getAttribute('aria-current')).toBe('true');
+    });
+
+    it('leaves Ctrl+Enter on a row to the browser', async () => {
+      await create();
+      const navigate = navigations();
+      const event = press('Enter', { ctrlKey: true }, link(0));
+      expect(event.defaultPrevented).toBe(false);
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('opens nothing on a double-click beyond what its clicks open', async () => {
+      await create();
+      const navigate = navigations();
+      link(2).dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      expect(navigate).not.toHaveBeenCalled();
     });
 
     it('opens nothing with o in an empty folder, nor while typing', async () => {
@@ -494,9 +571,9 @@ describe('MailListPage', () => {
       expect(navigate).not.toHaveBeenCalled();
     });
 
-    it('names o and double-click in the key hint', async () => {
+    it('names o and click in the key hint', async () => {
       await create();
-      expect(el().querySelector('.keys')?.textContent).toContain('o or double-click open');
+      expect(el().querySelector('.keys')?.textContent).toContain('o or click open');
     });
   });
 

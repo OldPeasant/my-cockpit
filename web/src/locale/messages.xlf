@@ -7710,7 +7710,7 @@
         </context-group>
       </trans-unit>
       <trans-unit id="mail.keysHint" datatype="html">
-        <source> Keys: j/k next/previous, o or double-click open, x select, e archive, # delete, Shift+I read, u unread, s star, v move, ! spam </source>
+        <source> Keys: j/k next/previous, o or click open, x select, e archive, # delete, Shift+I read, u unread, s star, v move, ! spam </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
           <context context-type="linenumber">239,242</context>

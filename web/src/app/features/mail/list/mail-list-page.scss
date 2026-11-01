@@ -145,6 +145,7 @@ input[type='checkbox'] {
   color: inherit;
   font: var(--mat-sys-body-medium);
   text-align: start;
+  text-decoration: none;
   cursor: pointer;
 
   &:focus-visible {
