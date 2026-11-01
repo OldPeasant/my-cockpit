@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "task": "and-bookmarks",
+  "reviewed_revision": "ab062049540103999fec3848dbc0a0bfd3efb793",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-bookmarks/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-bookmarks/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-bookmarks/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "snackbars carry an id; a repeated equal failure shows again and dismiss matches the id (443d2373a), tests added"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "failed save reopens the editor with the draft (on the reloaded version after a conflict) (443d2373a), tests added"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "a local change cancels a running load and restarts it; cancelled loads never write (443d2373a), tests added"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "new bookmarks_offline_empty string (EN/DE) when nothing is loaded (443d2373a), tests added"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.bookmarks.*'", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck createDebugUnitTestCoverageReport lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
