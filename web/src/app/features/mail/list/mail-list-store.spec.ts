@@ -763,6 +763,171 @@ describe('MailListStore', () => {
     });
   });
 
+  describe('search', () => {
+    const searchScope = (
+      query: string,
+      server = false,
+      folderId: string | null = INBOX,
+      threaded = false,
+    ): MailScope => ({ folderId, threaded, search: { query, server } });
+
+    async function searched(
+      scope: MailScope,
+      items: MailSummary[],
+      extra: { hasMore?: boolean; failedAccountIds?: string[] } = {},
+    ) {
+      const done = store.load(scope);
+      mail.searches.at(-1)!.resolve({
+        items,
+        hasMore: extra.hasMore ?? false,
+        failedAccountIds: extra.failedAccountIds ?? [],
+      });
+      await done;
+    }
+
+    it('searches the folder of the scope flat, in one page, and lists the results', async () => {
+      await searched(searchScope('report', false, INBOX, true), [summary('n'), summary('o')], {
+        hasMore: true,
+      });
+      expect(mail.lists).toEqual([]);
+      expect(mail.searches[0]).toMatchObject({ query: 'report', folderId: INBOX, server: false });
+      expect(store.scope().threaded).toBe(false);
+      expect(ids()).toEqual(['n', 'o']);
+      expect(store.cursorId()).toBe('n');
+      expect(store.nextCursor()).toBeNull();
+      expect(store.searchResult()).toEqual({ hasMore: true, failedAccountIds: [] });
+      expect(store.searchingServer()).toBe(false);
+    });
+
+    it('searches all folders for the unified Inbox', async () => {
+      await searched(searchScope('lunch', false, null), []);
+      expect(mail.searches[0]).toMatchObject({ query: 'lunch', folderId: null });
+      expect(ids()).toEqual([]);
+    });
+
+    it('keeps the cached results shown while the same query is searched on the server', async () => {
+      await searched(searchScope('report'), [summary('a'), summary('b')]);
+      store.setCursor('b');
+      const done = store.load(searchScope('report', true));
+      expect(store.searchingServer()).toBe(true);
+      expect(ids()).toEqual(['a', 'b']);
+      expect(store.searchResult()).toEqual({ hasMore: false, failedAccountIds: [] });
+      expect(mail.searches[1]).toMatchObject({ query: 'report', server: true });
+      mail.searches[1].resolve({
+        items: [summary('a'), summary('b'), summary('old')],
+        hasMore: false,
+        failedAccountIds: ['acc-2'],
+      });
+      await done;
+      expect(store.searchingServer()).toBe(false);
+      expect(ids()).toEqual(['a', 'b', 'old']);
+      expect(store.cursorId()).toBe('b');
+      expect(store.searchResult()).toEqual({ hasMore: false, failedAccountIds: ['acc-2'] });
+    });
+
+    it('does not keep results of another query, folder or a failed search', async () => {
+      await searched(searchScope('report'), [summary('a')]);
+      void store.load(searchScope('lunch', true));
+      expect(store.searchingServer()).toBe(false);
+      expect(store.items()).toBeNull();
+      expect(store.searchResult()).toBeNull();
+
+      await searched(searchScope('report'), [summary('a')]);
+      void store.load(searchScope('report', true, OTHER));
+      expect(store.items()).toBeNull();
+
+      const failing = store.load(searchScope('report'));
+      mail.searches.at(-1)!.reject(new ApiError(500, 'Error', 'Search broke'));
+      await failing;
+      void store.load(searchScope('report', true));
+      expect(store.searchingServer()).toBe(false);
+      expect(store.loadError()).toBeNull();
+      expect(store.items()).toBeNull();
+    });
+
+    it('replaces the kept results with the load error when the server search fails', async () => {
+      await searched(searchScope('report'), [summary('a')]);
+      const done = store.load(searchScope('report', true));
+      mail.searches[1].reject(new ApiError(504, 'Gateway Timeout', 'Mail server too slow'));
+      await done;
+      expect(store.items()).toBeNull();
+      expect(store.searchResult()).toBeNull();
+      expect(store.loadError()).toBe('Mail server too slow');
+      expect(store.searchingServer()).toBe(false);
+    });
+
+    it('reloads the search after an error (Try again)', async () => {
+      const failing = store.load(searchScope('report'));
+      mail.searches[0].reject(new ApiError(500, 'Error', 'Search broke'));
+      await failing;
+      const again = store.reload();
+      expect(store.loadError()).toBeNull();
+      expect(mail.searches[1]).toMatchObject({ query: 'report', folderId: INBOX });
+      mail.searches[1].resolve({ items: [summary('a')], hasMore: false, failedAccountIds: [] });
+      await again;
+      expect(ids()).toEqual(['a']);
+    });
+
+    it('ignores the answer of a search left before it arrived', async () => {
+      const search = store.load(searchScope('report', true));
+      const list = store.load({ folderId: INBOX, threaded: false });
+      expect(store.searchingServer()).toBe(false);
+      mail.lists[0].resolve({ items: [summary('x')], nextCursor: null });
+      await list;
+      mail.searches[0].resolve({
+        items: [summary('a')],
+        hasMore: true,
+        failedAccountIds: ['acc-2'],
+      });
+      await search;
+      expect(ids()).toEqual(['x']);
+      expect(store.searchResult()).toBeNull();
+      expect(store.searchingServer()).toBe(false);
+    });
+
+    it('returns to the folder list with no search extras', async () => {
+      await searched(searchScope('report', true), [summary('a')], {
+        hasMore: true,
+        failedAccountIds: ['acc-2'],
+      });
+      await loaded([summary('x'), summary('y')]);
+      expect(ids()).toEqual(['x', 'y']);
+      expect(store.searchResult()).toBeNull();
+      expect(store.scope().search).toBeUndefined();
+    });
+
+    it('does not refetch search results on refresh() nor on change events', async () => {
+      await searched(searchScope('report'), [summary('a')]);
+      await store.refresh();
+      expect(mail.lists).toEqual([]);
+      expect(mail.searches).toHaveLength(1);
+
+      vi.useFakeTimers();
+      try {
+        events.changes.next({ at: '', op: 'UPDATED', id: INBOX, type: MAIL_FOLDER_EVENT });
+        events.resync$.next();
+        await vi.advanceTimersByTimeAsync(REFRESH_DEBOUNCE_MS);
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(mail.lists).toEqual([]);
+      expect(mail.searches).toHaveLength(1);
+    });
+
+    it('changes search results optimistically on an action, without refetching on failure', async () => {
+      await searched(searchScope('report'), [summary('a'), summary('b')]);
+      const done = store.apply('ARCHIVE');
+      await flush();
+      expect(ids()).toEqual(['b']);
+      mail.applies[0].reject(new ApiError(503, 'Service Unavailable', 'Unreachable'));
+      await done;
+      await flush();
+      expect(ids()).toEqual(['a', 'b']);
+      expect(mail.lists).toEqual([]);
+      expect(mail.searches).toHaveLength(1);
+    });
+  });
+
   describe('conversation actions', () => {
     const threaded: MailScope = { folderId: INBOX, threaded: true };
 

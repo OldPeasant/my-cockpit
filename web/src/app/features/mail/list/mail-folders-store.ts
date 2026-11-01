@@ -129,13 +129,12 @@ export class MailFoldersStore {
     accountId: string,
     change: (folders: MailFolderResponse[]) => MailFolderResponse[],
   ): void {
-    this.trees.update(
-      (trees) =>
-        trees?.map((tree) =>
-          tree.account.id === accountId
-            ? { ...tree, folders: folderTree(change(tree.folders.map((node) => node.folder))) }
-            : tree,
-        ) ?? null,
+    this.trees.update((trees) =>
+      trees?.map((tree) =>
+        tree.account.id === accountId
+          ? { ...tree, folders: folderTree(change(tree.folders.map((node) => node.folder))) }
+          : tree,
+      ) ?? null,
     );
   }
 

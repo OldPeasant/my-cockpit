@@ -74,6 +74,73 @@ describe('MailService', () => {
     expect(await page).toEqual({ items: [], nextCursor: 'cur-2' });
   });
 
+  describe('search', () => {
+    it('searches all folders (no folderId), cached only (no server flag), silently', async () => {
+      const result = service.search('invoice', null, false);
+      const req = await request('/api/v1/mail/search');
+      expect(req.request.method).toBe('GET');
+      expect(req.request.params.get('q')).toBe('invoice');
+      expect(req.request.params.has('folderId')).toBe(false);
+      expect(req.request.params.has('accountId')).toBe(false);
+      expect(req.request.params.has('server')).toBe(false);
+      expect(req.request.params.get('limit')).toBe(String(MAIL_PAGE_SIZE));
+      expect(req.request.context.get(SILENT_ERRORS)).toBe(true);
+      req.flush({ items: [summary('a'), { subject: 'no id' }, summary('b')], server: null });
+      expect(await result).toEqual({
+        items: [summary('a'), summary('b')],
+        hasMore: false,
+        failedAccountIds: [],
+      });
+    });
+
+    it('searches one folder on the server and maps failures to account ids', async () => {
+      const result = service.search('report', 'f-1', true, 20);
+      const req = await request('/api/v1/mail/search');
+      expect(req.request.params.get('q')).toBe('report');
+      expect(req.request.params.get('folderId')).toBe('f-1');
+      expect(req.request.params.get('server')).toBe('true');
+      expect(req.request.params.get('limit')).toBe('20');
+      req.flush({
+        items: [summary('a')],
+        hasMore: true,
+        server: {
+          failures: [
+            { accountId: 'acc-2', errorCode: 'TIMEOUT', message: 'Timed out' },
+            { errorCode: 'TLS_FAILED' },
+            { accountId: 'acc-3', errorCode: 'AUTHENTICATION_FAILED' },
+          ],
+          loaded: 3,
+          searchedFolders: 4,
+        },
+      });
+      expect(await result).toEqual({
+        items: [summary('a')],
+        hasMore: true,
+        failedAccountIds: ['acc-2', 'acc-3'],
+      });
+    });
+
+    it('answers an empty response with no items and no failures', async () => {
+      const result = service.search('nothing', null, true);
+      const req = await request('/api/v1/mail/search');
+      req.flush({ server: { searchedFolders: 2 } });
+      expect(await result).toEqual({ items: [], hasMore: false, failedAccountIds: [] });
+    });
+
+    it('rejects a failed search with the ApiError, without a toast', async () => {
+      const result = service.search('x', null, false);
+      const req = await request('/api/v1/mail/search');
+      req.flush(
+        { status: 400, title: 'Bad Request', detail: 'Query too long' },
+        { status: 400, statusText: 'Bad Request' },
+      );
+      const error = await result.catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(ApiError);
+      expect((error as ApiError).userMessage).toBe('Query too long');
+      expect(notifications.error).not.toHaveBeenCalled();
+    });
+  });
+
   it('loads the conversation of a message, dropping entries without id', async () => {
     const thread = service.thread('m-1');
     const req = await request('/api/v1/mail/messages/m-1/thread');

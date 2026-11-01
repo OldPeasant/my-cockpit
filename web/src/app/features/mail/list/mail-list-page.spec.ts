@@ -728,6 +728,321 @@ describe('MailListPage', () => {
     if (now.getMonth() !== 0 || now.getDate() !== 1) expect(times[1]).toBe('Jan 1');
   });
 
+  describe('search', () => {
+    const field = () =>
+      el().querySelector<HTMLInputElement>('form[role="search"] input[type="search"]')!;
+    const serverBox = () =>
+      el().querySelector<HTMLInputElement>('form[role="search"] input[type="checkbox"]')!;
+    const subjects = () => rows().map((row) => row.querySelector('.subject')?.textContent);
+    const info = () => el().querySelector('.search-info');
+
+    /** Types `text` into the field and presses Enter (submits the form). */
+    async function submit(text: string) {
+      field().value = text;
+      field().dispatchEvent(new Event('input'));
+      const event = new Event('submit', { cancelable: true });
+      field().form!.dispatchEvent(event);
+      await flush();
+      fixture.detectChanges();
+      return event;
+    }
+
+    async function answer(
+      items: MailSummary[],
+      extra: { hasMore?: boolean; failedAccountIds?: string[] } = {},
+      index = mail.searches.length - 1,
+    ) {
+      mail.searches[index].resolve({
+        items,
+        hasMore: extra.hasMore ?? false,
+        failedAccountIds: extra.failedAccountIds ?? [],
+      });
+      await flush();
+      fixture.detectChanges();
+    }
+
+    const found = [
+      summary('n', { subject: 'Newer report', receivedAt: '2026-10-22T10:00:00Z' }),
+      summary('o', { subject: 'Older report', receivedAt: '2026-10-01T10:00:00Z' }),
+    ];
+
+    it('searches the shown folder on Enter and lists the results in its order', async () => {
+      await create();
+      expect(field().getAttribute('aria-label')).toBe('Search mail');
+      const event = await submit('  report ');
+      expect(event.defaultPrevented).toBe(true);
+      expect(mail.searches).toHaveLength(1);
+      expect(mail.searches[0]).toMatchObject({
+        query: 'report',
+        folderId: 'inbox-1',
+        server: false,
+      });
+      // The list is loading the results, not showing the folder's messages.
+      expect(rows()).toEqual([]);
+      expect(el().querySelector('.note[role="status"]')?.textContent?.trim()).toBe(
+        'Loading messages…',
+      );
+      await answer(found);
+      expect(subjects()).toEqual(['Newer report', 'Older report']);
+      expect(info()?.querySelector('.search-for')?.textContent).toBe('Results for “report”');
+      expect(info()?.querySelector('.search-warning')).toBeNull();
+      expect(info()?.textContent).not.toContain('Only the newest results');
+      expect(rows()[0].getAttribute('aria-current')).toBe('true');
+    });
+
+    it('searches all folders from the unified Inbox', async () => {
+      await create(null);
+      await submit('report');
+      expect(mail.searches[0]).toMatchObject({ query: 'report', folderId: null, server: false });
+    });
+
+    it('shows results flat even in the Conversations view', async () => {
+      localStorage.setItem(THREADED_KEY, 'true');
+      await create();
+      await submit('report');
+      await answer([summary('t', { threadSize: 3, threadUnread: 0, seen: false })]);
+      expect(rows()[0].querySelector('.thread-size')).toBeNull();
+      // Unread comes from the message itself, not from its conversation.
+      expect(rows()[0].classList).toContain('unread');
+    });
+
+    it('opens a result in the read view', async () => {
+      await create();
+      await submit('report');
+      await answer(found);
+      const link = rows()[1].querySelector<HTMLAnchorElement>('a.open')!;
+      expect(link.getAttribute('href')).toBe('/mail/messages/o');
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+      link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+      expect(
+        navigate.mock.calls.map(([url]) => TestBed.inject(Router).serializeUrl(url as never)),
+      ).toEqual(['/mail/messages/o']);
+    });
+
+    it('says "No messages found" when nothing matches', async () => {
+      await create();
+      await submit('zzz');
+      await answer([]);
+      expect(el().querySelector('p.empty')?.textContent?.trim()).toBe('No messages found');
+      expect(rows()).toEqual([]);
+    });
+
+    it('shows a failed search with Try again, which searches again', async () => {
+      await create();
+      await submit('report');
+      mail.searches[0].reject(new ApiError(500, 'Server error', 'Search index unavailable'));
+      await flush();
+      fixture.detectChanges();
+      const alert = el().querySelector('.load-error[role="alert"]')!;
+      expect(alert.textContent).toContain('Search index unavailable');
+      alert.querySelector('button')!.click();
+      fixture.detectChanges();
+      expect(el().querySelector('.load-error')).toBeNull();
+      expect(mail.searches).toHaveLength(2);
+      expect(mail.searches[1]).toMatchObject({ query: 'report', folderId: 'inbox-1' });
+      expect(mail.lists).toHaveLength(1);
+      await answer(found);
+      expect(subjects()).toEqual(['Newer report', 'Older report']);
+    });
+
+    it('hints that only the newest results are listed when there are more', async () => {
+      await create();
+      await submit('report');
+      await answer(found, { hasMore: true });
+      expect(info()?.textContent).toContain(
+        'Only the newest results are listed. Refine the search to find older ones.',
+      );
+    });
+
+    it('repeats the search on the server, keeping the cached results until it answers', async () => {
+      await create();
+      await submit('report');
+      await answer(found);
+      serverBox().click();
+      fixture.detectChanges();
+      expect(mail.searches[1]).toMatchObject({
+        query: 'report',
+        folderId: 'inbox-1',
+        server: true,
+      });
+      expect(subjects()).toEqual(['Newer report', 'Older report']);
+      expect(info()?.textContent).toContain('Searching on the server…');
+
+      await answer([...found, summary('old', { subject: 'Ancient report' })], {
+        failedAccountIds: ['acc-2'],
+      });
+      expect(subjects()).toEqual(['Newer report', 'Older report', 'Ancient report']);
+      expect(info()?.textContent).not.toContain('Searching on the server…');
+      const warning = info()?.querySelector('.search-warning[role="status"]');
+      expect(warning?.textContent).toContain('acc-2@example.test');
+      expect(warning?.textContent).toContain('could not be searched');
+      // Non-blocking: no alert, the results stay usable.
+      expect(el().querySelector('[role="alert"]')).toBeNull();
+    });
+
+    it('names several failed accounts, and an unknown one generically', async () => {
+      await create(null);
+      serverBox().click();
+      fixture.detectChanges();
+      expect(mail.searches).toEqual([]);
+      await submit('report');
+      expect(mail.searches[0]).toMatchObject({ server: true, folderId: null });
+      await answer(found, { failedAccountIds: ['acc-1', 'acc-gone'] });
+      expect(info()?.querySelector('.search-warning')?.textContent).toContain(
+        'acc-1@example.test, an account',
+      );
+    });
+
+    it('shows the load error when the server search fails', async () => {
+      await create();
+      await submit('report');
+      await answer(found);
+      serverBox().click();
+      fixture.detectChanges();
+      mail.searches[1].reject(new ApiError(504, 'Gateway Timeout', 'Mail server too slow'));
+      await flush();
+      fixture.detectChanges();
+      expect(el().querySelector('.load-error')?.textContent).toContain('Mail server too slow');
+      expect(rows()).toEqual([]);
+    });
+
+    it('searches cached mail only again when the server option is turned off', async () => {
+      await create();
+      serverBox().click();
+      await submit('report');
+      await answer(found);
+      serverBox().click();
+      fixture.detectChanges();
+      expect(mail.searches[1]).toMatchObject({ query: 'report', server: false });
+      expect(rows()).toEqual([]);
+    });
+
+    it('returns to the folder list when the field is emptied', async () => {
+      await create();
+      await submit('report');
+      await answer(found);
+      field().value = '';
+      field().dispatchEvent(new Event('input'));
+      await flush();
+      fixture.detectChanges();
+      expect(info()).toBeNull();
+      expect(mail.lists[1].scope).toEqual({ folderId: 'inbox-1', threaded: false });
+      mail.lists[1].resolve({ items: [summary('a', { subject: 'Report' })], nextCursor: null });
+      await flush();
+      fixture.detectChanges();
+      expect(subjects()).toEqual(['Report']);
+    });
+
+    it('returns to the folder list when a blank query is submitted', async () => {
+      await create();
+      await submit('report');
+      await answer(found);
+      await submit('   ');
+      expect(mail.searches).toHaveLength(1);
+      expect(mail.lists).toHaveLength(2);
+      expect(info()).toBeNull();
+    });
+
+    it('does nothing for a blank query without a search', async () => {
+      await create();
+      await submit('  ');
+      expect(mail.searches).toEqual([]);
+      expect(mail.lists).toHaveLength(1);
+    });
+
+    it('empties the field and returns to the folder list on Escape', async () => {
+      await create();
+      await submit('report');
+      await answer(found);
+      listStore().toggleSelected('n');
+      fixture.detectChanges();
+      const event = press('Escape', {}, field());
+      await flush();
+      fixture.detectChanges();
+      expect(event.defaultPrevented).toBe(true);
+      expect(field().value).toBe('');
+      expect(info()).toBeNull();
+      expect(mail.lists[1].scope).toEqual({ folderId: 'inbox-1', threaded: false });
+    });
+
+    it('focuses the field with /, without typing it', async () => {
+      await create();
+      const event = press('/');
+      expect(event.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(field());
+      expect(el().querySelector('.keys')?.textContent).toContain('/ search');
+    });
+
+    it('leaves / with modifiers, in other fields and while a dialog is open alone', async () => {
+      await create();
+      const other = document.createElement('input');
+      document.body.appendChild(other);
+      try {
+        other.focus();
+        expect(press('/', {}, other).defaultPrevented).toBe(false);
+        expect(document.activeElement).toBe(other);
+        expect(press('/', { ctrlKey: true }).defaultPrevented).toBe(false);
+        const dialog = TestBed.inject(MatDialog) as unknown as { openDialogs: unknown[] };
+        dialog.openDialogs.push({});
+        expect(press('/').defaultPrevented).toBe(false);
+        expect(document.activeElement).toBe(other);
+      } finally {
+        other.remove();
+      }
+    });
+
+    it('does not run list shortcuts while typing in the field', async () => {
+      await create();
+      press('/');
+      for (const key of ['j', 'k', 'x', 'e', 's', 'u', 'v', 'o', '/']) {
+        expect(press(key, {}, field()).defaultPrevented).toBe(false);
+      }
+      expect(press('#', { shiftKey: true }, field()).defaultPrevented).toBe(false);
+      await flush();
+      fixture.detectChanges();
+      expect(mail.applies).toEqual([]);
+      expect(dialogOpened).toEqual([]);
+      expect(rows()[0].getAttribute('aria-current')).toBe('true');
+      expect(rows().some((row) => row.classList.contains('selected'))).toBe(false);
+    });
+
+    it('clears the search when another folder is opened, keeping the server option', async () => {
+      await create();
+      serverBox().click();
+      await submit('report');
+      await answer(found);
+      params.next(convertToParamMap({ folderId: 'proj-1' }));
+      await flush();
+      fixture.detectChanges();
+      expect(field().value).toBe('');
+      expect(info()).toBeNull();
+      expect(mail.lists[1].scope).toEqual({ folderId: 'proj-1', threaded: false });
+      expect(serverBox().checked).toBe(true);
+      await submit('lunch');
+      expect(mail.searches[1]).toMatchObject({ query: 'lunch', folderId: 'proj-1', server: true });
+    });
+
+    it('does not refetch results on a live change event', async () => {
+      await create();
+      await submit('report');
+      await answer(found);
+      vi.useFakeTimers();
+      try {
+        events.changes.next({
+          at: '2026-10-21T08:00:00Z',
+          op: 'UPDATED',
+          id: 'inbox-1',
+          type: MAIL_FOLDER_EVENT,
+        });
+        await vi.advanceTimersByTimeAsync(REFRESH_DEBOUNCE_MS);
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(mail.lists).toHaveLength(1);
+      expect(mail.searches).toHaveLength(1);
+    });
+  });
+
   describe('live updates (SSE)', () => {
     // Fake timers only after the page has loaded: the debounce of change events is then
     // controlled by the test instead of waiting for real time.

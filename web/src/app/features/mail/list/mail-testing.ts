@@ -1,6 +1,6 @@
 import { filter, Subject } from 'rxjs';
 import { ChangeEvent, MailAccountResponse, MailFolderResponse } from '../../../api/generated';
-import { MailAction, MailPage, MailScope, MailSummary } from './mail.service';
+import { MailAction, MailPage, MailScope, MailSearchResult, MailSummary } from './mail.service';
 
 // Test doubles of the mail list specs.
 
@@ -43,6 +43,19 @@ export class FakeMail {
     reject: (e: unknown) => void;
   }[] = [];
   threads = new Map<string, MailSummary[]>();
+  searches: {
+    query: string;
+    folderId: string | null;
+    server: boolean;
+    resolve: (result: MailSearchResult) => void;
+    reject: (e: unknown) => void;
+  }[] = [];
+
+  search(query: string, folderId: string | null, server: boolean): Promise<MailSearchResult> {
+    return new Promise((resolve, reject) =>
+      this.searches.push({ query, folderId, server, resolve, reject }),
+    );
+  }
 
   list(scope: MailScope, cursor?: string, limit?: number): Promise<MailPage> {
     return new Promise((resolve, reject) =>

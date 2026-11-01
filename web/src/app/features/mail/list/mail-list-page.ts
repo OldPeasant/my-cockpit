@@ -40,7 +40,7 @@ export const THREADED_KEY = 'cockpit.mail.threaded';
   imports: [DatePipe, MailFolderTree, MatButtonModule, RouterLink],
   providers: [MailListStore, MailFoldersStore],
   templateUrl: './mail-list-page.html',
-  styleUrl: './mail-list-page.scss',
+  styleUrls: ['./mail-list-page.scss', './mail-list-search.scss'],
   host: { '(document:keydown)': 'onKeydown($event)' },
 })
 export default class MailListPage {
