@@ -17,10 +17,11 @@ Seen in `reviews/p3-smoke/tests.md`, `reviews/web-contacts/fixes.md`, `reviews/w
 and by the owner while closing h-prod-p2. Make the check reliable under load without hiding real failures.
 
 ## Acceptance criteria
-- [ ] A test that times out no longer breaks the following tests of its file: the TestBed is reset (and pending
+- [x] A test that times out no longer breaks the following tests of its file: the TestBed is reset (and pending
       HTTP expectations/timers cleaned up) even after a timeout, e.g. via a global setup file for the Angular
       unit-test builder. Demonstrated with a temporary spec that times out in its first test: the file reports
       exactly that one failure, the next tests pass (then remove the demo spec)
+  - verified (2026-11-01 22:15+0100 by dell26/agent-1): temp spec web/src/app/zz-timeout-demo.spec.ts (first test sets fake timers, leaves an HttpTestingController request open and never resolves, 300 ms timeout; afterEach http.verify(); then 4 TestBed tests), ng test --watch=false --include it: old config (angular.json from f7c452d10, no setupFiles) -> 5 failed of 5 ('Cannot configure the test module...'); new config (src/test-setup.ts resets TestBed + real timers in a global beforeEach) -> 1 failed (timeout + verify error), 4 passed. Demo spec removed
 - [ ] Timeouts suit a shared host: the unit-test runner uses a higher default test and hook timeout (e.g. 15-20 s)
       and/or a bounded number of workers, set in the builder/Vitest config, not per test. Record the chosen values
       and the reason with `tasks.py assume`
