@@ -5,8 +5,10 @@ owner:
 deps: [p4-smoke,h-oauth-apps,h-prod-p2]
 quality: exempt
 quality_reason: human verification task, no code
-hold: HUMAN TASK for the owner: deploy phase 4, connect real calendars
+hold: 
 prio: 2
+releases: 0
+extended: 
 ---
 ## Goal
 Owner verifies two-way sync with a real Google calendar (Microsoft deferred, ADR 0003).
