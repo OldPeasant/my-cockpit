@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "task": "web-tests-load-robust",
+  "reviewed_revision": "a57d4baa186723b4f4a11f85042166ae99d89a7c",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-tests-load-robust/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-tests-load-robust/review.md"},
+    "fixer": {"status": "not_required", "reason": "no P0-P2 findings and no bugs; the two P3 test-ergonomics findings are accepted"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "REAL_FILE_TIMEOUT equal to the 20 s test timeout only affects the error text when the real-file upload test stalls (test timeout instead of the waitFor message); the test still fails, so no failure is hidden"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "the order dependence of test-setup.spec.ts is intentional (it checks state left by the previous test) and documented in the file comment; it passes in every full-file run, which is how the check runs it"}
+  ],
+  "validation": [
+    {"command": "cd web && npm run test:ci (3 runs under stress-ng load, see criterion 4)", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
