@@ -1357,6 +1357,52 @@ describe('MailReadPage', () => {
         'The message could not be archived: Something went wrong.',
       );
     });
+
+    it('reports a refusal without a reason, or a missing result, in general words', async () => {
+      await open();
+      mail.answer = [{ id: ID, ok: false }];
+      press('!');
+      await flush();
+      expect(notifications.error).toHaveBeenLastCalledWith(
+        'The message could not be marked as spam: Something went wrong.',
+      );
+      mail.answer = [];
+      press('e');
+      await flush();
+      expect(notifications.error).toHaveBeenLastCalledWith(
+        'The message could not be archived: Something went wrong.',
+      );
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('can mark as spam after archiving failed, and then returns to the list', async () => {
+      await open();
+      mail.answer = [{ id: ID, ok: false, error: 'NO_ROLE_FOLDER', detail: 'No Archive folder' }];
+      press('e');
+      await flush();
+      expect(navigate).not.toHaveBeenCalled();
+      mail.answer = [{ id: ID, ok: true }];
+      press('!');
+      await flush();
+      expect(mail.applies).toEqual([
+        { action: 'ARCHIVE', ids: [ID] },
+        { action: 'SPAM', ids: [ID] },
+      ]);
+      expect(navigate).toHaveBeenCalledExactlyOnceWith('/mail', { replaceUrl: true });
+    });
+
+    it('does not navigate when the page was left while marking as spam ran', async () => {
+      await open();
+      const pending = deferred<ActionAnswer>();
+      mail.answer = pending.promise;
+      button('Spam')!.click();
+      fixture.destroy();
+      pending.resolve([{ id: ID, ok: true }]);
+      await flush();
+      expect(mail.applies).toEqual([{ action: 'SPAM', ids: [ID] }]);
+      expect(navigate).not.toHaveBeenCalled();
+      expect(notifications.error).not.toHaveBeenCalled();
+    });
   });
 });
 
