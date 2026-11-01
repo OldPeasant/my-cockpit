@@ -14,7 +14,8 @@ The Logbook (done tasks, SPEC.md §5) exists on the web only. Use `GET /api/v1/t
 ## Acceptance criteria
 - [x] Logbook is reachable from the More screen (next to Projects/Waiting/Someday) and lists completed tasks newest first, grouped by completion day, with project/context where set; loads more on scroll if the API pages
   - verified (2026-11-01 20:19+0100 by dell26/agent-2): cd android && ./gradlew testDebugUnitTest (LogbookViewModelTest 32 tests, LogbookScreenTest, repository/destination tests: More entry after Someday, newest-first grouped by local completion day, project/context text, paging on scroll) -> pass, 2667 tests 0 failures
-- [ ] Tapping a task opens it as in the other GTD lists; a "Reopen" action uncompletes it and it leaves the Logbook
+- [x] Tapping a task opens it as in the other GTD lists; a "Reopen" action uncompletes it and it leaves the Logbook
+  - verified (2026-11-01 20:19+0100 by dell26/agent-2): cd android && ./gradlew testDebugUnitTest: LogbookScreenTest tap opens detail dialog, Reopen row/dialog action; LogbookViewModelTest reopen calls uncomplete with If-Match and removes task, conflict reloads -> pass (no Android task detail view exists; read-only detail dialog, see assumption)
 - [ ] Loading, empty and error states follow the existing GTD list screens
 - [ ] All new UI strings exist in English and German (`res/values`, `res/values-de`)
 - [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
