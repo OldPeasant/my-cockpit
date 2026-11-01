@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "task": "and-mail-folder-manage",
+  "reviewed_revision": "43b25565fa59408be58d06af6a722dd68c7c557d",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-mail-folder-manage/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-mail-folder-manage/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-mail-folder-manage/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (first review)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "load() and reloadFolders() could restore an older folder snapshot; fixed with folderGeneration + folderJob in 43b25565f (fixes.md CR-1)"},
+    {"id": "CR-2 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "404 on rename/delete now reloads the folders and shows the folder-changed message (fixes.md CR-2)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "same defect as first-review CR-1; MailFolderManageReloadRaceTest passes unchanged after the fix"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "shown folder already gone elsewhere (404/412 on delete) keeps the screen on it until the user picks another mailbox; needs a concurrent external change, not named by the criteria; recorded as assumption"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "no test for two overlapping folder reloads finishing in reverse order; the reported race is covered by MailFolderManageReloadRaceTest and the guard was reviewed; test gap recorded in tests.md"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
