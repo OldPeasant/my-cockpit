@@ -28,10 +28,11 @@ management yet; record the decisions below with `tasks.py assume`.
       sync already does for vanished folders. INBOX and folders with a role (Archive, Trash, Drafts, Sent, Spam) cannot
       be deleted: 409 Problem. INBOX cannot be renamed either
   - verified (2026-11-01 07:11+0100 by dell26/agent-2): cd server && ./gradlew integrationTest --tests '*Folder*GreenMail*' --rerun -> 13/13 passed; ./gradlew check --rerun-tasks -> BUILD SUCCESSFUL; covers delete with subfolders (messages detached, linked kept), INBOX/role/role-subtree delete -> 409
-- [ ] Errors as Problem Details: empty name or a name containing the delimiter -> 400; name already taken under that
+- [x] Errors as Problem Details: empty name or a name containing the delimiter -> 400; name already taken under that
       parent -> 409; unknown account or folder -> 404; stale or missing If-Match -> 412/428; unreachable server or a
       command the server rejects -> 502 with `errorCode` (shared mail connection handler). Each change publishes the
       account's folder change event, so open clients refresh the folder tree
+  - verified (2026-11-01 07:11+0100 by dell26/agent-2): cd server && ./gradlew integrationTest --tests '*Folder*GreenMail*' --rerun -> 13/13 passed; ./gradlew check --rerun-tasks -> BUILD SUCCESSFUL (MailFolderManageWebTests 11 passed); covers 400 blank/delimiter/null name, 409 taken, 404, 412/428, 502 SERVER_REJECTED, MAIL_FOLDER events
 - [ ] `api/openapi.yaml` and the web client regenerated (`api/README.md`); GreenMail integration tests for create
       (top level and nested), rename with subfolders and messages (ids kept), delete (messages detached, linked ones
       kept), and the refused cases; `cd server && ./gradlew check` and
