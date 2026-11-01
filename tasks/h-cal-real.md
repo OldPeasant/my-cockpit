@@ -16,6 +16,7 @@ Owner verifies two-way sync with a real Google calendar (Microsoft deferred, ADR
 
 ## Acceptance criteria
 - [x] Event created in the cockpit appears in Google within seconds; a Google change appears in ≤ 5 min
+  - verified (2026-11-01 21:48+0100 by Peter Gürtler): Real Google calendar connected; event created in cockpit appeared in Google within seconds, Google change appeared in cockpit within 5 min -> works
 
 ## Notes
 - release by dell26/agent-2: Auto-claimed by agent-2 by mistake: h-* tasks are human-only (owner must verify with a real Google calendar). No work done.
