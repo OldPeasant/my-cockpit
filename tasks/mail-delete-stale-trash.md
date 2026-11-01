@@ -35,6 +35,7 @@ works for some messages and fails for others.
       NOT_FOUND, and after the background sync the row is no longer cached. Run with
       `cd server && ./gradlew integrationTest --tests '*MailActionGreenMailTests*'`
   - verified (2026-11-01 08:53+0100 by dell26/agent-1): cd server && ./gradlew integrationTest --tests '*MailActionGreenMailTests*' (GreenMail, at aedab811d) -> BUILD SUCCESSFUL, 20 tests 0 failures, incl. (a) 'a delete in Trash of a message another client already deleted there is ok and removes the row', (b) 'a delete in Trash of present and already gone messages reports all ok', (c) 'a move of a message another client deleted fails with NOT_FOUND and a background sync drops the row'
+  - verified (2026-11-01 09:30+0100 by dell26/agent-1): cd server && ./gradlew integrationTest --tests '*MailActionGreenMailTests*' (GreenMail, at 32f302f07, production code identical to final c63607475) -> BUILD SUCCESSFUL, 20 tests 0 failures incl. (a), (b), (c)
 - [ ] Unit tests in `MailActionServiceTests` for the new outcomes; `cd server && ./gradlew check` passes
 
 ## Notes
