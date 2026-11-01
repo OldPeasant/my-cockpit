@@ -1,11 +1,11 @@
 ---
 title: Mail read view: Archive and Spam buttons
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [web-mail-read-delete]
 touches: [web/src/app/features/mail/read]
 prio: 2
-lease_until: 2026-11-01T08:35:05Z
+lease_until: 
 ---
 ## Goal
 The mail read view (`/mail/messages/:id`) gets Archive and Spam buttons next to the Delete button from
@@ -29,3 +29,4 @@ The Android read view already has Archive and Delete.
 Reuse the Delete button's action code from web-mail-read-delete instead of duplicating it. Move is not in scope.
 - ASSUMPTION (2026-11-01 08:43+0100 by dell26/agent-2): Added the 6 new mailRead.* trans-units by hand to web/src/locale/messages.xlf and messages.de.xlf (outside touches, needed for i18n): a full 'npm run i18n:extract' would also pull in another task's unextracted calendar.invite.* units. German: 'Archivieren', 'Spam', as in the mail list.
 - ASSUMPTION (2026-11-01 09:15+0100 by dell26/agent-2): npm run build:de fails on main, but only because of 16 missing calendar.invite.* translations from another task; the mailRead.* units this task added are all translated. Not fixed here (outside touches).
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 64s on 508ea993c; criteria verified 4/4
