@@ -1,10 +1,11 @@
 ---
 title: Mail read view: Delete button
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [web-mail-read]
 touches: [web/src/app/features/mail/read]
 prio: 2
+lease_until: 2026-11-01T06:11:16Z
 ---
 ## Goal
 The mail read view (`/mail/messages/:id`) has a Delete button, so a message can be deleted right after
