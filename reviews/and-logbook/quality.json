@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "and-logbook",
+  "reviewed_revision": "5e312ada0a7e2252aeafa509c767df829146fd78",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-logbook/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-logbook/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-logbook/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (first review)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "Logbook reloaded on task changes while off screen; reload pipeline now runs only while uiState is subscribed (WhileSubscribed), see fixes.md CR-1"},
+    {"id": "CR-1 (final review)", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "Test-only: the 'late answer is ignored' assertion in one new ViewModel test reads a frozen StateFlow value; the behaviour itself (collectLatest cancels the old reload) and the reload-on-return checks remain covered, so not worth another fix/review round"},
+    {"id": "TW-obs-1", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "Observation, not a defect: a load-more page answering during a running reload is dropped and reloaded on next scroll; consistent state, pinned by a test, reviewer agreed"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}

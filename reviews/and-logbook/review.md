@@ -4,21 +4,21 @@ Date: 2026-11-01
 
 Task: and-logbook - Android: Logbook (completed tasks, reopen)
 
-Scope: `git diff b5f069cdf..HEAD -- android` (implementation commit 456b21f81, tests commit cd9c8f334); committed changes only, working tree clean
+Scope: `git diff 8d50027a3..HEAD -- android` (implementation eb6d01264, tests 5cced38c5, fix df97a5273 for the earlier CR-1, test-only commit 5e312ada0); committed changes only
 
 Requirements:
-- `tasks/and-logbook.md` acceptance criteria and its three recorded assumptions (detail dialog with Reopen; pages of 50 and reload of as many pages as shown; Logbook in More right after Someday)
+- `tasks/and-logbook.md` acceptance criteria and its three recorded assumptions (read-only detail dialog with Reopen; pages of 50, reload of as many pages as shown, not cached offline; Logbook in More right after Someday)
 - `AGENTS.md` project notes and conventions; `docs/ARCHITECTURE.md` conventions
-- Existing GTD list screens for comparison: `LiveTaskListViewModel`, `WaitingViewModel`, `SomedayViewModel` (`ListViewModels.kt`), `LiveTaskListContent` and helpers (`ListUi.kt`), `TaskCompletionRepository` (`gtd/next/TaskCompletion.kt`), `GtdRefreshTriggers` (`gtd/data/GtdRefresh.kt`)
-- Server contract: `TaskController.listTasks` (`completed=true`, cursor, limit 1-200), `POST /tasks/{id}/uncomplete` with If-Match via `TaskCompletionRepository.undo`
+- Earlier review (`reviews/and-logbook/review.md` at 70b9a904d) and fix report `reviews/and-logbook/fixes.md`
+- Existing GTD list screens for comparison: `LiveTaskListViewModel` (`ListViewModels.kt`), `ListUi.kt` helpers, `TaskCompletionRepository`, `GtdRefreshTriggers`
 
 Git range:
 - Branch: main
-- HEAD: cd9c8f3344ab16387760723a56eec4b25dfa71de
-- Base/start: b5f069cdf0dd7b8a3808f7b25951e89fcb91f3e1
-- Commits reviewed: 2 (456b21f81, cd9c8f334; the three `assume:` commits only touch `tasks/`)
+- HEAD: 5e312ada0a7e2252aeafa509c767df829146fd78
+- Base/start: 8d50027a3173f2e01426abf6611a01bc943dd06c
+- Commits reviewed: 5 (eb6d01264, 5cced38c5, 70b9a904d report only, df97a5273, 5e312ada0 test-only)
 
-Summary: 0 P0, 0 P1, 1 P2, 0 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
 ## P0 Critical
 
@@ -30,23 +30,25 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Logbook keeps reloading all shown pages on every task change while it is not on screen**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/lists/LogbookViewModel.kt:109`
-    - Category: Architecture
-    - Problem: The reload pipeline is started in `init` with `viewModelScope.launch { merge(repository.changes(), reloads).collectLatest { reload() } }`, so it runs for the whole lifetime of the view model, independent of whether the UI collects `uiState`. The view model is scoped to the Logbook's `NavBackStackEntry` (`CockpitShell.kt:141-153`), which stays alive while the user has opened search or another destination on top of it (`navController.navigate(...)`) and, through `navigateToTopLevel`'s `popUpTo(start) { saveState = true }`, also after switching to a bottom-bar tab (saved back-stack entries keep their ViewModelStore). During that time every TASK change event and every change-stream reconnect (`GtdRefreshTriggers.on`) triggers `reload()`, which issues up to `pagesLoaded` sequential `GET /tasks?completed=true` requests (50 tasks each) for a screen nobody sees. The existing live lists (`LiveTaskListViewModel`, `ListViewModels.kt:84-103`) drive their triggers inside the `uiState` upstream with `SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS)`, so they stop 5 s after the screen leaves; the Logbook's `uiState` uses `WhileSubscribed` too but only for projects/contexts, not for the reloads.
-    - Why it matters: Unnecessary network traffic and battery use on a phone after the Logbook was visited once, growing with how far the user scrolled (e.g. 10 pages -> 10 requests per completed task anywhere in the app, including tasks completed on other devices). It also diverges from the established "load while shown" pattern of the GTD list screens and the task's own assumption #2 ("not cached ... reloads ... on task change events" while shown).
-    - Suggested fix: Tie the change collection to subscribers, e.g. move `merge(repository.changes(), reloads)` into the `uiState` upstream (a `channelFlow`/`onStart` side that runs `collectLatest { reload() }` and is combined with `state`) so it is cancelled by `WhileSubscribed(STOP_TIMEOUT_MS)` and resumes (with the immediate emission of `changes()`) when the screen is shown again. Add a ViewModel test that no page is requested after the last `uiState` subscriber is gone past the stop timeout and that a reload happens on resubscription.
+None.
 
 ## P3 Low
 
-None.
+- [ ] **CR-1 | "late answer is ignored" assertion reads the cached StateFlow value and cannot fail**
+    - File: `android/app/src/test/java/ch/sonensei/cockpit/gtd/lists/LogbookViewModelTest.kt:597`
+    - Category: Tests
+    - Problem: In `a first load cut off by leaving the screen loads again when shown again, and its late answer is ignored`, the check `assertEquals(emptyList<LoggedTask>(), vm.uiState.value.tasks)` runs after the last subscriber left and the stop timeout passed. At that point `uiState` (built with `stateIn(..., WhileSubscribed(...))`) no longer collects its upstream, so `.value` is the frozen last value and would stay empty even if the cancelled reload had written `old` into the internal state. The assertion after resubscribing cannot catch it either, because the new reload replaces `tasks` with `late, taxes`.
+    - Why it matters: The test name claims coverage of "its late answer is ignored", but no assertion would fail if that regressed. This is a small gap: in the current code the cancelled `page()` call never resumes.
+    - Suggested fix: Make the second `page(null)` call suspend on a second `CompletableDeferred`, resubscribe, and assert that `tasks` is still empty and `loading` is true before completing it. That reads fresh state through an active subscription. Otherwise rename the test so it does not claim this.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found. The single P3 is a minor test-quality improvement and does not block completion.
 
 Notes on items checked and not reported:
-- All five acceptance criteria are implemented: Logbook entry in More after Someday (`CockpitDestination.kt`, `CockpitShell.kt`), newest-first list grouped by local completion day with project/context text, paging on scroll with a retryable footer, detail dialog on tap plus a Reopen row/dialog action through `TaskCompletionRepository.undo` (If-Match with the listed version; 404/409/412 mapped to CONFLICT and reloads), loading/empty/error/stale states reusing `Centered`, `LoadFailed`, `StaleBanner` and `LiveListTags`, and 15 new strings present in both `values` and `values-de`. Project titles come from `ProjectRepository`, which caches projects of every status, so done tasks in completed projects still show their project.
-- The test-writer's observation (a "load more" page that answers before an already running reload is dropped again because the reload keeps the page count it computed at its start) is not reported: the reload result is consistent, `canLoadMore` stays true and the footer re-triggers loading when it becomes visible again (pinned by `a reload answering after a next page leaves a consistent list that can load more again`). The cost is one repeated page request in a rare race; no data is lost or duplicated (ids are de-duplicated before they reach the `LazyColumn` keys).
-- A "load more" started during a running reload (reload with `loaded=true` does not set `loading`) is appended after the reload with its own cursor; with the server's keyset cursor and id de-duplication this stays consistent (covered by `a next page answering after a running reload is appended once`).
-- Acceptance-criterion evidence: `python tasks.py verify and-logbook` shows all criteria still unrecorded at review time; recording them is the parent worker's step and not a finding against the code.
+- Earlier CR-1 (reloads while the Logbook is off screen) is resolved correctly. The `init` launch is gone; the reload pipeline is the private `reloading` flow (`LogbookViewModel.kt:108-112`), a `combine` input of `uiState` shared with `SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS)`, the same lifecycle as `LiveTaskListViewModel`. `reloading` emits `Unit` once so `combine` can produce values, then only runs `collectLatest { reload() }`; UI updates still come from `state`. On (re)subscription `GtdRefreshTriggers.on` emits once, so the screen loads exactly once with as many pages as were shown. A stop-timeout cancellation in the middle of `reload()` leaves a consistent state. A reload requested by `reopen` while nobody is subscribed is dropped by the unreplayed `reloads` flow, which is harmless because resubscription reloads.
+- Tests added in 5e312ada0 were reviewed. Two of them meaningfully pin the CR-1 behaviour: (1) no reload when coming back within the stop timeout, and a reload on a change afterwards; (3) a reopen finishing while off screen removes the task, clears `busy`, keeps the snackbar, and coming back reloads once. Test (2) is covered by CR-1 above, apart from its valid reload-on-return checks.
+- All five acceptance criteria are implemented in code: Logbook in More after Someday (`CockpitDestination.kt`, `CockpitShell.kt`); newest-first list grouped by local completion day with project/context text and Today/Yesterday headers; paging on scroll (`LoadMoreAtEnd`, including a short first page) with a retryable footer; detail dialog on tap and Reopen as row and dialog action via `TaskCompletionRepository.undo` (If-Match with the listed version, 404/409/412 mapped to CONFLICT plus reload); loading/empty/error/stale states reuse `Centered`, `LoadFailed`, `StaleBanner` and `LiveListTags`; 15 new strings in both `values` and `values-de` (`LogbookStringsTest` checks parity).
+- The paging races noted in the earlier review (a "load more" answering before or after a running reload) remain consistent thanks to id de-duplication and `canLoadMore`; they cost at most a repeated page request and are covered by tests.
+- Validation at 5e312ada0: `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` -> BUILD SUCCESSFUL. Gradle reported the tasks up to date, so the results come from the test-writer's build of the same inputs. `TEST-ch.sonensei.cockpit.gtd.lists.LogbookViewModelTest.xml` shows 32 tests, 0 failures, 0 errors, 0 skipped, including the three new tests.
+- `python tasks.py verify and-logbook` showed all five criteria still unrecorded at review time; recording evidence is the parent worker's step before `done` and is not a finding against the code.
