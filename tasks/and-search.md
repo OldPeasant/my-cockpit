@@ -1,11 +1,11 @@
 ---
 title: Android: global search
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [and-shell,p0-search-core,and-capture-button]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/search,android/app/src/main/java/ch/sonensei/cockpit/ui,android/app/src/test/java/ch/sonensei/cockpit/search,android/app/src/test/java/ch/sonensei/cockpit/ui,android/app/src/main/res/values/strings_search.xml,android/app/src/main/res/values-de/strings_search.xml]
 prio: 2
-lease_until: 2026-11-01T15:19:36Z
+lease_until: 
 ---
 ## Goal
 Global search (SPEC.md §4.4, web Ctrl+K) is missing on Android. Use the existing `GET /api/v1/search?q=&types=`;
@@ -26,3 +26,4 @@ server unchanged.
 ## Notes
 Requested by the owner (2026-11-01) after trying the Android app on the phone. If and-capture-button is in progress at the same time, both add app-bar actions in the shell: keep both.
 - ASSUMPTION (2026-11-01 15:53+0100 by dell26/agent-2): Search hits for notes, emails and contacts open in-app detail screens; tasks, projects, events (and other types) open their web deep link in the browser, because the Android project/event/task screens cannot yet be opened by item id from outside their own feature
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 86s on 2fd392dc1; criteria verified 5/5
