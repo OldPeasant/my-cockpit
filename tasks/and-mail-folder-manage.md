@@ -16,8 +16,9 @@ mail-folder-manage-api, like the web folder tree does (web-mail-folder-manage). 
       subfolder", "Rename" and "Delete" (e.g. long press or an overflow menu). Delete and Rename are not offered for
       INBOX, and Delete is not offered for folders with a role
   - verified (2026-11-01 08:22+0100 by dell26/agent-1): MailFolderManageScreenTest + ScreenEdgeCasesTest (Robolectric Compose) at 43b25565f: New folder per account, New subfolder/Rename/Delete per folder, no Rename/Delete for INBOX, no Delete for role folders -> pass; part of cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL, 2246 tests, 0 failures
-- [ ] New folder and Rename open a dialog with the name; server errors (name taken, invalid name, server unreachable)
+- [x] New folder and Rename open a dialog with the name; server errors (name taken, invalid name, server unreachable)
       are shown in the dialog, which stays open. After success the folder list shows the change at once
+  - verified (2026-11-01 08:22+0100 by dell26/agent-1): MailFolderManageScreenTest/ViewModelTest/EdgeCases at 43b25565f: create/rename dialogs; 409 taken, 400 invalid, 5xx/IO unreachable shown in the dialog which stays open; list updated at once on success, MailFolderManageReloadRaceTest keeps it against older snapshots -> pass; cd android && ./gradlew testDebugUnitTest -> 2246 tests, 0 failures
 - [ ] Delete asks for confirmation, saying that the folder's messages and subfolders are deleted on the mail server
       too. Deleting the folder that is currently shown switches to the unified Inbox
 - [ ] Rename and delete send the folder's ETag as If-Match; a 412 reloads the folders and shows a short message.
