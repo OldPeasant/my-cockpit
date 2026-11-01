@@ -11,8 +11,10 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import okhttp3.MediaType.Companion.toMediaType
@@ -256,6 +258,31 @@ class TrashRepositoryTest {
 
             gate.complete(Unit)
             assertEquals(listOf("TASK"), reloaded)
+        }
+
+    @Test
+    fun `the reload after a restore goes on when the screen that restored is gone`() =
+        runBlocking {
+            val started = CompletableDeferred<Unit>()
+            val gate = CompletableDeferred<Unit>()
+            val finished = CompletableDeferred<String>()
+            val slow =
+                TrashRepository(trashApi(), { type ->
+                    started.complete(Unit)
+                    gate.await()
+                    finished.complete(type)
+                }, appScope)
+            server.enqueue(status(204))
+            // Stands in for the view model scope, which is cancelled when the user leaves the Trash.
+            val screen = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+            val restored = screen.async { slow.restore(trashItem(1, "PROJECT")) }
+            assertEquals(TrashResult.Ok(Unit), restored.await())
+            withTimeout(5_000) { started.await() }
+            screen.cancel()
+
+            gate.complete(Unit)
+            assertEquals("PROJECT", withTimeout(5_000) { finished.await() })
         }
 
     @Test
