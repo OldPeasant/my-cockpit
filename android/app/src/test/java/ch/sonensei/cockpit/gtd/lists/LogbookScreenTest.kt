@@ -4,12 +4,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.gtd.data.GtdContext
 import ch.sonensei.cockpit.gtd.data.GtdTask
@@ -137,5 +141,120 @@ class LogbookScreenTest {
         show(loaded.copy(opened = taxes))
         composeRule.onNodeWithTag(LogbookTags.DETAIL_REOPEN).assertTextEquals("Wieder öffnen")
         composeRule.onNodeWithText("Projekt: Taxes 2026").assertIsDisplayed()
+    }
+
+    private fun waitForText(text: String) =
+        composeRule.waitUntil(TIMEOUT) { composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
+
+    @Test
+    fun `a reopened task is confirmed in a snackbar, then dismissed`() {
+        show(loaded.copy(action = ActionSnackbar(ActionSnackbar.Kind.REOPENED, "File taxes", ActionOutcome.DONE)))
+        waitForText("Reopened File taxes")
+        composeRule.waitUntil(TIMEOUT) { "dismiss File taxes" in calls }
+    }
+
+    @Test
+    fun `a conflicting reopen says the list shows the current state`() {
+        show(loaded.copy(action = ActionSnackbar(ActionSnackbar.Kind.REOPENED, "File taxes", ActionOutcome.CONFLICT)))
+        waitForText("This task was changed elsewhere. The list now shows its current state.")
+    }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `a reopened task is confirmed in German`() {
+        show(loaded.copy(action = ActionSnackbar(ActionSnackbar.Kind.REOPENED, "File taxes", ActionOutcome.DONE)))
+        waitForText("File taxes wieder geöffnet")
+    }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `german day headers, empty state and next page messages`() {
+        show(loaded.copy(canLoadMore = true, moreError = LoadError.OFFLINE))
+        composeRule.onNodeWithText("Heute").assertIsDisplayed()
+        composeRule.onNodeWithText("Gestern").assertIsDisplayed()
+        composeRule.onNodeWithText("Offline: ältere Aufgaben konnten nicht geladen werden.").assertExists()
+        state = LogbookUiState(loading = false, loaded = true)
+        composeRule.onNodeWithText("Noch nichts erledigt. Aufgaben, die du abschließt, erscheinen hier.").assertIsDisplayed()
+    }
+
+    @Test
+    fun `an older day shows its full date`() {
+        show(loaded)
+        composeRule.onNodeWithTag(LogbookTags.day(LocalDate.of(2026, 10, 1))).assertTextEquals("Thursday, October 1, 2026")
+    }
+
+    @Test
+    fun `the detail dialog cannot reopen while busy or read-only`() {
+        show(loaded.copy(opened = taxes, busy = setOf(taxes.task.id)))
+        composeRule.onNodeWithTag(LogbookTags.DETAIL_REOPEN).assertIsNotEnabled()
+        state = loaded.copy(opened = taxes, error = LoadError.FAILED)
+        composeRule.onNodeWithTag(LogbookTags.DETAIL_REOPEN).assertIsNotEnabled()
+        state = loaded.copy(opened = taxes)
+        composeRule.onNodeWithTag(LogbookTags.DETAIL_REOPEN).assertIsEnabled()
+    }
+
+    @Test
+    fun `a task without project, contexts or notes shows only its completion time`() {
+        val bare = LoggedTask(GtdTask(id(4), "Water plants", TaskList.NEXT, 3, 1, notesMd = "   "), Instant.parse("2026-10-20T07:15:00Z"))
+        show(loaded.copy(tasks = listOf(bare), opened = bare))
+        composeRule.onNodeWithTag(LogbookTags.DETAIL).assertIsDisplayed()
+        composeRule.onNodeWithText("Completed", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("Project:", substring = true).assertDoesNotExist()
+        composeRule.onNodeWithText("Contexts:", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a project or context that is not loaded is left out of the row`() {
+        val unknown =
+            LoggedTask(
+                GtdTask(id(5), "Renew passport", TaskList.NEXT, 4, 1, projectId = id(99), contextIds = listOf(id(20), id(98))),
+                Instant.parse("2026-10-20T06:00:00Z"),
+            )
+        show(loaded.copy(tasks = listOf(unknown)))
+        composeRule.onNodeWithText("@desk", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithText("·", substring = true, useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a next page that failed offline says so, and there is no footer without more pages`() {
+        show(loaded.copy(canLoadMore = true, moreError = LoadError.OFFLINE))
+        composeRule.onNodeWithText("Offline: older tasks could not be loaded.").assertExists()
+        state = loaded.copy(canLoadMore = true, moreError = LoadError.FAILED)
+        composeRule.onNodeWithText("Older tasks could not be loaded.").assertExists()
+        state = loaded
+        composeRule.onNodeWithTag(LogbookTags.LOADING_MORE).assertDoesNotExist()
+        composeRule.onNodeWithTag(LogbookTags.MORE_FAILED).assertDoesNotExist()
+    }
+
+    private val many =
+        (1..60).map {
+            LoggedTask(
+                GtdTask(id(100 + it), "Done task $it", TaskList.NEXT, it, 1),
+                Instant.parse("2026-10-20T08:00:00Z").minusSeconds(
+                    it * 600L,
+                ),
+            )
+        }
+
+    @Test
+    fun `a long list asks for the next page only once scrolled to its end`() {
+        show(loaded.copy(tasks = many, canLoadMore = true))
+        composeRule.waitForIdle()
+        assertEquals(emptyList<String>(), calls)
+        composeRule.onNodeWithTag(LiveListTags.LIST).performScrollToNode(hasTestTag(LogbookTags.LOADING_MORE))
+        composeRule.waitForIdle()
+        assertEquals(listOf("more"), calls.distinct())
+    }
+
+    @Test
+    fun `scrolling to the end after a failed page does not retry by itself`() {
+        show(loaded.copy(tasks = many, canLoadMore = true, moreError = LoadError.FAILED))
+        composeRule.onNodeWithTag(LiveListTags.LIST).performScrollToNode(hasTestTag(LogbookTags.MORE_FAILED))
+        composeRule.waitForIdle()
+        assertEquals(emptyList<String>(), calls)
+    }
+
+    private companion object {
+        const val TIMEOUT = 10_000L
     }
 }

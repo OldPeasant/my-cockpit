@@ -116,6 +116,17 @@ class CockpitShellTest {
     }
 
     @Test
+    fun logbookOpensFromTheMoreListAndBackReturnsToIt() {
+        tab("More").performClick()
+        moreItem("Logbook").performClick()
+        assertShown(CockpitDestination.Logbook)
+        tab("More").assertIsSelected()
+
+        composeRule.onNodeWithContentDescription("Back").performClick()
+        assertShown(CockpitDestination.More)
+    }
+
+    @Test
     fun reselectingMoreFromASecondaryScreenReturnsToTheList() {
         tab("More").performClick()
         moreItem("Settings").performClick()

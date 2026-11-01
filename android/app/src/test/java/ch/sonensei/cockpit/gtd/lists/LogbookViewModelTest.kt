@@ -228,4 +228,295 @@ class LogbookViewModelTest {
             assertNull(vm.uiState.value.opened)
         }
     }
+
+    /** Answers `repository.page(cursor)` from [answers] in order, each run when the request comes (it may suspend). */
+    private fun pages(
+        cursor: String?,
+        vararg answers: suspend () -> LogbookLoad,
+    ) {
+        val queue = ArrayDeque(answers.toList())
+        coEvery { repository.page(cursor) } coAnswers { queue.removeFirst()() }
+    }
+
+    @Test
+    fun `a task on two pages is listed once when the next page is loaded`() {
+        coEvery { repository.page(null) } returns page(taxes, call, next = "c2")
+        coEvery { repository.page("c2") } returns page(call, old)
+        test { vm ->
+            vm.loadMore()
+            assertEquals(listOf(taxes, call, old), vm.uiState.value.tasks)
+        }
+    }
+
+    @Test
+    fun `a reload over several pages lists a task that moved to the next page once`() {
+        pages(null, { page(taxes, next = "c2") }, { page(late, taxes, next = "c2") })
+        pages("c2", { page(call, next = "c3") }, { page(taxes, call, next = "c3") })
+        test { vm ->
+            vm.loadMore()
+            changes.emit(Unit)
+            assertEquals(listOf(late, taxes, call), vm.uiState.value.tasks)
+            assertTrue(vm.uiState.value.canLoadMore)
+        }
+    }
+
+    @Test
+    fun `a reload stops at the last page even when more pages were shown before`() {
+        pages(null, { page(taxes, next = "c2") }, { page(late, taxes) })
+        coEvery { repository.page("c2") } returns page(call, next = "c3")
+        test { vm ->
+            vm.loadMore()
+            changes.emit(Unit)
+            assertEquals(listOf(late, taxes), vm.uiState.value.tasks)
+            assertFalse(vm.uiState.value.canLoadMore)
+            vm.loadMore()
+            coVerify(exactly = 1) { repository.page("c2") }
+        }
+    }
+
+    @Test
+    fun `a reload that fails on a later page keeps the whole list that was shown`() {
+        pages(null, { page(taxes, next = "c2") }, { page(late, next = "c2") })
+        pages("c2", { page(call, next = "c3") }, { LogbookLoad.NotLoaded(LoadError.FAILED) })
+        test { vm ->
+            vm.loadMore()
+            changes.emit(Unit)
+            val state = vm.uiState.value
+            assertEquals(listOf(taxes, call), state.tasks)
+            assertEquals(LoadError.FAILED, state.error)
+            assertTrue(state.readOnly)
+            assertFalse(state.loading)
+        }
+    }
+
+    @Test
+    fun `only one next page is requested at a time`() {
+        val answer = CompletableDeferred<LogbookLoad>()
+        coEvery { repository.page(null) } returns page(taxes, next = "c2")
+        coEvery { repository.page("c2") } coAnswers { answer.await() }
+        test { vm ->
+            vm.loadMore()
+            assertTrue(vm.uiState.value.loadingMore)
+            vm.loadMore()
+            answer.complete(page(call))
+            coVerify(exactly = 1) { repository.page("c2") }
+            assertFalse(vm.uiState.value.loadingMore)
+            assertEquals(listOf(taxes, call), vm.uiState.value.tasks)
+        }
+    }
+
+    @Test
+    fun `no next page is requested while the first page loads`() {
+        val first = CompletableDeferred<LogbookLoad>()
+        coEvery { repository.page(null) } coAnswers { first.await() }
+        test { vm ->
+            assertTrue(vm.uiState.value.loading)
+            vm.loadMore()
+            first.complete(page(taxes, next = "c2"))
+            coVerify(exactly = 0) { repository.page("c2") }
+            assertFalse(vm.uiState.value.loadingMore)
+        }
+    }
+
+    @Test
+    fun `a change while the next page loads cancels it, so its late answer is not appended`() {
+        val slow = CompletableDeferred<LogbookLoad>()
+        pages(null, { page(taxes, next = "c2") }, { page(late, taxes, next = "c2") })
+        pages("c2", { slow.await() }, { page(old) })
+        test { vm ->
+            vm.loadMore()
+            assertTrue(vm.uiState.value.loadingMore)
+            changes.emit(Unit)
+            slow.complete(page(call))
+            val state = vm.uiState.value
+            assertEquals(listOf(late, taxes), state.tasks)
+            assertFalse(state.loadingMore)
+            assertTrue(state.canLoadMore)
+            vm.loadMore()
+            assertEquals(listOf(late, taxes, old), vm.uiState.value.tasks)
+        }
+    }
+
+    @Test
+    fun `a next page answering after a running reload is appended once`() {
+        val reload = CompletableDeferred<LogbookLoad>()
+        val more = CompletableDeferred<LogbookLoad>()
+        pages(null, { page(taxes, next = "c2") }, { reload.await() })
+        coEvery { repository.page("c2") } coAnswers { more.await() }
+        test { vm ->
+            changes.emit(Unit)
+            vm.loadMore()
+            reload.complete(page(late, taxes, next = "c2"))
+            assertEquals(listOf(late, taxes), vm.uiState.value.tasks)
+            more.complete(page(taxes, call))
+            val state = vm.uiState.value
+            assertEquals(listOf(late, taxes, call), state.tasks)
+            assertFalse(state.loadingMore)
+            assertFalse(state.canLoadMore)
+        }
+    }
+
+    @Test
+    fun `a reload answering after a next page leaves a consistent list that can load more again`() {
+        val reload = CompletableDeferred<LogbookLoad>()
+        val more = CompletableDeferred<LogbookLoad>()
+        pages(null, { page(taxes, next = "c2") }, { reload.await() })
+        pages("c2", { more.await() }, { page(call) })
+        test { vm ->
+            changes.emit(Unit)
+            vm.loadMore()
+            more.complete(page(call, next = "c3"))
+            reload.complete(page(late, taxes, next = "c2"))
+            val state = vm.uiState.value
+            assertEquals(listOf(late, taxes), state.tasks)
+            assertFalse(state.loadingMore)
+            assertTrue(state.canLoadMore)
+            vm.loadMore()
+            assertEquals(listOf(late, taxes, call), vm.uiState.value.tasks)
+        }
+    }
+
+    @Test
+    fun `an older reload answering last does not replace a newer one`() {
+        val older = CompletableDeferred<LogbookLoad>()
+        val newer = CompletableDeferred<LogbookLoad>()
+        pages(null, { page(taxes) }, { older.await() }, { newer.await() })
+        test { vm ->
+            changes.emit(Unit)
+            changes.emit(Unit)
+            newer.complete(page(late, taxes))
+            older.complete(page(old))
+            assertEquals(listOf(late, taxes), vm.uiState.value.tasks)
+        }
+    }
+
+    @Test
+    fun `retry after a failed first load shows the spinner again, without the error`() {
+        val second = CompletableDeferred<LogbookLoad>()
+        pages(null, { LogbookLoad.NotLoaded(LoadError.OFFLINE) }, { second.await() })
+        test { vm ->
+            assertFalse(vm.uiState.value.loading)
+            vm.retry()
+            assertTrue(vm.uiState.value.loading)
+            assertNull(vm.uiState.value.error)
+            second.complete(LogbookLoad.NotLoaded(LoadError.FAILED))
+            assertFalse(vm.uiState.value.loading)
+            assertEquals(LoadError.FAILED, vm.uiState.value.error)
+            assertFalse(vm.uiState.value.loaded)
+        }
+    }
+
+    @Test
+    fun `a reload clears the error of a failed next page`() {
+        coEvery { repository.page(null) } returns page(taxes, next = "c2")
+        coEvery { repository.page("c2") } returns LogbookLoad.NotLoaded(LoadError.FAILED)
+        test { vm ->
+            vm.loadMore()
+            assertEquals(LoadError.FAILED, vm.uiState.value.moreError)
+            changes.emit(Unit)
+            assertNull(vm.uiState.value.moreError)
+        }
+    }
+
+    @Test
+    fun `a reload closes the opened task when it left the logbook, and refreshes it when it is still there`() {
+        val renamed = LoggedTask(taxes.task.copy(title = "File taxes (renamed)", version = 4), taxes.completedAt)
+        pages(null, { page(taxes, call) }, { page(renamed, call) }, { page(renamed) })
+        test { vm ->
+            vm.open(taxes)
+            changes.emit(Unit)
+            assertEquals(renamed, vm.uiState.value.opened)
+            vm.open(call)
+            changes.emit(Unit)
+            assertNull(vm.uiState.value.opened)
+        }
+    }
+
+    @Test
+    fun `a conflicting reopen keeps the task, reports the conflict and reloads`() {
+        pages(null, { page(taxes, call) }, { page(call) })
+        coEvery { repository.reopen(taxes) } returns ActionOutcome.CONFLICT
+        test { vm ->
+            vm.open(taxes)
+            vm.reopen(taxes)
+            val state = vm.uiState.value
+            assertEquals(ActionSnackbar(ActionSnackbar.Kind.REOPENED, "Task 1", ActionOutcome.CONFLICT), state.action)
+            coVerify(exactly = 2) { repository.page(null) }
+            // The reload shows the task was already reopened elsewhere: it leaves the list and its dialog closes.
+            assertEquals(listOf(call), state.tasks)
+            assertNull(state.opened)
+            assertTrue(state.busy.isEmpty())
+        }
+    }
+
+    @Test
+    fun `a failed reopen keeps the task and does not reload`() {
+        coEvery { repository.page(null) } returns page(taxes)
+        coEvery { repository.reopen(taxes) } returns ActionOutcome.FAILED
+        test { vm ->
+            vm.reopen(taxes)
+            assertEquals(listOf(taxes), vm.uiState.value.tasks)
+            assertEquals(
+                ActionOutcome.FAILED,
+                vm.uiState.value.action
+                    ?.outcome,
+            )
+            assertTrue(
+                vm.uiState.value.busy
+                    .isEmpty(),
+            )
+            coVerify(exactly = 1) { repository.page(null) }
+        }
+    }
+
+    @Test
+    fun `reopening one task keeps another task's dialog open`() {
+        pages(null, { page(taxes, call) }, { page(taxes) })
+        coEvery { repository.reopen(call) } returns ActionOutcome.DONE
+        test { vm ->
+            vm.open(taxes)
+            vm.reopen(call)
+            assertEquals(listOf(taxes), vm.uiState.value.tasks)
+            assertEquals(taxes, vm.uiState.value.opened)
+        }
+    }
+
+    @Test
+    fun `the screen callbacks reach the view model`() {
+        coEvery { repository.page(null) } returns page(taxes, call, next = "c2")
+        coEvery { repository.page("c2") } returns page(old)
+        coEvery { repository.reopen(call) } returns ActionOutcome.OFFLINE
+        test { vm ->
+            val callbacks = LogbookCallbacks.of(vm)
+            callbacks.open(taxes)
+            assertEquals(taxes, vm.uiState.value.opened)
+            callbacks.close()
+            assertNull(vm.uiState.value.opened)
+            callbacks.loadMore()
+            assertEquals(listOf(taxes, call, old), vm.uiState.value.tasks)
+            callbacks.reopen(call)
+            coVerify(exactly = 1) { repository.reopen(call) }
+            callbacks.dismissAction(vm.uiState.value.action!!)
+            assertNull(vm.uiState.value.action)
+            callbacks.retry()
+            coVerify(exactly = 2) { repository.page(null) }
+        }
+    }
+
+    @Test
+    fun `dismissing an older snackbar keeps the newer one`() {
+        coEvery { repository.page(null) } returns page(taxes, call)
+        coEvery { repository.reopen(any()) } returns ActionOutcome.OFFLINE
+        test { vm ->
+            vm.reopen(taxes)
+            val first = vm.uiState.value.action!!
+            vm.reopen(call)
+            vm.dismissAction(first)
+            assertEquals(
+                "Task 2",
+                vm.uiState.value.action
+                    ?.title,
+            )
+        }
+    }
 }
