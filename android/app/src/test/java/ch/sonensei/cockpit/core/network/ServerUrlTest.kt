@@ -106,6 +106,20 @@ class ServerUrlTest {
     }
 
     @Test
+    fun `a scheme typed only partly is malformed and quotes the address as understood`() {
+        // The user stopped typing (or the keyboard dropped characters) in the middle of the scheme.
+        listOf(
+            "https" to "https://https",
+            "http" to "https://http",
+            "https:" to "https://https:",
+            "https:/" to "https://https:/",
+            " Https : /" to "https://Https:/",
+        ).forEach { (typed, address) ->
+            assertEquals(typed, Invalid(Reason.MALFORMED, address), ServerUrlValidator.validate(typed))
+        }
+    }
+
+    @Test
     fun `an http address with inserted spaces keeps the https rule and quotes the cleaned address`() {
         assertEquals(
             Invalid(Reason.HTTPS_REQUIRED, "http://my-cockpit.sonensei.ch"),

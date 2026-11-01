@@ -227,6 +227,17 @@ class AuthRepositoryTest {
         }
 
     @Test
+    fun `a mistyped scheme is reported as an invalid address before any request`() =
+        runBlocking {
+            assertEquals(
+                LoginResult.InvalidServerUrl(ServerUrlValidation.Reason.MALFORMED, "https://https//cockpit.example.org"),
+                repository.login("https// cockpit. example. org", "alex", "pw", SecondFactor.Totp("123456")),
+            )
+            assertEquals(0, server.requestCount)
+            assertNull(repository.serverUrl.first())
+        }
+
+    @Test
     fun `logout revokes this device, forgets the tokens and clears the caches`() =
         runBlocking {
             server.enqueue(json(200, TOKEN_BODY))
