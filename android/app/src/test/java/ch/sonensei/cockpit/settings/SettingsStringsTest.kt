@@ -25,8 +25,7 @@ class SettingsStringsTest {
         return (0 until nodes.length).map { nodes.item(it) as Element }
     }
 
-    private fun strings(file: File): Map<String, String> =
-        elements(file, "string").associate { it.getAttribute("name") to it.textContent }
+    private fun strings(file: File): Map<String, String> = elements(file, "string").associate { it.getAttribute("name") to it.textContent }
 
     /** Plural name to its quantities and texts. */
     private fun plurals(file: File): Map<String, Map<String, String>> =
@@ -39,7 +38,12 @@ class SettingsStringsTest {
                 }
         }
 
-    private fun placeholders(text: String) = placeholder.findAll(text).map { it.value }.sorted().toList()
+    private fun placeholders(text: String) =
+        placeholder
+            .findAll(text)
+            .map { it.value }
+            .sorted()
+            .toList()
 
     private val english = File(res, "values/strings_settings.xml")
     private val german = File(res, "values-de/strings_settings.xml")

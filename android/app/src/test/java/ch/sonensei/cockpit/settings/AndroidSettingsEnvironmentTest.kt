@@ -21,7 +21,13 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -32,6 +38,7 @@ import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.unifiedpush.android.connector.UnifiedPush
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * The Android side of the settings screen with the real UnifiedPush library on Robolectric's package manager: the
@@ -142,6 +149,39 @@ class AndroidSettingsEnvironmentTest {
             assertEquals(mapOf("delete" to ALPHA, "clear" to ALPHA, "register" to BETA), savedAt)
             assertEquals(BETA, UnifiedPush.getSavedDistributor(context))
             assertEquals(BETA, environment.distributors().selected?.packageName)
+        }
+
+    @Test
+    fun `a second switch waits until the first one has finished`() =
+        runBlocking {
+            installDistributor(ALPHA, "alpha push")
+            installDistributor(BETA, "Beta push")
+            UnifiedPush.saveDistributor(context, ALPHA)
+            val steps = CopyOnWriteArrayList<String>()
+            val firstDeleteStarted = CompletableDeferred<Unit>()
+            val releaseFirstDelete = CompletableDeferred<Unit>()
+            coEvery { pushRegistrar.deleteOnServer() } coAnswers {
+                steps += "delete"
+                if (firstDeleteStarted.complete(Unit)) releaseFirstDelete.await()
+            }
+            every { pushRegistrar.clear() } answers { steps += "clear" }
+            every { pushRegistrar.register() } answers { steps += "register:${UnifiedPush.getSavedDistributor(context)}" }
+
+            val first = launch(Dispatchers.Default) { environment.useDistributor(BETA) }
+            withTimeout(5_000) { firstDeleteStarted.await() }
+            val second = launch(Dispatchers.Default) { environment.useDistributor(ALPHA) }
+            // Give an unserialized second switch time to interleave; with the lock it must not start.
+            delay(300)
+            assertEquals(listOf("delete"), steps.toList())
+
+            releaseFirstDelete.complete(Unit)
+            withTimeout(5_000) { joinAll(first, second) }
+
+            assertEquals(
+                listOf("delete", "clear", "register:$BETA", "delete", "clear", "register:$ALPHA"),
+                steps.toList(),
+            )
+            assertEquals(ALPHA, UnifiedPush.getSavedDistributor(context))
         }
 
     @Test

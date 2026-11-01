@@ -143,6 +143,39 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `a store that cannot be written keeps the form open with a save error, saving again works`() =
+        runTest(dispatcher) {
+            coEvery { serverUrls.setServerUrl(any()) } throws IOException("disk full")
+            val viewModel = viewModel()
+            viewModel.openServerForm()
+            viewModel.onServerAddressChange("other.example.org")
+
+            viewModel.saveServer()
+            advanceUntilIdle()
+
+            val form = viewModel.uiState.value.serverForm!!
+            assertFalse(form.saving)
+            assertTrue(form.saveFailed)
+            assertNull(form.error)
+            assertEquals("other.example.org", form.address)
+            coVerify(exactly = 1) { authApi.getCurrentUser() }
+
+            viewModel.onServerAddressChange("other.example.org/cockpit")
+            assertFalse(
+                "editing clears the save error",
+                viewModel.uiState.value.serverForm!!
+                    .saveFailed,
+            )
+
+            coEvery { serverUrls.setServerUrl(any()) } answers { ServerUrlValidator.validate(firstArg()) }
+            viewModel.saveServer()
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.serverForm)
+            coVerify(exactly = 2) { authApi.getCurrentUser() }
+        }
+
+    @Test
     fun `an invalid address keeps the form open with the reason, editing clears it`() =
         runTest(dispatcher) {
             val viewModel = viewModel()

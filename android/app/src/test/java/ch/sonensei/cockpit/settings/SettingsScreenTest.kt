@@ -264,6 +264,34 @@ class SettingsScreenTest {
     }
 
     @Test
+    @Config(qualifiers = "de")
+    fun `the last capture failure is in German on a German phone`() {
+        show(state.copy(capture = CaptureQueueStatus(1, "Rejected by the server (HTTP 422)")))
+
+        composeRule.onNodeWithText("Letzter Versuch fehlgeschlagen: Vom Server abgelehnt (HTTP 422)").assertExists()
+    }
+
+    @Test
+    fun `an unknown capture failure is shown as stored`() {
+        show(state.copy(capture = CaptureQueueStatus(1, "Something else")))
+
+        composeRule.onNodeWithText("Last attempt failed: Something else").assertExists()
+    }
+
+    @Test
+    fun `an address that could not be stored says so and can be saved again`() {
+        var saves = 0
+        show(
+            state.copy(serverForm = ServerForm("https://other.example.org", saveFailed = true)),
+            SettingsActions(onSaveServer = { saves++ }),
+        )
+
+        composeRule.onNodeWithTag(SettingsTags.SERVER_ERROR).assertTextContains("The address could not be saved. Try again.")
+        composeRule.onNodeWithTag(SettingsTags.SERVER_SAVE).performClick()
+        assertEquals(1, saves)
+    }
+
+    @Test
     fun `outside a session only the session-free parts show, the placeholder is gone`() {
         composeRule.setContent { SettingsScreen() }
 

@@ -17,6 +17,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.unifiedpush.android.connector.UnifiedPush
 import javax.inject.Inject
@@ -75,6 +77,9 @@ class AndroidSettingsEnvironment
         private val alarms: ReminderAlarms,
         private val pushRegistrar: PushRegistrar,
     ) : SettingsEnvironment {
+        /** One distributor switch at a time: an interleaved second switch could unregister what the first just registered. */
+        private val switching = Mutex()
+
         override val captureStatus: Flow<CaptureQueueStatus> get() = captureQueue.status
 
         override suspend fun syncCapturesNow() = captureSync.schedule()
@@ -93,17 +98,19 @@ class AndroidSettingsEnvironment
         }
 
         override suspend fun useDistributor(packageName: String) =
-            withContext(Dispatchers.IO) {
-                if (UnifiedPush.getSavedDistributor(context) == packageName) {
+            switching.withLock {
+                withContext(Dispatchers.IO) {
+                    if (UnifiedPush.getSavedDistributor(context) == packageName) {
+                        pushRegistrar.register()
+                        return@withContext
+                    }
+                    // A new instance id: a late "unregistered" callback of the old distributor then cannot delete the new
+                    // registration on the server.
+                    pushRegistrar.deleteOnServer()
+                    pushRegistrar.clear()
+                    UnifiedPush.saveDistributor(context, packageName)
                     pushRegistrar.register()
-                    return@withContext
                 }
-                // A new instance id: a late "unregistered" callback of the old distributor then cannot delete the new
-                // registration on the server.
-                pushRegistrar.deleteOnServer()
-                pushRegistrar.clear()
-                UnifiedPush.saveDistributor(context, packageName)
-                pushRegistrar.register()
             }
 
         override val appVersion: AppVersion by lazy {

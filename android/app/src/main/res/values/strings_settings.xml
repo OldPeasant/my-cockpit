@@ -12,6 +12,7 @@
     <string name="settings_server_dialog_body">Moving to another server signs you out. Captures waiting to sync are sent to the new server once you sign in there.</string>
     <string name="settings_server_save">Save</string>
     <string name="settings_server_cancel">Cancel</string>
+    <string name="settings_server_save_failed">The address could not be saved. Try again.</string>
     <string name="settings_retry">Retry</string>
 
     <!-- Notifications -->
@@ -39,6 +40,12 @@
     <string name="settings_capture_synced">Everything you captured is on the server.</string>
     <string name="settings_capture_waiting">Sends as soon as the phone is online.</string>
     <string name="settings_capture_failed">Last attempt failed: %1$s</string>
+    <string name="settings_capture_error_offline">Server unreachable</string>
+    <string name="settings_capture_error_not_logged_in">Not logged in</string>
+    <string name="settings_capture_error_attachment_missing">Attachment missing</string>
+    <string name="settings_capture_error_unexpected">Unexpected error</string>
+    <string name="settings_capture_error_server">Server error (HTTP %1$d)</string>
+    <string name="settings_capture_error_rejected">Rejected by the server (HTTP %1$d)</string>
     <string name="settings_capture_sync_now">Sync now</string>
     <string name="settings_capture_sync_requested">Sync started. It runs as soon as the phone is online.</string>
     <string name="settings_capture_sync_failed">The sync could not be started. Try again.</string>

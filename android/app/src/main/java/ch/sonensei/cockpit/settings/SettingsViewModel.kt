@@ -8,6 +8,7 @@ import ch.sonensei.cockpit.core.network.ServerUrlValidation
 import ch.sonensei.cockpit.core.network.generated.apis.AuthApi
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,6 +35,8 @@ data class ServerForm(
     val saving: Boolean = false,
     /** Why the last save was refused, with the address as the app understood it. */
     val error: ServerUrlValidation.Invalid? = null,
+    /** The address was valid but could not be stored (e.g. the phone's storage is full); saving again may work. */
+    val saveFailed: Boolean = false,
 )
 
 data class SettingsUiState(
@@ -82,6 +85,9 @@ class SettingsViewModel
 
         val uiState: StateFlow<SettingsUiState> = local.asStateFlow()
 
+        /** The running user request; a newer one cancels it, so an older answer arriving last cannot win. */
+        private var userJob: Job? = null
+
         init {
             loadUser()
             viewModelScope.launch { serverUrls.serverUrl.collect { url -> local.update { it.copy(serverUrl = url) } } }
@@ -98,23 +104,25 @@ class SettingsViewModel
 
         fun loadUser() {
             local.update { it.copy(user = UserName.Loading) }
-            viewModelScope.launch {
-                val user =
-                    try {
-                        authApi
-                            .getCurrentUser()
-                            .takeIf { it.isSuccessful }
-                            ?.body()
-                            ?.username
-                            ?.let { UserName.Known(it) } ?: UserName.Unknown
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (_: Exception) {
-                        // Offline or an unreadable answer. Not logged: the exception may carry user data.
-                        UserName.Unknown
-                    }
-                local.update { it.copy(user = user) }
-            }
+            userJob?.cancel()
+            userJob =
+                viewModelScope.launch {
+                    val user =
+                        try {
+                            authApi
+                                .getCurrentUser()
+                                .takeIf { it.isSuccessful }
+                                ?.body()
+                                ?.username
+                                ?.let { UserName.Known(it) } ?: UserName.Unknown
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            // Offline or an unreadable answer. Not logged: the exception may carry user data.
+                            UserName.Unknown
+                        }
+                    local.update { it.copy(user = user) }
+                }
         }
 
         fun openServerForm() =
@@ -130,7 +138,7 @@ class SettingsViewModel
             }
 
         fun onServerAddressChange(address: String) =
-            local.update { state -> state.copy(serverForm = state.serverForm?.copy(address = address, error = null)) }
+            local.update { state -> state.copy(serverForm = state.serverForm?.copy(address = address, error = null, saveFailed = false)) }
 
         fun closeServerForm() = local.update { it.copy(serverForm = null) }
 
@@ -138,9 +146,19 @@ class SettingsViewModel
         fun saveServer() {
             val form = local.value.serverForm ?: return
             if (form.saving) return
-            local.update { it.copy(serverForm = form.copy(saving = true, error = null)) }
+            local.update { it.copy(serverForm = form.copy(saving = true, error = null, saveFailed = false)) }
             viewModelScope.launch {
-                when (val result = serverUrls.setServerUrl(form.address)) {
+                val result =
+                    try {
+                        serverUrls.setServerUrl(form.address)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        // The store could not be written (IOException). Not logged: the address is user data.
+                        local.update { state -> state.copy(serverForm = state.serverForm?.copy(saving = false, saveFailed = true)) }
+                        return@launch
+                    }
+                when (result) {
                     is ServerUrlValidation.Valid -> {
                         local.update { it.copy(serverForm = null) }
                         loadUser()

@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -45,6 +46,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -119,14 +121,18 @@ private fun DeviceSettingsRoute(viewModel: SettingsViewModel = hiltViewModel()) 
                     )
                 },
                 onOpenExactAlarmSettings = {
-                    context.open(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.fromParts("package", context.packageName, null)))
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        context.open(
+                            Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.fromParts("package", context.packageName, null)),
+                        )
+                    }
                 },
                 onChooseDistributor = viewModel::openDistributorPicker,
                 onDistributorChosen = viewModel::chooseDistributor,
                 onCloseDistributorPicker = viewModel::closeDistributorPicker,
-                onGetDistributor = { context.open(Intent(Intent.ACTION_VIEW, Uri.parse(DISTRIBUTORS_URL))) },
+                onGetDistributor = { context.open(Intent(Intent.ACTION_VIEW, DISTRIBUTORS_URL.toUri())) },
                 onSyncNow = viewModel::syncNow,
-                onDownload = { url -> context.open(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
+                onDownload = { url -> context.open(Intent(Intent.ACTION_VIEW, url.toUri())) },
             ),
     )
 }
@@ -318,7 +324,7 @@ private fun CaptureSection(
         )
         val result =
             when {
-                capture.lastError != null -> stringResource(R.string.settings_capture_failed, capture.lastError)
+                capture.lastError != null -> stringResource(R.string.settings_capture_failed, captureFailureText(capture.lastError))
                 capture.pendingCount > 0 -> stringResource(R.string.settings_capture_waiting)
                 else -> null
             }
@@ -378,7 +384,7 @@ private fun ServerDialog(
                     placeholder = { Text(stringResource(R.string.login_server_url_hint)) },
                     singleLine = true,
                     enabled = !form.saving,
-                    isError = form.error != null,
+                    isError = form.error != null || form.saveFailed,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { actions.onSaveServer() }),
                     modifier = Modifier.fillMaxWidth().testTag(SettingsTags.SERVER_FIELD),
@@ -392,6 +398,14 @@ private fun ServerDialog(
                             },
                             error.address,
                         ),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.testTag(SettingsTags.SERVER_ERROR).semantics { liveRegion = LiveRegionMode.Polite },
+                    )
+                }
+                if (form.saveFailed) {
+                    Text(
+                        stringResource(R.string.settings_server_save_failed),
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.testTag(SettingsTags.SERVER_ERROR).semantics { liveRegion = LiveRegionMode.Polite },

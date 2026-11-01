@@ -12,6 +12,7 @@
     <string name="settings_server_dialog_body">Der Wechsel zu einem anderen Server meldet dich ab. Noch nicht synchronisierte Erfassungen gehen an den neuen Server, sobald du dich dort anmeldest.</string>
     <string name="settings_server_save">Speichern</string>
     <string name="settings_server_cancel">Abbrechen</string>
+    <string name="settings_server_save_failed">Die Adresse konnte nicht gespeichert werden. Versuche es erneut.</string>
     <string name="settings_retry">Erneut versuchen</string>
 
     <!-- Notifications -->
@@ -39,6 +40,12 @@
     <string name="settings_capture_synced">Alles Erfasste ist auf dem Server.</string>
     <string name="settings_capture_waiting">Wird gesendet, sobald das Telefon online ist.</string>
     <string name="settings_capture_failed">Letzter Versuch fehlgeschlagen: %1$s</string>
+    <string name="settings_capture_error_offline">Server nicht erreichbar</string>
+    <string name="settings_capture_error_not_logged_in">Nicht angemeldet</string>
+    <string name="settings_capture_error_attachment_missing">Anhang fehlt</string>
+    <string name="settings_capture_error_unexpected">Unerwarteter Fehler</string>
+    <string name="settings_capture_error_server">Serverfehler (HTTP %1$d)</string>
+    <string name="settings_capture_error_rejected">Vom Server abgelehnt (HTTP %1$d)</string>
     <string name="settings_capture_sync_now">Jetzt synchronisieren</string>
     <string name="settings_capture_sync_requested">Synchronisierung gestartet. Sie läuft, sobald das Telefon online ist.</string>
     <string name="settings_capture_sync_failed">Die Synchronisierung konnte nicht gestartet werden. Versuche es erneut.</string>
