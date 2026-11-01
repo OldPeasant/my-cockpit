@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [and-shell,p0-trash-core,and-search]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/trash,android/app/src/main/java/ch/sonensei/cockpit/ui,android/app/src/test/java/ch/sonensei/cockpit/trash,android/app/src/main/res/values/strings_trash.xml,android/app/src/main/res/values-de/strings_trash.xml]
 prio: 2
-lease_until: 2026-11-01T15:44:54Z
+lease_until: 2026-11-01T15:49:54Z
 ---
 ## Goal
 The Trash (SPEC.md §4.x: deleted items, purged after 30 days) exists on the web only. Use `/api/v1/trash`,
