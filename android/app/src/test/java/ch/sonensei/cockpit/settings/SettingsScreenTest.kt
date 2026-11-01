@@ -5,6 +5,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -20,6 +24,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
 class SettingsScreenTest {
@@ -146,6 +151,116 @@ class SettingsScreenTest {
         assertEquals(2, composeRule.onAllNodesWithTag(SettingsTags.PUSH_OPTION).fetchSemanticsNodes().size)
         composeRule.onNodeWithText("Second push").performClick()
         assertEquals(listOf("org.example.second"), chosen)
+    }
+
+    @Test
+    fun `an unreachable server says so and Retry asks for the user again`() {
+        var retries = 0
+        show(state.copy(user = UserName.Unknown), SettingsActions(onRetryUser = { retries++ }))
+
+        composeRule.onNodeWithText("The server cannot be reached right now.").assertExists()
+        composeRule.onNodeWithText("Retry").performScrollTo().performClick()
+        assertEquals(1, retries)
+    }
+
+    @Test
+    fun `while the user loads it says so, without a server address it says none is set and offers no download`() {
+        show(state.copy(serverUrl = null, user = UserName.Loading))
+
+        composeRule.onNodeWithText("Checking…").assertExists()
+        composeRule.onNodeWithText("No server address set").assertExists()
+        composeRule.onNodeWithTag(SettingsTags.ABOUT_DOWNLOAD).assertDoesNotExist()
+        composeRule.onNodeWithTag(SettingsTags.SERVER_CHANGE).assertExists()
+    }
+
+    @Test
+    fun `installed distributors without a chosen one offer the picker`() {
+        var opened = 0
+        show(state.copy(distributors = DistributorState(listOf(first), null)), SettingsActions(onChooseDistributor = { opened++ }))
+
+        composeRule.onNodeWithText("No push app chosen. The app checks for news every few minutes.").assertExists()
+        composeRule.onNodeWithTag(SettingsTags.PUSH_GET).assertDoesNotExist()
+        composeRule.onNodeWithTag(SettingsTags.PUSH_CHOOSE).performScrollTo().performClick()
+        assertEquals(1, opened)
+    }
+
+    @Test
+    fun `one waiting capture without an error reads singular and waits for the network`() {
+        show(state.copy(capture = CaptureQueueStatus(1, null)))
+
+        composeRule.onNodeWithText("1 capture waiting to sync").assertExists()
+        composeRule.onNodeWithText("Sends as soon as the phone is online.").assertExists()
+    }
+
+    @Test
+    fun `a failed sync request is shown`() {
+        show(state.copy(syncFailed = true))
+
+        composeRule.onNodeWithText("The sync could not be started. Try again.").assertExists()
+        composeRule.onNodeWithText("Sync started. It runs as soon as the phone is online.").assertDoesNotExist()
+    }
+
+    @Test
+    fun `the server dialog can be cancelled`() {
+        var closes = 0
+        show(state.copy(serverForm = ServerForm("https://cockpit.example.org/")), SettingsActions(onCloseServerForm = { closes++ }))
+
+        composeRule.onNodeWithText("Cancel").performClick()
+        assertEquals(1, closes)
+    }
+
+    @Test
+    fun `while the server is saved the dialog buttons are disabled`() {
+        show(state.copy(serverForm = ServerForm("https://other.example.org/", saving = true)))
+
+        composeRule.onNodeWithTag(SettingsTags.SERVER_SAVE).assertIsNotEnabled()
+        composeRule.onNodeWithText("Cancel").assertIsNotEnabled()
+    }
+
+    @Test
+    fun `a malformed address is explained with the address as understood`() {
+        show(
+            state.copy(
+                serverForm =
+                    ServerForm(
+                        "my cockpit?x",
+                        error = ServerUrlValidation.Invalid(ServerUrlValidation.Reason.MALFORMED, "https://mycockpit?x"),
+                    ),
+            ),
+        )
+
+        composeRule.onNodeWithTag(SettingsTags.SERVER_ERROR).assertTextContains("https://mycockpit?x", substring = true)
+    }
+
+    @Test
+    fun `the distributor picker marks the one in use and can be closed without a choice`() {
+        var closes = 0
+        val chosen = mutableListOf<String>()
+        show(
+            state.copy(distributorPickerOpen = true),
+            SettingsActions(onCloseDistributorPicker = { closes++ }, onDistributorChosen = { chosen += it }),
+        )
+
+        val options = composeRule.onAllNodesWithTag(SettingsTags.PUSH_OPTION)
+        options[0].assertIsSelected()
+        options[1].assertIsNotSelected()
+        composeRule.onNodeWithText("Cancel").performClick()
+        assertEquals(1, closes)
+        assertEquals(emptyList<String>(), chosen)
+    }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `the sections are in German on a German phone`() {
+        show(state.copy(capture = CaptureQueueStatus(1, null)))
+
+        composeRule.onNodeWithText("Angemeldet als").assertExists()
+        composeRule.onNodeWithText("Benachrichtigungen sind erlaubt").assertExists()
+        composeRule.onNodeWithText("Push über First push").assertExists()
+        composeRule.onNodeWithText("1 Erfassung wartet auf die Synchronisierung").assertExists()
+        composeRule.onNodeWithText("Jetzt synchronisieren").assertExists()
+        composeRule.onNodeWithText("Version 0.1.0 (42)").assertExists()
+        composeRule.onNodeWithText("Neueste App herunterladen").assertExists()
     }
 
     @Test

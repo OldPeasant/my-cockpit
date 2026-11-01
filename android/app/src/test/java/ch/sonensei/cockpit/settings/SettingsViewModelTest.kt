@@ -10,6 +10,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -239,6 +240,103 @@ class SettingsViewModelTest {
 
             assertTrue(viewModel.uiState.value.syncFailed)
             assertFalse(viewModel.uiState.value.syncRequested)
+        }
+
+    @Test
+    fun `a second save while the first one runs is ignored`() =
+        runTest(dispatcher) {
+            val answer = CompletableDeferred<ServerUrlValidation>()
+            coEvery { serverUrls.setServerUrl(any()) } coAnswers { answer.await() }
+            val viewModel = viewModel()
+            viewModel.openServerForm()
+            viewModel.onServerAddressChange("other.example.org")
+
+            viewModel.saveServer()
+            advanceUntilIdle()
+            viewModel.saveServer()
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { serverUrls.setServerUrl(any()) }
+            answer.complete(ServerUrlValidator.validate("other.example.org"))
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.serverForm)
+        }
+
+    @Test
+    fun `saving without an open form does nothing`() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+
+            viewModel.saveServer()
+            advanceUntilIdle()
+
+            coVerify(exactly = 0) { serverUrls.setServerUrl(any()) }
+            assertNull(viewModel.uiState.value.serverForm)
+        }
+
+    @Test
+    fun `a successful answer without a user name leaves the user unknown`() =
+        runTest(dispatcher) {
+            coEvery { authApi.getCurrentUser() } returns Response.success(null)
+
+            assertEquals(UserName.Unknown, viewModel().uiState.value.user)
+        }
+
+    @Test
+    fun `an older user request that fails last does not overwrite the newer answer`() =
+        runTest(dispatcher) {
+            val first = CompletableDeferred<Response<MeResponse>>()
+            var calls = 0
+            coEvery { authApi.getCurrentUser() } coAnswers {
+                calls++
+                if (calls == 1) first.await() else Response.success(MeResponse(username = "alex"))
+            }
+            val viewModel = viewModel()
+            assertEquals(UserName.Loading, viewModel.uiState.value.user)
+
+            // Retry while the first request still hangs (e.g. a slow network); the retry answers first.
+            viewModel.loadUser()
+            advanceUntilIdle()
+            assertEquals(UserName.Known("alex"), viewModel.uiState.value.user)
+
+            first.completeExceptionally(IOException("timeout"))
+            advanceUntilIdle()
+
+            assertEquals(UserName.Known("alex"), viewModel.uiState.value.user)
+        }
+
+    @Test
+    fun `sync now after a failed enqueue clears the failure and confirms`() =
+        runTest(dispatcher) {
+            environment.syncFails = true
+            val viewModel = viewModel()
+            viewModel.syncNow()
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.syncFailed)
+
+            environment.syncFails = false
+            viewModel.syncNow()
+            assertFalse("the old failure is cleared at once", viewModel.uiState.value.syncFailed)
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.syncFailed)
+            assertTrue(viewModel.uiState.value.syncRequested)
+            assertEquals(1, environment.syncs)
+        }
+
+    @Test
+    fun `opening the picker reads the installed distributors again, closing keeps them`() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            val third = Distributor("org.example.third", "Third")
+            environment.distributorState = DistributorState(listOf(third), null)
+
+            viewModel.openDistributorPicker()
+            assertEquals(DistributorState(listOf(third), null), viewModel.uiState.value.distributors)
+
+            viewModel.closeDistributorPicker()
+            assertFalse(viewModel.uiState.value.distributorPickerOpen)
+            assertTrue(environment.used.isEmpty())
         }
 
     private class FakeEnvironment : SettingsEnvironment {
