@@ -22,8 +22,9 @@ read view existed). Requested by the owner (2026-10-30). Android already opens o
 - [x] The double-click handler is removed (the first click already opens), and the keys hint under the list says
       "o or click open" instead of "o or double-click open" (localized string updated)
   - verified (2026-11-01 07:28+0100 by dell26/agent-1): dblclick handler removed (spec: dblclick triggers no navigation); hint 'o or click open' asserted by spec; ng extract-i18n -> mail.keysHint source matches messages.xlf; messages.de.xlf target 'o oder Klick öffnen'
-- [ ] Unit tests: a click navigates to the message, a checkbox click does not, `o`/Enter open; the existing
+- [x] Unit tests: a click navigates to the message, a checkbox click does not, `o`/Enter open; the existing
       web-mail-list tests that expected a click to only move the cursor are updated; `cd web && npm run check` passes
+  - verified (2026-11-01 07:28+0100 by dell26/agent-1): cd web && npm run check -> pass (api:check, lint, e2e:typecheck, 184 test files passed, ng build); unit tests for click/checkbox/o/Enter added, old click-only-moves-cursor test replaced
 
 ## Notes
 Keeping the scroll position and cursor when coming back from the read view is welcome but not required here.
