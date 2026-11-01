@@ -582,6 +582,26 @@ class MailActionServiceTests {
 	}
 
 	@Test
+	fun `one delete of messages gone from Trash and from the Inbox is ok for Trash and NOT_FOUND with a resync for the Inbox`() {
+		val goneFromTrash = cached(trash, 3)
+		val goneFromInbox = cached(inbox, 7)
+		every { remoteTrash.getMessagesByUID(longArrayOf(3)) } returns arrayOf(null)
+		every { remoteInbox.getMessagesByUID(longArrayOf(7)) } returns arrayOf(null)
+
+		val outcomes = service.apply(listOf(goneFromInbox.id, goneFromTrash.id), MailAction.DELETE, null)
+
+		outcomes.map { it.id to it.errorCode } shouldBe listOf(goneFromInbox.id to "NOT_FOUND", goneFromTrash.id to null)
+		verify { messages.delete(goneFromTrash) }
+		verify(exactly = 0) { messages.delete(goneFromInbox) }
+		goneFromInbox.folderId shouldBe inbox.id
+		goneFromInbox.uid shouldBe 7
+		verify(exactly = 1) { resync.request(inbox.id) }
+		verify(exactly = 0) { resync.request(trash.id) }
+		verify(exactly = 1) { changes.publish(MailFolderService.FOLDER_EVENT, trash.id, ChangeOp.UPDATED) }
+		verify(exactly = 0) { changes.publish(MailFolderService.FOLDER_EVENT, inbox.id, any()) }
+	}
+
+	@Test
 	fun `a linked message already gone from Trash is detached by a delete, not deleted`() {
 		val gone = cached(trash, 3)
 		every { links.linksOf(ItemRef(ItemType.EMAIL, gone.id)) } returns listOf(mockk<ResolvedLink>())
