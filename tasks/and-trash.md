@@ -14,7 +14,8 @@ The Trash (SPEC.md §4.x: deleted items, purged after 30 days) exists on the web
 `/trash/{type}/{id}` and `/trash/{type}/{id}/restore`; server unchanged.
 
 ## Acceptance criteria
-- [ ] Trash is reachable from the More screen and lists deleted items of all types with type icon, title, deletion date and days until purge
+- [x] Trash is reachable from the More screen and lists deleted items of all types with type icon, title, deletion date and days until purge
+  - verified (2026-11-01 18:10+0100 by felix/agent-1): android/gradlew -p android testDebugUnitTest (Robolectric Compose): CockpitShellTest.trashOpensFromTheMoreListAndBackReturnsToIt + TrashScreenTest 'rows show type, title, deletion date and days until purge', TrashRepositoryTest (all types listed, paged) -> pass
 - [ ] Restore and delete forever per item (delete forever asks for confirmation); after restore the item is back in its list
 - [ ] Loading, empty and error states follow the app's existing list screens
 - [ ] All new UI strings exist in English and German (`res/values`, `res/values-de`)
