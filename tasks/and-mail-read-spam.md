@@ -19,7 +19,8 @@ The Android mail read view gets a Spam button next to Archive and Delete, matchi
 - [x] On success the view closes as after Archive/Delete. On failure the view stays open and shows the server's error,
       e.g. when the account has no Spam folder (NO_ROLE_FOLDER)
   - verified (2026-11-01 06:47+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest -> MailReadScreenTest 'the route moves the mail to spam and closes, or stays open with the server's error' (NO_ROLE_FOLDER keeps view open with 'This account has no Spam folder.', success -> removed+close), MailReadViewModelTest spam refused/offline/success tests, MailReadRepositoryTest errorCode tests pass
-- [ ] The new string is in the app's string resources (all existing locales)
+- [x] The new string is in the app's string resources (all existing locales)
+  - verified (2026-11-01 06:47+0100 by dell26/agent-1): mail_spam, mail_spam_failed, mail_read_no_role_folder, mail_read_action_error added to values/strings_mail.xml and values-de/strings_mail.xml (the only two locales); ./gradlew lintDebug -> passes (no MissingTranslation); MailReadSpamGermanTest (de locale) 3 tests pass
 - [ ] Unit test (ViewModel) and Compose UI test for the button, success and error;
       `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
 
