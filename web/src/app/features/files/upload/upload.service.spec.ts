@@ -405,8 +405,8 @@ describe('UploadService', () => {
       expect(session().chunkCount).toBe(3);
 
       const first = await next('PUT', chunkUrl(0));
-      first.event({ type: HttpEventType.UploadProgress, loaded: 5 * MB, total: CHUNK });
-      expect(job.loaded()).toBe(5 * MB);
+      first.event({ type: HttpEventType.UploadProgress, loaded: MB, total: CHUNK });
+      expect(job.loaded()).toBe(MB);
       first.flush(null, { status: 204, statusText: 'No Content' });
       await acceptChunk(1);
       const last = await next('PUT', chunkUrl(2));
