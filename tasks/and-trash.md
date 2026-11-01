@@ -1,11 +1,11 @@
 ---
 title: Android: Trash (list, restore, delete forever)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-shell,p0-trash-core,and-search]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/trash,android/app/src/main/java/ch/sonensei/cockpit/ui,android/app/src/test/java/ch/sonensei/cockpit/trash,android/app/src/main/res/values/strings_trash.xml,android/app/src/main/res/values-de/strings_trash.xml]
 prio: 2
-lease_until: 2026-11-01T18:52:34Z
+lease_until: 
 extended: 
 releases: 2
 ---
@@ -33,3 +33,4 @@ Requested by the owner (2026-11-01) after trying the Android app on the phone.
 - extended by dell26/agent-2: Implementation, CR-1/CR-2 fixes (fixes.md) and post-fix code review (review.md, 0 findings) are committed. Left: (1) run test-writer once more on the final code so it writes reviews/and-trash/tests.md with coverage (it was interrupted; its last test, the background reload outliving the screen, is committed in 2c980289e); (2) run 'cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug' with no other build running (the reviewer's run hit a KSP classpath error during a concurrent build); (3) tasks.py verify for criteria 1-5, write quality.json, run .taskcheck, then done. Note: .taskcheck failed in web vitest with 15 'Timeout waiting for worker' errors (3117/3117 tests passed) because the host was overloaded; this task does not touch web/.
 - release by dell26/agent-2: Implementation, CR-1/CR-2 fixes (fixes.md) and post-fix review (review.md, 0 findings) committed. Last commit 1fb0dbce5 adds an UNVERIFIED test-writer test in TrashRouteTest ('the Trash loads again when the app comes back to it', lifecycle RESUMED->CREATED->RESUMED expects a 2nd repo.list()); run it first, and if TrashRoute does not reload on resume, drop the test (not a criterion). Left: (1) run test-writer on the final code so it writes reviews/and-trash/tests.md incl. task-scoped coverage; if it changes production code, re-run code-reviewer; (2) cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug with no concurrent build (earlier KSP classpath error came from a parallel build); (3) tasks.py verify and-trash 1-5, write+commit reviews/and-trash/quality.json, .taskcheck, done. Earlier .taskcheck failure was web vitest worker timeouts from host load (all 3117 tests passed); this task does not touch web/.
 - release by felix/agent-1: over budget after 2 sessions (~41 min) and a review that decided nothing; still resumable: continue from wip/and-trash (see git log)
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 289s on 02718dac7; criteria verified 5/5
