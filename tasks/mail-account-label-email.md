@@ -1,10 +1,11 @@
 ---
 title: Mail screens label accounts by email address, not the sender name
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [web/src/app/features/mail/list,android/app/src/main/java/ch/sonensei/cockpit/mail/list,android/app/src/test/java/ch/sonensei/cockpit/mail/list]
 prio: 2
+lease_until: 2026-11-01T05:13:57Z
 ---
 ## Goal
 Mail screens show each account by its email address. Today they show the account's display name, which is the
