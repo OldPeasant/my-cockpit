@@ -25,3 +25,4 @@ reading it, without going back to the list first. Today Delete only exists in th
 ## Notes
 Requested by the owner (2026-10-30). Only Delete is in scope; Archive/Spam/Move in the read view and
 "open the next message after deleting" are not.
+- ASSUMPTION (2026-11-01 06:55+0100 by dell26/agent-1): The task names MailService.act('DELETE',[id]); the list's MailService method is apply(action, ids), so the read view calls apply('DELETE',[id]) and treats a per-id result with ok=false (or no result) as a failure, showing its server detail
