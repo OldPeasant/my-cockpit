@@ -84,6 +84,8 @@ import ch.sonensei.cockpit.mail.read.MailReadRoute
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -113,7 +115,18 @@ fun MailRoute(
     var open by rememberSaveable { mutableStateOf<String?>(null) }
     var composing by rememberSaveable { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
+    val searchState = rememberLazyListState()
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    // Each answer replacing the results starts at the top (a search on the server puts new mail first, and the list
+    // would otherwise keep the row it showed by its key); back from a result keeps the place. The version changes with
+    // every answer, so no answer is missed when states are conflated.
+    LaunchedEffect(viewModel) {
+        viewModel.uiState
+            .map { s -> s.search?.version }
+            .distinctUntilChanged()
+            .drop(1)
+            .collect { if (it != null) searchState.requestScrollToItem(0) }
+    }
     // Reloaded when the screen is shown and when the app comes back to it, so mail that arrived meanwhile appears.
     LifecycleResumeEffect(viewModel) {
         viewModel.refresh()
@@ -152,6 +165,7 @@ fun MailRoute(
                         ),
                 ),
             listState = listState,
+            searchState = searchState,
             modifier = modifier,
         )
     } else {
@@ -183,8 +197,8 @@ data class SearchCallbacks(
     val open: () -> Unit = {},
     /** The query entered, as typed. */
     val submit: (String) -> Unit = {},
-    /** Repeat the search on the mail server. */
-    val server: () -> Unit = {},
+    /** Search the text in the box (as typed) on the mail server too. */
+    val server: (String) -> Unit = {},
     val retry: () -> Unit = {},
     val close: () -> Unit = {},
 )
@@ -258,11 +272,12 @@ fun MailListContent(
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
     clock: Clock = Clock.systemDefaultZone(),
+    searchState: LazyListState = rememberLazyListState(),
 ) {
     Box(modifier.fillMaxSize()) {
         val search = state.search
         if (search != null) {
-            MailSearchContent(state, search, callbacks, clock)
+            MailSearchContent(state, search, callbacks, searchState, clock)
         } else {
             MailboxContent(state, callbacks, listState, clock)
         }

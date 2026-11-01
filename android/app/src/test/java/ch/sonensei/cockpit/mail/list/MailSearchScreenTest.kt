@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import org.junit.Assert.assertEquals
@@ -49,7 +50,7 @@ class MailSearchScreenTest {
                             SearchCallbacks(
                                 open = { calls += "open-search" },
                                 submit = { calls += "search $it" },
-                                server = { calls += "server" },
+                                server = { calls += "server $it" },
                                 retry = { calls += "retry" },
                                 close = { calls += "close" },
                             ),
@@ -112,7 +113,19 @@ class MailSearchScreenTest {
 
         composeRule.onNodeWithTag(MailListTags.SEARCH_SERVER).assertTextContains("Search on server").performClick()
 
-        assertEquals(listOf("server"), calls)
+        assertEquals(listOf("server x"), calls)
+    }
+
+    @Test
+    fun `search on server searches the text in the box, also when it was edited without submitting`() {
+        show(searched(MailSearchState(Mailbox.Unified, query = "x", results = listOf(mail(5)), loaded = true)))
+
+        composeRule.onNodeWithTag(MailListTags.SEARCH_FIELD).performTextReplacement("invoice")
+        composeRule.onNodeWithTag(MailListTags.SEARCH_SERVER).performClick()
+        composeRule.onNodeWithTag(MailListTags.SEARCH_FIELD).performTextReplacement("  ")
+        composeRule.onNodeWithTag(MailListTags.SEARCH_SERVER).assertIsNotEnabled()
+
+        assertEquals(listOf("server invoice"), calls)
     }
 
     @Test

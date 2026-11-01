@@ -47,6 +47,8 @@ data class MailSearchState(
     val hasMore: Boolean = false,
     val failedAccounts: List<UUID> = emptyList(),
     val message: MailListMessage? = null,
+    /** Changes each time an answer replaces [results], so the list can start again at the top. */
+    val version: Long = 0,
 ) {
     /** "Search on server" is offered once a cached search answered. */
     val canSearchServer: Boolean get() = query.isNotEmpty() && !server && !loading && loaded
@@ -228,11 +230,27 @@ class MailListViewModel
             runSearch(MailSearchState(search.mailbox, query = text, loading = true))
         }
 
-        /** Repeats the search on the mail servers too; the cached results stay shown until it answers. */
-        fun searchOnServer() {
+        /**
+         * Searches [query] (the text in the box, trimmed, at most [MAX_QUERY] characters) on the mail servers too. For the
+         * query shown the cached results stay until it answers; a query edited since starts from empty results.
+         */
+        fun searchOnServer(
+            query: String =
+                state.value.search
+                    ?.query
+                    .orEmpty(),
+        ) {
             val search = state.value.search ?: return
             if (!search.canSearchServer) return
-            runSearch(search.copy(server = true, loading = true, message = null))
+            val text = query.trim().take(MAX_QUERY)
+            if (text.isEmpty()) return
+            runSearch(
+                if (text == search.query) {
+                    search.copy(server = true, loading = true, message = null)
+                } else {
+                    MailSearchState(search.mailbox, query = text, server = true, loading = true)
+                },
+            )
         }
 
         /** Runs the shown search again after it failed. */
@@ -269,6 +287,7 @@ class MailListViewModel
                                         loading = false,
                                         loaded = true,
                                         message = null,
+                                        version = generation,
                                     )
                                 // A failed search keeps what was shown (the cached results of a search on the server); Retry asks again.
                                 MailResult.Offline -> current.copy(loading = false, message = MailListMessage.OFFLINE)

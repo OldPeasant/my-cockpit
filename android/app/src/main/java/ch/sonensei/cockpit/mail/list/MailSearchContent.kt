@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -46,24 +47,31 @@ import java.time.LocalDate
 
 /**
  * The search box in place of the mailbox picker, and what the search found in the usual mail rows. Back or the close
- * button returns to the mailbox. A search can be repeated on the mail server; accounts whose server failed are named,
- * and a hint says when only the newest results are listed.
+ * button returns to the mailbox. A search can be run on the mail server too (with the text in the box); accounts whose
+ * server failed are named, and a hint says when only the newest results are listed. [listState] scrolls the results.
  */
 @Composable
 internal fun MailSearchContent(
     state: MailListUiState,
     search: MailSearchState,
     callbacks: MailListCallbacks,
+    listState: LazyListState,
     clock: Clock,
 ) {
     BackHandler(onBack = callbacks.search.close)
+    var text by rememberSaveable { mutableStateOf(search.query) }
+    val focusManager = LocalFocusManager.current
     Column(Modifier.fillMaxSize()) {
-        SearchBox(state, search, callbacks.search)
+        SearchBox(state, search, text, { text = it.take(MAX_QUERY) }, callbacks.search)
         search.message?.let { ListMessage(it, callbacks.search.retry) }
         if (search.loading) LinearProgressIndicator(Modifier.fillMaxWidth()) else Spacer(Modifier.height(4.dp))
         if (search.canSearchServer) {
             OutlinedButton(
-                onClick = callbacks.search.server,
+                onClick = {
+                    focusManager.clearFocus()
+                    callbacks.search.server(text)
+                },
+                enabled = text.isNotBlank(),
                 modifier = Modifier.padding(horizontal = 16.dp).testTag(MailListTags.SEARCH_SERVER),
             ) {
                 Text(stringResource(R.string.mail_search_on_server))
@@ -83,7 +91,7 @@ internal fun MailSearchContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(24.dp).testTag(MailListTags.SEARCH_EMPTY),
                 )
-            else -> Results(state, search, callbacks, clock)
+            else -> Results(state, search, callbacks, listState, clock)
         }
     }
 }
@@ -92,9 +100,10 @@ internal fun MailSearchContent(
 private fun SearchBox(
     state: MailListUiState,
     search: MailSearchState,
+    text: String,
+    onText: (String) -> Unit,
     callbacks: SearchCallbacks,
 ) {
-    var text by rememberSaveable { mutableStateOf(search.query) }
     val focus = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val submit = {
@@ -118,7 +127,7 @@ private fun SearchBox(
         }
         OutlinedTextField(
             value = text,
-            onValueChange = { text = it.take(MAX_QUERY) },
+            onValueChange = onText,
             placeholder = { Text(placeholder) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -152,11 +161,16 @@ private fun Results(
     state: MailListUiState,
     search: MailSearchState,
     callbacks: MailListCallbacks,
+    listState: LazyListState,
     clock: Clock,
 ) {
     val today = LocalDate.now(clock)
     // The bottom padding keeps the last row clear of the compose button.
-    LazyColumn(Modifier.fillMaxSize().testTag(MailListTags.SEARCH_RESULTS), contentPadding = PaddingValues(bottom = 88.dp)) {
+    LazyColumn(
+        Modifier.fillMaxSize().testTag(MailListTags.SEARCH_RESULTS),
+        state = listState,
+        contentPadding = PaddingValues(bottom = 88.dp),
+    ) {
         items(search.results, key = { it.id }) { mail ->
             MailRow(mail, state.account(mail.accountId)?.takeIf { state.showSearchAccounts }, today, clock, callbacks.open)
             HorizontalDivider()
