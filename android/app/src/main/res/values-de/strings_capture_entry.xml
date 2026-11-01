@@ -13,4 +13,10 @@
         <item quantity="one">%1$d nicht synchronisiert</item>
         <item quantity="other">%1$d nicht synchronisiert</item>
     </plurals>
+    <!-- In-app capture button on every screen of the shell -->
+    <string name="capture_button">Im Eingang erfassen</string>
+    <plurals name="capture_button_pending">
+        <item quantity="one">Im Eingang erfassen, %1$d zu synchronisieren</item>
+        <item quantity="other">Im Eingang erfassen, %1$d zu synchronisieren</item>
+    </plurals>
 </resources>

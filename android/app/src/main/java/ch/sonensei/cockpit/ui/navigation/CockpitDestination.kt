@@ -58,6 +58,9 @@ enum class CockpitDestination(
         val bottomBar: List<CockpitDestination> = entries.filter { it.section == NavSection.BottomBar }
         val moreItems: List<CockpitDestination> = entries.filter { it.section == NavSection.More }
 
+        /** Screens with their own FAB (create a note, upload a file, compose, new event): capture goes to the app bar. */
+        val withOwnFab: Set<CockpitDestination> = setOf(Calendar, Mail, Notes, Files)
+
         fun fromRoute(route: String?): CockpitDestination? = entries.firstOrNull { it.route == route }
 
         /** The bottom-bar item to highlight: More stays selected while one of its screens is open. */

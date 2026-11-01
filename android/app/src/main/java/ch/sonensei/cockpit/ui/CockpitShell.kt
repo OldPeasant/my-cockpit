@@ -27,6 +27,8 @@ import androidx.navigation.compose.rememberNavController
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.bookmarks.BookmarksScreen
 import ch.sonensei.cockpit.calendar.agenda.CalendarScreen
+import ch.sonensei.cockpit.capture.entry.CaptureButton
+import ch.sonensei.cockpit.capture.entry.CaptureButtonPlacement
 import ch.sonensei.cockpit.contacts.ContactsScreen
 import ch.sonensei.cockpit.files.FilesScreen
 import ch.sonensei.cockpit.gtd.inbox.InboxScreen
@@ -80,7 +82,14 @@ fun CockpitShell(
                         }
                     }
                 },
+                actions = {
+                    if (current in CockpitDestination.withOwnFab) CaptureButton(CaptureButtonPlacement.AppBarAction)
+                },
             )
+        },
+        // Quick capture on every screen (SPEC.md §2), and never a second FAB next to a screen's own.
+        floatingActionButton = {
+            if (current != null && current !in CockpitDestination.withOwnFab) CaptureButton(CaptureButtonPlacement.Fab)
         },
         bottomBar = {
             NavigationBar {
