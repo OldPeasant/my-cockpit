@@ -1,11 +1,11 @@
 ---
 title: Android: Logbook (completed tasks, reopen)
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [and-projects-lists,and-gtd-data,and-trash]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/lists,android/app/src/main/java/ch/sonensei/cockpit/ui,android/app/src/test/java/ch/sonensei/cockpit/gtd,android/app/src/main/res/values/strings_projects_lists.xml,android/app/src/main/res/values-de/strings_projects_lists.xml]
 prio: 2
-lease_until: 2026-11-01T19:40:52Z
+lease_until: 
 ---
 ## Goal
 The Logbook (done tasks, SPEC.md §5) exists on the web only. Use `GET /api/v1/tasks?completed=true` and
@@ -28,3 +28,4 @@ Requested by the owner (2026-11-01) after trying the Android app on the phone.
 - ASSUMPTION (2026-11-01 19:43+0100 by dell26/agent-2): No Android GTD list opens a task on tap (there is no Android task detail view), so tapping a Logbook row opens a read-only detail dialog (completion time, project, contexts, notes) with Reopen/Close; Reopen is also a row button like Follow up/Activate
 - ASSUMPTION (2026-11-01 19:43+0100 by dell26/agent-2): Logbook pages 50 tasks per request and reloads (as many pages as shown) on task change events, retry, and after a reopen; it is not cached offline (SPEC 9.3 caches only Inbox/Next/Today)
 - ASSUMPTION (2026-11-01 19:43+0100 by dell26/agent-2): Logbook placed in More right after Someday; nav_logbook string lives in strings_projects_lists.xml to stay within the task's touches
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 83s on 204d3af37; criteria verified 5/5
