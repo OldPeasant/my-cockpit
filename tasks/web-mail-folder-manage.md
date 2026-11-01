@@ -1,10 +1,11 @@
 ---
 title: Mail folder tree: create, rename and delete folders
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [mail-folder-manage-api,web-mail-list,mail-account-label-email,web-mail-single-click-open]
 touches: [web/src/app/features/mail/list]
 prio: 2
+lease_until: 2026-11-01T07:46:20Z
 ---
 ## Goal
 The mail folder tree (`web/src/app/features/mail/list/mail-folder-tree.ts`) lets the owner create, rename and delete
