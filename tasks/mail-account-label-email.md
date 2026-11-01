@@ -26,3 +26,4 @@ sender name ("Your name" in Settings), so several accounts of the same person lo
 ## Notes
 Display-only change: no server or API change. If a test needs it, the fixtures' accounts get the same display name
 and different addresses.
+- ASSUMPTION (2026-11-01 05:55+0100 by dell26/agent-1): Android: MailAccount keeps name = display name (compose builds the sender 'name <address>' from it, outside this task's touches) and gains a computed label = emailAddress (falls back to name if blank) that the mail list screens show and sort by; satisfies 'label from emailAddress' without touching compose.
