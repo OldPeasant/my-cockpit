@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "task": "mail-account-label-email",
+  "reviewed_revision": "2970e9f79a7ce5c7e395ed47ee61def5a27c004d",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/mail-account-label-email/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-account-label-email/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/mail-account-label-email/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "stale 'by name' comment on MailRepository.accounts() now says sorted by label (email address)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "folder tree heading tooltip repeats the address; kept because the heading is ellipsized and the tooltip shows long addresses in full"}
+  ],
+  "validation": [
+    {"command": "npm --prefix web run check", "result": "pass"},
+    {"command": "android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
