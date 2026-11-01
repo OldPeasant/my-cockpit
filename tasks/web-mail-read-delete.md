@@ -13,9 +13,10 @@ reading it, without going back to the list first. Today Delete only exists in th
 (web-mail-list), and the read view has no way to delete.
 
 ## Acceptance criteria
-- [ ] The read view's action bar shows a Delete button once the message has loaded. It calls the existing
+- [x] The read view's action bar shows a Delete button once the message has loaded. It calls the existing
       mail actions API (`MailService.act('DELETE', [id])`, as the list does, so the server stays unchanged)
       and is disabled while the request runs
+  - verified (2026-11-01 07:05+0100 by dell26/agent-1): npm --prefix web run test:ci -- --include src/app/features/mail/read/mail-read-page.spec.ts --include src/locale/messages-de.spec.ts at 0ec379e65 -> 76 passed; Delete tests: button absent while loading/failed, shown when ready, calls MailService.apply('DELETE',[id]) (the list's action method), disabled while pending and second click/# ignored
 - [ ] On success the app returns to the mail list the message was opened from (the unified Inbox if that
       is unknown), and the message is no longer shown there. On failure the read view stays open and shows
       an error, using the view's existing error pattern
