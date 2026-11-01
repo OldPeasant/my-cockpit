@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nav_dashboard">Übersicht</string>
+    <string name="dashboard_today">Heute</string>
+    <string name="dashboard_inbox">Eingang</string>
+    <string name="dashboard_upcoming">Anstehende Termine</string>
+    <string name="dashboard_waiting_overdue">Überfällig bei Warten auf</string>
+    <string name="dashboard_stalled_projects">Stockende Projekte</string>
+    <string name="dashboard_weekly_review">Letzter Wochenrückblick</string>
+    <string name="dashboard_read_later">Später lesen</string>
+    <string name="dashboard_pinned_notes">Angeheftete Notizen</string>
+    <string name="dashboard_offline">Der Server ist nicht erreichbar.</string>
+    <string name="dashboard_failed">Dieses Widget konnte nicht geladen werden.</string>
+    <string name="dashboard_retry_hint">Zum erneuten Versuch nach unten ziehen.</string>
+    <string name="dashboard_today_empty">Heute ist nichts fällig.</string>
+    <string name="dashboard_today_habits">Gewohnheiten: %1$d von %2$d erledigt</string>
+    <string name="dashboard_overdue">Überfällig</string>
+    <string name="dashboard_all_day">Ganztägig</string>
+    <plurals name="dashboard_inbox_tasks">
+        <item quantity="one">%s Aufgabe zu bearbeiten</item>
+        <item quantity="other">%s Aufgaben zu bearbeiten</item>
+    </plurals>
+    <plurals name="dashboard_inbox_mail">
+        <item quantity="one">%s ungelesene E-Mail</item>
+        <item quantity="other">%s ungelesene E-Mails</item>
+    </plurals>
+    <string name="dashboard_upcoming_empty">Keine Termine in den nächsten 7 Tagen.</string>
+    <string name="dashboard_waiting_empty">Nichts überfällig.</string>
+    <string name="dashboard_stalled_empty">Keine stockenden Projekte.</string>
+    <string name="dashboard_review_never">Noch kein Wochenrückblick abgeschlossen.</string>
+    <string name="dashboard_review_today">Heute</string>
+    <plurals name="dashboard_review_days">
+        <item quantity="one">Vor %d Tag</item>
+        <item quantity="other">Vor %d Tagen</item>
+    </plurals>
+    <string name="dashboard_review_open">Rückblick läuft: Schritt %1$d von 8</string>
+    <string name="dashboard_read_later_empty">Nichts zum späteren Lesen.</string>
+    <string name="dashboard_pinned_empty">Keine angehefteten Notizen.</string>
+    <string name="dashboard_more">und weitere</string>
+</resources>

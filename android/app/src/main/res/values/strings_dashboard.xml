@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="dashboard_today">Today</string>
+    <string name="dashboard_inbox">Inbox</string>
+    <string name="dashboard_upcoming">Upcoming events</string>
+    <string name="dashboard_waiting_overdue">Waiting For overdue</string>
+    <string name="dashboard_stalled_projects">Stalled projects</string>
+    <string name="dashboard_weekly_review">Last weekly review</string>
+    <string name="dashboard_read_later">Read later</string>
+    <string name="dashboard_pinned_notes">Pinned notes</string>
+    <string name="dashboard_offline">The server is not reachable.</string>
+    <string name="dashboard_failed">This widget could not be loaded.</string>
+    <string name="dashboard_retry_hint">Pull down to try again.</string>
+    <string name="dashboard_today_empty">Nothing due today.</string>
+    <string name="dashboard_today_habits">Habits: %1$d of %2$d done</string>
+    <string name="dashboard_overdue">Overdue</string>
+    <string name="dashboard_all_day">All day</string>
+    <plurals name="dashboard_inbox_tasks">
+        <item quantity="one">%s task to process</item>
+        <item quantity="other">%s tasks to process</item>
+    </plurals>
+    <plurals name="dashboard_inbox_mail">
+        <item quantity="one">%s unread email</item>
+        <item quantity="other">%s unread emails</item>
+    </plurals>
+    <string name="dashboard_upcoming_empty">No events in the next 7 days.</string>
+    <string name="dashboard_waiting_empty">Nothing overdue.</string>
+    <string name="dashboard_stalled_empty">No stalled projects.</string>
+    <string name="dashboard_review_never">No weekly review completed yet.</string>
+    <string name="dashboard_review_today">Today</string>
+    <plurals name="dashboard_review_days">
+        <item quantity="one">%d day ago</item>
+        <item quantity="other">%d days ago</item>
+    </plurals>
+    <string name="dashboard_review_open">Review in progress: step %1$d of 8</string>
+    <string name="dashboard_read_later_empty">Nothing to read later.</string>
+    <string name="dashboard_pinned_empty">No pinned notes.</string>
+    <string name="dashboard_more">and more</string>
+</resources>

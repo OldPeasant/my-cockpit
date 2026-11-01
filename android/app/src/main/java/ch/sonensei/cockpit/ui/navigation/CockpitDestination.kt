@@ -8,6 +8,7 @@ import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.Contacts
+import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.EventRepeat
@@ -35,11 +36,14 @@ enum class CockpitDestination(
     val icon: ImageVector,
     val section: NavSection,
 ) {
-    Today("today", R.string.nav_today, Icons.Outlined.Today, NavSection.BottomBar),
+    Dashboard("dashboard", R.string.nav_dashboard, Icons.Outlined.Dashboard, NavSection.BottomBar),
     Inbox("inbox", R.string.nav_inbox, Icons.Outlined.Inbox, NavSection.BottomBar),
     Calendar("calendar", R.string.nav_calendar, Icons.Outlined.CalendarMonth, NavSection.BottomBar),
     Mail("mail", R.string.nav_mail, Icons.Outlined.Mail, NavSection.BottomBar),
     More("more", R.string.nav_more, Icons.Outlined.MoreHoriz, NavSection.BottomBar),
+
+    // Today left the bottom bar for the Dashboard (five items at most); the Dashboard's Today card opens it too.
+    Today("today", R.string.nav_today, Icons.Outlined.Today, NavSection.More),
     New("new", R.string.nav_new, Icons.Outlined.NewReleases, NavSection.More),
     Next("next", R.string.nav_next, Icons.Outlined.Checklist, NavSection.More),
     Projects("projects", R.string.nav_projects, Icons.Outlined.AccountTree, NavSection.More),
@@ -58,7 +62,7 @@ enum class CockpitDestination(
     ;
 
     companion object {
-        val start = Today
+        val start = Dashboard
         val bottomBar: List<CockpitDestination> = entries.filter { it.section == NavSection.BottomBar }
         val moreItems: List<CockpitDestination> = entries.filter { it.section == NavSection.More }
 

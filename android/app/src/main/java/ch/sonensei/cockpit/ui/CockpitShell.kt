@@ -35,6 +35,7 @@ import ch.sonensei.cockpit.calendar.agenda.CalendarScreen
 import ch.sonensei.cockpit.capture.entry.CaptureButton
 import ch.sonensei.cockpit.capture.entry.CaptureButtonPlacement
 import ch.sonensei.cockpit.contacts.ContactsScreen
+import ch.sonensei.cockpit.dashboard.DashboardScreen
 import ch.sonensei.cockpit.files.FilesScreen
 import ch.sonensei.cockpit.gtd.inbox.InboxScreen
 import ch.sonensei.cockpit.gtd.lists.LogbookScreen
@@ -147,7 +148,7 @@ internal fun CockpitShellFrame(
                     composable(destination.route) {
                         // Screens with their own snackbars keep them above the shell's FAB (LocalFabClearance).
                         CompositionLocalProvider(LocalFabClearance provides fabClearance(destination)) {
-                            destinationContent(destination, { navController.navigate(it.route) }, Modifier.testTag(screenTag(destination)))
+                            destinationContent(destination, { navController.open(it) }, Modifier.testTag(screenTag(destination)))
                         }
                     }
                 }
@@ -200,7 +201,7 @@ internal fun fabClearance(destination: CockpitDestination): Dp =
         ShellFabClearance
     }
 
-/** Opens [destination] from outside the shell (a notification): as a tab, or a More screen on top of the current one. */
+/** Opens [destination] (from a notification, the More list, a Dashboard card): as a tab, or a More screen on top of the current one. */
 private fun NavHostController.open(destination: CockpitDestination) {
     if (destination.section == NavSection.BottomBar) {
         navigateToTopLevel(destination)
@@ -231,6 +232,7 @@ private fun DestinationContent(
     modifier: Modifier,
 ) {
     when (destination) {
+        CockpitDestination.Dashboard -> DashboardScreen(onOpen, modifier)
         CockpitDestination.Today -> TodayScreen(modifier)
         CockpitDestination.Inbox -> InboxScreen(modifier)
         CockpitDestination.Calendar -> CalendarScreen(modifier)
