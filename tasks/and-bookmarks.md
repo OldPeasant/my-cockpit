@@ -20,7 +20,8 @@ bookmarks feature (`web/src/app/features/bookmarks`) is the reference for behavi
   - verified (2026-11-01 14:41+0100 by dell26/agent-1): same run -> pass: BookmarksRouteTest tap starts ACTION_VIEW with URL + no-browser snackbar; ScreenTest/ViewModelTest mark read/unread, edit title/tags/notes (draft kept on failure), delete to Trash with undo snackbar (restore endpoint, MockWebServer RepositoryTest)
 - [x] Pull to refresh; loading, empty and error states follow the app's existing list screens (e.g. Notes, Files)
   - verified (2026-11-01 14:41+0100 by dell26/agent-1): same run -> pass: ScreenTest pull-to-refresh swipe calls refresh, loading bar, empty states per view/tag, error banner with retry, offline texts (EN/DE)
-- [ ] A bookmark saved via the share target appears in the list without restarting the app
+- [x] A bookmark saved via the share target appears in the list without restarting the app
+  - verified (2026-11-01 14:41+0100 by dell26/agent-1): same run -> pass: BookmarksRouteTest reloads on lifecycle RESUMED showing a bookmark shared meanwhile; ViewModelTest reloads when CaptureQueue pendingCount drops
 - [ ] All new UI strings exist in English and German (`res/values`, `res/values-de`)
 - [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
 
