@@ -103,6 +103,18 @@ class CockpitShellTest {
     }
 
     @Test
+    fun trashOpensFromTheMoreListAndBackReturnsToIt() {
+        tab("More").performClick()
+        moreItem("Trash").performClick()
+
+        assertShown(CockpitDestination.Trash)
+        tab("More").assertIsSelected()
+
+        composeRule.onNodeWithContentDescription("Back").performClick()
+        assertShown(CockpitDestination.More)
+    }
+
+    @Test
     fun reselectingMoreFromASecondaryScreenReturnsToTheList() {
         tab("More").performClick()
         moreItem("Settings").performClick()
