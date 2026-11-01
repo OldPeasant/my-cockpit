@@ -20,6 +20,7 @@ import mockwebserver3.RecordedRequest
 import okhttp3.MediaType.Companion.toMediaType
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import retrofit2.Retrofit
@@ -317,6 +318,69 @@ class DashboardRepositoryTest {
             answer("/api/v1/habits?archived=false", status(404))
 
             assertEquals(DashboardResult.Failed, dashboard.load(WidgetId.TODAY))
-            assertEquals(4, paths().size)
+            // The failing habits call cancels the other three, which may or may not have reached the server by then.
+            assertTrue(paths().toString(), paths().any { it.startsWith("/api/v1/habits?") })
+            assertTrue(paths().toString(), paths().size <= 4)
+        }
+
+    @Test
+    fun `all-day events have no time and keep their date, timed events fall on their local day`() {
+        val allDay =
+            """{"eventId":"${id(4)}","calendarId":"${id(90)}","title":"Holiday","allDay":true,"startDate":"2026-10-24",""" +
+                """"endDate":"2026-10-25","occurrence":"2026-10-24","status":"CONFIRMED","transparency":"TRANSPARENT","version":1}"""
+        // 23:30 UTC is already the next day in Zurich (UTC+2).
+        answer("/api/v1/calendar/events", json("""{"items":[$allDay,${occurrenceJson(5, "2026-10-22T23:30:00Z")}]}"""))
+
+        val events = (ok(WidgetId.UPCOMING) as WidgetData.Upcoming).events
+
+        assertEquals(DashboardEvent("${id(4)}:2026-10-24", "Holiday", LocalDate.parse("2026-10-24"), null), events[0])
+        assertEquals(LocalDate.parse("2026-10-23"), events[1].date)
+        assertEquals(Instant.parse("2026-10-22T23:30:00Z"), events[1].start)
+        assertEquals("${id(5)}:2026-10-23", events[1].key)
+    }
+
+    @Test
+    fun `an occurrence without any start fails its widget`() =
+        runBlocking {
+            answer(
+                "/api/v1/calendar/events",
+                json(
+                    """{"items":[{"eventId":"${id(4)}","calendarId":"${id(90)}","title":"Broken","allDay":true,""" +
+                        """"status":"CONFIRMED","transparency":"OPAQUE","version":1}]}""",
+                ),
+            )
+            assertEquals(DashboardResult.Failed, dashboard.load(WidgetId.UPCOMING))
+        }
+
+    @Test
+    fun `a failing mail call fails the inbox widget`() =
+        runBlocking {
+            answer("/api/v1/tasks?list=INBOX&completed=false&limit=50", json(taskPage(taskJson(1, "A"))))
+            answer("/api/v1/mail/messages?limit=50", status(502))
+            assertEquals(DashboardResult.Offline, dashboard.load(WidgetId.INBOX))
+
+            answer("/api/v1/mail/messages?limit=50", status(400))
+            assertEquals(DashboardResult.Failed, dashboard.load(WidgetId.INBOX))
+        }
+
+    @Test
+    fun `an unknown review step is a failed widget, not a crash`() =
+        runBlocking {
+            answer(
+                "/api/v1/weekly-reviews/status",
+                json(
+                    """{"current":{"id":"${id(9)}","step":"MEDITATION","stepNumber":9,"startedAt":"2026-10-20T18:00:00Z",""" +
+                        """"createdAt":"2026-10-20T18:00:00Z","updatedAt":"2026-10-20T18:30:00Z","version":3},"daysSinceLastReview":6}""",
+                ),
+            )
+            assertEquals(DashboardResult.Failed, dashboard.load(WidgetId.WEEKLY_REVIEW))
+        }
+
+    @Test
+    fun `an unreachable server is offline for the layout and every widget`() =
+        runBlocking {
+            server.close()
+            assertEquals(DashboardResult.Offline, dashboard.layout())
+            WidgetId.entries.forEach { assertEquals(it.name, DashboardResult.Offline, dashboard.load(it)) }
         }
 }

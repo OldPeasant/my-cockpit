@@ -1,5 +1,8 @@
 package ch.sonensei.cockpit.dashboard
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -142,6 +145,57 @@ class DashboardScreenTest {
     fun `a loading widget shows its progress`() {
         show(DashboardUiState(widgets = listOf(WidgetId.INBOX)))
         composeRule.onNodeWithTag(DashboardTags.loading(WidgetId.INBOX), useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun `the weekly review card says when no review was done or it was today`() {
+        show(
+            DashboardUiState(
+                widgets = listOf(WidgetId.WEEKLY_REVIEW),
+                states = mapOf(WidgetId.WEEKLY_REVIEW to ready(WidgetData.WeeklyReview(daysSinceLastReview = null, openStep = null))),
+            ),
+        )
+        composeRule.onNode(hasText("No weekly review completed yet."), useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNode(hasText("Review in progress", substring = true), useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a review done today and one day ago read naturally`() {
+        var review by mutableStateOf(WidgetData.WeeklyReview(daysSinceLastReview = 0, openStep = null))
+        composeRule.setContent {
+            CockpitTheme {
+                DashboardContent(
+                    DashboardUiState(widgets = listOf(WidgetId.WEEKLY_REVIEW), states = mapOf(WidgetId.WEEKLY_REVIEW to ready(review))),
+                    onRefresh = {},
+                    onOpen = {},
+                )
+            }
+        }
+        composeRule.onNode(hasText("Today"), useUnmergedTree = true).assertExists()
+        review = WidgetData.WeeklyReview(daysSinceLastReview = 1, openStep = null)
+        composeRule.onNode(hasText("1 day ago"), useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun `long lists show five rows and a more hint, all-day events say so`() {
+        val notes = (1..7).map { DashboardItem(id(it), "Note $it") }
+        val events = listOf(DashboardEvent("e:1", "Team offsite", LocalDate.now(), start = null))
+        show(
+            DashboardUiState(
+                widgets = listOf(WidgetId.TODAY, WidgetId.PINNED_NOTES),
+                states =
+                    mapOf(
+                        WidgetId.TODAY to ready(WidgetData.Today(emptyList(), events, habitsDue = 0, habitsDone = 0)),
+                        WidgetId.PINNED_NOTES to ready(WidgetData.PinnedNotes(notes, more = false)),
+                    ),
+            ),
+        )
+        composeRule.onNode(hasText("All day"), useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNode(hasText("Team offsite"), useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNode(hasText("Habits done", substring = true), useUnmergedTree = true).assertDoesNotExist()
+        assertCardShows(WidgetId.PINNED_NOTES, "Note 5")
+        composeRule.onNode(hasText("Note 6"), useUnmergedTree = true).assertDoesNotExist()
+        assertCardShows(WidgetId.PINNED_NOTES, "and more")
     }
 
     @Test

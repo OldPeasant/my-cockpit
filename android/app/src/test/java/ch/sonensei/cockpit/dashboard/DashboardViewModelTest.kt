@@ -153,4 +153,67 @@ class DashboardViewModelTest {
             )
             assertFalse(vm.uiState.value.refreshing)
         }
+
+    @Test
+    fun `a layout that cannot be reloaded keeps the one shown`() =
+        runTest(dispatcher) {
+            coEvery { repo.layout() } returnsMany listOf(DashboardResult.Ok(listOf(WidgetId.INBOX)), DashboardResult.Failed)
+            coEvery { repo.load(WidgetId.INBOX) } returns DashboardResult.Ok(inbox)
+            val vm = DashboardViewModel(repo)
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.refresh(pulled = true)
+            advanceUntilIdle()
+
+            assertEquals(listOf(WidgetId.INBOX), vm.uiState.value.widgets)
+            coVerify(exactly = 2) { repo.load(WidgetId.INBOX) }
+            coVerify(exactly = 0) { repo.load(WidgetId.TODAY) }
+        }
+
+    @Test
+    fun `a newer refresh drops the answer of the older one`() =
+        runTest(dispatcher) {
+            val stale = CompletableDeferred<DashboardResult<WidgetData>>()
+            val fresh = WidgetData.Inbox(Count(7, more = false), Count(0, more = false))
+            coEvery { repo.layout() } returns DashboardResult.Ok(listOf(WidgetId.INBOX))
+            coEvery { repo.load(WidgetId.INBOX) } coAnswers { stale.await() } coAndThen { DashboardResult.Ok(fresh) }
+            val vm = DashboardViewModel(repo)
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.refresh(pulled = true)
+            advanceUntilIdle()
+            stale.complete(DashboardResult.Ok(inbox))
+            advanceUntilIdle()
+
+            assertEquals(WidgetState(fresh, loading = false), vm.uiState.value.state(WidgetId.INBOX))
+            assertFalse(vm.uiState.value.refreshing)
+        }
+
+    @Test
+    fun `only a pull shows the refresh indicator`() =
+        runTest(dispatcher) {
+            val slow = CompletableDeferred<DashboardResult<WidgetData>>()
+            coEvery { repo.layout() } returns DashboardResult.Ok(listOf(WidgetId.INBOX))
+            coEvery { repo.load(WidgetId.INBOX) } coAnswers { slow.await() }
+            val vm = DashboardViewModel(repo)
+
+            vm.refresh()
+            advanceUntilIdle()
+
+            assertFalse(vm.uiState.value.refreshing)
+            assertTrue(
+                vm.uiState.value
+                    .state(WidgetId.INBOX)
+                    .loading,
+            )
+            slow.complete(DashboardResult.Ok(inbox))
+            advanceUntilIdle()
+            assertFalse(
+                vm.uiState.value
+                    .state(WidgetId.INBOX)
+                    .loading,
+            )
+        }
 }
