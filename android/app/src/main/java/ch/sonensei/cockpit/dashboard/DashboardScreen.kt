@@ -39,6 +39,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.ui.LocalFabClearance
@@ -73,8 +74,12 @@ fun DashboardRoute(
 ) {
     val viewModel: DashboardViewModel = hiltViewModel()
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    // Loaded each time the screen is shown, so changes made elsewhere show up.
-    LaunchedEffect(Unit) { viewModel.refresh() }
+    // Loaded each time the screen is shown or the app comes back to it (also on a later day, so "today" moves on),
+    // so changes made elsewhere show up. The first resume is the first load.
+    LifecycleResumeEffect(viewModel) {
+        viewModel.refresh()
+        onPauseOrDispose {}
+    }
     DashboardContent(state, onRefresh = { viewModel.refresh(pulled = true) }, onOpen = onOpen, modifier = modifier)
 }
 

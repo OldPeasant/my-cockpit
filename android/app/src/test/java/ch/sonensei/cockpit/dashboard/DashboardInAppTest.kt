@@ -15,6 +15,7 @@ import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
+import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.testing.WorkManagerTestInitHelper
@@ -42,8 +43,8 @@ import javax.inject.Inject
 
 /**
  * The Dashboard in the Hilt activity with a fake repository: the app opens on the real dashboard (not the placeholder),
- * the stored layout decides the cards, a failing widget keeps its error in its own card, pull to refresh reloads, and
- * the cards open their screens through the real shell navigation.
+ * the stored layout decides the cards, a failing widget keeps its error in its own card, pull to refresh and coming back
+ * to the app reload, and the cards open their screens through the real shell navigation.
  */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
@@ -192,6 +193,32 @@ class DashboardInAppTest {
 
         tab("Dashboard").performClick()
         composeRule.waitUntil(WAIT_MS) { runCatching { coVerify(exactly = 2) { repo.layout() } }.isSuccess }
+    }
+
+    /**
+     * The app goes to the background and comes back (the activity is paused and resumed while the dashboard stays
+     * composed): the dashboard loads again, so the Today and Inbox cards are not left on an old day's data.
+     */
+    @Test
+    fun `the dashboard loads again when the app comes back to it`() {
+        launch()
+        waitForTag(DashboardTags.error(WidgetId.WEEKLY_REVIEW))
+        coVerify(exactly = 1) { repo.layout() }
+        coVerify(exactly = 1) { repo.load(WidgetId.INBOX) }
+
+        scenario!!.moveToState(Lifecycle.State.STARTED)
+        composeRule.waitForIdle()
+        coVerify(exactly = 1) { repo.layout() }
+
+        scenario!!.moveToState(Lifecycle.State.RESUMED)
+        composeRule.waitUntil(WAIT_MS) {
+            runCatching { coVerify(exactly = 2) { repo.load(WidgetId.WEEKLY_REVIEW) } }.isSuccess
+        }
+
+        coVerify(exactly = 2) { repo.layout() }
+        coVerify(exactly = 2) { repo.load(WidgetId.INBOX) }
+        coVerify(exactly = 2) { repo.load(WidgetId.TODAY) }
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.Dashboard)).assertIsDisplayed()
     }
 
     private companion object {
