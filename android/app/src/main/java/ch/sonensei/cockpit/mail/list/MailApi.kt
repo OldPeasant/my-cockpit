@@ -50,6 +50,16 @@ interface MailApi {
         @Query("limit") limit: Int?,
     ): Response<MailMessageListDto>
 
+    /** Searches the cached mail of a folder, an account or all accounts; [server] also searches on the mail servers. */
+    @GET("api/v1/mail/search")
+    suspend fun search(
+        @Query("q") query: String,
+        @Query("accountId") accountId: String?,
+        @Query("folderId") folderId: String?,
+        @Query("server") server: Boolean?,
+        @Query("limit") limit: Int?,
+    ): Response<MailSearchDto>
+
     @POST("api/v1/mail/messages/actions")
     suspend fun act(
         @Body request: MailActionRequestDto,
@@ -142,6 +152,26 @@ data class MailSummaryDto(
     val seen: Boolean = false,
     val flagged: Boolean = false,
     val hasAttachments: Boolean = false,
+)
+
+@Serializable
+data class MailSearchDto(
+    val items: List<MailSummaryDto> = emptyList(),
+    val hasMore: Boolean = false,
+    /** `null` without `server=true`. */
+    val server: MailServerSearchDto? = null,
+)
+
+@Serializable
+data class MailServerSearchDto(
+    val failures: List<MailServerSearchFailureDto> = emptyList(),
+    val truncated: Boolean = false,
+)
+
+@Serializable
+data class MailServerSearchFailureDto(
+    val accountId: String? = null,
+    val errorCode: String? = null,
 )
 
 @Serializable

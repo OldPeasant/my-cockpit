@@ -60,6 +60,39 @@ class MailRepository
                 MailPage(page.items.map { it.toSummary() }, page.nextCursor?.takeIf { it.isNotEmpty() })
             }
 
+        /**
+         * The mail matching [query] in [mailbox] (the unified Inbox searches all folders of all accounts), newest first;
+         * [server] also searches on the mail servers (IMAP SEARCH), which is slower and finds older mail.
+         */
+        suspend fun search(
+            query: String,
+            mailbox: Mailbox,
+            server: Boolean,
+        ): MailResult<MailSearchResult> =
+            mailCall {
+                val folder = mailbox as? Mailbox.Folder
+                val result =
+                    mailBody(
+                        api.search(
+                            query = query,
+                            accountId = folder?.accountId?.toString(),
+                            folderId = folder?.folderId?.toString(),
+                            server = server.takeIf { it },
+                            limit = PAGE_SIZE,
+                        ),
+                    )
+                MailSearchResult(
+                    items = result.items.map { it.toSummary() },
+                    hasMore = result.hasMore || result.server?.truncated == true,
+                    failedAccounts =
+                        result.server
+                            ?.failures
+                            .orEmpty()
+                            .mapNotNull { f -> f.accountId?.let { runCatching { UUID.fromString(it) }.getOrNull() } }
+                            .distinct(),
+                )
+            }
+
         /** Archives or deletes [id] on the mail server; `Ok(false)` when the server could not do it for this message. */
         suspend fun act(
             id: UUID,

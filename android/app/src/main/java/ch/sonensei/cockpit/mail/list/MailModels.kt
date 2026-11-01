@@ -91,6 +91,16 @@ data class MailPage(
     val nextCursor: String?,
 )
 
+/**
+ * What a search found, newest first. [hasMore]: more mail matches than is listed (only the newest is).
+ * [failedAccounts]: accounts whose mail server could not be searched; only their cached mail is listed.
+ */
+data class MailSearchResult(
+    val items: List<MailSummary>,
+    val hasMore: Boolean = false,
+    val failedAccounts: List<UUID> = emptyList(),
+)
+
 /** The swipe actions of the list (SPEC.md §7.3). */
 enum class MailListAction(
     internal val wire: String,

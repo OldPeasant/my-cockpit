@@ -43,4 +43,14 @@
     <string name="mail_spam_failed">The mail could not be moved to spam.</string>
     <string name="mail_read_no_role_folder">This account has no %1$s folder.</string>
     <string name="mail_read_action_error">Server error: %1$s</string>
+    <string name="mail_search">Search mail</string>
+    <string name="mail_search_all">Search all folders</string>
+    <string name="mail_search_in">Search in %1$s</string>
+    <string name="mail_search_submit">Search</string>
+    <string name="mail_search_close">Close search</string>
+    <string name="mail_search_on_server">Search on server</string>
+    <string name="mail_search_empty">No mail found.</string>
+    <string name="mail_search_has_more">Only the newest results are listed. Refine the search to find older ones.</string>
+    <string name="mail_search_server_failed">The server of %1$s could not be searched; only cached mail is shown for it.</string>
+    <string name="mail_search_unknown_account">an account</string>
 </resources>

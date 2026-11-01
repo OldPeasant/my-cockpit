@@ -33,6 +33,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.Mail
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -133,6 +134,14 @@ fun MailRoute(
                     loadMore = viewModel::loadMore,
                     retry = viewModel::refresh,
                     compose = { composing = ComposeMode.New(state.folder?.accountId).encode() },
+                    search =
+                        SearchCallbacks(
+                            open = viewModel::openSearch,
+                            submit = viewModel::search,
+                            server = viewModel::searchOnServer,
+                            retry = viewModel::retrySearch,
+                            close = viewModel::closeSearch,
+                        ),
                     folders =
                         FolderCallbacks(
                             create = viewModel::startCreateFolder,
@@ -166,6 +175,18 @@ data class MailListCallbacks(
     val retry: () -> Unit = {},
     val compose: () -> Unit = {},
     val folders: FolderCallbacks = FolderCallbacks(),
+    val search: SearchCallbacks = SearchCallbacks(),
+)
+
+/** The search box and its results. */
+data class SearchCallbacks(
+    val open: () -> Unit = {},
+    /** The query entered, as typed. */
+    val submit: (String) -> Unit = {},
+    /** Repeat the search on the mail server. */
+    val server: () -> Unit = {},
+    val retry: () -> Unit = {},
+    val close: () -> Unit = {},
 )
 
 /** The folder actions of the mailbox picker and its dialogs. */
@@ -188,6 +209,15 @@ internal object MailListTags {
     const val RETRY = "mail-retry"
     const val LOADING_MORE = "mail-loading-more"
     const val COMPOSE = "mail-compose"
+    const val SEARCH_OPEN = "mail-search-open"
+    const val SEARCH_FIELD = "mail-search-field"
+    const val SEARCH_SUBMIT = "mail-search-submit"
+    const val SEARCH_CLOSE = "mail-search-close"
+    const val SEARCH_SERVER = "mail-search-server"
+    const val SEARCH_FAILURES = "mail-search-failures"
+    const val SEARCH_HAS_MORE = "mail-search-has-more"
+    const val SEARCH_EMPTY = "mail-search-empty"
+    const val SEARCH_RESULTS = "mail-search-results"
 
     fun row(id: UUID) = "mail-row:$id"
 
@@ -230,20 +260,11 @@ fun MailListContent(
     clock: Clock = Clock.systemDefaultZone(),
 ) {
     Box(modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize()) {
-            MailboxPicker(state, callbacks.select, callbacks.folders)
-            state.message?.let { ListMessage(it, callbacks.retry) }
-            if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth()) else Spacer(Modifier.height(4.dp))
-            when {
-                state.loaded && state.messages.isEmpty() ->
-                    Text(
-                        stringResource(if (state.accounts.isEmpty()) R.string.mail_no_accounts else R.string.mail_empty),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(24.dp).testTag(MailListTags.EMPTY),
-                    )
-                else -> Messages(state, callbacks, listState, clock)
-            }
+        val search = state.search
+        if (search != null) {
+            MailSearchContent(state, search, callbacks, clock)
+        } else {
+            MailboxContent(state, callbacks, listState, clock)
         }
         ExtendedFloatingActionButton(
             onClick = callbacks.compose,
@@ -253,6 +274,36 @@ fun MailListContent(
         )
     }
     state.folderEdit?.let { FolderDialog(it, callbacks.folders) }
+}
+
+/** The mailbox picker with the search action, and the mailbox's mails. */
+@Composable
+private fun MailboxContent(
+    state: MailListUiState,
+    callbacks: MailListCallbacks,
+    listState: LazyListState,
+    clock: Clock,
+) {
+    Column(Modifier.fillMaxSize()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) { MailboxPicker(state, callbacks.select, callbacks.folders) }
+            IconButton(onClick = callbacks.search.open, modifier = Modifier.padding(end = 8.dp).testTag(MailListTags.SEARCH_OPEN)) {
+                Icon(Icons.Outlined.Search, contentDescription = stringResource(R.string.mail_search))
+            }
+        }
+        state.message?.let { ListMessage(it, callbacks.retry) }
+        if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth()) else Spacer(Modifier.height(4.dp))
+        when {
+            state.loaded && state.messages.isEmpty() ->
+                Text(
+                    stringResource(if (state.accounts.isEmpty()) R.string.mail_no_accounts else R.string.mail_empty),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(24.dp).testTag(MailListTags.EMPTY),
+                )
+            else -> Messages(state, callbacks, listState, clock)
+        }
+    }
 }
 
 @Composable
@@ -363,7 +414,7 @@ private data class SwipeLook(
 )
 
 @Composable
-private fun MailRow(
+internal fun MailRow(
     mail: MailSummary,
     account: MailAccount?,
     today: LocalDate,
@@ -659,7 +710,7 @@ private fun folderErrorText(error: FolderEditError): Int =
 
 /** Special folders by their role (servers name them in many ways), the others by name. */
 @Composable
-private fun folderLabel(folder: MailFolder): String =
+internal fun folderLabel(folder: MailFolder): String =
     when (folder.role) {
         FolderRole.INBOX -> stringResource(R.string.mail_folder_inbox)
         FolderRole.DRAFTS -> stringResource(R.string.mail_folder_drafts)
@@ -671,7 +722,7 @@ private fun folderLabel(folder: MailFolder): String =
     }
 
 @Composable
-private fun ListMessage(
+internal fun ListMessage(
     message: MailListMessage,
     retry: () -> Unit,
 ) {

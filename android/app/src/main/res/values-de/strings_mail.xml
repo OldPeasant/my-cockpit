@@ -43,4 +43,14 @@
     <string name="mail_spam_failed">Die E-Mail konnte nicht in den Spam verschoben werden.</string>
     <string name="mail_read_no_role_folder">Dieses Konto hat keinen Ordner „%1$s“.</string>
     <string name="mail_read_action_error">Fehler des Servers: %1$s</string>
+    <string name="mail_search">E-Mails durchsuchen</string>
+    <string name="mail_search_all">Alle Ordner durchsuchen</string>
+    <string name="mail_search_in">In %1$s suchen</string>
+    <string name="mail_search_submit">Suchen</string>
+    <string name="mail_search_close">Suche schließen</string>
+    <string name="mail_search_on_server">Auf dem Server suchen</string>
+    <string name="mail_search_empty">Keine E-Mails gefunden.</string>
+    <string name="mail_search_has_more">Nur die neuesten Ergebnisse werden angezeigt. Verfeinere die Suche, um ältere zu finden.</string>
+    <string name="mail_search_server_failed">Der Server von %1$s konnte nicht durchsucht werden; dafür werden nur zwischengespeicherte E-Mails angezeigt.</string>
+    <string name="mail_search_unknown_account">einem Konto</string>
 </resources>

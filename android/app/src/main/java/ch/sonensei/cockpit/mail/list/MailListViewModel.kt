@@ -33,6 +33,25 @@ data class FolderEdit(
     val error: FolderEditError? = null,
 )
 
+/**
+ * The open search of the list: [query] in [mailbox] (the unified Inbox searches all folders), on the mail servers
+ * too when [server]. [loaded] once an answer came; a search on the server keeps the cached results shown meanwhile.
+ */
+data class MailSearchState(
+    val mailbox: Mailbox,
+    val query: String = "",
+    val server: Boolean = false,
+    val results: List<MailSummary> = emptyList(),
+    val loading: Boolean = false,
+    val loaded: Boolean = false,
+    val hasMore: Boolean = false,
+    val failedAccounts: List<UUID> = emptyList(),
+    val message: MailListMessage? = null,
+) {
+    /** "Search on server" is offered once a cached search answered. */
+    val canSearchServer: Boolean get() = query.isNotEmpty() && !server && !loading && loaded
+}
+
 data class MailListUiState(
     val mailbox: Mailbox = Mailbox.Unified,
     val accounts: List<MailAccountFolders> = emptyList(),
@@ -45,6 +64,8 @@ data class MailListUiState(
     val loaded: Boolean = false,
     val message: MailListMessage? = null,
     val folderEdit: FolderEdit? = null,
+    /** The open search, shown instead of the mailbox; `null` when closed. */
+    val search: MailSearchState? = null,
 ) {
     val folder: MailFolder?
         get() =
@@ -62,6 +83,9 @@ data class MailListUiState(
 
     /** Names the account of each row in the unified Inbox when there is more than one. */
     val showAccounts: Boolean get() = mailbox == Mailbox.Unified && accounts.size > 1
+
+    /** Names the account of each search result when all accounts are searched and there is more than one. */
+    val showSearchAccounts: Boolean get() = search?.mailbox == Mailbox.Unified && accounts.size > 1
 
     fun account(id: UUID?): MailAccount? = accounts.firstOrNull { it.account.id == id }?.account
 }
@@ -81,6 +105,10 @@ class MailListViewModel
 
         private var loadJob: Job? = null
         private var folderJob: Job? = null
+        private var searchJob: Job? = null
+
+        /** Each search takes the next number; only the newest one's answer is shown. */
+        private var searchGeneration = 0L
 
         /**
          * Who may still write the folder lists: each load, folder reload and applied folder change takes the next
@@ -170,10 +198,86 @@ class MailListViewModel
         }
 
         /** The read view opened [id] (and marks it read on the server). */
-        fun markSeen(id: UUID) = state.update { s -> s.copy(messages = s.messages.map { if (it.id == id) it.copy(seen = true) else it }) }
+        fun markSeen(id: UUID) =
+            state.update { s ->
+                s.copy(
+                    messages = s.messages.map { if (it.id == id) it.copy(seen = true) else it },
+                    search = s.search?.let { q -> q.copy(results = q.results.map { if (it.id == id) it.copy(seen = true) else it }) },
+                )
+            }
 
         /** The read view archived or deleted [id]. */
-        fun removed(id: UUID) = state.update { s -> s.copy(messages = s.messages.filterNot { it.id == id }) }
+        fun removed(id: UUID) =
+            state.update { s ->
+                s.copy(
+                    messages = s.messages.filterNot { it.id == id },
+                    search = s.search?.let { q -> q.copy(results = q.results.filterNot { it.id == id }) },
+                )
+            }
+
+        /** Opens the search box for the mailbox shown; an open search stays as it is. */
+        fun openSearch() {
+            if (state.value.search == null) state.update { it.copy(search = MailSearchState(it.mailbox)) }
+        }
+
+        /** Searches the cached mail for [query] (trimmed, at most [MAX_QUERY] characters); a blank query does nothing. */
+        fun search(query: String) {
+            val search = state.value.search ?: return
+            val text = query.trim().take(MAX_QUERY)
+            if (text.isEmpty()) return
+            runSearch(MailSearchState(search.mailbox, query = text, loading = true))
+        }
+
+        /** Repeats the search on the mail servers too; the cached results stay shown until it answers. */
+        fun searchOnServer() {
+            val search = state.value.search ?: return
+            if (!search.canSearchServer) return
+            runSearch(search.copy(server = true, loading = true, message = null))
+        }
+
+        /** Runs the shown search again after it failed. */
+        fun retrySearch() {
+            val search = state.value.search ?: return
+            if (search.query.isEmpty() || search.loading) return
+            runSearch(search.copy(loading = true, message = null))
+        }
+
+        /** Closes the search; the mailbox shows again as it was. */
+        fun closeSearch() {
+            searchJob?.cancel()
+            searchGeneration++
+            state.update { it.copy(search = null) }
+        }
+
+        private fun runSearch(search: MailSearchState) {
+            searchJob?.cancel()
+            val generation = ++searchGeneration
+            state.update { it.copy(search = search) }
+            searchJob =
+                viewModelScope.launch {
+                    val result = repository.search(search.query, search.mailbox, search.server)
+                    if (generation != searchGeneration) return@launch
+                    state.update { s ->
+                        val current = s.search ?: return@update s
+                        val next =
+                            when (result) {
+                                is MailResult.Ok ->
+                                    current.copy(
+                                        results = result.value.items,
+                                        hasMore = result.value.hasMore,
+                                        failedAccounts = result.value.failedAccounts,
+                                        loading = false,
+                                        loaded = true,
+                                        message = null,
+                                    )
+                                // A failed search keeps what was shown (the cached results of a search on the server); Retry asks again.
+                                MailResult.Offline -> current.copy(loading = false, message = MailListMessage.OFFLINE)
+                                is MailResult.Failed -> current.copy(loading = false, message = MailListMessage.FAILED)
+                            }
+                        s.copy(search = next)
+                    }
+                }
+        }
 
         /** Opens the dialog for a new folder in [parent], or at the top level of [accountId]. */
         fun startCreateFolder(
@@ -325,6 +429,9 @@ class MailListViewModel
             return if (older.isEmpty()) page.items to page.nextCursor else (page.items + older) to current.nextCursor
         }
     }
+
+/** The longest query the server takes. */
+internal const val MAX_QUERY = 200
 
 private const val PRECONDITION_FAILED = 412
 private const val BAD_REQUEST = 400
