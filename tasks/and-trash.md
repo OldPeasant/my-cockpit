@@ -6,6 +6,7 @@ deps: [and-shell,p0-trash-core,and-search]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/trash,android/app/src/main/java/ch/sonensei/cockpit/ui,android/app/src/test/java/ch/sonensei/cockpit/trash,android/app/src/main/res/values/strings_trash.xml,android/app/src/main/res/values-de/strings_trash.xml]
 prio: 2
 lease_until: 2026-11-01T16:36:34Z
+extended: dell26/agent-2
 ---
 ## Goal
 The Trash (SPEC.md §4.x: deleted items, purged after 30 days) exists on the web only. Use `/api/v1/trash`,
@@ -23,3 +24,4 @@ Requested by the owner (2026-11-01) after trying the Android app on the phone.
 - ASSUMPTION (2026-11-01 16:20+0100 by dell26/agent-2): Trash sits in the More list between Review and Settings with the Delete icon; nav_trash lives in strings_trash.xml (strings.xml is outside the task's touches).
 - ASSUMPTION (2026-11-01 16:20+0100 by dell26/agent-2): After a restore of a TASK or PROJECT the app runs GtdSync.refreshAll() so the Room-cached GTD lists show it at once; other types' screens load from the server when opened, so they need no reload.
 - ASSUMPTION (2026-11-01 16:20+0100 by dell26/agent-2): The Trash list loads all pages up front (200 per page, at most 50 pages) like Bookmarks, instead of the web's 'Show more' button; restore and delete-forever are icon buttons per row, results/failures shown as snackbars (no undo).
+- extended by dell26/agent-2: Implementation, CR-1/CR-2 fixes (fixes.md) and post-fix code review (review.md, 0 findings) are committed. Left: (1) run test-writer once more on the final code so it writes reviews/and-trash/tests.md with coverage (it was interrupted; its last test, the background reload outliving the screen, is committed in 2c980289e); (2) run 'cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug' with no other build running (the reviewer's run hit a KSP classpath error during a concurrent build); (3) tasks.py verify for criteria 1-5, write quality.json, run .taskcheck, then done. Note: .taskcheck failed in web vitest with 15 'Timeout waiting for worker' errors (3117/3117 tests passed) because the host was overloaded; this task does not touch web/.
