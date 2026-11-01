@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [mail-folder-manage-api,web-mail-list,mail-account-label-email,web-mail-single-click-open]
 touches: [web/src/app/features/mail/list]
 prio: 2
-lease_until: 2026-11-01T07:55:22Z
+lease_until: 2026-11-01T08:00:28Z
 ---
 ## Goal
 The mail folder tree (`web/src/app/features/mail/list/mail-folder-tree.ts`) lets the owner create, rename and delete
