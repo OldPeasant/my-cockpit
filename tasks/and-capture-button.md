@@ -15,7 +15,8 @@ in-app entry that opens the same capture sheet as `capture/entry/CaptureActivity
 ## Acceptance criteria
 - [x] Every top-level screen of the app shell shows a capture button ("+" FAB or app-bar action, consistent across screens); screens that already have their own FAB (Notes, Files, Mail, Calendar) keep it and get the capture action in the app bar instead, so there are never two FABs
   - verified (2026-11-01 15:02+0100 by dell26/agent-2): CaptureButtonTest 'every screen has exactly one capture button and screens with their own FAB get it in the app bar' + FabClearanceTest per-destination tests (Robolectric Compose UI); cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> 2268 tests pass; sh scripts/check.sh -> all checks passed
-- [ ] The button opens the capture sheet (text, notes, attachment as in the widget's sheet); saving writes to the offline capture queue and works in airplane mode; the pending count updates
+- [x] The button opens the capture sheet (text, notes, attachment as in the widget's sheet); saving writes to the offline capture queue and works in airplane mode; the pending count updates
+  - verified (2026-11-01 15:02+0100 by dell26/agent-2): CaptureButtonTest (intent opens CaptureActivity in app task, pending-count VM + badge) + CaptureButtonFlowTest 'saving in the sheet opened from the FAB queues offline...' against the real Room queue with no sync/server (offline simulated under Robolectric, no physical device in airplane mode); ./gradlew testDebugUnitTest -> pass
 - [ ] Closing the sheet returns to the screen the user was on
 - [ ] All new UI strings exist in English and German (`res/values`, `res/values-de`)
 - [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
