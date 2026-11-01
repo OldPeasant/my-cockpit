@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "web-mail-search",
+  "reviewed_revision": "c198e60df5057c10ae75e2b3a7fa2e5444824867",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-mail-search/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-mail-search/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-mail-search/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: switching Messages/Conversations during a search re-ran a (server) search; fixed by the fixer (setThreaded saves the choice but skips the reload while searching), spec added; second review confirmed the fix, 0 findings"},
+    {"id": "TW-1", "source": "test-writer", "severity": "P3", "disposition": "fixed",
+     "note": "first test pass: mail-list-page.scss exceeded the 4 kB component style budget (build warning); parent moved the search styles to mail-list-search.scss, the warning is gone"}
+  ],
+  "validation": [
+    {"command": "cd web && npx ng lint --max-warnings=0", "result": "pass"},
+    {"command": "cd web && npx ng test --watch=false --include='src/app/features/mail/**/*.spec.ts'", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
