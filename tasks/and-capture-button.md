@@ -19,7 +19,8 @@ in-app entry that opens the same capture sheet as `capture/entry/CaptureActivity
   - verified (2026-11-01 15:02+0100 by dell26/agent-2): CaptureButtonTest (intent opens CaptureActivity in app task, pending-count VM + badge) + CaptureButtonFlowTest 'saving in the sheet opened from the FAB queues offline...' against the real Room queue with no sync/server (offline simulated under Robolectric, no physical device in airplane mode); ./gradlew testDebugUnitTest -> pass
 - [x] Closing the sheet returns to the screen the user was on
   - verified (2026-11-01 15:02+0100 by dell26/agent-2): CaptureButtonFlowTest save and cancel from FAB/app-bar: sheet finishes, shell stays on Today/Notes, intent has no NEW_TASK (Robolectric, no real-device back stack); ./gradlew testDebugUnitTest -> pass
-- [ ] All new UI strings exist in English and German (`res/values`, `res/values-de`)
+- [x] All new UI strings exist in English and German (`res/values`, `res/values-de`)
+  - verified (2026-11-01 15:02+0100 by dell26/agent-2): res/values + res/values-de strings_capture_entry.xml; CaptureButtonTest 'the button is described in German'; ./gradlew lintDebug (MissingTranslation) -> pass
 - [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
 
 ## Notes
