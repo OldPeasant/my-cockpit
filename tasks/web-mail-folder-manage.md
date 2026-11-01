@@ -1,11 +1,11 @@
 ---
 title: Mail folder tree: create, rename and delete folders
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [mail-folder-manage-api,web-mail-list,mail-account-label-email,web-mail-single-click-open]
 touches: [web/src/app/features/mail/list]
 prio: 2
-lease_until: 2026-11-01T08:05:29Z
+lease_until: 
 ---
 ## Goal
 The mail folder tree (`web/src/app/features/mail/list/mail-folder-tree.ts`) lets the owner create, rename and delete
@@ -33,3 +33,4 @@ Use the frontend-design skill for the menu and dialogs, matching the existing ma
 - ASSUMPTION (2026-11-01 08:34+0100 by dell26/agent-1): Delete is also hidden for folders that hold a folder with a role (e.g. [Gmail] holding Trash), because the server refuses those (409); New subfolder is hidden for flat namespaces (no delimiter)
 - ASSUMPTION (2026-11-01 08:34+0100 by dell26/agent-1): Server errors in the folder dialogs are shown as localized texts by HTTP status (409 taken, 400 invalid, 0 unreachable, 502 mail server, 404/412 changed elsewhere + tree reload) instead of the English server detail; other statuses fall back to the server text
 - ASSUMPTION (2026-11-01 08:34+0100 by dell26/agent-1): Delete confirmation performs the delete inside the dialog and keeps the dialog open with the error on failure (same pattern as the name dialog); after any change the tree updates locally at once and reloads the folders in the background for fresh versions
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 87s on d1fc89c80; criteria verified 5/5
