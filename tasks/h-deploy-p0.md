@@ -1,6 +1,6 @@
 ---
 title: HUMAN: first deploy on the owner's server
-status: in_progress
+status: done
 owner: Peter Gürtler
 deps: [p0-smoke]
 quality: exempt
@@ -22,3 +22,4 @@ The owner deploys the stack with the real domain (SPEC.md §13.3).
 
 ## Notes
 - unhold by Peter Gürtler: Done
+- done by Peter Gürtler: `sh scripts/check.sh` passed in 336s on 5aa862019; criteria verified 2/2
