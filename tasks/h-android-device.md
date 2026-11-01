@@ -15,6 +15,7 @@ lease_until:
 Owner installs the APK and runs the (H) steps of phase 3.
 
 ## Acceptance criteria
-- [ ] Share target, widget, tile, offline capture and reminders work on the owner's phone
+- [x] Share target, widget, tile, offline capture and reminders work on the owner's phone
+  - verified (2026-11-01 18:29+0100 by Peter Gürtler): it works
 
 ## Notes
