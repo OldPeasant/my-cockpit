@@ -105,9 +105,9 @@ class InAppPasskeyTest {
         composeRule.onNodeWithTag(screenTag(CockpitDestination.More)).performScrollToNode(hasText("Settings"))
         composeRule.onNodeWithText("Settings").performClick()
 
-        composeRule.onNodeWithTag(PasskeyTags.SECTION).assertIsDisplayed()
+        composeRule.onNodeWithTag(PasskeyTags.SECTION).performScrollTo().assertIsDisplayed()
         composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithText("Laptop").fetchSemanticsNodes().isNotEmpty() }
-        composeRule.onNodeWithText("Laptop").assertIsDisplayed()
+        composeRule.onNodeWithText("Laptop").performScrollTo().assertIsDisplayed()
     }
 
     @Test

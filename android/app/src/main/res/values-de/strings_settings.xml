@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Server -->
+    <string name="settings_server_title">Server</string>
+    <string name="settings_server_address">Serveradresse</string>
+    <string name="settings_server_not_set">Keine Serveradresse festgelegt</string>
+    <string name="settings_server_user">Angemeldet als</string>
+    <string name="settings_server_user_loading">Wird geprüft…</string>
+    <string name="settings_server_user_unknown">Der Server ist gerade nicht erreichbar.</string>
+    <string name="settings_server_change">Server ändern</string>
+    <string name="settings_server_dialog_title">Server ändern</string>
+    <string name="settings_server_dialog_body">Der Wechsel zu einem anderen Server meldet dich ab. Noch nicht synchronisierte Erfassungen gehen an den neuen Server, sobald du dich dort anmeldest.</string>
+    <string name="settings_server_save">Speichern</string>
+    <string name="settings_server_cancel">Abbrechen</string>
+    <string name="settings_retry">Erneut versuchen</string>
+
+    <!-- Notifications -->
+    <string name="settings_notifications_title">Benachrichtigungen</string>
+    <string name="settings_notifications_body">Erinnerungen und Benachrichtigungen zu neuen Mails schaltest du einzeln in den Systemeinstellungen ein oder aus.</string>
+    <string name="settings_notifications_allowed">Benachrichtigungen sind erlaubt</string>
+    <string name="settings_notifications_blocked">Benachrichtigungen sind ausgeschaltet</string>
+    <string name="settings_notifications_open">Benachrichtigungseinstellungen</string>
+    <string name="settings_exact_allowed">Erinnerungen kommen auf die Minute genau</string>
+    <string name="settings_exact_blocked">Erinnerungen können einige Minuten zu spät kommen</string>
+    <string name="settings_exact_open">Genaue Wecker erlauben</string>
+    <string name="settings_push_selected">Push über %1$s</string>
+    <string name="settings_push_not_selected">Keine Push-App gewählt. Die App sieht alle paar Minuten nach Neuem.</string>
+    <string name="settings_push_none">Keine Push-App installiert. Installiere eine UnifiedPush-App wie ntfy, um neue Mails sofort zu erhalten; bis dahin sieht die App alle paar Minuten nach.</string>
+    <string name="settings_push_choose">Push-App wählen</string>
+    <string name="settings_push_get">Push-App finden</string>
+    <string name="settings_push_picker_title">Push-App</string>
+
+    <!-- Capture -->
+    <string name="settings_capture_title">Erfassen</string>
+    <plurals name="settings_capture_pending">
+        <item quantity="one">%1$d Erfassung wartet auf die Synchronisierung</item>
+        <item quantity="other">%1$d Erfassungen warten auf die Synchronisierung</item>
+    </plurals>
+    <string name="settings_capture_synced">Alles Erfasste ist auf dem Server.</string>
+    <string name="settings_capture_waiting">Wird gesendet, sobald das Telefon online ist.</string>
+    <string name="settings_capture_failed">Letzter Versuch fehlgeschlagen: %1$s</string>
+    <string name="settings_capture_sync_now">Jetzt synchronisieren</string>
+    <string name="settings_capture_sync_requested">Synchronisierung gestartet. Sie läuft, sobald das Telefon online ist.</string>
+    <string name="settings_capture_sync_failed">Die Synchronisierung konnte nicht gestartet werden. Versuche es erneut.</string>
+
+    <!-- About -->
+    <string name="settings_about_title">Über die App</string>
+    <string name="settings_about_version">Version %1$s (%2$d)</string>
+    <string name="settings_about_download">Neueste App herunterladen</string>
+</resources>

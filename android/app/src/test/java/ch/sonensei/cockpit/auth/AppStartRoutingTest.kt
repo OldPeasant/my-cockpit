@@ -104,7 +104,7 @@ class AppStartRoutingTest {
         composeRule.onNode(hasText("More") and isSelectable()).performClick()
         composeRule.onNodeWithTag(screenTag(CockpitDestination.More)).performScrollToNode(hasText("Settings"))
         composeRule.onNodeWithText("Settings").performClick()
-        composeRule.onNodeWithText("Log out").performClick()
+        composeRule.onNodeWithText("Log out").performScrollTo().performClick()
 
         composeRule.onNodeWithTag(LoginTags.SCREEN).assertIsDisplayed()
         assertNull(tokenStore.current())
@@ -161,7 +161,7 @@ class AppStartRoutingTest {
         composeRule.onNode(hasText("More") and isSelectable()).performClick()
         composeRule.onNodeWithTag(screenTag(CockpitDestination.More)).performScrollToNode(hasText("Settings"))
         composeRule.onNodeWithText("Settings").performClick()
-        composeRule.onNodeWithText("Log out").performClick()
+        composeRule.onNodeWithText("Log out").performScrollTo().performClick()
         composeRule.onNodeWithTag(LoginTags.SCREEN).assertIsDisplayed()
 
         composeRule.waitUntil(WAIT_MS) { !cached.exists() }
