@@ -2,7 +2,9 @@ package ch.sonensei.cockpit.mail.imap
 
 import ch.sonensei.cockpit.core.events.domain.ChangeEventPublisher
 import ch.sonensei.cockpit.core.events.domain.ChangeOp
+import ch.sonensei.cockpit.core.web.ConflictException
 import ch.sonensei.cockpit.core.web.ETags
+import ch.sonensei.cockpit.core.web.InvalidRequestException
 import ch.sonensei.cockpit.core.web.NotFoundException
 import ch.sonensei.cockpit.mail.model.MailAccount
 import ch.sonensei.cockpit.mail.model.MailAccountRepository
@@ -10,11 +12,13 @@ import ch.sonensei.cockpit.mail.model.MailFolder
 import ch.sonensei.cockpit.mail.model.MailFolderRepository
 import ch.sonensei.cockpit.mail.model.MailFolderRole
 import ch.sonensei.cockpit.mail.search.MailSearchIndex
+import jakarta.mail.Folder
 import jakarta.mail.MessagingException
 import jakarta.persistence.EntityManager
 import jakarta.persistence.LockModeType
 import org.eclipse.angus.mail.imap.IMAPFolder
 import org.eclipse.angus.mail.imap.IMAPStore
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
 import java.util.UUID
@@ -22,7 +26,8 @@ import java.util.UUID
 /**
  * The folder list of an account (SPEC.md §7.2): [sync] reads it from the server and updates the cached `mail_folder`
  * rows (new folders added, vanished ones removed, roles detected by [FolderRoleDetector]); [overrideRole] lets the
- * owner choose a role by hand. Every changed folder publishes a `MAIL_FOLDER` change event.
+ * owner choose a role by hand; [create], [rename] and [delete] change folders on the server and in the cache at once,
+ * so the owner does not wait for the next sync. Every changed folder publishes a `MAIL_FOLDER` change event.
  */
 @Service
 class MailFolderService(
@@ -34,6 +39,8 @@ class MailFolderService(
 	private val entityManager: EntityManager,
 	private val searchIndex: MailSearchIndex,
 ) {
+	private val log = LoggerFactory.getLogger(javaClass)
+
 	/** The cached folders of an account, by path. */
 	fun list(accountId: UUID): List<MailFolder> {
 		account(accountId)
@@ -52,8 +59,7 @@ class MailFolderService(
 		return checkNotNull(
 			transactions.execute {
 				// Waits until a parallel sync of this account has committed, so the cached rows read next include its folders.
-				entityManager.find(MailAccount::class.java, account.id, LockModeType.PESSIMISTIC_WRITE)
-					?: throw NotFoundException("Mail account not found")
+				lockAccount(account.id)
 				store(account.id, remote)
 			},
 		)
@@ -72,8 +78,7 @@ class MailFolderService(
 	): MailFolder =
 		checkNotNull(
 			transactions.execute {
-				val folder =
-					folders.findById(folderId).orElse(null)?.takeIf { it.accountId == accountId } ?: throw NotFoundException("Folder not found")
+				val folder = folder(accountId, folderId)
 				ETags.checkIfMatch(ifMatch, folder.version)
 				if (automatic) {
 					folder.roleOverridden = false
@@ -92,6 +97,242 @@ class MailFolderService(
 				folders.saveAndFlush(folder).also { changes.publish(FOLDER_EVENT, it.id, ChangeOp.UPDATED) }
 			},
 		)
+
+	/**
+	 * Creates folder [name] under [parentId] (or at the top level) on the server (`CREATE`, then `SUBSCRIBE`), with the
+	 * server's hierarchy delimiter, and caches it.
+	 *
+	 * @throws InvalidRequestException when [name] is blank or contains the delimiter
+	 * @throws ConflictException when the name is already taken under that parent
+	 * @throws MailConnectionException when the server cannot be reached or refuses the command
+	 */
+	fun create(
+		accountId: UUID,
+		name: String,
+		parentId: UUID?,
+	): MailFolder {
+		val account = account(accountId)
+		val parent = parentId?.let { folder(accountId, it) }
+		val trimmed = validName(name)
+		val created =
+			pool.withStore(account) { store ->
+				remote {
+					val separator = parent?.let { store.getFolder(it.path).separator } ?: store.defaultFolder.separator
+					val delimiter = separator.takeUnless { it == NO_DELIMITER }
+					when {
+						delimiter != null && trimmed.contains(delimiter) -> Created.InvalidName(delimiter)
+						parent != null && delimiter == null -> Created.InvalidName(null)
+						else -> createRemote(store, accountId, parent?.let { it.path + delimiter + trimmed } ?: trimmed, delimiter)
+					}
+				}
+			}
+		val done =
+			when (created) {
+				is Created.Done -> created
+				is Created.InvalidName ->
+					throw InvalidRequestException(
+						"name",
+						created.delimiter?.let { "must not contain the hierarchy delimiter $it" } ?: "the server has no folder hierarchy",
+					)
+				Created.Taken -> throw ConflictException(NAME_TAKEN)
+				Created.Rejected -> throw MailConnectionException(MailConnectionError.SERVER_REJECTED)
+			}
+		return checkNotNull(
+			transactions.execute {
+				lockAccount(accountId)
+				// A parallel sync may have cached it already.
+				folders.findByAccountIdAndPath(accountId, done.path)
+					?: folders
+						.saveAndFlush(MailFolder(accountId, done.path, trimmed).apply { delimiter = done.delimiter?.toString() })
+						.also { changes.publish(FOLDER_EVENT, it.id, ChangeOp.CREATED) }
+			},
+		)
+	}
+
+	private fun createRemote(
+		store: IMAPStore,
+		accountId: UUID,
+		path: String,
+		delimiter: Char?,
+	): Created {
+		if (taken(accountId, path)) return Created.Taken
+		val folder = store.getFolder(path)
+		if (folder.exists()) return Created.Taken
+		if (!folder.create(Folder.HOLDS_MESSAGES or Folder.HOLDS_FOLDERS)) return Created.Rejected
+		// A failed SUBSCRIBE leaves a folder that exists but is hidden in some clients: it is created all the same.
+		runCatching { folder.isSubscribed = true }.onFailure { log.debug("SUBSCRIBE failed after CREATE", it) }
+		return Created.Done(path, delimiter)
+	}
+
+	/**
+	 * Renames a folder on the server (`RENAME`, under the same parent) and moves the cached folder and its subfolders
+	 * to the new paths. Their ids and the ids of their cached messages stay, so links stay valid; when the server gives
+	 * the folder a new UIDVALIDITY, the next sync resyncs it.
+	 *
+	 * @throws InvalidRequestException when [name] is blank or contains the delimiter
+	 * @throws ConflictException for INBOX, or when the name is already taken under the same parent
+	 * @throws MailConnectionException when the server cannot be reached or refuses the command
+	 */
+	fun rename(
+		accountId: UUID,
+		folderId: UUID,
+		name: String,
+		ifMatch: String?,
+	): MailFolder {
+		val account = account(accountId)
+		val folder = folder(accountId, folderId)
+		ETags.checkIfMatch(ifMatch, folder.version)
+		if (isInbox(folder)) throw ConflictException("INBOX cannot be renamed")
+		val trimmed = validName(name)
+		val delimiter = folder.delimiter?.singleOrNull()
+		if (delimiter != null && trimmed.contains(delimiter)) {
+			throw InvalidRequestException("name", "must not contain the hierarchy delimiter $delimiter")
+		}
+		val oldPath = folder.path
+		val newPath =
+			if (delimiter != null && oldPath.contains(delimiter)) oldPath.substringBeforeLast(delimiter) + delimiter + trimmed else trimmed
+		if (newPath == oldPath) return folder
+		if (taken(accountId, newPath)) throw ConflictException(NAME_TAKEN)
+		val outcome =
+			pool.withStore(account) { store ->
+				remote {
+					val source = store.getFolder(oldPath)
+					val target = store.getFolder(newPath)
+					when {
+						target.exists() -> Outcome.TAKEN
+						!source.renameTo(target) -> Outcome.REJECTED
+						else -> {
+							// Not every server moves the subscription along with the folder.
+							runCatching { target.isSubscribed = true }.onFailure { log.debug("SUBSCRIBE failed after RENAME", it) }
+							Outcome.DONE
+						}
+					}
+				}
+			}
+		when (outcome) {
+			Outcome.TAKEN -> throw ConflictException(NAME_TAKEN)
+			Outcome.REJECTED -> throw MailConnectionException(MailConnectionError.SERVER_REJECTED)
+			Outcome.DONE -> Unit
+		}
+		return checkNotNull(
+			transactions.execute {
+				lockAccount(accountId)
+				val moved = subtree(accountId, oldPath, delimiter)
+				val renamed = moved.firstOrNull { it.id == folderId } ?: throw NotFoundException("Folder not found")
+				moved.forEach { it.path = newPath + it.path.removePrefix(oldPath) }
+				renamed.name = trimmed
+				folders.flush()
+				moved.forEach { changes.publish(FOLDER_EVENT, it.id, ChangeOp.UPDATED) }
+				renamed
+			},
+		)
+	}
+
+	/**
+	 * Deletes a folder and its subfolders on the server and from the cache. Their cached messages stay as link targets
+	 * without folder, as for folders that vanish on the server. A folder already gone on the server is only uncached.
+	 *
+	 * @throws ConflictException for INBOX and folders with a role, or a folder holding one of them
+	 * @throws MailConnectionException when the server cannot be reached or refuses the command
+	 */
+	fun delete(
+		accountId: UUID,
+		folderId: UUID,
+		ifMatch: String?,
+	) {
+		val account = account(accountId)
+		val folder = folder(accountId, folderId)
+		ETags.checkIfMatch(ifMatch, folder.version)
+		val delimiter = folder.delimiter?.singleOrNull()
+		if (subtree(accountId, folder.path, delimiter).any { isInbox(it) || it.role != null }) {
+			throw ConflictException("INBOX and folders with a role (or holding one) cannot be deleted")
+		}
+		val outcome =
+			pool.withStore(account) { store ->
+				remote {
+					val remoteFolder = store.getFolder(folder.path)
+					when {
+						!remoteFolder.exists() -> Outcome.DONE
+						!remoteFolder.delete(true) -> Outcome.REJECTED
+						else -> {
+							runCatching { remoteFolder.isSubscribed = false }.onFailure { log.debug("UNSUBSCRIBE failed after DELETE", it) }
+							Outcome.DONE
+						}
+					}
+				}
+			}
+		if (outcome != Outcome.DONE) throw MailConnectionException(MailConnectionError.SERVER_REJECTED)
+		transactions.executeWithoutResult {
+			lockAccount(accountId)
+			subtree(accountId, folder.path, delimiter).forEach {
+				// Its messages stay cached but without folder (the database sets folder_id to null): no longer searchable.
+				searchIndex.unindexFolder(it.id)
+				folders.delete(it)
+				changes.publish(FOLDER_EVENT, it.id, ChangeOp.DELETED)
+			}
+			folders.flush()
+		}
+	}
+
+	private fun folder(
+		accountId: UUID,
+		folderId: UUID,
+	): MailFolder =
+		folders.findById(folderId).orElse(null)?.takeIf { it.accountId == accountId } ?: throw NotFoundException("Folder not found")
+
+	/** The cached folder at [path] and every cached folder below it. */
+	private fun subtree(
+		accountId: UUID,
+		path: String,
+		delimiter: Char?,
+	): List<MailFolder> =
+		folders.findByAccountIdOrderByPathAsc(accountId).filter {
+			it.path == path || (delimiter != null && it.path.startsWith(path + delimiter))
+		}
+
+	/** Whether a cached folder already has [path] (INBOX in any case, RFC 9051 §5.1). */
+	private fun taken(
+		accountId: UUID,
+		path: String,
+	): Boolean =
+		folders.findByAccountIdOrderByPathAsc(accountId).any {
+			it.path == path || (it.path.equals(INBOX, ignoreCase = true) && path.equals(INBOX, ignoreCase = true))
+		}
+
+	private fun isInbox(folder: MailFolder) = folder.role == MailFolderRole.INBOX || folder.path.equals(INBOX, ignoreCase = true)
+
+	private fun validName(name: String): String = name.trim().ifEmpty { throw InvalidRequestException("name", "must not be blank") }
+
+	/** Waits until a parallel change of this account's folders has committed. */
+	private fun lockAccount(accountId: UUID) {
+		entityManager.find(MailAccount::class.java, accountId, LockModeType.PESSIMISTIC_WRITE)
+			?: throw NotFoundException("Mail account not found")
+	}
+
+	/** Runs IMAP commands: a refused command is an outcome of [block], any other failure a [MailConnectionException]. */
+	private fun <T> remote(block: () -> T): T =
+		try {
+			block()
+		} catch (e: MessagingException) {
+			throw MailConnectionException.of(e)
+		}
+
+	private sealed interface Created {
+		data class Done(
+			val path: String,
+			val delimiter: Char?,
+		) : Created
+
+		data class InvalidName(
+			val delimiter: Char?,
+		) : Created
+
+		data object Taken : Created
+
+		data object Rejected : Created
+	}
+
+	private enum class Outcome { DONE, TAKEN, REJECTED }
 
 	private fun account(accountId: UUID): MailAccount =
 		accounts.findById(accountId).orElse(null) ?: throw NotFoundException("Mail account not found")
@@ -169,6 +410,7 @@ class MailFolderService(
 		const val FOLDER_EVENT = "MAIL_FOLDER"
 
 		private const val INBOX = "INBOX"
+		private const val NAME_TAKEN = "A folder with this name already exists"
 		private const val NO_DELIMITER = '\u0000'
 	}
 }

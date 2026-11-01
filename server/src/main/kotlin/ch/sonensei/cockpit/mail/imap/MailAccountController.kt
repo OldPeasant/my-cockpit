@@ -6,6 +6,7 @@ import ch.sonensei.cockpit.mail.model.MailAccountType
 import ch.sonensei.cockpit.mail.model.MailFolder
 import ch.sonensei.cockpit.mail.model.MailFolderRole
 import ch.sonensei.cockpit.mail.model.MailSecurity
+import com.fasterxml.jackson.annotation.JsonIgnore
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.enums.ParameterIn
@@ -238,11 +239,14 @@ class MailAccountController(
 	@PatchMapping("/{id}/folders/{folderId}", consumes = [MediaType.APPLICATION_JSON_VALUE], produces = [MediaType.APPLICATION_JSON_VALUE])
 	@Operation(
 		operationId = "updateMailFolder",
-		summary = "Set a folder's role by hand",
+		summary = "Rename a folder or set its role by hand",
 		description =
 			"`{\"role\": \"ARCHIVE\"}` makes the folder the account's Archive (the folder that had the role loses " +
 				"it); `{\"role\": null}` gives it no role. Either way detection leaves it alone from then on. " +
-				"`{\"automatic\": true}` hands the folder back to detection on the next sync.",
+				"`{\"automatic\": true}` hands the folder back to detection on the next sync. " +
+				"`{\"name\": \"New name\"}` renames the folder on the server (`RENAME`, same parent) without touching " +
+				"its role; its subfolders move along, and the ids of the folders and their messages stay. INBOX " +
+				"cannot be renamed.",
 	)
 	@ApiResponse(
 		responseCode = "200",
@@ -251,12 +255,22 @@ class MailAccountController(
 	)
 	@ApiResponse(
 		responseCode = "400",
-		description = "Invalid request",
+		description = "Invalid request, an empty name or one containing the hierarchy delimiter",
 		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
 	)
 	@ApiResponse(
 		responseCode = "404",
-		description = "No such folder",
+		description = "No such account or folder",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	@ApiResponse(
+		responseCode = "409",
+		description = "INBOX cannot be renamed, or the name is already taken under that parent",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	@ApiResponse(
+		responseCode = "502",
+		description = "The mail server could not be reached or refused the command; `errorCode` says why",
 		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
 	)
 	@ApiResponse(
@@ -274,11 +288,106 @@ class MailAccountController(
 		@PathVariable folderId: UUID,
 		@Parameter(`in` = ParameterIn.HEADER, description = "The folder's ETag", required = true)
 		@RequestHeader(HttpHeaders.IF_MATCH, required = false) ifMatch: String?,
-		@RequestBody request: UpdateMailFolderRequest,
-	): ResponseEntity<MailFolderResponse> =
-		folders
-			.overrideRole(id, folderId, request.role, request.automatic ?: false, ifMatch)
-			.let { ETags.ok(it.toResponse(), it.version) }
+		@Valid @RequestBody request: UpdateMailFolderRequest,
+	): ResponseEntity<MailFolderResponse> {
+		var etag = ifMatch
+		var folder: MailFolder? = null
+		request.name?.let { name ->
+			folder = folders.rename(id, folderId, name, etag).also { etag = ETags.of(it.version) }
+		}
+		if (request.changesRole) {
+			folder = folders.overrideRole(id, folderId, request.role, request.automatic ?: false, etag)
+		}
+		return checkNotNull(folder).let { ETags.ok(it.toResponse(), it.version) }
+	}
+
+	@PostMapping("/{id}/folders", consumes = [MediaType.APPLICATION_JSON_VALUE], produces = [MediaType.APPLICATION_JSON_VALUE])
+	@ResponseStatus(HttpStatus.CREATED)
+	@Operation(
+		operationId = "createMailFolder",
+		summary = "Create a folder",
+		description =
+			"Creates the folder on the server (`CREATE`, then `SUBSCRIBE`) under `parentId` or at the top level, " +
+				"using the server's hierarchy delimiter, and caches it.",
+	)
+	@ApiResponse(
+		responseCode = "201",
+		description = "Created; the folder with its ETag",
+		headers = [Header(name = HttpHeaders.ETAG, schema = Schema(type = "string"))],
+	)
+	@ApiResponse(
+		responseCode = "400",
+		description = "An empty name, or one containing the hierarchy delimiter",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	@ApiResponse(
+		responseCode = "404",
+		description = "No such account or parent folder",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	@ApiResponse(
+		responseCode = "409",
+		description = "The name is already taken under that parent",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	@ApiResponse(
+		responseCode = "502",
+		description = "The mail server could not be reached or refused the command; `errorCode` says why",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	fun createFolder(
+		@PathVariable id: UUID,
+		@Valid @RequestBody request: CreateMailFolderRequest,
+	): ResponseEntity<MailFolderResponse> {
+		val created = folders.create(id, request.name!!, request.parentId)
+		return ResponseEntity
+			.status(HttpStatus.CREATED)
+			.eTag(ETags.of(created.version))
+			.body(created.toResponse())
+	}
+
+	@DeleteMapping("/{id}/folders/{folderId}")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	@Operation(
+		operationId = "deleteMailFolder",
+		summary = "Delete a folder",
+		description =
+			"Deletes the folder and its subfolders on the server and from the cache, with the messages in them. " +
+				"Their cached messages stay as link targets without folder. INBOX and folders with a role (or " +
+				"holding one) cannot be deleted.",
+	)
+	@ApiResponse(responseCode = "204", description = "Deleted")
+	@ApiResponse(
+		responseCode = "404",
+		description = "No such account or folder",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	@ApiResponse(
+		responseCode = "409",
+		description = "INBOX or a folder with a role",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	@ApiResponse(
+		responseCode = "412",
+		description = "If-Match is stale",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	@ApiResponse(
+		responseCode = "428",
+		description = "If-Match is missing",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	@ApiResponse(
+		responseCode = "502",
+		description = "The mail server could not be reached or refused the command; `errorCode` says why",
+		content = [Content(mediaType = PROBLEM_JSON, schema = Schema(ref = PROBLEM))],
+	)
+	fun deleteFolder(
+		@PathVariable id: UUID,
+		@PathVariable folderId: UUID,
+		@Parameter(`in` = ParameterIn.HEADER, description = "The folder's ETag", required = true)
+		@RequestHeader(HttpHeaders.IF_MATCH, required = false) ifMatch: String?,
+	) = folders.delete(id, folderId, ifMatch)
 
 	companion object {
 		const val BASE = "/api/v1/mail/accounts"
@@ -459,12 +568,42 @@ data class ConnectionTestResponse(
 	val smtp: ProtocolTestResponse,
 )
 
-class UpdateMailFolderRequest(
-	@field:Schema(description = "The role to set by hand; null for no role. Ignored when automatic is true")
-	val role: MailFolderRole? = null,
-	@field:Schema(description = "true: let detection choose the role again on the next sync")
-	val automatic: Boolean? = null,
+class CreateMailFolderRequest(
+	@field:NotNull
+	@field:Size(max = MAX_FOLDER_NAME)
+	@field:Schema(
+		description = "The new folder's name (one path segment, without the hierarchy delimiter)",
+		requiredMode = RequiredMode.REQUIRED,
+	)
+	val name: String?,
+	@field:Schema(description = "The folder to create it in; absent for the top level")
+	val parentId: UUID? = null,
 )
+
+/** Mutable with a tracking setter: `{"name": "x"}` renames only, while `{"role": null}` still clears the role. */
+class UpdateMailFolderRequest {
+	@field:Schema(description = "The role to set by hand; null for no role. Ignored when automatic is true")
+	var role: MailFolderRole? = null
+		set(value) {
+			field = value
+			roleSent = true
+		}
+
+	@field:Schema(description = "true: let detection choose the role again on the next sync")
+	var automatic: Boolean? = null
+
+	@field:Size(max = MAX_FOLDER_NAME)
+	@field:Schema(description = "Renames the folder (same parent) on the server")
+	var name: String? = null
+
+	@get:JsonIgnore
+	var roleSent: Boolean = false
+		private set
+
+	/** The role is changed when it or `automatic` is sent, or (as before renaming existed) when the name is not. */
+	@get:JsonIgnore
+	val changesRole: Boolean get() = roleSent || automatic != null || name == null
+}
 
 data class MailFolderResponse(
 	@field:Schema(requiredMode = RequiredMode.REQUIRED)
@@ -493,6 +632,7 @@ data class MailFolderListResponse(
 )
 
 private const val MAX_SYNC_WINDOW_MONTHS = 600L
+private const val MAX_FOLDER_NAME = 200
 
 private fun MailAccount.toResponse() =
 	MailAccountResponse(

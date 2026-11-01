@@ -34,6 +34,7 @@ enum class MailConnectionError(
 	OAUTH_RECONNECT_REQUIRED("The OAuth connection has to be connected again"),
 	OAUTH_UNAVAILABLE("The OAuth provider could not be reached"),
 	POOL_EXHAUSTED("All connections of this account are busy"),
+	SERVER_REJECTED("The server refused the operation"),
 }
 
 /** A failed IMAP/SMTP operation. [message] is [MailConnectionError.message]; the original exception is the [cause]. */
