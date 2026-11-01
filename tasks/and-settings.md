@@ -1,10 +1,11 @@
 ---
 title: Android: Settings screen (server, notifications, capture queue, app version)
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [and-shell,and-capture-queue,and-reminders,unifiedpush-android-client]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/settings,android/app/src/test/java/ch/sonensei/cockpit/settings,android/app/src/main/res/values/strings_settings.xml,android/app/src/main/res/values-de/strings_settings.xml]
 prio: 2
+lease_until: 2026-11-01T15:39:38Z
 ---
 ## Goal
 The Android Settings screen shows only passkeys and logout; the rest is a placeholder. The owner chose "phone
