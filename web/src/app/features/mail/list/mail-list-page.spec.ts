@@ -545,12 +545,52 @@ describe('MailListPage', () => {
       expect(rows()[2].getAttribute('aria-current')).toBe('true');
     });
 
-    it('leaves Ctrl+Enter on a row to the browser', async () => {
+    it('opens a row focused with Tab on Enter, moving the cursor to it', async () => {
       await create();
       const navigate = navigations();
-      const event = press('Enter', { ctrlKey: true }, link(0));
-      expect(event.defaultPrevented).toBe(false);
+      link(1).focus();
+      const event = press('Enter', {}, link(1));
+      expect(event.defaultPrevented).toBe(true);
+      expect(navigate).toHaveBeenCalledExactlyOnceWith(['/mail/messages', 'b']);
+      expect(rows()[1].getAttribute('aria-current')).toBe('true');
+      expect(rows()[0].getAttribute('aria-current')).not.toBe('true');
+    });
+
+    it('leaves Ctrl/Cmd/Shift+Enter on a row to the browser', async () => {
+      await create();
+      const navigate = navigations();
+      const events = [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }].map((init) =>
+        press('Enter', init, link(0)),
+      );
+      expect(events.map((event) => event.defaultPrevented)).toEqual([false, false, false]);
       expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('keeps the keyboard shortcuts working on a clicked row', async () => {
+      await create();
+      urlNavigations();
+      link(2).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      fixture.detectChanges();
+      press('x');
+      expect(rows()[2].classList).toContain('selected');
+      press('x');
+      expect(rows()[2].classList).not.toContain('selected');
+      press('e');
+      await flush();
+      expect(mail.applies.map(({ action, ids }) => ({ action, ids }))).toEqual([
+        { action: 'ARCHIVE', ids: ['c'] },
+      ]);
+      expect(rows().map((row) => row.dataset['id'])).toEqual(['a', 'b']);
+    });
+
+    it('opens the clicked row with o afterwards', async () => {
+      await create();
+      urlNavigations();
+      const navigate = navigations();
+      link(1).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      fixture.detectChanges();
+      press('o');
+      expect(navigate).toHaveBeenCalledExactlyOnceWith(['/mail/messages', 'b']);
     });
 
     it('opens nothing on a double-click beyond what its clicks open', async () => {
