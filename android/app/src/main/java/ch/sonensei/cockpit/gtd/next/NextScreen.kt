@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -151,7 +152,10 @@ fun NextContent(
             HorizontalDivider()
             when {
                 state.tasks.isNotEmpty() ->
-                    LazyColumn(Modifier.fillMaxSize().testTag(NextTags.LIST)) {
+                    LazyColumn(
+                        Modifier.fillMaxSize().testTag(NextTags.LIST),
+                        contentPadding = PaddingValues(bottom = LocalFabClearance.current),
+                    ) {
                         items(state.tasks, key = { it.id }) { task ->
                             TaskRow(task, contexts, state.today, state.offline, callbacks.complete)
                         }

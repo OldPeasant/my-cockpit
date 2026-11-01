@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -203,7 +204,10 @@ private fun ProjectList(
     state.areasError?.let { StaleBanner(it, callbacks.retry, stringResource(R.string.projects_areas_failed)) }
     when {
         state.groups.isNotEmpty() ->
-            LazyColumn(Modifier.fillMaxSize().testTag(ProjectsTags.LIST)) {
+            LazyColumn(
+                Modifier.fillMaxSize().testTag(ProjectsTags.LIST),
+                contentPadding = PaddingValues(bottom = LocalFabClearance.current),
+            ) {
                 state.groups.forEach { group ->
                     item(key = "area-${group.area?.id ?: if (group.areaUnloaded) "unloaded" else "none"}") { AreaHeader(group) }
                     items(group.projects, key = { it.id }) { project -> ProjectRow(project, callbacks.open) }
@@ -350,7 +354,10 @@ private fun ProjectDetail(
         }
         when {
             detail.tasks.isNotEmpty() ->
-                LazyColumn(Modifier.fillMaxSize().testTag(LiveListTags.LIST)) {
+                LazyColumn(
+                    Modifier.fillMaxSize().testTag(LiveListTags.LIST),
+                    contentPadding = PaddingValues(bottom = LocalFabClearance.current),
+                ) {
                     items(detail.tasks, key = { it.id }) { task ->
                         ProjectTaskRow(state, detail, task, callbacks)
                         HorizontalDivider()

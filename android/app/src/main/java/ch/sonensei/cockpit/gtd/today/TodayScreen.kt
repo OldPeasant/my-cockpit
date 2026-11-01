@@ -4,6 +4,7 @@ import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -96,7 +97,10 @@ fun TodayContent(
             }
             when {
                 state.sections.isNotEmpty() ->
-                    LazyColumn(Modifier.fillMaxSize().testTag(TodayTags.LIST)) {
+                    LazyColumn(
+                        Modifier.fillMaxSize().testTag(TodayTags.LIST),
+                        contentPadding = PaddingValues(bottom = LocalFabClearance.current),
+                    ) {
                         state.sections.forEach { section ->
                             item(key = section.kind) { SectionHeader(section) }
                             items(section.tasks, key = { it.id }) { task ->

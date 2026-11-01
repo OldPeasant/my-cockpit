@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.ui
 
+import android.content.Context
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -15,13 +16,25 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.capture.entry.CaptureButtonTags
+import ch.sonensei.cockpit.gtd.data.GtdTask
+import ch.sonensei.cockpit.gtd.data.TaskList
+import ch.sonensei.cockpit.gtd.lists.LiveListCallbacks
+import ch.sonensei.cockpit.gtd.lists.LiveListTags
+import ch.sonensei.cockpit.gtd.lists.SomedayContent
+import ch.sonensei.cockpit.gtd.lists.TaskListUiState
+import ch.sonensei.cockpit.gtd.next.Completion
+import ch.sonensei.cockpit.gtd.next.CompletionSnackbar
 import ch.sonensei.cockpit.ui.navigation.CockpitDestination
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import org.junit.Assert.assertEquals
@@ -29,6 +42,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.LocalDate
+import java.util.UUID
 
 @RunWith(AndroidJUnit4::class)
 class FabClearanceTest {
@@ -36,6 +51,7 @@ class FabClearanceTest {
     val composeRule = createComposeRule()
 
     private lateinit var navController: NavHostController
+    private val context: Context = ApplicationProvider.getApplicationContext()
 
     private fun setShell(content: @Composable (CockpitDestination, Modifier) -> Unit) {
         composeRule.setContent {
@@ -91,6 +107,29 @@ class FabClearanceTest {
         assertTrue("snackbar $snackbar must not overlap FAB $fab", !snackbar.overlaps(fab))
         assertTrue("snackbar $snackbar ends above FAB $fab", snackbar.bottom <= fab.top)
     }
+
+    @Test
+    fun `on a real GTD list in the shell, neither the Undo action nor the last row's action lies under the FAB`() {
+        val tasks = (1..30).map { GtdTask(id(it), "Someday $it", TaskList.SOMEDAY, it, 1) }
+        val completed = CompletionSnackbar.Undo(Completion(id(99), "Done task", 2))
+        val state =
+            TaskListUiState(tasks = tasks, loading = false, loaded = true, completion = completed, today = LocalDate.of(2026, 11, 1))
+        setShell { destination, modifier ->
+            if (destination == CockpitDestination.start) SomedayContent(state, LiveListCallbacks(), activate = {}, modifier = modifier)
+        }
+        composeRule.waitForIdle()
+        val fab = composeRule.onNodeWithTag(CaptureButtonTags.FAB).getBoundsInRoot()
+
+        val undo = composeRule.onNodeWithText(context.getString(R.string.tasks_undo)).getBoundsInRoot()
+        assertTrue("Undo $undo must not lie under FAB $fab", !undo.overlaps(fab))
+
+        composeRule.onNodeWithTag(LiveListTags.LIST).performScrollToIndex(tasks.lastIndex)
+        composeRule.waitForIdle()
+        val lastAction = composeRule.onNodeWithTag(LiveListTags.action(tasks.last().id)).getBoundsInRoot()
+        assertTrue("last row's action $lastAction must not lie under FAB $fab", !lastAction.overlaps(fab))
+    }
+
+    private fun id(n: Int): UUID = UUID.fromString("00000000-0000-7000-8000-%012d".format(n))
 
     private fun DpRect.overlaps(other: DpRect): Boolean =
         left < other.right && other.left < right && top < other.bottom && other.top < bottom

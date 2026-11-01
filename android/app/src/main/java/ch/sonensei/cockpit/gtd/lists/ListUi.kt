@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.gtd.lists
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -86,7 +87,10 @@ fun LiveTaskListContent(
             header()
             when {
                 state.tasks.isNotEmpty() ->
-                    LazyColumn(Modifier.fillMaxSize().testTag(LiveListTags.LIST)) {
+                    LazyColumn(
+                        Modifier.fillMaxSize().testTag(LiveListTags.LIST),
+                        contentPadding = PaddingValues(bottom = LocalFabClearance.current),
+                    ) {
                         items(state.tasks, key = { it.id }) { task ->
                             row(task)
                             HorizontalDivider()
