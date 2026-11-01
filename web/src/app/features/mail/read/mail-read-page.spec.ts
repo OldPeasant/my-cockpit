@@ -1,3 +1,5 @@
+import { Location } from '@angular/common';
+import { provideLocationMocks } from '@angular/common/testing';
 import { Component, input } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import {
@@ -1048,6 +1050,40 @@ describe('MailReadPage', () => {
       expect(navigate).not.toHaveBeenCalled();
     });
 
+    it('does not navigate when the page was left while the delete ran', async () => {
+      await open();
+      const pending = deferred<ActionAnswer>();
+      mail.answer = pending.promise;
+      deleteButton()!.click();
+      fixture.destroy();
+      pending.resolve([{ id: ID, ok: true }]);
+      await flush();
+      expect(mail.applies).toEqual([{ action: 'DELETE', ids: [ID] }]);
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('treats a result for another id only as a failure', async () => {
+      await open();
+      mail.answer = [{ id: 'someone-else', ok: true }];
+      deleteButton()!.click();
+      await flush();
+      expect(navigate).not.toHaveBeenCalled();
+      expect(notifications.error).toHaveBeenCalledWith(
+        'The message could not be deleted: Something went wrong.',
+      );
+    });
+
+    it('does not delete with # while the next message loads', async () => {
+      await open(message(), deferred<MailMessageResponse>().promise);
+      params.next(convertToParamMap({ id: 'next-message' }));
+      fixture.detectChanges();
+      await flush();
+      fixture.detectChanges();
+      expect(press('#').defaultPrevented).toBe(false);
+      await flush();
+      expect(mail.applies).toEqual([]);
+    });
+
     describe('the # key', () => {
       it('deletes, as in the list', async () => {
         await open();
@@ -1102,7 +1138,8 @@ class StubList {}
 describe('MailReadPage Delete: back to the list it was opened from', () => {
   let mail: FakeMailService;
 
-  async function openFrom(from: string | null): Promise<RouterTestingHarness> {
+  /** Opens the message after visiting the given pages in order (none: opened directly). */
+  async function openFrom(...from: (string | null)[]): Promise<RouterTestingHarness> {
     mail = new FakeMailService();
     TestBed.configureTestingModule({
       providers: [
@@ -1110,8 +1147,10 @@ describe('MailReadPage Delete: back to the list it was opened from', () => {
           { path: 'mail', component: StubList },
           { path: 'mail/folders/:folderId', component: StubList },
           { path: 'notes', component: StubList },
+          { path: 'mail/compose', component: StubList },
           { path: 'mail/messages/:id', component: MailReadPage },
         ]),
+        provideLocationMocks(),
         { provide: MailReadService, useValue: new FakeReadService() },
         { provide: MailService, useValue: mail },
         { provide: NotificationService, useValue: { info: vi.fn(), error: vi.fn() } },
@@ -1122,7 +1161,7 @@ describe('MailReadPage Delete: back to the list it was opened from', () => {
       add: { imports: [StubLinkedItems] },
     });
     const harness = await RouterTestingHarness.create();
-    if (from) await harness.navigateByUrl(from);
+    for (const url of from) if (url) await harness.navigateByUrl(url);
     await harness.navigateByUrl(`/mail/messages/${ID}`);
     await flush();
     harness.detectChanges();
@@ -1155,6 +1194,29 @@ describe('MailReadPage Delete: back to the list it was opened from', () => {
 
   it('returns to the unified Inbox when opened directly', async () => {
     expect(await clickDelete(await openFrom(null))).toBe('/mail');
+  });
+
+  it('returns to a folder whose id needs URL encoding', async () => {
+    expect(await clickDelete(await openFrom('/mail/folders/f%20work%2Fsub'))).toBe(
+      '/mail/folders/f%20work%2Fsub',
+    );
+  });
+
+  it('returns to the unified Inbox when opened from another mail page', async () => {
+    expect(await clickDelete(await openFrom('/mail/compose'))).toBe('/mail');
+  });
+
+  it('replaces the deleted message in the history, so Back does not open it again', async () => {
+    const harness = await openFrom('/notes', '/mail/folders/f-archive');
+    expect(await clickDelete(harness)).toBe('/mail/folders/f-archive');
+    const location = TestBed.inject(Location);
+    const back = () => {
+      location.back();
+      return location.path();
+    };
+    // History: /notes, the folder, the folder (was the message): never the deleted message.
+    expect(back()).toBe('/mail/folders/f-archive');
+    expect(back()).toBe('/notes');
   });
 
   it('keeps the origin when moving on to another message', async () => {
