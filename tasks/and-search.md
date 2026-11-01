@@ -18,7 +18,8 @@ server unchanged.
   - verified (2026-11-01 15:54+0100 by dell26/agent-2): same focused gradle run -> pass; SearchScreenTest results show headings/titles/subtitles/type icons; SearchRouteInAppTest: contact/email/note open in-app screens, task deep link opens browser below server URL, no-browser fallback; SearchModelsTest routing
 - [x] Loading, empty ("Nothing found") and error states; works with the on-screen keyboard (IME search action)
   - verified (2026-11-01 15:54+0100 by dell26/agent-2): same focused gradle run -> pass; SearchViewModelTest/SearchScreenTest loading, 'Nothing found', offline/failed + retry, out-of-order answers; IME search action via performImeAction in SearchScreenTest and SearchRouteInAppTest
-- [ ] All new UI strings exist in English and German (`res/values`, `res/values-de`)
+- [x] All new UI strings exist in English and German (`res/values`, `res/values-de`)
+  - verified (2026-11-01 15:54+0100 by dell26/agent-2): same focused gradle run -> pass incl. SearchModelsTest 'every search string exists in German and is not blank' (34 strings in values/ and values-de/strings_search.xml) + 2 German SearchScreenTest; lintDebug (MissingTranslation) -> pass
 - [ ] Unit tests (ViewModel, plus Compose UI tests where the project has them for similar screens) cover the criteria above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
 
 ## Notes
