@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.mail.list
 
+import ch.sonensei.cockpit.core.network.generated.apis.MailAccountsApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -9,6 +10,8 @@ import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Header
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -26,6 +29,18 @@ interface MailApi {
     suspend fun folders(
         @Path("id") accountId: String,
     ): Response<MailFolderListDto>
+
+    /**
+     * Renames a folder. Hand-written because the generated `UpdateMailFolderRequest` always sends `"role": null`,
+     * which the server reads as "take the folder's role away".
+     */
+    @PATCH("api/v1/mail/accounts/{id}/folders/{folderId}")
+    suspend fun renameFolder(
+        @Path("id") accountId: String,
+        @Path("folderId") folderId: String,
+        @Header("If-Match") ifMatch: String,
+        @Body request: RenameMailFolderDto,
+    ): Response<MailFolderDto>
 
     @GET("api/v1/mail/messages")
     suspend fun messages(
@@ -61,6 +76,10 @@ interface MailApi {
 object MailApiModule {
     @Provides
     fun mailApi(retrofit: Retrofit): MailApi = retrofit.create(MailApi::class.java)
+
+    /** The generated account calls; the list uses them to create and delete folders. */
+    @Provides
+    fun mailAccountsApi(retrofit: Retrofit): MailAccountsApi = retrofit.create(MailAccountsApi::class.java)
 }
 
 @Serializable
@@ -89,6 +108,13 @@ data class MailFolderDto(
     val delimiter: String? = null,
     val role: String? = null,
     val selectable: Boolean = true,
+    /** The ETag value for If-Match. */
+    val version: Long? = null,
+)
+
+@Serializable
+data class RenameMailFolderDto(
+    val name: String,
 )
 
 @Serializable

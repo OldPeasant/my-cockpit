@@ -1,5 +1,7 @@
 package ch.sonensei.cockpit.mail.list
 
+import ch.sonensei.cockpit.core.network.generated.apis.MailAccountsApi
+import ch.sonensei.cockpit.core.network.generated.models.CreateMailFolderRequest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -17,6 +19,7 @@ class MailRepository
     @Inject
     constructor(
         private val api: MailApi,
+        private val accountsApi: MailAccountsApi,
     ) {
         /** Every account by its label (email address), with its selectable folders. */
         suspend fun accounts(): MailResult<List<MailAccountFolders>> =
@@ -75,6 +78,34 @@ class MailRepository
                 results.firstOrNull { it.id == id.toString() }?.ok == true
             }
 
+        /** Creates the folder [name] in [parent] (or at the top level of [accountId]) on the mail server. */
+        suspend fun createFolder(
+            accountId: UUID,
+            parent: MailFolder?,
+            name: String,
+        ): MailResult<MailFolder> =
+            mailCall {
+                mailBody(accountsApi.createMailFolder(accountId, CreateMailFolderRequest(name = name, parentId = parent?.id))).toFolder()
+            }
+
+        /** Renames [folder] on the mail server; a `Failed(412)` means it changed since the list was loaded. */
+        suspend fun renameFolder(
+            folder: MailFolder,
+            name: String,
+        ): MailResult<MailFolder> =
+            mailCall {
+                mailBody(
+                    api.renameFolder(folder.accountId.toString(), folder.id.toString(), etag(folder.version), RenameMailFolderDto(name)),
+                ).toFolder()
+            }
+
+        /** Deletes [folder] with its subfolders and their mail on the mail server. */
+        suspend fun deleteFolder(folder: MailFolder): MailResult<Unit> =
+            mailCall {
+                val response = accountsApi.deleteMailFolder(folder.accountId, folder.id, etag(folder.version))
+                if (!response.isSuccessful) throw MailHttpFailure(response.code())
+            }
+
         internal companion object {
             const val PAGE_SIZE = 50
         }
@@ -97,6 +128,8 @@ internal suspend fun <T> mailCall(block: suspend () -> T): MailResult<T> =
     }
 
 private const val SERVER_ERROR = 500
+
+private fun etag(version: Long) = "\"$version\""
 
 /** A non-2xx answer; its message carries only the status, never the body. */
 internal class MailHttpFailure(

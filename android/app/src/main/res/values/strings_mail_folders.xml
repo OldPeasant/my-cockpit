@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mail_folder_new">New folder</string>
+    <string name="mail_folder_new_in">New folder in %1$s</string>
+    <string name="mail_folder_new_sub">New subfolder</string>
+    <string name="mail_folder_rename">Rename</string>
+    <string name="mail_folder_delete">Delete</string>
+    <string name="mail_folder_actions">Folder actions: %1$s</string>
+    <string name="mail_folder_new_title">New folder</string>
+    <string name="mail_folder_new_sub_title">New folder in %1$s</string>
+    <string name="mail_folder_rename_title">Rename %1$s</string>
+    <string name="mail_folder_name">Name</string>
+    <string name="mail_folder_create">Create</string>
+    <string name="mail_folder_save">Rename</string>
+    <string name="mail_folder_cancel">Cancel</string>
+    <string name="mail_folder_delete_title">Delete %1$s?</string>
+    <string name="mail_folder_delete_text">The folder, its subfolders and all their messages are deleted on the mail server too. This cannot be undone.</string>
+    <string name="mail_folder_delete_confirm">Delete</string>
+    <string name="mail_folder_error_name_taken">A folder with this name already exists here.</string>
+    <string name="mail_folder_error_invalid_name">This name is not allowed. Enter a name without the folder separator.</string>
+    <string name="mail_folder_error_unreachable">Can\'t reach the server or the mail server. Try again later.</string>
+    <string name="mail_folder_error_cannot_delete">This folder can\'t be deleted: it holds a special folder.</string>
+    <string name="mail_folder_error_failed">That did not work. Try again.</string>
+    <string name="mail_folder_changed">The folder was changed elsewhere. The folders were reloaded.</string>
+</resources>

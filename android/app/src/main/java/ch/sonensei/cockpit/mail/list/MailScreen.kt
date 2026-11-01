@@ -20,21 +20,29 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.DriveFileRenameOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.Mail
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -62,6 +70,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -124,6 +133,14 @@ fun MailRoute(
                     loadMore = viewModel::loadMore,
                     retry = viewModel::refresh,
                     compose = { composing = ComposeMode.New(state.folder?.accountId).encode() },
+                    folders =
+                        FolderCallbacks(
+                            create = viewModel::startCreateFolder,
+                            rename = viewModel::startRenameFolder,
+                            delete = viewModel::startDeleteFolder,
+                            submit = viewModel::submitFolderEdit,
+                            cancel = viewModel::cancelFolderEdit,
+                        ),
                 ),
             listState = listState,
             modifier = modifier,
@@ -148,6 +165,18 @@ data class MailListCallbacks(
     val loadMore: () -> Unit = {},
     val retry: () -> Unit = {},
     val compose: () -> Unit = {},
+    val folders: FolderCallbacks = FolderCallbacks(),
+)
+
+/** The folder actions of the mailbox picker and its dialogs. */
+data class FolderCallbacks(
+    /** A new folder in the account, inside the folder when one is given. */
+    val create: (UUID, MailFolder?) -> Unit = { _, _ -> },
+    val rename: (MailFolder) -> Unit = {},
+    val delete: (MailFolder) -> Unit = {},
+    /** The open dialog's OK, with the name entered (empty when deleting). */
+    val submit: (String) -> Unit = {},
+    val cancel: () -> Unit = {},
 )
 
 internal object MailListTags {
@@ -165,6 +194,19 @@ internal object MailListTags {
     fun folder(id: UUID) = "mail-folder:$id"
 
     fun account(id: UUID) = "mail-account:$id"
+
+    fun newFolder(accountId: UUID) = "mail-folder-new:$accountId"
+
+    fun folderActions(id: UUID) = "mail-folder-actions:$id"
+
+    const val FOLDER_NEW_SUB = "mail-folder-new-sub"
+    const val FOLDER_RENAME = "mail-folder-rename"
+    const val FOLDER_DELETE = "mail-folder-delete"
+    const val FOLDER_DIALOG = "mail-folder-dialog"
+    const val FOLDER_NAME = "mail-folder-name"
+    const val FOLDER_ERROR = "mail-folder-error"
+    const val FOLDER_CONFIRM = "mail-folder-confirm"
+    const val FOLDER_CANCEL = "mail-folder-cancel"
 
     fun swipe(
         id: UUID,
@@ -189,7 +231,7 @@ fun MailListContent(
 ) {
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            MailboxPicker(state, callbacks.select)
+            MailboxPicker(state, callbacks.select, callbacks.folders)
             state.message?.let { ListMessage(it, callbacks.retry) }
             if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth()) else Spacer(Modifier.height(4.dp))
             when {
@@ -210,6 +252,7 @@ fun MailListContent(
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp).testTag(MailListTags.COMPOSE),
         )
     }
+    state.folderEdit?.let { FolderDialog(it, callbacks.folders) }
 }
 
 @Composable
@@ -411,6 +454,7 @@ private fun MailRow(
 private fun MailboxPicker(
     state: MailListUiState,
     select: (Mailbox) -> Unit,
+    folderActions: FolderCallbacks,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val title = state.folder?.let { folderLabel(it) } ?: stringResource(R.string.mail_unified)
@@ -434,19 +478,39 @@ private fun MailboxPicker(
             )
             state.accounts.forEach { (account, folders) ->
                 HorizontalDivider()
-                Text(
-                    account.label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).testTag(MailListTags.account(account.id)),
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        account.label,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier =
+                            Modifier
+                                .weight(1f, fill = false)
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                                .testTag(MailListTags.account(account.id)),
+                    )
+                    IconButton(
+                        onClick = {
+                            expanded = false
+                            folderActions.create(account.id, null)
+                        },
+                        modifier = Modifier.testTag(MailListTags.newFolder(account.id)),
+                    ) {
+                        Icon(
+                            Icons.Outlined.CreateNewFolder,
+                            contentDescription = stringResource(R.string.mail_folder_new_in, account.label),
+                        )
+                    }
+                }
                 folders.forEach { folder ->
+                    val label = folderLabel(folder)
                     DropdownMenuItem(
-                        text = { Text(folderLabel(folder), modifier = Modifier.padding(start = (folder.depth * 12).dp)) },
+                        text = { Text(label, modifier = Modifier.padding(start = (folder.depth * 12).dp)) },
                         onClick = {
                             expanded = false
                             select(Mailbox.Folder(account.id, folder.id))
                         },
+                        trailingIcon = { FolderMenu(folder, label, folderActions) { expanded = false } },
                         modifier = Modifier.testTag(MailListTags.folder(folder.id)),
                     )
                 }
@@ -454,6 +518,141 @@ private fun MailboxPicker(
         }
     }
 }
+
+/** The overflow menu of one folder: a new subfolder, and renaming and deleting where the server allows it. */
+@Composable
+private fun FolderMenu(
+    folder: MailFolder,
+    label: String,
+    folderActions: FolderCallbacks,
+    closePicker: () -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    val pick: (() -> Unit) -> Unit = { action ->
+        open = false
+        closePicker()
+        action()
+    }
+    Box {
+        IconButton(onClick = { open = true }, modifier = Modifier.testTag(MailListTags.folderActions(folder.id))) {
+            Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.mail_folder_actions, label))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.mail_folder_new_sub)) },
+                leadingIcon = { Icon(Icons.Outlined.CreateNewFolder, contentDescription = null) },
+                onClick = { pick { folderActions.create(folder.accountId, folder) } },
+                modifier = Modifier.testTag(MailListTags.FOLDER_NEW_SUB),
+            )
+            if (folder.canRename) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.mail_folder_rename)) },
+                    leadingIcon = { Icon(Icons.Outlined.DriveFileRenameOutline, contentDescription = null) },
+                    onClick = { pick { folderActions.rename(folder) } },
+                    modifier = Modifier.testTag(MailListTags.FOLDER_RENAME),
+                )
+            }
+            if (folder.canDelete) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.mail_folder_delete)) },
+                    leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
+                    onClick = { pick { folderActions.delete(folder) } },
+                    modifier = Modifier.testTag(MailListTags.FOLDER_DELETE),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The dialog of [edit]: the name of a new or renamed folder, or the confirmation of a delete. Server errors show in
+ * it, and it stays open until the server did it or it is cancelled.
+ */
+@Composable
+private fun FolderDialog(
+    edit: FolderEdit,
+    folderActions: FolderCallbacks,
+) {
+    val folder = edit.folder
+    val label = folder?.let { folderLabel(it) }
+    var name by rememberSaveable(edit.kind, edit.accountId, folder?.id) {
+        mutableStateOf(if (edit.kind == FolderEditKind.RENAME) folder?.name.orEmpty() else "")
+    }
+    val deleting = edit.kind == FolderEditKind.DELETE
+    val title =
+        when (edit.kind) {
+            FolderEditKind.CREATE ->
+                if (label ==
+                    null
+                ) {
+                    stringResource(R.string.mail_folder_new_title)
+                } else {
+                    stringResource(R.string.mail_folder_new_sub_title, label)
+                }
+            FolderEditKind.RENAME -> stringResource(R.string.mail_folder_rename_title, label.orEmpty())
+            FolderEditKind.DELETE -> stringResource(R.string.mail_folder_delete_title, label.orEmpty())
+        }
+    val confirm =
+        when (edit.kind) {
+            FolderEditKind.CREATE -> R.string.mail_folder_create
+            FolderEditKind.RENAME -> R.string.mail_folder_save
+            FolderEditKind.DELETE -> R.string.mail_folder_delete_confirm
+        }
+    val canConfirm = !edit.busy && (deleting || name.isNotBlank())
+    val submit = { if (canConfirm) folderActions.submit(if (deleting) "" else name) }
+    AlertDialog(
+        onDismissRequest = folderActions.cancel,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (deleting) {
+                    Text(stringResource(R.string.mail_folder_delete_text))
+                } else {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text(stringResource(R.string.mail_folder_name)) },
+                        singleLine = true,
+                        enabled = !edit.busy,
+                        isError = edit.error != null,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { submit() }),
+                        modifier = Modifier.fillMaxWidth().testTag(MailListTags.FOLDER_NAME),
+                    )
+                }
+                if (edit.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                edit.error?.let {
+                    Text(
+                        stringResource(folderErrorText(it)),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.testTag(MailListTags.FOLDER_ERROR),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = submit, enabled = canConfirm, modifier = Modifier.testTag(MailListTags.FOLDER_CONFIRM)) {
+                Text(stringResource(confirm), color = if (deleting && canConfirm) MaterialTheme.colorScheme.error else Color.Unspecified)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = folderActions.cancel, modifier = Modifier.testTag(MailListTags.FOLDER_CANCEL)) {
+                Text(stringResource(R.string.mail_folder_cancel))
+            }
+        },
+        modifier = Modifier.testTag(MailListTags.FOLDER_DIALOG),
+    )
+}
+
+private fun folderErrorText(error: FolderEditError): Int =
+    when (error) {
+        FolderEditError.NAME_TAKEN -> R.string.mail_folder_error_name_taken
+        FolderEditError.INVALID_NAME -> R.string.mail_folder_error_invalid_name
+        FolderEditError.UNREACHABLE -> R.string.mail_folder_error_unreachable
+        FolderEditError.CANNOT_DELETE -> R.string.mail_folder_error_cannot_delete
+        FolderEditError.FAILED -> R.string.mail_folder_error_failed
+    }
 
 /** Special folders by their role (servers name them in many ways), the others by name. */
 @Composable
@@ -479,6 +678,7 @@ private fun ListMessage(
             MailListMessage.FAILED -> R.string.mail_failed
             MailListMessage.ARCHIVE_FAILED -> R.string.mail_archive_failed
             MailListMessage.DELETE_FAILED -> R.string.mail_delete_failed
+            MailListMessage.FOLDER_CHANGED -> R.string.mail_folder_changed
         }
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(

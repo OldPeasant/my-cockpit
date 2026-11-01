@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.mail.list
 
+import ch.sonensei.cockpit.core.network.generated.apis.MailAccountsApi
 import ch.sonensei.cockpit.core.network.generated.infrastructure.Serializer
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -66,7 +67,7 @@ class MailRepositoryTest {
                 .baseUrl(server.url("/"))
                 .addConverterFactory(Serializer.kotlinxSerializationJson.asConverterFactory("application/json".toMediaType()))
                 .build()
-        repository = MailRepository(retrofit.create(MailApi::class.java))
+        repository = MailRepository(retrofit.create(MailApi::class.java), retrofit.create(MailAccountsApi::class.java))
     }
 
     @After

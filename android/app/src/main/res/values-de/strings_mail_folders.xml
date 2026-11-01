@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mail_folder_new">Neuer Ordner</string>
+    <string name="mail_folder_new_in">Neuer Ordner in %1$s</string>
+    <string name="mail_folder_new_sub">Neuer Unterordner</string>
+    <string name="mail_folder_rename">Umbenennen</string>
+    <string name="mail_folder_delete">Löschen</string>
+    <string name="mail_folder_actions">Ordneraktionen: %1$s</string>
+    <string name="mail_folder_new_title">Neuer Ordner</string>
+    <string name="mail_folder_new_sub_title">Neuer Ordner in %1$s</string>
+    <string name="mail_folder_rename_title">%1$s umbenennen</string>
+    <string name="mail_folder_name">Name</string>
+    <string name="mail_folder_create">Erstellen</string>
+    <string name="mail_folder_save">Umbenennen</string>
+    <string name="mail_folder_cancel">Abbrechen</string>
+    <string name="mail_folder_delete_title">%1$s löschen?</string>
+    <string name="mail_folder_delete_text">Der Ordner, seine Unterordner und alle ihre Nachrichten werden auch auf dem Mailserver gelöscht. Das lässt sich nicht rückgängig machen.</string>
+    <string name="mail_folder_delete_confirm">Löschen</string>
+    <string name="mail_folder_error_name_taken">Hier gibt es schon einen Ordner mit diesem Namen.</string>
+    <string name="mail_folder_error_invalid_name">Dieser Name ist nicht erlaubt. Gib einen Namen ohne Ordnertrennzeichen ein.</string>
+    <string name="mail_folder_error_unreachable">Server oder Mailserver nicht erreichbar. Versuche es später noch einmal.</string>
+    <string name="mail_folder_error_cannot_delete">Dieser Ordner kann nicht gelöscht werden: Er enthält einen Spezialordner.</string>
+    <string name="mail_folder_error_failed">Das hat nicht geklappt. Versuche es noch einmal.</string>
+    <string name="mail_folder_changed">Der Ordner wurde anderswo geändert. Die Ordner wurden neu geladen.</string>
+</resources>

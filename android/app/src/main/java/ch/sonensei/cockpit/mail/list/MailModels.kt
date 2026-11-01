@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.mail.list
 
+import ch.sonensei.cockpit.core.network.generated.models.MailFolderResponse
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -40,7 +41,20 @@ data class MailFolder(
     val role: FolderRole?,
     /** Nesting depth from the path (0 for a top-level folder). */
     val depth: Int,
-)
+    /** The ETag value sent as If-Match when the folder is renamed or deleted. */
+    val version: Long = 0,
+    /** The server's hierarchy delimiter; `null` for a flat namespace. */
+    val delimiter: String? = null,
+) {
+    /** INBOX keeps its name; the server refuses to rename it. */
+    val canRename: Boolean get() = role != FolderRole.INBOX
+
+    /** Special folders stay; the server refuses to delete them. */
+    val canDelete: Boolean get() = role == null
+
+    /** [other] lies inside this folder (at any depth). */
+    fun contains(other: MailFolder): Boolean = other.accountId == accountId && delimiter != null && other.path.startsWith(path + delimiter)
+}
 
 /** An account with its selectable folders: special folders first, the others by path. */
 data class MailAccountFolders(
@@ -103,8 +117,22 @@ internal fun MailFolderDto.toFolder(): MailFolder {
         path = folderPath,
         role = role?.let { r -> FolderRole.entries.firstOrNull { it.name == r } },
         depth = separator?.let { folderPath.split(it).size - 1 } ?: 0,
+        version = version ?: 0,
+        delimiter = separator,
     )
 }
+
+internal fun MailFolderResponse.toFolder() =
+    MailFolderDto(
+        id = id.toString(),
+        accountId = accountId.toString(),
+        name = name,
+        path = path,
+        delimiter = delimiter,
+        role = role?.value,
+        selectable = selectable,
+        version = version,
+    ).toFolder()
 
 /** Special folders in [FolderRole] order, then the others by path (so subfolders follow their parent). */
 internal val folderOrder: Comparator<MailFolder> =

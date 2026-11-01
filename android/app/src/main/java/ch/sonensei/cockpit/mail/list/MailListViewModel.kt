@@ -13,7 +13,25 @@ import java.util.UUID
 import javax.inject.Inject
 
 /** Why the list may be outdated, or what did not work. */
-enum class MailListMessage { OFFLINE, FAILED, ARCHIVE_FAILED, DELETE_FAILED }
+enum class MailListMessage { OFFLINE, FAILED, ARCHIVE_FAILED, DELETE_FAILED, FOLDER_CHANGED }
+
+/** What a folder dialog does. */
+enum class FolderEditKind { CREATE, RENAME, DELETE }
+
+/** Why a folder dialog could not do it; the dialog stays open and shows it. */
+enum class FolderEditError { NAME_TAKEN, INVALID_NAME, UNREACHABLE, CANNOT_DELETE, FAILED }
+
+/**
+ * An open folder dialog: a new folder in [folder] (or at the top level of [accountId] when `null`), or renaming or
+ * deleting [folder]. [busy] while the server works on it.
+ */
+data class FolderEdit(
+    val kind: FolderEditKind,
+    val accountId: UUID,
+    val folder: MailFolder?,
+    val busy: Boolean = false,
+    val error: FolderEditError? = null,
+)
 
 data class MailListUiState(
     val mailbox: Mailbox = Mailbox.Unified,
@@ -26,6 +44,7 @@ data class MailListUiState(
     /** The mailbox was loaded at least once. */
     val loaded: Boolean = false,
     val message: MailListMessage? = null,
+    val folderEdit: FolderEdit? = null,
 ) {
     val folder: MailFolder?
         get() =
@@ -149,6 +168,96 @@ class MailListViewModel
         /** The read view archived or deleted [id]. */
         fun removed(id: UUID) = state.update { s -> s.copy(messages = s.messages.filterNot { it.id == id }) }
 
+        /** Opens the dialog for a new folder in [parent], or at the top level of [accountId]. */
+        fun startCreateFolder(
+            accountId: UUID,
+            parent: MailFolder? = null,
+        ) = state.update { it.copy(folderEdit = FolderEdit(FolderEditKind.CREATE, accountId, parent)) }
+
+        /** Opens the rename dialog of [folder] (not offered for INBOX). */
+        fun startRenameFolder(folder: MailFolder) {
+            if (folder.canRename) state.update { it.copy(folderEdit = FolderEdit(FolderEditKind.RENAME, folder.accountId, folder)) }
+        }
+
+        /** Asks to confirm deleting [folder] (not offered for special folders). */
+        fun startDeleteFolder(folder: MailFolder) {
+            if (folder.canDelete) state.update { it.copy(folderEdit = FolderEdit(FolderEditKind.DELETE, folder.accountId, folder)) }
+        }
+
+        /** Closes the folder dialog; a call already sent still finishes, and a success still shows in the folder list. */
+        fun cancelFolderEdit() = state.update { it.copy(folderEdit = null) }
+
+        /** Does what the open folder dialog asks for; [name] is the new name (ignored when deleting). */
+        fun submitFolderEdit(name: String = "") {
+            val edit = state.value.folderEdit ?: return
+            if (edit.busy) return
+            val trimmed = name.trim()
+            if (edit.kind != FolderEditKind.DELETE && trimmed.isEmpty()) {
+                state.update { it.copy(folderEdit = edit.copy(error = FolderEditError.INVALID_NAME)) }
+                return
+            }
+            val busy = edit.copy(busy = true, error = null)
+            state.update { it.copy(folderEdit = busy) }
+            viewModelScope.launch {
+                when (edit.kind) {
+                    FolderEditKind.CREATE -> {
+                        val result = repository.createFolder(edit.accountId, edit.folder, trimmed)
+                        finishFolderEdit(busy, result) { accounts, folder -> accounts.withFolder(folder) }
+                    }
+                    FolderEditKind.RENAME -> {
+                        val result = repository.renameFolder(checkNotNull(edit.folder), trimmed)
+                        finishFolderEdit(busy, result) { accounts, folder -> accounts.withFolder(folder) }
+                    }
+                    FolderEditKind.DELETE -> {
+                        val folder = checkNotNull(edit.folder)
+                        val removed =
+                            state.value.accounts
+                                .flatMap { it.folders }
+                                .filter { it.id == folder.id || folder.contains(it) }
+                                .mapTo(HashSet()) { it.id }
+                        val result = repository.deleteFolder(folder)
+                        val applied = finishFolderEdit(busy, result) { accounts, _ -> accounts.withoutFolder(folder) }
+                        val shown = state.value.mailbox as? Mailbox.Folder
+                        if (applied && shown != null && (shown.folderId == folder.id || shown.folderId in removed)) {
+                            select(Mailbox.Unified)
+                        }
+                    }
+                }
+            }
+        }
+
+        /**
+         * Applies the answer to [edit] (`true` when it succeeded). A success changes the folder list at once (and reloads
+         * it for what else moved, such as renamed subfolders), also when the dialog was closed meanwhile. A stale ETag
+         * reloads the folders and says so; other failures are shown in the dialog, which stays open.
+         */
+        private fun <T> finishFolderEdit(
+            edit: FolderEdit,
+            result: MailResult<T>,
+            change: (List<MailAccountFolders>, T) -> List<MailAccountFolders>,
+        ): Boolean {
+            fun FolderEdit?.after(next: FolderEdit?) = if (this == edit) next else this
+            val stale = result is MailResult.Failed && result.status == PRECONDITION_FAILED
+            when {
+                result is MailResult.Ok ->
+                    state.update { it.copy(accounts = change(it.accounts, result.value), folderEdit = it.folderEdit.after(null)) }
+                stale -> state.update { it.copy(folderEdit = it.folderEdit.after(null), message = MailListMessage.FOLDER_CHANGED) }
+                else ->
+                    state.update {
+                        it.copy(folderEdit = it.folderEdit.after(edit.copy(busy = false, error = folderError(edit.kind, result))))
+                    }
+            }
+            if (result is MailResult.Ok || stale) reloadFolders()
+            return result is MailResult.Ok
+        }
+
+        /** Loads the folder lists again, leaving the mails alone. */
+        private fun reloadFolders() {
+            viewModelScope.launch {
+                (repository.accounts() as? MailResult.Ok)?.let { result -> state.update { it.copy(accounts = result.value) } }
+            }
+        }
+
         /** Loads the accounts and the first page of [mailbox]; a load still running is dropped. */
         private fun load(mailbox: Mailbox) {
             loadJob?.cancel()
@@ -196,3 +305,33 @@ class MailListViewModel
             return if (older.isEmpty()) page.items to page.nextCursor else (page.items + older) to current.nextCursor
         }
     }
+
+private const val PRECONDITION_FAILED = 412
+private const val BAD_REQUEST = 400
+private const val CONFLICT = 409
+
+private fun folderError(
+    kind: FolderEditKind,
+    result: MailResult<*>,
+): FolderEditError =
+    when {
+        result is MailResult.Offline -> FolderEditError.UNREACHABLE
+        result is MailResult.Failed && result.status == BAD_REQUEST -> FolderEditError.INVALID_NAME
+        result is MailResult.Failed && result.status == CONFLICT ->
+            if (kind == FolderEditKind.DELETE) FolderEditError.CANNOT_DELETE else FolderEditError.NAME_TAKEN
+        else -> FolderEditError.FAILED
+    }
+
+/** The folder lists with [folder] added or replaced (by id), in the list's order. */
+internal fun List<MailAccountFolders>.withFolder(folder: MailFolder): List<MailAccountFolders> =
+    map { entry ->
+        if (entry.account.id != folder.accountId) {
+            entry
+        } else {
+            entry.copy(folders = (entry.folders.filterNot { it.id == folder.id } + folder).sortedWith(folderOrder))
+        }
+    }
+
+/** The folder lists without [folder] and its subfolders. */
+internal fun List<MailAccountFolders>.withoutFolder(folder: MailFolder): List<MailAccountFolders> =
+    map { entry -> entry.copy(folders = entry.folders.filterNot { it.id == folder.id || folder.contains(it) }) }
