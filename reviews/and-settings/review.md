@@ -4,23 +4,44 @@ Date: 2026-11-01
 
 Task: and-settings - Android: Settings screen (server, notifications, capture queue, app version)
 
-Scope: `git diff 6397eb4b5..HEAD -- android` (the single and-settings implementation commit on top of the task base)
+Scope: `git diff e2395de9e..HEAD -- android` (final code of the task: the implementation commit, the test-writer tests and the fixes for the earlier findings CR-1 to CR-5)
 
 Requirements:
-- tasks/and-settings.md acceptance criteria and recorded assumptions
-- AGENTS.md project notes (conventions: no secrets in logs, i18n en/de, lint)
-- Parent instructions (focus: correctness, lifecycle/coroutines, security, a11y, i18n, architecture)
-- Existing code: core/network/ServerUrl.kt, push/PushRegistrar.kt, push/UnifiedPushConnector.kt, capture/queue/CaptureSync.kt, capture/queue/CaptureQueue.kt, capture/queue/CaptureUploader.kt, reminders/ReminderPermissionPrompt.kt, auth/LoginViewModel.kt
+- tasks/and-settings.md acceptance criteria 1-7 and the recorded assumptions (`python tasks.py verify and-settings`)
+- AGENTS.md project notes (no secrets or user data in logs, en/de strings, lint is part of the contract, stay inside `touches`)
+- The previous review of this task (CR-1 to CR-5) and reviews/and-settings/fixes.md
+- Parent instructions: verify the fixes, look for regressions caused by them and for remaining gaps against the criteria; Gradle is run by the parent
+- Existing code used for context: core/network/ServerUrl.kt (`setServerUrl`), push/PushRegistrar.kt, capture/queue/CaptureUploader.kt, ui/CockpitShell.kt (navigation), auth/PasskeySettings.kt, auth/CockpitRoot.kt
 
 Git range:
 - Branch: main
-- HEAD: 62ba17452085080e0137df14f74a1c6947a413a5 (the parent named 7bc24114d; the checked-out HEAD is 62ba17452, "and-settings: server, notifications, capture and about sections in Android settings")
-- Base/start: 6397eb4b54895fc9a3265f312cba5cbcdcf143e0
-- Commits reviewed: 1
+- HEAD: d732b66fd68f122b69e302abda6d5201377a5146
+- Base/start: e2395de9ee7581d82e3e80de3a79a87841439c98
+- Commits reviewed: 3 (e9ec42ace implementation, 2380357ab test-writer tests, d732b66fd fixes)
+- Uncommitted changes: none at the start of the review
 
-Note on method: shell access was denied in this review session, so the diff could not be listed with git. The review read the current versions of the main files named by the parent in full (SettingsScreen.kt, SettingsViewModel.kt, SettingsEnvironment.kt, strings_settings.xml en/de, SettingsViewModelTest.kt, SettingsScreenTest.kt) plus the context files listed above. The edits to InAppPasskeyTest/AppStartRoutingTest named in the task notes were not inspected. Gradle was not run; the parent runs `./gradlew ktlintCheck testDebugUnitTest lintDebug`.
+Note on method: the full diff was read, and every changed file under `android/` was read in full: SettingsScreen.kt, SettingsViewModel.kt, SettingsEnvironment.kt, CaptureFailure.kt, strings_settings.xml (en, de), and the tests AndroidSettingsEnvironmentTest, CaptureFailureTest, SettingsScreenTest, SettingsServerChangeTest, SettingsStringsTest, SettingsViewModelTest, plus the edits to AppStartRoutingTest and InAppPasskeyTest. Gradle was not run in this review; the parent runs `./gradlew ktlintCheck lintDebug createDebugUnitTestCoverageReport`.
 
-Summary: 0 P0, 0 P1, 2 P2, 3 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
+
+## Verification of the earlier findings
+
+- CR-1 (crash when the store cannot be written): fixed. `saveServer()` (SettingsViewModel.kt:146-170) catches non-cancellation exceptions, rethrows `CancellationException`, resets `saving` and sets `saveFailed` without logging the address. Editing the address or saving again clears the flag (lines 141, 149). The `saveFailed` message and the validation error cannot show at the same time, because each save clears both before it runs. The dialog shows the new string in both languages. Covered by the SettingsViewModelTest case "a store that cannot be written keeps the form open with a save error, saving again works" and the SettingsScreenTest case "an address that could not be stored says so and can be saved again". The logout that `setServerUrl` performs before the write on an origin change is existing repository behavior and outside this task.
+- CR-2 (distributor switch untested): fixed by AndroidSettingsEnvironmentTest. It uses the real UnifiedPush library on Robolectric's package manager. It checks the order delete, clear, register, and which distributor is saved at each step. It also checks that the distributor in use only re-registers and that a first choice saves the distributor and registers.
+- CR-3 (overlapping user loads): fixed. `loadUser()` cancels the previous `userJob` before it starts a new request (SettingsViewModel.kt:105-126). A cancelled request rethrows the cancellation, so it never writes a result. The regression test "an older user request that fails last does not overwrite the newer answer" covers it.
+- CR-4 (switches not serialized): fixed within one screen instance. `useDistributor` runs inside `switching.withLock` (SettingsEnvironment.kt:100-114). The test "a second switch waits until the first one has finished" checks the exact step sequence. See CR-1 below for a remaining gap when the screen is left.
+- CR-5 (English failure text in the German UI): fixed. `CaptureFailure.of` covers every text that `CaptureUploader` writes: the four constants, `serverError(code)` and the rejection text. I checked all `Outcome.Retry`/`Outcome.Rejected` sources in CaptureUploader.kt. Unknown texts fall back to the stored value. The uploader's own tests pin the exact texts (CaptureUploaderTest, CaptureUploaderFailureTest), so a wording change there would fail a test. The en/de strings have matching names and placeholders, which SettingsStringsTest checks.
+- Lint changes from the fixer: the `ACTION_REQUEST_SCHEDULE_EXACT_ALARM` intent is guarded with `SDK_INT >= S`. The button only renders when `exactAlarmsSettingExists` is true, which uses the same condition. `toUri()` replaces `Uri.parse`. `Uri.fromParts` is still used, so the `android.net.Uri` import is still needed.
+
+## Acceptance criteria check
+
+1. Server section: shows the address and the user from `/auth/me`, with Loading, Unknown and Retry states. Changes go through `ServerUrlRepository.setServerUrl`. SettingsServerChangeTest checks against the real repository that another origin logs out and the same origin keeps the session. Met.
+2. Notifications section: shows the notification permission, exact alarms and the distributor state, each with a system intent or the picker, and a "find a push app" link when no distributor is installed. No server settings were invented. The missing toggles are recorded as an assumption. Met.
+3. Capture section: shows the pending count (plural), the last result and "Sync now" through `CaptureSyncScheduler.schedule()`. Met.
+4. About section: shows `Version {name} ({code})`, and the download button resolves `download/android` against the server URL, including a path prefix. Met.
+5. Passkeys and logout are still rendered by `SettingsScreen`, and the placeholder is gone, which a test checks. Met.
+6. en and de strings are complete and match, which SettingsStringsTest checks. Met.
+7. ViewModel, environment, Compose UI and string tests exist for every section. Whether the Gradle run passes is evidence for the parent to record.
 
 ## P0 Critical
 
@@ -32,47 +53,19 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Saving the server address crashes the app when the settings store cannot be written**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/settings/SettingsViewModel.kt:142`
-    - Category: Correctness
-    - Problem: `saveServer()` calls `serverUrls.setServerUrl(form.address)` inside `viewModelScope.launch` without a try/catch. `ServerUrlRepository.setServerUrl` (core/network/ServerUrl.kt:126) calls `dataStore.edit`, which throws `IOException` when the preferences file cannot be written (for example, full storage). `readablePrefs()` only guards reads. The exception is not caught in `viewModelScope`, so it reaches the default handler and crashes the process. The `saving = true` form state never resets.
-    - Why it matters: the review checklist requires that unavailable or full storage must not break a save. Here it kills the app from a settings dialog.
-    - Suggested fix: catch non-cancellation exceptions around `setServerUrl` in `saveServer`. Reset `saving` to false and show a "could not be saved, try again" message in the dialog (new string in en and de). Add a ViewModel test where `setServerUrl` throws.
-
-- [ ] **CR-2 | The distributor switch sequence is untested**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/settings/SettingsEnvironment.kt:95`
-    - Category: Tests
-    - Problem: `AndroidSettingsEnvironment.useDistributor` holds the riskiest new logic. For the same distributor it only re-registers. For a different one it runs `deleteOnServer`, `clear`, `saveDistributor` and `register` in that order. The order matters: `saveDistributor` must come after `clear`, because the library's unregister can drop the saved distributor, and a new instance id must be used. No test covers it. `SettingsViewModelTest` replaces the whole environment with `FakeEnvironment`, and no test exists for `AndroidSettingsEnvironment`.
-    - Why it matters: a regression in this order could leave the server pushing to an old endpoint, or leave the device with no saved distributor. No current test would catch either.
-    - Suggested fix: add a Robolectric test of `AndroidSettingsEnvironment`. Build `PushRegistrar` through its internal constructor with a fake `UnifiedPushConnector`, `PushInstanceStore` and a mocked `PushApi`. Assert: a DELETE for the old instance, unregister of the old instance, the new distributor saved, and a register with a different instance id. Also assert that choosing the current distributor only registers. If the static `UnifiedPush` calls make this impractical, move them behind the existing `UnifiedPushConnector` seam.
+None.
 
 ## P3 Low
 
-- [ ] **CR-3 | Overlapping user loads can show a stale result**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/settings/SettingsViewModel.kt:99`
+- [ ] **CR-1 | Leaving Settings during a distributor switch cancels it halfway**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/settings/SettingsViewModel.kt:184`
     - Category: Correctness
-    - Problem: `loadUser()` launches a new request every time it is called: at init, on Retry, and after a valid `saveServer`. The previous job is not cancelled and results carry no request identity. A slower, older request that finishes last overwrites the newer result. Example: the init request is still pending against an unreachable path while the user saves a same-origin address with a new path prefix. The new request answers `Known`, then the old one ends and sets `Unknown`.
-    - Why it matters: the screen shows "cannot be reached" (or an old name) after a successful reload. The impact is low (Retry fixes it), but this is the out-of-order pattern the project review checklist calls out.
-    - Suggested fix: keep the `Job` of the running load and cancel it before starting a new one, or ignore results from a load that is no longer the latest.
-
-- [ ] **CR-4 | Distributor switches are not serialized**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/settings/SettingsViewModel.kt:164`
-    - Category: Correctness
-    - Problem: `chooseDistributor` closes the picker and launches `environment.useDistributor` without tracking it. While the first switch waits on its network DELETE (`PushRegistrar.deleteOnServer`), the user can open the picker again and pick another distributor. Two `useDistributor` runs then interleave on `Dispatchers.IO`. The second run's `clear()` can unregister the instance the first run has just registered. If that instance's endpoint already reached the server through `onNewEndpoint`, nothing deletes it on the server.
-    - Why it matters: this needs two quick choices within one network round trip, but it can leave a stale push registration on the server that receives pushes for nothing.
-    - Suggested fix: serialize switches, for example with a `Mutex` in `AndroidSettingsEnvironment.useDistributor`. Alternatively, add a `switching` flag in the UI state that disables "Choose push app" until the running switch has finished.
-
-- [ ] **CR-5 | The capture "last attempt failed" detail stays in English in the German UI**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/settings/SettingsScreen.kt:321`
-    - Category: Quality (i18n)
-    - Problem: `settings_capture_failed` inserts `capture.lastError` unchanged. That value is one of the English constants written by `CaptureUploader` (`OFFLINE = "Server unreachable"`, `NOT_LOGGED_IN`, `"Rejected by the server (HTTP ...)"`, etc., capture/queue/CaptureUploader.kt:185-212). The German screen therefore shows, for example, "Letzter Versuch fehlgeschlagen: Server unreachable".
-    - Why it matters: the screen mixes languages, against the "all new UI strings in English and German" intent. The raw value comes from the earlier queue design, but this task is the one that shows it.
-    - Suggested fix: map the known `CaptureUploader` constants (and the HTTP-code pattern) to localized strings in the screen, with the raw text as a fallback. Or record an assumption that the raw text is accepted for now and leave localization to a follow-up task.
+    - Problem: `chooseDistributor` runs `environment.useDistributor` in `viewModelScope`. Settings is a "More" screen pushed on top of the More list (ui/CockpitShell.kt:201-207). Pressing Back pops it, the ViewModel is cleared, and the running switch is cancelled. `PushRegistrar.deleteOnServer()` sets `deleted = instance` before it sends the DELETE (push/PushRegistrar.kt:117-120). A cancellation during or right after that DELETE skips `clear()`, `saveDistributor` and `register()`. The old distributor and instance stay in place, but their endpoint updates are now dropped (`instance == deleted`). The server may already have forgotten the endpoint. The user's choice is lost without any message. The DELETE can take many seconds on a slow network, so the window is real. Push stays down until the next app start, when `deleted` resets and `start()` registers again. Also, `AndroidSettingsEnvironment` is unscoped (the `@Binds` at SettingsEnvironment.kt:133 has no `@Singleton`), so the CR-4 `Mutex` only serializes switches within one ViewModel.
+    - Why it matters: push for new mail can stop for the rest of the session after a normal navigation, and the screen then shows the old distributor as if nothing had happened. The impact is limited because the next app start repairs it and periodic sync still runs.
+    - Suggested fix: run the switch sequence so that leaving the screen cannot cut it short. For example, wrap the body of `useDistributor` in `withContext(NonCancellable + Dispatchers.IO)`, or launch it in an application-lifetime scope. Make the lock process-wide, either by annotating `AndroidSettingsEnvironment` with `@Singleton` or by moving the lock into the singleton `PushRegistrar`. Add a test that cancels the caller during `deleteOnServer` and checks that clear, save and register still happen.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
 
-What is in place: the acceptance criteria are implemented. There are server and user sections that reuse `setServerUrl`; notification, exact alarm and distributor states, each with a system intent or the picker; queue count, last result and Sync now through `CaptureSyncScheduler.schedule`; version name and code plus the `download/android` link; passkeys and logout are kept and the placeholder is gone; and en/de strings for all new resources. ViewModel and Compose tests cover the main paths. No secrets or user data are logged (exceptions are swallowed without logging). Intents are guarded against `ActivityNotFoundException`. Status icons are decorative and their text carries the meaning. Sync and server errors use polite live regions.
-
-Fix CR-1 (crash on a failed write) and CR-2 (untested push switch) before `done`. CR-3 to CR-5 are low-impact and may be fixed or recorded as accepted.
+All five earlier findings are fixed correctly. The fixes did not introduce any regressions I could find. All seven acceptance criteria are implemented and covered by tests. Criterion 7 still needs the parent's Gradle evidence. CR-1 is low impact and can be fixed now or recorded as accepted. No secrets, user data or email contents are logged: all new catch blocks swallow without logging. Intents are guarded against `ActivityNotFoundException`. The auth test edits outside `touches` only add `performScrollTo()` and are recorded in the task assumptions.

@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "task": "and-settings",
+  "reviewed_revision": "fdb818405126f7084f911b77afdee3ea4869433b",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-settings/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-settings/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-settings/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: saveServer crashed on a DataStore write failure; now caught, saveFailed shown in en/de"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: distributor switch untested; AndroidSettingsEnvironmentTest (11 tests) covers order and paths"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: overlapping user loads; previous userJob is cancelled"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: distributor switches serialized with a Mutex"},
+    {"id": "R1-CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: CaptureFailure maps uploader texts to en/de strings"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "final review: leaving Settings within one network round trip of a distributor switch cancels it; push stays off until next app start. Low impact, recorded as a task assumption; follow-up: run the switch NonCancellable with a process-wide lock"},
+    {"id": "TW-gap-1", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "no test asserts the exact intents the notification/exact-alarm/distributor/download buttons launch; tests prove callbacks fire and the download URL is right; intents guarded against ActivityNotFoundException"}
+  ],
+  "validation": [
+    {"command": "android/gradlew -p android --max-workers=2 ktlintCheck lintDebug createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
