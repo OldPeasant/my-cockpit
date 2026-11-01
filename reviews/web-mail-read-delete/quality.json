@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "web-mail-read-delete",
+  "reviewed_revision": "0ec379e65509a175b8fed5629b8383e8dc8f5172",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-mail-read-delete/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-mail-read-delete/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-mail-read-delete/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "# deleted the message behind an open dialog; onKeydown now returns while MatDialog.openDialogs is non-empty, with a test"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "replaceUrl leaves two entries of the list in history so the first Back stays on the list; deliberate so Back never reopens the deleted message, recorded as task assumption"}
+  ],
+  "validation": [
+    {"command": "npm --prefix web run test:ci -- --include src/app/features/mail/read/mail-read-page.spec.ts --include src/locale/messages-de.spec.ts", "result": "pass"},
+    {"command": "npm --prefix web run test:ci", "result": "pass"},
+    {"command": "npm --prefix web run lint", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
