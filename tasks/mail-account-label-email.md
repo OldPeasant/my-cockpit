@@ -23,8 +23,9 @@ sender name ("Your name" in Settings), so several accounts of the same person lo
 - [x] The display name is unchanged everywhere else: it stays the sender name in compose and identities, and the
       Settings account list keeps showing name and address
   - verified (2026-11-01 06:09+0100 by dell26/agent-1): git diff origin/main...HEAD --stat touches only web/.../mail/list and android/.../mail/list (+tests); MailAccount.name still = displayName (MailModelsTest asserts name 'Ann Example'); compose/identities/settings untouched; android+web full suites pass (compose/settings tests included) -> unchanged behaviour
-- [ ] Unit tests on both platforms assert the email address (two accounts with the same display name are told apart);
+- [x] Unit tests on both platforms assert the email address (two accounts with the same display name are told apart);
       `cd web && npm run check` and `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` pass
+  - verified (2026-11-01 06:09+0100 by dell26/agent-1): npm --prefix web run check on 2970e9f79 -> lint ok, 3858 tests passed, build ok; android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug on 2970e9f79 -> BUILD SUCCESSFUL; both platforms' tests use two accounts named 'Ann Example' with different addresses
 
 ## Notes
 Display-only change: no server or API change. If a test needs it, the fixtures' accounts get the same display name
