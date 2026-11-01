@@ -13,7 +13,8 @@ with "Enter the server address as an http(s) URL, without user name, query or fr
 why. Make the server address field forgiving (`core/network/ServerUrl.kt` `ServerUrlValidator`, login screen).
 
 ## Acceptance criteria
-- [ ] `ServerUrlValidator` removes all whitespace (incl. non-breaking and other Unicode spaces) from the typed address before parsing, so `https://my-cockpit. sonensei. ch ` is accepted as `https://my-cockpit.sonensei.ch/`
+- [x] `ServerUrlValidator` removes all whitespace (incl. non-breaking and other Unicode spaces) from the typed address before parsing, so `https://my-cockpit. sonensei. ch ` is accepted as `https://my-cockpit.sonensei.ch/`
+  - verified (2026-11-01 16:09+0100 by dell26/agent-1): ServerUrlTest (whitespace incl. NBSP/Unicode spaces/zero-width; 'https://my-cockpit. sonensei. ch ' -> Valid https://my-cockpit.sonensei.ch/), AuthRepositoryTest/PasskeyRepositoryTest space cases; android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport --no-daemon on d8207bce -> exit 0, 2407 tests, 0 failures
 - [ ] An address without scheme (`my-cockpit.sonensei.ch`) is accepted as `https://...`; plain `http://` keeps the existing HTTPS_REQUIRED rule
 - [ ] The server address field turns off autocorrect and auto-capitalization (`KeyboardOptions(autoCorrectEnabled = false, capitalization = None)`, keyboard type Uri), so keyboards don't insert spaces or capitals
 - [ ] When the address is still invalid, the error shows the address as the app understood it (e.g. `"https://my-cockpit.sonensei" is not a valid server address`) so the user can see what is wrong
