@@ -1,11 +1,11 @@
 ---
 title: Android login: server address tolerates keyboard-inserted spaces
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-login]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/core/network,android/app/src/main/java/ch/sonensei/cockpit/auth,android/app/src/test/java/ch/sonensei/cockpit/core/network,android/app/src/test/java/ch/sonensei/cockpit/auth]
 prio: 2
-lease_until: 2026-11-01T15:34:42Z
+lease_until: 
 ---
 ## Goal
 On the phone, the keyboard inserted a space after each dot, so `https://my-cockpit. sonensei. ch` was rejected
@@ -31,3 +31,4 @@ Requested by the owner (2026-11-01) after trying the Android app on the phone. O
 - ASSUMPTION (2026-11-01 15:33+0100 by dell26/agent-1): Besides Unicode whitespace, zero-width characters (U+200B-200D, U+2060, U+FEFF) are also removed from the server address: they are invisible and never valid in a URL.
 - ASSUMPTION (2026-11-01 15:33+0100 by dell26/agent-1): The address-quoting error is used for both server address errors (malformed and https-required); if nothing is left after removing spaces, the previous general message is shown instead of empty quotes.
 - ASSUMPTION (2026-11-01 15:33+0100 by dell26/agent-1): Any scheme-like prefix (letters followed by ://) counts as a scheme, so ftp://x stays malformed instead of becoming https://ftp://x; host:port without :// gets https://.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 113s on c9196832c; criteria verified 6/6
