@@ -26,3 +26,4 @@ folders through the API from mail-folder-manage-api. Requested by the owner (202
 ## Notes
 Use the frontend-design skill for the menu and dialogs, matching the existing mail list and move dialog.
 - ASSUMPTION (2026-11-01 08:34+0100 by dell26/agent-1): Delete is also hidden for folders that hold a folder with a role (e.g. [Gmail] holding Trash), because the server refuses those (409); New subfolder is hidden for flat namespaces (no delimiter)
+- ASSUMPTION (2026-11-01 08:34+0100 by dell26/agent-1): Server errors in the folder dialogs are shown as localized texts by HTTP status (409 taken, 400 invalid, 0 unreachable, 502 mail server, 404/412 changed elsewhere + tree reload) instead of the English server detail; other statuses fall back to the server text
