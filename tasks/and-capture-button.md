@@ -1,10 +1,11 @@
 ---
 title: Android: in-app capture button on every screen
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [and-capture-entrypoints,and-shell]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/ui,android/app/src/main/java/ch/sonensei/cockpit/capture/entry,android/app/src/test/java/ch/sonensei/cockpit/ui,android/app/src/test/java/ch/sonensei/cockpit/capture]
 prio: 2
+lease_until: 2026-11-01T13:18:02Z
 ---
 ## Goal
 On the web, quick capture is a button on every screen; on Android it is only reachable from outside the app (widget,
