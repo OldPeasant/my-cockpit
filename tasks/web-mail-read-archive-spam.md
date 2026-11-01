@@ -20,7 +20,8 @@ The Android read view already has Archive and Delete.
 - [x] On success the app returns to the mail list the message was opened from (as after Delete). On failure the view
       stays open and shows the server's error, e.g. when the account has no Archive or Spam folder (NO_ROLE_FOLDER)
   - verified (2026-11-01 09:15+0100 by dell26/agent-2): same focused run -> 132 passed; RouterTestingHarness tests: Archive/Spam/Delete return to /mail/folders/f-work (origin) with replaceUrl, /mail when opened elsewhere; NO_ROLE_FOLDER and ApiError keep view open and show server detail
-- [ ] Keyboard shortcuts as in the list: `e` archives, `!` marks as spam (not while typing in an input or editor)
+- [x] Keyboard shortcuts as in the list: `e` archives, `!` marks as spam (not while typing in an input or editor)
+  - verified (2026-11-01 09:15+0100 by dell26/agent-2): same focused run -> 132 passed; document keydown tests: e archives, ! spams, ignored in input/editor, chords, repeats, open dialog, while loading
 - [ ] Unit tests for both buttons, both shortcuts, success navigation and the error case; `cd web && npm run check` passes
 
 ## Notes
