@@ -53,6 +53,22 @@ class MailFolderResyncTests {
 	}
 
 	@Test
+	fun `a request made while the folder's sync runs schedules another sync`() {
+		var calls = 0
+		every { sync.syncFolder(folderId) } answers {
+			calls++
+			// Another stale action arrives while the first sync is reading the server.
+			if (calls == 1) resync.request(folderId)
+			FolderSyncResult(folderId, full = false, 0, 0, 1)
+		}
+		resync.request(folderId)
+
+		executor.runAll()
+
+		verify(exactly = 2) { sync.syncFolder(folderId) }
+	}
+
+	@Test
 	fun `a failing sync is swallowed and does not block later requests`() {
 		every { sync.syncFolder(folderId) } throws MailConnectionException(MailConnectionError.CONNECTION_FAILED, RuntimeException("down"))
 		resync.request(folderId)
