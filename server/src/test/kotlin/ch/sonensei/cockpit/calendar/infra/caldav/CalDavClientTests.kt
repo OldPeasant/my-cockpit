@@ -317,7 +317,8 @@ class CalDavClientTests {
 			shouldThrow<CalendarProviderException> {
 				client.send("GET", client.resolve("/dav/x.ics")!!, what = "Reading")
 			}.message shouldBe "Reading: the CalDAV server could not be reached"
-			Thread.sleep(DROPPED_CONNECTION_BACKOFF.toMillis() * 2)
+			// The client retries within send(), and the server counts a connection before it answers, so any retry
+			// is counted by now: no waiting needed.
 			connections.get() shouldBe 1
 		}
 	}
