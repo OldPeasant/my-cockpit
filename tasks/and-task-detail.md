@@ -37,8 +37,9 @@ existing API: `GET/PATCH/DELETE /api/v1/tasks/{id}` (ETag/If-Match), `POST /task
 - [x] Actions: complete / reopen, move to Next, Someday or Waiting (with person), delete (to Trash, with undo
       where the app has that pattern); lists the user returns to show the change without a manual refresh
   - verified (2026-11-02 11:32+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest (rev c171fc231) -> pass: TaskDetailContentTest move to Waiting asks for person, delete snackbar offers undo / closes when unused; TaskDetailViewModelTest/EdgeTest complete, reopen, move, delete + undo (trash restore); TaskDetailRepositoryTest complete/uncomplete/move/trash/restore requests and TaskEdits signal; lists reload via TaskEdits (TaskLists/LogbookRepository merge)
-- [ ] Offline/read cache: when the server is unreachable the task opens read-only from the cached list data with
+- [x] Offline/read cache: when the server is unreachable the task opens read-only from the cached list data with
       the app's "offline" banner; edit controls are disabled
+  - verified (2026-11-02 11:32+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest (rev c171fc231) -> pass: TaskDetailScreenTest 'offline the task shows read-only with the offline banner' (edit controls disabled); TaskDetailViewModelTest/EdgeTest offline load from cached copy, reload offline keeps loaded task; TaskDetailRepositoryTest cached() snapshot then Room views, Logbook completion kept
 - [ ] All new UI strings exist in English and German (`res/values`, `res/values-de`)
 - [ ] ViewModel unit tests (load, edit + If-Match, 412 conflict, checklist, move, delete, offline) and Compose UI
       tests for opening from a list and editing a field; `cd android && ./gradlew ktlintCheck testDebugUnitTest
