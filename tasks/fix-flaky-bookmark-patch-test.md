@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [bookmarks-api]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/bookmarks/BookmarkWebTests.kt]
 prio: 1
-lease_until: 2026-11-02T04:46:55Z
+lease_until: 2026-11-02T04:51:58Z
 ---
 ## Goal
 The rerun of CI run 41355157150 (2026-11-02, server fast check) failed on `BookmarkWebTests > PATCH changes only the
