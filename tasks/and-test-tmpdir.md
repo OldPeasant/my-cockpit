@@ -1,11 +1,11 @@
 ---
 title: Android: unit tests write Robolectric temp files into build/, not the shared /tmp
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [android/app/build.gradle.kts]
 prio: 2
-lease_until: 2026-11-02T12:23:17Z
+lease_until: 
 ---
 ## Goal
 Every Robolectric test JVM extracts its native runtime (~205 MB) into `/tmp/robolectric-nativeruntime*` and never
@@ -25,3 +25,4 @@ by `./gradlew clean`.
 Found while working on and-task-detail (held because of this). A human may need to delete the stale
 `/tmp/robolectric-nativeruntime*` directories once; agents may not write outside their clone.
 - ASSUMPTION (2026-11-02 12:55+0100 by dell26/agent-1): Criterion 1 'no new files in /tmp' is shown indirectly: agents may not list /tmp (sandbox), but a polled test run showed all Robolectric temp dirs (nativeruntime ~157 MB, per-test dirs) created under android/app/build/tmp/testDebugUnitTest/jvm. A human can confirm by listing /tmp/robolectric-* before/after a run (and should delete the old leftovers once).
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 67s on 1614ae480; criteria verified 2/2
