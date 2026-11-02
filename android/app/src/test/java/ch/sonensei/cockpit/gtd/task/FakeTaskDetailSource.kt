@@ -14,6 +14,11 @@ class FakeTaskDetailSource(
     var itemResult: TaskResult<ChecklistItem>? = null
     var checklistResult: TaskResult<List<ChecklistItem>> = TaskResult.Ok(detail.checklist)
     var cachedTask: CachedTask? = null
+
+    /** What complete, reopen, delete and restore answer; `null` is success. */
+    var actionResult: TaskResult<Unit>? = null
+    var restoreResult: TaskResult<Unit>? = null
+    var moveResult: TaskResult<GtdTask>? = null
     var loads = 0
     var checklistLoads = 0
     var changes = 0
@@ -42,12 +47,12 @@ class FakeTaskDetailSource(
 
     override suspend fun complete(task: GtdTask): TaskResult<Unit> {
         calls += "complete"
-        return TaskResult.Ok(Unit)
+        return actionResult ?: TaskResult.Ok(Unit)
     }
 
     override suspend fun reopen(task: GtdTask): TaskResult<Unit> {
         calls += "reopen"
-        return TaskResult.Ok(Unit)
+        return actionResult ?: TaskResult.Ok(Unit)
     }
 
     override suspend fun move(
@@ -56,17 +61,17 @@ class FakeTaskDetailSource(
         waitingFor: String?,
     ): TaskResult<GtdTask> {
         moves += Triple(task, target, waitingFor)
-        return TaskResult.Ok(task)
+        return moveResult ?: TaskResult.Ok(task)
     }
 
     override suspend fun delete(task: GtdTask): TaskResult<Unit> {
         calls += "delete"
-        return TaskResult.Ok(Unit)
+        return actionResult ?: TaskResult.Ok(Unit)
     }
 
     override suspend fun restore(id: UUID): TaskResult<Unit> {
         calls += "restore"
-        return TaskResult.Ok(Unit)
+        return restoreResult ?: TaskResult.Ok(Unit)
     }
 
     override suspend fun addChecklistItem(
