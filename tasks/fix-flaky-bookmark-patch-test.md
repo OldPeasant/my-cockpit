@@ -1,12 +1,13 @@
 ---
 title: Flaky test: BookmarkWebTests PATCH races the background metadata fetch (409)
-status: in_progress
-owner: dell26/agent-2
+status: todo
+owner: 
 deps: [bookmarks-api]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/bookmarks/BookmarkWebTests.kt]
 prio: 1
-lease_until: 2026-11-02T07:11:51Z
-extended: dell26/agent-2
+lease_until: 
+extended: 
+releases: 1
 ---
 ## Goal
 The rerun of CI run 41355157150 (2026-11-02, server fast check) failed on `BookmarkWebTests > PATCH changes only the
@@ -35,3 +36,4 @@ Found while checking the failing CI runs (2026-11-02). Test-only fix. A user edi
 it can get the same 409; the web client handles 409 by reloading, so that is not changed here.
 - ASSUMPTION (2026-11-02 05:29+0100 by dell26/agent-2): BookmarkWebTests fetch timeout raised 2s->5s and the slow ordering test's WireMock delay 700ms->2000ms, so its deliberate PATCH-before-fetch race keeps a wide margin under load while the slow fetch still succeeds; no test in the class depends on the 2s value.
 - extended by dell26/agent-2: Fix + both helper reports (tests.md, review.md, review-r1.md, fixes.md) committed at aa64d98e4; criteria 1-2 verified. Left: run './gradlew test --tests *BookmarkWebTests*' 20x under load (stress-ng or parallel gradle) and verify #3, run sh scripts/check.sh and verify #4, write+commit reviews/fix-flaky-bookmark-patch-test/quality.json (reviewed_revision = HEAD code), then done.
+- release by dell26/agent-2: Done: fix (a153063eb settled() before PATCH; 11e5aa16c fetch timeout 5s, slow-ordering delay 2s), test-writer + code-reviewer + fixer reports committed and current (review.md/tests.md on the final code), criteria 1-2 verified. Left (no code work): (1) run .tmp-style stress: 16 busy-loop CPU burners + 'cd server && ./gradlew test --tests *BookmarkWebTests* --rerun' 20x in a row (~1m40s each); last attempt passed 16/16 then the session ended; then verify #3 with the load. (2) sh scripts/check.sh, verify #4. (3) update validation results in reviews/fix-flaky-bookmark-patch-test/quality.json (currently marked INCOMPLETE/NOT RUN; reviewed_revision 11e5aa16c is correct), commit, tasks.py done.
