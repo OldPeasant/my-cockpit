@@ -20,9 +20,10 @@ series occurrence, and `If-Match`; events of synced calendars are deleted at the
 - [x] A single event: a confirmation ("Delete this event?") then `DELETE` with `If-Match`; on success the editor
       closes and the agenda/day/week views no longer show the event (cache updated, no manual refresh)
   - verified (2026-11-02 10:56+0100 by dell26/agent-1): EventEditorViewModelDeleteTest single: confirm then repo.delete(single, 4, null), editor closes; EventEditRepositoryTest (MockWebServer): DELETE /api/v1/calendar/events/{id}, If-Match "4", no scope; CalendarWithEditorDeleteTest (real CalendarWithEditor + view models): after delete+confirm event gone from agenda, week, day and agenda cache without manual refresh -> all pass (cd android && ./gradlew testDebugUnitTest)
-- [ ] A repeating event: the existing scope choice (only this / this and following / all events in the series),
+- [x] A repeating event: the existing scope choice (only this / this and following / all events in the series),
       sent as `scope` with the occurrence's original start as `occurrence`, as the web does; cancelling the
       choice deletes nothing
+  - verified (2026-11-02 10:56+0100 by dell26/agent-1): EventEditorViewModelDeleteTest: series occurrence offers THIS/FOLLOWING/ALL, each scope -> repo.delete(weekly, 7, scope); cancel -> no delete; EventEditRepositoryTest: generated -> master id, scope=FOLLOWING, occurrence=2026-10-23T07:00:00Z; override -> own id, scope THIS, no occurrence -> pass (./gradlew testDebugUnitTest)
 - [ ] Errors use the editor's existing patterns: 412 -> the "changed elsewhere" message with Reload, 404 -> the
       "changed or removed elsewhere" message, offline -> "Can't reach the server", nothing is removed locally then
 - [ ] All new UI strings exist in English and German (`res/values`, `res/values-de`)
