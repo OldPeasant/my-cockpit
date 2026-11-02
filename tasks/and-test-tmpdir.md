@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [android/app/build.gradle.kts]
 prio: 2
-lease_until: 2026-11-02T10:56:42Z
+lease_until: 2026-11-02T10:58:34Z
 ---
 ## Goal
 Every Robolectric test JVM extracts its native runtime (~205 MB) into `/tmp/robolectric-nativeruntime*` and never
