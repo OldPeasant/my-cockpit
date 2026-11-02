@@ -1,11 +1,11 @@
 ---
 title: Server and Android tests keep temp files in build/, not /tmp
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [test-tmp-dir-leaks,backup-round-trip-tmp-leak]
 touches: [server/build.gradle.kts,android/app/build.gradle.kts,docs/ARCHITECTURE.md]
 prio: 1
-lease_until: 2026-11-02T12:38:21Z
+lease_until: 
 releases: 0
 extended: 
 hold: 
@@ -51,3 +51,4 @@ Web (Vitest) and Playwright temp files are out of scope unless the evidence show
 - ASSUMPTION (2026-11-02 10:06+0100 by dell26/agent-1): Kill test (#3) used pkill -9 -f 'agent-1/android/app/build/tmp/test-jvm' instead of 'Gradle Test Executor': the machine is shared with other agents and the generic pattern would kill their test runs; the matched process is this clone's Gradle Test Executor
 - release by dell26/agent-1: Code done (20be1761a), helper reports committed (a314022bb: tests.md + review.md, 0 findings, fixer not required). Criteria #1-#4 and #6 verified. Left: #5 run 'time sh scripts/check.sh' on this branch and on main (or cite a known main duration), record both with verify 5; write reviews/test-tmp-in-build/quality.json (reviewed_revision = full hash of 20be1761a or its rebased equivalent, result exactly 'pass', fixer not required), commit, then 'python tasks.py done test-tmp-in-build' with a long background timeout (check.sh has taken >10 min on this machine).
 - ASSUMPTION (2026-11-02 13:05+0100 by dell26/agent-1): After merging main, removed and-test-tmpdir's android tmpdir lines (temporaryDir/jvm, not emptied per run): they duplicated val testTmpDir and set java.io.tmpdir twice; this task's build/tmp/test-jvm/{task} setting supersedes them
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 70s on 0f32a90d1; criteria verified 6/6
