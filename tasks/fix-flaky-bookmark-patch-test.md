@@ -1,11 +1,11 @@
 ---
 title: Flaky test: BookmarkWebTests PATCH races the background metadata fetch (409)
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [bookmarks-api]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/bookmarks/BookmarkWebTests.kt]
 prio: 1
-lease_until: 
+lease_until: 2026-11-02T14:07:21Z
 extended: 
 releases: 2
 hold: 
