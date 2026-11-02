@@ -70,7 +70,14 @@ class SettingsServerChangeTest {
         // IO thread and then launches the user reload on Main, which must not happen after resetMain. The timeout fails a
         // hanging join fast instead of blocking the build; the cleanup below still runs then.
         try {
-            runBlocking { withTimeout(5_000) { viewModels.forEach { it.viewModelScope.coroutineContext.job.cancelAndJoin() } } }
+            runBlocking {
+                withTimeout(5_000) {
+                    viewModels.forEach {
+                        it.viewModelScope.coroutineContext.job
+                            .cancelAndJoin()
+                    }
+                }
+            }
         } finally {
             storeScope.cancel()
             Dispatchers.resetMain()
