@@ -1,6 +1,6 @@
 ---
 title: Flaky test: BookmarkWebTests PATCH races the background metadata fetch (409)
-status: in_progress
+status: done
 owner: Peter Gürtler
 deps: [bookmarks-api]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/bookmarks/BookmarkWebTests.kt]
@@ -49,3 +49,4 @@ it can get the same 409; the web client handles 409 by reloading, so that is not
 - extended by dell26/agent-1: Fix (fetch timeout 5s, commit 11e5aa16c) done; test-writer, code-reviewer, fixer reports committed; criteria 1-2 verified. Left: rerun .tmp/stress.sh to 20/20 under load (16/20 passed before session ended), verify #3; run sh scripts/check.sh, verify #4; finalize quality.json validation + reviewed_revision, commit, done.
 - release by dell26/agent-1: Code fix (dc2eee3fc wait for metadata fetch before PATCH; c3696adc6 fetch timeout 5s), test-writer, code-reviewer (CR-1 fixed), fixer reports all committed; criteria 1-2 verified. LEFT: (a) criterion 3: run sh .tmp/stress.sh-equivalent (16 CPU busy-loops + 20x 'cd server && ./gradlew test --tests *BookmarkWebTests* --rerun'); last attempt reached 19/19 PASS at load ~20 before the session ended in run 20, so re-run to 20/20 and verify #3; (b) run sh scripts/check.sh, verify #4; (c) in reviews/fix-flaky-bookmark-patch-test/quality.json set reviewed_revision to the current hash of c3696adc6 after any rebase, fill validation results with exactly 'pass', commit; (d) tasks.py done. No code changes needed.
 - hold by dell26/agent-1: Code fix + test-writer/code-reviewer/fixer reports committed, criteria 1-2 verified. Only validation is left, and it needs ~35 min of wall clock, but agent sessions end after a few minutes and kill the background run (10+ release/extend cycles on this step). Best result: 19/19 consecutive PASS of 'cd server && ./gradlew test --tests *BookmarkWebTests* --rerun' with 16 CPU busy-loop burners (loadavg 19-22), see .tmp/stress-out.txt and the .tmp/stress.sh script in agent-1. A human should either run 'sh .tmp/stress.sh' (20x, ~30 min) plus 'sh scripts/check.sh' and record criteria 3/4, or accept 19/19 as evidence; then update validation in reviews/fix-flaky-bookmark-patch-test/quality.json (result exactly 'pass', set reviewed_revision to the current hash of the 'fetch timeout 5s' commit, now 3d0c1d24d) and run tasks.py done, or give the agent a session long enough to do this.
+- done by Peter Gürtler: `sh scripts/check.sh` passed in 64s on 0d16dfceb; criteria verified 4/4
