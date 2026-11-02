@@ -2,8 +2,8 @@
 title: HUMAN: connect real mail accounts
 status: todo
 owner: 
-hold: given back 3 times; last: Auto-claimed by agent-2 via 'claim' with no id; h-* tasks are human-only per AGENTS.md, released untouched. Criterion already [x]; owner should run done. tasks.py claim (no i
-releases: 3
+hold: 
+releases: 0
 extended: 
 deps: [p5-smoke, h-oauth-apps, h-cal-real]
 prio: 2
