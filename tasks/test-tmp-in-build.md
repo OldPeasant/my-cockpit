@@ -1,10 +1,11 @@
 ---
 title: Server and Android tests keep temp files in build/, not /tmp
-status: todo
-owner:
+status: in_progress
+owner: felix/agent-1
 deps: [test-tmp-dir-leaks,backup-round-trip-tmp-leak]
 touches: [server/build.gradle.kts,android/app/build.gradle.kts,docs/ARCHITECTURE.md]
 prio: 1
+lease_until: 2026-11-02T04:22:14Z
 ---
 ## Goal
 On the owner's laptop `/tmp` (tmpfs, 12.6 GB quota) filled up on 2026-11-02 ("disk quota exceeded"; 13 GB used):
