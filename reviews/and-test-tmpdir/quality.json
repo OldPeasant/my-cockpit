@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "and-test-tmpdir",
+  "reviewed_revision": "616dca0092bad48e2d795431e355041cc88c7770",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-test-tmpdir/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-test-tmpdir/review.md"},
+    "fixer": {"status": "not_required", "reason": "no finding needs a code change: CR-1 concerns evidence wording (recorded as an assumption), CR-2 is an optional comment/cleanup improvement accepted as is"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "accepted",
+     "note": "agents cannot list /tmp; the 'no new files in /tmp' part is shown indirectly (Robolectric temp dirs observed under build/tmp) and recorded via tasks.py assume for a human to confirm"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "Robolectric deletes the runtime on normal JVM exit; only killed runs leave ~200 MB, now inside the clone's build/ where clean removes it, which is what the task asks for"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew clean ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
