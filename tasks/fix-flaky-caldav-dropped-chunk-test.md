@@ -28,3 +28,4 @@ production retries a request whose answer had started, that is a real bug: fix i
 - [ ] The other CalDavClientTests retry tests still pass; `cd server && ./gradlew check` passes
 
 ## Notes
+- ASSUMPTION (2026-11-02 19:54+0100 by Peter Gürtler): Root cause is the test, not production: WireMock's MALFORMED_RESPONSE_CHUNK fault (JettyFaultInjector: setStatus+flushBuffer, then raw channel write + socket.close) occasionally reaches the client as EOF before the status line (local probe: 1 of 2000, IOException 'EOF reached while reading', answered=false; CI log showed the retry line). A GET without any answer is retried by design (cal-caldav-retry), so production stays unchanged; the test now uses a raw socket server that always sends status+headers before closing mid-body
