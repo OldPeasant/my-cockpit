@@ -15,7 +15,8 @@ tap should go where the work is: the unread mail. (The web dashboard already has
 ## Acceptance criteria
 - [x] Tapping the Dashboard's Inbox card opens Mail when its loaded data shows 0 Inbox tasks and at least one unread mail; in every other case (tasks present, no unread mail, data not loaded yet or failed) it opens the GTD Inbox as before
   - verified (2026-11-02 19:45+0100 by Peter Gürtler): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug on 472f9c23c -> 2883 tests 0 failures; DashboardDestinationTest (9: 0 tasks + 26+/1 unread -> Mail; tasks present, no mail, null/loading/FAILED/OFFLINE without data -> Inbox; kept data after failed refresh follows the data) and DashboardInboxCardTest (9 Compose taps: Inbox(0,26+) -> onOpen(Mail), 3 tasks/0 mail/loading/failed -> onOpen(Inbox)) pass
-- [ ] The card's icon stays the Inbox icon; the other cards' destinations are unchanged
+- [x] The card's icon stays the Inbox icon; the other cards' destinations are unchanged
+  - verified (2026-11-02 19:45+0100 by Peter Gürtler): same run on 472f9c23c (2883 pass): DashboardDestinationTest checks the Inbox card icon source stays the Inbox icon (structural: card draws widget.destination.icon, no semantics on Icon) and the other 7 widgets keep their destination, also when given Inbox data (INBOX guard); existing DashboardScreenTest 'each card opens the matching screen' passes
 - [ ] Unit/Compose tests cover the cases above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
 
 ## Notes
