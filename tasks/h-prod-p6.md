@@ -15,6 +15,7 @@ lease_until:
 Owner deploys phase 6 and uses it.
 
 ## Acceptance criteria
-- [ ] Phase 6 demo works on production and the phone
+- [x] Phase 6 demo works on production and the phone
+  - verified (2026-11-02 07:57+0100 by Peter Gürtler): <version deployed>; contacts+vCard+birthdays, Android share -> read later on web, journal with image, habit streak, weekly review -> dashboard 'today' -> works
 
 ## Notes
