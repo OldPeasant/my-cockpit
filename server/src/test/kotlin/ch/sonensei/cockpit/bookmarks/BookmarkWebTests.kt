@@ -253,15 +253,16 @@ class BookmarkWebTests(
 	fun `a fetch that finishes after the URL changed again is ignored`() {
 		server.stubFor(
 			stubGet(urlEqualTo("/slow")).willReturn(
-				aResponse().withHeader("Content-Type", "text/html").withBody("<title>Slow</title>").withFixedDelay(700),
+				aResponse().withHeader("Content-Type", "text/html").withBody("<title>Slow</title>").withFixedDelay(SLOW_FETCH_MS),
 			),
 		)
 		stubPage("/fast", "<title>Fast</title>")
+		// The PATCH must win the race against the slow fetch: its delay leaves room for a loaded machine.
 		val created = newBookmark("""{"url":"${page("/slow")}"}""")
 
 		change(created, """{"url":"${page("/fast")}"}""")
 		val bookmark = settled(created.id())
-		Thread.sleep(1_000)
+		Thread.sleep(SLOW_FETCH_MS + 300L)
 
 		fetch(created.id()).text("title") shouldBe "Fast"
 		bookmark.text("title") shouldBe "Fast"
@@ -299,7 +300,8 @@ class BookmarkWebTests(
 
 	@Test
 	fun `PATCH changes only the sent fields, needs a current If-Match and rejects unknown fields and nulls`() {
-		val bookmark = newBookmark("""{"url":"https://unreachable.invalid/a","title":"A","description":"About A","tags":["x"]}""")
+		// Settled first: the background metadata fetch would otherwise move the version on between the requests (409/412).
+		val bookmark = settled(newBookmark("""{"url":"https://unreachable.invalid/a","title":"A","description":"About A","tags":["x"]}""").id())
 
 		patch(bookmark.id(), """{"title":"B"}""", null).andExpect { status { isPreconditionRequired() } }
 		patch(bookmark.id(), """{"title":"B"}""", "\"999\"").andExpect { status { isPreconditionFailed() } }
@@ -468,5 +470,6 @@ class BookmarkWebTests(
 
 	private companion object {
 		const val BOOKMARKS = "/api/v1/bookmarks"
+		const val SLOW_FETCH_MS = 2_000
 	}
 }
