@@ -29,8 +29,9 @@ series occurrence, and `If-Match`; events of synced calendars are deleted at the
   - verified (2026-11-02 10:56+0100 by dell26/agent-1): EventEditorViewModelDeleteTest: 412 -> CONFLICT + reload re-enables, 404 -> GONE, Offline -> OFFLINE with form kept; CalendarWithEditorDeleteTest offline: agenda + cache still hold the event; repository maps 412/404 to Failed, 503 to Offline -> pass (./gradlew testDebugUnitTest)
 - [x] All new UI strings exist in English and German (`res/values`, `res/values-de`)
   - verified (2026-11-02 10:56+0100 by dell26/agent-1): 4 new keys in res/values and res/values-de strings_calendar_edit.xml; EventEditorDeleteScreenTest @Config(qualifiers=de) shows 'Diesen Termin löschen?', 'Löschen', 'Wiederkehrenden Termin löschen'; ./gradlew lintDebug (MissingTranslation) -> BUILD SUCCESSFUL
-- [ ] ViewModel tests (single, each scope, cancel, 412, 404, offline) and a Compose test for the button and
+- [x] ViewModel tests (single, each scope, cancel, 412, 404, offline) and a Compose test for the button and
       confirmation; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+  - verified (2026-11-02 10:56+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL (VM delete tests single/each scope/cancel/412/404/offline 13/13, Compose EventEditorDeleteScreenTest 7/7)
 
 ## Notes
 Requested by the owner (2026-11-02): "How can I delete a calendar entry in the Android App?" Out of scope: deleting
