@@ -1,6 +1,6 @@
 ---
 title: HUMAN: phase 6 on production
-status: in_progress
+status: done
 owner: Peter Gürtler
 deps: [p6-smoke,h-mail-real]
 quality: exempt
@@ -19,3 +19,4 @@ Owner deploys phase 6 and uses it.
   - verified (2026-11-02 07:57+0100 by Peter Gürtler): <version deployed>; contacts+vCard+birthdays, Android share -> read later on web, journal with image, habit streak, weekly review -> dashboard 'today' -> works
 
 ## Notes
+- done by Peter Gürtler: check skipped (--skip-check); criteria verified 1/1
