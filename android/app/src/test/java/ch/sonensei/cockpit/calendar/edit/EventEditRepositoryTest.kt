@@ -147,6 +147,49 @@ class EventEditRepositoryTest {
         }
 
     @Test
+    fun `a single event is deleted without scope, with its version as If-Match`() =
+        runBlocking {
+            server.enqueue(status(204))
+            assertEquals(CalendarResult.Ok(Unit), repository.delete(occurrence(id(1)), 4, EditScope.ALL))
+            val request = server.takeRequest()
+            assertEquals("DELETE", request.method)
+            assertEquals("/api/v1/calendar/events/${id(1)}", request.url.encodedPath)
+            assertNull(request.url.queryParameter("scope"))
+            assertNull(request.url.queryParameter("occurrence"))
+            assertEquals("\"4\"", request.headers["If-Match"])
+        }
+
+    @Test
+    fun `a generated occurrence is deleted at its master with scope and original start, an override directly`() =
+        runBlocking {
+            server.enqueue(status(204))
+            server.enqueue(status(204))
+            repository.delete(occurrence(id(2), id(2), "2026-10-23T07:00:00Z"), 7, EditScope.FOLLOWING)
+            val generated = server.takeRequest()
+            assertEquals("DELETE", generated.method)
+            assertEquals("/api/v1/calendar/events/${id(2)}", generated.url.encodedPath)
+            assertEquals("FOLLOWING", generated.url.queryParameter("scope"))
+            assertEquals("2026-10-23T07:00:00Z", generated.url.queryParameter("occurrence"))
+            assertEquals("\"7\"", generated.headers["If-Match"])
+            repository.delete(occurrence(id(3), id(2), "2026-10-23T07:00:00Z"), 2, null)
+            val override = server.takeRequest()
+            assertEquals("/api/v1/calendar/events/${id(3)}", override.url.encodedPath)
+            assertEquals("THIS", override.url.queryParameter("scope"))
+            assertNull(override.url.queryParameter("occurrence"))
+        }
+
+    @Test
+    fun `a refused delete reports its status, a server error counts as offline`() =
+        runBlocking {
+            server.enqueue(status(412))
+            server.enqueue(status(404))
+            server.enqueue(status(503))
+            assertEquals(CalendarResult.Failed(412), repository.delete(occurrence(id(1)), 4, null))
+            assertEquals(CalendarResult.Failed(404), repository.delete(occurrence(id(1)), 4, null))
+            assertEquals(CalendarResult.Offline, repository.delete(occurrence(id(1)), 4, null))
+        }
+
+    @Test
     fun `a generated occurrence without a scope changes only that occurrence`() =
         runBlocking {
             server.enqueue(json(eventJson(2)))

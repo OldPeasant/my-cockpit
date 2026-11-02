@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
@@ -63,6 +64,9 @@ data class EventEditorCallbacks(
     val chooseScope: (EditScope) -> Unit = {},
     val dismissScope: () -> Unit = {},
     val reload: () -> Unit = {},
+    val delete: () -> Unit = {},
+    val confirmDelete: () -> Unit = {},
+    val dismissDelete: () -> Unit = {},
 )
 
 internal object EventEditorTags {
@@ -83,6 +87,9 @@ internal object EventEditorTags {
     const val RELOAD = "event-editor-reload"
     const val END_ERROR = "event-editor-end-error"
     const val SCOPE_DIALOG = "event-editor-scope"
+    const val DELETE = "event-editor-delete"
+    const val DELETE_DIALOG = "event-editor-delete-confirm"
+    const val DELETE_CONFIRM = "event-editor-delete-confirm-ok"
     const val ADD = "calendar-add-event"
 
     fun repeat(repeat: Repeat) = "event-editor-repeat:$repeat"
@@ -114,6 +121,14 @@ fun EventEditorContent(
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.weight(1f),
                 )
+                if (!state.creating && !state.readOnly && state.form != null && !state.saving) {
+                    TextButton(
+                        onClick = callbacks.delete,
+                        enabled = state.canDelete,
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        modifier = Modifier.testTag(EventEditorTags.DELETE),
+                    ) { Text(stringResource(R.string.calendar_edit_delete)) }
+                }
                 Button(
                     onClick = callbacks.save,
                     enabled = state.canSave,
@@ -125,7 +140,27 @@ fun EventEditorContent(
             state.form?.let { Form(state, it, callbacks.update) }
         }
     }
-    state.scopes?.let { ScopeDialog(it, callbacks.chooseScope, callbacks.dismissScope) }
+    state.scopes?.let { ScopeDialog(it, state.deleting, callbacks.chooseScope, callbacks.dismissScope) }
+    if (state.confirmingDelete) DeleteDialog(callbacks.confirmDelete, callbacks.dismissDelete)
+}
+
+/** Asks before a single event is deleted. */
+@Composable
+private fun DeleteDialog(
+    confirm: () -> Unit,
+    dismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = dismiss,
+        modifier = Modifier.testTag(EventEditorTags.DELETE_DIALOG),
+        title = { Text(stringResource(R.string.calendar_edit_delete_question)) },
+        confirmButton = {
+            TextButton(onClick = confirm, modifier = Modifier.testTag(EventEditorTags.DELETE_CONFIRM)) {
+                Text(stringResource(R.string.calendar_edit_delete), color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.calendar_edit_cancel)) } },
+    )
 }
 
 @Composable
@@ -139,6 +174,7 @@ private fun Message(
             EditorMessage.LOAD_FAILED -> R.string.calendar_edit_load_failed
             EditorMessage.OFFLINE -> R.string.calendar_edit_offline
             EditorMessage.FAILED -> R.string.calendar_edit_failed
+            EditorMessage.DELETE_FAILED -> R.string.calendar_edit_delete_failed
             EditorMessage.CONFLICT -> R.string.calendar_edit_conflict
             EditorMessage.GONE -> R.string.calendar_edit_gone
         }
@@ -397,17 +433,20 @@ private fun TimeButton(
     }
 }
 
-/** Asks which occurrences of a repeating event a change applies to (SPEC.md §6.2). */
+/** Asks which occurrences of a repeating event a change or delete applies to (SPEC.md §6.2). */
 @Composable
 private fun ScopeDialog(
     scopes: List<EditScope>,
+    deleting: Boolean,
     choose: (EditScope) -> Unit,
     dismiss: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = dismiss,
         modifier = Modifier.testTag(EventEditorTags.SCOPE_DIALOG),
-        title = { Text(stringResource(R.string.calendar_edit_scope_title)) },
+        title = {
+            Text(stringResource(if (deleting) R.string.calendar_edit_delete_scope_title else R.string.calendar_edit_scope_title))
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.calendar_edit_scope_question))

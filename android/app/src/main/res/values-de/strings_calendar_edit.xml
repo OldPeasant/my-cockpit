@@ -39,4 +39,8 @@
     <string name="calendar_edit_cancel">Abbrechen</string>
     <string name="calendar_edit_ok">OK</string>
     <string name="calendar_edit_add">Neuer Termin</string>
+    <string name="calendar_edit_delete">Löschen</string>
+    <string name="calendar_edit_delete_question">Diesen Termin löschen?</string>
+    <string name="calendar_edit_delete_scope_title">Wiederkehrenden Termin löschen</string>
+    <string name="calendar_edit_delete_failed">Der Termin konnte nicht gelöscht werden.</string>
 </resources>

@@ -36,6 +36,9 @@ enum class EditorMessage {
     OFFLINE,
     FAILED,
 
+    /** A delete was refused by the server (for another reason than a conflict or a missing event). */
+    DELETE_FAILED,
+
     /** The event changed elsewhere (or at its provider) since it was opened: reload before changing it. */
     CONFLICT,
 
@@ -59,6 +62,10 @@ data class EventEditorUiState(
     val saving: Boolean = false,
     /** The scope prompt is shown, offering these scopes. */
     val scopes: List<EditScope>? = null,
+    /** The scope prompt (when shown) is for a delete, not a change. */
+    val deleting: Boolean = false,
+    /** The "Delete this event?" confirmation of a single event is shown. */
+    val confirmingDelete: Boolean = false,
     val message: EditorMessage? = null,
 ) {
     /** The problems shown next to the fields. */
@@ -83,12 +90,19 @@ data class EventEditorUiState(
 
     val canSave: Boolean
         get() = form != null && !loading && !saving && !readOnly && message != EditorMessage.CONFLICT && message != EditorMessage.GONE
+
+    /**
+     * An existing event of a writable calendar can be deleted, as it can be saved: not while a save or delete runs, nor
+     * after a conflict (reload first, its version is stale) or once it is gone.
+     */
+    val canDelete: Boolean get() = !creating && canSave
 }
 
 /**
  * Creates a new event or edits an occurrence (SPEC.md §6.3). Only changed fields are sent. A change of a repeating
  * event asks THIS / FOLLOWING / ALL first (a new repeat rule only FOLLOWING / ALL). When the event changed elsewhere
- * since it was opened, the editor says so and offers to reload it (SPEC.md §6.2).
+ * since it was opened, the editor says so and offers to reload it (SPEC.md §6.2). An existing event can be deleted:
+ * a single one after a confirmation, an occurrence of a series with the same scope choice as a change.
  *
  * One editor serves the Calendar screen; it survives configuration changes, so the open form does too.
  */
@@ -158,7 +172,7 @@ class EventEditorViewModel internal constructor(
     fun save() {
         val current = state.value
         val form = current.form ?: return
-        if (!current.canSave || current.scopes != null) return
+        if (!current.canSave || current.scopes != null || current.confirmingDelete) return
         if (form.errors.isNotEmpty()) {
             state.update { it.copy(showErrors = true) }
             return
@@ -184,12 +198,43 @@ class EventEditorViewModel internal constructor(
         val offered = current.scopes ?: return
         val edited = occurrence ?: return
         val form = current.form ?: return
-        state.update { it.copy(scopes = null) }
-        if (scope in offered) sendPatch(edited, scope, patchBody(initial ?: form, form))
+        state.update { it.copy(scopes = null, deleting = false) }
+        if (scope !in offered) return
+        if (current.deleting) {
+            sendDelete(edited, scope)
+        } else {
+            sendPatch(edited, scope, patchBody(initial ?: form, form))
+        }
     }
 
-    /** The scope prompt was cancelled: nothing is saved, the form stays as it is. */
-    fun dismissScope() = state.update { it.copy(scopes = null) }
+    /** The scope prompt was cancelled: nothing is saved or deleted, the form stays as it is. */
+    fun dismissScope() = state.update { it.copy(scopes = null, deleting = false) }
+
+    /**
+     * Deletes the edited event: a single event asks for a confirmation first, an occurrence of a series which
+     * occurrences to delete (any scope: a delete has no new rule restricting it).
+     */
+    fun delete() {
+        val current = state.value
+        val edited = occurrence ?: return
+        if (!current.canDelete || current.scopes != null || current.confirmingDelete) return
+        if (edited.inSeries) {
+            state.update { it.copy(scopes = EditScope.entries.toList(), deleting = true) }
+        } else {
+            state.update { it.copy(confirmingDelete = true) }
+        }
+    }
+
+    /** The delete of a single event was confirmed. */
+    fun confirmDelete() {
+        if (!state.value.confirmingDelete) return
+        state.update { it.copy(confirmingDelete = false) }
+        val edited = occurrence ?: return
+        if (state.value.canDelete) sendDelete(edited, null)
+    }
+
+    /** The delete confirmation was cancelled: nothing is deleted. */
+    fun dismissDelete() = state.update { it.copy(confirmingDelete = false) }
 
     /**
      * Closes the editor without saving. Ignored while a save runs: the server may commit the change even if its answer
@@ -214,7 +259,19 @@ class EventEditorViewModel internal constructor(
         patch: JsonObject,
     ) = send { repository.update(edited, version, scope, patch) }
 
-    private fun send(request: suspend () -> CalendarResult<EventDetails>) {
+    private fun sendDelete(
+        edited: Occurrence,
+        scope: EditScope?,
+    ) = send(EditorMessage.DELETE_FAILED) { repository.delete(edited, version, scope) }
+
+    /**
+     * Sends a create, change or delete; on success the editor closes (the calendar views reload when they come back,
+     * which also updates their cache). On failure nothing changes here: the form stays, with the reason shown.
+     */
+    private fun send(
+        failed: EditorMessage = EditorMessage.FAILED,
+        request: suspend () -> CalendarResult<*>,
+    ) {
         val creating = occurrence == null
         state.update { it.copy(saving = true, message = null) }
         job =
@@ -232,10 +289,10 @@ class EventEditorViewModel internal constructor(
                                 message =
                                     when {
                                         // Nothing to reload for a new event: the form stays editable for a retry.
-                                        creating -> EditorMessage.FAILED
+                                        creating -> failed
                                         result.status in CONFLICTS -> EditorMessage.CONFLICT
                                         result.status == NOT_FOUND -> EditorMessage.GONE
-                                        else -> EditorMessage.FAILED
+                                        else -> failed
                                     },
                             )
                         }
@@ -252,7 +309,17 @@ class EventEditorViewModel internal constructor(
     private fun load() {
         val shown = occurrence ?: return
         job?.cancel()
-        state.update { it.copy(loading = true, form = null, message = null, showErrors = false, scopes = null) }
+        state.update {
+            it.copy(
+                loading = true,
+                form = null,
+                message = null,
+                showErrors = false,
+                scopes = null,
+                deleting = false,
+                confirmingDelete = false,
+            )
+        }
         job =
             viewModelScope.launch {
                 val edited =

@@ -54,6 +54,9 @@ fun CalendarWithEditor(
                     chooseScope = editor::chooseScope,
                     dismissScope = editor::dismissScope,
                     reload = editor::reload,
+                    delete = editor::delete,
+                    confirmDelete = editor::confirmDelete,
+                    dismissDelete = editor::dismissDelete,
                 ),
             modifier = modifier,
         )

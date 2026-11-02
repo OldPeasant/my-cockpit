@@ -15,6 +15,7 @@ import kotlinx.serialization.json.JsonObject
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -48,6 +49,14 @@ interface EventWriteApi {
         @Query("occurrence") occurrence: String?,
         @Header("If-Match") ifMatch: String,
     ): Response<EventResponse>
+
+    @DELETE("api/v1/calendar/events/{id}")
+    suspend fun deleteEvent(
+        @Path("id") id: UUID,
+        @Query("scope") scope: String?,
+        @Query("occurrence") occurrence: String?,
+        @Header("If-Match") ifMatch: String,
+    ): Response<Unit>
 }
 
 @Module
@@ -134,6 +143,27 @@ class EventEditRepository
                         ifMatch = "\"$version\"",
                     ),
                 ).toDetails()
+            }
+
+        /**
+         * Deletes [occurrence] (and, by [scope], other occurrences of its series), addressed as [update] does: a single
+         * event or an override directly, a generated occurrence at its series master with the occurrence's original start.
+         */
+        suspend fun delete(
+            occurrence: Occurrence,
+            version: Long,
+            scope: EditScope?,
+        ): CalendarResult<Unit> =
+            call {
+                val effective = if (occurrence.inSeries) scope ?: EditScope.THIS else null
+                val response =
+                    writeApi.deleteEvent(
+                        id = occurrence.eventId,
+                        scope = effective?.name,
+                        occurrence = occurrence.occurrence.takeIf { occurrence.generated },
+                        ifMatch = "\"$version\"",
+                    )
+                if (!response.isSuccessful) throw EventHttpFailure(response.code())
             }
 
         private suspend fun <T> call(block: suspend () -> T): CalendarResult<T> =

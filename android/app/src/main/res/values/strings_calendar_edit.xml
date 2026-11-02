@@ -39,4 +39,8 @@
     <string name="calendar_edit_cancel">Cancel</string>
     <string name="calendar_edit_ok">OK</string>
     <string name="calendar_edit_add">New event</string>
+    <string name="calendar_edit_delete">Delete</string>
+    <string name="calendar_edit_delete_question">Delete this event?</string>
+    <string name="calendar_edit_delete_scope_title">Delete a repeating event</string>
+    <string name="calendar_edit_delete_failed">The event could not be deleted.</string>
 </resources>
