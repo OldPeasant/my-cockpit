@@ -31,7 +31,8 @@ PATCH with the fetched ETag fails the optimistic lock (`OptimisticLockingFailure
 - [x] `cd server && ./gradlew test --tests '*BookmarkWebTests*'` passes 20 times in a row, also under load
       (parallel `stress-ng` or a second Gradle build); record the load
   - verified (2026-11-02 15:33+0100 by Peter Gürtler): sh .tmp/stress.sh (16 busy-loop CPU burners on 16 cores + 'cd server && ./gradlew test --tests *BookmarkWebTests* --rerun' 20x in a row) -> 20/20 passed, loadavg 13.7-22.7 (2026-11-02 14:59-15:22)
-- [ ] `sh scripts/check.sh` passes
+- [x] `sh scripts/check.sh` passes
+  - verified (2026-11-02 15:34+0100 by Peter Gürtler): sh scripts/check.sh on main 7bc98bff8 + wip/fix-flaky-bookmark-patch-test -> all checks passed (663 s)
 
 ## Notes
 Found while checking the failing CI runs (2026-11-02). Test-only fix. A user editing a bookmark right after saving
