@@ -1,6 +1,6 @@
 ---
 title: Flaky test: CalDavClientTests 'a connection that fails after the answer started is not repeated' sometimes retries
-status: in_progress
+status: done
 owner: Peter Gürtler
 deps: [cal-caldav-retry]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/caldav/CalDavClientTests.kt,server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/caldav/CalDavClient.kt]
@@ -33,3 +33,4 @@ production retries a request whose answer had started, that is a real bug: fix i
 ## Notes
 - Root cause (2026-11-02, Peter Gürtler/Claude): the CI test XML of run 41493673821 has the client's "lost its connection before an answer (IOException), sending it again" line for this test: the client classified the drop as before the answer and retried. WireMock 3.13.1 `JettyFaultInjector.malformedResponseChunk()` does `setStatus(200)`, `flushBuffer()`, then writes garbage straight to the raw SocketChannel and calls `socket.close()`, bypassing Jetty. Reproduced with a throwaway probe (2000 GETs against that fault, JDK HttpClient as built by `CalDavClient.httpClient()`): 1999 x ProtocolException after the BodyHandler ran (answered=true), 1 x `IOException: EOF reached while reading` with the BodyHandler never called (answered=false), i.e. the client got no status line at all. A GET with no answer is retried by design, so production is right and the test's fault is unreliable. Fix: the test uses a raw ServerSocket that reads the request head, sends the full status line and headers (Content-Length 100) plus 2 body bytes, then shuts the output down cleanly; a second connection would get a complete 200 "ok".
 - ASSUMPTION (2026-11-02 19:54+0100 by Peter Gürtler): Root cause is the test, not production: WireMock's MALFORMED_RESPONSE_CHUNK fault (JettyFaultInjector: setStatus+flushBuffer, then raw channel write + socket.close) occasionally reaches the client as EOF before the status line (local probe: 1 of 2000, IOException 'EOF reached while reading', answered=false; CI log showed the retry line). A GET without any answer is retried by design (cal-caldav-retry), so production stays unchanged; the test now uses a raw socket server that always sends status+headers before closing mid-body
+- done by Peter Gürtler: `sh scripts/check.sh` passed in 71s on c4c2e77c0; criteria verified 3/3
