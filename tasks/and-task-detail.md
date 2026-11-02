@@ -27,10 +27,11 @@ existing API: `GET/PATCH/DELETE /api/v1/tasks/{id}` (ETag/If-Match), `POST /task
       waiting-for person (for Waiting tasks), and linked items (tapping a linked item opens it where the app has a
       screen, else the web deep link)
   - verified (2026-11-02 11:32+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest (rev c171fc231) -> pass: TaskDetailContentTest 'shows the task's fields, notes rendered as Markdown, checklist and linked items', 'a Waiting task shows whom it waits for', 'a Someday task shows its tickler date'; TaskDetailRepositoryTest link direction; linked-item routing unit-tested (Hilt-only nav lambda not driven)
-- [ ] Editing: title, notes, project (picker of active projects), contexts (multi-select), due date/time,
+- [x] Editing: title, notes, project (picker of active projects), contexts (multi-select), due date/time,
       estimate, energy, creativity; saved with PATCH and `If-Match`; a 412 (changed elsewhere) reloads the task
       and tells the user instead of overwriting; validation errors from Problem Details are shown at the field or
       as a message
+  - verified (2026-11-02 11:32+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest (rev c171fc231) -> pass: TaskDetailScreenTest 'editing the title saves it with PATCH', 'a field error from the server is shown at the field'; TaskDetailRepositoryTest (MockWebServer: PATCH sends If-Match "version" + only changed fields, 412/409 -> Conflict, 400/422 Problem Details field errors); TaskDetailViewModelTest/EdgeTest (412 reloads, closes form, Conflict message); TaskDraftTest (patch body for all fields)
 - [ ] Checklist: tick/untick, add, rename and delete items
 - [ ] Actions: complete / reopen, move to Next, Someday or Waiting (with person), delete (to Trash, with undo
       where the app has that pattern); lists the user returns to show the change without a manual refresh
