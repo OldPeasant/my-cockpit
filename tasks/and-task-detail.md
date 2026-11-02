@@ -6,7 +6,7 @@ deps: [and-dashboard,and-logbook,and-search,and-gtd-data]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/java/ch/sonensei/cockpit/gtd/next,android/app/src/main/java/ch/sonensei/cockpit/gtd/today,android/app/src/main/java/ch/sonensei/cockpit/gtd/lists,android/app/src/main/java/ch/sonensei/cockpit/gtd/projects,android/app/src/main/java/ch/sonensei/cockpit/search,android/app/src/main/java/ch/sonensei/cockpit/dashboard,android/app/src/main/java/ch/sonensei/cockpit/ui,android/app/src/test/java/ch/sonensei/cockpit/gtd,android/app/src/test/java/ch/sonensei/cockpit/search,android/app/src/test/java/ch/sonensei/cockpit/dashboard,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml]
 prio: 2
 lease_until: 
-hold: Android unit tests cannot run on this machine: the user's /tmp quota is full of leaked /tmp/robolectric-nativeruntime* dirs (205 MB each), so testDebugUnitTest fails ~1500 tests with 'Disk quota excee
+hold: 
 releases: 0
 extended: 
 ---
@@ -51,3 +51,4 @@ detail editing.
 - ASSUMPTION (2026-11-01 23:26+0100 by dell26/agent-2): Task and checklist PATCH use hand-built JsonObject bodies (TaskWriteApi), like EventWriteApi, because the generated request classes send every field as null and the server treats null as clear.
 - ASSUMPTION (2026-11-01 23:26+0100 by dell26/agent-2): Linked items: TASK opens the task detail, NOTE/EMAIL/CONTACT open the existing in-app item screens, others the web deep link, else the type's list screen (same rules as search). Recurrence shows the raw RRULE read-only.
 - hold by dell26/agent-2: Android unit tests cannot run on this machine: the user's /tmp quota is full of leaked /tmp/robolectric-nativeruntime* dirs (205 MB each), so testDebugUnitTest fails ~1500 tests with 'Disk quota exceeded' (also .taskcheck). A human must delete the stale dirs; fix the leak in new task and-test-tmpdir. Implementation is committed (screen, editing, checklist, actions, offline, strings, VM + Compose tests, search tests adapted); left: run tests, test-writer/code-reviewer/fixer, verify criteria, done.
+- unhold by Peter Gürtler: /tmp cleaned (13 GB free); test-tmp-in-build fixes the leak
