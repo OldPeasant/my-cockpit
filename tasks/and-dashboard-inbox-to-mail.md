@@ -1,6 +1,6 @@
 ---
 title: Android: Dashboard Inbox card opens Mail when the GTD Inbox is empty
-status: in_progress
+status: done
 owner: Peter Gürtler
 deps: [and-dashboard]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/dashboard,android/app/src/test/java/ch/sonensei/cockpit/dashboard]
@@ -22,3 +22,4 @@ tap should go where the work is: the unread mail. (The web dashboard already has
 
 ## Notes
 - ASSUMPTION (2026-11-02 19:13+0100 by Peter Gürtler): Inbox card follows the data it shows: if a refresh fails but the card still shows the last loaded '0 tasks, N unread', the tap opens Mail; only with no loaded data at all does it fall back to the GTD Inbox (code review CR-1)
+- done by Peter Gürtler: `sh scripts/check.sh` passed in 70s on d2ddcd842; criteria verified 3/3
