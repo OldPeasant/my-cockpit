@@ -1,7 +1,7 @@
 ---
 title: Flaky test: BookmarkWebTests PATCH races the background metadata fetch (409)
-status: todo
-owner: 
+status: in_progress
+owner: Peter Gürtler
 deps: [bookmarks-api]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/bookmarks/BookmarkWebTests.kt]
 prio: 1
