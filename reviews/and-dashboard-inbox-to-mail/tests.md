@@ -4,14 +4,14 @@ Date: 2026-11-02
 
 Task: and-dashboard-inbox-to-mail - Android: Dashboard Inbox card opens Mail when the GTD Inbox is empty
 
-Reviewed revision: 58a429a48 (last code commit: the fix with the `this == WidgetId.INBOX` guard and the KDoc). Measured at HEAD 09388e2912e994206885fb0f4508542d4329bedc. `git diff 58a429a48..HEAD -- android` is empty: the commits after 58a429a48 (a0c6abef7, feb4d19ea, 09388e291) touch only `reviews/` and `tasks/`.
+Reviewed revision: 472f9c23cbb23555e62a3fa2dd92a433d8dcc341 (last code commit: CR-3, KDoc of `destinationFor` corrected). Measured at HEAD 1994971662d690afed154acac1d715234cd08599. `git diff 472f9c23c..HEAD -- android` is empty: 199497166 touches only `reviews/`. `git diff 58a429a48..472f9c23c -- android` changes only the KDoc comment above `destinationFor` (1 line removed, 2 added). No executable code changed, so no new tests were needed. The KDoc grew by one line, so every line number after 116 moved down by one compared with the previous report.
 
-Scope: base a97a99a7d1382ba5d2e0d04563b41970fe977561. Task code commits, supplied by the parent: e0d70f811 (impl), 9d788c645 (tests), 58a429a48 (fix for CR-2 and TW-1). Changed production file: `android/app/src/main/java/ch/sonensei/cockpit/dashboard/DashboardScreen.kt` (no renames or deletions). It matches the task's `touches`.
+Scope: base a97a99a7d1382ba5d2e0d04563b41970fe977561. Task code commits, supplied by the parent: e0d70f811 (impl), 9d788c645 (tests), 58a429a48 (fix for CR-2 and TW-1), 472f9c23c (KDoc fix for CR-3). Changed production file: `android/app/src/main/java/ch/sonensei/cockpit/dashboard/DashboardScreen.kt` (no renames or deletions). It matches the task's `touches`.
 
 Requirements:
 - `tasks/and-dashboard-inbox-to-mail.md` acceptance criteria
 - Recorded assumption (CR-1 decision): a card with an error that kept its data follows that data. Only a card with no loaded data falls back to the GTD Inbox.
-- `reviews/and-dashboard-inbox-to-mail/fixes.md` (TW-1: only the Inbox widget may redirect to Mail)
+- `reviews/and-dashboard-inbox-to-mail/fixes.md` (TW-1: only the Inbox widget may redirect to Mail; CR-3: KDoc wording)
 - `docs/ARCHITECTURE.md` "Coverage"; `AGENTS.md`
 
 ## Test files changed
@@ -22,11 +22,11 @@ None in this final pass. The existing task tests already cover the criteria and 
 
 ## Tests added or updated
 
-Count: 0 in this pass. The task has 18 tests: 17 written by the test-writer, plus the fixer's regression test `only the Inbox card redirects to Mail, even if another card got Inbox data`. I reviewed them against the final code. Every criterion, the CR-1 decision and the TW-1 guard has a test, so nothing was missing.
+Count: 0 in this pass (the change since the last pass is comment-only). The task has 18 tests: 17 written by the test-writer, plus the fixer's regression test `only the Inbox card redirects to Mail, even if another card got Inbox data`. I reviewed them against the final code. Every criterion, the CR-1 decision and the TW-1 guard has a test, so nothing was missing.
 
 ## Requirement coverage
 
-Command (A): `cd android && ANDROID_HOME=$HOME/Android/Sdk ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport` (final run, 19:34:48 to 19:37:29 +01:00, exit 0).
+Command (A): `cd android && ANDROID_HOME=$HOME/Android/Sdk ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport` (final run on 472f9c23c, 19:40:11 to 19:43:17 +01:00, exit 0).
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
@@ -44,7 +44,7 @@ Command (A): `cd android && ANDROID_HOME=$HOME/Android/Sdk ./gradlew ktlintCheck
 
 Command:
 
-Part of (A). Per-class results from `android/app/build/test-results/testDebugUnitTest/`: `DashboardDestinationTest` 9 tests, `DashboardInboxCardTest` 9 tests, 0 failures, 0 errors (run at 18:35:50Z and 18:35:56Z, during the final run).
+Part of (A). Per-class results from `android/app/build/test-results/testDebugUnitTest/`: `DashboardDestinationTest` 9 tests, `DashboardInboxCardTest` 9 tests, 0 failures, 0 errors (run at 18:41:38Z and 18:41:44Z, during the final run).
 
 Result:
 
@@ -58,9 +58,9 @@ Command:
 
 Result:
 
-Pass: exit 0, BUILD SUCCESSFUL in 2m 41s. 2883 unit tests, 0 failures, 0 errors, 0 skipped. `testDebugUnitTest`, `lintDebug` and `createDebugUnitTestCoverageReport` executed. `ktlintCheck` was UP-TO-DATE, which is a pass on unchanged inputs.
+Pass: exit 0, BUILD SUCCESSFUL in 3m 5s. 2883 unit tests, 0 failures, 0 errors, 0 skipped. `testDebugUnitTest`, `lintDebug` and `createDebugUnitTestCoverageReport` executed. `ktlintCheck` was UP-TO-DATE, which is a pass on unchanged inputs.
 
-Note: an earlier attempt of the same command (19:21:49 to 19:25:04) failed in `testDebugUnitTest` with `java.nio.file.NoSuchFileException: .../build/test-results/testDebugUnitTest/binary/in-progress-results-generic.bin` and a missing Robolectric temp dir for `AuthRepositoryTest`. No test assertion failed. At the same time, another `claude` process (pid 1062719, working directory this clone) was running Gradle workers in the same `android/build` directory. That is a concurrent-build collision, not a test failure. The rerun above passed on the same inputs.
+Note: during the previous pass on 58a429a48, one attempt failed with `NoSuchFileException` on `in-progress-results-generic.bin` because a concurrent Gradle build ran in the same `android/build`. No test assertion failed. This final run passed on the first attempt.
 
 ## .taskcheck
 
@@ -72,24 +72,24 @@ Not run by the test-writer. Its Android part passed above. The task changes no s
 
 None.
 
-Doc nit (not a defect, no test impact): the KDoc of `destinationFor` (`DashboardScreen.kt:116`) says the data is "null while loading or after a failure". Under the CR-1 decision, a failed refresh keeps its data, so the data is null only after a failure without loaded data. The code and tests follow the decision. The parent may reword the KDoc if wanted.
+The doc nit from the previous pass (the KDoc of `destinationFor` said the data was "null while loading or after a failure") was fixed in 472f9c23c (CR-3). The KDoc now matches the CR-1 decision the tests check: the data is null until the first successful load, and a failed refresh keeps the last data.
 
 ## Coverage
 
 Status: verified.
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: measured from the JaCoCo XML per-line entries for the added/modified lines of `git diff -U0 a97a99a7d..HEAD -- android/app/src/main` (hunks +101, +115..125, +168..169). Executable changed lines: 120, 121, 123, 124 (`destinationFor`) and 168, 169 (`DashboardContent` items lambda). Covered 6/6 lines (100%). Branches on changed lines: 8/8 (100%, all on line 120, now including the `this == WidgetId.INBOX` guard). Lines 101 and 115-119 are KDoc and not executable, so they are not counted.
+Changed-line coverage: measured from the JaCoCo XML per-line entries for the added/modified lines of `git diff -U0 a97a99a7d..HEAD -- android/app/src/main` at 472f9c23c (hunks +101, +115..126, +169..170). Executable changed lines: 121, 122, 124, 125 (`destinationFor`) and 169, 170 (`DashboardContent` items lambda). Covered 6/6 lines (100%). Branches on changed lines: 8/8 (100%, all on line 121, including the `this == WidgetId.INBOX` guard). Lines 101 and 115-120 are KDoc and not executable, so they are not counted.
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: and-dashboard-inbox-to-mail; base a97a99a7d1382ba5d2e0d04563b41970fe977561; measured HEAD 09388e2912e994206885fb0f4508542d4329bedc (code identical to 58a429a48); commits e0d70f811, 9d788c645 and 58a429a48 as supplied by the parent, matching the task's `touches`.
-- Source/test snapshot identifier (including uncommitted inputs): SHA-256 before and after the run, unchanged: `DashboardScreen.kt` c8372383b240efd1435f8319f2f73e77aaf54c21ad99eb33940fbb5385f411b6; `DashboardDestinationTest.kt` e6cead6eceda1bb4d0fc8a02ffce0304c6d697d4c4ba7018921c363451755bf9; `DashboardInboxCardTest.kt` 80532a095b0006e676ebcc38be01bc6cad4d55a0db9e7036a3bc69a695708ee9. There were no uncommitted source or test changes.
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: and-dashboard-inbox-to-mail; base a97a99a7d1382ba5d2e0d04563b41970fe977561; measured HEAD 1994971662d690afed154acac1d715234cd08599 (code identical to 472f9c23c); commits e0d70f811, 9d788c645, 58a429a48 and 472f9c23c as supplied by the parent, matching the task's `touches`.
+- Source/test snapshot identifier (including uncommitted inputs): SHA-256 before and after the run, unchanged: `DashboardScreen.kt` 5ca3f0f9b9bc0eed51c1dd8f16603053bb4a2fd352541ac2a839b6fcaa91299d; `DashboardDestinationTest.kt` e6cead6eceda1bb4d0fc8a02ffce0304c6d697d4c4ba7018921c363451755bf9; `DashboardInboxCardTest.kt` 80532a095b0006e676ebcc38be01bc6cad4d55a0db9e7036a3bc69a695708ee9. There were no uncommitted source or test changes.
 - Exact included files; renamed/deleted/excluded files and reasons: included `android/app/src/main/java/ch/sonensei/cockpit/dashboard/DashboardScreen.kt`. Nothing renamed, deleted or excluded.
 - Provider/version, command, working directory, and test selection: JaCoCo via AGP `enableUnitTestCoverage`; command (A) above, run in `android/`. Test selection: the whole debug unit test suite.
-- Run start/completion time and exit status: 2026-11-02 19:34:48 to 19:37:29 +01:00, exit 0.
-- Generated report paths and report hashes/run identifier: `android/app/build/reports/coverage/test/debug/report.xml`, written 2026-11-02 19:37:29, sha256 93e7576129b27fc20f8d6fc13bc8ca49d44703166ea326a944db33dd334659fc.
+- Run start/completion time and exit status: 2026-11-02 19:40:11 to 19:43:17 +01:00, exit 0.
+- Generated report paths and report hashes/run identifier: `android/app/build/reports/coverage/test/debug/report.xml`, written 2026-11-02 19:43:16 +01:00, sha256 535f0d7e75aff0f56be7f855bb2885f841c566f7fde574060266b27a9b87f704.
 - Evidence outputs are fresh and inputs stayed unchanged: yes. `testDebugUnitTest` and `createDebugUnitTestCoverageReport` executed in this run (not UP-TO-DATE), and the snapshot hashes match after the run.
-- Final run after latest test additions and production fixes: yes. It ran on the code of 58a429a48, the last code commit.
+- Final run after latest test additions and production fixes: yes. It ran on the code of 472f9c23c, the last code commit.
 
 Values below use covered/total (percentage).
 
@@ -102,9 +102,9 @@ Values below use covered/total (percentage).
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
 | `DashboardScreen.kt:64-65, 76-77` (synthetic branches of the default `modifier` parameter) | Not task code: Kotlin default-argument bridges | None, not material |
-| `DashboardScreen.kt:154` (LaunchedEffect on `state.widgets`) | Not task code, there before this task | None, out of scope |
-| `DashboardScreen.kt:224, 256-257` (exhaustiveness and fallthrough bytecode of the sealed `when (data)`) | Not task code, compiler-generated | None, not material |
-| `DashboardScreen.kt:291` (one branch of the overdue-date check) | Not task code, there before this task | None, out of scope |
+| `DashboardScreen.kt:155` (LaunchedEffect on `state.widgets`) | Not task code, there before this task | None, out of scope |
+| `DashboardScreen.kt:225, 257-258` (exhaustiveness and fallthrough bytecode of the sealed `when (data)`) | Not task code, compiler-generated | None, not material |
+| `DashboardScreen.kt:292` (one branch of the overdue-date check) | Not task code, there before this task | None, out of scope |
 
 ## Unable to test
 
@@ -113,4 +113,4 @@ Values below use covered/total (percentage).
 
 ## Summary
 
-Tests and task-scoped coverage are sufficient; no production defects found. The existing tests cover every acceptance criterion, the CR-1 decision and the TW-1 fix. The full Android check passed on the final code.
+Tests and task-scoped coverage are sufficient; no production defects found. The existing tests cover every acceptance criterion, the CR-1 decision and the TW-1 fix. The full Android check passed on the final code (472f9c23c).
