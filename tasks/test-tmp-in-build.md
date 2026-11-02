@@ -1,11 +1,11 @@
 ---
 title: Server and Android tests keep temp files in build/, not /tmp
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [test-tmp-dir-leaks,backup-round-trip-tmp-leak]
 touches: [server/build.gradle.kts,android/app/build.gradle.kts,docs/ARCHITECTURE.md]
 prio: 1
-lease_until: 
+lease_until: 2026-11-02T07:03:26Z
 releases: 1
 extended: 
 ---
