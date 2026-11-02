@@ -1,6 +1,6 @@
 ---
 title: HUMAN: connect real mail accounts
-status: in_progress
+status: done
 owner: Peter Gürtler
 hold: 
 releases: 0
@@ -22,3 +22,4 @@ Owner connects Gmail and triages a day of mail (Microsoft 365 deferred, ADR 0003
 - release by dell26/agent-1: Auto-claimed by agent-1 via 'claim' with no id; h-* tasks are human-only per AGENTS.md, released untouched. Criterion already shows [x]; owner should run done.
 - release by dell26/agent-2: Auto-claimed by agent-2 via 'claim' with no id; h-* tasks are human-only per AGENTS.md, released untouched. Criterion already [x]; owner should run done.
 - release by dell26/agent-2: Auto-claimed by agent-2 via 'claim' with no id; h-* tasks are human-only per AGENTS.md, released untouched. Criterion already [x]; owner should run done. tasks.py claim (no id) should skip h-* tasks.
+- done by Peter Gürtler: check skipped (--skip-check); criteria verified 1/1
