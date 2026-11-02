@@ -147,6 +147,9 @@ without arguments `check.sh` runs every part, as `.taskcheck` does), plus `./gra
 `docker build .`, with the runtimes above. Lint it with
 `docker run --rm -v "$PWD:/repo:Z" -w /repo docker.io/rhysd/actionlint:latest` after editing.
 
+Test temp files: every Gradle `Test` task of `server/` and `android/app` sets the test JVMs' `java.io.tmpdir` to
+`build/tmp/test-jvm/<task name>`, emptied at the start of each run (leftovers of killed runs go) and removed by `clean`.
+
 Server test infrastructure (`server/src/test/kotlin/ch/sonensei/cockpit/support/`):
 - Spring tests that need the database extend `PostgresTestBase`: one `postgres:16-alpine` container
   per test JVM, wired in through `@ServiceConnection` (datasource + Flyway). Keep Spring test

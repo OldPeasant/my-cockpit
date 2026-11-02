@@ -108,6 +108,16 @@ tasks.withType<Test>().configureEach {
         isIncludeNoLocationClasses = true
         excludes = listOf("jdk.internal.*")
     }
+    // Test JVMs keep their temp files (java.io.tmpdir, e.g. Robolectric's ~200 MB native runtime) in
+    // build/tmp/test-jvm/<task>, emptied at the start of each run, so killed runs do not fill /tmp; `clean` removes them.
+    val testTmpDir = layout.buildDirectory.dir("tmp/test-jvm/$name")
+    jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-Djava.io.tmpdir=${testTmpDir.get().asFile}") })
+    doFirst {
+        testTmpDir.get().asFile.run {
+            deleteRecursively()
+            mkdirs()
+        }
+    }
     if (e2eBaseUrl.isPresent) {
         systemProperty("cockpit.e2e.baseUrl", e2eBaseUrl.get())
         // The stack's state is not a task input: never skip the run as up to date.

@@ -110,11 +110,21 @@ tasks.test {
 
 // A failing test prints its class, method and full exception in the log; passing tests stay silent.
 // scripts/check.sh runs Gradle with --quiet, which only shows the quiet level, so both levels are set.
+// Test JVMs keep their temp files (java.io.tmpdir) in build/tmp/test-jvm/<task>, emptied at the start of each run,
+// so leftovers of killed runs (no @AfterAll cleanup) do not pile up in /tmp; `clean` removes them.
 tasks.withType<Test>().configureEach {
 	testLogging {
 		listOf(this, quiet).forEach {
 			it.events(TestLogEvent.FAILED)
 			it.exceptionFormat = TestExceptionFormat.FULL
+		}
+	}
+	val testTmpDir = layout.buildDirectory.dir("tmp/test-jvm/$name")
+	jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-Djava.io.tmpdir=${testTmpDir.get().asFile}") })
+	doFirst {
+		testTmpDir.get().asFile.run {
+			deleteRecursively()
+			mkdirs()
 		}
 	}
 }
