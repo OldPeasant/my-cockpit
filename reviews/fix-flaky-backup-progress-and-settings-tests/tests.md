@@ -4,12 +4,12 @@ Date: 2026-11-02
 
 Task: fix-flaky-backup-progress-and-settings-tests - Flaky tests: BackupWebTests progress step and SettingsServerChangeTest leak
 
-Scope: `git diff 5113da1d5429ddc30001f501c56652ad45dd562c..82b7afd09996b5f8fa8422a88645199c15329568` (branch main, HEAD 82b7afd09996b5f8fa8422a88645199c15329568). Task commits: 182352549 (the original fix) and 82b7afd09 (review CR-1 and the tearDown timeout hardening, see `reviews/fix-flaky-backup-progress-and-settings-tests/fixes.md`). The parent gave the base and the commits. The working tree was clean apart from this report. This report replaces the earlier one written for revision 182352549.
+Scope: final revision e94a8284c5b4dc99210cafe18f3db9dac7ecb67e on branch main (HEAD read from `.git/refs/heads/main`). The parent named the task code commits: f1da8ec9e, 539b921d7 and e94a8284c. The base is `git merge-base HEAD origin/main`. The test-writer could not compute that hash itself because Bash/git is denied for this sub-agent. The local `origin/main` ref was 9e0bb0de7b474934e04c17d6ca4b95fbffaf37cd. The working tree was reported clean apart from this report. This report replaces the earlier one, which covered the same test code before the formatting-only commit e94a8284c.
 
 Requirements:
 - tasks/fix-flaky-backup-progress-and-settings-tests.md (goal and the 4 acceptance criteria)
 - AGENTS.md (project notes, Evidence), parent instructions
-- Production semantics checked (unchanged by the task): server `backup/domain/BackupService.kt` (progress `done++` from 0), `BackupJobService.kt` (one UPDATED per progress call), android `SettingsViewModel.kt` (`saveServer` -> `loadUser` launches on `viewModelScope`)
+- Production semantics checked (unchanged by the task): server `backup/domain/BackupService.kt` and `BackupJobService.kt` (one UPDATED per progress step), android `SettingsViewModel.kt` (`saveServer` then `loadUser` on `viewModelScope`)
 
 ## Test files changed
 
@@ -22,39 +22,37 @@ The task commits changed these files. The test-writer changed no test files in t
 
 ## Tests added or updated
 
-Count: 0 by the test-writer. The task commits updated 4 test files. I reviewed the final versions and judged them correct and sufficient.
+Count: 0 by the test-writer. The task commits updated 4 test files. I re-read their final versions at e94a8284c and judged them correct and sufficient.
 
-Review of the final test code:
+Re-assessment of the final code:
 
-- BackupWebTests `awaitGatedStepEvent` (unchanged since 182352549): it loops with a 5 s deadline until `step == GATED_STEP` and the UPDATED count is at least `stepsDone + 1`. That matches production: step n carries `stepsDone = n` and is announced by the (n + 1)th UPDATED event. `>=` is safe because the job is held at the gated step until the test opens the gate. This mirrors `BackupEventsStreamTests` as criterion 1 asks.
-- SettingsServerChangeTest tearDown: it runs `cancelAndJoin` on every tracked view model job, now inside `runBlocking { withTimeout(5_000) { ... } }`. `storeScope.cancel()` and `Dispatchers.resetMain()` are in `finally`, so they run after the join and also after a join timeout. All view models are created through `viewModel()` (line 90), so all are tracked. The `cancel` import is still used (`storeScope.cancel()`, `collector.cancel()`). No unused import.
-- AuthRepositoryTest (logout outliving the screen), CR-1: the view model is stored in a nullable `var` declared before `try`. `finally` runs `runCatching { runBlocking { withTimeout(5_000) { job.cancelAndJoin() } } }` before `resetMain`, so the join now also happens when an assertion fails. `cancelAndJoin` avoids a 5 s wait if the test fails before its own `viewModelScope.cancel()`. `runCatching` keeps a join timeout from hiding the original assertion error. The `job` and `cancelAndJoin` imports are present and used.
-- CalendarViewModelRoomCacheTest: the same pattern. The join has a 5 s timeout, and `resetMain` and `database.close()` are in `finally`. Both view model constructions use the tracking `viewModel()` helper (line 72).
-- All changed lines stay within the 140-character ktlint limit (checked with awk). Ktlint itself still has to run in Gradle, which the parent does.
-- Criterion 3 sweep, repeated on the final code: in `android/app/src/test`, only `AuthRepositoryTest` and `SettingsServerChangeTest` combine `resetMain` with a real `PreferenceDataStoreFactory` or `Dispatchers.IO` store. Both are fixed. `CalendarViewModelRoomCacheTest` (a Room cache resuming on Main) is fixed too.
+- e94a8284c (formatting only): in `SettingsServerChangeTest.tearDown` (lines 72-84) and `CalendarViewModelRoomCacheTest.tearDown` (lines 78-90), the call `it.viewModelScope.coroutineContext.job.cancelAndJoin()` is now split across two lines (ktlint chain-method-continuation). The behavior is the same: every tracked view model job is cancelled and joined inside `runBlocking { withTimeout(5_000) { ... } }`, and the cleanup (`storeScope.cancel()` / `Dispatchers.resetMain()`, or `resetMain()` / `database.close()`) is in `finally`. No import changed. `cancelAndJoin`, `job`, `withTimeout`, `runBlocking` and `cancel` are all still imported and used.
+- BackupWebTests `awaitGatedStepEvent` (lines 198-207): unchanged. It loops with a 5 s deadline until `step == GATED_STEP` and the UPDATED count for the job is at least `stepsDone + 1`. This mirrors `BackupEventsStreamTests` as criterion 1 asks. `>=` is safe because the job is held at the gated step until the test opens the gate.
+- SettingsServerChangeTest: all view models are created through the tracking `viewModel()` helper (line 97), so the tearDown join covers the `saveServer` then `loadUser` work that previously resumed on Main after `resetMain`.
+- AuthRepositoryTest (the logout outlives the screen, lines 455-485): unchanged. A nullable view model is declared before `try`, and in `finally` it is joined with `runCatching { runBlocking { withTimeout(5_000) { cancelAndJoin() } } }` before `resetMain`, so the join also runs when an assertion fails (CR-1).
+- CalendarViewModelRoomCacheTest: both tests build view models through the tracking `viewModel()` helper (line 72).
+- Criterion 3 sweep: the earlier sweep found only AuthRepositoryTest and SettingsServerChangeTest combining `resetMain` with a real DataStore or IO store, plus CalendarViewModelRoomCacheTest (a Room cache resuming on Main). All three are fixed. The formatting commit touches no other test, so that result still holds. I did not re-run the grep, because Bash is denied here.
 
-The optional hardening I suggested earlier (a timeout on the tearDown joins) has been applied. I have no further observations.
-
-I added no new regression test. The defects are timing races in tests, not in production behavior. A deterministic reproduction would need hooks in production code, which the task excludes. The repeated runs under load named in the criteria are the right evidence.
+I added no regression test. The defects are timing races in test teardown and test waiting, not in production behavior. A deterministic reproduction would need hooks in production code, which the task excludes. The repeated runs under load named in the criteria are the right evidence.
 
 ## Requirement coverage
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| 1. BackupWebTests progress test waits (with deadline) for the gated step, 20x in a row, also under load | `BackupWebTests > progress is announced as BACKUP change events while the export runs` | `cd server && ./gradlew test --tests '*BackupWebTests*'` 20x under load, run by the parent | Code review: Pass. Execution: Not run by the test-writer, because Gradle is denied for sub-agents. The parent runs it and records the result and the load |
-| 2. No coroutine touches Main after resetMain; SettingsServerChangeTest + SettingsViewModelTest 20x, 0 failures, also under load | `SettingsServerChangeTest`, `SettingsViewModelTest` | Android loop of SettingsServerChangeTest + SettingsViewModelTest + AuthRepositoryTest + CalendarViewModelRoomCacheTest (`--rerun-tasks`) 20x under load, run by the parent | Code review: Pass. Execution: Not run by the test-writer (Gradle denied). The parent runs it |
-| 3. Other Android tests with a real store + setMain/resetMain checked and fixed if local | AuthRepositoryTest logout test, CalendarViewModelRoomCacheTest | grep sweep over `android/app/src/test` for `resetMain` plus `PreferenceDataStoreFactory` / Room / `Dispatchers.IO` | Pass: no other affected test. The fixed tests run in the parent's Android loop |
-| 4. `sh scripts/check.sh` passes | whole check | `sh scripts/check.sh`, run by the parent | Not run by the test-writer (Gradle denied). The parent runs it |
+| 1. BackupWebTests progress test waits (with deadline) for the gated step, 20x, also under load | `BackupWebTests` progress is announced as BACKUP change events while the export runs | `cd server && ./gradlew test --tests '*BackupWebTests*' --rerun` 20x under load (run by the parent, recorded with tasks.py verify) | Code review: Pass. Not run by the test-writer (Gradle denied). Server test code is unchanged by e94a8284c |
+| 2. No coroutine touches Main after resetMain; SettingsServerChangeTest + SettingsViewModelTest 20x, also under load | `SettingsServerChangeTest`, `SettingsViewModelTest` | Android 4-test loop 20x under load (parent, recorded). Parent rerun on e94a8284c: `cd android && ./gradlew testDebugUnitTest --tests '*SettingsServerChangeTest' --tests '*CalendarViewModelRoomCacheTest'` | Code review: Pass. Parent run on the final revision: Pass. Not run by the test-writer |
+| 3. Other Android tests with a real store + setMain/resetMain checked and fixed if local | AuthRepositoryTest logout test, CalendarViewModelRoomCacheTest | grep sweep over `android/app/src/test` (earlier run, recorded with tasks.py verify) | Pass. The formatting commit does not affect it |
+| 4. `sh scripts/check.sh` passes | whole check | `sh scripts/check.sh` (parent) | Not run by the test-writer (Bash/Gradle denied). The parent runs it on the final revision. Parent ktlintCheck on e94a8284c: clean |
 
 ## Focused test execution
 
 Command:
 
-None by the test-writer. Gradle is denied for sub-agents in this environment. The parent runs BackupWebTests 20x under load, and the Android loop (SettingsServerChangeTest + SettingsViewModelTest + AuthRepositoryTest + CalendarViewModelRoomCacheTest) 20x under load. The parent records the results with `tasks.py verify`.
+None by the test-writer, because Bash and Gradle are denied for this sub-agent. The parent ran on e94a8284c: `cd android && ./gradlew testDebugUnitTest --tests '*SettingsServerChangeTest' --tests '*CalendarViewModelRoomCacheTest'`, and `./gradlew ktlintCheck`.
 
 Result:
 
-Not run by the test-writer. The parent runs it.
+Pass (parent run on the final revision; ktlintCheck clean). Not run by the test-writer.
 
 ## Full test execution
 
@@ -70,7 +68,7 @@ Not run by the test-writer. The parent runs it.
 
 Result:
 
-Not run by the test-writer (Gradle denied). The parent runs `sh scripts/check.sh`.
+Not run by the test-writer (Bash denied). The parent runs `sh scripts/check.sh`.
 
 ## Bugs found
 
@@ -78,16 +76,16 @@ None. No production defect was found. The races were in test teardown and test w
 
 ## Coverage
 
-Status: not applicable. The task changes no production code. `git diff --name-only 5113da1d5..82b7afd09` lists only 4 files under `src/test/` plus review reports under `reviews/`. The task coverage scope (task-changed production files) is therefore empty. No coverage run was made. The result is N/A, not 100%.
+Status: not applicable. The task changes no production code. The task commits (f1da8ec9e, 539b921d7, e94a8284c, as given by the parent) touch only the 4 test files listed above. Earlier task commits added review reports under `reviews/`. The earlier report confirmed this with `git diff --name-only`, and the formatting commit e94a8284c changes only two test files. The task coverage scope (task-changed production files) is therefore empty. No coverage run was made. The result is N/A, not 100%. The earlier N/A assessment still holds and is carried over.
 
 Metric: whole-file coverage of task-changed production files: N/A, because the scope is empty.
 Changed-line coverage: not measured, because no production lines changed.
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: fix-flaky-backup-progress-and-settings-tests; base 5113da1d5429ddc30001f501c56652ad45dd562c; HEAD 82b7afd09996b5f8fa8422a88645199c15329568; task commits 182352549 and 82b7afd09, given by the parent and confirmed with `git log` and `git diff --stat`
-- Source/test snapshot identifier (including uncommitted inputs): HEAD 82b7afd09996b5f8fa8422a88645199c15329568 with a clean tree. The test-writer added no tests.
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: fix-flaky-backup-progress-and-settings-tests. The base is `git merge-base HEAD origin/main`, which the test-writer could not compute (Bash denied); the local origin/main ref was 9e0bb0de7b474934e04c17d6ca4b95fbffaf37cd. HEAD is e94a8284c5b4dc99210cafe18f3db9dac7ecb67e. The parent gave the task commits f1da8ec9e, 539b921d7 and e94a8284c.
+- Source/test snapshot identifier (including uncommitted inputs): HEAD e94a8284c5b4dc99210cafe18f3db9dac7ecb67e. The tree was reported clean, and the test-writer added no tests.
 - Exact included files; renamed/deleted/excluded files and reasons: no production files are included. The 4 test files and the `reviews/` reports are excluded because they are not production code. There are no renames or deletions.
-- Provider/version, command, working directory, and test selection: none (no production scope, and Gradle is denied for sub-agents)
+- Provider/version, command, working directory, and test selection: none (no production scope; Bash and Gradle denied for this sub-agent)
 - Run start/completion time and exit status: no run
 - Generated report paths and report hashes/run identifier: none
 - Evidence outputs are fresh and inputs stayed unchanged: not applicable, because there is no coverage output
@@ -103,9 +101,10 @@ Evidence:
 
 ## Unable to test
 
-- I could not run any of the executions the criteria name (BackupWebTests 20x under load, the Android loops, `sh scripts/check.sh`) because Gradle is denied for sub-agents here. The parent runs them and records the commands, the load and the results with `tasks.py verify`. That is the follow-up.
-- A deterministic regression test for the two races is not possible without hooks in production code, which the task excludes. The repeated runs under load are the evidence. No follow-up needed.
+- The test-writer could not run any command: Bash, and with it git and Gradle, is denied for this sub-agent. The parent ran the focused Android tests and ktlintCheck on the final revision (both passed). Before the formatting commit, the parent also ran the loops under load for criteria 1 and 2 and recorded them. The parent runs `sh scripts/check.sh` for criterion 4. That is the follow-up.
+- I did not re-verify the task diff and merge-base with git in this run. The scope relies on the commit list from the parent and on the earlier report's `git diff --name-only`. Reading the files shows that e94a8284c changed only the chain formatting of the two tearDown joins.
+- A deterministic regression test for the two races is not possible without hooks in production code, which the task excludes. No follow-up needed.
 
 ## Summary
 
-No additional tests were necessary for the reviewed scope. The final versions of the 4 changed tests (revision 82b7afd09, including CR-1 and the timeout hardening) are correct against the production event and coroutine behavior. The criterion 3 sweep found no other affected test, and no production defects were found. The parent runs the test executions (BackupWebTests 20x under load, the Android loops, `sh scripts/check.sh`) and records their results.
+No additional tests were necessary for the reviewed scope. The final revision e94a8284c only reformats the tearDown joins in SettingsServerChangeTest and CalendarViewModelRoomCacheTest, and their behavior is unchanged. The 4 changed tests are still correct against the production event and coroutine behavior, and no production defects were found. Coverage is N/A because no production code changed. The parent runs `sh scripts/check.sh` and records the final results.

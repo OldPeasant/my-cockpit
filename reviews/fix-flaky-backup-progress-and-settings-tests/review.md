@@ -4,19 +4,18 @@ Date: 2026-11-02
 
 Task: fix-flaky-backup-progress-and-settings-tests - Flaky tests: BackupWebTests progress step and SettingsServerChangeTest leak
 
-Scope: final task code, `git diff 5113da1d5..82b7afd09` (commits 182352549 and 82b7afd09), committed changes only. Re-review after the fix of the earlier CR-1.
+Scope: final task code, `git diff 9e0bb0de7..e94a8284c` restricted to code (commits f1da8ec9e, 539b921d7, e94a8284c), committed changes only. The commits in between touch only `reviews/`. Re-review on the final revision after the ktlint-format commit e94a8284c.
 
 Requirements:
-- tasks/fix-flaky-backup-progress-and-settings-tests.md (goal and acceptance criteria 1-4)
+- tasks/fix-flaky-backup-progress-and-settings-tests.md (goal, acceptance criteria 1-4, notes and recorded assumption)
 - AGENTS.md (task protocol, evidence rules, project conventions)
-- reviews/fix-flaky-backup-progress-and-settings-tests/fixes.md (what 82b7afd09 claims to fix)
-- Parent instructions: verify CR-1 is resolved and that 82b7afd09 adds no new issues
+- Parent instructions: review the final revision; the earlier CR-1 is fixed in 539b921d7; e94a8284c is a ktlint-only change
 
 Git range:
 - Branch: main
-- HEAD: 82b7afd09996b5f8fa8422a88645199c15329568
-- Base/start: 5113da1d5429ddc30001f501c56652ad45dd562c
-- Commits reviewed: 2
+- HEAD: e94a8284c5b4dc99210cafe18f3db9dac7ecb67e
+- Base/start: 9e0bb0de7b474934e04c17d6ca4b95fbffaf37cd (merge-base with origin/main)
+- Commits reviewed: 3 code commits (f1da8ec9e, 539b921d7, e94a8284c), plus 5 commits that touch only reviews
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
@@ -42,9 +41,9 @@ No material issues found.
 
 What I checked on the final code:
 
-- Earlier CR-1 (AuthRepositoryTest joined the view model only when the assertions passed) is resolved. The view model is now kept in a nullable `viewModel` declared before the `try`. The join moved into `finally`, before `Dispatchers.resetMain()`, as `runCatching { runBlocking { withTimeout(5_000) { job.cancelAndJoin() } } }`. The old `join()` in the `try` is gone. `cancelAndJoin` does nothing extra on the normal path, because the scope is already cancelled. If the test fails before its own `cancel()`, the join cannot wait on a scope that was never cancelled. `runCatching` stops a join timeout from replacing the original assertion error. If the test fails before the view model is built, `viewModel` is null and the join is skipped.
-- tearDown hardening in SettingsServerChangeTest and CalendarViewModelRoomCacheTest: the joins are now wrapped in `withTimeout(5_000)`. `storeScope.cancel()`, `resetMain()` and `database.close()` run in `finally`, so a timeout still frees Main and the store. A timeout fails the test, which is what "fail fast" should do here. SettingsServerChangeTest still cancels and joins the view models before `storeScope.cancel()`, which is the right order. Every `CalendarViewModel` in CalendarViewModelRoomCacheTest is created through `viewModel()`, so all of them get joined.
-- Compile and lint: `withTimeout`, `runBlocking`, `job`, `cancelAndJoin` and `viewModelScope` are imported in all three Android files. The new imports follow the existing order. No changed line is longer than 140 characters. I could not run Gradle here (it is denied for sub-agents), so the parent's ktlint and test run is the final proof.
-- BackupWebTests: no change since the last review. `awaitGatedStepEvent` waits until the job is at `GATED_STEP` and at least `stepsDone + 1` UPDATED events were delivered for that job, with a 5 s deadline. This works because `BackupService.export` reports progress once before each step, and each report publishes exactly one UPDATED event. It matches the loop in `BackupEventsStreamTests` that criterion 1 asks for.
-- Criterion 3 scope: the extra changes to AuthRepositoryTest and CalendarViewModelRoomCacheTest are local test changes for the same pattern, so the criterion allows them. No production code changed.
-- Evidence: `python tasks.py verify fix-flaky-backup-progress-and-settings-tests` shows all four criteria still unverified. The parent still has to record the 20-run loops (with the load recorded) for criteria 1 and 2, the search result for criterion 3, and `sh scripts/check.sh` for criterion 4, all on this revision. Nothing is claimed without evidence.
+- Criterion 1 (BackupWebTests, server/src/test/kotlin/ch/sonensei/cockpit/backup/BackupWebTests.kt:177-207): the test no longer stops at the first UPDATED event. `awaitGatedStepEvent` polls with a 5 s deadline until the job's `step` is `GATED_STEP` and at least `stepsDone + 1` UPDATED events were recorded for that job id. This is the same rule `BackupEventsStreamTests` uses (lines 89-98; that test uses `==`, this one uses `>=`, which is the same here because the gate holds the export). `recorder.events` is a `CopyOnWriteArrayList`, so counting it while the export thread adds events is safe. Events are filtered by job id, so events left over from earlier tests in the shared context do not count. The original intent ("progress must already have been delivered while the export is held") is still checked: if the event never arrives, the deadline fails the test. `GATED_STEP` is a constant in the companion object instead of a repeated literal.
+- Criterion 2 (SettingsServerChangeTest.kt:67-85): tearDown now cancels and joins every view model's `viewModelScope` job under `withTimeout(5_000)` before `storeScope.cancel()` and `Dispatchers.resetMain()`. Both of those run in `finally`, so a join timeout still frees Main and the store and fails the test. A save that resumes on the DataStore IO thread is a child of that job, so the join waits for it. A `loadUser()` launched after cancellation starts on a cancelled scope and does not run its body. Every view model is created through `viewModel()`, so all of them are joined. The view models' scopes are read while Main is still set, so reading them in tearDown is safe.
+- Criterion 3: the extra fixes are local test changes for the same pattern, which the criterion allows. They are outside the task's declared `touches`, and the task notes record this as an assumption. AuthRepositoryTest keeps the view model in a nullable variable and joins in `finally` with `runCatching`, so a join timeout cannot hide the original assertion error (the earlier CR-1 is resolved). CalendarViewModelRoomCacheTest joins its view models, created through `viewModel()`, before `resetMain()` and `database.close()`. No production code changed, which matches the recorded assumption that the race only exists because the tests reset Main.
+- e94a8284c only splits `it.viewModelScope.coroutineContext.job.cancelAndJoin()` across two lines in two files. Behavior is unchanged. All needed imports (`cancelAndJoin`, `job`, `withTimeout`, `runBlocking`, `viewModelScope`) are present.
+- Gradle is denied for sub-agents, so I could not run it here. The parent reports `./gradlew testDebugUnitTest --tests '*SettingsServerChangeTest' --tests '*CalendarViewModelRoomCacheTest'` passing and `./gradlew ktlintCheck` clean on this revision.
+- Evidence: criteria 1-3 have recorded verify entries. The 20-run load loops for criteria 1 and 2 ran on an earlier revision (18cd7e1ad). That commit is not available in this clone, so I could not diff it. The only code change after the earlier review is the formatting-only e94a8284c. Criterion 4 (`sh scripts/check.sh`) is still unverified. The parent must run it and record it before `done`. This is a pending step, not a defect.
