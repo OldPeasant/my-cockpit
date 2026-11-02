@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "task": "and-task-detail",
+  "reviewed_revision": "c171fc231a797a39cce60a73059ddc1ba7f028ad",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-task-detail/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-task-detail/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-task-detail/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "offline reload kept the older list snapshot instead of the loaded task"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "TaskDetailRepositoryTest (MockWebServer) added by the test-writer"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "due time formatted with Locale.ROOT (same defect as TW-1)"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "Logbook passes completedAt with the snapshot"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "links loaded outside the shared connectivity tracking"},
+    {"id": "CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "DashboardTaskOpenTest and Logbook row test added by the test-writer"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "due time sent with locale digits; fixed with Locale.ROOT"}
+  ],
+  "validation": [
+    {"command": "android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
