@@ -67,10 +67,14 @@ class SettingsServerChangeTest {
     @After
     fun tearDown() {
         // Stops the ViewModels' work before their store and Main go away. Joining matters: a save resumes on the store's
-        // IO thread and then launches the user reload on Main, which must not happen after resetMain.
-        runBlocking { viewModels.forEach { it.viewModelScope.coroutineContext.job.cancelAndJoin() } }
-        storeScope.cancel()
-        Dispatchers.resetMain()
+        // IO thread and then launches the user reload on Main, which must not happen after resetMain. The timeout fails a
+        // hanging join fast instead of blocking the build; the cleanup below still runs then.
+        try {
+            runBlocking { withTimeout(5_000) { viewModels.forEach { it.viewModelScope.coroutineContext.job.cancelAndJoin() } } }
+        } finally {
+            storeScope.cancel()
+            Dispatchers.resetMain()
+        }
     }
 
     /** Opens the dialog, types [address] and saves; waits (real time, the store runs on IO) until the save is answered. */

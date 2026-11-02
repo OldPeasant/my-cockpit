@@ -27,6 +27,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.job
@@ -454,6 +455,7 @@ class AuthRepositoryTest {
     @Test
     fun `a logout started from the app still forgets the tokens when its screen goes away during the revocation`() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
+        var viewModel: SessionViewModel? = null
         try {
             runBlocking {
                 server.enqueue(json(200, TOKEN_BODY))
@@ -462,20 +464,22 @@ class AuthRepositoryTest {
             }
             // The server answers the revocation slowly; the user leaves the app meanwhile (the view model is cleared).
             server.enqueue(revocationAnsweredAfter(1))
-            val viewModel = SessionViewModel(tokenStore, repository)
+            val sessionViewModel = SessionViewModel(tokenStore, repository).also { viewModel = it }
 
-            viewModel.logout()
+            sessionViewModel.logout()
             assertEquals("DELETE", server.takeRequest().method)
-            viewModel.viewModelScope.cancel()
+            sessionViewModel.viewModelScope.cancel()
 
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(7)
             while (tokenStore.current() != null && System.nanoTime() < deadline) Thread.sleep(50)
             assertNull("tokens must not survive a logout the user started", tokenStore.current())
             assertNull(tokenStore.session.value)
-            // The non-cancellable logout clears the tokens and then resumes its (cancelled) caller on Main: wait for that
-            // before resetMain, or it touches Main afterwards and fails a later test.
-            runBlocking { withTimeout(5_000) { viewModel.viewModelScope.coroutineContext.job.join() } }
         } finally {
+            // The non-cancellable logout clears the tokens and then resumes its (cancelled) caller on Main: wait for that
+            // before resetMain, or it touches Main afterwards and fails a later test. This also runs when an assertion
+            // failed (cancelling again is a no-op); runCatching keeps a join timeout from hiding that assertion error.
+            val viewModelJob = viewModel?.viewModelScope?.coroutineContext?.job
+            if (viewModelJob != null) runCatching { runBlocking { withTimeout(5_000) { viewModelJob.cancelAndJoin() } } }
             Dispatchers.resetMain()
         }
     }

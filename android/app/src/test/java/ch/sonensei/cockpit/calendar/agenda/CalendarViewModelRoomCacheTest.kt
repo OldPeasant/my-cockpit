@@ -73,10 +73,14 @@ class CalendarViewModelRoomCacheTest {
 
     @After
     fun tearDown() {
-        // A cache write may still run on Room's threads and then resume on Main: let it finish before resetMain.
-        runBlocking { viewModels.forEach { it.viewModelScope.coroutineContext.job.cancelAndJoin() } }
-        Dispatchers.resetMain()
-        database.close()
+        // A cache write may still run on Room's threads and then resume on Main: let it finish before resetMain. The
+        // timeout fails a hanging join fast instead of blocking the build; the cleanup below still runs then.
+        try {
+            runBlocking { withTimeout(5_000) { viewModels.forEach { it.viewModelScope.coroutineContext.job.cancelAndJoin() } } }
+        } finally {
+            Dispatchers.resetMain()
+            database.close()
+        }
     }
 
     /** Waits (in real time: Room writes on its own threads) until [condition] holds. */
