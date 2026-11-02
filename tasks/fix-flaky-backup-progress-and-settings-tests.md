@@ -24,10 +24,11 @@ Two CI runs on main failed on one flaky test each, unrelated to the task that tr
 Test-only fixes; no production code change unless the race is a real app bug (then record why).
 
 ## Acceptance criteria
-- [ ] `BackupWebTests` progress test waits (with deadline) until the job's step is the gated step instead of the
+- [x] `BackupWebTests` progress test waits (with deadline) until the job's step is the gated step instead of the
       first UPDATED event, as `BackupEventsStreamTests` does; `cd server && ./gradlew test --tests
       '*BackupWebTests*'` passes 20 times in a row (e.g. a loop, or `@RepeatedTest` temporarily), also under load
       (parallel `stress-ng` or a second Gradle build); record the load
+  - verified (2026-11-02 09:39+0100 by dell26/agent-2): cd server && ./gradlew test --tests '*BackupWebTests*' --rerun, 20x in a loop (.tmp/loops.sh, 08:27-08:49) under 8 busy shell loops + parallel android Gradle test loop on 16 cores -> 20/20 passed; second loop (.tmp/srv-loop.sh) under 16 busy loops: runs 1-14 passed, 0 failures (session ended at run 15). Test-code unchanged since (git diff 18cd7e1ad HEAD -- server android empty)
 - [x] `SettingsServerChangeTest` waits until the save is fully finished (incl. the user reload) before the test
       ends, or its tearDown waits for the ViewModels' work (cancel and join) before `resetMain`, so no coroutine
       touches Main afterwards; demonstrated by running `SettingsServerChangeTest` and `SettingsViewModelTest`
