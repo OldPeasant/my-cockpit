@@ -18,8 +18,9 @@ PATCH with the fetched ETag fails the optimistic lock (`OptimisticLockingFailure
 `ProblemDetailsAdvice`). Other tests in the file already wait with `settled(id)`.
 
 ## Acceptance criteria
-- [ ] The cause is confirmed (e.g. by delaying the metadata fetch in a local experiment, or from the code path) and
+- [x] The cause is confirmed (e.g. by delaying the metadata fetch in a local experiment, or from the code path) and
       recorded in the notes; if it is not the metadata fetch, fix the actual cause
+  - verified (2026-11-02 05:27+0100 by dell26/agent-2): Code path: BookmarkMetadataWorker stores the fetch result via BookmarkService.applyMetadata on a background thread, which bumps bookmark.version; PATCH checks If-Match in update() (412) and saveAndFlush hits the @Version lock (OptimisticLockingFailureException -> 409 via ProblemDetailsAdvice) if the store commits between load and flush. Experiment: original test with 'current = bookmark; Thread.sleep(500)' before change() (no other request in between) -> FAILED 'Status expected:<200> but was:<412>' (version moved by the background fetch only); same experiment on the fixed test (settled first) -> passes. Cause confirmed: metadata fetch.
 - [ ] The PATCH test (and any other test in `BookmarkWebTests` that changes a freshly created bookmark with its
       ETag) waits for `settled(id)` first, or creates the bookmark so that no background fetch runs; the test still
       checks the same behavior (428, 412, 400 cases and the partial update)
