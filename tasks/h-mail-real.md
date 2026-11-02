@@ -16,6 +16,7 @@ Owner connects Gmail and triages a day of mail (Microsoft 365 deferred, ADR 0003
 
 ## Acceptance criteria
 - [x] Real Gmail account syncs; send/reply works; actions reflect in the provider
+  - verified (2026-11-02 07:49+0100 by Peter Gürtler): Real Gmail account connected via Google OAuth; mail syncs, send and reply work, archive/delete/read state show up in Gmail -> works
 
 ## Notes
 - release by dell26/agent-1: Auto-claimed by agent-1 via 'claim' with no id; h-* tasks are human-only per AGENTS.md, released untouched. Criterion already shows [x]; owner should run done.
