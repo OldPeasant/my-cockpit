@@ -7,7 +7,7 @@ touches: [server/build.gradle.kts,android/app/build.gradle.kts,docs/ARCHITECTURE
 prio: 1
 lease_until: 2026-11-02T07:31:47Z
 releases: 1
-extended: 
+extended: dell26/agent-1
 ---
 ## Goal
 On the owner's laptop `/tmp` (tmpfs, 12.6 GB quota) filled up on 2026-11-02 ("disk quota exceeded"; 13 GB used):
@@ -40,3 +40,4 @@ Requested by the owner (2026-11-02) after `/tmp` filled up. Only the build files
 each, keep both sides on a merge conflict) and the docs line; no test code changes unless a test hard-codes `/tmp`.
 Web (Vitest) and Playwright temp files are out of scope unless the evidence shows they also accumulate in `/tmp`.
 - release by felix/agent-1: Implementation done and committed (ac4c3f51): server/build.gradle.kts and android/app/build.gradle.kts tasks.withType<Test> set -Djava.io.tmpdir=build/tmp/test-jvm/<task> via jvmArgumentProviders and empty it in doFirst (covers integrationTest too); ARCHITECTURE.md line added. Left: all 6 criteria unverified (run /tmp counts before/after testDebugUnitTest + server test, kill-mid-run test, integrationTest --tests '*BackupRoundTrip*', time check.sh vs. before), then test-writer + code-reviewer + quality.json, then done. Note: my check.sh run took >10 min (expected <2) and server PageFetcherSizeLimitTests failed once with 1 TIMEOUT of 50 (looks flaky/unrelated, but confirm it is not caused by the new tmpdir); measure check duration on main for comparison.
+- extended by dell26/agent-1: Implementation committed (ca5345f16: withType<Test> sets java.io.tmpdir=build/tmp/test-jvm/<task>, doFirst empties it, server+android) and helper reports committed (80b660945, 0 findings, fixer not required). #6 verified. Left: run & record evidence for #1-#5 (server test + android testDebugUnitTest with /tmp counts before/after, kill test JVM mid-run then rerun, server integrationTest with Testcontainers, check.sh pass + duration vs before), write reviews/test-tmp-in-build/quality.json (reviewed_revision = HEAD of code), run done.
