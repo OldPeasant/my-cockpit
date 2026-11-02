@@ -32,7 +32,8 @@ existing API: `GET/PATCH/DELETE /api/v1/tasks/{id}` (ETag/If-Match), `POST /task
       and tells the user instead of overwriting; validation errors from Problem Details are shown at the field or
       as a message
   - verified (2026-11-02 11:32+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest (rev c171fc231) -> pass: TaskDetailScreenTest 'editing the title saves it with PATCH', 'a field error from the server is shown at the field'; TaskDetailRepositoryTest (MockWebServer: PATCH sends If-Match "version" + only changed fields, 412/409 -> Conflict, 400/422 Problem Details field errors); TaskDetailViewModelTest/EdgeTest (412 reloads, closes form, Conflict message); TaskDraftTest (patch body for all fields)
-- [ ] Checklist: tick/untick, add, rename and delete items
+- [x] Checklist: tick/untick, add, rename and delete items
+  - verified (2026-11-02 11:32+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest (rev c171fc231) -> pass: TaskDetailContentTest 'checklist items are ticked, renamed, deleted and added on the detail view'; TaskDetailViewModelTest checklist tests; TaskDetailRepositoryTest checklist POST/PATCH/DELETE requests
 - [ ] Actions: complete / reopen, move to Next, Someday or Waiting (with person), delete (to Trash, with undo
       where the app has that pattern); lists the user returns to show the change without a manual refresh
 - [ ] Offline/read cache: when the server is unreachable the task opens read-only from the cached list data with
