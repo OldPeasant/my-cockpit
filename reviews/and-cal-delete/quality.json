@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "task": "and-cal-delete",
+  "reviewed_revision": "b0181e6c8894fe45ca601fc2f063ccab3a4bfa12",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-cal-delete/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-cal-delete/review.md"},
+    "fixer": {"status": "not_required", "reason": "The only finding (CR-1, P2 missing test that the views drop a deleted event) was closed by the test-writer's CalendarWithEditorDeleteTest; no production change was needed and the re-review found no open findings."}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "invalid",
+     "note": "Test gap, not a defect: covered by the test-writer's CalendarWithEditorDeleteTest (4/4 pass); re-review at b0181e6c8 marks it resolved."}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "cd android && ./gradlew testDebugUnitTest createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
