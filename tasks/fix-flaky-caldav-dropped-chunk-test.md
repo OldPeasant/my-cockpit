@@ -25,7 +25,8 @@ production retries a request whose answer had started, that is a real bug: fix i
 ## Acceptance criteria
 - [x] Root cause identified and written in the Notes (test timing vs. `answered` detection in `sendRetryingDrop`), with how it was reproduced or why it can't be
   - verified (2026-11-02 20:11+0100 by Peter Gürtler): Root cause in task Notes: CI test XML of run 41493673821 shows the client's 'lost its connection before an answer ... sending it again' for this test; WireMock 3.13.1 JettyFaultInjector.malformedResponseChunk disassembled (setStatus+flushBuffer, then raw SocketChannel.write + socket.close past Jetty); throwaway probe of 2000 GETs against that fault with CalDavClient.httpClient() -> 1999 answered, 1 'EOF reached while reading' with no BodyHandler call: the test's fault, production retries by design
-- [ ] The test (or production code, if that is where the bug is) is deterministic: the test runs 200 times in a row without a failure (e.g. a `@RepeatedTest` run or a Gradle loop, removed again afterwards), and still fails if the client retried after the answer started
+- [x] The test (or production code, if that is where the bug is) is deterministic: the test runs 200 times in a row without a failure (e.g. a `@RepeatedTest` run or a Gradle loop, removed again afterwards), and still fails if the client retried after the answer started
+  - verified (2026-11-02 20:11+0100 by Peter Gürtler): On 98942ff8b (test-only, raw ServerSocket on 127.0.0.1 sending status+headers then closing mid-body): temporary @RepeatedTest(200) -> 200/200 pass (1.3 s), also 300/300 on f96d0a580 and 482a42fd0; mutation CalDavClient.kt 'if (!repeatable || answered.get())' -> 'if (!repeatable)' -> the test FAILS (no exception thrown), reverted (git diff empty)
 - [ ] The other CalDavClientTests retry tests still pass; `cd server && ./gradlew check` passes
 
 ## Notes
