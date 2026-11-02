@@ -1,7 +1,7 @@
 ---
 title: HUMAN: connect real mail accounts
-status: todo
-owner: 
+status: in_progress
+owner: Peter Gürtler
 hold: 
 releases: 0
 extended: 
