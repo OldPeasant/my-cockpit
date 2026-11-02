@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [backup-core,and-settings]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/backup/BackupWebTests.kt,android/app/src/test/java/ch/sonensei/cockpit/settings/SettingsServerChangeTest.kt]
 prio: 1
-lease_until: 2026-11-02T12:54:21Z
+lease_until: 2026-11-02T12:59:25Z
 extended: 
 releases: 0
 hold: 
