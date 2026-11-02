@@ -24,8 +24,9 @@ series occurrence, and `If-Match`; events of synced calendars are deleted at the
       sent as `scope` with the occurrence's original start as `occurrence`, as the web does; cancelling the
       choice deletes nothing
   - verified (2026-11-02 10:56+0100 by dell26/agent-1): EventEditorViewModelDeleteTest: series occurrence offers THIS/FOLLOWING/ALL, each scope -> repo.delete(weekly, 7, scope); cancel -> no delete; EventEditRepositoryTest: generated -> master id, scope=FOLLOWING, occurrence=2026-10-23T07:00:00Z; override -> own id, scope THIS, no occurrence -> pass (./gradlew testDebugUnitTest)
-- [ ] Errors use the editor's existing patterns: 412 -> the "changed elsewhere" message with Reload, 404 -> the
+- [x] Errors use the editor's existing patterns: 412 -> the "changed elsewhere" message with Reload, 404 -> the
       "changed or removed elsewhere" message, offline -> "Can't reach the server", nothing is removed locally then
+  - verified (2026-11-02 10:56+0100 by dell26/agent-1): EventEditorViewModelDeleteTest: 412 -> CONFLICT + reload re-enables, 404 -> GONE, Offline -> OFFLINE with form kept; CalendarWithEditorDeleteTest offline: agenda + cache still hold the event; repository maps 412/404 to Failed, 503 to Offline -> pass (./gradlew testDebugUnitTest)
 - [ ] All new UI strings exist in English and German (`res/values`, `res/values-de`)
 - [ ] ViewModel tests (single, each scope, cancel, 412, 404, offline) and a Compose test for the button and
       confirmation; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
