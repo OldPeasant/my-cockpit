@@ -23,9 +23,10 @@ Each agent check / `done` adds 1-2 GB, so the machine runs out again within a da
       the module's `build/` (e.g. `build/tmp/test-jvm/<task name>`), created before and emptied at the start of
       the task (so leftovers of killed runs are removed by the next run of the same task); `./gradlew clean`
       removes it. Existing tests that call `Files.createTempDirectory`/`@TempDir` keep working unchanged
-- [ ] Evidence: count `/tmp/robolectric-nativeruntime*` and `/tmp/cockpit-round-trip-data*` before and after
+- [x] Evidence: count `/tmp/robolectric-nativeruntime*` and `/tmp/cockpit-round-trip-data*` before and after
       `cd android && ./gradlew testDebugUnitTest` and `cd server && ./gradlew test` -> no new entries in `/tmp`;
       a second run of the same task does not grow `build/tmp/test-jvm` (it was emptied first)
+  - verified (2026-11-02 10:06+0100 by dell26/agent-1): Counted /tmp/robolectric-nativeruntime* + /tmp/cockpit-round-trip-data* (.tmp/count.sh, list diff) before/after 'cd android && ./gradlew testDebugUnitTest' (2 runs, 2nd with --rerun) and 'cd server && ./gradlew test --rerun' -> all BUILD SUCCESSFUL; /tmp lists identical before/after (10 robolectric, 0 round-trip, all pre-existing from other clones); during the android run android/app/build/tmp/test-jvm/testDebugUnitTest held up to 680M (robolectric-*, mockk_boot*.jar), after run1 8K, after run2 8K (no growth); server build/tmp/test-jvm/test empty after run
 - [ ] A killed run leaves nothing in `/tmp`: start `./gradlew testDebugUnitTest`, kill the test JVM mid-run
       (`pkill -f "Gradle Test Executor"`), check `/tmp` gained no Robolectric folder; the next run empties the
       leftovers under `build/`
