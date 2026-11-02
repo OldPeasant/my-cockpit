@@ -113,7 +113,8 @@ internal val WidgetId.destination: CockpitDestination
         }
 
 /**
- * The screen a tap on a widget's card opens, given the card's loaded [data] (null while loading or after a failure).
+ * The screen a tap on a widget's card opens, given the card's loaded [data]. [data] is null until the card's first
+ * successful load; a reload or a failed refresh keeps the last data, so the tap follows the data the card shows.
  * An Inbox without tasks but with unread mail opens Mail: nothing waits in the GTD Inbox, the unread mail does.
  */
 internal fun WidgetId.destinationFor(data: WidgetData?): CockpitDestination =
