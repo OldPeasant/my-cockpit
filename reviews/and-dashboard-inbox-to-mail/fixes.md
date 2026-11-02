@@ -69,3 +69,31 @@ Remaining unresolved findings:
 All validated findings fixed and validation passed.
 
 Code fix commit: 58a429a48
+
+## Follow-up fix (second review cycle)
+
+Date: 2026-11-02
+
+Scope: finding CR-3 from the final `review.md` (also observed in `tests.md`), approved by the parent worker.
+
+### CR-3 - KDoc of `destinationFor` says data is null "while loading or after a failure"
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/dashboard/DashboardScreen.kt`
+
+Problem:
+The KDoc said the card's data is null "while loading or after a failure", but `DashboardViewModel.load` keeps the previous data during a reload and after a failed or offline refresh; data is null only before the first successful load.
+
+Fix:
+Comment-only change; reworded to: "[data] is null until the card's first successful load; a reload or a failed refresh keeps the last data, so the tap follows the data the card shows." No code logic changed.
+
+Validation:
+- `cd android && ANDROID_HOME=$HOME/Android/Sdk ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.dashboard.*'` - Pass (exit 0)
+
+Remaining unresolved findings after this cycle:
+0
+
+Final status (this cycle):
+All validated findings fixed and validation passed.
+
+Code fix commit: 472f9c23cbb23555e62a3fa2dd92a433d8dcc341
