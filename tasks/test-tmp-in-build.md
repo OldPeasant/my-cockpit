@@ -27,9 +27,10 @@ Each agent check / `done` adds 1-2 GB, so the machine runs out again within a da
       `cd android && ./gradlew testDebugUnitTest` and `cd server && ./gradlew test` -> no new entries in `/tmp`;
       a second run of the same task does not grow `build/tmp/test-jvm` (it was emptied first)
   - verified (2026-11-02 10:06+0100 by dell26/agent-1): Counted /tmp/robolectric-nativeruntime* + /tmp/cockpit-round-trip-data* (.tmp/count.sh, list diff) before/after 'cd android && ./gradlew testDebugUnitTest' (2 runs, 2nd with --rerun) and 'cd server && ./gradlew test --rerun' -> all BUILD SUCCESSFUL; /tmp lists identical before/after (10 robolectric, 0 round-trip, all pre-existing from other clones); during the android run android/app/build/tmp/test-jvm/testDebugUnitTest held up to 680M (robolectric-*, mockk_boot*.jar), after run1 8K, after run2 8K (no growth); server build/tmp/test-jvm/test empty after run
-- [ ] A killed run leaves nothing in `/tmp`: start `./gradlew testDebugUnitTest`, kill the test JVM mid-run
+- [x] A killed run leaves nothing in `/tmp`: start `./gradlew testDebugUnitTest`, kill the test JVM mid-run
       (`pkill -f "Gradle Test Executor"`), check `/tmp` gained no Robolectric folder; the next run empties the
       leftovers under `build/`
+  - verified (2026-11-02 10:06+0100 by dell26/agent-1): Started 'cd android && ./gradlew testDebugUnitTest --rerun', killed the test JVM with pkill -9 -f 'agent-1/android/app/build/tmp/test-jvm' once its tmpdir reached 205M (pattern scoped to this clone's executor, not 'Gradle Test Executor', so other agents' test runs on the shared machine survive) -> BUILD FAILED as expected; 205M left in android/app/build/tmp/test-jvm/testDebugUnitTest incl. robolectric-nativeruntime806669198986125669; /tmp list identical (no new robolectric folder). Next 'testDebugUnitTest --rerun' -> BUILD SUCCESSFUL, dir back to 4K, leftovers gone
 - [ ] The integration test task (`server` `integrationTest`, Testcontainers) gets the same setting; Testcontainers
       still works (`./gradlew integrationTest --tests '*BackupRoundTrip*'` or another short one passes)
 - [ ] `sh scripts/check.sh` passes, and its duration is not noticeably longer than before (record both)
