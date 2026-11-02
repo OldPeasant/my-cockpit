@@ -15,7 +15,7 @@
      "note": "tearDown cancelAndJoin without timeout in SettingsServerChangeTest/CalendarViewModelRoomCacheTest; wrapped in withTimeout(5_000), cleanup moved to finally"}
   ],
   "validation": [
-    {"command": "cd server && ./gradlew test --tests '*BackupWebTests*' --rerun (20x, under 16 busy shell loops on 16 cores, .tmp/srv-loop.sh)", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests '*BackupWebTests*' --rerun (20x, under 8 busy shell loops + parallel android Gradle test loop on 16 cores, .tmp/loops.sh; plus 14 more runs under 16 busy loops, 0 failures)", "result": "pass"},
     {"command": "cd android && ./gradlew testDebugUnitTest --tests '*SettingsServerChangeTest*' --tests '*SettingsViewModelTest*' --tests '*AuthRepositoryTest*' --tests '*CalendarViewModelRoomCacheTest*' --rerun (20x, under 8 busy shell loops + parallel server Gradle loop)", "result": "pass"},
     {"command": "sh scripts/check.sh", "result": "pass"}
   ]
