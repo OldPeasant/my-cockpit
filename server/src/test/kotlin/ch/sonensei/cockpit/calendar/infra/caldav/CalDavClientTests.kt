@@ -33,7 +33,10 @@ import org.springframework.boot.test.system.OutputCaptureExtension
 import java.io.EOFException
 import java.net.Authenticator
 import java.net.CookieHandler
+import java.net.InetAddress
 import java.net.ProxySelector
+import java.net.ServerSocket
+import java.net.Socket
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -43,8 +46,10 @@ import java.util.Base64
 import java.util.Optional
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
+import java.util.concurrent.atomic.AtomicInteger
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLParameters
+import kotlin.concurrent.thread
 
 /**
  * [CalDavClient] and [MultiStatus] on their own: the origin check of hrefs a CalDAV server sends (they are only followed,
@@ -282,12 +287,39 @@ class CalDavClientTests {
 
 	@Test
 	fun `a connection that fails after the answer started is not repeated`() {
-		dropOnceThen("GET", "/dav/x.ics", Fault.MALFORMED_RESPONSE_CHUNK, aResponse().withStatus(200).withBody("ok"))
+		// WireMock's MALFORMED_RESPONSE_CHUNK fault writes its garbage and closes past Jetty, so now and then the client
+		// sees the connection end before the status line: a drop before the answer, rightly retried. This server always
+		// sends the full status line and headers first, then closes cleanly in the middle of the body.
+		val connections = AtomicInteger()
+		ServerSocket(0, 50, InetAddress.getLoopbackAddress()).use { server ->
+			thread(isDaemon = true) {
+				while (!server.isClosed) {
+					val socket = runCatching { server.accept() }.getOrNull() ?: break
+					socket.use {
+						readRequestHead(it)
+						// A retry would get a complete answer, so the client would throw nothing and the test fails.
+						val answer =
+							if (connections.incrementAndGet() == 1) {
+								"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\nok"
+							} else {
+								"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok"
+							}
+						it.getOutputStream().apply {
+							write(answer.toByteArray(Charsets.US_ASCII))
+							flush()
+						}
+						it.shutdownOutput()
+					}
+				}
+			}
+			val client = CalDavClient(URI("http://127.0.0.1:${server.localPort}/dav/"), "alice", PASSWORD, CalDavClient.httpClient())
 
-		shouldThrow<CalendarProviderException> {
-			local.send("GET", local.resolve("/dav/x.ics")!!, what = "Reading")
-		}.message shouldBe "Reading: the CalDAV server could not be reached"
-		wireMock.findAll(davRequest("GET", "/dav/x.ics")) shouldHaveSize 1
+			shouldThrow<CalendarProviderException> {
+				client.send("GET", client.resolve("/dav/x.ics")!!, what = "Reading")
+			}.message shouldBe "Reading: the CalDAV server could not be reached"
+			Thread.sleep(DROPPED_CONNECTION_BACKOFF.toMillis() * 2)
+			connections.get() shouldBe 1
+		}
 	}
 
 	@Test
@@ -552,6 +584,17 @@ class CalDavClientTests {
 			responseBodyHandler: HttpResponse.BodyHandler<T>,
 			pushPromiseHandler: HttpResponse.PushPromiseHandler<T>?,
 		): CompletableFuture<HttpResponse<T>> = real.sendAsync(request, responseBodyHandler, pushPromiseHandler)
+	}
+
+	/** Reads a request without a body up to the blank line after its headers, so closing the socket sends no reset. */
+	private fun readRequestHead(socket: Socket) {
+		val input = socket.getInputStream()
+		var last4 = 0
+		while (last4 != 0x0d0a0d0a) {
+			val b = input.read()
+			if (b < 0) return
+			last4 = (last4 shl 8) or b
+		}
 	}
 
 	private fun davRequest(
