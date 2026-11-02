@@ -112,6 +112,17 @@ internal val WidgetId.destination: CockpitDestination
             WidgetId.PINNED_NOTES -> CockpitDestination.Notes
         }
 
+/**
+ * The screen a tap on a widget's card opens, given the card's loaded [data] (null while loading or after a failure).
+ * An Inbox without tasks but with unread mail opens Mail: nothing waits in the GTD Inbox, the unread mail does.
+ */
+internal fun WidgetId.destinationFor(data: WidgetData?): CockpitDestination =
+    if (data is WidgetData.Inbox && data.tasks.count == 0 && data.unreadMail.count > 0) {
+        CockpitDestination.Mail
+    } else {
+        destination
+    }
+
 private val WidgetId.title: Int
     get() =
         when (this) {
@@ -154,7 +165,8 @@ fun DashboardContent(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             items(state.widgets, key = { it.key }) { widget ->
-                WidgetCard(widget, state.state(widget), onClick = { onOpen(widget.destination) })
+                val widgetState = state.state(widget)
+                WidgetCard(widget, widgetState, onClick = { onOpen(widget.destinationFor(widgetState.data)) })
             }
         }
     }
