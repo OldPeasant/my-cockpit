@@ -6,6 +6,7 @@ deps: [backup-core,and-settings]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/backup/BackupWebTests.kt,android/app/src/test/java/ch/sonensei/cockpit/settings/SettingsServerChangeTest.kt]
 prio: 1
 lease_until: 2026-11-02T04:42:43Z
+extended: dell26/agent-1
 ---
 ## Goal
 Two CI runs on main failed on one flaky test each, unrelated to the task that triggered them (2026-11-01):
@@ -40,3 +41,4 @@ Test-only fixes; no production code change unless the race is a real app bug (th
 Found by the owner's request to look into the failing CI checks (2026-11-02). The CI job of run 41355157150 was
 re-run to confirm the failure is flaky.
 - ASSUMPTION (2026-11-02 05:12+0100 by dell26/agent-1): No production change: the Settings/Auth races only exist because tests reset Dispatchers.Main while view-model work still runs; in the app Main always exists. Fixed the same pattern locally in AuthRepositoryTest and CalendarViewModelRoomCacheTest (outside the declared touches, test-only). Load generated with 16 busy shell loops on 16 cores (stress-ng not installed); loops use the test task's --rerun instead of --rerun-tasks to avoid recompiling 20 times.
+- extended by dell26/agent-1: Code fixes and re-review done (0 findings, review.md/tests.md/fixes.md committed on final code 686c12184's parent). Left: run BackupWebTests 20x under load (crit 1), Android loop SettingsServerChangeTest+SettingsViewModelTest+AuthRepositoryTest+CalendarViewModelRoomCacheTest 20x --rerun-tasks (crit 2), sh scripts/check.sh (crit 4), record verify, write quality.json (reviewed_revision=ee2e0e04c full hash), then done.
