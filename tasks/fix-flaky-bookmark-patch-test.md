@@ -7,8 +7,8 @@ touches: [server/src/test/kotlin/ch/sonensei/cockpit/bookmarks/BookmarkWebTests.
 prio: 1
 lease_until: 
 extended: 
-releases: 3
-hold: given back 3 times; last: Code fix (fetch timeout 5s, commit 11e5aa16c) + test-writer, code-reviewer, fixer reports all committed; criteria 1-2 verified. Left: (a) rerun stress: cd server && ./gradlew
+releases: 0
+hold: 
 ---
 ## Goal
 The rerun of CI run 41355157150 (2026-11-02, server fast check) failed on `BookmarkWebTests > PATCH changes only the
