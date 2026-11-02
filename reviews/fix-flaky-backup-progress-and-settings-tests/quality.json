@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "fix-flaky-backup-progress-and-settings-tests",
-  "reviewed_revision": "49c5815a2203bf5cb2a8598f97e5f9bd22b85079",
+  "reviewed_revision": "18cd7e1ad0ae83912c70353db6e9f85d18696d07",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/fix-flaky-backup-progress-and-settings-tests/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/fix-flaky-backup-progress-and-settings-tests/review.md"},
@@ -15,8 +15,8 @@
      "note": "tearDown cancelAndJoin without timeout in SettingsServerChangeTest/CalendarViewModelRoomCacheTest; wrapped in withTimeout(5_000), cleanup moved to finally"}
   ],
   "validation": [
-    {"command": "cd server && ./gradlew test --tests '*BackupWebTests*' --rerun (20x, under 16 busy loops + parallel android Gradle build)", "result": "pass"},
-    {"command": "cd android && ./gradlew testDebugUnitTest --tests '*SettingsServerChangeTest*' --tests '*SettingsViewModelTest*' --tests '*AuthRepositoryTest*' --tests '*CalendarViewModelRoomCacheTest*' --rerun (20x, under load)", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests '*BackupWebTests*' --rerun (20x, under 16 busy shell loops on 16 cores, .tmp/srv-loop.sh)", "result": "pass"},
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests '*SettingsServerChangeTest*' --tests '*SettingsViewModelTest*' --tests '*AuthRepositoryTest*' --tests '*CalendarViewModelRoomCacheTest*' --rerun (20x, under 8 busy shell loops + parallel server Gradle loop)", "result": "pass"},
     {"command": "sh scripts/check.sh", "result": "pass"}
   ]
 }
