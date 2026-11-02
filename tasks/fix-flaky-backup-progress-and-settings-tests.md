@@ -28,10 +28,11 @@ Test-only fixes; no production code change unless the race is a real app bug (th
       first UPDATED event, as `BackupEventsStreamTests` does; `cd server && ./gradlew test --tests
       '*BackupWebTests*'` passes 20 times in a row (e.g. a loop, or `@RepeatedTest` temporarily), also under load
       (parallel `stress-ng` or a second Gradle build); record the load
-- [ ] `SettingsServerChangeTest` waits until the save is fully finished (incl. the user reload) before the test
+- [x] `SettingsServerChangeTest` waits until the save is fully finished (incl. the user reload) before the test
       ends, or its tearDown waits for the ViewModels' work (cancel and join) before `resetMain`, so no coroutine
       touches Main afterwards; demonstrated by running `SettingsServerChangeTest` and `SettingsViewModelTest`
       together 20 times (`--tests` both, `--rerun-tasks` in a loop) -> 0 failures, also under load
+  - verified (2026-11-02 08:59+0100 by dell26/agent-2): cd android && ./gradlew testDebugUnitTest --tests '*SettingsServerChangeTest*' --tests '*SettingsViewModelTest*' --tests '*AuthRepositoryTest*' --tests '*CalendarViewModelRoomCacheTest*' --rerun, 20x in a loop (.tmp/loops.sh) on code 18cd7e1ad, load: 8 busy shell loops + parallel server Gradle BackupWebTests loop on 16 cores -> 20/20 passed, 0 failures
 - [x] Search the other Android tests that use a real `PreferenceDataStoreFactory` / `Dispatchers.IO` store with
       `setMain`/`resetMain` (e.g. auth/passkey tests) for the same pattern; fix those in the same way only if they
       are local test changes, otherwise list them in the notes
