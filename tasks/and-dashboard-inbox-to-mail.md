@@ -18,3 +18,4 @@ tap should go where the work is: the unread mail. (The web dashboard already has
 - [ ] Unit/Compose tests cover the cases above; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
 
 ## Notes
+- ASSUMPTION (2026-11-02 19:13+0100 by Peter Gürtler): Inbox card follows the data it shows: if a refresh fails but the card still shows the last loaded '0 tasks, N unread', the tap opens Mail; only with no loaded data at all does it fall back to the GTD Inbox (code review CR-1)
