@@ -1,13 +1,13 @@
 ---
 title: Flaky test: BookmarkWebTests PATCH races the background metadata fetch (409)
-status: in_progress
-owner: dell26/agent-1
+status: todo
+owner: 
 deps: [bookmarks-api]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/bookmarks/BookmarkWebTests.kt]
 prio: 1
-lease_until: 2026-11-02T09:07:49Z
-extended: dell26/agent-1
-releases: 1
+lease_until: 
+extended: 
+releases: 2
 ---
 ## Goal
 The rerun of CI run 41355157150 (2026-11-02, server fast check) failed on `BookmarkWebTests > PATCH changes only the
@@ -38,3 +38,4 @@ it can get the same 409; the web client handles 409 by reloading, so that is not
 - extended by dell26/agent-2: Fix + both helper reports (tests.md, review.md, review-r1.md, fixes.md) committed at aa64d98e4; criteria 1-2 verified. Left: run './gradlew test --tests *BookmarkWebTests*' 20x under load (stress-ng or parallel gradle) and verify #3, run sh scripts/check.sh and verify #4, write+commit reviews/fix-flaky-bookmark-patch-test/quality.json (reviewed_revision = HEAD code), then done.
 - release by dell26/agent-2: Done: fix (a153063eb settled() before PATCH; 11e5aa16c fetch timeout 5s, slow-ordering delay 2s), test-writer + code-reviewer + fixer reports committed and current (review.md/tests.md on the final code), criteria 1-2 verified. Left (no code work): (1) run .tmp-style stress: 16 busy-loop CPU burners + 'cd server && ./gradlew test --tests *BookmarkWebTests* --rerun' 20x in a row (~1m40s each); last attempt passed 16/16 then the session ended; then verify #3 with the load. (2) sh scripts/check.sh, verify #4. (3) update validation results in reviews/fix-flaky-bookmark-patch-test/quality.json (currently marked INCOMPLETE/NOT RUN; reviewed_revision 11e5aa16c is correct), commit, tasks.py done.
 - extended by dell26/agent-1: Code + all helper reports done and current (reviewed_revision 11e5aa16c). No code work left. Left: (1) 20x in a row 'cd server && ./gradlew test --tests *BookmarkWebTests* --rerun' under load (16 CPU burners, sh .tmp/stress.sh style; earlier attempt passed 16/16 before session ended) -> verify #3 with the load; (2) sh scripts/check.sh -> verify #4; (3) update validation entries in reviews/fix-flaky-bookmark-patch-test/quality.json (result must be exactly 'pass'), commit, tasks.py done (background, long timeout).
+- release by dell26/agent-1: Done: fix (5892d9501 wait for metadata fetch before PATCH; 0857a9600 fetch timeout 5s), criteria 1+2 verified, test-writer/code-reviewer/fixer reports committed, CR-1 fixed, draft quality.json committed. Left (validation only, no code): (1) re-run 20x 'cd server && ./gradlew test --tests *BookmarkWebTests* --rerun' under CPU load (.tmp/stress.sh, previous attempt 16/16 passed before session ended) and verify criterion 3; (2) run sh scripts/check.sh, verify criterion 4; (3) update quality.json: reviewed_revision is stale (11e5aa16c) -> set to current hash of 0857a9600-equivalent commit after rebase, fill validation results with 'pass'; commit; then tasks.py done.
