@@ -50,7 +50,7 @@ import com.github.tomakehurst.wiremock.client.WireMock.get as stubGet
 @SpringBootTest(
 	properties = [
 		"cockpit.bookmarks.fetch.allow-private-networks=true",
-		"cockpit.bookmarks.fetch.timeout=2s",
+		"cockpit.bookmarks.fetch.timeout=5s",
 		"cockpit.bookmarks.fetch.max-size=64KB",
 	],
 )
