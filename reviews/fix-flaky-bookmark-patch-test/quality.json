@@ -1,20 +1,39 @@
 {
   "schema": 1,
   "task": "fix-flaky-bookmark-patch-test",
-  "reviewed_revision": "11e5aa16cd9ace628bcca010e534209b7d6c47cd",
+  "reviewed_revision": "dc5f0bad741c53d7e7664d896b64fe89ffa4b6c9",
   "helpers": {
-    "test-writer": {"status": "completed", "report": "reviews/fix-flaky-bookmark-patch-test/tests.md"},
-    "code-reviewer": {"status": "completed", "report": "reviews/fix-flaky-bookmark-patch-test/review.md"},
-    "fixer": {"status": "completed", "report": "reviews/fix-flaky-bookmark-patch-test/fixes.md"}
+    "test-writer": {
+      "status": "completed",
+      "report": "reviews/fix-flaky-bookmark-patch-test/tests.md"
+    },
+    "code-reviewer": {
+      "status": "completed",
+      "report": "reviews/fix-flaky-bookmark-patch-test/review.md"
+    },
+    "fixer": {
+      "status": "completed",
+      "report": "reviews/fix-flaky-bookmark-patch-test/fixes.md"
+    }
   },
   "fixes_required": true,
   "findings": [
-    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
-     "note": "review-r1: slow ordering fetch always timed out (2s timeout vs 2s delay); fetch timeout raised to 5s (now commit 11e5aa16c after rebase, same change), confirmed by fixes.md and final review.md"}
+    {
+      "id": "CR-1",
+      "source": "code-reviewer",
+      "severity": "P1",
+      "disposition": "fixed",
+      "note": "review-r1: slow ordering fetch always timed out (2s timeout vs 2s delay); fetch timeout raised to 5s (now commit dc5f0bad7 after rebase, same change), confirmed by fixes.md and final review.md"
+    }
   ],
   "validation": [
-    {"command": "sh .tmp/stress.sh: cd server && ./gradlew test --tests '*BookmarkWebTests*' --rerun, 20x in a row with 16 busy-loop CPU burners on 16 cores (loadavg 22-44)",
-     "result": "INCOMPLETE: runs 1-16 passed, the session ended during run 17; re-run to 20/20 before done"},
-    {"command": "sh scripts/check.sh", "result": "NOT RUN on the final revision yet"}
+    {
+      "command": "sh .tmp/stress.sh: cd server && ./gradlew test --tests '*BookmarkWebTests*' --rerun, 20x in a row with 16 busy-loop CPU burners on 16 cores (loadavg 13.7-22.7), 2026-11-02 14:59-15:22",
+      "result": "pass"
+    },
+    {
+      "command": "sh scripts/check.sh on the merged result (main 7bc98bff8 + wip), 663 s",
+      "result": "pass"
+    }
   ]
 }
