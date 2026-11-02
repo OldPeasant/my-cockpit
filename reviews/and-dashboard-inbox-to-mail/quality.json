@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "task": "and-dashboard-inbox-to-mail",
+  "reviewed_revision": "472f9c23cbb23555e62a3fa2dd92a433d8dcc341",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-dashboard-inbox-to-mail/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-dashboard-inbox-to-mail/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-dashboard-inbox-to-mail/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "after a failed refresh the card keeps its last data and the tap follows it (may open Mail); deliberate, recorded with tasks.py assume and pinned by tests"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "KDoc of WidgetId.destination reworded (58a429a48)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "destinationFor redirects only for WidgetId.INBOX, regression test added (58a429a48)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "KDoc of destinationFor now says data is null only until the first successful load (472f9c23c)"}
+  ],
+  "validation": [
+    {"command": "cd android && ANDROID_HOME=$HOME/Android/Sdk ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
