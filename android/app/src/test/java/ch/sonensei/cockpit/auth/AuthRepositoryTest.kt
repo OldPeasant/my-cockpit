@@ -29,6 +29,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -471,6 +472,9 @@ class AuthRepositoryTest {
             while (tokenStore.current() != null && System.nanoTime() < deadline) Thread.sleep(50)
             assertNull("tokens must not survive a logout the user started", tokenStore.current())
             assertNull(tokenStore.session.value)
+            // The non-cancellable logout clears the tokens and then resumes its (cancelled) caller on Main: wait for that
+            // before resetMain, or it touches Main afterwards and fails a later test.
+            runBlocking { withTimeout(5_000) { viewModel.viewModelScope.coroutineContext.job.join() } }
         } finally {
             Dispatchers.resetMain()
         }

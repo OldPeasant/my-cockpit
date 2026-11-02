@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.calendar.agenda
 
 import android.content.Context
+import androidx.lifecycle.viewModelScope
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -9,7 +10,9 @@ import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -64,8 +67,14 @@ class CalendarViewModelRoomCacheTest {
         coEvery { repo.calendars() } returns CalendarResult.Ok(listOf(work))
     }
 
+    private val viewModels = mutableListOf<CalendarViewModel>()
+
+    private fun viewModel() = CalendarViewModel(repo, clock, Locale.GERMANY, cache).also { viewModels += it }
+
     @After
     fun tearDown() {
+        // A cache write may still run on Room's threads and then resume on Main: let it finish before resetMain.
+        runBlocking { viewModels.forEach { it.viewModelScope.coroutineContext.job.cancelAndJoin() } }
         Dispatchers.resetMain()
         database.close()
     }
@@ -82,7 +91,7 @@ class CalendarViewModelRoomCacheTest {
             val answer = CompletableDeferred<CalendarResult<List<Occurrence>>>()
             coEvery { repo.occurrences(today, today.plusDays(30), zone) } coAnswers { answer.await() } andThen
                 CalendarResult.Ok(listOf(event(2, today)))
-            val vm = CalendarViewModel(repo, clock, Locale.GERMANY, cache)
+            val vm = viewModel()
 
             vm.refresh()
             cache.clear()
@@ -104,7 +113,7 @@ class CalendarViewModelRoomCacheTest {
             val chunk = CompletableDeferred<CalendarResult<List<Occurrence>>>()
             coEvery { repo.occurrences(today, today.plusDays(30), zone) } returns CalendarResult.Ok(listOf(event(1, today)))
             coEvery { repo.occurrences(today.plusDays(30), today.plusDays(60), zone) } coAnswers { chunk.await() }
-            val vm = CalendarViewModel(repo, clock, Locale.GERMANY, cache)
+            val vm = viewModel()
             vm.refresh()
             awaitUntil { vm.uiState.value.loaded && !vm.uiState.value.loading }
             awaitUntil { cache.read() != null }

@@ -180,8 +180,9 @@ class BackupWebTests(
 		val id = start()
 
 		// The export is held inside its snapshot transaction: its progress must already have been delivered.
-		awaitEvent(id, ChangeOp.UPDATED)
-		job(id)["step"].asString() shouldBe "controllable: data"
+		// Other contributors may come before the gated one, so wait for the gated step's own event, not the first.
+		awaitGatedStepEvent(id)
+		job(id)["step"].asString() shouldBe GATED_STEP
 		contributor.gate!!.countDown()
 		awaitFinished(id) shouldBe "COMPLETED"
 
@@ -190,13 +191,17 @@ class BackupWebTests(
 		ops shouldContain ChangeOp.UPDATED
 	}
 
-	private fun awaitEvent(
-		id: UUID,
-		op: ChangeOp,
-	) {
+	/**
+	 * Waits (5 s deadline) until the job is at [GATED_STEP] and that step's own UPDATED event was delivered:
+	 * step n (counted from 0) is announced by the (n + 1)th UPDATED event.
+	 */
+	private fun awaitGatedStepEvent(id: UUID) {
 		val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
-		while (recorder.events.none { it.id == id && it.op == op }) {
-			check(System.nanoTime() < deadline) { "No $op event for backup $id" }
+		while (true) {
+			val updates = recorder.events.count { it.id == id && it.op == ChangeOp.UPDATED }
+			val job = job(id)
+			if (job["step"].asString() == GATED_STEP && updates >= job["stepsDone"].asInt() + 1) return
+			check(System.nanoTime() < deadline) { "No UPDATED event for step '$GATED_STEP' of backup $id" }
 			Thread.sleep(20)
 		}
 	}
@@ -350,5 +355,6 @@ class BackupWebTests(
 
 	companion object {
 		private const val BASE = "/api/v1/backup"
+		private const val GATED_STEP = "controllable: data"
 	}
 }

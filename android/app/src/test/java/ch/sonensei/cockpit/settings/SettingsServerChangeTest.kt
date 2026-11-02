@@ -19,9 +19,11 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -64,8 +66,9 @@ class SettingsServerChangeTest {
 
     @After
     fun tearDown() {
-        // Stops the ViewModels' collectors before their store goes away.
-        viewModels.forEach { it.viewModelScope.cancel() }
+        // Stops the ViewModels' work before their store and Main go away. Joining matters: a save resumes on the store's
+        // IO thread and then launches the user reload on Main, which must not happen after resetMain.
+        runBlocking { viewModels.forEach { it.viewModelScope.coroutineContext.job.cancelAndJoin() } }
         storeScope.cancel()
         Dispatchers.resetMain()
     }
