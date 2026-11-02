@@ -38,3 +38,4 @@ Test-only fixes; no production code change unless the race is a real app bug (th
 ## Notes
 Found by the owner's request to look into the failing CI checks (2026-11-02). The CI job of run 41355157150 was
 re-run to confirm the failure is flaky.
+- ASSUMPTION (2026-11-02 05:12+0100 by dell26/agent-1): No production change: the Settings/Auth races only exist because tests reset Dispatchers.Main while view-model work still runs; in the app Main always exists. Fixed the same pattern locally in AuthRepositoryTest and CalendarViewModelRoomCacheTest (outside the declared touches, test-only). Load generated with 16 busy shell loops on 16 cores (stress-ng not installed); loops use the test task's --rerun instead of --rerun-tasks to avoid recompiling 20 times.
