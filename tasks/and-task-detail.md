@@ -1,11 +1,11 @@
 ---
 title: Android: task detail screen with editing
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-dashboard,and-logbook,and-search,and-gtd-data]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/java/ch/sonensei/cockpit/gtd/next,android/app/src/main/java/ch/sonensei/cockpit/gtd/today,android/app/src/main/java/ch/sonensei/cockpit/gtd/lists,android/app/src/main/java/ch/sonensei/cockpit/gtd/projects,android/app/src/main/java/ch/sonensei/cockpit/search,android/app/src/main/java/ch/sonensei/cockpit/dashboard,android/app/src/main/java/ch/sonensei/cockpit/ui,android/app/src/test/java/ch/sonensei/cockpit/gtd,android/app/src/test/java/ch/sonensei/cockpit/search,android/app/src/test/java/ch/sonensei/cockpit/dashboard,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml]
 prio: 2
-lease_until: 2026-11-02T10:53:31Z
+lease_until: 
 hold: 
 releases: 0
 extended: 
@@ -61,3 +61,4 @@ detail editing.
 - hold by dell26/agent-2: Android unit tests cannot run on this machine: the user's /tmp quota is full of leaked /tmp/robolectric-nativeruntime* dirs (205 MB each), so testDebugUnitTest fails ~1500 tests with 'Disk quota exceeded' (also .taskcheck). A human must delete the stale dirs; fix the leak in new task and-test-tmpdir. Implementation is committed (screen, editing, checklist, actions, offline, strings, VM + Compose tests, search tests adapted); left: run tests, test-writer/code-reviewer/fixer, verify criteria, done.
 - unhold by Peter Gürtler: /tmp cleaned (13 GB free); test-tmp-in-build fixes the leak
 - ASSUMPTION (2026-11-02 11:32+0100 by dell26/agent-1): Criteria 1-6 verified with Robolectric Compose/unit tests only (no emulator or device on this machine); the real-device flow was not exercised.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 67s on f51f7c475; criteria verified 8/8
