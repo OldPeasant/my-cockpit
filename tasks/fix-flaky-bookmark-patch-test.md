@@ -1,0 +1,31 @@
+---
+title: Flaky test: BookmarkWebTests PATCH races the background metadata fetch (409)
+status: todo
+owner:
+deps: [bookmarks-api]
+touches: [server/src/test/kotlin/ch/sonensei/cockpit/bookmarks/BookmarkWebTests.kt]
+prio: 1
+---
+## Goal
+The rerun of CI run 41355157150 (2026-11-02, server fast check) failed on `BookmarkWebTests > PATCH changes only the
+sent fields, needs a current If-Match and rejects unknown fields and nulls()` with `Status expected:<200> but
+was:<409>` (BookmarkWebTests.kt:129, the `change(current, ...)` call). The first run of the same commit failed on a
+different flaky test (BackupWebTests, task fix-flaky-backup-progress-and-settings-tests), so main stays red.
+Likely cause: creating a bookmark starts the background metadata fetch (here for `https://unreachable.invalid/a`).
+When it records its result between the test's `fetch()` and `change()`, the bookmark's version moves on and the
+PATCH with the fetched ETag fails the optimistic lock (`OptimisticLockingFailureException` -> 409 in
+`ProblemDetailsAdvice`). Other tests in the file already wait with `settled(id)`.
+
+## Acceptance criteria
+- [ ] The cause is confirmed (e.g. by delaying the metadata fetch in a local experiment, or from the code path) and
+      recorded in the notes; if it is not the metadata fetch, fix the actual cause
+- [ ] The PATCH test (and any other test in `BookmarkWebTests` that changes a freshly created bookmark with its
+      ETag) waits for `settled(id)` first, or creates the bookmark so that no background fetch runs; the test still
+      checks the same behavior (428, 412, 400 cases and the partial update)
+- [ ] `cd server && ./gradlew test --tests '*BookmarkWebTests*'` passes 20 times in a row, also under load
+      (parallel `stress-ng` or a second Gradle build); record the load
+- [ ] `sh scripts/check.sh` passes
+
+## Notes
+Found while checking the failing CI runs (2026-11-02). Test-only fix. A user editing a bookmark right after saving
+it can get the same 409; the web client handles 409 by reloading, so that is not changed here.
