@@ -1,13 +1,14 @@
 ---
 title: Server and Android tests keep temp files in build/, not /tmp
-status: in_progress
-owner: dell26/agent-1
+status: todo
+owner: 
 deps: [test-tmp-dir-leaks,backup-round-trip-tmp-leak]
 touches: [server/build.gradle.kts,android/app/build.gradle.kts,docs/ARCHITECTURE.md]
 prio: 1
-lease_until: 2026-11-02T09:48:05Z
-releases: 2
+lease_until: 
+releases: 3
 extended: 
+hold: given back 3 times; last: Code done (20be1761a), helper reports committed (a314022bb: tests.md + review.md, 0 findings, fixer not required). Criteria #1-#4 and #6 verified. Left: #5 run 'time sh scrip
 ---
 ## Goal
 On the owner's laptop `/tmp` (tmpfs, 12.6 GB quota) filled up on 2026-11-02 ("disk quota exceeded"; 13 GB used):
@@ -47,3 +48,4 @@ Web (Vitest) and Playwright temp files are out of scope unless the evidence show
 - extended by dell26/agent-1: Implementation committed (ca5345f16: withType<Test> sets java.io.tmpdir=build/tmp/test-jvm/<task>, doFirst empties it, server+android) and helper reports committed (80b660945, 0 findings, fixer not required). #6 verified. Left: run & record evidence for #1-#5 (server test + android testDebugUnitTest with /tmp counts before/after, kill test JVM mid-run then rerun, server integrationTest with Testcontainers, check.sh pass + duration vs before), write reviews/test-tmp-in-build/quality.json (reviewed_revision = HEAD of code), run done.
 - release by dell26/agent-1: Code done and committed (959aded34: server+android withType<Test> set java.io.tmpdir=build/tmp/test-jvm/<task>, doFirst empties it; ARCHITECTURE.md line). Helper reports committed (ae595fc77: tests.md + review.md, 0 findings, fixer not required). #6 verified. Left (evidence only, no code): #2 count /tmp/robolectric-nativeruntime* and /tmp/cockpit-round-trip-data* before/after 'cd android && ./gradlew testDebugUnitTest' and 'cd server && ./gradlew test', rerun shows build/tmp/test-jvm not growing; #3 pkill -f 'Gradle Test Executor' mid testDebugUnitTest, /tmp unchanged, next run empties build leftovers; #4 'cd server && ./gradlew integrationTest --tests *BackupRoundTrip*' passes; #1 can cite #2-#4 runs; #5 time sh scripts/check.sh (compare with a main-without-change timing or earlier ~known duration). Then write reviews/test-tmp-in-build/quality.json (reviewed_revision = 959aded34 or rebased equivalent, result exactly 'pass'), commit, done (run with long background timeout).
 - ASSUMPTION (2026-11-02 10:06+0100 by dell26/agent-1): Kill test (#3) used pkill -9 -f 'agent-1/android/app/build/tmp/test-jvm' instead of 'Gradle Test Executor': the machine is shared with other agents and the generic pattern would kill their test runs; the matched process is this clone's Gradle Test Executor
+- release by dell26/agent-1: Code done (20be1761a), helper reports committed (a314022bb: tests.md + review.md, 0 findings, fixer not required). Criteria #1-#4 and #6 verified. Left: #5 run 'time sh scripts/check.sh' on this branch and on main (or cite a known main duration), record both with verify 5; write reviews/test-tmp-in-build/quality.json (reviewed_revision = full hash of 20be1761a or its rebased equivalent, result exactly 'pass', fixer not required), commit, then 'python tasks.py done test-tmp-in-build' with a long background timeout (check.sh has taken >10 min on this machine).
