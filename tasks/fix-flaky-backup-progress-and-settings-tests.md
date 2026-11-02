@@ -1,11 +1,11 @@
 ---
 title: Flaky tests: BackupWebTests progress step and SettingsServerChangeTest leak
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-2
 deps: [backup-core,and-settings]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/backup/BackupWebTests.kt,android/app/src/test/java/ch/sonensei/cockpit/settings/SettingsServerChangeTest.kt]
 prio: 1
-lease_until: 
+lease_until: 2026-11-02T07:17:07Z
 extended: 
 releases: 2
 ---
