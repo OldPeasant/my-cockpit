@@ -36,7 +36,8 @@ Each agent check / `done` adds 1-2 GB, so the machine runs out again within a da
 - [x] The integration test task (`server` `integrationTest`, Testcontainers) gets the same setting; Testcontainers
       still works (`./gradlew integrationTest --tests '*BackupRoundTrip*'` or another short one passes)
   - verified (2026-11-02 10:06+0100 by dell26/agent-1): integrationTest is a Test task so withType<Test>().configureEach applies; '--tests *BackupRoundTrip*' finds nothing (BackupRoundTripTest is in the unit test task, covered by #2). Ran 'cd server && ./gradlew integrationTest --tests *HeaderSyncDovecotTests --tests *ExternalToolingSmokeTests --rerun' -> BUILD SUCCESSFUL, 4 tests 0 failures 0 skipped (Dovecot via Testcontainers GenericContainer, podman); build/tmp/test-jvm/integrationTest created; /tmp list unchanged
-- [ ] `sh scripts/check.sh` passes, and its duration is not noticeably longer than before (record both)
+- [x] `sh scripts/check.sh` passes, and its duration is not noticeably longer than before (record both)
+  - verified (2026-11-02 13:19+0100 by dell26/agent-1): time sh scripts/check.sh on 9be7b78c5 (merged with main a0a707e35) -> all checks passed twice: first run 12m20s real (cold: build-file change re-ran every server/android test task, machine shared with other agents; user 8m11s), second run 1m11.6s real (user 8m40s). Before: main's last recorded check.sh (and-test-tmpdir done on 1614ae480) took 67s -> ~+5s, within run-to-run noise
 - [x] `docs/ARCHITECTURE.md` (testing section) says in one line that test temp files live under `build/tmp/test-jvm`
   - verified (2026-11-02 08:13+0100 by dell26/agent-1): grep -n test-jvm docs/ARCHITECTURE.md -> line 150-151 in Testing section: test JVM java.io.tmpdir is build/tmp/test-jvm/{task name}, emptied per run, removed by clean
 
