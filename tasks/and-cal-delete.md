@@ -1,10 +1,11 @@
 ---
 title: Android calendar: delete events (incl. repeating series scope)
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [and-cal-edit]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/edit,android/app/src/test/java/ch/sonensei/cockpit/calendar,android/app/src/main/res/values/strings_calendar_edit.xml,android/app/src/main/res/values-de/strings_calendar_edit.xml]
 prio: 2
+lease_until: 2026-11-02T10:02:49Z
 ---
 ## Goal
 On Android an event can be created and edited (and-cal-edit) but not deleted; the owner had to go to the web. The
