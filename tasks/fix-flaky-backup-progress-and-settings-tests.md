@@ -39,7 +39,8 @@ Test-only fixes; no production code change unless the race is a real app bug (th
       `setMain`/`resetMain` (e.g. auth/passkey tests) for the same pattern; fix those in the same way only if they
       are local test changes, otherwise list them in the notes
   - verified (2026-11-02 05:16+0100 by dell26/agent-1): grep -rln resetMain android/app/src/test | xargs grep -lE 'PreferenceDataStoreFactory|Dispatchers.IO|Room\.' -> only AuthRepositoryTest and SettingsServerChangeTest; both fixed locally (cancelAndJoin with 5s timeout before resetMain), plus CalendarViewModelRoomCacheTest (Room cache resuming on Main, same pattern); no production changes needed
-- [ ] `sh scripts/check.sh` passes
+- [x] `sh scripts/check.sh` passes
+  - verified (2026-11-02 13:43+0100 by dell26/agent-1): sh scripts/check.sh on e94a8284c (after ktlintFormat fixed 2 chain-method-continuation violations in the task's test tearDowns) -> '== all checks passed', exit 0
 
 ## Notes
 Found by the owner's request to look into the failing CI checks (2026-11-02). The CI job of run 41355157150 was
