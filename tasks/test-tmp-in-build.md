@@ -6,9 +6,9 @@ deps: [test-tmp-dir-leaks,backup-round-trip-tmp-leak]
 touches: [server/build.gradle.kts,android/app/build.gradle.kts,docs/ARCHITECTURE.md]
 prio: 1
 lease_until: 
-releases: 3
+releases: 0
 extended: 
-hold: given back 3 times; last: Code done (20be1761a), helper reports committed (a314022bb: tests.md + review.md, 0 findings, fixer not required). Criteria #1-#4 and #6 verified. Left: #5 run 'time sh scrip
+hold: 
 ---
 ## Goal
 On the owner's laptop `/tmp` (tmpfs, 12.6 GB quota) filled up on 2026-11-02 ("disk quota exceeded"; 13 GB used):
