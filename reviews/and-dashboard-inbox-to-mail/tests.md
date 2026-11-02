@@ -72,7 +72,7 @@ Observation (not a defect, no fix required): `WidgetId.destinationFor` does not 
 Status: verified.
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: measured by hand from the JaCoCo XML `<line>` entries for the added/modified executable lines of `git diff -U0 a97a99a7d..9486c4e28` (hunks +115..125 and +168..169). The executable changed lines are 120, 121, 123, 124 (`destinationFor`) and 168, 169 (`DashboardContent` items lambda). Covered: 6/6 lines (100%). Branches on changed lines: 6/6 (100%, all on line 120). The comment and KDoc lines 115-119 are not executable and are left out of the count.
+Changed-line coverage: measured by hand from the JaCoCo XML per-line (`line` element) entries for the added/modified executable lines of `git diff -U0 a97a99a7d..9486c4e28` (hunks +115..125 and +168..169). The executable changed lines are 120, 121, 123, 124 (`destinationFor`) and 168, 169 (`DashboardContent` items lambda). Covered: 6/6 lines (100%). Branches on changed lines: 6/6 (100%, all on line 120). The comment and KDoc lines 115-119 are not executable and are left out of the count.
 
 Evidence:
 - Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: and-dashboard-inbox-to-mail; base a97a99a7d1382ba5d2e0d04563b41970fe977561; measured HEAD 58fbc63a510e841b52a853b4323fba1690ade2df. Scope came from the parent (task commit 9486c4e28, now e0d70f811 with an identical diff) and matches the task `touches` field.
