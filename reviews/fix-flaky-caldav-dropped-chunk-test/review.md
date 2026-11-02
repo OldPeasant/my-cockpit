@@ -4,7 +4,7 @@ Date: 2026-11-02
 
 Task: fix-flaky-caldav-dropped-chunk-test - Flaky test: CalDavClientTests 'a connection that fails after the answer started is not repeated' sometimes retries
 
-Scope: task code commit 482a42fd0 on top of base b065374b7 (`git diff b065374b7..482a42fd0 -- server`); later commits up to HEAD (9040673c6 is the same change after rebase, ca264324d notes, e5af4ab31 assumption) touch only `tasks/`. Test-only change in `server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/caldav/CalDavClientTests.kt`; production `CalDavClient.kt` (`sendRetryingDrop`) read for context, unchanged.
+Scope: final re-review of the full task diff `git diff b065374b7..98942ff8b -- server` (reviewed revision 98942ff8b2cdd749995ba4eaff9f44e88f5bdb65). Code commits: 9040673c6 (first review, as 482a42fd0 before rebase), f96d0a580 (removes the sleep, CR-1), 98942ff8b (binds the ServerSocket to 127.0.0.1, CR-2); ca264324d, faf76a805 and e5af4ab31 touch only `tasks/` and `reviews/`. Test-only change in `server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/caldav/CalDavClientTests.kt`; production `CalDavClient.kt` (`sendRetryingDrop`) read for context, unchanged.
 
 Requirements:
 - tasks/fix-flaky-caldav-dropped-chunk-test.md (acceptance criteria, Notes, assumption)
@@ -14,11 +14,11 @@ Requirements:
 
 Git range:
 - Branch: main
-- HEAD: ca264324d
+- HEAD: 98942ff8b2cdd749995ba4eaff9f44e88f5bdb65
 - Base/start: b065374b796099708fd0d94b660c06573a9f56c7
-- Commits reviewed: 1 code commit (482a42fd0, rebased as 9040673c6) plus 2 tasks-only commits
+- Commits reviewed: 3 code commits (9040673c6, f96d0a580, 98942ff8b) plus 3 commits touching only tasks/ and reviews/
 
-Summary: 0 P0, 0 P1, 0 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3 open (2 P3 from the first review, both resolved)
 
 ## Root cause assessment
 
@@ -47,19 +47,25 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | The sleep before the connection count adds 400 ms without adding detection**
+- [x] **CR-1 | The sleep before the connection count adds 400 ms without adding detection**
     - File: `server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/caldav/CalDavClientTests.kt:320`
     - Category: Tests
     - Problem: `sendRetryingDrop` retries synchronously inside `send`, so any retry has already reached the server (and incremented `connections`, which happens before the server writes the answer the client waits for) by the time `shouldThrow` evaluates; a retry also makes `shouldThrow` fail on its own. `Thread.sleep(DROPPED_CONNECTION_BACKOFF.toMillis() * 2)` therefore cannot catch anything the assertions before it miss. It cannot cause a false failure either, so this is not a flakiness risk, only 400 ms per run (80 s over the 200-run criterion loop).
     - Why it matters: unnecessary wall-clock time in the fast `.taskcheck` suite and a misleading hint that the retry could happen asynchronously.
     - Suggested fix: drop the sleep and keep `connections.get() shouldBe 1` directly after `shouldThrow`, or add a one-line comment if it is meant to guard a future asynchronous retry.
+    - Resolution (f96d0a580): the sleep is removed; `connections.get() shouldBe 1` follows `shouldThrow` directly, with a comment explaining why no waiting is needed. `DROPPED_CONNECTION_BACKOFF` is still used by another test, so no unused import or constant remains. Resolved.
 
-- [ ] **CR-2 | Client URI hard-codes 127.0.0.1 while the server binds to `InetAddress.getLoopbackAddress()`**
+- [x] **CR-2 | Client URI hard-codes 127.0.0.1 while the server binds to `InetAddress.getLoopbackAddress()`**
     - File: `server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/caldav/CalDavClientTests.kt:294` and `:315`
     - Category: Tests
     - Problem: `getLoopbackAddress()` returns `::1` when the JVM runs with `-Djava.net.preferIPv6Addresses=true`; the client would then get ConnectException twice and the test would fail on `connections shouldBe 1` (0). With the default JVM settings used by the build it is 127.0.0.1, so this does not affect current runs.
     - Why it matters: a small environment dependency in a test whose whole purpose is determinism.
     - Suggested fix: build the URI from the bound address (`server.inetAddress.hostAddress`, bracketed for IPv6) or bind explicitly to `InetAddress.getByName("127.0.0.1")`.
+    - Resolution (98942ff8b): the server now binds to `InetAddress.getByName("127.0.0.1")` (now line 293), matching the client URI `http://127.0.0.1:<port>/dav/`, independent of `java.net.preferIPv6Addresses`. The `InetAddress` import is still used. Resolved.
+
+## Re-review of the fix commits
+
+`git diff 9040673c6..98942ff8b -- server` contains exactly two changes in `CalDavClientTests.kt`: the bind address and the removed sleep with its replacement comment. Production code is unchanged throughout the task (`git diff b065374b7..98942ff8b -- server/src/main` is empty). The determinism analysis above still holds; removing the sleep cannot hide a retry, because `sendRetryingDrop` retries synchronously inside `send` and the server increments `connections` before it answers. Gradle was not run in this review (the parent instructed so; a test-writer runs the build afterwards).
 
 ## Notes for the parent worker
 
@@ -67,4 +73,4 @@ None.
 
 ## Review conclusion
 
-No material issues found.
+No material issues found. Both P3 findings from the first review are resolved in 98942ff8b.
