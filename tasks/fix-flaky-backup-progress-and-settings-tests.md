@@ -6,7 +6,7 @@ deps: [backup-core,and-settings]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/backup/BackupWebTests.kt,android/app/src/test/java/ch/sonensei/cockpit/settings/SettingsServerChangeTest.kt]
 prio: 1
 lease_until: 2026-11-02T05:12:56Z
-extended: 
+extended: dell26/agent-1
 releases: 1
 ---
 ## Goal
@@ -44,3 +44,4 @@ re-run to confirm the failure is flaky.
 - ASSUMPTION (2026-11-02 05:12+0100 by dell26/agent-1): No production change: the Settings/Auth races only exist because tests reset Dispatchers.Main while view-model work still runs; in the app Main always exists. Fixed the same pattern locally in AuthRepositoryTest and CalendarViewModelRoomCacheTest (outside the declared touches, test-only). Load generated with 16 busy shell loops on 16 cores (stress-ng not installed); loops use the test task's --rerun instead of --rerun-tasks to avoid recompiling 20 times.
 - extended by dell26/agent-1: Code fixes and re-review done (0 findings, review.md/tests.md/fixes.md committed on final code 686c12184's parent). Left: run BackupWebTests 20x under load (crit 1), Android loop SettingsServerChangeTest+SettingsViewModelTest+AuthRepositoryTest+CalendarViewModelRoomCacheTest 20x --rerun-tasks (crit 2), sh scripts/check.sh (crit 4), record verify, write quality.json (reviewed_revision=ee2e0e04c full hash), then done.
 - release by dell26/agent-1: Implementation done and committed (64d7b9c4a, fa6d77459 incl. CR-1 fix + tearDown timeouts); test-writer + code-reviewer re-ran on final code (reviews/ committed, no open findings; tests.md coverage N/A, test-only change). Criterion 3 verified. LEFT: (1) run 'cd server && ./gradlew test --tests *BackupWebTests* --rerun-tasks' 20x under load (stress-ng or 2nd Gradle build), verify #1 with load; (2) run android 'testDebugUnitTest --tests *SettingsServerChangeTest* --tests *SettingsViewModelTest* (+AuthRepositoryTest, CalendarViewModelRoomCacheTest) --rerun-tasks' 20x under load, verify #2; (3) sh scripts/check.sh, verify #4; (4) write+commit reviews/<id>/quality.json (reviewed_revision = HEAD hash, result exactly 'pass', fixer ran for CR-1 + tests.md hardening); (5) tasks.py done.
+- extended by dell26/agent-1: Code + re-review done (HEAD 22d458120, review/tests/fixes.md committed, 0 open findings; crit 3 verified). Left: (1) BackupWebTests 20x under load (16 busy loops), verify #1; (2) android testDebugUnitTest --tests SettingsServerChangeTest,SettingsViewModelTest,AuthRepositoryTest,CalendarViewModelRoomCacheTest --rerun 20x under load, verify #2; (3) sh scripts/check.sh, verify #4; (4) write+commit reviews/<id>/quality.json (reviewed_revision = full hash of b96cdf67a or HEAD, result exactly 'pass', fixer ran for CR-1); (5) tasks.py done (long background timeout).
