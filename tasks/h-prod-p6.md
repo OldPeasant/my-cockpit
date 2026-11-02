@@ -5,8 +5,10 @@ owner:
 deps: [p6-smoke,h-mail-real]
 quality: exempt
 quality_reason: human verification task, no code
-hold: HUMAN TASK for the owner: deploy phase 6
+hold: 
 prio: 2
+releases: 0
+extended: 
 ---
 ## Goal
 Owner deploys phase 6 and uses it.
