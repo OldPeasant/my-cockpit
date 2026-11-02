@@ -101,6 +101,14 @@ class DashboardDestinationTest {
     }
 
     @Test
+    fun `only the Inbox card redirects to Mail, even if another card got Inbox data`() {
+        val mailOnly = inbox(Count(0, more = false), Count(26, more = true))
+        (WidgetId.entries - WidgetId.INBOX).forEach { widget ->
+            assertEquals(widget.name, widget.destination, widget.destinationFor(mailOnly))
+        }
+    }
+
+    @Test
     fun `the Inbox card keeps the Inbox icon, not the Mail one`() {
         // WidgetCard draws widget.destination.icon, which does not depend on the data.
         assertEquals(CockpitDestination.Inbox, WidgetId.INBOX.destination)

@@ -98,7 +98,7 @@ internal object DashboardTags {
     fun task(id: UUID) = "dashboard-task:$id"
 }
 
-/** The screen a widget's card opens. */
+/** The widget's own screen: the source of its card's icon, and what its card opens by default (see [destinationFor]). */
 internal val WidgetId.destination: CockpitDestination
     get() =
         when (this) {
@@ -117,7 +117,7 @@ internal val WidgetId.destination: CockpitDestination
  * An Inbox without tasks but with unread mail opens Mail: nothing waits in the GTD Inbox, the unread mail does.
  */
 internal fun WidgetId.destinationFor(data: WidgetData?): CockpitDestination =
-    if (data is WidgetData.Inbox && data.tasks.count == 0 && data.unreadMail.count > 0) {
+    if (this == WidgetId.INBOX && data is WidgetData.Inbox && data.tasks.count == 0 && data.unreadMail.count > 0) {
         CockpitDestination.Mail
     } else {
         destination
