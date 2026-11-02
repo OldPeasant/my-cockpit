@@ -32,7 +32,8 @@ Each agent check / `done` adds 1-2 GB, so the machine runs out again within a da
 - [ ] The integration test task (`server` `integrationTest`, Testcontainers) gets the same setting; Testcontainers
       still works (`./gradlew integrationTest --tests '*BackupRoundTrip*'` or another short one passes)
 - [ ] `sh scripts/check.sh` passes, and its duration is not noticeably longer than before (record both)
-- [ ] `docs/ARCHITECTURE.md` (testing section) says in one line that test temp files live under `build/tmp/test-jvm`
+- [x] `docs/ARCHITECTURE.md` (testing section) says in one line that test temp files live under `build/tmp/test-jvm`
+  - verified (2026-11-02 08:13+0100 by dell26/agent-1): grep -n test-jvm docs/ARCHITECTURE.md -> line 150-151 in Testing section: test JVM java.io.tmpdir is build/tmp/test-jvm/{task name}, emptied per run, removed by clean
 
 ## Notes
 Requested by the owner (2026-11-02) after `/tmp` filled up. Only the build files (one `tasks.withType<Test>` block
