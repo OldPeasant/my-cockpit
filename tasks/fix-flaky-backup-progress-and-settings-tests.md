@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [backup-core,and-settings]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/backup/BackupWebTests.kt,android/app/src/test/java/ch/sonensei/cockpit/settings/SettingsServerChangeTest.kt]
 prio: 1
-lease_until: 2026-11-02T04:26:00Z
+lease_until: 2026-11-02T04:27:33Z
 ---
 ## Goal
 Two CI runs on main failed on one flaky test each, unrelated to the task that triggered them (2026-11-01):
