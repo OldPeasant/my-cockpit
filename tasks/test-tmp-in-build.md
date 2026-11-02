@@ -19,10 +19,11 @@ Each agent check / `done` adds 1-2 GB, so the machine runs out again within a da
 `gh` downloads and other agents' tests. Fix it in the build, so it holds for every test, not per test class.
 
 ## Acceptance criteria
-- [ ] Every `Test` task of `server/` and `android/app` runs its JVMs with `java.io.tmpdir` set to a folder under
+- [x] Every `Test` task of `server/` and `android/app` runs its JVMs with `java.io.tmpdir` set to a folder under
       the module's `build/` (e.g. `build/tmp/test-jvm/<task name>`), created before and emptied at the start of
       the task (so leftovers of killed runs are removed by the next run of the same task); `./gradlew clean`
       removes it. Existing tests that call `Files.createTempDirectory`/`@TempDir` keep working unchanged
+  - verified (2026-11-02 10:32+0100 by dell26/agent-1): server/build.gradle.kts:115 and android/app/build.gradle.kts:90 tasks.withType<Test>().configureEach add -Djava.io.tmpdir=build/tmp/test-jvm/<task name> via jvmArgumentProviders, doFirst deleteRecursively+mkdirs; runs from #2-#4 (server test, android testDebugUnitTest x2, server integrationTest) all BUILD SUCCESSFUL with dirs build/tmp/test-jvm/{test,testDebugUnitTest,integrationTest} created and emptied per run (killed-run leftovers removed by next run); dir is under build/ so clean removes it; existing createTempDirectory/@TempDir tests (incl. BackupRoundTripTest) pass unchanged
 - [x] Evidence: count `/tmp/robolectric-nativeruntime*` and `/tmp/cockpit-round-trip-data*` before and after
       `cd android && ./gradlew testDebugUnitTest` and `cd server && ./gradlew test` -> no new entries in `/tmp`;
       a second run of the same task does not grow `build/tmp/test-jvm` (it was emptied first)
