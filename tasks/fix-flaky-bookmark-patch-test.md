@@ -31,3 +31,4 @@ PATCH with the fetched ETag fails the optimistic lock (`OptimisticLockingFailure
 ## Notes
 Found while checking the failing CI runs (2026-11-02). Test-only fix. A user editing a bookmark right after saving
 it can get the same 409; the web client handles 409 by reloading, so that is not changed here.
+- ASSUMPTION (2026-11-02 05:29+0100 by dell26/agent-2): BookmarkWebTests fetch timeout raised 2s->5s and the slow ordering test's WireMock delay 700ms->2000ms, so its deliberate PATCH-before-fetch race keeps a wide margin under load while the slow fetch still succeeds; no test in the class depends on the 2s value.
