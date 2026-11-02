@@ -6,7 +6,7 @@ deps: [backup-core,and-settings]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/backup/BackupWebTests.kt,android/app/src/test/java/ch/sonensei/cockpit/settings/SettingsServerChangeTest.kt]
 prio: 1
 lease_until: 2026-11-02T08:17:18Z
-extended: 
+extended: dell26/agent-2
 releases: 2
 ---
 ## Goal
@@ -46,3 +46,4 @@ re-run to confirm the failure is flaky.
 - release by dell26/agent-1: Implementation done and committed (64d7b9c4a, fa6d77459 incl. CR-1 fix + tearDown timeouts); test-writer + code-reviewer re-ran on final code (reviews/ committed, no open findings; tests.md coverage N/A, test-only change). Criterion 3 verified. LEFT: (1) run 'cd server && ./gradlew test --tests *BackupWebTests* --rerun-tasks' 20x under load (stress-ng or 2nd Gradle build), verify #1 with load; (2) run android 'testDebugUnitTest --tests *SettingsServerChangeTest* --tests *SettingsViewModelTest* (+AuthRepositoryTest, CalendarViewModelRoomCacheTest) --rerun-tasks' 20x under load, verify #2; (3) sh scripts/check.sh, verify #4; (4) write+commit reviews/<id>/quality.json (reviewed_revision = HEAD hash, result exactly 'pass', fixer ran for CR-1 + tests.md hardening); (5) tasks.py done.
 - extended by dell26/agent-1: Code + re-review done (HEAD 22d458120, review/tests/fixes.md committed, 0 open findings; crit 3 verified). Left: (1) BackupWebTests 20x under load (16 busy loops), verify #1; (2) android testDebugUnitTest --tests SettingsServerChangeTest,SettingsViewModelTest,AuthRepositoryTest,CalendarViewModelRoomCacheTest --rerun 20x under load, verify #2; (3) sh scripts/check.sh, verify #4; (4) write+commit reviews/<id>/quality.json (reviewed_revision = full hash of b96cdf67a or HEAD, result exactly 'pass', fixer ran for CR-1); (5) tasks.py done (long background timeout).
 - release by dell26/agent-1: over budget after 3 sessions (~40 min) and a review that decided nothing; still resumable: continue from wip/fix-flaky-backup-progress-and-settings-tests (see git log)
+- extended by dell26/agent-2: Code + reviews done (HEAD code 090ddb2b2; review/tests/fixes.md committed, CR-1/TW-1 fixed). Android 4-test loop ran 20/20 under load (.tmp/android-result.txt 08:42) and sh scripts/check.sh passed 08:51, but neither is recorded with verify yet. LEFT: (1) re-run 'cd server && ./gradlew test --tests *BackupWebTests* --rerun' 20x under 16 busy loops (the existing log is ambiguous: 16 runs only), verify #1 with load; (2) verify #2 (android 20/20) and #4 (check.sh); (3) fix quality.json: reviewed_revision should be 090ddb2b25f01f252a17982809b9f06a273e9964 (currently 49c5815a2), make the validation entries match what actually ran; commit; (4) tasks.py done.
