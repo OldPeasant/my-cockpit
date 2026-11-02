@@ -1,11 +1,11 @@
 ---
 title: Android calendar: delete events (incl. repeating series scope)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-cal-edit]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/edit,android/app/src/test/java/ch/sonensei/cockpit/calendar,android/app/src/main/res/values/strings_calendar_edit.xml,android/app/src/main/res/values-de/strings_calendar_edit.xml]
 prio: 2
-lease_until: 2026-11-02T10:23:20Z
+lease_until: 
 ---
 ## Goal
 On Android an event can be created and edited (and-cal-edit) but not deleted; the owner had to go to the web. The
@@ -38,3 +38,4 @@ Requested by the owner (2026-11-02): "How can I delete a calendar entry in the A
 from the agenda list by swipe, undo after delete (the web has none for events either, unless it does: then match it).
 - ASSUMPTION (2026-11-02 10:49+0100 by dell26/agent-1): Delete is a red text button in the editor's top bar (next to Save), hidden for new events, read-only calendars, while loading and while saving; shown but disabled after a 412/404 message (reload first), as Save is.
 - ASSUMPTION (2026-11-02 10:50+0100 by dell26/agent-1): A delete refused for another reason (e.g. 400/409 read-only) shows a new message 'The event could not be deleted.' instead of the save wording; 409 maps to the conflict message like a save. The web has no undo for event deletes, so none here.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 80s on 93ddcb6a8; criteria verified 6/6
