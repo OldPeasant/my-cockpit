@@ -15,8 +15,9 @@ fails with "Disk quota exceeded" / "UnsatisfiedLinkError: Failed creating temp f
 by `./gradlew clean`.
 
 ## Acceptance criteria
-- [ ] `tasks.withType<Test>` in `android/app/build.gradle.kts` sets `java.io.tmpdir` (e.g. a directory under
+- [x] `tasks.withType<Test>` in `android/app/build.gradle.kts` sets `java.io.tmpdir` (e.g. a directory under
       `layout.buildDirectory`, created before the run); no new files appear in `/tmp` during `testDebugUnitTest`
+  - verified (2026-11-02 12:54+0100 by dell26/agent-1): android/app/build.gradle.kts tasks.withType<Test> sets java.io.tmpdir=temporaryDir/jvm (mkdirs in doFirst). Ran cd android && ./gradlew testDebugUnitTest --tests '*SessionCacheTest' --tests '*CockpitThemeTest' --rerun while polling app/build/tmp/testDebugUnitTest/jvm every 0.5s -> robolectric-nativeruntime* dirs (3, ~157 MB) and robolectric-<test> dirs were created there instead of /tmp (listing /tmp itself is denied to agents by sandbox policy, so 'no new files in /tmp' is shown by where Robolectric's temp files went)
 - [ ] `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
 
 ## Notes
