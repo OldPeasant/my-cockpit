@@ -24,3 +24,4 @@ by `./gradlew clean`.
 ## Notes
 Found while working on and-task-detail (held because of this). A human may need to delete the stale
 `/tmp/robolectric-nativeruntime*` directories once; agents may not write outside their clone.
+- ASSUMPTION (2026-11-02 12:55+0100 by dell26/agent-1): Criterion 1 'no new files in /tmp' is shown indirectly: agents may not list /tmp (sandbox), but a polled test run showed all Robolectric temp dirs (nativeruntime ~157 MB, per-test dirs) created under android/app/build/tmp/testDebugUnitTest/jvm. A human can confirm by listing /tmp/robolectric-* before/after a run (and should delete the old leftovers once).
