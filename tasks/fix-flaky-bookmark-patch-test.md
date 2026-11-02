@@ -6,7 +6,7 @@ deps: [bookmarks-api]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/bookmarks/BookmarkWebTests.kt]
 prio: 1
 lease_until: 2026-11-02T13:30:40Z
-extended: 
+extended: dell26/agent-1
 releases: 1
 hold: 
 ---
@@ -44,3 +44,4 @@ it can get the same 409; the web client handles 409 by reloading, so that is not
 - release by dell26/agent-1: Code fix (fetch timeout 5s, commit 11e5aa16c) + test-writer, code-reviewer, fixer reports all committed; criteria 1-2 verified. Left: (a) rerun stress: cd server && ./gradlew test --tests '*BookmarkWebTests*' --rerun 20x under CPU load (.tmp/stress.sh pattern; earlier 16/16 passed before session ended) and verify #3; (b) sh scripts/check.sh, verify #4; (c) update validation entries in reviews/fix-flaky-bookmark-patch-test/quality.json (result must be exactly 'pass', set reviewed_revision to final hash), commit, then tasks.py done.
 - extended by dell26/agent-1: Fix (fetch timeout 5s) + test-writer, code-review, fixer reports all committed; quality.json drafted. Left: rerun .tmp/stress.sh 20x BookmarkWebTests under load (16/20 passed before session ended), run sh scripts/check.sh, verify #3/#4, set reviewed_revision to current HEAD code commit (8e370508e after rebase) and validation results in quality.json, commit, done.
 - release by dell26/agent-1: Fix done and reviewed: 6f8098e4b (wait for metadata fetch before PATCH) + 6aae63e23 (fetch timeout 5s, CR-1 fix). tests.md/review.md/fixes.md committed; criteria #1,#2 verified. LEFT: (1) rerun the stress loop ('cd server && ./gradlew test --tests *BookmarkWebTests* --rerun' 20x in a row under CPU load, e.g. 16 busy-loop burners; last attempt passed runs 1-16 before the session ended) -> verify #3; (2) sh scripts/check.sh -> verify #4; (3) in reviews/fix-flaky-bookmark-patch-test/quality.json set reviewed_revision to the current hash of 6aae63e23 (after the rebase; it still says 11e5aa16c, same patch) and fill both validation results with exactly pass, commit; (4) tasks.py done. No code changes needed, so the reviews stay fresh.
+- extended by dell26/agent-1: Fix (fetch timeout 5s, commit 11e5aa16c) done; test-writer, code-reviewer, fixer reports committed; criteria 1-2 verified. Left: rerun .tmp/stress.sh to 20/20 under load (16/20 passed before session ended), verify #3; run sh scripts/check.sh, verify #4; finalize quality.json validation + reviewed_revision, commit, done.
