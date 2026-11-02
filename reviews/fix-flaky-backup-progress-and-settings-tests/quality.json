@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "fix-flaky-backup-progress-and-settings-tests",
-  "reviewed_revision": "18cd7e1ad0ae83912c70353db6e9f85d18696d07",
+  "reviewed_revision": "a90cea45dd7ecfa44bfac1ab28751cf63a1cdc56",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/fix-flaky-backup-progress-and-settings-tests/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/fix-flaky-backup-progress-and-settings-tests/review.md"},
