@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "task": "fix-flaky-caldav-dropped-chunk-test",
+  "reviewed_revision": "e7663942180cf2f1a58f70217f8d33a95910e0ac",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/fix-flaky-caldav-dropped-chunk-test/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/fix-flaky-caldav-dropped-chunk-test/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/fix-flaky-caldav-dropped-chunk-test/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "needless Thread.sleep after shouldThrow removed (test-writer, f96d0a580 before rebase)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "ServerSocket bound to 127.0.0.1, same as the client URI (98942ff8b before rebase, now e76639421)"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew check jacocoTestReport", "result": "pass"},
+    {"command": "cd server && ./gradlew test --tests '...CalDavClientTests.a connection that fails after the answer started is not repeated' as temporary @RepeatedTest(200)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
