@@ -291,7 +291,7 @@ class CalDavClientTests {
 		// sees the connection end before the status line: a drop before the answer, rightly retried. This server always
 		// sends the full status line and headers first, then closes cleanly in the middle of the body.
 		val connections = AtomicInteger()
-		ServerSocket(0, 50, InetAddress.getLoopbackAddress()).use { server ->
+		ServerSocket(0, 50, InetAddress.getByName("127.0.0.1")).use { server ->
 			thread(isDaemon = true) {
 				while (!server.isClosed) {
 					val socket = runCatching { server.accept() }.getOrNull() ?: break
