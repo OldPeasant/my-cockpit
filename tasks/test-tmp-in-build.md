@@ -1,11 +1,13 @@
 ---
 title: Server and Android tests keep temp files in build/, not /tmp
-status: in_progress
-owner: felix/agent-1
+status: todo
+owner: 
 deps: [test-tmp-dir-leaks,backup-round-trip-tmp-leak]
 touches: [server/build.gradle.kts,android/app/build.gradle.kts,docs/ARCHITECTURE.md]
 prio: 1
-lease_until: 2026-11-02T05:10:24Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 On the owner's laptop `/tmp` (tmpfs, 12.6 GB quota) filled up on 2026-11-02 ("disk quota exceeded"; 13 GB used):
@@ -36,3 +38,4 @@ Each agent check / `done` adds 1-2 GB, so the machine runs out again within a da
 Requested by the owner (2026-11-02) after `/tmp` filled up. Only the build files (one `tasks.withType<Test>` block
 each, keep both sides on a merge conflict) and the docs line; no test code changes unless a test hard-codes `/tmp`.
 Web (Vitest) and Playwright temp files are out of scope unless the evidence shows they also accumulate in `/tmp`.
+- release by felix/agent-1: Implementation done and committed (ac4c3f51): server/build.gradle.kts and android/app/build.gradle.kts tasks.withType<Test> set -Djava.io.tmpdir=build/tmp/test-jvm/<task> via jvmArgumentProviders and empty it in doFirst (covers integrationTest too); ARCHITECTURE.md line added. Left: all 6 criteria unverified (run /tmp counts before/after testDebugUnitTest + server test, kill-mid-run test, integrationTest --tests '*BackupRoundTrip*', time check.sh vs. before), then test-writer + code-reviewer + quality.json, then done. Note: my check.sh run took >10 min (expected <2) and server PageFetcherSizeLimitTests failed once with 1 TIMEOUT of 50 (looks flaky/unrelated, but confirm it is not caused by the new tmpdir); measure check duration on main for comparison.
