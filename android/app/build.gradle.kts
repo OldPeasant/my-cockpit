@@ -92,7 +92,7 @@ tasks.withType<Test>().configureEach {
     maxHeapSize = "2g"
     // Robolectric extracts its ~200 MB native runtime into java.io.tmpdir per test JVM and never deletes it; in the
     // shared /tmp that filled the quota. A per-task dir under build/tmp keeps it per clone and `clean` removes it.
-    val testTmpDir = layout.buildDirectory.dir("tmp/$name-jvm").get().asFile
+    val testTmpDir = temporaryDir.resolve("jvm")
     systemProperty("java.io.tmpdir", testTmpDir.absolutePath)
     doFirst { testTmpDir.mkdirs() }
     // A failing test prints its class, method and full exception in the log; passing tests stay silent.
