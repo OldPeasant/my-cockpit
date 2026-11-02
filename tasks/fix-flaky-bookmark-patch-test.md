@@ -28,8 +28,9 @@ PATCH with the fetched ETag fails the optimistic lock (`OptimisticLockingFailure
       ETag) waits for `settled(id)` first, or creates the bookmark so that no background fetch runs; the test still
       checks the same behavior (428, 412, 400 cases and the partial update)
   - verified (2026-11-02 05:57+0100 by dell26/agent-2): Read BookmarkWebTests.kt (code-reviewer + test-writer reports): PATCH test now does settled(newBookmark(...).id()) before the 428/412/400/partial-update requests, assertions unchanged; every other If-Match change on a fresh bookmark already waits for settled(), except the deliberate slow-ordering race (now 2s delay vs 5s timeout) -> met
-- [ ] `cd server && ./gradlew test --tests '*BookmarkWebTests*'` passes 20 times in a row, also under load
+- [x] `cd server && ./gradlew test --tests '*BookmarkWebTests*'` passes 20 times in a row, also under load
       (parallel `stress-ng` or a second Gradle build); record the load
+  - verified (2026-11-02 15:33+0100 by Peter Gürtler): sh .tmp/stress.sh (16 busy-loop CPU burners on 16 cores + 'cd server && ./gradlew test --tests *BookmarkWebTests* --rerun' 20x in a row) -> 20/20 passed, loadavg 13.7-22.7 (2026-11-02 14:59-15:22)
 - [ ] `sh scripts/check.sh` passes
 
 ## Notes
