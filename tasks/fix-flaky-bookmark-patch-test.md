@@ -7,8 +7,8 @@ touches: [server/src/test/kotlin/ch/sonensei/cockpit/bookmarks/BookmarkWebTests.
 prio: 1
 lease_until: 
 extended: 
-releases: 2
-hold: Code fix + test-writer/code-reviewer/fixer reports committed, criteria 1-2 verified. Only validation is left, and it needs ~35 min of wall clock, but agent sessions end after a few minutes and kill th
+releases: 0
+hold: 
 ---
 ## Goal
 The rerun of CI run 41355157150 (2026-11-02, server fast check) failed on `BookmarkWebTests > PATCH changes only the
