@@ -7,8 +7,8 @@ touches: [server/src/test/kotlin/ch/sonensei/cockpit/backup/BackupWebTests.kt,an
 prio: 1
 lease_until: 
 extended: 
-releases: 3
-hold: given back 3 times; last: All code, reviews (review/tests/fixes.md) and quality.json committed (reviewed_revision 18cd7e1ad, code unchanged since). Criteria 1-3 verified (server 20/20 + android 20/20 
+releases: 0
+hold: 
 ---
 ## Goal
 Two CI runs on main failed on one flaky test each, unrelated to the task that triggered them (2026-11-01):
