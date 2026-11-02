@@ -21,9 +21,10 @@ PATCH with the fetched ETag fails the optimistic lock (`OptimisticLockingFailure
 - [x] The cause is confirmed (e.g. by delaying the metadata fetch in a local experiment, or from the code path) and
       recorded in the notes; if it is not the metadata fetch, fix the actual cause
   - verified (2026-11-02 05:27+0100 by dell26/agent-2): Code path: BookmarkMetadataWorker stores the fetch result via BookmarkService.applyMetadata on a background thread, which bumps bookmark.version; PATCH checks If-Match in update() (412) and saveAndFlush hits the @Version lock (OptimisticLockingFailureException -> 409 via ProblemDetailsAdvice) if the store commits between load and flush. Experiment: original test with 'current = bookmark; Thread.sleep(500)' before change() (no other request in between) -> FAILED 'Status expected:<200> but was:<412>' (version moved by the background fetch only); same experiment on the fixed test (settled first) -> passes. Cause confirmed: metadata fetch.
-- [ ] The PATCH test (and any other test in `BookmarkWebTests` that changes a freshly created bookmark with its
+- [x] The PATCH test (and any other test in `BookmarkWebTests` that changes a freshly created bookmark with its
       ETag) waits for `settled(id)` first, or creates the bookmark so that no background fetch runs; the test still
       checks the same behavior (428, 412, 400 cases and the partial update)
+  - verified (2026-11-02 05:57+0100 by dell26/agent-2): Read BookmarkWebTests.kt (code-reviewer + test-writer reports): PATCH test now does settled(newBookmark(...).id()) before the 428/412/400/partial-update requests, assertions unchanged; every other If-Match change on a fresh bookmark already waits for settled(), except the deliberate slow-ordering race (now 2s delay vs 5s timeout) -> met
 - [ ] `cd server && ./gradlew test --tests '*BookmarkWebTests*'` passes 20 times in a row, also under load
       (parallel `stress-ng` or a second Gradle build); record the load
 - [ ] `sh scripts/check.sh` passes
