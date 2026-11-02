@@ -6,7 +6,7 @@ deps: [bookmarks-api]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/bookmarks/BookmarkWebTests.kt]
 prio: 1
 lease_until: 2026-11-02T13:15:01Z
-extended: 
+extended: dell26/agent-1
 releases: 0
 hold: 
 ---
@@ -42,3 +42,4 @@ it can get the same 409; the web client handles 409 by reloading, so that is not
 - release by dell26/agent-1: Done: fix (5892d9501 wait for metadata fetch before PATCH; 0857a9600 fetch timeout 5s), criteria 1+2 verified, test-writer/code-reviewer/fixer reports committed, CR-1 fixed, draft quality.json committed. Left (validation only, no code): (1) re-run 20x 'cd server && ./gradlew test --tests *BookmarkWebTests* --rerun' under CPU load (.tmp/stress.sh, previous attempt 16/16 passed before session ended) and verify criterion 3; (2) run sh scripts/check.sh, verify criterion 4; (3) update quality.json: reviewed_revision is stale (11e5aa16c) -> set to current hash of 0857a9600-equivalent commit after rebase, fill validation results with 'pass'; commit; then tasks.py done.
 - extended by dell26/agent-1: No code work left; fix + all helper reports committed. Left: (1) sh .tmp/stress.sh-style: 16 CPU burners + 'cd server && ./gradlew test --tests *BookmarkWebTests* --rerun' 20x in a row (~1m40s each, run in background with long timeout) -> verify #3 with the load; (2) sh scripts/check.sh -> verify #4; (3) quality.json: set reviewed_revision to current hash of the 'fetch timeout 5s' commit (8811da817 after rebase), validation results exactly 'pass'; commit; tasks.py done in background (>=1h timeout).
 - release by dell26/agent-1: Code fix (fetch timeout 5s, commit 11e5aa16c) + test-writer, code-reviewer, fixer reports all committed; criteria 1-2 verified. Left: (a) rerun stress: cd server && ./gradlew test --tests '*BookmarkWebTests*' --rerun 20x under CPU load (.tmp/stress.sh pattern; earlier 16/16 passed before session ended) and verify #3; (b) sh scripts/check.sh, verify #4; (c) update validation entries in reviews/fix-flaky-bookmark-patch-test/quality.json (result must be exactly 'pass', set reviewed_revision to final hash), commit, then tasks.py done.
+- extended by dell26/agent-1: Fix (fetch timeout 5s) + test-writer, code-review, fixer reports all committed; quality.json drafted. Left: rerun .tmp/stress.sh 20x BookmarkWebTests under load (16/20 passed before session ended), run sh scripts/check.sh, verify #3/#4, set reviewed_revision to current HEAD code commit (8e370508e after rebase) and validation results in quality.json, commit, done.
