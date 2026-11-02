@@ -31,8 +31,9 @@ Each agent check / `done` adds 1-2 GB, so the machine runs out again within a da
       (`pkill -f "Gradle Test Executor"`), check `/tmp` gained no Robolectric folder; the next run empties the
       leftovers under `build/`
   - verified (2026-11-02 10:06+0100 by dell26/agent-1): Started 'cd android && ./gradlew testDebugUnitTest --rerun', killed the test JVM with pkill -9 -f 'agent-1/android/app/build/tmp/test-jvm' once its tmpdir reached 205M (pattern scoped to this clone's executor, not 'Gradle Test Executor', so other agents' test runs on the shared machine survive) -> BUILD FAILED as expected; 205M left in android/app/build/tmp/test-jvm/testDebugUnitTest incl. robolectric-nativeruntime806669198986125669; /tmp list identical (no new robolectric folder). Next 'testDebugUnitTest --rerun' -> BUILD SUCCESSFUL, dir back to 4K, leftovers gone
-- [ ] The integration test task (`server` `integrationTest`, Testcontainers) gets the same setting; Testcontainers
+- [x] The integration test task (`server` `integrationTest`, Testcontainers) gets the same setting; Testcontainers
       still works (`./gradlew integrationTest --tests '*BackupRoundTrip*'` or another short one passes)
+  - verified (2026-11-02 10:06+0100 by dell26/agent-1): integrationTest is a Test task so withType<Test>().configureEach applies; '--tests *BackupRoundTrip*' finds nothing (BackupRoundTripTest is in the unit test task, covered by #2). Ran 'cd server && ./gradlew integrationTest --tests *HeaderSyncDovecotTests --tests *ExternalToolingSmokeTests --rerun' -> BUILD SUCCESSFUL, 4 tests 0 failures 0 skipped (Dovecot via Testcontainers GenericContainer, podman); build/tmp/test-jvm/integrationTest created; /tmp list unchanged
 - [ ] `sh scripts/check.sh` passes, and its duration is not noticeably longer than before (record both)
 - [x] `docs/ARCHITECTURE.md` (testing section) says in one line that test temp files live under `build/tmp/test-jvm`
   - verified (2026-11-02 08:13+0100 by dell26/agent-1): grep -n test-jvm docs/ARCHITECTURE.md -> line 150-151 in Testing section: test JVM java.io.tmpdir is build/tmp/test-jvm/{task name}, emptied per run, removed by clean
