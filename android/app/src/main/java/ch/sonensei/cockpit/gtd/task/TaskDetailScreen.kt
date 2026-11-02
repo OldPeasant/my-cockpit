@@ -65,6 +65,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -1019,7 +1020,7 @@ private fun ProblemText(
     Text(
         when (problem) {
             FieldProblem.Required -> stringResource(R.string.task_detail_error_required)
-            FieldProblem.TooLong -> stringResource(R.string.task_detail_error_too_long, TaskDraft.MAX_TITLE)
+            FieldProblem.TooLong -> pluralStringResource(R.plurals.task_detail_error_too_long, TaskDraft.MAX_TITLE, TaskDraft.MAX_TITLE)
             FieldProblem.NotANumber -> stringResource(R.string.task_detail_error_estimate, TaskDraft.MAX_ESTIMATE)
             is FieldProblem.Server -> problem.message.ifBlank { stringResource(R.string.task_detail_error_invalid) }
         },

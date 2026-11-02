@@ -73,7 +73,10 @@
     <string name="task_detail_cancel">Cancel</string>
     <string name="task_detail_ok">OK</string>
     <string name="task_detail_error_required">Enter a title.</string>
-    <string name="task_detail_error_too_long">At most %1$d characters.</string>
+    <plurals name="task_detail_error_too_long">
+        <item quantity="one">At most %1$d character.</item>
+        <item quantity="other">At most %1$d characters.</item>
+    </plurals>
     <string name="task_detail_error_estimate">Enter whole minutes, at most %1$d.</string>
     <string name="task_detail_error_invalid">This value is not valid.</string>
 
