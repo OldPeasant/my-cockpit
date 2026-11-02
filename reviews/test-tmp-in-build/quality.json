@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "task": "test-tmp-in-build",
+  "reviewed_revision": "9be7b78c5b4b056f53df63b9fdb7b760be952614",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/test-tmp-in-build/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/test-tmp-in-build/review.md"},
+    "fixer": {"status": "not_required", "reason": "the only finding (CR-1, P3) is comment placement in server/build.gradle.kts; accepted as is, no behavior impact"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "temp-dir comment sits above the shared withType<Test> block instead of directly above val testTmpDir; readability only, still describes the block it is in"}
+  ],
+  "validation": [
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}

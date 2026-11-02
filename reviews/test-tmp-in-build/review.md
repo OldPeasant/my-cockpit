@@ -4,27 +4,45 @@ Date: 2026-11-02
 
 Task: test-tmp-in-build - Server and Android tests keep temp files in build/, not /tmp
 
-Scope: task commit 5adf18af8 on top of base bd4b11a35 (git diff bd4b11a35..5adf18af8), as supplied by the parent worker: `server/build.gradle.kts`, `android/app/build.gradle.kts`, `docs/ARCHITECTURE.md`
+Scope: `git diff a0a707e35 HEAD -- server android docs` (task code commit e68c61ff0, merge f7b9b772c of origin/wip/test-tmp-in-build, and 9be7b78c5 which drops the superseded and-test-tmpdir lines)
 
 Requirements:
-- `tasks/test-tmp-in-build.md` (acceptance criteria and notes)
-- `AGENTS.md` (project notes, conventions)
-- `docs/ARCHITECTURE.md` ("Testing")
-- Parent worker instructions (focus: integrationTest coverage, `clean`, configuration cache, task inputs, Windows paths, Testcontainers)
+- tasks/test-tmp-in-build.md (acceptance criteria and notes)
+- AGENTS.md project notes (build files, shared docs, lint conventions)
+- docs/ARCHITECTURE.md (Testing section)
+- tasks/and-test-tmpdir.md (the earlier done task whose lines were removed)
 
 Git range:
-- Branch: main (the task work is merged into the local clone, HEAD b66b1c98b "Merge remote-tracking branch 'origin/wip/test-tmp-in-build'")
-- HEAD: b66b1c98b
-- Base/start: bd4b11a35abd0ea6a52080d0d49edbba82b09215
-- Commits reviewed: 1 (5adf18af8)
+- Branch: main
+- HEAD: 9be7b78c5
+- Base/start: a0a707e35 (origin/main)
+- Commits reviewed: 5 (e68c61ff0, 9d93051af, 36b4757f8, f7b9b772c, 9be7b78c5; only e68c61ff0, f7b9b772c and 9be7b78c5 touch the reviewed paths)
 
-Note on method: Bash was not available to this reviewer in this session, so `git diff` and `tasks.py verify` could not be run. The
-change was reviewed from the current contents of the three touched files (which contain the change as described by the parent),
-plus `server/gradle.properties`, `android/gradle.properties` and `scripts/check.sh`. Gradle was not run (not possible for
-sub-agents here); runtime behaviour relies on the parent's evidence (second server `test` run UP-TO-DATE with the lambda
-provider; Android Robolectric files landed under `build/`, not `/tmp`).
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-Summary: 0 P0, 0 P1, 0 P2, 0 P3
+## What was checked
+
+- `server/build.gradle.kts` and `android/app/build.gradle.kts`: `tasks.withType(Test).configureEach` adds
+  `-Djava.io.tmpdir=build/tmp/test-jvm/{task name}` via `jvmArgumentProviders` and, in `doFirst`, deletes and recreates
+  the folder. `withType(Test)` covers `test`, `integrationTest` (server, registered as `Test`) and every Android
+  unit-test variant task. The directory is under `layout.buildDirectory`, so `clean` removes it.
+- Using a `CommandLineArgumentProvider` instead of `systemProperty` keeps the absolute path out of the task's tracked
+  inputs (no cache-key churn between clones); the Kotlin DSL compiles SAM conversions to classes, so the provider
+  implementation stays trackable. The `doFirst` closure captures only a directory provider (`Provider` of `Directory`), which is compatible with
+  the configuration cache.
+- The 9be7b78c5 removal: the and-test-tmpdir lines (`temporaryDir.resolve("jvm")`, `systemProperty("java.io.tmpdir", ...)`,
+  `doFirst { mkdirs() }`) would have set the same property twice (a `systemProperty` and a `-D` from the argument
+  provider, with ordering-dependent precedence) and redeclared `val testTmpDir` in the same scope, which does not
+  compile. Removing them is correct; the new setting satisfies and-test-tmpdir's criterion as well (tmpdir under the
+  module's `build/`, not `/tmp`). No other file references the removed `temporaryDir/jvm` path.
+- `git diff e68c61ff0 HEAD` on the three reviewed files is empty: the final code is identical to the task's original
+  code commit, so the recorded evidence for criteria 1-4 and 6 (gathered on that code) still applies.
+- No test hard-codes the host `/tmp` (the only hits are container paths in `HeaderSyncDovecotTests`), so no test changes
+  were needed, matching the task note.
+- `docs/ARCHITECTURE.md` lines 150-151: one line in the Testing area, consistent with the build code.
+- Criterion 5 (`sh scripts/check.sh` passes, duration recorded) is still open on the board; it is evidence the parent
+  must record, not a code defect, and was not claimed.
+- No secrets, dependencies, or security-relevant configuration changed.
 
 ## P0 Critical
 
@@ -40,43 +58,17 @@ None.
 
 ## P3 Low
 
-None.
-
-## Checks performed
-
-- Criterion 1 (every `Test` task, folder under `build/`, created and emptied at task start, removed by `clean`):
-  both files configure `tasks.withType{Test}().configureEach`, so `test`, `integrationTest` and `updateOpenApi` (server) and
-  every AGP unit-test task such as `testDebugUnitTest`/`testReleaseUnitTest` (android; AGP's unit-test task is a `Test`
-  subclass) are covered, including tasks registered after the block (`configureEach` is lazy). The folder is
-  `layout.buildDirectory.dir("tmp/test-jvm/" + name)`, i.e. `build/tmp/test-jvm/{task name}`, distinct from Gradle's own
-  per-task `build/tmp/{task name}` temporary dir. `doFirst` deletes and recreates it before the test JVMs fork, so leftovers
-  of killed runs are removed by the next executing run of the same task; `clean` deletes `build/` and therefore it. The path is
-  absolute, so `Files.createTempDirectory`/`@TempDir` resolve independently of the worker's working directory. Each task has
-  its own folder, so `test` and `integrationTest` running in one build cannot empty each other's files; parallel forks of one
-  task share a folder but only create random-named entries.
-- Criterion 4 (integrationTest gets the same setting): covered by the `withType{Test}` block, which also applies to the
-  later-registered `integrationTest`. Testcontainers transfers files to containers through the Docker API (tar copy) and
-  reaches Podman via `DOCKER_HOST`, neither depends on `java.io.tmpdir`; the runtime proof is the parent's integrationTest run.
-- Criterion 6: `docs/ARCHITECTURE.md` "Testing" states that test temp files live under `build/tmp/test-jvm/{task name}`, emptied
-  per run and removed by `clean` (one sentence wrapped over two source lines).
-- Task inputs / up-to-date: the `CommandLineArgumentProvider` lambda has no annotated input properties, so only its
-  implementation is tracked, not the absolute path it emits; the build cache key therefore stays relocatable, and the
-  parent observed a second run as UP-TO-DATE, which shows Gradle could fingerprint the lambda implementation (an unknown
-  implementation would have disabled up-to-date checks). An UP-TO-DATE or FROM-CACHE run skips `doFirst`, which is fine: no
-  test JVM runs then, so nothing is written.
-- Configuration cache: not enabled in either `gradle.properties`. Even so, both lambdas capture only the
-  `Provider{Directory}` value `testTmpDir` (no `project` or script references at execution time), which is
-  configuration-cache compatible.
-- Windows: the argument is a single list element (`-Djava.io.tmpdir=` plus the `File` path), so Gradle passes it as one
-  argument even with backslashes or spaces; `deleteRecursively`/`mkdirs` are platform-neutral.
-- Existing Android block: the new lines sit inside the existing `configureEach` alongside heap, logging, JaCoCo and e2e
-  settings and do not change them; JaCoCo's exec file lives in `build/jacoco/`, outside the emptied folder.
-- Scope: only the three files named in `touches`; no test code changed, no dependencies added. No secrets or personal data.
+- [ ] **CR-1 | Server tmpdir comment sits above the unrelated testLogging code**
+    - File: `server/build.gradle.kts:113`
+    - Category: Quality
+    - Problem: The new two-line tmpdir comment is placed after the existing testLogging comment, above
+      `tasks.withType(Test).configureEach`, while the tmpdir code it describes is at the end of the block (lines 122-129).
+      The testLogging comment and its code are now separated by an unrelated comment. In `android/app/build.gradle.kts`
+      the same comment sits directly above the code it explains.
+    - Why it matters: Minor readability; a reader of the block header sees two comments for two concerns and has to
+      search for the tmpdir lines.
+    - Suggested fix: Move the tmpdir comment inside the block, directly above `val testTmpDir`, as in the Android file.
 
 ## Review conclusion
 
 No material issues found.
-
-Evidence for criteria 2, 3, 4 and 5 (the `/tmp` counts, the killed-run check, the integrationTest run and the check.sh
-timing) is runtime evidence that the parent must record with `tasks.py verify`; this reviewer could not inspect the recorded
-evidence in this session.
