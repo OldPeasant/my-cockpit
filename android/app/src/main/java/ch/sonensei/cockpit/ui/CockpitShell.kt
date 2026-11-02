@@ -106,8 +106,8 @@ internal fun CockpitShellFrame(
     // Task rows of every screen open the task detail screen on top of the current one; Back returns there.
     val openTask =
         remember(navController) {
-            TaskOpener { id, snapshot ->
-                snapshot?.let(TaskSnapshots::put)
+            TaskOpener { id, snapshot, completedAt ->
+                snapshot?.let { TaskSnapshots.put(it, completedAt) }
                 navController.navigate(TaskRoutes.detail(id))
             }
         }

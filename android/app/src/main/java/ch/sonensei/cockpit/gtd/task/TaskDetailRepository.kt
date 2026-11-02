@@ -211,6 +211,8 @@ interface TaskDetailSource {
 data class CachedTask(
     val task: GtdTask,
     val loadedAt: Instant?,
+    /** When it was completed, if the copy came from a list that knows (the Logbook); `null` while open or unknown. */
+    val completedAt: Instant? = null,
 )
 
 /** The task detail screen's server calls (SPEC.md §5): one task with its checklist and links, and changes to it. */
@@ -227,12 +229,13 @@ class TaskDetailRepository
         override suspend fun load(id: UUID): TaskResult<TaskDetail> =
             coroutineScope {
                 val checklist = async { checklist(id) }
-                // Links are extra: when they cannot be loaded, the task still shows.
-                val links = async { call({ writeApi.listTaskLinks(id) }) { body -> body!!.items.mapNotNull { it.otherEnd(id) } } }
+                // Links are extra: when they cannot be loaded, the task still shows. Their request does not go through
+                // call(), so a failing one cannot mark the GTD screens offline while the task itself loaded.
+                val links = async { links(id) }
                 when (val task = call({ api.getTask(id) }) { it!! }) {
                     is TaskResult.Ok -> {
                         val items = checklist.await()
-                        val linked = (links.await() as? TaskResult.Ok)?.value.orEmpty()
+                        val linked = links.await()
                         when (items) {
                             is TaskResult.Ok -> TaskResult.Ok(task.value.toDetail(items.value, linked))
                             else -> items.mapFailure()
@@ -246,8 +249,15 @@ class TaskDetailRepository
                 }
             }
 
+        /** The other ends of the task's links; none when they cannot be loaded (without touching the offline state). */
+        private suspend fun links(id: UUID): List<TaskLink> =
+            runCatching {
+                val response = writeApi.listTaskLinks(id)
+                if (response.isSuccessful) response.body()?.items?.mapNotNull { it.otherEnd(id) } else null
+            }.getOrNull().orEmpty()
+
         override suspend fun cached(id: UUID): CachedTask? {
-            TaskSnapshots.get(id)?.let { return CachedTask(it, null) }
+            TaskSnapshots.cached(id)?.let { return it }
             for (view in TaskView.entries) {
                 val rows = dao.taskRows(view.name)
                 rows.rows.firstOrNull { it.id == id.toString() }?.let { row ->

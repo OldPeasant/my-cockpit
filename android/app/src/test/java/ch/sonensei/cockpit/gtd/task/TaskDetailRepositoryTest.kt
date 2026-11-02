@@ -190,6 +190,19 @@ class TaskDetailRepositoryTest {
         }
 
     @Test
+    fun `links that fail on the server side leave the shared offline state alone`() =
+        runBlocking {
+            dispatcher.enqueue(taskPath, json(taskJson(1, "Buy seeds", "NEXT")))
+            dispatcher.enqueue(checklistPath, json("""{"items":[]}"""))
+            dispatcher.enqueue(linksPath, status(503))
+
+            val detail = (repository.load(taskId) as TaskResult.Ok).value
+
+            assertTrue(detail.links.isEmpty())
+            assertEquals(false, harness.connectivity.offline.value)
+        }
+
+    @Test
     fun `a task gone or trashed elsewhere is not found`() =
         runBlocking {
             dispatcher.enqueue(taskPath, status(404))
@@ -262,7 +275,7 @@ class TaskDetailRepositoryTest {
             )
             dispatcher.enqueue(
                 taskPath,
-                problemResponse(400,"""{"status":400,"detail":"Malformed","errors":[{"field":"dueTime","message":"needs a due date"}]}"""),
+                problemResponse(400, """{"status":400,"detail":"Malformed","errors":[{"field":"dueTime","message":"needs a due date"}]}"""),
             )
             assertEquals(
                 TaskResult.Invalid(mapOf("dueTime" to "needs a due date"), "Malformed"),
@@ -404,6 +417,15 @@ class TaskDetailRepositoryTest {
 
             TaskSnapshots.put(task.copy(title = "Buy seeds (from Waiting)"))
             assertEquals(CachedTask(task.copy(title = "Buy seeds (from Waiting)"), null), repository.cached(taskId))
+        }
+
+    @Test
+    fun `a snapshot from the Logbook keeps the completion time for the offline copy`() =
+        runBlocking {
+            val doneAt = Instant.parse("2026-10-20T08:00:00Z")
+            TaskSnapshots.put(task, doneAt)
+            assertEquals(CachedTask(task, null, completedAt = doneAt), repository.cached(taskId))
+            assertEquals(task, TaskSnapshots.get(taskId))
         }
 
     @Test

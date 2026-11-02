@@ -189,20 +189,27 @@ class TaskDetailContentTest {
 
     @Test
     fun `in the shell a Logbook row opens the task detail instead of the Logbook's dialog`() {
-        val opened = mutableListOf<Pair<UUID, GtdTask?>>()
+        val opened = mutableListOf<Triple<UUID, GtdTask?, Instant?>>()
         val logged = LoggedTask(seeds, Instant.parse("2026-10-20T08:00:00Z"))
         val logbookCalls = mutableListOf<String>()
         val state =
-            LogbookUiState(tasks = listOf(logged), loading = false, loaded = true, zone = ZoneOffset.UTC, today = LocalDate.of(2026, 10, 20))
+            LogbookUiState(
+                tasks = listOf(logged),
+                loading = false,
+                loaded = true,
+                zone = ZoneOffset.UTC,
+                today = LocalDate.of(2026, 10, 20),
+            )
         composeRule.setContent {
             CockpitTheme {
-                CompositionLocalProvider(LocalTaskOpener provides TaskOpener { id, snapshot -> opened += id to snapshot }) {
+                CompositionLocalProvider(LocalTaskOpener provides TaskOpener { id, snapshot, at -> opened += Triple(id, snapshot, at) }) {
                     LogbookContent(state, LogbookCallbacks(open = { logbookCalls += "open ${it.task.title}" }))
                 }
             }
         }
         composeRule.onNodeWithTag(TaskListTags.row(seeds.id)).performClick()
-        assertEquals(listOf(seeds.id to seeds), opened)
+        // The completion time goes along, so offline the detail shows the task as done.
+        assertEquals(listOf(Triple(seeds.id, seeds, logged.completedAt)), opened)
         assertTrue(logbookCalls.isEmpty())
     }
 

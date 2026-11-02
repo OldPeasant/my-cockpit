@@ -220,7 +220,7 @@ private fun LogbookRow(
                 .testTag(TaskListTags.row(task.id))
                 .clickable(onClickLabel = stringResource(R.string.logbook_open)) {
                     // In the shell the detail screen opens; elsewhere (screen tests) the Logbook's own dialog.
-                    opener?.open(task.id, task) ?: callbacks.open(done)
+                    opener?.open(task.id, task, done.completedAt) ?: callbacks.open(done)
                 },
         leadingContent = { Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
         headlineContent = { Text(task.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },

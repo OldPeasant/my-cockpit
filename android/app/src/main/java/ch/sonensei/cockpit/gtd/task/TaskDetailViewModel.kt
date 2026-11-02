@@ -30,6 +30,7 @@ import okhttp3.HttpUrl
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
 
@@ -103,7 +104,7 @@ data class TaskDraft(
         // A time needs a date (the server refuses one without), so clearing the date clears the time too.
         val time = dueTime.takeIf { dueDate != null }
         if (time != before.dueTime || dueDate != before.dueDate && time != null) {
-            fields[TaskField.DUE_TIME.apiName] = jsonOf(time?.let { "%02d:%02d:00".format(it.hour, it.minute) })
+            fields[TaskField.DUE_TIME.apiName] = jsonOf(time?.let { "%02d:%02d:00".format(Locale.ROOT, it.hour, it.minute) })
         }
         val minutes = estimate.trim().toIntOrNull()
         if (minutes != task.timeEstimateMin) fields[TaskField.ESTIMATE.apiName] = jsonOf(minutes)
@@ -264,12 +265,13 @@ class TaskDetailViewModel internal constructor(
                     )
                 }
             TaskResult.Offline -> {
-                val cached = source.cached(id)
+                // A task already loaded (e.g. reloading after a change) is newer than the list's copy: keep it.
+                val cached = if (state.value.detail == null) source.cached(id) else null
                 state.update {
                     it.copy(
                         loading = false,
-                        detail = cached?.let { copy -> TaskDetail(copy.task) } ?: it.detail,
-                        cachedAt = cached?.loadedAt ?: it.cachedAt,
+                        detail = it.detail ?: cached?.let { copy -> TaskDetail(copy.task, completedAt = copy.completedAt) },
+                        cachedAt = if (it.detail == null) cached?.loadedAt else it.cachedAt,
                         offline = true,
                         loadFailed = cached == null && it.detail == null,
                         draft = null,

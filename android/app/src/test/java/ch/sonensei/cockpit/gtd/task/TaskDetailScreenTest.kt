@@ -58,7 +58,7 @@ class TaskDetailScreenTest {
     private val contract = GtdTask(id(2), "Contract", TaskList.WAITING, 0, 1, waitingForText = "Anna", waitingSince = today.minusDays(3))
 
     private val opened = mutableListOf<Pair<UUID, GtdTask?>>()
-    private val opener = TaskOpener { id, snapshot -> opened += id to snapshot }
+    private val opener = TaskOpener { id, snapshot, _ -> opened += id to snapshot }
 
     @Test
     fun `tapping a Next row opens the task with the list's copy, the checkbox still completes`() {

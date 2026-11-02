@@ -6,14 +6,25 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import java.time.Instant
 import java.util.UUID
 
-/** Opens the task detail screen of a task; [snapshot] is the list's copy, shown read-only if the server is unreachable. */
+/**
+ * Opens the task detail screen of a task; [snapshot] is the list's copy, shown read-only if the server is unreachable,
+ * and [completedAt] when the list knows the task is completed (the Logbook).
+ */
 fun interface TaskOpener {
     fun open(
         id: UUID,
         snapshot: GtdTask?,
+        completedAt: Instant?,
     )
+
+    /** Opens a task of a list that does not know about completion (only open tasks are listed). */
+    fun open(
+        id: UUID,
+        snapshot: GtdTask?,
+    ) = open(id, snapshot, null)
 }
 
 /**
@@ -38,17 +49,24 @@ object TaskRoutes {
  */
 object TaskSnapshots {
     private const val MAX = 50
-    private val snapshots = LinkedHashMap<UUID, GtdTask>()
+    private val snapshots = LinkedHashMap<UUID, CachedTask>()
 
     @Synchronized
-    fun put(task: GtdTask) {
+    fun put(
+        task: GtdTask,
+        completedAt: Instant? = null,
+    ) {
         snapshots.remove(task.id)
-        snapshots[task.id] = task
+        snapshots[task.id] = CachedTask(task, loadedAt = null, completedAt = completedAt)
         if (snapshots.size > MAX) snapshots.remove(snapshots.keys.first())
     }
 
     @Synchronized
-    fun get(id: UUID): GtdTask? = snapshots[id]
+    fun get(id: UUID): GtdTask? = snapshots[id]?.task
+
+    /** The copy of [id] with its completion time, if one was kept. */
+    @Synchronized
+    fun cached(id: UUID): CachedTask? = snapshots[id]
 
     @Synchronized
     fun clear() = snapshots.clear()

@@ -80,7 +80,12 @@ class TaskDetailViewModelEdgeTest {
             source.loadResult = TaskResult.Ok(TaskDetail(other))
             vm.open(other.id)
             assertEquals(2, source.loads)
-            assertEquals("Water the plants", vm.uiState.value.detail?.task?.title)
+            assertEquals(
+                "Water the plants",
+                vm.uiState.value.detail
+                    ?.task
+                    ?.title,
+            )
         }
 
     @Test
@@ -120,6 +125,37 @@ class TaskDetailViewModelEdgeTest {
         }
 
     @Test
+    fun `a reload without an answer after a change keeps the loaded task, not the older list copy`() =
+        runTest {
+            source.cachedTask = CachedTask(task.copy(title = "Buy seeds (list copy)"), Instant.parse("2026-10-01T08:00:00Z"))
+            val vm = viewModel()
+            collect(vm)
+            source.loadResult = TaskResult.Offline
+            vm.complete()
+            val state = vm.uiState.value
+            assertEquals(listOf("complete"), source.calls)
+            assertEquals(DetailMessage.Completed, state.message)
+            assertTrue(state.offline)
+            assertEquals(detail, state.detail)
+            assertEquals(listOf(tick), state.detail?.checklist)
+            assertNull(state.cachedAt)
+        }
+
+    @Test
+    fun `offline a task opened from the Logbook shows as completed`() =
+        runTest {
+            val doneAt = Instant.parse("2026-10-20T08:00:00Z")
+            source.loadResult = TaskResult.Offline
+            source.cachedTask = CachedTask(task, null, completedAt = doneAt)
+            val vm = viewModel()
+            collect(vm)
+            val state = vm.uiState.value
+            assertTrue(state.offline)
+            assertEquals(doneAt, state.detail?.completedAt)
+            assertTrue(state.detail!!.completed)
+        }
+
+    @Test
     fun `retrying from the offline copy leaves offline once the server answers`() =
         runTest {
             source.loadResult = TaskResult.Offline
@@ -156,12 +192,23 @@ class TaskDetailViewModelEdgeTest {
         runTest {
             val vm = editing { it.copy(title = " ") }
             vm.save()
-            assertTrue(vm.uiState.value.problems.isNotEmpty())
+            assertTrue(
+                vm.uiState.value.problems
+                    .isNotEmpty(),
+            )
             vm.cancelEditing()
             assertNull(vm.uiState.value.draft)
-            assertTrue(vm.uiState.value.problems.isEmpty())
+            assertTrue(
+                vm.uiState.value.problems
+                    .isEmpty(),
+            )
             assertTrue(source.updates.isEmpty())
-            assertEquals("Buy seeds", vm.uiState.value.detail?.task?.title)
+            assertEquals(
+                "Buy seeds",
+                vm.uiState.value.detail
+                    ?.task
+                    ?.title,
+            )
         }
 
     @Test
@@ -195,7 +242,10 @@ class TaskDetailViewModelEdgeTest {
             source.updateResult = TaskResult.Invalid(emptyMap(), "Task is read-only")
             vm.save()
             assertEquals(DetailMessage.Failed("Task is read-only"), vm.uiState.value.message)
-            assertTrue(vm.uiState.value.problems.isEmpty())
+            assertTrue(
+                vm.uiState.value.problems
+                    .isEmpty(),
+            )
             assertEquals(
                 "Buy seeds and soil",
                 vm.uiState.value.draft
@@ -289,7 +339,12 @@ class TaskDetailViewModelEdgeTest {
             vm.move(MoveTarget.SOMEDAY)
             assertEquals(Triple(task, MoveTarget.SOMEDAY, null), source.moves.single())
             assertEquals(DetailMessage.Offline, vm.uiState.value.message)
-            assertEquals(TaskList.NEXT, vm.uiState.value.detail?.task?.list)
+            assertEquals(
+                TaskList.NEXT,
+                vm.uiState.value.detail
+                    ?.task
+                    ?.list,
+            )
             assertFalse(vm.uiState.value.busy)
             assertEquals(0, source.changes)
         }
