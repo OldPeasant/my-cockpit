@@ -22,10 +22,11 @@ existing API: `GET/PATCH/DELETE /api/v1/tasks/{id}` (ETag/If-Match), `POST /task
       Logbook opens the task detail screen; task results in global search and task entries on the Dashboard open
       it too instead of the browser; Back returns to where the user came from
   - verified (2026-11-02 11:32+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest (Robolectric Compose, rev c171fc231) -> pass: TaskDetailScreenTest (Next row opens, checkbox still completes; Waiting row opens; shell route on top + Back returns to list), TaskDetailContentTest (Logbook row in shell opens detail), DashboardTaskOpenTest (Today/Waiting card tasks open detail), SearchRouteInAppTest (task hit opens in-app detail, not browser). Today/Projects/Someday share TaskRow/LiveTaskRow (opensTask). No device/emulator run.
-- [ ] The screen shows title, notes (rendered Markdown, as the Android notes screen renders it), checklist,
+- [x] The screen shows title, notes (rendered Markdown, as the Android notes screen renders it), checklist,
       project, contexts, due date/time, defer/start date if the model has one, time estimate, energy, creativity,
       waiting-for person (for Waiting tasks), and linked items (tapping a linked item opens it where the app has a
       screen, else the web deep link)
+  - verified (2026-11-02 11:32+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest (rev c171fc231) -> pass: TaskDetailContentTest 'shows the task's fields, notes rendered as Markdown, checklist and linked items', 'a Waiting task shows whom it waits for', 'a Someday task shows its tickler date'; TaskDetailRepositoryTest link direction; linked-item routing unit-tested (Hilt-only nav lambda not driven)
 - [ ] Editing: title, notes, project (picker of active projects), contexts (multi-select), due date/time,
       estimate, energy, creativity; saved with PATCH and `If-Match`; a 412 (changed elsewhere) reloads the task
       and tells the user instead of overwriting; validation errors from Problem Details are shown at the field or
