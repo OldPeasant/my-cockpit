@@ -14,8 +14,9 @@ series occurrence, and `If-Match`; events of synced calendars are deleted at the
 (`web/src/app/features/calendar/edit`, scope prompt in `scope-dialog.ts`) is the reference. Server unchanged.
 
 ## Acceptance criteria
-- [ ] The event editor (`calendar/edit/EventEditorScreen`) shows a Delete action for an existing event in a
+- [x] The event editor (`calendar/edit/EventEditorScreen`) shows a Delete action for an existing event in a
       calendar that can be changed; not for new events, read-only calendars (ICS feeds, birthdays) or while saving
+  - verified (2026-11-02 10:56+0100 by dell26/agent-1): EventEditorDeleteScreenTest (Robolectric Compose, ./gradlew testDebugUnitTest) -> Delete shown+enabled for existing event; absent for new, read-only calendar, loading, saving (7/7 pass); VM test new/read-only/running delete -> canDelete false
 - [ ] A single event: a confirmation ("Delete this event?") then `DELETE` with `If-Match`; on success the editor
       closes and the agenda/day/week views no longer show the event (cache updated, no manual refresh)
 - [ ] A repeating event: the existing scope choice (only this / this and following / all events in the series),
