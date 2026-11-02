@@ -1,0 +1,39 @@
+---
+title: Flaky tests: BackupWebTests progress step and SettingsServerChangeTest leak
+status: todo
+owner:
+deps: [backup-core,and-settings]
+touches: [server/src/test/kotlin/ch/sonensei/cockpit/backup/BackupWebTests.kt,android/app/src/test/java/ch/sonensei/cockpit/settings/SettingsServerChangeTest.kt]
+prio: 1
+---
+## Goal
+Two CI runs on main failed on one flaky test each, unrelated to the task that triggered them (2026-11-01):
+- run 41355157150 (done: and-dashboard), server fast check: `BackupWebTests > progress is announced as BACKUP
+  change events while the export runs()` -> `expected:<controllable: data> but was:<bookmarks: data>`
+  (BackupWebTests.kt:184). `awaitEvent(id, UPDATED)` returns on the first UPDATED event of any step, then the test
+  expects the gated step. `BackupEventsStreamTests` (lines 91-95) already loops until the step is `GATED_STEP`.
+- run 41352217885 (done: web-tests-load-robust), android fast check: `SettingsViewModelTest > sync now enqueues
+  ...` failed with `UncaughtExceptionsBeforeTest`; the suppressed cause is `Dispatchers.Main was accessed ... after
+  Dispatchers.resetMain()` from `SettingsViewModel.saveServer -> loadUser` resumed on the DataStore IO thread. It
+  leaked from `SettingsServerChangeTest` (ran just before): `changeServerTo` stops waiting when `serverForm` becomes
+  null, but `saveServer` then calls `loadUser()`, which launches on Main while `tearDown` cancels the scopes and
+  resets Main.
+Test-only fixes; no production code change unless the race is a real app bug (then record why).
+
+## Acceptance criteria
+- [ ] `BackupWebTests` progress test waits (with deadline) until the job's step is the gated step instead of the
+      first UPDATED event, as `BackupEventsStreamTests` does; `cd server && ./gradlew test --tests
+      '*BackupWebTests*'` passes 20 times in a row (e.g. a loop, or `@RepeatedTest` temporarily), also under load
+      (parallel `stress-ng` or a second Gradle build); record the load
+- [ ] `SettingsServerChangeTest` waits until the save is fully finished (incl. the user reload) before the test
+      ends, or its tearDown waits for the ViewModels' work (cancel and join) before `resetMain`, so no coroutine
+      touches Main afterwards; demonstrated by running `SettingsServerChangeTest` and `SettingsViewModelTest`
+      together 20 times (`--tests` both, `--rerun-tasks` in a loop) -> 0 failures, also under load
+- [ ] Search the other Android tests that use a real `PreferenceDataStoreFactory` / `Dispatchers.IO` store with
+      `setMain`/`resetMain` (e.g. auth/passkey tests) for the same pattern; fix those in the same way only if they
+      are local test changes, otherwise list them in the notes
+- [ ] `sh scripts/check.sh` passes
+
+## Notes
+Found by the owner's request to look into the failing CI checks (2026-11-02). The CI job of run 41355157150 was
+re-run to confirm the failure is flaky.
