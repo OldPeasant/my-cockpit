@@ -1,10 +1,11 @@
 ---
 title: Flaky test: CalDavClientTests 'a connection that fails after the answer started is not repeated' sometimes retries
-status: todo
-owner:
+status: in_progress
+owner: Peter Gürtler
 deps: [cal-caldav-retry]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/calendar/infra/caldav/CalDavClientTests.kt,server/src/main/kotlin/ch/sonensei/cockpit/calendar/infra/caldav/CalDavClient.kt]
 prio: 1
+lease_until: 
 ---
 ## Goal
 CI run 41493673821 (2026-11-02, push of `done: fix-flaky-bookmark-patch-test`, job "Fast check (server)") failed on
