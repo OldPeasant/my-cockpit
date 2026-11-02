@@ -31,3 +31,4 @@ series occurrence, and `If-Match`; events of synced calendars are deleted at the
 Requested by the owner (2026-11-02): "How can I delete a calendar entry in the Android App?" Out of scope: deleting
 from the agenda list by swipe, undo after delete (the web has none for events either, unless it does: then match it).
 - ASSUMPTION (2026-11-02 10:49+0100 by dell26/agent-1): Delete is a red text button in the editor's top bar (next to Save), hidden for new events, read-only calendars, while loading and while saving; shown but disabled after a 412/404 message (reload first), as Save is.
+- ASSUMPTION (2026-11-02 10:50+0100 by dell26/agent-1): A delete refused for another reason (e.g. 400/409 read-only) shows a new message 'The event could not be deleted.' instead of the save wording; 409 maps to the conflict message like a save. The web has no undo for event deletes, so none here.
