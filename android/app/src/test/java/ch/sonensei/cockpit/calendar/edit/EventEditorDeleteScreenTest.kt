@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -119,5 +120,23 @@ class EventEditorDeleteScreenTest {
         show(existing.copy(confirmingDelete = true))
         composeRule.onNodeWithText("Diesen Termin löschen?").assertIsDisplayed()
         composeRule.onNodeWithTag(EventEditorTags.DELETE).assertExists()
+    }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `the delete button, scope prompt and failure are German in German`() {
+        val set = show(existing)
+        composeRule.onNodeWithTag(EventEditorTags.DELETE).assertTextContains("Löschen")
+        set(existing.copy(scopes = EditScope.entries.toList(), deleting = true))
+        composeRule.onNodeWithText("Wiederkehrenden Termin löschen").assertIsDisplayed()
+        set(existing.copy(message = EditorMessage.DELETE_FAILED))
+        composeRule.onNodeWithText("Der Termin konnte nicht gelöscht werden.").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the scope prompt of a change keeps its own title`() {
+        show(existing.copy(scopes = EditScope.entries.toList(), deleting = false))
+        composeRule.onNodeWithText("Change a repeating event").assertIsDisplayed()
+        composeRule.onNodeWithText("Delete a repeating event").assertDoesNotExist()
     }
 }

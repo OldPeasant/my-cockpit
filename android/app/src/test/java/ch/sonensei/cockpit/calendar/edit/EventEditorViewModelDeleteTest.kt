@@ -282,4 +282,71 @@ class EventEditorViewModelDeleteTest {
             advanceUntilIdle()
             coVerify(exactly = 1) { repo.delete(any(), any(), any()) }
         }
+
+    @Test
+    fun `a generated occurrence that became an override is deleted as that override, with the chosen scope`() =
+        runTest(dispatcher) {
+            val override = weekly.copy(eventId = id(6), title = "Standup (late)", version = 2)
+            coEvery { repo.reread(weekly) } returns CalendarResult.Ok(override)
+            coEvery { repo.event(override.eventId) } returns CalendarResult.Ok(details(override))
+            val vm = viewModel()
+            vm.edit(weekly, calendars)
+            advanceUntilIdle()
+            vm.delete()
+            assertEquals(EditScope.entries.toList(), vm.uiState.value.scopes)
+            vm.chooseScope(EditScope.FOLLOWING)
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.delete(override, 2, EditScope.FOLLOWING) }
+            coVerify(exactly = 0) { repo.delete(weekly, any(), any()) }
+            assertFalse(vm.uiState.value.open)
+        }
+
+    @Test
+    fun `a delete answered with 409 says the event changed elsewhere`() =
+        runTest(dispatcher) {
+            coEvery { repo.delete(any(), any(), any()) } returns CalendarResult.Failed(409)
+            val vm = viewModel()
+            vm.edit(weekly, calendars)
+            advanceUntilIdle()
+            vm.delete()
+            vm.chooseScope(EditScope.ALL)
+            advanceUntilIdle()
+            val state = vm.uiState.value
+            assertTrue(state.open)
+            assertEquals(EditorMessage.CONFLICT, state.message)
+            assertFalse(state.canDelete)
+        }
+
+    @Test
+    fun `while the confirmation is shown a save does nothing, and the editor cannot be closed during the delete`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.edit(single, calendars)
+            advanceUntilIdle()
+            vm.update { it.copy(title = "Dentist (moved)") }
+            vm.delete()
+            vm.save()
+            assertTrue(vm.uiState.value.confirmingDelete)
+            assertFalse(vm.uiState.value.saving)
+            vm.confirmDelete()
+            vm.close()
+            assertTrue("the delete may still be committed", vm.uiState.value.open)
+            advanceUntilIdle()
+            coVerify(exactly = 0) { repo.update(any(), any(), any(), any()) }
+            coVerify(exactly = 1) { repo.delete(single, 4, null) }
+            assertFalse(vm.uiState.value.open)
+        }
+
+    @Test
+    fun `a scope chosen for a delete that was not offered deletes nothing`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.edit(weekly, calendars)
+            advanceUntilIdle()
+            // No prompt is open: a stray choice is ignored.
+            vm.chooseScope(EditScope.ALL)
+            advanceUntilIdle()
+            coVerify(exactly = 0) { repo.delete(any(), any(), any()) }
+            assertTrue(vm.uiState.value.open)
+        }
 }
