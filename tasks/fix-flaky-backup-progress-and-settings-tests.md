@@ -1,13 +1,14 @@
 ---
 title: Flaky tests: BackupWebTests progress step and SettingsServerChangeTest leak
-status: in_progress
-owner: dell26/agent-2
+status: todo
+owner: 
 deps: [backup-core,and-settings]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/backup/BackupWebTests.kt,android/app/src/test/java/ch/sonensei/cockpit/settings/SettingsServerChangeTest.kt]
 prio: 1
-lease_until: 2026-11-02T09:07:45Z
-extended: dell26/agent-2
-releases: 2
+lease_until: 
+extended: 
+releases: 3
+hold: given back 3 times; last: All code, reviews (review/tests/fixes.md) and quality.json committed (reviewed_revision 18cd7e1ad, code unchanged since). Criteria 1-3 verified (server 20/20 + android 20/20 
 ---
 ## Goal
 Two CI runs on main failed on one flaky test each, unrelated to the task that triggered them (2026-11-01):
@@ -49,3 +50,4 @@ re-run to confirm the failure is flaky.
 - extended by dell26/agent-1: Code + re-review done (HEAD 22d458120, review/tests/fixes.md committed, 0 open findings; crit 3 verified). Left: (1) BackupWebTests 20x under load (16 busy loops), verify #1; (2) android testDebugUnitTest --tests SettingsServerChangeTest,SettingsViewModelTest,AuthRepositoryTest,CalendarViewModelRoomCacheTest --rerun 20x under load, verify #2; (3) sh scripts/check.sh, verify #4; (4) write+commit reviews/<id>/quality.json (reviewed_revision = full hash of b96cdf67a or HEAD, result exactly 'pass', fixer ran for CR-1); (5) tasks.py done (long background timeout).
 - release by dell26/agent-1: over budget after 3 sessions (~40 min) and a review that decided nothing; still resumable: continue from wip/fix-flaky-backup-progress-and-settings-tests (see git log)
 - extended by dell26/agent-2: Code + reviews done (HEAD code 090ddb2b2; review/tests/fixes.md committed, CR-1/TW-1 fixed). Android 4-test loop ran 20/20 under load (.tmp/android-result.txt 08:42) and sh scripts/check.sh passed 08:51, but neither is recorded with verify yet. LEFT: (1) re-run 'cd server && ./gradlew test --tests *BackupWebTests* --rerun' 20x under 16 busy loops (the existing log is ambiguous: 16 runs only), verify #1 with load; (2) verify #2 (android 20/20) and #4 (check.sh); (3) fix quality.json: reviewed_revision should be 090ddb2b25f01f252a17982809b9f06a273e9964 (currently 49c5815a2), make the validation entries match what actually ran; commit; (4) tasks.py done.
+- release by dell26/agent-2: All code, reviews (review/tests/fixes.md) and quality.json committed (reviewed_revision 18cd7e1ad, code unchanged since). Criteria 1-3 verified (server 20/20 + android 20/20 under load). LEFT ONLY: crit 4 - run 'sh scripts/check.sh' when the machine is not saturated (it was killed after 20 min stuck in 'server: ktlint + tests' with no failure while agent-1's 16-burner stress.sh ran, load 20-35), then 'tasks.py verify <id> 4 ...' and 'tasks.py done <id>'. No code changes needed.
