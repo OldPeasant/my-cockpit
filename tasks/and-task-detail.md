@@ -18,9 +18,10 @@ existing API: `GET/PATCH/DELETE /api/v1/tasks/{id}` (ETag/If-Match), `POST /task
 `/tasks/{id}/complete|uncomplete`, `/tasks/{taskId}/checklist[/{itemId}]`, `/api/v1/links`. Server unchanged.
 
 ## Acceptance criteria
-- [ ] Tapping a task row (outside the checkbox) in Next, Today, Projects (project's tasks), Waiting, Someday and
+- [x] Tapping a task row (outside the checkbox) in Next, Today, Projects (project's tasks), Waiting, Someday and
       Logbook opens the task detail screen; task results in global search and task entries on the Dashboard open
       it too instead of the browser; Back returns to where the user came from
+  - verified (2026-11-02 11:32+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest (Robolectric Compose, rev c171fc231) -> pass: TaskDetailScreenTest (Next row opens, checkbox still completes; Waiting row opens; shell route on top + Back returns to list), TaskDetailContentTest (Logbook row in shell opens detail), DashboardTaskOpenTest (Today/Waiting card tasks open detail), SearchRouteInAppTest (task hit opens in-app detail, not browser). Today/Projects/Someday share TaskRow/LiveTaskRow (opensTask). No device/emulator run.
 - [ ] The screen shows title, notes (rendered Markdown, as the Android notes screen renders it), checklist,
       project, contexts, due date/time, defer/start date if the model has one, time estimate, energy, creativity,
       waiting-for person (for Waiting tasks), and linked items (tapping a linked item opens it where the app has a
