@@ -1,10 +1,11 @@
 ---
 title: Flaky test: BookmarkWebTests PATCH races the background metadata fetch (409)
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [bookmarks-api]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/bookmarks/BookmarkWebTests.kt]
 prio: 1
+lease_until: 2026-11-02T04:43:05Z
 ---
 ## Goal
 The rerun of CI run 41355157150 (2026-11-02, server fast check) failed on `BookmarkWebTests > PATCH changes only the
