@@ -6,6 +6,7 @@ deps: [bookmarks-api]
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/bookmarks/BookmarkWebTests.kt]
 prio: 1
 lease_until: 2026-11-02T05:22:19Z
+extended: dell26/agent-2
 ---
 ## Goal
 The rerun of CI run 41355157150 (2026-11-02, server fast check) failed on `BookmarkWebTests > PATCH changes only the
@@ -33,3 +34,4 @@ PATCH with the fetched ETag fails the optimistic lock (`OptimisticLockingFailure
 Found while checking the failing CI runs (2026-11-02). Test-only fix. A user editing a bookmark right after saving
 it can get the same 409; the web client handles 409 by reloading, so that is not changed here.
 - ASSUMPTION (2026-11-02 05:29+0100 by dell26/agent-2): BookmarkWebTests fetch timeout raised 2s->5s and the slow ordering test's WireMock delay 700ms->2000ms, so its deliberate PATCH-before-fetch race keeps a wide margin under load while the slow fetch still succeeds; no test in the class depends on the 2s value.
+- extended by dell26/agent-2: Fix + both helper reports (tests.md, review.md, review-r1.md, fixes.md) committed at aa64d98e4; criteria 1-2 verified. Left: run './gradlew test --tests *BookmarkWebTests*' 20x under load (stress-ng or parallel gradle) and verify #3, run sh scripts/check.sh and verify #4, write+commit reviews/fix-flaky-bookmark-patch-test/quality.json (reviewed_revision = HEAD code), then done.
