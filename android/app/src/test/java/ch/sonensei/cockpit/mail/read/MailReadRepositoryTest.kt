@@ -86,7 +86,10 @@ class MailReadRepositoryTest {
             assertEquals("<p>Hi</p>", message.html)
             assertEquals("Hi", message.text)
             assertEquals(3, message.remoteImagesBlocked)
-            assertEquals(listOf(MailAttachment("2", "report.pdf", 1024), MailAttachment("4", "4", null)), message.attachments)
+            assertEquals(
+                listOf(MailAttachment("2", "report.pdf", 1024, "application/pdf"), MailAttachment("4", "4", null, "text/plain")),
+                message.attachments,
+            )
         }
 
     @Test

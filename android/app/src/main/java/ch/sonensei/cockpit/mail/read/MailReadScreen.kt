@@ -1,6 +1,9 @@
 package ch.sonensei.cockpit.mail.read
 
+import android.webkit.MimeTypeMap
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,10 +51,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -61,6 +67,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.files.OpenedFiles
+import ch.sonensei.cockpit.files.discardDocument
+import ch.sonensei.cockpit.files.openForWriting
 import ch.sonensei.cockpit.mail.compose.ComposeMode
 import ch.sonensei.cockpit.mail.list.MailAccountFolders
 import ch.sonensei.cockpit.mail.list.MailFolder
@@ -89,6 +98,7 @@ fun MailReadRoute(
     onMarked: (UUID, MailListAction) -> Unit = { _, _ -> },
     accounts: List<MailAccountFolders> = emptyList(),
     viewModel: MailReadViewModel = hiltViewModel(),
+    attachmentsViewModel: MailAttachmentsViewModel = hiltViewModel(),
 ) {
     // One view model for all mails (cleared with the Mail screen); it drops the mail when the view closes.
     LaunchedEffect(viewModel, id) { viewModel.open(id) }
@@ -115,8 +125,12 @@ fun MailReadRoute(
             if (list != null && next != null) list.open(next) else close()
         }
     }
+    LaunchedEffect(attachmentsViewModel, state.message?.id) { attachmentsViewModel.show(state.message?.id) }
+    val attachments by attachmentsViewModel.uiState.collectAsStateWithLifecycle()
     MailReadContent(
         state = state,
+        attachments = attachments,
+        attachmentCallbacks = rememberAttachmentCallbacks(attachmentsViewModel),
         callbacks =
             MailReadCallbacks(
                 back = close,
@@ -226,6 +240,8 @@ fun MailReadContent(
     state: MailReadUiState,
     callbacks: MailReadCallbacks,
     modifier: Modifier = Modifier,
+    attachments: MailAttachmentsUiState = MailAttachmentsUiState(),
+    attachmentCallbacks: MailAttachmentCallbacks = MailAttachmentCallbacks(),
     zone: ZoneId = ZoneId.systemDefault(),
     navigation: MailReadNavigation? = null,
     moveTargets: List<MailFolder> = emptyList(),
@@ -238,7 +254,10 @@ fun MailReadContent(
         state.notice?.let { Notice(it) }
         val message = state.message
         when {
-            message != null -> Message(message, zone, body, callbacks.takeUnless { state.busy })
+            message != null ->
+                Message(message, zone, body, callbacks.takeUnless { state.busy }) {
+                    AttachmentList(message.attachments, attachments, attachmentCallbacks, enabled = !state.busy)
+                }
             state.error != null -> Error(state.error, callbacks.retry)
         }
     }
@@ -463,6 +482,7 @@ private fun ColumnScope.Message(
     zone: ZoneId,
     body: @Composable (String, Modifier) -> Unit,
     callbacks: MailReadCallbacks?,
+    attachments: @Composable () -> Unit,
 ) {
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp).testTag(MailReadTags.HEADERS),
@@ -481,13 +501,8 @@ private fun ColumnScope.Message(
         if (message.to.isNotEmpty()) HeaderLine(stringResource(R.string.mail_read_to, message.to.joinToString()))
         if (message.cc.isNotEmpty()) HeaderLine(stringResource(R.string.mail_read_cc, message.cc.joinToString()))
         message.date?.let { HeaderLine(formatFull(it, zone)) }
-        if (message.attachments.isNotEmpty()) {
-            HeaderLine(
-                stringResource(R.string.mail_read_attachments, message.attachments.joinToString { it.name }),
-                Modifier.testTag(MailReadTags.ATTACHMENTS),
-            )
-        }
     }
+    if (message.attachments.isNotEmpty()) attachments()
     if (message.remoteImagesBlocked > 0) ImagesBanner(message, callbacks)
     ReplyButtons(message.id, callbacks?.compose)
     HorizontalDivider()
@@ -593,6 +608,70 @@ private fun HeaderLine(
         modifier = modifier,
     )
 }
+
+/**
+ * The attachment actions of [viewModel] with the system's parts: "Open" hands the downloaded file to another app, "Save
+ * to device" asks where with the system "save as" picker. The view model keeps these callbacks past the activity: they
+ * hold the application, never the activity.
+ */
+@Composable
+private fun rememberAttachmentCallbacks(viewModel: MailAttachmentsViewModel): MailAttachmentCallbacks {
+    val context = LocalContext.current
+    val app = context.applicationContext
+    val resolver = app.contentResolver
+    LaunchedEffect(viewModel) {
+        viewModel.opens.collect { open ->
+            if (!OpenedFiles.launch(context, OpenedFiles.view(context, open.file, viewType(open)))) viewModel.noApp()
+        }
+    }
+    // Saveable: the activity may be recreated while the "save as" picker is open.
+    var saving by rememberSaveable(stateSaver = PendingAttachmentSaver) { mutableStateOf<MailAttachment?>(null) }
+    val pickSaveTarget =
+        rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
+            val attachment = saving
+            saving = null
+            if (uri != null && attachment != null) {
+                viewModel.save(attachment, { openForWriting(resolver, uri) }) { discardDocument(resolver, uri) }
+            }
+        }
+    val target = { attachment: MailAttachment -> { OpenedFiles.target(app, cacheId(attachment), attachment.name) } }
+    return remember(viewModel, pickSaveTarget) {
+        MailAttachmentCallbacks(
+            open = { viewModel.open(it, target(it)) },
+            preview = { viewModel.preview(it, target(it)) },
+            saveToDevice = {
+                saving = it
+                pickSaveTarget.launch(it.name)
+            },
+            saveToFiles = viewModel::pickFolder,
+            dismissNotice = viewModel::dismissNotice,
+            closePreview = viewModel::closePreview,
+            openFolder = viewModel::openFolder,
+            goToFolder = viewModel::goToFolder,
+            saveHere = viewModel::saveToFiles,
+            closePicker = viewModel::closePicker,
+        )
+    }
+}
+
+/** The mail's type for the attachment; for none or a generic one, the type its file extension stands for. */
+private fun viewType(open: OpenAttachment): String =
+    open.mime?.takeUnless { it.substringBefore(';').trim().equals(OCTET_STREAM, ignoreCase = true) }
+        ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(open.file.extension.lowercase())
+        ?: OCTET_STREAM
+
+private const val OCTET_STREAM = "application/octet-stream"
+
+/** The attachment waiting for the "save as" picker's answer, kept as strings in the saved state. */
+private val PendingAttachmentSaver =
+    Saver<MailAttachment?, List<String>>(
+        save = { a -> a?.let { listOf(it.partId, it.name, it.sizeBytes?.toString().orEmpty(), it.contentType.orEmpty()) } },
+        restore = { MailAttachment(it[0], it[1], it[2].toLongOrNull(), it[3].ifEmpty { null }) },
+    )
+
+/** The cache folder of an attachment opened in another app: one per part, so the name it is shown with stays its own. */
+private fun cacheId(attachment: MailAttachment): UUID =
+    UUID.nameUUIDFromBytes("mail-attachment/${attachment.partId}/${attachment.name}".toByteArray())
 
 private fun formatFull(
     instant: Instant,
