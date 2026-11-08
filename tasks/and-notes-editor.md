@@ -1,10 +1,11 @@
 ---
 title: Android note editor: tags, checklists, links, revisions
-status: todo
-owner:
+status: in_progress
+owner: felix/agent-1
 deps: [and-notes-list,and-links-panel]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/notes,android/app/src/test/java/ch/sonensei/cockpit/notes,android/app/src/main/res/values/strings_notes.xml,android/app/src/main/res/values-de/strings_notes.xml]
 prio: 2
+lease_until: 2026-11-08T21:41:41Z
 ---
 ## Goal
 The Android note editor lacks tags, checklist toggling in the preview, `[[` link autocomplete, revisions and the
