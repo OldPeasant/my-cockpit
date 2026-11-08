@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
@@ -78,7 +79,7 @@ fun LiveTaskListContent(
     empty: String,
     modifier: Modifier = Modifier,
     header: @Composable () -> Unit = {},
-    section: ListSection? = null,
+    section: ListSection<*>? = null,
     row: @Composable (GtdTask) -> Unit,
 ) {
     val snackbarHost = remember { SnackbarHostState() }
@@ -100,13 +101,7 @@ fun LiveTaskListContent(
                                 HorizontalDivider()
                             }
                         } else {
-                            state.tasks.groupConsecutiveBy(section.key).forEach { (key, tasks) ->
-                                item(key = "section-$key") { section.header(key) }
-                                items(tasks, key = { it.id }) { task ->
-                                    row(task)
-                                    HorizontalDivider()
-                                }
-                            }
+                            section.items(this, state.tasks, row)
                         }
                     }
                 state.loading -> Centered(stringResource(R.string.tasks_loading), LiveListTags.LOADING)
@@ -122,14 +117,29 @@ fun LiveTaskListContent(
  * Splits a live list into sections: a new section starts with each task whose [key] differs from the task before it
  * (the screen's order already keeps a section's tasks together), and each section shows its [header] above its rows.
  */
-class ListSection(
-    val key: (GtdTask) -> Any?,
-    val header: @Composable (Any?) -> Unit,
-)
+class ListSection<K>(
+    val key: (GtdTask) -> K,
+    val header: @Composable (K) -> Unit,
+) {
+    /** Adds [tasks] to [scope] as sections: each section's [header], then its rows. */
+    internal fun items(
+        scope: LazyListScope,
+        tasks: List<GtdTask>,
+        row: @Composable (GtdTask) -> Unit,
+    ) {
+        tasks.groupConsecutiveBy(key).forEach { (sectionKey, sectionTasks) ->
+            scope.item(key = "section-$sectionKey") { header(sectionKey) }
+            scope.items(sectionTasks, key = { it.id }) { task ->
+                row(task)
+                HorizontalDivider()
+            }
+        }
+    }
+}
 
 /** Runs of consecutive tasks with the same [key], in order. */
-internal fun List<GtdTask>.groupConsecutiveBy(key: (GtdTask) -> Any?): List<Pair<Any?, List<GtdTask>>> {
-    val groups = mutableListOf<Pair<Any?, MutableList<GtdTask>>>()
+internal fun <K> List<GtdTask>.groupConsecutiveBy(key: (GtdTask) -> K): List<Pair<K, List<GtdTask>>> {
+    val groups = mutableListOf<Pair<K, MutableList<GtdTask>>>()
     forEach { task ->
         val k = key(task)
         val last = groups.lastOrNull()

@@ -53,8 +53,8 @@ fun ScheduledContent(
     modifier: Modifier = Modifier,
 ) {
     val section =
-        ListSection(key = { it.scheduledDate }) { date ->
-            ScheduledDayHeader(date as LocalDate?, state.today)
+        ListSection<LocalDate?>(key = { it.scheduledDate }) { date ->
+            ScheduledDayHeader(date, state.today)
         }
     LiveTaskListContent(state, callbacks, stringResource(R.string.scheduled_empty), modifier, section = section) { task ->
         LiveTaskRow(
