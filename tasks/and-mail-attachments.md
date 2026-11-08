@@ -21,3 +21,4 @@ save to Files (`mail-read-page.html:219-279`, server `mail-attachment-to-files`)
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 13:23+0100 by felix/agent-1): Save to Files folder picker: the server endpoint only stores into /Attachments/Mail, so Android stores there and then moves the file (PATCH /files/{id} folderId) into the picked folder; at the drive root the button saves to /Attachments/Mail (the drive root itself is not offered, a null folderId cannot be sent in the patch). A failed move keeps the file in /Attachments/Mail and says so.
