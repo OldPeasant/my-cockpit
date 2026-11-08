@@ -643,4 +643,47 @@ class CalendarViewModelOverlayTest {
 
             assertEquals(callsBefore, tasks.calls.size)
         }
+
+    @Test
+    fun `retrying after the agenda's appended tasks failed reloads the tasks of all its days`() =
+        runTest(dispatcher) {
+            tasks.all = listOf(task(1, today), task(2, today.plusDays(40)))
+            val vm = viewModel(TaskOverlaySetting.InMemory(enabled = true))
+            vm.refresh()
+            advanceUntilIdle()
+            tasks.failure = CalendarResult.Offline
+            vm.loadMore()
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.tasksFailed)
+            val callsBefore = tasks.calls.size
+
+            tasks.failure = null
+            vm.retryTasks()
+            advanceUntilIdle()
+
+            val state = vm.uiState.value
+            assertFalse(state.tasksFailed)
+            // One load over the whole agenda, the appended days included: their task shows up now.
+            assertEquals(listOf(today to today.plusDays(60)), tasks.calls.drop(callsBefore))
+            assertEquals(listOf(id(1), id(2)), state.tasks.map { it.id })
+        }
+
+    @Test
+    fun `a retry that fails again keeps the failure and the tasks shown so far`() =
+        runTest(dispatcher) {
+            tasks.all = listOf(task(1, today))
+            val vm = viewModel(TaskOverlaySetting.InMemory(enabled = true))
+            vm.refresh()
+            advanceUntilIdle()
+            tasks.failure = CalendarResult.Offline
+            vm.loadMore()
+            advanceUntilIdle()
+
+            vm.retryTasks()
+            advanceUntilIdle()
+
+            val state = vm.uiState.value
+            assertTrue(state.tasksFailed)
+            assertEquals(listOf(id(1)), state.tasks.map { it.id })
+        }
 }

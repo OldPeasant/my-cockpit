@@ -353,6 +353,43 @@ class CalendarOverlayMonthScreensTest {
     }
 
     @Test
+    fun `the route's retry button loads the tasks again and shows them`() {
+        var answers = 0
+        val source =
+            TaskOverlaySource { _, _, _ ->
+                if (answers++ == 0) CalendarResult.Offline else CalendarResult.Ok(listOf(report))
+            }
+        val repo = mockk<CalendarRepository>()
+        coEvery { repo.calendars() } returns CalendarResult.Ok(listOf(work))
+        coEvery { repo.occurrences(any(), any(), any()) } returns CalendarResult.Ok(emptyList())
+        val clock = Clock.fixed(Instant.parse("2026-10-21T08:00:00Z"), utc)
+        val viewModel =
+            CalendarViewModel(repo, clock, Locale.US, taskSource = source, overlaySetting = TaskOverlaySetting.InMemory(enabled = true))
+        val owner =
+            object : LifecycleOwner {
+                val registry = LifecycleRegistry(this)
+                override val lifecycle: Lifecycle get() = registry
+            }
+        owner.registry.currentState = Lifecycle.State.RESUMED
+
+        composeRule.setContent {
+            CompositionLocalProvider(LocalLifecycleOwner provides owner) {
+                CockpitTheme { CalendarRoute(viewModel = viewModel) }
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(CalendarTags.TASKS_FAILED).assertIsDisplayed()
+        composeRule.onNodeWithTag(tag(report, TaskMarkKind.DUE, today)).assertDoesNotExist()
+
+        composeRule.onNodeWithTag(CalendarTags.TASKS_RETRY).performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(CalendarTags.TASKS_FAILED).assertDoesNotExist()
+        composeRule.onNodeWithTag(tag(report, TaskMarkKind.DUE, today)).assertExists()
+        assertEquals(2, answers)
+    }
+
+    @Test
     fun `an agenda with only tasks is not reported as empty`() {
         show(state(tasks = listOf(dentist)))
 

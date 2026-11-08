@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -18,6 +19,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
@@ -137,6 +139,45 @@ class CalendarMonthLayoutTest {
         assertTrue("listed $listed titles", listed in 0..MONTH_TITLES)
         more.assertTextContains("+${5 - listed}")
         composeRule.onNodeWithContentDescription("Sunday, December 6, 2026, 5 entries").assertExists()
+    }
+
+    /** Checks that the last day's "+n" is shown inside its cell and, with the listed titles, counts all [count] entries. */
+    private fun assertMoreInsideLastCell(count: Int) {
+        val cell = composeRule.onNodeWithTag(CalendarTags.monthDay(lastDay)).getUnclippedBoundsInRoot()
+        val more = composeRule.onNodeWithTag(CalendarTags.monthMore(lastDay), useUnmergedTree = true).assertIsDisplayed()
+        val bounds = more.getUnclippedBoundsInRoot()
+        assertTrue("+n has no height", bounds.bottom > bounds.top)
+        assertTrue("+n ends at ${bounds.bottom}, the cell at ${cell.bottom}", bounds.bottom <= cell.bottom)
+        val listed =
+            (1..count).count { n ->
+                composeRule
+                    .onAllNodes(hasText("Fictitious event $n"), useUnmergedTree = true)
+                    .fetchSemanticsNodes()
+                    .isNotEmpty()
+            }
+        more.assertTextContains("+${count - listed}")
+    }
+
+    @Test
+    @Config(fontScale = 1.5f)
+    fun `with a large font fewer titles are listed and +n still stays inside the cell`() {
+        show(monthState(occurrences = (1..5).map { allDay(it, lastDay) }))
+
+        assertMoreInsideLastCell(5)
+    }
+
+    @Test
+    fun `a theme without a line height for small labels still shows the month and its +n`() {
+        // TextUnit.Unspecified cannot be converted to dp: the month view falls back instead of crashing.
+        composeRule.setContent {
+            val typography = MaterialTheme.typography
+            MaterialTheme(typography = typography.copy(labelSmall = typography.labelSmall.copy(lineHeight = TextUnit.Unspecified))) {
+                CalendarContent(monthState(occurrences = (1..5).map { allDay(it, lastDay) }), CalendarCallbacks())
+            }
+        }
+
+        composeRule.onNodeWithTag(CalendarTags.MONTH).assertIsDisplayed()
+        assertMoreInsideLastCell(5)
     }
 
     @Test
