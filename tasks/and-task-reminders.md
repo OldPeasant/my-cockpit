@@ -1,11 +1,11 @@
 ---
 title: Reminders on tasks (Android)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-task-detail-dates, web-task-actions, and-links-panel]
 prio: 2
 parent: task-reminders
-lease_until: 2026-11-08T23:49:49Z
+lease_until: 
 ---
 ## Goal
 Part of `task-reminders` (Reminders on tasks (web + Android)), which was split.
@@ -26,3 +26,4 @@ Goal: Android task detail offers the same as the web: add/remove reminders on a 
 - ASSUMPTION (2026-11-09 00:03+0100 by dell26/agent-1): Android reminder presets: at due time (due date + due time, else 09:00), 1 h before due (only with a due time), 1 day before due, scheduled date 09:00, plus a custom date+time picker; past presets hidden. Web task reminders are not built yet, so these are Android's own choice.
 - ASSUMPTION (2026-11-09 00:03+0100 by dell26/agent-1): After create/delete the repository calls ReminderSync.sync() directly (not the WorkManager one-off, whose KEEP policy may skip it) so local alarms update at once.
 - ASSUMPTION (2026-11-09 00:03+0100 by dell26/agent-1): Touched ui/CockpitShell.kt and reminders/ReminderOpenRequests.kt (outside the task's touches) so a TASK reminder notification opens the task detail on top of Next; before it only opened Next, which would not meet criterion 2.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 269s on 009ae5534; criteria verified 3/4, skipped #2
