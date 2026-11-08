@@ -1,5 +1,9 @@
 package ch.sonensei.cockpit.mail.read
 
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import ch.sonensei.cockpit.files.DriveEntry
 import ch.sonensei.cockpit.files.FilesRepository
 import ch.sonensei.cockpit.files.FilesResult
@@ -399,6 +403,69 @@ class MailAttachmentsViewModelTest {
             assertTrue(discarded)
             assertEquals(AttachmentNotice.Failed(AttachmentAction.SAVE), vm.state.notice)
             coVerify(exactly = 0) { repository.download(any(), any(), any()) }
+        }
+
+    @Test
+    fun `a second save answer before its mail is shown replaces the first, whose document is discarded`() =
+        runTest(dispatcher) {
+            downloads(partId = photo.partId, content = "JFIF")
+            val vm = viewModel(message = null)
+            val first = ByteArrayOutputStream()
+            val second = ByteArrayOutputStream()
+            var firstDiscarded = false
+            var secondDiscarded = false
+
+            vm.save(pdf, { first }, id(1)) { firstDiscarded = true }
+            vm.save(photo, { second }, id(1)) { secondDiscarded = true }
+            advanceUntilIdle()
+            assertTrue("the replaced save left its empty document behind", firstDiscarded)
+
+            vm.show(id(1))
+            advanceUntilIdle()
+
+            assertEquals("", first.toString())
+            assertEquals("JFIF", second.toString())
+            assertEquals(AttachmentNotice.SavedToDevice("photo.jpg"), vm.state.notice)
+            assertFalse(secondDiscarded)
+            coVerify(exactly = 0) { repository.download(any(), pdf.partId, any()) }
+        }
+
+    @Test
+    fun `a save still waiting for its mail when the screen goes away discards its document`() =
+        runTest(dispatcher) {
+            val store = ViewModelStore()
+            val factory = viewModelFactory { initializer { MailAttachmentsViewModel(repository, files, dispatcher) } }
+            val vm = ViewModelProvider(store, factory)[MailAttachmentsViewModel::class.java]
+            var discarded = 0
+
+            vm.save(pdf, { ByteArrayOutputStream() }, id(1)) { discarded++ }
+            advanceUntilIdle()
+            assertEquals(0, discarded)
+
+            store.clear()
+            advanceUntilIdle()
+
+            assertEquals("the waiting save left its empty document behind", 1, discarded)
+            coVerify(exactly = 0) { repository.download(any(), any(), any()) }
+        }
+
+    @Test
+    fun `a screen that goes away without a waiting save discards nothing`() =
+        runTest(dispatcher) {
+            downloads()
+            val store = ViewModelStore()
+            val factory = viewModelFactory { initializer { MailAttachmentsViewModel(repository, files, dispatcher) } }
+            val vm = ViewModelProvider(store, factory)[MailAttachmentsViewModel::class.java]
+            vm.show(id(1))
+            var discarded = 0
+            vm.save(pdf, { ByteArrayOutputStream() }) { discarded++ }
+            advanceUntilIdle()
+
+            store.clear()
+            advanceUntilIdle()
+
+            assertEquals(AttachmentNotice.SavedToDevice("report.pdf"), vm.state.notice)
+            assertEquals("a saved document must stay", 0, discarded)
         }
 
     // One action at a time

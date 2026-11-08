@@ -292,6 +292,26 @@ class MailAttachmentsRouteTest {
     }
 
     @Test
+    fun `open from the preview hands the previewed file to another app without downloading it again`() {
+        downloadWrites("fictitious preview figures")
+        show()
+
+        composeRule.onNodeWithTag(MailAttachmentTags.preview(pdf.partId)).performClick()
+        waitForTag(MailAttachmentTags.PREVIEW_DIALOG)
+        composeRule.onNodeWithTag(MailAttachmentTags.PREVIEW_OPEN).performClick()
+        composeRule.waitUntil(WAIT_MS) { shadowOf(activity).peekNextStartedActivity() != null }
+
+        val started = shadowOf(activity).nextStartedActivity
+        assertEquals(Intent.ACTION_VIEW, started.action)
+        assertEquals("application/pdf", started.type)
+        assertTrue(started.data!!.path!!.endsWith("/report.pdf"))
+        val read = activity.contentResolver.openInputStream(started.data!!)!!.use { String(it.readBytes()) }
+        assertEquals("fictitious preview figures", read)
+        composeRule.onNodeWithTag(MailAttachmentTags.PREVIEW_DIALOG).assertDoesNotExist()
+        coVerify(exactly = 1) { attachments.download(id(1), pdf.partId, any()) }
+    }
+
+    @Test
     fun `save to Files picks a folder and stores the attachment there`() {
         coEvery { files.list(null) } returns FilesResult.Ok(emptyList())
         coEvery { attachments.saveToFiles(id(1), pdf.partId, null) } returns

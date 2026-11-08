@@ -289,6 +289,20 @@ class MailAttachmentsScreenTest {
 
     @Test
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun `an image larger than the preview limit is still shown, scaled down`() {
+        val image = tmp.newFile("panorama.png")
+        val bitmap = Bitmap.createBitmap(4500, 4, Bitmap.Config.ARGB_8888)
+        image.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        show(MailAttachmentsUiState(preview = AttachmentPreview(photo, image, AttachmentPreviewKind.IMAGE)))
+
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodes(hasContentDescription("Page 1 of 1")).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag(MailAttachmentTags.PREVIEW_ERROR).assertDoesNotExist()
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
     fun `an empty image file cannot be shown`() {
         val empty = tmp.newFile("photo.jpg")
         show(MailAttachmentsUiState(preview = AttachmentPreview(photo, empty, AttachmentPreviewKind.IMAGE)))
