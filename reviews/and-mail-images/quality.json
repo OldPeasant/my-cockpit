@@ -5,9 +5,9 @@
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/and-mail-images/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/and-mail-images/review.md"},
-    "fixer": {"status": "not_required", "reason": "CR-1 (missing tests) was resolved by the test-writer's tests; TW-1 was a one-line status-code fix the parent made before the final re-review and re-test, both helpers then reported no open findings on a441e181d"}
+    "fixer": {"status": "completed", "report": "reviews/and-mail-images/fixes.md"}
   },
-  "fixes_required": false,
+  "fixes_required": true,
   "findings": [
     {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
      "note": "no tests for interception, banner, view model image paths; covered by MailImagesTest, MailReadImagesViewModelTest, MailReadImagesGermanTest and additions (a441e181d); reviewer confirmed resolved"},
