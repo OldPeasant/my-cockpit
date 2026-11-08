@@ -8,13 +8,17 @@ import {
   convertTaskToNote,
   ConvertToEventRequest,
   createChecklistItem,
+  createReminder,
   deleteChecklistItem,
+  deleteReminder,
   deleteTask,
   EventResponse,
   getTask,
   listChecklistItems,
+  listReminders,
   moveTask,
   NoteResponse,
+  ReminderResponse,
   TaskResponse,
   uncompleteTask,
   updateChecklistItem,
@@ -48,6 +52,14 @@ const ITEM: ChecklistItemResponse = {
   position: 0,
   version: 3,
 };
+
+const REMINDER = {
+  id: 'r1',
+  channel: 'NOTIFICATION',
+  createdAt: '2026-11-01T08:00:00Z',
+  item: { id: 't1', type: 'TASK', title: 'Water the fictitious ferns' },
+  remindAt: '2026-11-20T13:30:00.000Z',
+} as ReminderResponse;
 
 describe('TaskDetailService', () => {
   let calls: Call[];
@@ -255,6 +267,53 @@ describe('TaskDetailService', () => {
     expect(call.fn).toBe(deleteChecklistItem);
     expect(call.params).toEqual({ taskId: 't1', itemId: 'i1', 'If-Match': '"3"' });
     expect(call.context?.get(SILENT_ERRORS)).toBe(true);
+  });
+
+  it('lists the reminders of a task silently, by item type TASK and item id', async () => {
+    response = { items: [REMINDER] };
+    expect(await service.reminders('t1')).toEqual([REMINDER]);
+    const call = only();
+    expect(call.fn).toBe(listReminders);
+    expect(call.params).toEqual({ itemType: 'TASK', itemId: 't1' });
+    expect(call.context?.get(SILENT_ERRORS)).toBe(true);
+  });
+
+  it('adds a notification reminder to a task silently', async () => {
+    response = REMINDER;
+    expect(await service.addReminder('t1', '2026-11-20T13:30:00.000Z')).toBe(REMINDER);
+    const call = only();
+    expect(call.fn).toBe(createReminder);
+    expect(call.params).toEqual({
+      body: {
+        itemType: 'TASK',
+        itemId: 't1',
+        remindAt: '2026-11-20T13:30:00.000Z',
+        channel: 'NOTIFICATION',
+      },
+    });
+    expect(call.context?.get(SILENT_ERRORS)).toBe(true);
+  });
+
+  it('deletes a reminder silently by its id', async () => {
+    await expect(service.deleteReminder('r1')).resolves.toBeUndefined();
+    const call = only();
+    expect(call.fn).toBe(deleteReminder);
+    expect(call.params).toEqual({ id: 'r1' });
+    expect(call.context?.get(SILENT_ERRORS)).toBe(true);
+  });
+
+  it('passes reminder errors on to the caller', async () => {
+    const failing = {
+      invoke: () => Promise.reject(new Error('offline')),
+    };
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [TaskDetailService, { provide: Api, useValue: failing }],
+    });
+    const failingService = TestBed.inject(TaskDetailService);
+    await expect(failingService.reminders('t1')).rejects.toThrow('offline');
+    await expect(failingService.addReminder('t1', REMINDER.remindAt)).rejects.toThrow('offline');
+    await expect(failingService.deleteReminder('r1')).rejects.toThrow('offline');
   });
 
   it('passes errors on to the caller', async () => {
