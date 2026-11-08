@@ -1049,6 +1049,65 @@ describe('EventDialog', () => {
       expect(ref.close).toHaveBeenCalledExactlyOnceWith('saved');
     });
 
+    it('keeps reporting the first answer when a second answer is sent or fails', async () => {
+      const answered = fakeEvent('g1', { calendarId: 'google', version: 5, attendees: guests });
+      const second = deferred<EventResponse>();
+      events.respond.mockResolvedValueOnce(answered).mockReturnValueOnce(second.promise);
+      await invited();
+      choice('Accept')!.click();
+      await stable();
+      choice('Decline')!.click();
+      await stable();
+      // While the second answer is sent the dialog cannot be dismissed.
+      keydowns.next(new KeyboardEvent('keydown', { key: 'Escape' }));
+      backdropClicks.next(new MouseEvent('click'));
+      expect(ref.close).not.toHaveBeenCalled();
+      second.reject(new Error('offline'));
+      await stable();
+      expect(alerts()).toContain('Your answer could not be sent.');
+      // The first answer still changed the event: dismissing reports it, exactly once.
+      expect(ref.disableClose).toBe(true);
+      keydowns.next(new KeyboardEvent('keydown', { key: 'Escape' }));
+      expect(ref.close).toHaveBeenCalledExactlyOnceWith('saved');
+    });
+
+    it('closes only once when dismissed after two answers', async () => {
+      events.respond
+        .mockResolvedValueOnce(
+          fakeEvent('g1', { calendarId: 'google', version: 5, attendees: guests }),
+        )
+        .mockResolvedValueOnce(
+          fakeEvent('g1', { calendarId: 'google', version: 6, attendees: guests }),
+        );
+      await invited();
+      choice('Accept')!.click();
+      await stable();
+      choice('Decline')!.click();
+      await stable();
+      expect(events.respond).toHaveBeenLastCalledWith(
+        expect.objectContaining({ version: 5 }),
+        'DECLINED',
+      );
+      backdropClicks.next(new MouseEvent('click'));
+      expect(ref.close).toHaveBeenCalledExactlyOnceWith('saved');
+    });
+
+    it('closes with saved after an answer even when the answer is followed by a failed answer and Cancel', async () => {
+      events.respond
+        .mockResolvedValueOnce(
+          fakeEvent('g1', { calendarId: 'google', version: 5, attendees: guests }),
+        )
+        .mockRejectedValueOnce(new ApiError(409, 'Conflict', 'You are not invited.'));
+      await invited();
+      choice('Maybe')!.click();
+      await stable();
+      choice('Accept')!.click();
+      await stable();
+      button('Cancel')!.click();
+      await stable();
+      expect(ref.close).toHaveBeenCalledExactlyOnceWith('saved');
+    });
+
     it('disables the choices while the answer is sent', async () => {
       const pending = deferred<EventResponse>();
       events.respond.mockReturnValue(pending.promise);

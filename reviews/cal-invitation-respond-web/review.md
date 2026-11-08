@@ -4,22 +4,22 @@ Date: 2026-11-08
 
 Task: cal-invitation-respond-web - Respond to invitations in the web event dialog
 
-Scope: committed task changes `git diff 0cec3b4b..5e67f38ec` (commits e885db046, 5e67f38ec). After a rebase these are now 3fa882e7f and 7e53fe01a on base 54924e3fd. `git patch-id` of the web diff is identical for both ranges (a843dc1c...). One uncommitted change in `web/src/app/features/calendar/edit/event-dialog.spec.ts` was present during the review and was not reviewed (committed changes only).
+Scope: re-review of the final code. Full task diff `git diff 54924e3fd..2408b6be8` (web/src/app/features/calendar/edit/event-dialog.{ts,html,scss,spec.ts}, event-edit.service{,.spec}.ts, web/src/locale/messages{,.de}.xlf), with a focus on the CR-1 fix in 2408b6be8. Committed changes only. An uncommitted change to `web/src/app/features/calendar/edit/event-dialog.spec.ts` was in the working tree during this review: two additional specs about a second answer. They were not reviewed as part of the scope. They only add tests, and the behavior they describe matches the committed code.
 
 Requirements:
-- tasks/cal-invitation-respond-web.md (acceptance criteria 1-3)
-- Assumptions cal-invitation-respond #1, cal-invitation-respond-web #1, cal-invitation-respond-android #1 (consistency with Android)
-- SPEC.md 6.2 (Invitations: answering for Google/Microsoft through the API)
-- api/openapi.yaml `POST /api/v1/calendar/events/{id}/respond`, `GET /api/v1/mail/accounts`, `OccurrenceResponse.eventId` semantics
-- AGENTS.md project notes (i18n, conventions), existing code in web/src/app/features/calendar/edit
+- tasks/cal-invitation-respond-web.md (acceptance criteria 1-3, assumption of 2026-11-08 23:25 on dismissal returning 'saved', 412/409 handling)
+- SPEC.md 6.2 (answering invitations for Google/Microsoft events), 4.2 (ETag/If-Match)
+- AGENTS.md project notes (i18n, conventions)
+- Previous review reviews/cal-invitation-respond-web/review.md (CR-1) and reviews/cal-invitation-respond-web/fixes.md
+- Installed Angular Material/CDK 22.2.3 sources (MatDialogRef close handling, OverlayRef subject lifecycle)
 
 Git range:
 - Branch: main
-- HEAD: 7e53fe01ab0ae851d2430cfe0add46f7ceb8aca7 (rebased equivalent of 5e67f38ec)
-- Base/start: 0cec3b4bab909270b22a0e32e7965555e46f97b5 (rebased: 54924e3fd)
-- Commits reviewed: 2
+- HEAD: 2408b6be845f467f99add8be3ee6aadf15b8226d
+- Base/start: 54924e3fd196833064725e3138480d2e542345d6 (`git merge-base HEAD origin/main`)
+- Commits reviewed: 4 (3fa882e7f, 7e53fe01a, acace40ee, 2408b6be8)
 
-Summary: 0 P0, 0 P1, 1 P2, 0 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## P0 Critical
 
@@ -31,12 +31,7 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Closing with Escape or a backdrop click after answering does not tell the view the event changed**
-    - File: `web/src/app/features/calendar/edit/event-dialog.html:334` (also `web/src/app/features/calendar/edit/event-dialog.ts:447`, `web/src/app/features/calendar/edit/event-editor.ts:100-105`, `web/src/app/features/calendar/views/calendar-view.ts:243,290`)
-    - Category: Correctness
-    - Problem: Only the Cancel/Close button returns `'saved'` once `answered()` is true (`[mat-dialog-close]="answered() ? 'saved' : undefined"`). `respond()` sets `ref.disableClose = false` again in `finally`, and `openDialog` keeps the MatDialog defaults. So after an answer, Escape or a backdrop click closes the dialog with `undefined`. `calendar-view` refreshes only on a truthy result (`if (await this.editor.open(...)) void this.occurrences.refresh()`), so the view keeps the old occurrence. That includes the old `version`: the answer increased it on the server.
-    - Why it matters: The task's own assumption (cal-invitation-respond-web #1) says that closing after an answer returns `'saved'` so the view refetches. That does not hold for the two most common ways to close a dialog. One consequence: dragging the same event right afterwards calls `EventEditor.move` with the old version as If-Match. The server answers 412 and the user sees a "changed elsewhere" snackbar for a change they just made themselves. The view also keeps the stale data until the next refresh. The new tests cover only the Cancel button (`tells the view the event changed when closed after an answer`).
-    - Suggested fix: Make every close path return `'saved'` after an answer. For example, once `answered()` is set, keep `ref.disableClose = true` and close through `ref.backdropClick()` / `ref.keydownEvents()` (Escape) with `ref.close('saved')`. Or let `EventEditor.openDialog` map the result from a dialog-owned flag. Add a spec that presses Escape (or triggers a backdrop click) after an answer and expects `'saved'`.
+None.
 
 ## P3 Low
 
@@ -44,9 +39,14 @@ None.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
 
 Notes (verified, no finding):
-- Criterion 1: the dialog shows Accept / Maybe / Decline for edit mode, non-virtual, non-read-only GOOGLE/MICROSOFT calendars with saved guests. The current answer is highlighted with `aria-pressed`, matching guests to mail account addresses case-insensitively. Sending posts to `/events/{eventId}/respond` with `If-Match` set to the occurrence version and body `{response}`. For a generated occurrence `eventId` is the series master (per the OpenAPI description), which matches the series-wide answer in SPEC/OpenAPI. On success the dialog updates `data.occurrence.version`, the guest statuses, the `initial` diff base and the saved guests, and keeps unsaved form edits. A later save sends the new version (tested). 412 shows the conflict banner with Reload, and other errors show the server message inline, as the assumptions say. The choices are disabled while busy or in conflict, and `busy()` also blocks save, delete and invite while an answer is being sent.
-- Criterion 2: six new units (`calendar.respond.*`) are in `messages.xlf` and `messages.de.xlf`, with German targets marked translated. The other EN changes only update line numbers.
-- Criterion 3: the new behavior has unit tests in both the service spec and the dialog spec, covering normal, 409, 412, generic failure, in-flight disabling, mail accounts failing, and the hidden cases. Evidence for `tasks.py verify` has not been recorded yet. The parent worker must record it before `done`.
+- CR-1 fix: after the first successful answer, `closeAsSavedOnDismiss()` (event-dialog.ts:457-470) sets `answered` and subscribes once to `ref.backdropClick()` and `ref.keydownEvents()`. The `answered()` guard prevents a second subscription on later answers. `respond()` and `run()` now set `ref.disableClose = this.answered()` in `finally`. In Material 22.2.3, `MatDialogRef` closes on a backdrop click or Escape only while `!disableClose` (material/fesm2022/dialog.mjs:288-289), and MatDialog passes `disableClose: true` to the CDK dialog (dialog.mjs:424). So once the dialog is answered, only the component's own handler closes it, always with 'saved'. The Escape filter (`key === 'Escape'`, no modifier key, `preventDefault`) does what MatDialog does.
+- Busy handling: `dismiss` does nothing while `busy()` (a save, delete or answer is running). This keeps the existing rule that a change in flight cannot be dismissed. After a failed save or a failed second answer, `disableClose` stays true and the next dismissal still reports 'saved'. Delete after an answer still closes with 'deleted', and a reload after a 412 keeps `answered`.
+- Leaks: `backdropClick()` and `keydownEvents()` return the OverlayRef subjects, which are completed in `OverlayRef.dispose()` (cdk/_overlay-module-chunk.mjs:838-839). The subscriptions therefore end when the dialog closes, and no manual teardown is needed.
+- Nested overlays: Escape is dispatched to the topmost overlay that has keydown listeners (cdk OverlayKeyboardDispatcher), so pressing Escape in the scope prompt or an open mat-select panel does not reach the event dialog's handler. Clicks on a child dialog's backdrop do not trigger the parent's backdropClick.
+- Other close paths: the Cancel/Close button returns `answered() ? 'saved' : undefined`. Save without changes after an answer now closes with 'saved' (event-dialog.ts:372).
+- Criterion 1: the choices are shown for edit mode, non-virtual, writable GOOGLE/MICROSOFT calendars with saved guests. The current answer is highlighted (`aria-pressed`) by matching mail account addresses case-insensitively. `respond` POSTs to `/events/{eventId}/respond` with `If-Match` set to the occurrence version. On success it updates the occurrence version, the guest statuses, the diff base and the saved guests, and keeps unsaved edits. A 412 shows the conflict banner, and 409 and other errors show the server's message inline. The choices, save, delete and invite are disabled while busy.
+- Criterion 2: six `calendar.respond.*` units are in messages.xlf and messages.de.xlf, with German targets.
+- Criterion 3: the new specs cover dismissal by Escape (including non-Escape keys and Escape with a modifier key), by a backdrop click, by Save without changes, before an answer and after a failed answer, and during a running save after an answer. The changed assertion in "disables the choices while the answer is sent" (disableClose true after a successful answer) follows from the fix and does not weaken the test. Criterion 3 is not yet recorded with `tasks.py verify` (#3 unticked). The parent worker must record it after running `sh scripts/check.sh` on the final code.
