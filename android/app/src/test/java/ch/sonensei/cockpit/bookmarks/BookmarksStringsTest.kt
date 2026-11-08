@@ -48,6 +48,7 @@ class BookmarksStringsTest {
                 "bookmarks_field_url",
                 "bookmarks_field_title_optional",
                 "bookmarks_add_invalid_url",
+                "bookmarks_add_invalid_tags",
                 "bookmarks_add_failed",
                 "bookmarks_read_later_add",
                 "bookmarks_read_later_remove",

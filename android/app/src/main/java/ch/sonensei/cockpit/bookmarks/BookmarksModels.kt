@@ -125,12 +125,31 @@ internal fun Bookmark.matches(query: String): Boolean {
     return words.all { it in text }
 }
 
-/** Whether [url] is an absolute http(s) address with a host, as the server requires for a bookmark. */
+private val WEB_ADDRESS = Regex("""^https?://([^/?#]*)""", RegexOption.IGNORE_CASE)
+
+/**
+ * Whether [url] (trimmed) looks like an absolute http(s) address with a host. Deliberately lenient: the server is the
+ * authority and also accepts addresses as users copy them from a browser (a host in Unicode or with `_`, spaces or `|`
+ * in the path or query), which it percent-encodes. Only text that cannot be such an address is refused here.
+ */
 internal fun isWebAddress(url: String): Boolean {
-    val uri = runCatching { URI(url.trim()) }.getOrNull() ?: return false
-    val scheme = uri.scheme?.lowercase(Locale.ROOT)
-    return (scheme == "http" || scheme == "https") && !uri.host.isNullOrEmpty()
+    val trimmed = url.trim()
+    if (trimmed.any { it.isISOControl() }) return false
+    val authority = WEB_ADDRESS.find(trimmed)?.groupValues?.get(1) ?: return false
+    val hostPort = authority.substringAfterLast('@')
+    val host = if (hostPort.startsWith("[")) hostPort.substringBefore(']', "") else hostPort.substringBefore(':')
+    return host.isNotEmpty() && host.none { it.isWhitespace() }
 }
+
+/** Whether the tags typed as [input] stay within the server's limits (at most 50 tags of at most 50 characters). */
+internal fun tagsWithinLimits(input: String): Boolean {
+    val tags = parseTags(input)
+    return tags.size <= MAX_TAGS && tags.all { it.length <= MAX_TAG_LENGTH && '\u0000' !in it }
+}
+
+/** The server's tag limits (`BookmarkService`). */
+private const val MAX_TAGS = 50
+private const val MAX_TAG_LENGTH = 50
 
 /**
  * Where a link in the readable copy of [base] leads: resolved against the page's address, and only http(s)

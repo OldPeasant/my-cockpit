@@ -8,11 +8,15 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.ResponseBody
 import retrofit2.Response
@@ -104,9 +108,13 @@ sealed interface BookmarksResult<out T> {
     /** No connection (or the server is down): nothing changed. */
     data object Offline : BookmarksResult<Nothing>
 
-    /** The server refused it; [status] is `null` for an unreadable answer. */
+    /**
+     * The server refused it; [status] is `null` for an unreadable answer. [fields] names the request fields a 400's
+     * Problem Details found invalid (empty when it named none).
+     */
     data class Failed(
         val status: Int?,
+        val fields: Set<String> = emptySet(),
     ) : BookmarksResult<Nothing>
 }
 
@@ -198,15 +206,21 @@ class BookmarksRepository
 
         /**
          * Creates an Inbox task for [bookmark] (its title, the address in the notes) and links the bookmark to it as
-         * its origin (SPEC.md §4.5). Ok with `false` when the task exists but the link could not be made.
+         * its origin (SPEC.md §4.5). Ok with `false` when the task exists but the link could not be made. [taskId] is
+         * the client-generated UUIDv7 of the task: the create is idempotent, so repeating it after a lost answer
+         * returns the task made before instead of making a second one.
          */
-        suspend fun toInbox(bookmark: Bookmark): BookmarksResult<Boolean> =
+        suspend fun toInbox(
+            bookmark: Bookmark,
+            taskId: UUID,
+        ): BookmarksResult<Boolean> =
             load {
                 val task =
                     body(
                         writeApi.createTask(
                             JsonObject(
                                 mapOf(
+                                    "id" to JsonPrimitive(taskId.toString()),
                                     "title" to JsonPrimitive(bookmark.displayTitle.take(MAX_TASK_TITLE)),
                                     "notesMd" to JsonPrimitive(bookmark.url),
                                     "list" to JsonPrimitive("INBOX"),
@@ -286,7 +300,7 @@ class BookmarksRepository
             } catch (_: IOException) {
                 BookmarksResult.Offline
             } catch (e: BookmarksHttpFailure) {
-                if (e.status >= SERVER_ERROR) BookmarksResult.Offline else BookmarksResult.Failed(e.status)
+                if (e.status >= SERVER_ERROR) BookmarksResult.Offline else BookmarksResult.Failed(e.status, e.fields)
             } catch (_: SerializationException) {
                 BookmarksResult.Failed(null)
             } catch (_: IllegalArgumentException) {
@@ -308,13 +322,31 @@ class BookmarksRepository
 
 private fun String.orNull(): JsonElement = if (isEmpty()) JsonNull else JsonPrimitive(this)
 
-/** A non-2xx answer; its message carries only the status, never the body. */
+/**
+ * A non-2xx answer; its message carries only the status, never the body. [fields] are the invalid fields a 400 named.
+ */
 private class BookmarksHttpFailure(
     val status: Int,
+    val fields: Set<String> = emptySet(),
 ) : Exception("HTTP $status")
 
 private fun <T> body(response: Response<T>): T {
     val body = response.body()
-    if (!response.isSuccessful || body == null) throw BookmarksHttpFailure(response.code())
+    if (!response.isSuccessful || body == null) {
+        val fields = if (response.code() == HTTP_BAD_REQUEST) invalidFields(response.errorBody()) else emptySet()
+        throw BookmarksHttpFailure(response.code(), fields)
+    }
     return body
 }
+
+private const val HTTP_BAD_REQUEST = 400
+
+private val problemJson = Json { ignoreUnknownKeys = true }
+
+/** The `field`s of the `errors` of a Problem Details body (empty when it is none or names no field). */
+private fun invalidFields(body: ResponseBody?): Set<String> =
+    runCatching {
+        val text = body?.use { it.string() } ?: return emptySet()
+        val errors = problemJson.parseToJsonElement(text).jsonObject["errors"]?.jsonArray ?: return emptySet()
+        errors.mapNotNull { it.jsonObject["field"]?.jsonPrimitive?.contentOrNull }.toSet()
+    }.getOrDefault(emptySet())

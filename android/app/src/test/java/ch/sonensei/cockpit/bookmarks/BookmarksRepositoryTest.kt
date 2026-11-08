@@ -226,6 +226,40 @@ class BookmarksRepositoryTest {
         }
 
     @Test
+    fun `a refused new bookmark names the invalid fields of the Problem Details`() =
+        runBlocking {
+            server.enqueue(
+                MockResponse
+                    .Builder()
+                    .code(400)
+                    .addHeader("Content-Type", "application/problem+json")
+                    .body(
+                        """{"status":400,"title":"Bad Request","errors":[{"field":"tags","message":"too long"},""" +
+                            """{"field":"url","message":"must be a valid http or https URL"}]}""",
+                    ).build(),
+            )
+            server.enqueue(
+                MockResponse
+                    .Builder()
+                    .code(400)
+                    .addHeader("Content-Type", "application/problem+json")
+                    .body("""{"status":400,"title":"Bad Request"}""")
+                    .build(),
+            )
+            server.enqueue(
+                MockResponse
+                    .Builder()
+                    .code(400)
+                    .body("not json")
+                    .build(),
+            )
+
+            assertEquals(BookmarksResult.Failed(400, setOf("tags", "url")), repo.create(NewBookmark("https://example.org/1")))
+            assertEquals(BookmarksResult.Failed(400), repo.create(NewBookmark("https://example.org/1")))
+            assertEquals(BookmarksResult.Failed(400), repo.create(NewBookmark("https://example.org/1")))
+        }
+
+    @Test
     fun `the readable copy is the file preview, and says when it was cut short`() =
         runBlocking {
             val file = id(90)
@@ -307,12 +341,16 @@ class BookmarksRepositoryTest {
             server.enqueue(json("""{"id":"$task","title":"Page 1"}""", code = 201))
             server.enqueue(json("""{"id":"${id(51)}"}""", code = 201))
 
-            assertEquals(BookmarksResult.Ok(true), repo.toInbox(bookmark(1)))
+            assertEquals(BookmarksResult.Ok(true), repo.toInbox(bookmark(1), id(50)))
 
             val create = server.takeRequest()
             assertEquals("POST", create.method)
             assertEquals("/api/v1/tasks", create.url.encodedPath)
-            assertEquals("""{"title":"Page 1","notesMd":"https://example.org/1","list":"INBOX"}""", create.body?.utf8())
+            // The client-generated id makes the create idempotent: a retry after a lost answer makes no second task.
+            assertEquals(
+                """{"id":"$task","title":"Page 1","notesMd":"https://example.org/1","list":"INBOX"}""",
+                create.body?.utf8(),
+            )
             val link = server.takeRequest()
             assertEquals("POST", link.method)
             assertEquals("/api/v1/links", link.url.encodedPath)
@@ -329,7 +367,7 @@ class BookmarksRepositoryTest {
             server.enqueue(json("""{"id":"${id(51)}"}""", code = 201))
             val long = "x".repeat(600)
 
-            repo.toInbox(bookmark(1).copy(title = long, displayTitle = long))
+            repo.toInbox(bookmark(1).copy(title = long, displayTitle = long), id(50))
 
             val body = server.takeRequest().body!!.utf8()
             assertEquals(true, body.contains("\"title\":\"${"x".repeat(500)}\""))
@@ -344,8 +382,8 @@ class BookmarksRepositoryTest {
             server.enqueue(json("""{"id":"${id(52)}"}""", code = 201))
             server.enqueue(status(503))
 
-            assertEquals(BookmarksResult.Ok(false), repo.toInbox(bookmark(1)))
-            assertEquals(BookmarksResult.Ok(false), repo.toInbox(bookmark(1)))
+            assertEquals(BookmarksResult.Ok(false), repo.toInbox(bookmark(1), id(50)))
+            assertEquals(BookmarksResult.Ok(false), repo.toInbox(bookmark(1), id(50)))
             assertEquals(4, server.requestCount)
         }
 
@@ -358,7 +396,7 @@ class BookmarksRepositoryTest {
             coEvery { writeApi.createLink(any()) } throws IOException("connection lost")
             val offlineLink = BookmarksRepository(mockk(), writeApi)
 
-            assertEquals(BookmarksResult.Ok(false), offlineLink.toInbox(bookmark(1)))
+            assertEquals(BookmarksResult.Ok(false), offlineLink.toInbox(bookmark(1), id(50)))
             coVerify(exactly = 1) { writeApi.createLink(any()) }
         }
 
@@ -370,10 +408,10 @@ class BookmarksRepositoryTest {
             server.enqueue(json("""{"id":"not-a-uuid"}""", code = 201))
             server.enqueue(status(503))
 
-            assertEquals(BookmarksResult.Failed(400), repo.toInbox(bookmark(1)))
-            assertEquals(BookmarksResult.Failed(null), repo.toInbox(bookmark(1)))
-            assertEquals(BookmarksResult.Failed(null), repo.toInbox(bookmark(1)))
-            assertEquals(BookmarksResult.Offline, repo.toInbox(bookmark(1)))
+            assertEquals(BookmarksResult.Failed(400), repo.toInbox(bookmark(1), id(50)))
+            assertEquals(BookmarksResult.Failed(null), repo.toInbox(bookmark(1), id(50)))
+            assertEquals(BookmarksResult.Failed(null), repo.toInbox(bookmark(1), id(50)))
+            assertEquals(BookmarksResult.Offline, repo.toInbox(bookmark(1), id(50)))
             // Only the four task calls, no link call.
             assertEquals(4, server.requestCount)
             repeat(4) { assertEquals("/api/v1/tasks", server.takeRequest().url.encodedPath) }

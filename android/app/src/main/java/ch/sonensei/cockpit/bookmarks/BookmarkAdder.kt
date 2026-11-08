@@ -81,6 +81,7 @@ internal fun BookmarkAdder(
                     label = { Text(stringResource(R.string.bookmarks_field_tags)) },
                     supportingText = { Text(stringResource(R.string.bookmarks_field_tags_hint)) },
                     singleLine = true,
+                    isError = adding.failure == AddFailure.INVALID_TAGS,
                     enabled = !adding.saving,
                     modifier = Modifier.fillMaxWidth().testTag(AdderTags.TAGS),
                 )
@@ -99,6 +100,7 @@ internal fun BookmarkAdder(
                         stringResource(
                             when (it) {
                                 AddFailure.INVALID_URL -> R.string.bookmarks_add_invalid_url
+                                AddFailure.INVALID_TAGS -> R.string.bookmarks_add_invalid_tags
                                 AddFailure.OFFLINE -> R.string.bookmarks_change_offline
                                 AddFailure.FAILED -> R.string.bookmarks_add_failed
                             },

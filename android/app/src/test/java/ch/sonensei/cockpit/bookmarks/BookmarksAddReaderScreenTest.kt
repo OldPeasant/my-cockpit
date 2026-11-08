@@ -128,6 +128,8 @@ class BookmarksAddReaderScreenTest {
             .onNodeWithTag(AdderTags.ERROR)
             .assertTextContains("Enter a full web address starting with http:// or https://.")
 
+        state = state.copy(adding = state.adding!!.copy(failure = AddFailure.INVALID_TAGS))
+        composeRule.onNodeWithTag(AdderTags.ERROR).assertTextContains("Use at most 50 tags, each at most 50 characters long.")
         state = state.copy(adding = state.adding!!.copy(failure = AddFailure.OFFLINE))
         composeRule.onNodeWithTag(AdderTags.ERROR).assertTextContains("Can't reach the server", substring = true)
         state = state.copy(adding = state.adding!!.copy(failure = AddFailure.FAILED))
@@ -229,6 +231,7 @@ class BookmarksAddReaderScreenTest {
         composeRule.onNodeWithTag(ReaderTags.READ).assertIsNotEnabled()
         composeRule.onNodeWithTag(ReaderTags.READ_LATER).assertIsNotEnabled()
         composeRule.onNodeWithTag(ReaderTags.INBOX).assertIsNotEnabled()
+        composeRule.onNodeWithTag(ReaderTags.SAVE_COPY).assertIsNotEnabled()
     }
 
     @Test
@@ -271,7 +274,7 @@ class BookmarksAddReaderScreenTest {
     }
 
     @Test
-    fun `an unreadable page says so, keeps the earlier copy and offers no retry`() {
+    fun `an unreadable page says so, keeps the earlier copy and offers to try saving again`() {
         var state by mutableStateOf(
             BookmarksUiState(
                 reading =
@@ -287,11 +290,23 @@ class BookmarksAddReaderScreenTest {
             .onNodeWithTag(ReaderTags.ERROR)
             .assertTextContains("The page could not be fetched or has no readable text.")
         composeRule.onNodeWithTag(ReaderTags.TEXT).assertTextContains("Earlier copy", substring = true)
+        // Trying again saves a copy anew (the page may be reachable now); reloading the old one would not help.
         composeRule.onNodeWithTag(ReaderTags.RETRY).assertDoesNotExist()
+        composeRule
+            .onNodeWithTag(ReaderTags.SAVE_COPY)
+            .assertTextContains("Retry")
+            .assertIsEnabled()
+            .performClick()
+        assertEquals(listOf("snapshot"), calls)
 
         state = state.copy(reading = ReaderState(article, failure = ReaderFailure.UNREADABLE))
         composeRule.onNodeWithTag(ReaderTags.TEXT).assertDoesNotExist()
         composeRule.onNodeWithTag(ReaderTags.ERROR).assertExists()
+        composeRule.onNodeWithTag(ReaderTags.SAVE_COPY).assertIsEnabled()
+
+        // While another change of the bookmark runs, it waits.
+        state = state.copy(busy = setOf(article.id))
+        composeRule.onNodeWithTag(ReaderTags.SAVE_COPY).assertIsNotEnabled()
     }
 
     @Test
@@ -304,6 +319,8 @@ class BookmarksAddReaderScreenTest {
         composeRule
             .onNodeWithTag(AdderTags.ERROR)
             .assertTextContains("Gib eine vollständige Webadresse ein, die mit http:// oder https:// beginnt.")
+        state = state.copy(adding = AddBookmarkState(failure = AddFailure.INVALID_TAGS))
+        composeRule.onNodeWithTag(AdderTags.ERROR).assertTextContains("Verwende höchstens 50 Tags mit je höchstens 50 Zeichen.")
 
         state = BookmarksUiState(reading = ReaderState(article))
         composeRule.onNodeWithTag(ReaderTags.EMPTY).assertTextContains("Für diese Seite wurde keine lesbare Kopie gespeichert.")

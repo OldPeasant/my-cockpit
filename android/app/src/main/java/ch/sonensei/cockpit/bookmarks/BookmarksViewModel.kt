@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.bookmarks
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.sonensei.cockpit.capture.queue.CaptureQueue
+import ch.sonensei.cockpit.capture.queue.UuidV7
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -55,7 +56,14 @@ sealed interface BookmarksSnackbar {
 }
 
 /** Why a new bookmark was not saved. */
-enum class AddFailure { INVALID_URL, OFFLINE, FAILED }
+enum class AddFailure {
+    INVALID_URL,
+
+    /** Too many tags, or a tag that is too long. */
+    INVALID_TAGS,
+    OFFLINE,
+    FAILED,
+}
 
 /** The open "Add bookmark" dialog. */
 data class AddBookmarkState(
@@ -135,6 +143,9 @@ class BookmarksViewModel internal constructor(
 
     private var loadJob: Job? = null
     private var readerJob: Job? = null
+
+    /** The ids of Inbox tasks whose create got no answer (offline), by bookmark: a retry sends the same id. */
+    private val inboxTaskIds = mutableMapOf<UUID, UUID>()
 
     /** The number of the last snackbar shown. */
     private var snackbars = 0L
@@ -220,6 +231,10 @@ class BookmarksViewModel internal constructor(
             state.update { it.copy(adding = AddBookmarkState(bookmark, failure = AddFailure.INVALID_URL)) }
             return
         }
+        if (!tagsWithinLimits(bookmark.tags)) {
+            state.update { it.copy(adding = AddBookmarkState(bookmark, failure = AddFailure.INVALID_TAGS)) }
+            return
+        }
         state.update { it.copy(adding = AddBookmarkState(bookmark, saving = true)) }
         viewModelScope.launch {
             when (val result = bookmarks.create(bookmark)) {
@@ -240,10 +255,13 @@ class BookmarksViewModel internal constructor(
                     reloadTags()
                 }
                 else -> {
+                    val refused = (result as? BookmarksResult.Failed)?.takeIf { it.status == BAD_REQUEST }
+                    // A 400 marks the field its Problem Details name; one naming no known field is a general failure.
                     val failure =
                         when {
                             result == BookmarksResult.Offline -> AddFailure.OFFLINE
-                            (result as? BookmarksResult.Failed)?.status == BAD_REQUEST -> AddFailure.INVALID_URL
+                            refused != null && "url" in refused.fields -> AddFailure.INVALID_URL
+                            refused != null && "tags" in refused.fields -> AddFailure.INVALID_TAGS
                             else -> AddFailure.FAILED
                         }
                     state.update { it.copy(adding = AddBookmarkState(bookmark, failure = failure)) }
@@ -252,10 +270,16 @@ class BookmarksViewModel internal constructor(
         }
     }
 
-    /** Makes an Inbox task of [bookmark], linked to it (SPEC.md §4.5). */
+    /**
+     * Makes an Inbox task of [bookmark], linked to it (SPEC.md §4.5). The task's id is kept while the server's answer
+     * is unknown (offline), so trying again after a lost answer returns the task made before instead of a duplicate.
+     */
     fun toInbox(bookmark: Bookmark) =
         run(bookmark) { current ->
-            when (val result = bookmarks.toInbox(current)) {
+            val taskId = inboxTaskIds.getOrPut(current.id) { UuidV7.generate(System.currentTimeMillis()) }
+            val result = bookmarks.toInbox(current, taskId)
+            if (result != BookmarksResult.Offline) inboxTaskIds.remove(current.id)
+            when (result) {
                 is BookmarksResult.Ok -> show(BookmarksSnackbar.AddedToInbox(result.value, nextSnackbar()))
                 else -> show(BookmarksSnackbar.Failed(failure(result), nextSnackbar()))
             }
@@ -280,35 +304,48 @@ class BookmarksViewModel internal constructor(
         state.update { it.copy(reading = null) }
     }
 
-    /** Asks the server to fetch the page of the open reader again and save a new readable copy. */
+    /**
+     * Asks the server to fetch the page of the open reader again and save a new readable copy. Like the other changes
+     * of a bookmark it is one at a time, so two writes never go out with the same version.
+     */
     fun saveSnapshot() {
         val reading = state.value.reading ?: return
         if (reading.loading || reading.saving) return
         val id = reading.bookmark.id
-        state.update { it.copy(reading = reading.copy(saving = true, failure = null)) }
+        if (id in state.value.busy) return
+        state.update { it.copy(reading = reading.copy(saving = true, failure = null), busy = it.busy + id) }
         readerJob =
             viewModelScope.launch {
-                when (val result = bookmarks.saveSnapshot(reading.bookmark)) {
-                    is BookmarksResult.Ok -> {
-                        val saved = result.value
-                        if (saved == null) {
-                            updateReader(id) { it.copy(saving = false, failure = ReaderFailure.UNREADABLE) }
-                        } else {
-                            put(saved)
-                            updateReader(id) { it.copy(saving = false, loading = true) }
-                            loadSnapshot(saved)
-                        }
-                    }
-                    else -> {
-                        val latest = failed(reading.bookmark, result)
-                        if (latest == null) {
-                            closeReader()
-                        } else {
-                            updateReader(id) { it.copy(bookmark = latest, saving = false) }
-                        }
-                    }
+                try {
+                    saveSnapshot(reading.bookmark)
+                } finally {
+                    state.update { it.copy(busy = it.busy - id) }
                 }
             }
+    }
+
+    private suspend fun saveSnapshot(bookmark: Bookmark) {
+        val id = bookmark.id
+        when (val result = bookmarks.saveSnapshot(bookmark)) {
+            is BookmarksResult.Ok -> {
+                val saved = result.value
+                if (saved == null) {
+                    updateReader(id) { it.copy(saving = false, failure = ReaderFailure.UNREADABLE) }
+                } else {
+                    put(saved)
+                    updateReader(id) { it.copy(saving = false, loading = true) }
+                    loadSnapshot(saved)
+                }
+            }
+            else -> {
+                val latest = failed(bookmark, result)
+                if (latest == null) {
+                    closeReader()
+                } else {
+                    updateReader(id) { it.copy(bookmark = latest, saving = false) }
+                }
+            }
+        }
     }
 
     private fun loadReader(bookmark: Bookmark) {

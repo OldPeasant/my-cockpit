@@ -37,6 +37,7 @@
     <string name="bookmarks_field_url">Webadresse</string>
     <string name="bookmarks_field_title_optional">Titel (optional)</string>
     <string name="bookmarks_add_invalid_url">Gib eine vollständige Webadresse ein, die mit http:// oder https:// beginnt.</string>
+    <string name="bookmarks_add_invalid_tags">Verwende höchstens 50 Tags mit je höchstens 50 Zeichen.</string>
     <string name="bookmarks_add_failed">Das Lesezeichen konnte nicht gespeichert werden.</string>
     <string name="bookmarks_read_later_add">Später lesen</string>
     <string name="bookmarks_read_later_remove">Aus „Später lesen“ entfernen</string>

@@ -107,6 +107,32 @@ class BookmarksModelsTest {
         assertFalse(isWebAddress("https://"))
         assertFalse(isWebAddress("https:///path-only"))
         assertFalse(isWebAddress("https://exa mple.org"))
+        assertFalse(isWebAddress("https://:8080/path"))
+        assertFalse(isWebAddress("https://user@/path"))
+        assertFalse(isWebAddress("https://example.org/a\u0000b"))
+    }
+
+    @Test
+    fun `a web address may be written as copied from a browser, as the server accepts it`() {
+        assertTrue(isWebAddress("https://münchen.example/"))
+        assertTrue(isWebAddress("https://my_site.example.org/"))
+        assertTrue(isWebAddress("https://example.org/search?q=a|b"))
+        assertTrue(isWebAddress("https://example.org/a b"))
+        assertTrue(isWebAddress("https://example.org/{x}[y]"))
+        assertTrue(isWebAddress("HtTpS://user:pw@example.org:8443/"))
+        assertTrue(isWebAddress("http://[2001:db8::1]:8080/"))
+    }
+
+    @Test
+    fun `tags are within the server's limits up to 50 tags of 50 characters`() {
+        assertTrue(tagsWithinLimits(""))
+        assertTrue(tagsWithinLimits("#${"a".repeat(50)}"))
+        assertTrue(tagsWithinLimits((1..50).joinToString(" ") { "t$it" }))
+        // Repeated tags count once, as the server counts them.
+        assertTrue(tagsWithinLimits((1..60).joinToString(",") { "t${it % 50}" }))
+        assertFalse(tagsWithinLimits("a".repeat(51)))
+        assertFalse(tagsWithinLimits((1..51).joinToString(" ") { "t$it" }))
+        assertFalse(tagsWithinLimits("bad\u0000tag"))
     }
 
     @Test

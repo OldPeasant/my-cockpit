@@ -90,7 +90,7 @@ internal fun BookmarkReader(
                 Text(stringResource(R.string.bookmarks_reader_original, bookmark.site), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             ReaderActions(bookmark, busy, callbacks)
-            ReaderBody(reading, callbacks)
+            ReaderBody(reading, busy, callbacks)
         }
     }
 }
@@ -124,6 +124,7 @@ private fun ReaderActions(
 @Composable
 private fun ReaderBody(
     reading: ReaderState,
+    busy: Boolean,
     callbacks: BookmarksCallbacks,
 ) {
     val failure = reading.failure
@@ -142,6 +143,8 @@ private fun ReaderBody(
                 modifier = Modifier.testTag(ReaderTags.ERROR),
             )
             if (failure == ReaderFailure.UNREADABLE) {
+                // The page may be reachable again later: saving a copy can be tried again from here.
+                SaveCopyButton(reading, busy, R.string.bookmarks_retry, callbacks)
                 if (snapshot != null) SnapshotText(snapshot, callbacks)
             } else {
                 TextButton(onClick = callbacks.retryReader, enabled = !reading.loading, modifier = Modifier.testTag(ReaderTags.RETRY)) {
@@ -152,7 +155,7 @@ private fun ReaderBody(
         reading.loading -> Unit
         snapshot != null -> {
             SnapshotText(snapshot, callbacks)
-            SaveCopyButton(reading, R.string.bookmarks_reader_save_again, callbacks)
+            SaveCopyButton(reading, busy, R.string.bookmarks_reader_save_again, callbacks)
         }
         else -> {
             Text(
@@ -160,18 +163,20 @@ private fun ReaderBody(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.testTag(ReaderTags.EMPTY),
             )
-            SaveCopyButton(reading, R.string.bookmarks_reader_save, callbacks)
+            SaveCopyButton(reading, busy, R.string.bookmarks_reader_save, callbacks)
         }
     }
 }
 
+/** Saves a new readable copy; disabled while one is saved or another change of the bookmark runs. */
 @Composable
 private fun SaveCopyButton(
     reading: ReaderState,
+    busy: Boolean,
     label: Int,
     callbacks: BookmarksCallbacks,
 ) {
-    Button(onClick = callbacks.saveSnapshot, enabled = !reading.saving, modifier = Modifier.testTag(ReaderTags.SAVE_COPY)) {
+    Button(onClick = callbacks.saveSnapshot, enabled = !reading.saving && !busy, modifier = Modifier.testTag(ReaderTags.SAVE_COPY)) {
         Text(stringResource(label))
     }
 }

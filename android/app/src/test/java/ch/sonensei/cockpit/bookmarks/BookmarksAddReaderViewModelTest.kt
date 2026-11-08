@@ -229,7 +229,7 @@ class BookmarksAddReaderViewModelTest {
     fun `a failed save keeps the dialog open with the input and the reason`() =
         runTest(dispatcher) {
             val typed = NewBookmark("https://example.org/x", "Title typed", "a b", readLater = false)
-            coEvery { repo.create(typed) } returns BookmarksResult.Offline andThen BookmarksResult.Failed(400) andThen
+            coEvery { repo.create(typed) } returns BookmarksResult.Offline andThen BookmarksResult.Failed(400, setOf("url")) andThen
                 BookmarksResult.Failed(409) andThen BookmarksResult.Failed(null)
             val vm = viewModel()
             vm.startAdd()
@@ -253,6 +253,66 @@ class BookmarksAddReaderViewModelTest {
 
             vm.cancelAdd()
             assertNull(vm.uiState.value.adding)
+        }
+
+    @Test
+    fun `a 400 marks the field the server names, and one naming no known field is a general failure`() =
+        runTest(dispatcher) {
+            val typed = NewBookmark("https://example.org/x", tags = "reading")
+            coEvery { repo.create(typed) } returns BookmarksResult.Failed(400, setOf("tags")) andThen
+                BookmarksResult.Failed(400, setOf("title")) andThen BookmarksResult.Failed(400)
+            val vm = viewModel()
+            vm.startAdd()
+
+            vm.add(typed)
+            advanceUntilIdle()
+            assertEquals(AddBookmarkState(typed, failure = AddFailure.INVALID_TAGS), vm.uiState.value.adding)
+
+            vm.add(typed)
+            advanceUntilIdle()
+            assertEquals(AddBookmarkState(typed, failure = AddFailure.FAILED), vm.uiState.value.adding)
+
+            vm.add(typed)
+            advanceUntilIdle()
+            assertEquals(AddBookmarkState(typed, failure = AddFailure.FAILED), vm.uiState.value.adding)
+        }
+
+    @Test
+    fun `too many or too long tags are refused without asking the server and keep the input`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.startAdd()
+            val tooLong = NewBookmark("https://example.org/1", tags = "ok ${"a".repeat(51)}")
+            val tooMany = NewBookmark("https://example.org/1", tags = (1..51).joinToString(" ") { "t$it" })
+
+            vm.add(tooLong)
+            assertEquals(AddBookmarkState(tooLong, failure = AddFailure.INVALID_TAGS), vm.uiState.value.adding)
+            vm.add(tooMany)
+            assertEquals(AddBookmarkState(tooMany, failure = AddFailure.INVALID_TAGS), vm.uiState.value.adding)
+            advanceUntilIdle()
+            coVerify(exactly = 0) { repo.create(any()) }
+        }
+
+    @Test
+    fun `addresses the server accepts as copied from a browser are sent to it`() =
+        runTest(dispatcher) {
+            coEvery { repo.create(any()) } returns BookmarksResult.Ok(bookmark(1))
+            val vm = viewModel()
+            val urls =
+                listOf(
+                    "https://münchen.example/",
+                    "https://my_site.example.org/",
+                    "https://example.org/search?q=a|b",
+                    "https://example.org/a b",
+                )
+
+            for (url in urls) {
+                vm.startAdd()
+                vm.add(NewBookmark(url))
+                advanceUntilIdle()
+                assertNull(url, vm.uiState.value.adding)
+            }
+            urls.forEach { url -> coVerify(exactly = 1) { repo.create(NewBookmark(url)) } }
         }
 
     @Test
@@ -378,7 +438,7 @@ class BookmarksAddReaderViewModelTest {
     fun `to Inbox says it was added and whether it was linked, each time as a new note`() =
         runTest(dispatcher) {
             coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1)))
-            coEvery { repo.toInbox(bookmark(1)) } returns BookmarksResult.Ok(true) andThen BookmarksResult.Ok(false)
+            coEvery { repo.toInbox(bookmark(1), any()) } returns BookmarksResult.Ok(true) andThen BookmarksResult.Ok(false)
             val vm = viewModel()
             vm.refresh()
             advanceUntilIdle()
@@ -407,7 +467,7 @@ class BookmarksAddReaderViewModelTest {
         runTest(dispatcher) {
             val answer = CompletableDeferred<BookmarksResult<Boolean>>()
             coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1)))
-            coEvery { repo.toInbox(any()) } coAnswers { answer.await() }
+            coEvery { repo.toInbox(any(), any()) } coAnswers { answer.await() }
             val vm = viewModel()
             vm.refresh()
             advanceUntilIdle()
@@ -418,14 +478,45 @@ class BookmarksAddReaderViewModelTest {
             answer.complete(BookmarksResult.Ok(true))
             advanceUntilIdle()
 
-            coVerify(exactly = 1) { repo.toInbox(any()) }
+            coVerify(exactly = 1) { repo.toInbox(any(), any()) }
+        }
+
+    @Test
+    fun `to Inbox retried after a lost answer sends the same task id, a later one a new UUIDv7`() =
+        runTest(dispatcher) {
+            val sent = mutableListOf<UUID>()
+            var calls = 0
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1), bookmark(2)))
+            coEvery { repo.toInbox(any(), any()) } coAnswers {
+                sent += secondArg<UUID>()
+                if (++calls == 1) BookmarksResult.Offline else BookmarksResult.Ok(true)
+            }
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.toInbox(bookmark(1))
+            advanceUntilIdle()
+            vm.toInbox(bookmark(1))
+            advanceUntilIdle()
+            vm.toInbox(bookmark(1))
+            advanceUntilIdle()
+            vm.toInbox(bookmark(2))
+            advanceUntilIdle()
+
+            assertEquals(4, sent.size)
+            // The retry after offline repeats the id, so the server returns the task it may have made already.
+            assertEquals(sent[0], sent[1])
+            // After an answer, the next task is a new one, and each bookmark has its own.
+            assertEquals(3, sent.toSet().size)
+            assertTrue(sent.all { it.version() == 7 })
         }
 
     @Test
     fun `a failed to Inbox says why`() =
         runTest(dispatcher) {
             coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1)))
-            coEvery { repo.toInbox(any()) } returns BookmarksResult.Offline andThen BookmarksResult.Failed(400)
+            coEvery { repo.toInbox(any(), any()) } returns BookmarksResult.Offline andThen BookmarksResult.Failed(400)
             val vm = viewModel()
             vm.refresh()
             advanceUntilIdle()
@@ -665,6 +756,47 @@ class BookmarksAddReaderViewModelTest {
         }
 
     @Test
+    fun `saving a copy and the other changes of the bookmark never run at the same time`() =
+        runTest(dispatcher) {
+            val saving = CompletableDeferred<BookmarksResult<Bookmark?>>()
+            val toggling = CompletableDeferred<BookmarksResult<Bookmark>>()
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1)))
+            coEvery { repo.get(id(1)) } returns BookmarksResult.Ok(bookmark(1))
+            coEvery { repo.saveSnapshot(any()) } coAnswers { saving.await() }
+            coEvery { repo.setRead(any(), any()) } coAnswers { toggling.await() }
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+            vm.openReader(bookmark(1))
+            advanceUntilIdle()
+
+            // A copy is being saved: the bookmark is busy, so marking it read waits.
+            vm.saveSnapshot()
+            assertTrue(id(1) in vm.uiState.value.busy)
+            runCurrent()
+            vm.toggleRead(bookmark(1))
+            saving.complete(BookmarksResult.Ok(null))
+            advanceUntilIdle()
+            coVerify(exactly = 0) { repo.setRead(any(), any()) }
+            assertTrue(
+                vm.uiState.value.busy
+                    .isEmpty(),
+            )
+
+            // Marking it read runs: saving a copy waits.
+            vm.toggleRead(bookmark(1))
+            runCurrent()
+            vm.saveSnapshot()
+            toggling.complete(BookmarksResult.Ok(bookmark(1, readAt = Instant.EPOCH, version = 2)))
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.saveSnapshot(any()) }
+            assertFalse(
+                vm.uiState.value.reading!!
+                    .saving,
+            )
+        }
+
+    @Test
     fun `a copy saved after the reader was left does not reopen it or change the reader of another bookmark`() =
         runTest(dispatcher) {
             val answer = CompletableDeferred<BookmarksResult<Bookmark?>>()
@@ -770,7 +902,7 @@ class BookmarksAddReaderViewModelTest {
             coEvery { repo.get(id(1)) } returns BookmarksResult.Ok(bookmark(1))
             coEvery { repo.setRead(bookmark(1), true) } returns BookmarksResult.Ok(read)
             coEvery { repo.setReadLater(read, false) } returns BookmarksResult.Ok(read.copy(readLater = false, version = 3))
-            coEvery { repo.toInbox(read.copy(readLater = false, version = 3)) } returns BookmarksResult.Ok(true)
+            coEvery { repo.toInbox(read.copy(readLater = false, version = 3), any()) } returns BookmarksResult.Ok(true)
             val vm = viewModel()
             vm.refresh()
             advanceUntilIdle()

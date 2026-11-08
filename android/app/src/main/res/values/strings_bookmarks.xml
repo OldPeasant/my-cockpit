@@ -37,6 +37,7 @@
     <string name="bookmarks_field_url">Web address</string>
     <string name="bookmarks_field_title_optional">Title (optional)</string>
     <string name="bookmarks_add_invalid_url">Enter a full web address starting with http:// or https://.</string>
+    <string name="bookmarks_add_invalid_tags">Use at most 50 tags, each at most 50 characters long.</string>
     <string name="bookmarks_add_failed">The bookmark could not be saved.</string>
     <string name="bookmarks_read_later_add">Read later</string>
     <string name="bookmarks_read_later_remove">Remove from read later</string>
