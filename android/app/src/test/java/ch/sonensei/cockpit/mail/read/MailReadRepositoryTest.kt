@@ -93,6 +93,26 @@ class MailReadRepositoryTest {
         }
 
     @Test
+    fun `an attachment without a content type, or with a blank one, is listed without a type`() =
+        runBlocking {
+            server.enqueue(
+                json(
+                    """{"id":"${id(1)}","attachments":[{"partId":"2","filename":"notes.txt","inline":false},
+                    |{"partId":"3","filename":"scan.pdf","contentType":"  ","sizeBytes":2048,"inline":false}]}
+                    """.trimMargin().replace("\n", ""),
+                ),
+            )
+
+            val message = (repository.message(id(1)) as MailResult.Ok).value
+
+            // No type: the view falls back to the file name for its icon, preview and the app that opens it.
+            assertEquals(
+                listOf(MailAttachment("2", "notes.txt", null, null), MailAttachment("3", "scan.pdf", 2048, null)),
+                message.attachments,
+            )
+        }
+
+    @Test
     fun `a message without body, subject or dates is still shown`() =
         runBlocking {
             server.enqueue(json("""{"id":"${id(1)}","subject":null,"sentAt":null,"receivedAt":"2026-10-21T06:01:00Z","body":null}"""))
