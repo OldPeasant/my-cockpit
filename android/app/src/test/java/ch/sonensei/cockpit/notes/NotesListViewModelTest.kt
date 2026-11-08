@@ -17,6 +17,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -346,6 +347,41 @@ class NotesListViewModelTest {
             coEvery { repo.search("bread") } returns NotesResult.Ok(emptyList())
             advanceUntilIdle()
             assertEquals(NotesListMessage.FAILED, vm.uiState.value.message)
+        }
+
+    @Test
+    fun `clearing or redoing a search that failed like the list load keeps the load's message and its Retry`() =
+        runTest(dispatcher) {
+            coEvery { repo.list(null, false) } returns NotesResult.Offline
+            coEvery { repo.search(any()) } returns NotesResult.Offline
+            val vm = NotesListViewModel(repo, images)
+            vm.refresh()
+            advanceUntilIdle()
+            assertEquals(NotesListMessage.OFFLINE, vm.uiState.value.message)
+            assertFalse(vm.uiState.value.loaded)
+
+            vm.setQuery("milk")
+            advanceUntilIdle()
+            assertEquals(NotesListMessage.OFFLINE, vm.uiState.value.message)
+            vm.setQuery("")
+            assertEquals(NotesListMessage.OFFLINE, vm.uiState.value.message)
+
+            // A successful search does not take the load's message away either.
+            coEvery { repo.search("bread") } returns NotesResult.Ok(emptyList())
+            vm.setQuery("milk")
+            advanceUntilIdle()
+            vm.setQuery("bread")
+            advanceUntilIdle()
+            assertEquals(NotesListMessage.OFFLINE, vm.uiState.value.message)
+
+            // Retry loads the list again, and its success takes the message away.
+            vm.setQuery("")
+            coEvery { repo.list(null, false) } returns NotesResult.Ok(listOf(note(1)))
+            vm.refresh()
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.message)
+            assertTrue(vm.uiState.value.loaded)
+            assertEquals(listOf(note(1)), vm.uiState.value.shown)
         }
 
     @Test

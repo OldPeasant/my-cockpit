@@ -124,3 +124,57 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed. Android validation (ktlintCheck, testDebugUnitTest, lintDebug) passed. `.taskcheck` could not pass here: Docker is not available for the server tests, which this change does not touch.
+
+---
+
+# Fix Report: re-review
+
+Date: 2026-11-08
+
+Task: and-notes-list - Android notes list: search, pin, archive, delete
+
+Scope: current task. The single P3 finding CR-1 of the re-review in `reviews/and-notes-list/review.md`, called "Re-review CR-1" here to tell it apart from the first review's CR-1 above. Base 85e8706445f51b80f5260d234fd74a34dfa2ac06, task commits cdf98beb, 5338db19, 3d414400, 0ab21e7c. Changes stay inside the Android notes package (main and test).
+
+## Fixed findings
+
+### Re-review CR-1 - The search message is matched by value, so clearing or redoing a search can remove a failed list load's banner
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/notes/NotesListViewModel.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/notes/NotesListViewModelTest.kt`
+
+Problem:
+Confirmed in the current code. Only the search's message was tracked (`searchMessage`), and it was removed from the shown message by value (`it.message.takeUnless { m -> m == searchMessage }`). When the list load and a search both failed with the same value (e.g. `OFFLINE`), clearing the search or a later successful search removed the banner of the list load that was still failing. After a failed first load this left no banner and no Retry.
+
+Fix:
+The view model now keeps two private values: `listMessage` (set only by a list load) and `searchMessage` (set only by a search, or cleared with it). The shown message is always worked out from them: `listMessage ?: searchMessage`. Nothing removes a message by value any more. A list load still clears `searchMessage`, as before. The screen API (`NotesListUiState.message`) is unchanged. The view model has no function that dismisses the message: the banner goes away when a load or search succeeds, and that still works.
+
+New test `clearing or redoing a search that failed like the list load keeps the load's message and its Retry`: the first list load fails `OFFLINE` (`loaded == false`), a search fails `OFFLINE`, the search is cleared, and the message is still `OFFLINE`. A successful search afterwards also keeps it. Retry (`refresh()`) with the list back then clears the message and loads the list. The old code fails this test at the first check after clearing the search: it removed the message by value. The existing message tests (`a successful search takes away the message of a failed one, but not a failed load's`, `clearing a failed search takes its message away`, `a failed search says why, and a reload searches again at once`, `a failed reload keeps the shown notes with a message`) pass unchanged.
+
+Validation:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests ch.sonensei.cockpit.notes.NotesListViewModelTest` - Pass (30 tests)
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests ch.sonensei.cockpit.notes.NotesListViewModelTest` - Pass, 30 tests, 0 failures
+
+Full test suite:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` - BUILD SUCCESSFUL in 5m 19s; 3923 unit tests, 0 failures, 0 errors, 0 skipped
+
+Lint/type-check/build:
+- ktlintCheck and lintDebug are part of the command above - Pass
+
+`.taskcheck`:
+- `sh scripts/check.sh` - Fail, environmental (the same as in the first fix round). The server stage failed with 425 of 3062 tests failing; the log shows `Could not find a valid Docker environment` 203 times, because Docker is not reachable from the fixer's sandbox. This fix changed no server code. The script stops at the server stage, so it did not reach the web and Android stages; the Android stage was run on its own (above) and passed. The parent worker must run `.taskcheck` where Docker is available.
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed. Android validation passed (ktlintCheck, testDebugUnitTest, lintDebug). `.taskcheck` could not pass here because the server tests need Docker, and this change does not touch the server.

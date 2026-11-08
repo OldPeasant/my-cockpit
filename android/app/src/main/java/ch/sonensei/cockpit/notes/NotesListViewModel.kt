@@ -100,8 +100,14 @@ class NotesListViewModel
         /** A search request is running ([searchJob], after its delay). */
         private var searchRunning = false
 
-        /** The message a failed search set, so a later successful search (or clearing it) takes that message away again. */
+        /** Why the last list load failed; only a list load changes it. */
+        private var listMessage: NotesListMessage? = null
+
+        /** Why the last search failed; only a search (or clearing it) changes it, so it never removes [listMessage]. */
         private var searchMessage: NotesListMessage? = null
+
+        /** The shown message: a failed load's first (its Retry loads the list and searches again), else a failed search's. */
+        private fun shownMessage() = listMessage ?: searchMessage
 
         /** Loads the list for the current filter (and searches again); a load for an earlier filter is dropped. */
         fun refresh() {
@@ -116,6 +122,7 @@ class NotesListViewModel
                     val list = notes.list(tag, archived)
                     val tagList = tags.await()
                     listLoading = false
+                    listMessage = message(list)
                     searchMessage = null
                     state.update {
                         it.copy(
@@ -123,7 +130,7 @@ class NotesListViewModel
                             tags = (tagList as? NotesResult.Ok)?.value ?: it.tags,
                             loading = searchRunning,
                             loaded = it.loaded || list is NotesResult.Ok,
-                            message = message(list),
+                            message = shownMessage(),
                         )
                     }
                 }
@@ -158,8 +165,8 @@ class NotesListViewModel
             if (query.isBlank()) {
                 cancelSearch()
                 // The message of a failed search is about a search that is gone.
-                state.update { it.copy(message = it.message.takeUnless { m -> m == searchMessage }) }
                 searchMessage = null
+                state.update { it.copy(message = shownMessage()) }
             } else {
                 search(SEARCH_DELAY_MS)
             }
@@ -183,16 +190,15 @@ class NotesListViewModel
                     state.update { it.copy(loading = true) }
                     val result = notes.search(query)
                     searchRunning = false
-                    val failure = message(result)
+                    searchMessage = message(result)
                     state.update {
                         it.copy(
                             // A failed search for the same text (e.g. on a reload) keeps the hits it found before.
                             hits = (result as? NotesResult.Ok)?.value?.toSet() ?: it.hits,
                             loading = listLoading,
-                            message = failure ?: it.message.takeUnless { m -> m == searchMessage },
+                            message = shownMessage(),
                         )
                     }
-                    searchMessage = failure
                 }
         }
 
