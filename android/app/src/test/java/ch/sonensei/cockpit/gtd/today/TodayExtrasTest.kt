@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.gtd.today
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -19,6 +20,7 @@ import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -154,6 +156,52 @@ class TodayExtrasTest {
     }
 
     @Test
+    fun `a second tap while the check is being sent is ignored`() {
+        val pending = CompletableDeferred<HabitsResult<Habit>>()
+        coEvery { habits.check(water) } coAnswers { pending.await() }
+        val vm = TodayExtrasViewModel(calendar, habits, clock)
+        vm.load()
+        vm.check(water)
+        vm.check(water)
+        assertEquals(setOf(water.id), vm.uiState.value.checking)
+        val checked = water.copy(todayCount = 2)
+        pending.complete(HabitsResult.Ok(checked))
+        coVerify(exactly = 1) { habits.check(water) }
+        assertEquals(listOf(checked), vm.uiState.value.habits)
+        assertTrue(
+            vm.uiState.value.checking
+                .isEmpty(),
+        )
+    }
+
+    @Test
+    fun `a successful check clears the message of an earlier failed one`() {
+        val checked = water.copy(todayCount = 2)
+        coEvery { habits.check(water) } returnsMany listOf(HabitsResult.Failed(400), HabitsResult.Ok(checked))
+        val vm = TodayExtrasViewModel(calendar, habits, clock)
+        vm.load()
+        vm.check(water)
+        assertTrue(vm.uiState.value.checkFailed)
+        vm.check(water)
+        assertFalse(vm.uiState.value.checkFailed)
+        assertEquals(listOf(checked), vm.uiState.value.habits)
+    }
+
+    @Test
+    fun `archived habits are left out and no events show while the calendars cannot be loaded`() {
+        val archived = habit(22, "Old routine").copy(archived = true)
+        coEvery { habits.list() } returns HabitsResult.Ok(listOf(archived, water))
+        coEvery { calendar.calendars() } returns CalendarResult.Offline
+        val vm = TodayExtrasViewModel(calendar, habits, clock)
+        vm.load()
+        assertEquals(listOf(water), vm.uiState.value.habits)
+        assertTrue(
+            vm.uiState.value.events
+                .isEmpty(),
+        )
+    }
+
+    @Test
     fun `event times leave out the side outside today`() {
         val zone = ZoneId.of("UTC")
         assertEquals("09:00–09:15", eventTime(standup, today, zone, Locale.GERMANY))
@@ -194,6 +242,18 @@ class TodayExtrasTest {
         composeRule.onNodeWithText("1/3").assertIsDisplayed()
         composeRule.onNodeWithTag(TodayExtrasTags.check(water)).performClick()
         assertEquals(water, checked)
+    }
+
+    @Test
+    fun `a done habit offers undo without a count and an event shows its location`() {
+        val stretch = habit(22, "Stretch", count = 1, target = 1)
+        show(
+            TodayExtrasUiState(events = listOf(standup), calendars = listOf(work), habits = listOf(stretch), zone = ZoneOffset.UTC),
+            tasks = TodayUiState(today = today),
+        )
+        composeRule.onNodeWithText("Room 2").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Undo Stretch").assertIsDisplayed()
+        composeRule.onNodeWithText("1/1").assertDoesNotExist()
     }
 
     @Test
