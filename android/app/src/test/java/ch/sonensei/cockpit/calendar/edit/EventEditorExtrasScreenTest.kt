@@ -80,6 +80,7 @@ class EventEditorExtrasScreenTest {
                             createLinked = { calls += "create:$it" },
                             reloadLinks = { calls += "reload-links" },
                             respond = { calls += "respond:$it" },
+                            reload = { calls += "reload" },
                         ),
                 )
             }
@@ -497,9 +498,12 @@ class EventEditorExtrasScreenTest {
     fun `a refused answer is explained`() {
         show(invited.copy(message = EditorMessage.RESPOND_FAILED))
         composeRule
-            .onNodeWithText("The answer could not be sent: you are not invited to this event, or you organize it.")
-            .assertIsDisplayed()
+            .onNodeWithText(
+                "The answer could not be sent. Reload the event and try again, or check that you are invited and not the organizer.",
+            ).assertIsDisplayed()
         composeRule.onNodeWithTag(EventEditorTags.respond(AttendeeStatus.ACCEPTED)).performScrollTo().assertIsEnabled()
+        composeRule.onNodeWithTag(EventEditorTags.RELOAD).assertTextContains("Reload").performClick()
+        assertEquals(listOf("reload"), calls)
     }
 
     @Test

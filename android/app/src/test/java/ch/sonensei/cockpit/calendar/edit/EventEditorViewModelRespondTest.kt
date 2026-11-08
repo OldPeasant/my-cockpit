@@ -161,6 +161,20 @@ class EventEditorViewModelRespondTest {
         }
 
     @Test
+    fun `a retry after the sources failed to load fetches them again, so the invitation can be answered`() =
+        runTest(dispatcher) {
+            coEvery { extras.invitationCalendars() } returns CalendarResult.Offline andThen CalendarResult.Ok(setOf(google.id))
+            coEvery { extras.ownAddresses() } returns CalendarResult.Offline andThen CalendarResult.Ok(setOf("me@example.org"))
+            val vm = editing()
+            assertFalse(vm.uiState.value.respondable)
+            vm.reload()
+            advanceUntilIdle()
+            val state = vm.uiState.value
+            assertTrue(state.respondable)
+            assertEquals(AttendeeStatus.NEEDS_ACTION, state.ownStatus)
+        }
+
+    @Test
     fun `without a matching own address there is no current answer, but the invitation can still be answered`() =
         runTest(dispatcher) {
             coEvery { extras.ownAddresses() } returns CalendarResult.Offline

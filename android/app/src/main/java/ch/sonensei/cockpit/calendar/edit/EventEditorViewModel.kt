@@ -253,8 +253,15 @@ class EventEditorViewModel internal constructor(
         load()
     }
 
-    /** Loads the edited event again, e.g. after a conflict; unsaved changes are dropped. */
-    fun reload() = load()
+    /**
+     * Loads the edited event again, e.g. after a conflict; unsaved changes are dropped. The invitation calendars and
+     * own addresses are fetched again too, so a retry after a failed first load shows the answer section.
+     */
+    fun reload() {
+        if (occurrence == null) return
+        loadSources()
+        load()
+    }
 
     fun update(change: (EventForm) -> EventForm) {
         if (!state.value.canSave) return

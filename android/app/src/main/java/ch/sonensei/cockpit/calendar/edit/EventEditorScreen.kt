@@ -247,7 +247,7 @@ private fun Message(
         }
     val action =
         when (message) {
-            EditorMessage.CONFLICT -> R.string.calendar_edit_reload
+            EditorMessage.CONFLICT, EditorMessage.RESPOND_FAILED -> R.string.calendar_edit_reload
             EditorMessage.LOAD_OFFLINE, EditorMessage.LOAD_FAILED -> R.string.calendar_edit_retry
             else -> null
         }

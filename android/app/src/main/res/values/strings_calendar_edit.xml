@@ -137,5 +137,5 @@
     <string name="calendar_edit_respond_accept">Accept</string>
     <string name="calendar_edit_respond_maybe">Maybe</string>
     <string name="calendar_edit_respond_decline">Decline</string>
-    <string name="calendar_edit_respond_failed">The answer could not be sent: you are not invited to this event, or you organize it.</string>
+    <string name="calendar_edit_respond_failed">The answer could not be sent. Reload the event and try again, or check that you are invited and not the organizer.</string>
 </resources>
