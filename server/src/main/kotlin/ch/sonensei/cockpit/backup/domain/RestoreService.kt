@@ -67,7 +67,14 @@ class RestoreService(
 ) : DisposableBean {
 	private val log = LoggerFactory.getLogger(javaClass)
 	private val dataDir: Path = dataDir.toAbsolutePath().normalize()
-	private val lazyWorkDir = lazy { Files.createTempDirectory("cockpit-restores") }
+
+	/** Folder the work dir is created in; null = the JVM temp dir. Tests set their own, since parallel test forks share it. */
+	internal var tempRoot: Path? = null
+	private val lazyWorkDir =
+		lazy {
+			tempRoot?.let { Files.createTempDirectory(it, "cockpit-restores") }
+				?: Files.createTempDirectory("cockpit-restores")
+		}
 	private val workDir: Path by lazyWorkDir
 	private var pending: Pair<UUID, Path>? = null
 

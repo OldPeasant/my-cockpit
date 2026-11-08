@@ -45,6 +45,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -141,7 +142,9 @@ class GoogleContactsSyncTests(
 			)
 	}
 
+	// Also after each test: the synced (and trashed) contacts must not show up in other classes' Trash.
 	@BeforeEach
+	@AfterEach
 	fun reset() {
 		jdbc.execute("delete from contacts_google_link")
 		jdbc.execute("delete from contacts_google_account")

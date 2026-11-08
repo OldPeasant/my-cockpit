@@ -70,7 +70,8 @@ class HabitEdgeCaseTests(
 	@AfterEach
 	fun reset() {
 		jdbc.execute("delete from habit")
-		jdbc.execute("delete from reminder where item_type = 'HABIT'")
+		// All reminders: other test classes may leave due ones behind, and fireDue counts every due reminder.
+		jdbc.execute("delete from reminder")
 		jdbc.execute("delete from search_document where item_type = 'HABIT'")
 		settings.update(mapOf("timeZone" to null, "weekStart" to null))
 	}

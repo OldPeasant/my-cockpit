@@ -25,7 +25,6 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.Paths
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -70,16 +69,18 @@ class BackupWorkDirCleanupTests {
 	private val module = Module()
 	private val publisher = ChangeEventPublisher(ApplicationEventPublisher { }, clock)
 	private val backups = BackupService(BackupContributorRegistry(listOf(module)), JsonMapper.builder().build(), clock, NoTransactions)
-	private val jobs = BackupJobService(backups, publisher, clock)
+	private val jobs by lazy { BackupJobService(backups, publisher, clock).also { it.tempRoot = tmp } }
 
 	@TempDir
 	lateinit var dataDir: Path
 
-	private val restores by lazy { RestoreService(backups, jobs, JdbcTemplate(), clock, dataDir) }
+	private val restores by lazy { RestoreService(backups, jobs, JdbcTemplate(), clock, dataDir).also { it.tempRoot = tmp } }
 
-	private val tmp: Path = Paths.get(System.getProperty("java.io.tmpdir"))
+	/** The services' temp root: their own, as the JVM temp dir is shared by parallel test forks. */
+	@TempDir
+	lateinit var tmp: Path
 
-	/** The JVM temp dir's folders named [prefix]`*`. */
+	/** The folders named [prefix]`*` in the services' temp root. */
 	private fun tempDirs(prefix: String): Set<Path> = tmp.listDirectoryEntries("$prefix*").filter { it.isDirectory() }.toSet()
 
 	@AfterEach
@@ -103,7 +104,7 @@ class BackupWorkDirCleanupTests {
 	fun `a backup service that never made a backup creates no work dir, and destroying it creates none either`() {
 		val before = tempDirs(BACKUPS)
 
-		val unused = BackupJobService(backups, publisher, clock)
+		val unused = BackupJobService(backups, publisher, clock).also { it.tempRoot = tmp }
 		unused.destroy()
 
 		tempDirs(BACKUPS) shouldBe before
@@ -158,7 +159,7 @@ class BackupWorkDirCleanupTests {
 
 	@Test
 	fun `destroying the backup service leaves other cockpit-backups dirs alone`() {
-		val other = Files.createTempDirectory(BACKUPS)
+		val other = Files.createTempDirectory(tmp, BACKUPS)
 		try {
 			val job = jobs.start()
 			awaitFinished(job.id) shouldBe BackupJobState.COMPLETED
@@ -232,7 +233,7 @@ class BackupWorkDirCleanupTests {
 
 	@Test
 	fun `destroying the restore service leaves other cockpit-restores dirs alone`() {
-		val other = Files.createTempDirectory(RESTORES)
+		val other = Files.createTempDirectory(tmp, RESTORES)
 		try {
 			restores.upload(ByteArrayInputStream(validBackup())).valid shouldBe true
 

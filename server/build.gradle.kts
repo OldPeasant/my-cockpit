@@ -94,6 +94,19 @@ allOpen {
 // `integrationTest` (not part of `check`): tests tagged `external` (GreenMail, Radicale, WireMock, ...).
 // The contract file and UPDATE_OPENAPI are inputs, so OpenApiContractTest is not skipped as UP-TO-DATE
 // when api/openapi.yaml changed or a regeneration is requested (see api/README.md).
+// `test` runs test classes in parallel JVM forks: one per 4 cores, at most 4 (heap 2 GB each). Every fork has its own
+// Postgres container (PostgresTestBase) and data dir (test config/application.properties). The temp dir (below) is
+// shared: JVM arguments are the same for all forks, so tests use their own @TempDir where they list temp folders.
+// Override with -PtestForks=<n> or COCKPIT_TEST_FORKS=<n> (1 = the old serial run).
+val testForks: Int =
+	providers
+		.gradleProperty("testForks")
+		.orElse(providers.environmentVariable("COCKPIT_TEST_FORKS"))
+		.orNull
+		?.toInt()
+		?.coerceAtLeast(1)
+		?: (Runtime.getRuntime().availableProcessors() / 4).coerceIn(1, 4)
+
 tasks.test {
 	useJUnitPlatform {
 		excludeTags("external")
@@ -106,6 +119,7 @@ tasks.test {
 	// Gradle's default of 512 MB is too small for the cached Spring contexts plus the 60 MB upload test;
 	// 1 GB ran out of heap once the suite reached ~60 Spring contexts (2026-10-22).
 	maxHeapSize = "2g"
+	maxParallelForks = testForks
 }
 
 // A failing test prints its class, method and full exception in the log; passing tests stay silent.
