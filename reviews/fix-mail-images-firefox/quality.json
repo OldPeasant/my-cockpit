@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "fix-mail-images-firefox",
-  "reviewed_revision": "f124d62a48c37f07fefbc709b9b27da74a4c323f",
+  "reviewed_revision": "f586b9de5ba35636d6186194760275b05c6195b4",
   "helpers": {
     "test-writer":   {"status": "completed", "report": "reviews/fix-mail-images-firefox/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/fix-mail-images-firefox/review.md"},
