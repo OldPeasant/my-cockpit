@@ -1,11 +1,11 @@
 ---
 title: Android: create, edit, complete and drop projects
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/projects,android/app/src/test/java/ch/sonensei/cockpit/gtd/projects,android/app/src/main/res/values/strings_projects_lists.xml,android/app/src/main/res/values-de/strings_projects_lists.xml]
 prio: 1
-lease_until: 
+lease_until: 2026-11-08T11:38:46Z
 extended: 
 releases: 1
 ---
