@@ -735,8 +735,7 @@ describe('BackNavigation when a Back does not reach its page', () => {
     expect(navigation.previous()?.url).toBe('/today');
   });
 
-  // TODO(web-back-navigation): fails - previous() still returns the left page; fix in BackNavigation.
-  it.skip('goes to the parent route after a Back to an entry it never saw that another navigation took over', async () => {
+  it('goes to the parent route after a Back to an entry it never saw that another navigation took over', async () => {
     await go('/new');
     // E.g. a history entry from before a reload: its navigation id is unknown.
     location.go('/waiting', '', { navigationId: 999 });

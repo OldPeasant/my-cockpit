@@ -182,7 +182,8 @@ export class BackNavigation {
       const current = entries[index];
       if (!current) return { entries, index };
       const found = entries.findIndex((known) => known.id === restoring.restoredId);
-      if (found < 0) return { entries: [current], index: 0 };
+      // An entry it never saw: nothing of the app is known to lie behind it.
+      if (found < 0) return { entries: [], index: -1 };
       return { entries, index: found };
     });
   }
