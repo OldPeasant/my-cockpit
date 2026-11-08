@@ -98,11 +98,23 @@ class UserSettingsRepository internal constructor(
     /** The ETag of the shown settings, for If-Match. */
     @Volatile private var etag: String? = null
 
-    /** Serializes loads, writes and clearing, so an older answer never overwrites a newer one. */
+    /**
+     * Guards the state, the ETag and the sequence numbers below. Writes and clearing run entirely under it; a refresh sends
+     * its GET outside it and takes it again to apply the answer, which the sequence numbers drop if it is older.
+     */
     private val lock = Mutex()
 
-    /** Counts clears; a load started before a logout does not bring the old user's settings back. */
-    private var generation = 0L
+    /**
+     * Orders everything that sets the state: each refresh takes the next number when it starts, an update answer, a cache
+     * read and a clear when they apply. Under [lock].
+     */
+    private var sequence = 0L
+
+    /**
+     * The number of what set the current state. A refresh with a lower number is older than that (a newer update or
+     * refresh answer, or a logout) and is dropped. Under [lock].
+     */
+    private var appliedSequence = 0L
 
     private val cacheRead =
         scope.launch {
@@ -115,8 +127,8 @@ class UserSettingsRepository internal constructor(
                     null
                 }
             lock.withLock {
-                // A server answer that arrived first is newer than the cache.
-                if (cached != null && state.value == null) apply(cached)
+                // Defensive: refresh, update and clear all wait for this read, so nothing was applied before it.
+                if (cached != null && state.value == null) apply(cached, ++sequence)
             }
         }
 
@@ -130,10 +142,13 @@ class UserSettingsRepository internal constructor(
         }
     }
 
-    /** Loads the settings from the server; on failure the last known ones stay. */
+    /**
+     * Loads the settings from the server; on failure the last known ones stay. An answer that arrives after a newer state
+     * was applied (an update, a refresh started later, a logout) is dropped and gives [SettingsLoadResult.FAILED].
+     */
     suspend fun refresh(): SettingsLoadResult {
         cacheRead.join()
-        val started = lock.withLock { generation }
+        val ticket = lock.withLock { ++sequence }
         val response =
             try {
                 api.getSettings()
@@ -145,8 +160,8 @@ class UserSettingsRepository internal constructor(
                 return SettingsLoadResult.FAILED
             }
         return lock.withLock {
-            if (started != generation) return@withLock SettingsLoadResult.FAILED
-            accept(response)
+            if (ticket < appliedSequence) return@withLock SettingsLoadResult.FAILED
+            accept(response, ticket)
         }
     }
 
@@ -169,7 +184,11 @@ class UserSettingsRepository internal constructor(
                     }
                 when {
                     response.isSuccessful ->
-                        if (accept(response) == SettingsLoadResult.LOADED) SettingsUpdateResult.Updated else SettingsUpdateResult.Rejected
+                        if (accept(response, ++sequence) == SettingsLoadResult.LOADED) {
+                            SettingsUpdateResult.Updated
+                        } else {
+                            SettingsUpdateResult.Rejected
+                        }
                     response.code() in CONFLICTS -> SettingsUpdateResult.Conflict
                     response.code() >= SERVER_ERROR -> SettingsUpdateResult.Offline
                     else -> SettingsUpdateResult.Rejected
@@ -184,7 +203,7 @@ class UserSettingsRepository internal constructor(
     suspend fun clear() {
         cacheRead.join()
         lock.withLock {
-            generation++
+            appliedSequence = ++sequence
             state.value = null
             etag = null
             try {
@@ -197,14 +216,17 @@ class UserSettingsRepository internal constructor(
         }
     }
 
-    /** Takes a 200 answer; called under [lock]. */
-    private suspend fun accept(response: Response<JsonObject>): SettingsLoadResult {
+    /** Takes a 200 answer as the state numbered [ticket]; called under [lock]. */
+    private suspend fun accept(
+        response: Response<JsonObject>,
+        ticket: Long,
+    ): SettingsLoadResult {
         if (!response.isSuccessful) {
             return if (response.code() >= SERVER_ERROR) SettingsLoadResult.OFFLINE else SettingsLoadResult.FAILED
         }
         val body = response.body() ?: return SettingsLoadResult.FAILED
         val cached = CachedSettings(body, response.headers()["ETag"])
-        apply(cached)
+        apply(cached, ticket)
         try {
             store.write(cached)
         } catch (e: CancellationException) {
@@ -215,7 +237,12 @@ class UserSettingsRepository internal constructor(
         return SettingsLoadResult.LOADED
     }
 
-    private fun apply(cached: CachedSettings) {
+    /** Shows [cached] as the state numbered [ticket]; called under [lock]. */
+    private fun apply(
+        cached: CachedSettings,
+        ticket: Long,
+    ) {
+        appliedSequence = ticket
         etag = cached.etag
         state.value = UserSettings.parse(cached.json)
     }

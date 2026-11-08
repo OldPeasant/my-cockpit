@@ -89,7 +89,47 @@ class UserSettingsRepositoryEdgeCasesTest {
             gate.complete(Unit)
             pending.await()
 
-            // The class promises "an older answer never overwrites a newer one".
+            // An older answer never overwrites a newer one.
+            assertEquals(ThemeSetting.LIGHT, repository.settings.value?.theme)
+            assertEquals("\"2\"", store.cached?.etag)
+        }
+
+    @Test
+    fun `of two overlapping refreshes the later one wins even when the earlier answer arrives last`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val first = CompletableDeferred<Response<JsonObject>>()
+            val second = CompletableDeferred<Response<JsonObject>>()
+            val answers = ArrayDeque(listOf(first, second))
+            coEvery { api.getSettings() } coAnswers { answers.removeFirst().await() }
+            val repository = repository()
+
+            val older = async { repository.refresh() }
+            val newer = async { repository.refresh() }
+            second.complete(ok(settingsJson(theme = "light"), "\"2\""))
+            assertEquals(SettingsLoadResult.LOADED, newer.await())
+            first.complete(ok(settingsJson(theme = "dark"), "\"1\""))
+
+            assertEquals(SettingsLoadResult.FAILED, older.await())
+            assertEquals(ThemeSetting.LIGHT, repository.settings.value?.theme)
+            assertEquals("\"2\"", store.cached?.etag)
+        }
+
+    @Test
+    fun `of two overlapping refreshes answered in order both are taken and the later one stays`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val first = CompletableDeferred<Response<JsonObject>>()
+            val second = CompletableDeferred<Response<JsonObject>>()
+            val answers = ArrayDeque(listOf(first, second))
+            coEvery { api.getSettings() } coAnswers { answers.removeFirst().await() }
+            val repository = repository()
+
+            val older = async { repository.refresh() }
+            val newer = async { repository.refresh() }
+            first.complete(ok(settingsJson(theme = "dark"), "\"1\""))
+            assertEquals(SettingsLoadResult.LOADED, older.await())
+            second.complete(ok(settingsJson(theme = "light"), "\"2\""))
+
+            assertEquals(SettingsLoadResult.LOADED, newer.await())
             assertEquals(ThemeSetting.LIGHT, repository.settings.value?.theme)
             assertEquals("\"2\"", store.cached?.etag)
         }
