@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.notes
 
 import ch.sonensei.cockpit.core.network.generated.apis.NotesApi
+import ch.sonensei.cockpit.core.network.generated.apis.SearchApi
 import ch.sonensei.cockpit.core.network.generated.infrastructure.Serializer
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -60,7 +61,12 @@ class NotesRepositoryTest {
                 .baseUrl(server.url("/"))
                 .addConverterFactory(Serializer.kotlinxSerializationJson.asConverterFactory("application/json".toMediaType()))
                 .build()
-        notes = NotesRepository(retrofit.create(NotesApi::class.java), retrofit.create(NotesWriteApi::class.java))
+        notes =
+            NotesRepository(
+                retrofit.create(NotesApi::class.java),
+                retrofit.create(NotesWriteApi::class.java),
+                retrofit.create(SearchApi::class.java),
+            )
     }
 
     @After
@@ -87,7 +93,7 @@ class NotesRepositoryTest {
             val first = server.takeRequest().url
             assertEquals("/api/v1/notes", first.encodedPath)
             assertEquals("home", first.queryParameter("tag"))
-            assertEquals(null, first.queryParameter("archived"))
+            assertEquals("false", first.queryParameter("archived"))
             assertEquals("c2", server.takeRequest().url.queryParameter("cursor"))
         }
 

@@ -21,7 +21,19 @@ import java.util.UUID
 enum class SaveStatus { SAVED, UNSAVED, SAVING, OFFLINE, FAILED }
 
 /** A one-off problem shown to the user. */
-enum class NoteEditorMessage { LOAD_OFFLINE, LOAD_FAILED, PHOTO_UNREADABLE, PHOTO_OFFLINE, PHOTO_FAILED }
+enum class NoteEditorMessage {
+    LOAD_OFFLINE,
+    LOAD_FAILED,
+    PHOTO_UNREADABLE,
+    PHOTO_OFFLINE,
+    PHOTO_FAILED,
+
+    /** A pin, archive or delete did not get through: no connection. */
+    CHANGE_OFFLINE,
+
+    /** A pin, archive or delete was refused. */
+    CHANGE_FAILED,
+}
 
 /**
  * The note was changed elsewhere while it was edited here: the server refused the save. [current] is the server's
@@ -49,8 +61,12 @@ data class NoteEditorUiState(
     val conflict: NoteConflict? = null,
     val uploading: Boolean = false,
     val message: NoteEditorMessage? = null,
-    /** The note was deleted elsewhere and the user chose the server's side: the editor closes. */
+    /** The note was deleted elsewhere and the user chose the server's side, or it was deleted here: the editor closes. */
     val closed: Boolean = false,
+    /** The note moved to the Trash from this editor (the list offers to undo it). */
+    val deleted: Note? = null,
+    /** A pin, archive or delete is running. */
+    val changing: Boolean = false,
 ) {
     val draft: NoteDraft get() = NoteDraft(title, body)
 
@@ -335,6 +351,67 @@ class NoteEditorViewModel
 
         fun dismissMessage() = state.update { it.copy(message = null) }
 
+        /** Pins or unpins the note. */
+        fun togglePin() = changeFlags { note -> notes.setFlags(note, pinned = !note.pinned) }
+
+        /** Archives the note or takes it back to the notes. */
+        fun toggleArchived() = changeFlags { note -> notes.setFlags(note, archived = !note.archived) }
+
+        /**
+         * Runs a pin or archive change once the text is saved (it goes over the saved version). A refusal because the
+         * note changed elsewhere is a conflict, as for a save.
+         */
+        private fun changeFlags(action: suspend (Note) -> SaveResult) {
+            if (!state.value.editable || state.value.note == null || state.value.changing) return
+            state.update { it.copy(changing = true, message = null) }
+            saves.launch {
+                if (save()) {
+                    saving.withLock {
+                        val note = state.value.note
+                        if (note != null && state.value.editable) {
+                            val result = action(note)
+                            state.update {
+                                when (result) {
+                                    is SaveResult.Saved -> it.copy(note = result.note)
+                                    is SaveResult.Conflict ->
+                                        it.copy(conflict = NoteConflict(result.current), status = SaveStatus.UNSAVED, editing = false)
+                                    SaveResult.Offline -> it.copy(message = NoteEditorMessage.CHANGE_OFFLINE)
+                                    is SaveResult.Failed -> it.copy(message = NoteEditorMessage.CHANGE_FAILED)
+                                }
+                            }
+                        }
+                    }
+                }
+                state.update { it.copy(changing = false) }
+            }
+        }
+
+        /**
+         * Moves the note to the Trash; text not saved yet goes with it (Undo in the list brings back the saved version).
+         * The editor then closes. A note gone already (deleted elsewhere) closes too.
+         */
+        fun delete() {
+            if (!state.value.editable || state.value.note == null || state.value.changing) return
+            autosave?.cancel()
+            autosave = null
+            state.update { it.copy(changing = true, message = null) }
+            saves.launch {
+                saving.withLock {
+                    val note = state.value.note ?: return@withLock
+                    val result = notes.delete(note)
+                    state.update {
+                        when {
+                            result is NotesResult.Ok || (result as? NotesResult.Failed)?.status == NOT_FOUND ->
+                                it.copy(closed = true, deleted = note, status = SaveStatus.SAVED)
+                            result == NotesResult.Offline -> it.copy(message = NoteEditorMessage.CHANGE_OFFLINE)
+                            else -> it.copy(message = NoteEditorMessage.CHANGE_FAILED)
+                        }
+                    }
+                }
+                state.update { it.copy(changing = false) }
+            }
+        }
+
         /** The text equals the saved note (for a new note: there is nothing to save yet). */
         private fun NoteEditorUiState.isSaved(): Boolean {
             val saved = note ?: return title.isBlank() && body.isEmpty()
@@ -343,6 +420,7 @@ class NoteEditorViewModel
 
         companion object {
             const val AUTOSAVE_DELAY_MS = 1_000L
+            private const val NOT_FOUND = 404
 
             /** [body] with [image] inserted at [at] (clamped; `null`: the end), on a line of its own. */
             fun insertImage(

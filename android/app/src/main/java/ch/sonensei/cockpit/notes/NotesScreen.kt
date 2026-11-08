@@ -16,16 +16,30 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,6 +52,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -73,6 +88,8 @@ fun NotesRoute(modifier: Modifier = Modifier) {
     var open by rememberSaveable { mutableStateOf<String?>(null) }
     // The save started when the editor was left: the list reloads once it is done.
     var saving by remember { mutableStateOf<Job?>(null) }
+    // A note moved to the Trash in its editor: the list offers to undo it once it is shown.
+    var trashed by remember { mutableStateOf<Note?>(null) }
     val editors: NoteEditors = hiltViewModel()
     val current = open
     if (current == null) {
@@ -81,6 +98,8 @@ fun NotesRoute(modifier: Modifier = Modifier) {
         // Reloaded each time the list is shown, so a note edited a moment ago shows its new text and place. Before
         // that, editors left with unsaved text try again, and the ones with nothing left are dropped.
         LaunchedEffect(Unit) {
+            trashed?.let(viewModel::trashed)
+            trashed = null
             saving?.join()
             saving = null
             editors.settle()
@@ -95,6 +114,13 @@ fun NotesRoute(modifier: Modifier = Modifier) {
                     create = { open = editors.unsentNewNote() ?: (NEW_NOTE + UUID.randomUUID()) },
                     selectTag = viewModel::selectTag,
                     retry = viewModel::refresh,
+                    setQuery = viewModel::setQuery,
+                    showArchived = viewModel::showArchived,
+                    togglePin = viewModel::togglePin,
+                    toggleArchived = viewModel::toggleArchived,
+                    delete = viewModel::delete,
+                    undo = viewModel::undo,
+                    dismiss = viewModel::dismiss,
                 ),
             modifier = modifier,
         )
@@ -104,6 +130,7 @@ fun NotesRoute(modifier: Modifier = Modifier) {
             id = id,
             key = id?.toString() ?: current,
             opening = current,
+            onDeleted = { trashed = it },
             onClose = {
                 saving = it
                 open = null
@@ -123,6 +150,14 @@ data class NotesListCallbacks(
     /** The tag to filter by; `null` shows all notes. */
     val selectTag: (String?) -> Unit = {},
     val retry: () -> Unit = {},
+    val setQuery: (String) -> Unit = {},
+    /** `true`: the Archived view, `false`: the notes. */
+    val showArchived: (Boolean) -> Unit = {},
+    val togglePin: (Note) -> Unit = {},
+    val toggleArchived: (Note) -> Unit = {},
+    val delete: (Note) -> Unit = {},
+    val undo: (NotesSnackbar.Trashed) -> Unit = {},
+    val dismiss: (NotesSnackbar) -> Unit = {},
 )
 
 internal object NotesTags {
@@ -132,8 +167,17 @@ internal object NotesTags {
     const val RETRY = "notes-retry"
     const val EMPTY = "notes-empty"
     const val ALL = "notes-tag-all"
+    const val SEARCH = "notes-search"
+    const val SEARCH_CLEAR = "notes-search-clear"
+    const val SHOW_ACTIVE = "notes-show-active"
+    const val SHOW_ARCHIVED = "notes-show-archived"
+    const val PIN = "notes-pin"
+    const val ARCHIVE = "notes-archive"
+    const val DELETE = "notes-delete"
 
     fun tag(tag: String) = "notes-tag:$tag"
+
+    fun menu(id: UUID) = "notes-menu:$id"
 
     fun note(id: UUID) = "notes-note:$id"
 }
@@ -144,33 +188,139 @@ fun NotesListContent(
     callbacks: NotesListCallbacks,
     modifier: Modifier = Modifier,
 ) {
+    val snackbarHost = remember { SnackbarHostState() }
+    NotesSnackbarEffect(state.snackbar, snackbarHost, callbacks.undo, callbacks.dismiss)
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             state.message?.let { ListMessage(it, state.loading, callbacks.retry) }
+            SearchAndView(state, callbacks)
             if (state.tags.isNotEmpty()) TagFilter(state, callbacks.selectTag)
             if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth()) else Spacer(Modifier.padding(top = 4.dp))
-            if (state.notes.isEmpty() && state.loaded) {
+            val shown = state.shown
+            val answered = state.loaded && (!state.searching || state.hits != null)
+            if (shown.isEmpty() && answered) {
                 Text(
-                    state.tag?.let { stringResource(R.string.notes_empty_tag, it) } ?: stringResource(R.string.notes_empty),
+                    emptyText(state),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(24.dp).testTag(NotesTags.EMPTY),
                 )
             } else {
                 LazyColumn(Modifier.fillMaxSize().testTag(NotesTags.LIST), contentPadding = PaddingValues(bottom = 88.dp)) {
-                    items(state.notes, key = { it.id }) { note ->
-                        NoteRow(note, onClick = { callbacks.open(note.id) })
+                    items(shown, key = { it.id }) { note ->
+                        NoteRow(note, busy = note.id in state.busy, callbacks)
                         HorizontalDivider(Modifier.padding(start = 16.dp))
                     }
                 }
             }
         }
-        ExtendedFloatingActionButton(
-            onClick = callbacks.create,
-            icon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
-            text = { Text(stringResource(R.string.notes_new)) },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp).testTag(NotesTags.NEW),
+        // New notes are written in the notes view; the Archived view only holds archived ones.
+        if (!state.archived) {
+            ExtendedFloatingActionButton(
+                onClick = callbacks.create,
+                icon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
+                text = { Text(stringResource(R.string.notes_new)) },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp).testTag(NotesTags.NEW),
+            )
+        }
+        SnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter))
+    }
+}
+
+@Composable
+private fun emptyText(state: NotesListUiState): String {
+    val tag = state.tag
+    return when {
+        state.searching -> stringResource(R.string.notes_empty_search, state.query.trim())
+        tag != null && state.archived -> stringResource(R.string.notes_empty_archived_tag, tag)
+        tag != null -> stringResource(R.string.notes_empty_tag, tag)
+        state.archived -> stringResource(R.string.notes_empty_archived)
+        else -> stringResource(R.string.notes_empty)
+    }
+}
+
+@Composable
+private fun SearchAndView(
+    state: NotesListUiState,
+    callbacks: NotesListCallbacks,
+) {
+    Column(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedTextField(
+            value = state.query,
+            onValueChange = callbacks.setQuery,
+            placeholder = { Text(stringResource(R.string.notes_search)) },
+            leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+            trailingIcon = {
+                if (state.query.isNotEmpty()) {
+                    IconButton(onClick = { callbacks.setQuery("") }, modifier = Modifier.testTag(NotesTags.SEARCH_CLEAR)) {
+                        Icon(Icons.Outlined.Clear, contentDescription = stringResource(R.string.notes_search_clear))
+                    }
+                }
+            },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().testTag(NotesTags.SEARCH),
         )
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            SegmentedButton(
+                selected = !state.archived,
+                onClick = { callbacks.showArchived(false) },
+                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                modifier = Modifier.testTag(NotesTags.SHOW_ACTIVE),
+            ) { Text(stringResource(R.string.notes_show_active)) }
+            SegmentedButton(
+                selected = state.archived,
+                onClick = { callbacks.showArchived(true) },
+                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                modifier = Modifier.testTag(NotesTags.SHOW_ARCHIVED),
+            ) { Text(stringResource(R.string.notes_show_archived)) }
+        }
+    }
+}
+
+@Composable
+private fun NotesSnackbarEffect(
+    snackbar: NotesSnackbar?,
+    host: SnackbarHostState,
+    onUndo: (NotesSnackbar.Trashed) -> Unit,
+    onDismiss: (NotesSnackbar) -> Unit,
+) {
+    val resources = LocalResources.current
+    LaunchedEffect(snackbar) {
+        if (snackbar == null) return@LaunchedEffect
+        val result =
+            when (snackbar) {
+                is NotesSnackbar.Trashed ->
+                    host.showSnackbar(
+                        message = resources.getString(R.string.notes_trashed, snackbar.note.displayTitle),
+                        actionLabel = resources.getString(R.string.notes_undo),
+                        duration = SnackbarDuration.Long,
+                    )
+                is NotesSnackbar.Archived ->
+                    host.showSnackbar(
+                        message =
+                            resources.getString(
+                                if (snackbar.note.archived) R.string.notes_archived_done else R.string.notes_unarchived_done,
+                                snackbar.note.displayTitle,
+                            ),
+                        duration = SnackbarDuration.Short,
+                    )
+                is NotesSnackbar.Failed ->
+                    host.showSnackbar(
+                        message =
+                            resources.getString(
+                                when (snackbar.failure) {
+                                    NoteChangeFailure.OFFLINE -> R.string.notes_change_offline
+                                    NoteChangeFailure.CONFLICT -> R.string.notes_change_conflict
+                                    NoteChangeFailure.FAILED -> R.string.notes_change_failed
+                                },
+                            ),
+                        duration = SnackbarDuration.Short,
+                    )
+            }
+        if (result == SnackbarResult.ActionPerformed && snackbar is NotesSnackbar.Trashed) onUndo(snackbar) else onDismiss(snackbar)
     }
 }
 
@@ -231,17 +381,67 @@ private fun TagFilter(
 @Composable
 private fun NoteRow(
     note: Note,
-    onClick: () -> Unit,
+    busy: Boolean,
+    callbacks: NotesListCallbacks,
+) {
+    Row(
+        Modifier.fillMaxWidth().clickable { callbacks.open(note.id) }.testTag(NotesTags.note(note.id)),
+        verticalAlignment = Alignment.Top,
+    ) {
+        NoteSummary(note, Modifier.weight(1f).padding(start = 16.dp, top = 12.dp, bottom = 12.dp))
+        RowMenu(note, busy, callbacks)
+    }
+}
+
+/** Pin, archive and delete of one note in the list. */
+@Composable
+private fun RowMenu(
+    note: Note,
+    busy: Boolean,
+    callbacks: NotesListCallbacks,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box(Modifier.padding(top = 4.dp, end = 4.dp)) {
+        val actions = stringResource(R.string.notes_actions_for, note.displayTitle)
+        IconButton(onClick = { open = true }, enabled = !busy, modifier = Modifier.testTag(NotesTags.menu(note.id))) {
+            Icon(Icons.Outlined.MoreVert, contentDescription = actions)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(if (note.pinned) R.string.notes_unpin else R.string.notes_pin)) },
+                onClick = {
+                    open = false
+                    callbacks.togglePin(note)
+                },
+                modifier = Modifier.testTag(NotesTags.PIN),
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(if (note.archived) R.string.notes_unarchive else R.string.notes_archive)) },
+                onClick = {
+                    open = false
+                    callbacks.toggleArchived(note)
+                },
+                modifier = Modifier.testTag(NotesTags.ARCHIVE),
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.notes_delete)) },
+                onClick = {
+                    open = false
+                    callbacks.delete(note)
+                },
+                modifier = Modifier.testTag(NotesTags.DELETE),
+            )
+        }
+    }
+}
+
+@Composable
+private fun NoteSummary(
+    note: Note,
+    modifier: Modifier,
 ) {
     val excerpt = remember(note.bodyMd) { plainExcerpt(note.bodyMd) }
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .testTag(NotesTags.note(note.id)),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 note.displayTitle,

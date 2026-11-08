@@ -20,8 +20,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AddAPhoto
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -74,6 +77,9 @@ data class NoteEditorCallbacks(
     val useTheirs: () -> Unit = {},
     val dismissMessage: () -> Unit = {},
     val retryLoad: () -> Unit = {},
+    val togglePin: () -> Unit = {},
+    val toggleArchived: () -> Unit = {},
+    val delete: () -> Unit = {},
 )
 
 internal object NoteEditorTags {
@@ -92,12 +98,17 @@ internal object NoteEditorTags {
     const val MESSAGE = "note-message"
     const val UPLOADING = "note-uploading"
     const val RETRY_LOAD = "note-retry-load"
+    const val MENU = "note-menu"
+    const val PIN = "note-pin"
+    const val ARCHIVE = "note-archive"
+    const val DELETE = "note-delete"
 }
 
 /**
  * Note [id] (`null`: a new note). [key] picks the editor from [NoteEditors] (each new note gets its own); [opening]
  * identifies this opening of the editor, so a note opened again is loaded again. Leaving (the back arrow or the system
  * back) saves what is not saved yet: [onClose] gets that save, `null` when the editor closes because the note is gone.
+ * A note moved to the Trash here goes to [onDeleted] first.
  */
 @Composable
 fun NoteEditorRoute(
@@ -106,11 +117,17 @@ fun NoteEditorRoute(
     onClose: (saving: Job?) -> Unit,
     modifier: Modifier = Modifier,
     opening: String = key,
+    onDeleted: (Note) -> Unit = {},
     viewModel: NoteEditorViewModel = noteEditor(key),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel, opening) { viewModel.open(id, opening) }
-    LaunchedEffect(state.closed) { if (state.closed) onClose(null) }
+    LaunchedEffect(state.closed) {
+        if (state.closed) {
+            state.deleted?.let(onDeleted)
+            onClose(null)
+        }
+    }
     val close = { onClose(viewModel.saveNow()) }
     BackHandler(onBack = close)
 
@@ -165,6 +182,9 @@ fun NoteEditorRoute(
                 useTheirs = viewModel::useTheirs,
                 dismissMessage = viewModel::dismissMessage,
                 retryLoad = { id?.let(viewModel::retryLoad) },
+                togglePin = viewModel::togglePin,
+                toggleArchived = viewModel::toggleArchived,
+                delete = viewModel::delete,
             ),
         modifier = modifier,
     )
@@ -310,6 +330,48 @@ private fun EditorBar(
             TextButton(onClick = { callbacks.setEditing(!state.editing) }, modifier = Modifier.testTag(NoteEditorTags.TOGGLE)) {
                 Text(stringResource(if (state.editing) R.string.notes_view else R.string.notes_edit))
             }
+            state.note?.let { EditorMenu(it, enabled = !state.changing, callbacks) }
+        }
+    }
+}
+
+/** Pin, archive and delete of a saved note. */
+@Composable
+private fun EditorMenu(
+    note: Note,
+    enabled: Boolean,
+    callbacks: NoteEditorCallbacks,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }, enabled = enabled, modifier = Modifier.testTag(NoteEditorTags.MENU)) {
+            Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.notes_actions))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(if (note.pinned) R.string.notes_unpin else R.string.notes_pin)) },
+                onClick = {
+                    open = false
+                    callbacks.togglePin()
+                },
+                modifier = Modifier.testTag(NoteEditorTags.PIN),
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(if (note.archived) R.string.notes_unarchive else R.string.notes_archive)) },
+                onClick = {
+                    open = false
+                    callbacks.toggleArchived()
+                },
+                modifier = Modifier.testTag(NoteEditorTags.ARCHIVE),
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.notes_delete)) },
+                onClick = {
+                    open = false
+                    callbacks.delete()
+                },
+                modifier = Modifier.testTag(NoteEditorTags.DELETE),
+            )
         }
     }
 }
@@ -350,6 +412,8 @@ private fun MessageBanner(
             NoteEditorMessage.PHOTO_UNREADABLE -> R.string.notes_photo_unreadable
             NoteEditorMessage.PHOTO_OFFLINE -> R.string.notes_photo_offline
             NoteEditorMessage.PHOTO_FAILED -> R.string.notes_photo_failed
+            NoteEditorMessage.CHANGE_OFFLINE -> R.string.notes_change_offline
+            NoteEditorMessage.CHANGE_FAILED -> R.string.notes_change_failed
         }
     val load = message == NoteEditorMessage.LOAD_OFFLINE || message == NoteEditorMessage.LOAD_FAILED
     Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth().testTag(NoteEditorTags.MESSAGE)) {

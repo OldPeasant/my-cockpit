@@ -37,4 +37,25 @@
     <string name="notes_dismiss">Schließen</string>
     <string name="notes_image">Bild</string>
     <string name="notes_web_image">Externes Bild nicht geladen: %1$s</string>
+    <string name="notes_search">Notizen durchsuchen</string>
+    <string name="notes_search_clear">Suche löschen</string>
+    <string name="notes_show_active">Notizen</string>
+    <string name="notes_show_archived">Archiv</string>
+    <string name="notes_empty_search">Keine Notizen zu „%1$s“.</string>
+    <string name="notes_empty_archived">Keine archivierten Notizen.</string>
+    <string name="notes_empty_archived_tag">Keine archivierten Notizen mit dem Tag %1$s.</string>
+    <string name="notes_actions">Aktionen für die Notiz</string>
+    <string name="notes_actions_for">Aktionen für %1$s</string>
+    <string name="notes_pin">Anheften</string>
+    <string name="notes_unpin">Loslösen</string>
+    <string name="notes_archive">Archivieren</string>
+    <string name="notes_unarchive">Aus dem Archiv holen</string>
+    <string name="notes_delete">In den Papierkorb</string>
+    <string name="notes_trashed">„%1$s“ in den Papierkorb verschoben</string>
+    <string name="notes_undo">Rückgängig</string>
+    <string name="notes_archived_done">„%1$s“ archiviert</string>
+    <string name="notes_unarchived_done">„%1$s“ zurück zu den Notizen verschoben</string>
+    <string name="notes_change_offline">Nicht geändert: keine Verbindung.</string>
+    <string name="notes_change_conflict">Diese Notiz wurde anderswo geändert. Die Liste wurde neu geladen.</string>
+    <string name="notes_change_failed">Nicht geändert: Der Server hat die Änderung abgelehnt.</string>
 </resources>

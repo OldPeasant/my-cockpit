@@ -17,6 +17,8 @@ data class Note(
     val updatedAt: Instant,
     /** The note's version, sent back as `If-Match` when it is saved. */
     val version: Long,
+    /** Out of the main list, shown in the Archived view. */
+    val archived: Boolean = false,
 )
 
 /** A tag in use and its number of notes. */
@@ -35,6 +37,7 @@ internal fun NoteResponse.toNote() =
         tags = tags,
         updatedAt = updatedAt.toInstant(),
         version = version,
+        archived = archived,
     )
 
 /** Pinned notes first, then the most recently changed (the server's order, kept also when a page was merged). */
