@@ -366,12 +366,12 @@ class TaskDetailRepository
             call({ api.listChecklistItems(taskId) }) { body -> body!!.items.map { it.toItem() }.sortedBy { it.position } }
 
         override suspend fun convertToNote(task: GtdTask): TaskResult<ConvertedItem> =
-            call({ api.convertTaskToNote(task.id, etag(task.version)) }) { it!!.toConverted() }
+            call({ converter.noteResponse(task) }) { it!!.toConverted() }
 
         override suspend fun convertToEvent(
             task: GtdTask,
             request: ConvertToEventRequest,
-        ): TaskResult<ConvertedItem> = call({ api.convertTaskToEvent(task.id, request, etag(task.version)) }) { it!!.toConverted() }
+        ): TaskResult<ConvertedItem> = call({ converter.eventResponse(task, request) }) { it!!.toConverted() }
 
         /** Not through [call]: a failing list of calendars must not mark the GTD screens offline. */
         override suspend fun calendars(): TaskResult<List<TargetCalendar>> =

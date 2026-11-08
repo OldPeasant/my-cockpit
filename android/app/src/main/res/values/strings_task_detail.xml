@@ -145,6 +145,7 @@
     <string name="task_detail_item_move_down">Move down</string>
     <string name="task_detail_convert_reference">To reference</string>
     <string name="task_detail_convert_calendar">To calendar</string>
+    <string name="task_detail_convert_reference_confirm">Move this task to reference? It becomes a note and the task goes to the Trash.</string>
     <string name="task_detail_convert_calendar_title">Move to the calendar</string>
     <string name="task_detail_convert_calendar_calendar">Calendar</string>
     <string name="task_detail_convert_calendar_loading">Loading calendars…</string>

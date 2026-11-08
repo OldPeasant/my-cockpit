@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.gtd.inbox
 
 import ch.sonensei.cockpit.core.network.generated.models.ConvertToEventRequest
+import ch.sonensei.cockpit.core.settings.UserSettings
 import ch.sonensei.cockpit.gtd.data.Cached
 import ch.sonensei.cockpit.gtd.data.ContextRepository
 import ch.sonensei.cockpit.gtd.data.Energy
@@ -68,6 +69,9 @@ class InboxConvertViewModelTest {
     private val clock = Clock.fixed(Instant.parse("2026-10-20T08:15:00Z"), ZoneId.of("Europe/Zurich"))
     private var uptime = 0L
 
+    /** The synced settings; no time zone known unless a test sets one. */
+    private val settings = MutableStateFlow<UserSettings?>(null)
+
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -82,7 +86,7 @@ class InboxConvertViewModelTest {
     private fun test(block: suspend (InboxViewModel) -> Unit) =
         runTest(UnconfinedTestDispatcher()) {
             val viewModel =
-                InboxViewModel(inbox, tasks, projects, contexts, completion, clock) {
+                InboxViewModel(inbox, tasks, projects, contexts, completion, clock, settings) {
                     uptime += 1_000L
                     uptime
                 }
@@ -156,6 +160,34 @@ class InboxConvertViewModelTest {
             coVerify { inbox.process(first, any(), InboxAction.ToCalendar(expected)) }
             assertEquals(event, vm.uiState.value.converted)
             assertNull(vm.uiState.value.prompt)
+        }
+
+    @Test
+    fun `the synced time zone, not the device's, gives the default start and the event's zone`() =
+        test { vm ->
+            // 10:15 on the device in Zurich is 04:15 in New York, the account's zone.
+            settings.value = UserSettings(timeZone = ZoneId.of("America/New_York"))
+            vm.startProcessing()
+            vm.choose(first.id, InboxActionKind.CALENDAR)
+            assertEquals(
+                LocalTime.of(5, 0),
+                vm.uiState.value.prompt
+                    ?.plan
+                    ?.time,
+            )
+            vm.updatePrompt { it.copy(plan = it.plan?.copy(time = LocalTime.of(19, 30))) }
+
+            vm.confirmPrompt(first.id)
+
+            val expected =
+                ConvertToEventRequest(
+                    allDay = false,
+                    calendarId = home.id,
+                    start = OffsetDateTime.parse("2026-10-20T19:30:00-04:00"),
+                    end = OffsetDateTime.parse("2026-10-20T20:30:00-04:00"),
+                    timeZone = "America/New_York",
+                )
+            coVerify { inbox.process(first, any(), InboxAction.ToCalendar(expected)) }
         }
 
     @Test

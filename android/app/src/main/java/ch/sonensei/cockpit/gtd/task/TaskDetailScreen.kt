@@ -270,6 +270,7 @@ object TaskDetailTags {
     const val MORE = "task-detail-more"
     const val DELETE = "task-detail-delete"
     const val TO_REFERENCE = "task-detail-to-reference"
+    const val REFERENCE_CONFIRM = "task-detail-reference-confirm"
     const val TO_CALENDAR = "task-detail-to-calendar"
     const val WAITING_INPUT = "task-detail-waiting-input"
     const val WAITING_CONFIRM = "task-detail-waiting-confirm"
@@ -475,6 +476,7 @@ private fun Actions(
 ) {
     var menu by remember { mutableStateOf(false) }
     var askWaiting by rememberSaveable { mutableStateOf(false) }
+    var askReference by rememberSaveable { mutableStateOf(false) }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (detail.completed) {
             FilledTonalButton(onClick = callbacks.reopen, enabled = enabled, modifier = Modifier.testTag(TaskDetailTags.REOPEN)) {
@@ -516,7 +518,7 @@ private fun Actions(
                         leadingIcon = { Icon(Icons.Outlined.Description, contentDescription = null) },
                         onClick = {
                             menu = false
-                            callbacks.toReference()
+                            askReference = true
                         },
                         modifier = Modifier.testTag(TaskDetailTags.TO_REFERENCE),
                     )
@@ -550,6 +552,23 @@ private fun Actions(
                 callbacks.move(MoveTarget.WAITING, person)
             },
             dismiss = { askWaiting = false },
+        )
+    }
+    if (askReference && !state.readOnly) {
+        // As on the web: the task goes to the Trash and the note cannot be turned back into it here.
+        AlertDialog(
+            onDismissRequest = { askReference = false },
+            text = { Text(stringResource(R.string.task_detail_convert_reference_confirm)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        askReference = false
+                        callbacks.toReference()
+                    },
+                    modifier = Modifier.testTag(TaskDetailTags.REFERENCE_CONFIRM),
+                ) { Text(stringResource(R.string.task_detail_convert_reference)) }
+            },
+            dismissButton = { TextButton(onClick = { askReference = false }) { Text(stringResource(R.string.task_detail_cancel)) } },
         )
     }
 }

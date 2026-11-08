@@ -145,6 +145,7 @@
     <string name="task_detail_item_move_down">Nach unten</string>
     <string name="task_detail_convert_reference">Zu Referenz</string>
     <string name="task_detail_convert_calendar">In den Kalender</string>
+    <string name="task_detail_convert_reference_confirm">Diese Aufgabe zur Referenz verschieben? Sie wird zu einer Notiz und die Aufgabe kommt in den Papierkorb.</string>
     <string name="task_detail_convert_calendar_title">In den Kalender verschieben</string>
     <string name="task_detail_convert_calendar_calendar">Kalender</string>
     <string name="task_detail_convert_calendar_loading">Kalender werden geladen…</string>

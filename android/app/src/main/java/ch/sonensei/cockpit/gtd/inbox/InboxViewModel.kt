@@ -2,6 +2,8 @@ package ch.sonensei.cockpit.gtd.inbox
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ch.sonensei.cockpit.core.settings.UserSettings
+import ch.sonensei.cockpit.core.settings.UserSettingsRepository
 import ch.sonensei.cockpit.gtd.data.ContextRepository
 import ch.sonensei.cockpit.gtd.data.Creativity
 import ch.sonensei.cockpit.gtd.data.Energy
@@ -20,6 +22,7 @@ import ch.sonensei.cockpit.gtd.task.CalendarChoice
 import ch.sonensei.cockpit.gtd.task.ConvertedItem
 import ch.sonensei.cockpit.gtd.task.EventPlan
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -114,6 +117,8 @@ class InboxViewModel internal constructor(
     contexts: ContextRepository,
     completion: TaskCompletionRepository,
     private val clock: Clock,
+    /** The synced settings: "To calendar" puts timed events in their time zone (else the [clock]'s, SPEC.md §5.3). */
+    private val settings: StateFlow<UserSettings?> = MutableStateFlow(null),
     /** Monotonic milliseconds, for the double-tap guard. */
     private val uptimeMs: () -> Long,
 ) : ViewModel() {
@@ -124,12 +129,19 @@ class InboxViewModel internal constructor(
         projects: ProjectRepository,
         contexts: ContextRepository,
         completion: TaskCompletionRepository,
-    ) : this(inbox, tasks, projects, contexts, completion, Clock.systemDefaultZone(), { System.nanoTime() / 1_000_000 })
+        settings: UserSettingsRepository,
+    ) : this(inbox, tasks, projects, contexts, completion, Clock.systemDefaultZone(), settings.settings, { System.nanoTime() / 1_000_000 })
 
     private val completer = TaskCompleter(viewModelScope, completion)
 
     /** When the last action started: taps right after it belong to the item that just left (see [choose]). */
     private var lastRunAt: Long? = null
+
+    /** The running load of the "To calendar" calendars: a newer load cancels it, so an older answer never wins. */
+    private var calendarsJob: Job? = null
+
+    /** The zone of timed events: the user's synced time zone, else the device's. */
+    private val zone: ZoneId get() = settings.value?.timeZone ?: clock.zone
 
     private data class Local(
         val processing: Boolean = false,
@@ -231,7 +243,7 @@ class InboxViewModel internal constructor(
         }
         // The project named in the capture (`#project`) is offered first while it is active.
         val project = state.projects.firstOrNull { it.id == task.projectId } ?: state.projects.firstOrNull()
-        val plan = if (kind == InboxActionKind.CALENDAR) EventPlan.startingAfter(ZonedDateTime.now(clock)) else null
+        val plan = if (kind == InboxActionKind.CALENDAR) EventPlan.startingAfter(ZonedDateTime.now(clock.withZone(zone))) else null
         val prompt = InboxPrompt(kind, date = state.today.plusDays(1), projectId = project?.id, plan = plan)
         local.update { it.copy(prompt = task.id to prompt, message = null) }
         if (kind == InboxActionKind.CALENDAR) loadCalendars()
@@ -243,15 +255,19 @@ class InboxViewModel internal constructor(
     private fun loadCalendars() {
         val itemId = local.value.prompt?.first ?: return
         updatePrompt { it.copy(calendars = CalendarChoice()) }
-        viewModelScope.launch {
-            val calendars = inbox.calendars()
-            local.update { l ->
-                val (id, prompt) = l.prompt?.takeIf { it.first == itemId && it.second.kind == InboxActionKind.CALENDAR } ?: return@update l
-                val choice = CalendarChoice(calendars, failed = calendars == null)
-                val plan = calendars?.let { prompt.plan?.withCalendarOf(it) } ?: prompt.plan
-                l.copy(prompt = id to prompt.copy(calendars = choice, plan = plan))
+        calendarsJob?.cancel()
+        calendarsJob =
+            viewModelScope.launch {
+                val calendars = inbox.calendars()
+                local.update { l ->
+                    val (id, prompt) =
+                        l.prompt?.takeIf { it.first == itemId && it.second.kind == InboxActionKind.CALENDAR }
+                            ?: return@update l
+                    val choice = CalendarChoice(calendars, failed = calendars == null)
+                    val plan = calendars?.let { prompt.plan?.withCalendarOf(it) } ?: prompt.plan
+                    l.copy(prompt = id to prompt.copy(calendars = choice, plan = plan))
+                }
             }
-        }
     }
 
     /** The converted item was shown (or opened). */
@@ -268,7 +284,7 @@ class InboxViewModel internal constructor(
         val task = state.current?.takeIf { it.id == itemId } ?: return
         val prompt = state.prompt ?: return
         if (state.offline || justRan() || !prompt.isValid(state.today)) return
-        run(task, prompt.action(clock.zone))
+        run(task, prompt.action(zone))
     }
 
     fun dismissMessage() = local.update { it.copy(message = null) }

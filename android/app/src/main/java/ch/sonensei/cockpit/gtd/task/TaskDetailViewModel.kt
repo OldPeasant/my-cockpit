@@ -3,6 +3,8 @@ package ch.sonensei.cockpit.gtd.task
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.sonensei.cockpit.core.network.ServerUrlRepository
+import ch.sonensei.cockpit.core.settings.UserSettings
+import ch.sonensei.cockpit.core.settings.UserSettingsRepository
 import ch.sonensei.cockpit.gtd.data.ContextRepository
 import ch.sonensei.cockpit.gtd.data.Creativity
 import ch.sonensei.cockpit.gtd.data.Energy
@@ -15,6 +17,7 @@ import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.notes.NoteImages
 import coil3.ImageLoader
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -32,6 +35,7 @@ import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.Locale
 import java.util.UUID
@@ -324,6 +328,8 @@ class TaskDetailViewModel internal constructor(
     val imageLoader: ImageLoader? = null,
     /** The clock and zone "To calendar" starts from and puts timed events in. */
     private val clock: Clock = Clock.systemDefaultZone(),
+    /** The synced settings: "To calendar" puts timed events in their time zone (else the [clock]'s). */
+    private val settings: StateFlow<UserSettings?> = MutableStateFlow(null),
 ) : ViewModel() {
     @Inject
     constructor(
@@ -332,10 +338,25 @@ class TaskDetailViewModel internal constructor(
         contexts: ContextRepository,
         serverUrls: ServerUrlRepository,
         images: NoteImages,
-    ) : this(source, projects.observe().map { it.data }, contexts.observe().map { it.data }, serverUrls.serverUrl, images.loader)
+        settings: UserSettingsRepository,
+    ) : this(
+        source,
+        projects.observe().map { it.data },
+        contexts.observe().map { it.data },
+        serverUrls.serverUrl,
+        images.loader,
+        Clock.systemDefaultZone(),
+        settings.settings,
+    )
 
     private val state = MutableStateFlow(TaskDetailUiState())
     private var taskId: UUID? = null
+
+    /** The running load of the "To calendar" calendars: a newer load cancels it, so an older answer never wins. */
+    private var calendarsJob: Job? = null
+
+    /** The zone of timed events: the user's synced time zone, else the device's. */
+    private val zone: ZoneId get() = settings.value?.timeZone ?: clock.zone
 
     val uiState: StateFlow<TaskDetailUiState> =
         combine(
@@ -611,7 +632,7 @@ class TaskDetailViewModel internal constructor(
     fun openToCalendar() {
         val s = state.value
         if (s.detail?.task == null || s.readOnly || s.busy || s.detail.completed) return
-        state.update { it.copy(calendarDialog = CalendarDialogState(EventPlan.startingAfter(ZonedDateTime.now(clock)))) }
+        state.update { it.copy(calendarDialog = CalendarDialogState(EventPlan.startingAfter(ZonedDateTime.now(clock.withZone(zone))))) }
         loadCalendars()
     }
 
@@ -626,30 +647,32 @@ class TaskDetailViewModel internal constructor(
     fun confirmToCalendar() {
         val dialog = state.value.calendarDialog ?: return
         if (!dialog.plan.isValid || dialog.choice.calendars.isNullOrEmpty()) return
-        val request = dialog.plan.request(clock.zone)
+        val request = dialog.plan.request(zone)
         convert(closesDialog = true) { source.convertToEvent(it, request) }
     }
 
     private fun loadCalendars() {
         state.update { s -> s.copy(calendarDialog = s.calendarDialog?.copy(choice = CalendarChoice())) }
-        viewModelScope.launch {
-            val result = source.calendars()
-            state.update { s ->
-                val dialog = s.calendarDialog ?: return@update s
-                val choice =
-                    when (result) {
-                        is TaskResult.Ok -> CalendarChoice(result.value)
-                        else -> CalendarChoice(failed = true)
-                    }
-                s.copy(
-                    calendarDialog =
-                        dialog.copy(
-                            plan = choice.calendars?.let { dialog.plan.withCalendarOf(it) } ?: dialog.plan,
-                            choice = choice,
-                        ),
-                )
+        calendarsJob?.cancel()
+        calendarsJob =
+            viewModelScope.launch {
+                val result = source.calendars()
+                state.update { s ->
+                    val dialog = s.calendarDialog ?: return@update s
+                    val choice =
+                        when (result) {
+                            is TaskResult.Ok -> CalendarChoice(result.value)
+                            else -> CalendarChoice(failed = true)
+                        }
+                    s.copy(
+                        calendarDialog =
+                            dialog.copy(
+                                plan = choice.calendars?.let { dialog.plan.withCalendarOf(it) } ?: dialog.plan,
+                                choice = choice,
+                            ),
+                    )
+                }
             }
-        }
     }
 
     /** Runs a conversion; on success the task is gone (in the Trash) and the screen shows where it went. */

@@ -87,10 +87,40 @@ class TaskDetailConvertScreenTest {
         composeRule.onNodeWithTag(TaskDetailTags.MORE).performClick()
         composeRule.onNodeWithTag(TaskDetailTags.TO_REFERENCE).assertTextContains("To reference").performClick()
         composeRule.onNodeWithTag(TaskDetailTags.TO_REFERENCE).assertDoesNotExist()
+        composeRule.onNodeWithTag(TaskDetailTags.REFERENCE_CONFIRM).performClick()
         composeRule.onNodeWithTag(TaskDetailTags.MORE).performClick()
         composeRule.onNodeWithTag(TaskDetailTags.TO_CALENDAR).assertTextContains("To calendar").performClick()
 
         assertEquals(listOf("toReference", "openToCalendar"), calls)
+    }
+
+    @Test
+    fun `to reference asks first, as on the web, and converts only once confirmed`() {
+        show(loaded())
+
+        composeRule.onNodeWithTag(TaskDetailTags.MORE).performClick()
+        composeRule.onNodeWithTag(TaskDetailTags.TO_REFERENCE).performClick()
+
+        composeRule
+            .onNodeWithText("Move this task to reference? It becomes a note and the task goes to the Trash.")
+            .assertIsDisplayed()
+        assertTrue(calls.isEmpty())
+        composeRule.onNodeWithTag(TaskDetailTags.REFERENCE_CONFIRM).assertTextContains("To reference").performClick()
+
+        composeRule.onNodeWithTag(TaskDetailTags.REFERENCE_CONFIRM).assertDoesNotExist()
+        assertEquals(listOf("toReference"), calls)
+    }
+
+    @Test
+    fun `cancelling the To reference question converts nothing`() {
+        show(loaded())
+        composeRule.onNodeWithTag(TaskDetailTags.MORE).performClick()
+        composeRule.onNodeWithTag(TaskDetailTags.TO_REFERENCE).performClick()
+
+        composeRule.onNodeWithText("Cancel").performClick()
+
+        composeRule.onNodeWithTag(TaskDetailTags.REFERENCE_CONFIRM).assertDoesNotExist()
+        assertTrue(calls.isEmpty())
     }
 
     @Test

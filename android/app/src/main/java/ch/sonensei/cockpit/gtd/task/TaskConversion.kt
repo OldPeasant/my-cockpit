@@ -7,6 +7,7 @@ import ch.sonensei.cockpit.core.network.generated.models.EventResponse
 import ch.sonensei.cockpit.core.network.generated.models.NoteResponse
 import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.data.body
+import retrofit2.Response
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -98,12 +99,21 @@ class TaskConverter
         private val tasksApi: TasksApi,
         private val calendarsApi: CalendarsApi,
     ) {
-        suspend fun toNote(task: GtdTask): ConvertedItem = body(tasksApi.convertTaskToNote(task.id, etag(task.version))).toConverted()
+        suspend fun toNote(task: GtdTask): ConvertedItem = body(noteResponse(task)).toConverted()
 
         suspend fun toEvent(
             task: GtdTask,
             request: ConvertToEventRequest,
-        ): ConvertedItem = body(tasksApi.convertTaskToEvent(task.id, request, etag(task.version))).toConverted()
+        ): ConvertedItem = body(eventResponse(task, request)).toConverted()
+
+        /** The server's answer to converting [task] into a note, for callers that map refusals themselves. */
+        internal suspend fun noteResponse(task: GtdTask): Response<NoteResponse> = tasksApi.convertTaskToNote(task.id, etag(task.version))
+
+        /** The server's answer to converting [task] into the event of [request], for callers that map refusals themselves. */
+        internal suspend fun eventResponse(
+            task: GtdTask,
+            request: ConvertToEventRequest,
+        ): Response<EventResponse> = tasksApi.convertTaskToEvent(task.id, request, etag(task.version))
 
         /** The calendars an event can be created in, the default one first, then by name. */
         suspend fun calendars(): List<TargetCalendar> =

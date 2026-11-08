@@ -1,11 +1,13 @@
 package ch.sonensei.cockpit.gtd.task
 
 import ch.sonensei.cockpit.core.network.generated.models.ConvertToEventRequest
+import ch.sonensei.cockpit.core.settings.UserSettings
 import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.data.TaskList
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -56,8 +58,11 @@ class TaskDetailConvertViewModelTest {
         Dispatchers.resetMain()
     }
 
+    /** The synced settings; no time zone known unless a test sets one. */
+    private val settings = MutableStateFlow<UserSettings?>(null)
+
     private fun viewModel(of: TaskDetailSource = source) =
-        TaskDetailViewModel(of, flowOf(emptyList()), flowOf(emptyList()), flowOf(null), null, clock).also { it.open(task.id) }
+        TaskDetailViewModel(of, flowOf(emptyList()), flowOf(emptyList()), flowOf(null), null, clock, settings).also { it.open(task.id) }
 
     private fun TestScope.collect(vm: TaskDetailViewModel) {
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
@@ -330,6 +335,29 @@ class TaskDetailConvertViewModelTest {
             assertEquals(event, state.converted)
             assertEquals(DetailMessage.Converted(event), state.message)
             assertEquals(1, source.changes)
+        }
+
+    @Test
+    fun `the synced time zone, not the device's, gives the default start and the event's zone`() =
+        runTest {
+            // 10:15 on the device in Zurich is 04:15 in New York, the account's zone.
+            settings.value = UserSettings(timeZone = ZoneId.of("America/New_York"))
+            val vm = viewModel()
+            collect(vm)
+
+            vm.openToCalendar()
+            assertEquals(
+                LocalTime.of(5, 0),
+                vm.uiState.value.calendarDialog!!
+                    .plan.time,
+            )
+            vm.editPlan { it.copy(time = LocalTime.of(14, 0)) }
+            vm.confirmToCalendar()
+
+            val request = source.eventRequests.single()
+            assertEquals(OffsetDateTime.parse("2026-10-20T14:00:00-04:00"), request.start)
+            assertEquals(OffsetDateTime.parse("2026-10-20T15:00:00-04:00"), request.end)
+            assertEquals("America/New_York", request.timeZone)
         }
 
     @Test
