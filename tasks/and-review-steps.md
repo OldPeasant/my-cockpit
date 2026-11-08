@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [and-review-flow]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/review,android/app/src/test/java/ch/sonensei/cockpit/review,android/app/src/main/res/values/strings_review.xml,android/app/src/main/res/values-de/strings_review.xml]
 prio: 2
-lease_until: 2026-11-08T16:04:10Z
+lease_until: 2026-11-08T16:09:11Z
 ---
 ## Goal
 The action steps of the weekly review on Android, matching web `steps/waiting-step.ts`, `projects-step.ts`,
