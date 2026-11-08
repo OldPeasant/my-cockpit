@@ -1,5 +1,8 @@
 package ch.sonensei.cockpit.gtd.task
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
@@ -511,5 +514,72 @@ class TaskDetailListFieldsTest {
         }
         composeRule.waitForIdle()
         assertEquals(listOf("Soil" to 0), moved)
+    }
+
+    private val compost = ChecklistItem(id(43), "Compost", done = false, position = 3, version = 1)
+
+    /** A checklist whose items the test can change after it is shown, as when an item is added. */
+    private var shownItems by mutableStateOf(listOf<ChecklistItem>())
+
+    private fun showGrowingChecklist() {
+        shownItems = listOf(tomatoes, basil, soil)
+        composeRule.setContent {
+            val state = TaskDetailUiState(loading = false, detail = TaskDetail(seeds, checklist = shownItems))
+            CockpitTheme { TaskDetailContent(state, TaskDetailCallbacks(moveItem = { item, to -> moved += item.text to to })) }
+        }
+        composeRule.waitForIdle()
+    }
+
+    private fun longPressAndDrag(
+        itemId: UUID,
+        rows: Float,
+    ) {
+        val row = tag(TaskDetailTags.item(itemId))
+        val height =
+            row
+                .fetchSemanticsNode()
+                .size.height
+                .toFloat()
+        row.performTouchInput {
+            down(Offset(20f, centerY))
+            advanceEventTime(viewConfiguration.longPressTimeoutMillis + 100)
+            repeat(10) { moveBy(Offset(0f, height * rows / 10)) }
+            up()
+        }
+        composeRule.waitForIdle()
+    }
+
+    @Test
+    fun `dragging down past the bottom lands the item last`() {
+        showChecklist()
+        longPressAndDrag(tomatoes.id, rows = 6f)
+        assertEquals(listOf("Tomatoes" to 2), moved)
+    }
+
+    @Test
+    fun `after an item is added, dragging an earlier item past the bottom lands it on the new last place`() {
+        // Regression (review CR-1): the drag handler kept the old last index, so the item landed one above the new last.
+        showGrowingChecklist()
+        shownItems = shownItems + compost
+        composeRule.waitForIdle()
+        longPressAndDrag(tomatoes.id, rows = 8f)
+        assertEquals(listOf("Tomatoes" to 3), moved)
+    }
+
+    @Test
+    fun `after an item is added, the former last item offers Move down and the new one does not`() {
+        showGrowingChecklist()
+        tag(TaskDetailTags.item(soil.id)).assert(hasAction("Move down").not())
+        shownItems = shownItems + compost
+        composeRule.waitForIdle()
+        tag(TaskDetailTags.item(soil.id)).assert(hasAction("Move down")).assert(hasAction("Move up"))
+        tag(TaskDetailTags.item(compost.id)).assert(hasAction("Move up")).assert(hasAction("Move down").not())
+    }
+
+    @Test
+    fun `a read-only checklist cannot be reordered by dragging`() {
+        showChecklist(readOnly = true)
+        longPressAndDrag(tomatoes.id, rows = 2f)
+        assertTrue(moved.isEmpty())
     }
 }
