@@ -1,10 +1,11 @@
 ---
 title: Web mail images follow the synced image settings
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [web-back-navigation,fix-mail-images-firefox]
 touches: [web/src/app/features/mail/read,web/src/app/features/settings/general,web/src/locale]
 prio: 1
+lease_until: 2026-11-08T11:45:25Z
 ---
 ## Goal
 The server already stores `mailImagePolicy` (`block`|`allow`, default `block`) and `mailImageAllowedSenders`
