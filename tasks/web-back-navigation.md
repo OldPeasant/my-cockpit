@@ -18,7 +18,8 @@ mail list instead of where the user was. The owner wants a real "back".
   - verified (2026-11-08 12:15+0100 by dell26/agent-1): cd web && npx ng test --watch=false --include src/app/shared/navigation/back-navigation.spec.ts -> 57 passed (BackNavigation goes back in history when previous entry is an app page, to the parent route on deep link/new tab/unknown entry; back-button spec in npm run check)
 - [x] The back button's label names the destination where known (e.g. "New", "Mail", "Today", the project name) or reads just "Back"
   - verified (2026-11-08 12:15+0100 by dell26/agent-1): back-button + back-navigation specs (label from route title or setLabel, e.g. New/Mail/Today/project title, else 'Back') in cd web && npm run check -> 187 files, 4139 tests passed
-- [ ] Used by the mail read view, task detail, project detail, note editor and contact detail (and any other detail page with a hardcoded back link found by grep)
+- [x] Used by the mail read view, task detail, project detail, note editor and contact detail (and any other detail page with a hardcoded back link found by grep)
+  - verified (2026-11-08 12:15+0100 by dell26/agent-1): grep -rln 'BackNavigation|back-button' web/src/app/features -> mail read, task detail, project detail, note editor, contact detail, bookmark reader; grep for remaining hardcoded back routerLinks -> none; their page specs pass in npm run check
 - [ ] Mail read actions that leave the message (archive, delete, spam) return to the origin the same way instead of `/mail`
 - [ ] Unit tests: opened from New → back returns to New with its filter; deep link → parent route
 - [ ] New UI strings are in `web/src/locale` (English + German)
