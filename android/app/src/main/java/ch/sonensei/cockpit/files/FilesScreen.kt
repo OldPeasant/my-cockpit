@@ -76,6 +76,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
@@ -86,12 +87,16 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.ui.PlaceholderScreen
+import coil3.ImageLoader
+import coil3.compose.AsyncImage
 import dagger.hilt.internal.GeneratedComponentManagerHolder
+import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -122,6 +127,8 @@ fun FilesRoute(modifier: Modifier = Modifier) {
     BackHandler(enabled = state.path.isNotEmpty()) { viewModel.up() }
     // Registered later, so it goes first: back ends a selection before it leaves the folder.
     BackHandler(enabled = state.selecting) { viewModel.clearSelection() }
+    // Registered last, so it goes first: back closes a preview before anything else.
+    BackHandler(enabled = state.preview != null) { viewModel.closePreview() }
 
     val noApp = stringResource(R.string.files_no_app)
     val resources = LocalResources.current
@@ -164,6 +171,10 @@ fun FilesRoute(modifier: Modifier = Modifier) {
             FilesCallbacks(
                 openFolder = viewModel::openFolder,
                 openFile = { file -> viewModel.open(file) { OpenedFiles.target(app, file.id, file.name) } },
+                preview = { file -> viewModel.preview(file) { PreviewFiles.target(app, it.id) } },
+                previewStep = viewModel::previewStep,
+                closePreview = viewModel::closePreview,
+                retryPreview = viewModel::retryPreview,
                 saveFile = {
                     saving = it
                     pickSaveTarget.launch(it.name)
@@ -190,6 +201,7 @@ fun FilesRoute(modifier: Modifier = Modifier) {
                 cancelMove = viewModel::cancelMove,
             ),
         modifier = modifier,
+        imageLoader = viewModel.imageLoader,
     )
 }
 
@@ -227,7 +239,14 @@ private val PendingSaveSaver =
 /** What the screen can ask for, so it can be tested without a view model. */
 data class FilesCallbacks(
     val openFolder: (DriveEntry.Folder) -> Unit = {},
+    /** Opens the file in another app ("Open with"). */
     val openFile: (DriveEntry.File) -> Unit = {},
+    /** Shows the file in the app (a tap on its row). */
+    val preview: (DriveEntry.File) -> Unit = {},
+    /** -1: the previous file of the folder, 1: the next. */
+    val previewStep: (Int) -> Unit = {},
+    val closePreview: () -> Unit = {},
+    val retryPreview: () -> Unit = {},
     val saveFile: (DriveEntry.File) -> Unit = {},
     /** Depth of the path to show: 0 is the drive root. */
     val goTo: (Int) -> Unit = {},
@@ -295,6 +314,8 @@ internal object FilesTags {
 
     fun more(id: UUID) = "files-more:$id"
 
+    fun thumbnail(id: UUID) = "files-thumbnail:$id"
+
     fun upload(key: Long) = "files-upload:$key"
 
     fun dismissUpload(key: Long) = "files-upload-dismiss:$key"
@@ -305,6 +326,10 @@ fun FilesContent(
     state: FilesUiState,
     callbacks: FilesCallbacks,
     modifier: Modifier = Modifier,
+    /** Loads thumbnails and image previews; `null` shows the file type's icon instead. */
+    imageLoader: ImageLoader? = null,
+    /** Opens a previewed PDF; tests give fakes, as Robolectric does not render PDFs. */
+    pdfOpener: (File) -> PdfPages? = ::openPdf,
 ) {
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
@@ -358,7 +383,7 @@ fun FilesContent(
                         val selected = if (state.selecting) entry.id in state.selected else null
                         when (entry) {
                             is DriveEntry.Folder -> FolderRow(entry, selected, state.working, callbacks)
-                            is DriveEntry.File -> FileRow(entry, selected, state.downloading, state.working, callbacks)
+                            is DriveEntry.File -> FileRow(entry, selected, state.downloading, state.working, callbacks, imageLoader)
                         }
                         HorizontalDivider(Modifier.padding(start = 72.dp))
                     }
@@ -382,6 +407,16 @@ fun FilesContent(
                 )
             }
         }
+    }
+    state.preview?.let {
+        FilePreviewView(
+            preview = it,
+            downloading = state.downloading == it.file.id,
+            downloadMessage = state.downloadMessage,
+            callbacks = callbacks,
+            imageLoader = imageLoader,
+            pdfOpener = pdfOpener,
+        )
     }
     state.nameDialog?.let { NameDialogView(it, callbacks) }
     state.movePicker?.let { MovePickerDialog(it, callbacks) }
@@ -704,6 +739,7 @@ private fun FileRow(
     downloading: UUID?,
     working: Boolean,
     callbacks: FilesCallbacks,
+    imageLoader: ImageLoader?,
 ) {
     // One download at a time: while one runs, no file can be opened or saved (the "save as" picker would create a document).
     val idle = downloading == null
@@ -712,9 +748,11 @@ private fun FileRow(
         kind = fileKind(file.mime),
         subtitle = "${formatSize(file.size)}, ${formatInstant(file.updatedAt)}",
         selected = selected,
-        onClick = { callbacks.openFile(file) },
+        onClick = { callbacks.preview(file) },
         callbacks = callbacks,
         enabled = idle || selected != null,
+        thumbnail = if (imageLoader != null && previewKind(file.mime) == PreviewKind.IMAGE) thumbnailUrl(file.id) else null,
+        imageLoader = imageLoader,
     ) {
         if (downloading == file.id) {
             CircularProgressIndicator(
@@ -807,6 +845,9 @@ private fun EntryRow(
     callbacks: FilesCallbacks,
     enabled: Boolean = true,
     selectable: Boolean = true,
+    /** Where the server's thumbnail is loaded from, drawn over the type tile once it arrives. */
+    thumbnail: String? = null,
+    imageLoader: ImageLoader? = null,
     trailing: @Composable () -> Unit = {},
 ) {
     val selecting = selected != null
@@ -825,7 +866,23 @@ private fun EntryRow(
             .testTag(FilesTags.entry(entry.id)),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (selected == true) SelectedTile() else KindTile(kind, dimmed = selecting && !selectable)
+        if (selected == true) {
+            SelectedTile()
+        } else {
+            Box {
+                KindTile(kind, dimmed = selecting && !selectable)
+                // Transparent until it loads; when it fails, the tile stays.
+                if (thumbnail != null && imageLoader != null) {
+                    AsyncImage(
+                        model = thumbnail,
+                        contentDescription = null,
+                        imageLoader = imageLoader,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).testTag(FilesTags.thumbnail(entry.id)),
+                    )
+                }
+            }
+        }
         Column(Modifier.weight(1f).padding(start = 16.dp, end = 8.dp)) {
             Text(entry.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
             subtitle?.let {
@@ -862,9 +919,10 @@ private val TEXT_TYPES = setOf("application/json", "application/xml", "applicati
 
 /** A rounded tonal square behind the icon, tinted by kind, so a folder can be scanned by shape and color. */
 @Composable
-private fun KindTile(
+internal fun KindTile(
     kind: FileKind,
     dimmed: Boolean = false,
+    size: Dp = 40.dp,
 ) {
     val colors = MaterialTheme.colorScheme
     val (icon: ImageVector, pair: Pair<Color, Color>) =
@@ -880,17 +938,21 @@ private fun KindTile(
         }
     Box(
         Modifier
-            .size(40.dp)
+            .size(size)
             .alpha(if (dimmed) DIMMED else 1f)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(size * TILE_CORNER))
             .background(pair.first),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = pair.second, modifier = Modifier.size(22.dp))
+        Icon(icon, contentDescription = null, tint = pair.second, modifier = Modifier.size(size * TILE_ICON))
     }
 }
 
 private const val DIMMED = 0.38f
+
+/** Corner radius and icon size relative to the tile: 12 dp and 22 dp on the list's 40 dp tile. */
+private const val TILE_CORNER = 0.3f
+private const val TILE_ICON = 0.55f
 
 /** A picked row's tile: a filled check, so the selection reads at a glance. */
 @Composable

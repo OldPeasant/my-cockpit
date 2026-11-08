@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.files
 
+import ch.sonensei.cockpit.core.network.PLACEHOLDER_BASE_URL
 import ch.sonensei.cockpit.core.network.generated.models.DriveEntryResponse
 import ch.sonensei.cockpit.core.network.generated.models.FileResponse
 import java.time.Instant
@@ -31,6 +32,44 @@ sealed interface DriveEntry {
         override val version: Long = 0,
     ) : DriveEntry
 }
+
+/** The start of a text file as the server previews it; [truncated] when the file is longer. */
+data class TextPreview(
+    val text: String,
+    val truncated: Boolean,
+)
+
+/** How the app previews a file itself (SPEC.md §8.2); [OTHER] files are only opened in another app. */
+enum class PreviewKind { IMAGE, PDF, TEXT, OTHER }
+
+/**
+ * What the in-app preview does with [mime]: the images the server serves for previews and thumbnails (JPEG, PNG, WebP,
+ * GIF), PDFs, and what the server previews as text.
+ */
+internal fun previewKind(mime: String): PreviewKind {
+    val type = mime.substringBefore(';').trim().lowercase(Locale.ROOT)
+    return when {
+        type in IMAGE_TYPES -> PreviewKind.IMAGE
+        type == "application/pdf" -> PreviewKind.PDF
+        type.startsWith("text/") || type in TEXT_APPLICATION_TYPES -> PreviewKind.TEXT
+        else -> PreviewKind.OTHER
+    }
+}
+
+private val IMAGE_TYPES = setOf("image/jpeg", "image/png", "image/webp", "image/gif")
+
+/** Types outside `text/` the server previews as text. */
+private val TEXT_APPLICATION_TYPES =
+    setOf("application/json", "application/xml", "application/yaml", "application/x-yaml", "application/x-sh")
+
+/** Where the image of file [id] is loaded from for its preview, with [FileImages.loader]. */
+internal fun previewUrl(id: UUID) = "${PLACEHOLDER_BASE_URL}api/v1/files/$id/preview"
+
+/** Where the server's small thumbnail of image file [id] is loaded from, with [FileImages.loader]. */
+internal fun thumbnailUrl(id: UUID) = "${PLACEHOLDER_BASE_URL}api/v1/files/$id/thumbnail?size=$THUMBNAIL_SIZE"
+
+/** The server makes thumbnails of 256 and 1024 pixels; a 40 dp list tile needs the small one. */
+private const val THUMBNAIL_SIZE = 256
 
 /** A folder on the way from the drive root to the one shown; the root itself is not one. */
 data class FolderCrumb(

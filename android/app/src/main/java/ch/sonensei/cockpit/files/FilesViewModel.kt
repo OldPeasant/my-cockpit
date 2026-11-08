@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.files
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import coil3.ImageLoader
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -59,6 +60,8 @@ data class FilesUiState(
     val nameDialog: NameDialog? = null,
     /** The folder picker of a move, when open. */
     val movePicker: MovePicker? = null,
+    /** The in-app preview of a file, when open. */
+    val preview: FilePreview? = null,
 ) {
     val selecting: Boolean get() = selected.isNotEmpty()
 }
@@ -104,6 +107,43 @@ data class MovePicker(
     val canMove: Boolean get() = !moving && path.map { it.id } != origin.map { it.id }
 }
 
+/** What the preview shows of its file. */
+sealed interface PreviewContent {
+    data object Loading : PreviewContent
+
+    /** The screen loads the image itself, from [previewUrl]. */
+    data object Image : PreviewContent
+
+    /** The PDF, downloaded into the cache [file], for `PdfRenderer`. */
+    data class Pdf(
+        val file: File,
+    ) : PreviewContent
+
+    data class Text(
+        val text: String,
+        val truncated: Boolean,
+    ) : PreviewContent
+
+    /** No in-app preview of this type: it can only be opened in another app. */
+    data object Unsupported : PreviewContent
+
+    /** Loading it did not work; it can be tried again. */
+    data class Problem(
+        val message: FilesMessage,
+    ) : PreviewContent
+}
+
+/** The preview of the file at [index] of [files], the files of the folder it was opened in, in the list's order. */
+data class FilePreview(
+    val files: List<DriveEntry.File>,
+    val index: Int,
+    val content: PreviewContent,
+) {
+    val file: DriveEntry.File get() = files[index]
+    val hasPrevious: Boolean get() = index > 0
+    val hasNext: Boolean get() = index < files.lastIndex
+}
+
 /** What a finished change did, for a short confirmation. */
 enum class FilesChange { CREATED, RENAMED, MOVED, TRASHED }
 
@@ -129,17 +169,19 @@ sealed interface FilesEvent {
 }
 
 /**
- * The drive (SPEC.md §8.2 on the phone, §9.2 item 7): browse folders, open or save files, upload from the device, and
- * create folders, rename, move or delete (to the Trash) entries, one or a long-press selection at a time.
+ * The drive (SPEC.md §8.2 on the phone, §9.2 item 7): browse folders, preview, open or save files, upload from the
+ * device, and create folders, rename, move or delete (to the Trash) entries, one or a long-press selection at a time.
  * Device files (the cache, picked files) are touched on [io], never on the main thread.
  */
 @HiltViewModel
 class FilesViewModel internal constructor(
     private val files: FilesRepository,
     private val io: CoroutineDispatcher,
+    /** Loads thumbnails and image previews; `null` (tests) shows the file type's icon instead. */
+    val imageLoader: ImageLoader? = null,
 ) : ViewModel() {
     @Inject
-    constructor(files: FilesRepository) : this(files, Dispatchers.IO)
+    constructor(files: FilesRepository, images: FileImages) : this(files, Dispatchers.IO, images.loader)
 
     private val state = MutableStateFlow(FilesUiState())
     val uiState: StateFlow<FilesUiState> = state.asStateFlow()
@@ -150,7 +192,11 @@ class FilesViewModel internal constructor(
     private var loadJob: Job? = null
     private var downloadJob: Job? = null
     private var pickerJob: Job? = null
+    private var previewJob: Job? = null
     private var nextUploadKey = 0L
+
+    /** The cache file a PDF is downloaded into for its preview; given by [preview]. */
+    private var previewTarget: ((DriveEntry.File) -> File)? = null
 
     /**
      * A change was refused because the version sent was outdated: the next load that arrives gives the open dialog or
@@ -439,6 +485,94 @@ class FilesViewModel internal constructor(
 
     fun dismissDownloadMessage() = state.update { it.copy(downloadMessage = null) }
 
+    /**
+     * Opens the preview of [file]; previous and next go through the files of the folder shown. A PDF is downloaded into
+     * the cache file [target] chooses (it runs on [io] and deletes the files previewed earlier).
+     */
+    fun preview(
+        file: DriveEntry.File,
+        target: (DriveEntry.File) -> File,
+    ) {
+        previewTarget = target
+        val siblings = state.value.entries.filterIsInstance<DriveEntry.File>()
+        val index = siblings.indexOfFirst { it.id == file.id }
+        showPreview(if (index < 0) listOf(file) else siblings, index.coerceAtLeast(0))
+    }
+
+    /** Shows the previous ([delta] -1) or next (1) file of the preview's folder. */
+    fun previewStep(delta: Int) {
+        val preview = state.value.preview ?: return
+        val index = preview.index + delta
+        if (index in preview.files.indices) showPreview(preview.files, index)
+    }
+
+    /** Loads the preview's file again after it failed. */
+    fun retryPreview() {
+        val preview = state.value.preview ?: return
+        showPreview(preview.files, preview.index)
+    }
+
+    fun closePreview() {
+        previewJob?.cancel()
+        state.update { it.copy(preview = null) }
+    }
+
+    private fun showPreview(
+        siblings: List<DriveEntry.File>,
+        index: Int,
+    ) {
+        previewJob?.cancel()
+        val file = siblings[index]
+        val kind = previewKind(file.mime)
+        val content =
+            when (kind) {
+                PreviewKind.IMAGE -> PreviewContent.Image
+                PreviewKind.OTHER -> PreviewContent.Unsupported
+                PreviewKind.PDF, PreviewKind.TEXT -> PreviewContent.Loading
+            }
+        state.update { it.copy(preview = FilePreview(siblings, index, content)) }
+        if (content != PreviewContent.Loading) return
+        previewJob =
+            viewModelScope.launch {
+                val loaded = if (kind == PreviewKind.PDF) loadPdf(file) else loadText(file)
+                state.update { s ->
+                    // Only the file still previewed takes it.
+                    val preview = s.preview
+                    if (preview?.file?.id == file.id) s.copy(preview = preview.copy(content = loaded)) else s
+                }
+            }
+    }
+
+    private suspend fun loadText(file: DriveEntry.File): PreviewContent =
+        when (val result = files.previewText(file.id)) {
+            is FilesResult.Ok -> PreviewContent.Text(result.value.text, result.value.truncated)
+            // The server previews fewer types than its mime type suggests: offered to open in another app instead.
+            is FilesResult.Failed ->
+                if (result.status ==
+                    UNSUPPORTED
+                ) {
+                    PreviewContent.Unsupported
+                } else {
+                    PreviewContent.Problem(FilesMessage.FAILED)
+                }
+            FilesResult.Offline -> PreviewContent.Problem(FilesMessage.OFFLINE)
+        }
+
+    private suspend fun loadPdf(file: DriveEntry.File): PreviewContent {
+        val target = previewTarget ?: return PreviewContent.Problem(FilesMessage.FAILED)
+        var cache: File? = null
+        var ok = false
+        try {
+            cache = withContext(io) { target(file) }
+            val result = files.download(file.id) { cache?.let(::openCache) }
+            ok = result is FilesResult.Ok
+            return if (ok) PreviewContent.Pdf(checkNotNull(cache)) else PreviewContent.Problem(result.message() ?: FilesMessage.FAILED)
+        } finally {
+            // Failed or cancelled (another file shown meanwhile): a cut-off PDF must not stay.
+            if (!ok) withContext(NonCancellable + io) { runCatching { cache?.delete() } }
+        }
+    }
+
     /** Uploads [sources] one after the other into the folder shown now, which is reloaded if still shown. */
     fun upload(sources: List<UploadSource>) = upload(folderId(), sources)
 
@@ -492,6 +626,7 @@ private const val TOO_LARGE = 413
 private const val NOT_FOUND = 404
 private const val CONFLICT = 409
 private const val PRECONDITION_FAILED = 412
+private const val UNSUPPORTED = 415
 
 /** What a `409` on moving this entry means: a clash of folder names or a folder into itself, for a file a concurrent change. */
 private fun DriveEntry.moveConflict() = if (this is DriveEntry.Folder) ActionMessage.MOVE_CONFLICT else ActionMessage.CHANGED

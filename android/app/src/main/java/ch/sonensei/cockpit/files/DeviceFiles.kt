@@ -79,6 +79,24 @@ internal fun discardDocument(
     }
 }
 
+/**
+ * PDFs downloaded for the in-app preview: a cache folder of their own (opening a file in another app clears its own
+ * folder, not this one). Only the PDF previewed last is kept.
+ */
+object PreviewFiles {
+    /** The cache file for [id]; the ones previewed earlier are deleted. */
+    fun target(
+        context: Context,
+        id: UUID,
+    ): File {
+        val root = File(context.cacheDir, DIR).apply { mkdirs() }
+        root.listFiles()?.filter { it.name != "$id.pdf" }?.forEach { it.deleteRecursively() }
+        return File(root, "$id.pdf")
+    }
+
+    private const val DIR = "files-preview"
+}
+
 /** Its own class: a manifest can declare `FileProvider` itself only once (the notes' camera photos use it). */
 class OpenedFilesProvider : FileProvider()
 

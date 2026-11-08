@@ -154,6 +154,17 @@ class FilesRepository
                 if (unwritable) FilesResult.Failed(null) else result
             }
 
+        /**
+         * The text preview of file [id]: its start as UTF-8, cut by the server at 256 KB ([TextPreview.truncated]).
+         * `Failed(415)` when the server has no text preview of it.
+         */
+        suspend fun previewText(id: UUID): FilesResult<TextPreview> =
+            call {
+                val response = api.previewFile(id)
+                val text = body(response).use { it.bytes().toString(Charsets.UTF_8) }
+                TextPreview(text, response.headers()[TRUNCATED_HEADER].equals("true", ignoreCase = true))
+            }
+
         /** Uploads [source] into folder [folderId] (`null`: the drive root); `Failed(413)` when it is too large. */
         suspend fun upload(
             folderId: UUID?,
@@ -237,6 +248,7 @@ class FilesRepository
             const val PAGE_SIZE = 200
             const val MAX_PAGES = 50
             const val SERVER_ERROR = 500
+            const val TRUNCATED_HEADER = "X-Preview-Truncated"
         }
     }
 
