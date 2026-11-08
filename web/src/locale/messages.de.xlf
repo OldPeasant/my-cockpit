@@ -15900,6 +15900,102 @@
           <context context-type="linenumber">219,221</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="taskDetail.reminders" datatype="html">
+        <source>Reminders</source>
+        <target state="translated">Erinnerungen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.html</context>
+          <context context-type="linenumber">3,5</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="taskDetail.reminder.fired" datatype="html">
+        <source>Sent</source>
+        <target state="translated">Gesendet</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.html</context>
+          <context context-type="linenumber">19,21</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="taskDetail.reminder.none" datatype="html">
+        <source>No reminders.</source>
+        <target state="translated">Keine Erinnerungen.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.html</context>
+          <context context-type="linenumber">40,43</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="taskDetail.reminder.add" datatype="html">
+        <source>Remind me</source>
+        <target state="translated">Erinnere mich</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.html</context>
+          <context context-type="linenumber">44,45</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="taskDetail.reminder.exact" datatype="html">
+        <source>At</source>
+        <target state="translated">Am</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.html</context>
+          <context context-type="linenumber">59,61</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="taskDetail.reminder.addExact" datatype="html">
+        <source> Add reminder </source>
+        <target state="translated">Erinnerung hinzufügen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.html</context>
+          <context context-type="linenumber">74,78</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="taskDetail.reminderPast" datatype="html">
+        <source>Pick a time in the future.</source>
+        <target state="translated">Wähle einen Zeitpunkt in der Zukunft.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.ts</context>
+          <context context-type="linenumber">38</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="taskDetail.reminder.atDue" datatype="html">
+        <source>When due</source>
+        <target state="translated">Bei Fälligkeit</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.ts</context>
+          <context context-type="linenumber">147</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="taskDetail.reminder.hourBefore" datatype="html">
+        <source>1 hour before due</source>
+        <target state="translated">1 Stunde vor Fälligkeit</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.ts</context>
+          <context context-type="linenumber">149</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="taskDetail.reminder.dayBefore" datatype="html">
+        <source>1 day before due</source>
+        <target state="translated">1 Tag vor Fälligkeit</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.ts</context>
+          <context context-type="linenumber">151</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="taskDetail.reminder.atScheduled" datatype="html">
+        <source>On the scheduled day</source>
+        <target state="translated">Am geplanten Tag</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.ts</context>
+          <context context-type="linenumber">153</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="taskDetail.reminder.remove" datatype="html">
+        <source>Remove reminder <x id="time" equiv-text="this.when(reminder.remindAt)"/></source>
+        <target state="translated">Erinnerung <x id="time" equiv-text="this.when(reminder.remindAt)"/> entfernen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.ts</context>
+          <context context-type="linenumber">163</context>
+        </context-group>
+      </trans-unit>
     </body>
   </file>
 </xliff>

@@ -1,0 +1,77 @@
+<section [attr.aria-labelledby]="uid + '-title'">
+  <div class="head">
+    <h2 [id]="uid + '-title'" i18n="@@taskDetail.reminders">Reminders</h2>
+  </div>
+  @if (error(); as message) {
+    <p class="banner" role="alert">{{ message }}</p>
+  }
+  @if (reminders().length) {
+    <ul class="reminders">
+      @for (reminder of reminders(); track reminder.id) {
+        <li class="reminder" [class.fired]="!!reminder.firedAt">
+          <svg class="bell" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6V11c0-3.07-1.64-5.64-4.5-6.32V4a1.5 1.5 0 0 0-3 0v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"
+            />
+          </svg>
+          <span class="time">{{ when(reminder.remindAt) }}</span>
+          @if (reminder.firedAt) {
+            <span class="state" i18n="@@taskDetail.reminder.fired">Sent</span>
+          } @else {
+            <span></span>
+          }
+          <button
+            type="button"
+            class="icon"
+            [disabled]="busy()"
+            (click)="remove(reminder)"
+            [attr.aria-label]="removeLabel(reminder)"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+              />
+            </svg>
+          </button>
+        </li>
+      }
+    </ul>
+  } @else {
+    <p class="empty" i18n="@@taskDetail.reminder.none">No reminders.</p>
+  }
+  @if (presets().length) {
+    <div class="presets" role="group" [attr.aria-labelledby]="uid + '-presets'">
+      <span class="label" [id]="uid + '-presets'" i18n="@@taskDetail.reminder.add">Remind me</span>
+      @for (option of presets(); track option.preset) {
+        <button
+          type="button"
+          class="quiet chip"
+          [disabled]="busy()"
+          [title]="when(option.at)"
+          (click)="add(option.at)"
+        >
+          {{ presetLabel(option.preset) }}
+        </button>
+      }
+    </div>
+  }
+  <div class="exact">
+    <label [for]="uid + '-exact'" i18n="@@taskDetail.reminder.exact">At</label>
+    <input
+      [id]="uid + '-exact'"
+      type="datetime-local"
+      [value]="exact()"
+      (input)="exact.set(text($event))"
+      (keydown.enter)="addExact($event)"
+    />
+    <button
+      class="quiet"
+      type="button"
+      [disabled]="!exact() || busy()"
+      (click)="addExact($event)"
+      i18n="@@taskDetail.reminder.addExact"
+    >
+      Add reminder
+    </button>
+  </div>
+</section>

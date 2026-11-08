@@ -161,6 +161,8 @@
             </div>
 
             <app-task-checklist class="block" [taskId]="taskId()" />
+
+            <app-task-reminders class="block" [taskId]="taskId()" [anchors]="task()" />
           </div>
 
           <aside class="facts">

@@ -51,6 +51,7 @@ import {
   validateDraft,
 } from './task-draft';
 import { TaskChecklist } from './task-checklist';
+import { TaskReminders } from './task-reminders';
 import { TaskDetailService } from './task-detail.service';
 import { askForCalendar, eventStartDay } from './to-calendar-dialog';
 
@@ -88,6 +89,7 @@ type LoadKind = 'initial' | 'background' | 'conflict';
     LinkedItems,
     Segmented,
     TaskChecklist,
+    TaskReminders,
   ],
   providers: [TaskDetailService],
   templateUrl: './task-detail.html',

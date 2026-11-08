@@ -19,6 +19,7 @@ import {
   listContexts,
   listLinks,
   listProjects,
+  listReminders,
   moveTask,
   NoteResponse,
   ProjectResponse,
@@ -140,6 +141,7 @@ describe('TaskDetail', () => {
         if (fn === listContexts) return { items: [{ id: 'c1', name: '@home', position: 1 }] };
         if (fn === listProjects) return { items: PROJECTS };
         if (fn === listLinks) return { items: [] };
+        if (fn === listReminders) return { items: [] };
         if (fn === updateTask || fn === moveTask) {
           server = { ...server, ...(params['body'] as object), version: server.version + 1 };
           return server;
@@ -189,6 +191,7 @@ describe('TaskDetail', () => {
     expect(text()).toContain('@home');
     expect(element.querySelector('app-linked-items')).not.toBeNull();
     expect(element.querySelector('app-task-checklist')).not.toBeNull();
+    expect(element.querySelector('app-task-reminders')).not.toBeNull();
     // Completed projects are not offered.
     expect(text()).not.toContain('Old garden');
     expect(saveButton().disabled).toBe(true);

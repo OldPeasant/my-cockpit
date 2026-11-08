@@ -9,14 +9,18 @@ import {
   convertTaskToNote,
   ConvertToEventRequest,
   createChecklistItem,
+  createReminder,
   deleteChecklistItem,
+  deleteReminder,
   deleteTask,
   EventResponse,
   getTask,
   listChecklistItems,
+  listReminders,
   moveTask,
   MoveTaskRequest,
   NoteResponse,
+  ReminderResponse,
   TaskPatchRequest,
   TaskResponse,
   uncompleteTask,
@@ -120,6 +124,25 @@ export class TaskDetailService {
       { taskId: item.taskId, itemId: item.id, 'If-Match': etag(item.version) },
       silent(),
     );
+  }
+
+  /** The task's reminders, fired or not, earliest first. */
+  async reminders(taskId: string): Promise<ReminderResponse[]> {
+    return (await this.api.invoke(listReminders, { itemType: 'TASK', itemId: taskId }, silent()))
+      .items;
+  }
+
+  /** Adds a reminder to the task at `remindAt` (an ISO-8601 instant). */
+  addReminder(taskId: string, remindAt: string): Promise<ReminderResponse> {
+    return this.api.invoke(
+      createReminder,
+      { body: { itemType: 'TASK', itemId: taskId, remindAt, channel: 'NOTIFICATION' } },
+      silent(),
+    );
+  }
+
+  async deleteReminder(id: string): Promise<void> {
+    await this.api.invoke(deleteReminder, { id }, silent());
   }
 }
 
