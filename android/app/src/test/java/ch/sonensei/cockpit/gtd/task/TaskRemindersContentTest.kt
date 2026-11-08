@@ -236,6 +236,18 @@ class TaskRemindersContentTest {
     }
 
     @Test
+    fun `without a view model outside a Hilt activity the section renders nothing`() {
+        // The compose rule hosts a plain ComponentActivity, as the task detail screen tests do (TW-1).
+        val taskId = UUID.fromString("0192f000-0000-7000-9000-000000000001")
+        composeRule.setContent { CockpitTheme { TaskRemindersSection(taskId, anchors, true) } }
+        composeRule.waitForIdle()
+
+        composeRule.onAllNodesWithText("Reminders").assertCountEquals(0)
+        composeRule.onAllNodesWithTag(TaskReminderTags.SECTION).assertCountEquals(0)
+        composeRule.onAllNodesWithTag(TaskReminderTags.CUSTOM).assertCountEquals(0)
+    }
+
+    @Test
     fun `cancelling the custom date adds nothing`() {
         show(TaskRemindersUiState())
 
