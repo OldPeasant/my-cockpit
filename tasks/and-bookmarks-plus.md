@@ -5,7 +5,7 @@ owner: rudi/agent-2
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/bookmarks,android/app/src/test/java/ch/sonensei/cockpit/bookmarks,android/app/src/main/res/values/strings_bookmarks.xml,android/app/src/main/res/values-de/strings_bookmarks.xml]
 prio: 2
-lease_until: 2026-11-08T16:42:50Z
+lease_until: 2026-11-08T16:47:52Z
 ---
 ## Goal
 Android can add bookmarks only through the share sheet and has no snapshot reader (web: `bookmarks-page.html:25-56`,
