@@ -24,3 +24,4 @@ mail list instead of where the user was. The owner wants a real "back".
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 Android already returns to the origin for New → mail (`NewScreen.kt:118`); Android checks are in and-mail-search-nav.
+- ASSUMPTION (2026-11-08 11:15+0100 by dell26/agent-1): The app mirrors the browser history itself (BackNavigation tracks router navigations and the navigationId restored on popstate); an entry it never saw (deep link, reload, new tab) counts as 'nothing of the app behind', so back goes to the parent route. Labels come from the route titles (New, Mail, Today, ...) or names pages set for themselves (project, note, contact, bookmark title).
