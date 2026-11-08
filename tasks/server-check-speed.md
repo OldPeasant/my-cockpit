@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [server/build.gradle.kts,server/src/test,scripts/check.sh,.github/workflows/ci.yml,docs/ARCHITECTURE.md]
 prio: 1
-lease_until: 2026-11-08T18:51:04Z
+lease_until: 2026-11-08T18:56:07Z
 extended: dell26/agent-1
 ---
 ## Goal
