@@ -5,8 +5,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import org.junit.Rule
@@ -52,9 +53,10 @@ class MailReadNoteGermanTest {
         }
 
     @Test
-    fun `the create note button has a German TalkBack label`() {
+    fun `create note in the menu has a German label`() {
         show()
-        composeRule.onNodeWithContentDescription("Notiz erstellen").assertIsEnabled()
+        composeRule.onNodeWithTag(MailReadTags.MORE).performClick()
+        composeRule.onNodeWithText("Notiz erstellen").assertIsEnabled()
     }
 
     @Test

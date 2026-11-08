@@ -8,13 +8,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.mail.list.MailListAction
 import ch.sonensei.cockpit.mail.list.MailRepository
@@ -28,11 +33,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 import java.time.Instant
 import java.time.ZoneId
 import java.util.UUID
 
-/** "Create note" in the toolbar, its notices, and the linked-items slot below the mail. */
+/** "Create note" in the toolbar's menu, its notices, and the linked-items slot below the mail. */
 @RunWith(AndroidJUnit4::class)
 class MailReadNoteLinksTest {
     @get:Rule
@@ -84,54 +90,86 @@ class MailReadNoteLinksTest {
         }
     }
 
+    /** Opens the toolbar's menu, where "Create note" is. */
+    private fun openMenu() = composeRule.onNodeWithTag(MailReadTags.MORE).performClick()
+
     @Test
-    fun `the create note button asks for a note`() {
+    fun `create note in the menu asks for a note and closes the menu`() {
         show(MailReadUiState(message = message), linksPanel = {})
 
+        openMenu()
         composeRule.onNodeWithTag(noteTag).assertIsEnabled().performClick()
 
         assertEquals(listOf("gtd NOTE"), calls)
+        composeRule.onNodeWithTag(noteTag).assertDoesNotExist()
     }
 
     @Test
-    fun `the create note button has an English TalkBack label`() {
+    fun `create note has an English label`() {
         show(MailReadUiState(message = message), linksPanel = {})
 
-        composeRule.onNodeWithContentDescription("Create note").assertIsEnabled()
+        openMenu()
+        composeRule.onNodeWithText("Create note").assertIsEnabled()
     }
 
     @Test
-    fun `the create note button sits after the GTD actions and before archive`() {
+    fun `create note is not in the toolbar but the first item of the menu`() {
         show(MailReadUiState(message = message), linksPanel = {})
+        composeRule.onNodeWithTag(noteTag).assertDoesNotExist()
 
-        fun left(tag: String) =
+        openMenu()
+
+        fun top(tag: String) =
             composeRule
                 .onNodeWithTag(tag)
                 .fetchSemanticsNode()
-                .boundsInRoot.left
-        assertTrue(left(MailReadTags.gtd(MailGtdAction.WAITING)) < left(noteTag))
-        assertTrue(left(noteTag) < left(MailReadTags.action(MailListAction.ARCHIVE)))
+                .boundsInRoot.top
+        assertTrue(top(noteTag) < top(MailReadTags.action(MailListAction.UNREAD)))
     }
 
     @Test
-    fun `the create note button waits while an action runs`() {
+    fun `create note waits while an action runs`() {
         show(MailReadUiState(message = message, busy = true), linksPanel = {})
 
-        composeRule.onNodeWithTag(noteTag).assertIsNotEnabled().performClick()
+        composeRule.onNodeWithTag(MailReadTags.MORE).assertIsNotEnabled().performClick()
 
+        composeRule.onNodeWithTag(noteTag).assertDoesNotExist()
         assertEquals(emptyList<String>(), calls)
     }
 
     @Test
-    fun `without a mail the create note button is disabled`() {
+    fun `without a mail create note cannot be reached`() {
         show(MailReadUiState(loading = true), linksPanel = {})
-        composeRule.onNodeWithTag(noteTag).assertIsNotEnabled()
+        composeRule.onNodeWithTag(MailReadTags.MORE).assertIsNotEnabled().performClick()
+        composeRule.onNodeWithTag(noteTag).assertDoesNotExist()
     }
 
     @Test
-    fun `after a failed load the create note button is disabled`() {
+    fun `after a failed load create note cannot be reached`() {
         show(MailReadUiState(error = MailReadError.OFFLINE), linksPanel = {})
-        composeRule.onNodeWithTag(noteTag).assertIsNotEnabled()
+        composeRule.onNodeWithTag(MailReadTags.MORE).assertIsNotEnabled().performClick()
+        composeRule.onNodeWithTag(noteTag).assertDoesNotExist()
+    }
+
+    @Test
+    @Config(qualifiers = "w320dp-h470dp")
+    fun `on a 320dp wide window the menu button is shown at full size`() {
+        show(MailReadUiState(message = message), linksPanel = {})
+
+        val root = composeRule.onRoot().getUnclippedBoundsInRoot()
+        val toolbar =
+            listOf(
+                MailReadTags.BACK,
+                MailReadTags.gtd(MailGtdAction.TASK),
+                MailReadTags.gtd(MailGtdAction.WAITING),
+                MailReadTags.action(MailListAction.ARCHIVE),
+                MailReadTags.action(MailListAction.DELETE),
+                MailReadTags.MORE,
+            )
+        toolbar.forEach { tag ->
+            val button = composeRule.onNodeWithTag(tag).assertIsDisplayed().assertWidthIsAtLeast(48.dp)
+            assertTrue(tag, button.getUnclippedBoundsInRoot().right <= root.right)
+        }
     }
 
     @Test
@@ -220,12 +258,13 @@ class MailReadNoteLinksTest {
             }
         }
         composeRule.waitForIdle()
+        openMenu()
         composeRule.onNodeWithTag(noteTag).performClick()
         composeRule.waitForIdle()
 
         composeRule.onNodeWithTag(MailReadTags.NOTICE).assertTextEquals("Note created: Quarterly report")
         composeRule.onNodeWithTag(MailReadTags.SUBJECT).assertTextEquals("Quarterly report")
-        composeRule.onNodeWithTag(noteTag).assertIsEnabled()
+        composeRule.onNodeWithTag(MailReadTags.MORE).assertIsEnabled()
         coVerify(exactly = 1) { reader.gtd(id(1), MailGtdAction.NOTE) }
         coVerify(exactly = 0) { reader.gtd(id(1), MailGtdAction.TASK) }
         assertEquals(emptyList<String>(), calls)
@@ -244,6 +283,7 @@ class MailReadNoteLinksTest {
             }
         }
         composeRule.waitForIdle()
+        openMenu()
         composeRule.onNodeWithTag(noteTag).performClick()
         composeRule.waitForIdle()
 

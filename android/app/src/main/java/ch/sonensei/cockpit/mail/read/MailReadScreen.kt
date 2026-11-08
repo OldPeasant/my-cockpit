@@ -275,7 +275,8 @@ internal object MailReadTags {
 }
 
 /**
- * The read view: toolbar (back, GTD actions incl. "Create note", archive, delete, a menu with unread, flag, move and spam), previous/next through the list it was opened from
+ * The read view: toolbar (back, To task, To Waiting, archive, delete, a menu with "Create note", unread, flag, move and
+ * spam), previous/next through the list it was opened from
  * ([navigation], when given), headers, then the sanitized HTML in [body] (a locked-down WebView; replaceable in tests)
  * or the plain text of a text-only mail, then the mail's linked items ([linksPanel]).
  */
@@ -326,9 +327,6 @@ private fun Toolbar(
         ToolbarButton(Icons.Outlined.HourglassEmpty, R.string.mail_read_to_waiting, MailReadTags.gtd(MailGtdAction.WAITING), enabled) {
             callbacks.gtd(MailGtdAction.WAITING)
         }
-        ToolbarButton(Icons.Outlined.NoteAdd, R.string.mail_read_to_note, MailReadTags.gtd(MailGtdAction.NOTE), enabled) {
-            callbacks.gtd(MailGtdAction.NOTE)
-        }
         ToolbarButton(Icons.Outlined.Archive, R.string.mail_archive, MailReadTags.action(MailListAction.ARCHIVE), enabled) {
             callbacks.act(MailListAction.ARCHIVE)
         }
@@ -339,7 +337,10 @@ private fun Toolbar(
     }
 }
 
-/** The overflow of the toolbar: mark unread, flag or remove the flag, move to folder (of the same account) and spam. */
+/**
+ * The overflow of the toolbar: create a note from the mail, mark unread, flag or remove the flag, move to folder (of the
+ * same account) and spam. "Create note" sits here, not in the toolbar, so the toolbar still fits a 320dp-wide window.
+ */
 @Composable
 private fun MoreMenu(
     flagged: Boolean,
@@ -356,20 +357,32 @@ private fun MoreMenu(
     Box {
         ToolbarButton(Icons.Outlined.MoreVert, R.string.mail_more_actions, MailReadTags.MORE, enabled) { open = true }
         DropdownMenu(expanded = open && enabled, onDismissRequest = { open = false }) {
-            MenuItem(Icons.Outlined.MarkEmailUnread, R.string.mail_mark_unread, MailListAction.UNREAD) {
+            MenuItem(Icons.Outlined.NoteAdd, R.string.mail_read_to_note, MailReadTags.gtd(MailGtdAction.NOTE)) {
+                pick { callbacks.gtd(MailGtdAction.NOTE) }
+            }
+            MenuItem(Icons.Outlined.MarkEmailUnread, R.string.mail_mark_unread, MailReadTags.action(MailListAction.UNREAD)) {
                 pick { callbacks.act(MailListAction.UNREAD) }
             }
             if (flagged) {
-                MenuItem(Icons.Outlined.OutlinedFlag, R.string.mail_unflag, MailListAction.UNFLAG) {
+                MenuItem(Icons.Outlined.OutlinedFlag, R.string.mail_unflag, MailReadTags.action(MailListAction.UNFLAG)) {
                     pick { callbacks.act(MailListAction.UNFLAG) }
                 }
             } else {
-                MenuItem(Icons.Outlined.Flag, R.string.mail_flag, MailListAction.FLAG) { pick { callbacks.act(MailListAction.FLAG) } }
+                MenuItem(Icons.Outlined.Flag, R.string.mail_flag, MailReadTags.action(MailListAction.FLAG)) {
+                    pick { callbacks.act(MailListAction.FLAG) }
+                }
             }
-            MenuItem(Icons.AutoMirrored.Outlined.DriveFileMove, R.string.mail_move, MailListAction.MOVE, moveTargets.isNotEmpty()) {
+            MenuItem(
+                Icons.AutoMirrored.Outlined.DriveFileMove,
+                R.string.mail_move,
+                MailReadTags.action(MailListAction.MOVE),
+                moveTargets.isNotEmpty(),
+            ) {
                 pick { moving = true }
             }
-            MenuItem(Icons.Outlined.Report, R.string.mail_spam, MailListAction.SPAM) { pick { callbacks.act(MailListAction.SPAM) } }
+            MenuItem(Icons.Outlined.Report, R.string.mail_spam, MailReadTags.action(MailListAction.SPAM)) {
+                pick { callbacks.act(MailListAction.SPAM) }
+            }
         }
     }
     if (moving) {
@@ -388,7 +401,7 @@ private fun MoreMenu(
 private fun MenuItem(
     icon: ImageVector,
     label: Int,
-    action: MailListAction,
+    tag: String,
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
@@ -397,7 +410,7 @@ private fun MenuItem(
         leadingIcon = { Icon(icon, contentDescription = null) },
         enabled = enabled,
         onClick = onClick,
-        modifier = Modifier.testTag(MailReadTags.action(action)),
+        modifier = Modifier.testTag(tag),
     )
 }
 
