@@ -1,11 +1,11 @@
 ---
 title: Android task detail: scheduled, tickler, recurrence, all lists
-status: in_progress
+status: done
 owner: dell26/agent-3
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/test/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml]
 prio: 2
-lease_until: 2026-11-08T15:19:09Z
+lease_until: 
 extended: 
 releases: 0
 hold: 
@@ -39,3 +39,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - release by felix/agent-1: over budget after 2 sessions (~52 min) and a review that decided nothing; still resumable: continue from wip/and-task-detail-dates (see git log)
 - ASSUMPTION (2026-11-08 13:36+0100 by rudi/agent-1): check.sh fails on rudi's machine only in unrelated server PageFetcherSizeLimitTests (HTTP/2 reuse case, 4/50 TIMEOUT; failed also alone 4 of 4 runs); android ktlintCheck testDebugUnitTest lintDebug passes; filed fix-flaky-pagefetcher-size-test
 - release by rudi/agent-1: Everything done except the final check: code, tests, review (0 findings), tests.md, quality.json (reviewed_revision 18ce008a = rebased 76244b1e) committed; criteria 1-5 verified; 'cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug' passes (2026-11-08). Left: sh scripts/check.sh must pass, then verify #6 and done. Blocker on rudi's machine: server PageFetcherSizeLimitTests HTTP/2 reuse case fails every run (TIMEOUT 4/50), unrelated to this Android task -> new task fix-flaky-pagefetcher-size-test; finish on another machine or after that fix.
+- done by dell26/agent-3: `sh scripts/check.sh` passed in 415s on 31c12fd4d; criteria verified 6/6
