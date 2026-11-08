@@ -17,10 +17,12 @@ import {
   ProjectResponse,
   setProjectNextStep,
   TaskResponse,
+  uncompleteTask,
   updateProject,
 } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
 import { BackNavigation } from '../../../shared/navigation';
+import { TaskUndo } from '../ui';
 import { ProjectDetailPage } from './project-detail-page';
 import { ProjectsPage } from './projects-page';
 
@@ -68,6 +70,8 @@ describe('Projects views', () => {
   let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   /** What `/complete` answers for `needsNextStep`. */
   let needsNextStep: boolean;
+  /** Makes `/complete` fail. */
+  let failComplete: boolean;
 
   const callsOf = (fn: unknown) => calls.filter((call) => call.fn === fn);
   const text = (selector: string) =>
@@ -116,6 +120,7 @@ describe('Projects views', () => {
   beforeEach(() => {
     calls = [];
     needsNextStep = false;
+    failComplete = false;
     areas = [
       { id: 'work', title: 'Work', position: 1, version: 1 },
       { id: 'home', title: 'Home', position: 0, version: 1 },
@@ -153,10 +158,19 @@ describe('Projects views', () => {
           return created;
         }
         if (fn === completeTask) {
+          if (failComplete) throw new Error('refused');
           const current = tasks.find((t) => t.id === p['id'])!;
           tasks = tasks.filter((t) => t.id !== current.id);
           if (needsNextStep) projects = projects.map((x) => ({ ...x, stalled: true }));
           return { ...current, completedAt: '2026-10-20T10:00:00Z', version: 2, needsNextStep };
+        }
+        if (fn === uncompleteTask) {
+          const reopened = task(p['id'] as string, {
+            title: p['id'] === 't1' ? 'Collect receipts' : 'Fill form',
+            version: 3,
+          });
+          tasks = [...tasks, reopened].sort((a, b) => a.position - b.position);
+          return reopened;
         }
         if (fn === orderProjectTasks) {
           const ids = body['taskIds'] as string[];
@@ -370,6 +384,93 @@ describe('Projects views', () => {
       expect(callsOf(completeTask)[0].params).toMatchObject({ id: 't2' });
       expect(element.querySelector('[role=dialog]')).toBeNull();
       expect(text('.task app-task-row .title')).toEqual(['Collect receipts']);
+    });
+
+    describe('undo after completing', () => {
+      let undo: { completed: ReturnType<typeof vi.fn>; deleted: ReturnType<typeof vi.fn> };
+      /** The snackbar shown last: its reopen, and how it ends (true: the user undid). */
+      let snackbar: { reopen: () => Promise<unknown>; end: (undone: boolean) => void } | undefined;
+
+      beforeEach(() => {
+        snackbar = undefined;
+        undo = {
+          completed: vi.fn(
+            (_task: unknown, reopen: () => Promise<unknown>) =>
+              new Promise<boolean>((resolve) => (snackbar = { reopen, end: resolve })),
+          ),
+          deleted: vi.fn(),
+        };
+        TestBed.overrideProvider(TaskUndo, { useValue: undo });
+      });
+
+      it('Undo reopens the completed task, shows it again and closes "Choose next step"', async () => {
+        needsNextStep = true;
+        await render(ProjectDetailPage);
+        await click(element.querySelector<HTMLElement>('.task.next input[type=checkbox]')!);
+        expect(element.querySelector('[role=dialog]')).not.toBeNull();
+        expect(undo.completed).toHaveBeenCalledTimes(1);
+        expect(undo.completed.mock.calls[0][0]).toMatchObject({ id: 't1' });
+        expect(text('.task app-task-row .title')).toEqual(['Fill form']);
+
+        await snackbar!.reopen();
+        snackbar!.end(true);
+        await refresh();
+
+        expect(callsOf(uncompleteTask)[0].params).toEqual({ id: 't1', 'If-Match': '"2"' });
+        expect(element.querySelector('[role=dialog]')).toBeNull();
+        expect(text('.task app-task-row .title')).toEqual(['Collect receipts', 'Fill form']);
+      });
+
+      it('keeps "Choose next step" open when the snackbar goes away without Undo', async () => {
+        needsNextStep = true;
+        await render(ProjectDetailPage);
+        await click(element.querySelector<HTMLElement>('.task.next input[type=checkbox]')!);
+
+        snackbar!.end(false);
+        await refresh();
+
+        expect(callsOf(uncompleteTask)).toHaveLength(0);
+        expect(element.querySelector('[role=dialog]')).not.toBeNull();
+      });
+
+      it('does not close a prompt that belongs to another completed task', async () => {
+        needsNextStep = true;
+        await render(ProjectDetailPage);
+        // Completing a task that is not the next step: no prompt of its own.
+        needsNextStep = false;
+        await click(element.querySelectorAll<HTMLElement>('.task input[type=checkbox]')[1]);
+        const first = snackbar!;
+        // The next step is completed: its prompt opens.
+        needsNextStep = true;
+        await click(element.querySelector<HTMLElement>('.task.next input[type=checkbox]')!);
+        expect(element.querySelector('[role=dialog]')).not.toBeNull();
+
+        // Undoing the first completion leaves the next step's prompt alone.
+        await first.reopen();
+        first.end(true);
+        await refresh();
+
+        expect(element.querySelector('[role=dialog]')).not.toBeNull();
+      });
+
+      it('offers Undo also for a task that was not the next step, without a prompt', async () => {
+        await render(ProjectDetailPage);
+        await click(element.querySelectorAll<HTMLElement>('.task input[type=checkbox]')[1]);
+
+        expect(undo.completed).toHaveBeenCalledTimes(1);
+        expect(undo.completed.mock.calls[0][0]).toMatchObject({ id: 't2' });
+        expect(element.querySelector('[role=dialog]')).toBeNull();
+      });
+
+      it('offers no Undo when completing fails', async () => {
+        await render(ProjectDetailPage);
+        failComplete = true;
+
+        await click(element.querySelectorAll<HTMLElement>('.task input[type=checkbox]')[1]);
+
+        expect(undo.completed).not.toHaveBeenCalled();
+        expect(text('.task app-task-row .title')).toEqual(['Collect receipts', 'Fill form']);
+      });
     });
 
     it('arrow keys on the handle reorder the tasks', async () => {

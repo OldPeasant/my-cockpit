@@ -8,9 +8,11 @@ import {
   Api,
   ChangeEvent,
   ChecklistItemResponse,
+  completeTask,
   convertTaskToEvent,
   convertTaskToNote,
   ConvertToEventRequest,
+  deleteTask,
   EventResponse,
   getTask,
   listChecklistItems,
@@ -21,10 +23,12 @@ import {
   NoteResponse,
   ProjectResponse,
   TaskResponse,
+  uncompleteTask,
   updateTask,
 } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
 import { ApiError, SILENT_ERRORS } from '../../../core/http';
+import { TaskUndo } from '../ui';
 import { CONFLICT_MESSAGE, TaskDetail } from './task-detail';
 import { ToCalendarData, ToCalendarDialog } from './to-calendar-dialog';
 
@@ -2178,6 +2182,670 @@ describe('TaskDetail', () => {
       expect(callsOf(getTask).filter((c) => c.params['id'] === 't1')).toHaveLength(1);
       expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Water the plants');
       expect(navigate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('complete, reopen and delete', () => {
+    const DONE_AT = '2026-11-08T10:00:00Z';
+    let undo: {
+      completed: ReturnType<typeof vi.fn>;
+      deleted: ReturnType<typeof vi.fn>;
+    };
+    /** When set, the request of that kind answers with it instead of the default. */
+    let hold: Partial<Record<'complete' | 'uncomplete' | 'remove', () => Promise<unknown>>>;
+
+    const completeButton = () => field<HTMLButtonElement>('button.complete');
+    const deleteButton = () => field<HTMLButtonElement>('button.delete');
+    const label = (button: HTMLButtonElement) => button.textContent?.trim();
+    /** The "Undo" of the n-th completion snackbar: runs its reopen. */
+    const undoCompletion = (n = 0) => (undo.completed.mock.calls[n][1] as () => Promise<unknown>)();
+
+    async function click(button: HTMLButtonElement): Promise<void> {
+      button.click();
+      await refresh();
+    }
+
+    beforeEach(() => {
+      undo = {
+        completed: vi.fn().mockResolvedValue(false),
+        deleted: vi.fn().mockResolvedValue(false),
+      };
+      TestBed.overrideProvider(TaskUndo, { useValue: undo });
+      hold = {};
+      answer = (fn) => {
+        if (fn === completeTask) {
+          if (hold.complete) return hold.complete();
+          server = { ...server, completedAt: DONE_AT, version: server.version + 1 };
+          return Promise.resolve({ ...server, needsNextStep: false });
+        }
+        if (fn === uncompleteTask) {
+          if (hold.uncomplete) return hold.uncomplete();
+          server = { ...server, completedAt: undefined, version: server.version + 1 };
+          return Promise.resolve(server);
+        }
+        if (fn === deleteTask) return hold.remove ? hold.remove() : Promise.resolve(undefined);
+        return undefined;
+      };
+    });
+
+    afterEach(() => vi.restoreAllMocks());
+
+    it('completes the task silently with If-Match, stays and offers Undo', async () => {
+      await render(task({ version: 3 }));
+      expect(label(completeButton())).toBe('Complete');
+      expect(text()).not.toContain('Done');
+
+      await click(completeButton());
+
+      expect(callsOf(completeTask)).toHaveLength(1);
+      const call = callsOf(completeTask)[0];
+      expect(call.params).toEqual({ id: 't1', 'If-Match': '"3"' });
+      expect(call.context?.get(SILENT_ERRORS)).toBe(true);
+      expect(label(completeButton())).toBe('Reopen');
+      expect(text()).toContain('Done');
+      expect(host.closed).toBe(0);
+      expect(undo.completed).toHaveBeenCalledTimes(1);
+      expect(undo.completed.mock.calls[0][0]).toMatchObject({
+        id: 't1',
+        title: 'Call the plumber',
+      });
+      expect(undo.deleted).not.toHaveBeenCalled();
+      // The completed version is the saved one: nothing is dirty.
+      expect(text()).not.toContain('Unsaved changes');
+    });
+
+    it('Undo reopens the completed version with the HTTP layer showing errors, and shows it', async () => {
+      await render();
+      await click(completeButton());
+
+      await undoCompletion();
+      await refresh();
+
+      expect(callsOf(uncompleteTask)).toHaveLength(1);
+      const call = callsOf(uncompleteTask)[0];
+      expect(call.params).toEqual({ id: 't1', 'If-Match': '"2"' });
+      // Not silent: the snackbar may outlive the editor, so the HTTP layer toasts a failure.
+      expect(call.context?.get(SILENT_ERRORS) ?? false).toBe(false);
+      expect(label(completeButton())).toBe('Complete');
+      expect(text()).not.toContain('Done');
+    });
+
+    it('Undo reopens the newest version when the task was saved after completing', async () => {
+      await render();
+      await click(completeButton());
+      await type('#td-title', 'Call the plumber again');
+      await save();
+      expect(server.version).toBe(3);
+
+      await undoCompletion();
+      await refresh();
+
+      expect(callsOf(uncompleteTask)[0].params).toEqual({ id: 't1', 'If-Match': '"3"' });
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Call the plumber again');
+      expect(label(completeButton())).toBe('Complete');
+    });
+
+    it('Undo does not replace unsaved edits made after completing', async () => {
+      await render();
+      await click(completeButton());
+      await type('#td-title', 'Typed after completing');
+
+      await undoCompletion();
+      await refresh();
+
+      expect(callsOf(uncompleteTask)).toHaveLength(1);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Typed after completing');
+      expect(text()).toContain('Unsaved changes');
+    });
+
+    it('Undo after switching to another task reopens the old one without touching the new one', async () => {
+      answer = ((previous) => (fn: unknown, params: Record<string, unknown>) => {
+        if (fn === getTask && params['id'] === 't2') {
+          return Promise.resolve(task({ id: 't2', title: 'Water the plants', version: 7 }));
+        }
+        return previous?.(fn, params);
+      })(answer);
+      await render();
+      await click(completeButton());
+      host.id.set('t2');
+      await refresh();
+
+      await undoCompletion();
+      await refresh();
+
+      expect(callsOf(uncompleteTask)[0].params).toEqual({ id: 't1', 'If-Match': '"2"' });
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Water the plants');
+      expect(label(completeButton())).toBe('Complete');
+    });
+
+    it('reopens a done task silently, without an undo snackbar', async () => {
+      await render(task({ completedAt: DONE_AT, version: 5 }));
+      expect(label(completeButton())).toBe('Reopen');
+      expect(text()).toContain('Done');
+
+      await click(completeButton());
+
+      const call = callsOf(uncompleteTask)[0];
+      expect(call.params).toEqual({ id: 't1', 'If-Match': '"5"' });
+      expect(call.context?.get(SILENT_ERRORS)).toBe(true);
+      expect(callsOf(completeTask)).toHaveLength(0);
+      expect(label(completeButton())).toBe('Complete');
+      expect(undo.completed).not.toHaveBeenCalled();
+    });
+
+    it('shows the running action and starts nothing else meanwhile', async () => {
+      let release!: () => void;
+      hold.complete = () =>
+        new Promise((resolve) => {
+          release = () => {
+            server = { ...server, completedAt: DONE_AT, version: server.version + 1 };
+            resolve({ ...server, needsNextStep: false });
+          };
+        });
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+      await render();
+
+      await click(completeButton());
+      expect(label(completeButton())).toBe('Completing…');
+      expect(completeButton().disabled).toBe(true);
+      expect(deleteButton().disabled).toBe(true);
+      expect(field<HTMLButtonElement>('button.reference').disabled).toBe(true);
+      expect(field<HTMLButtonElement>('button.to-calendar').disabled).toBe(true);
+
+      // Events reaching the disabled buttons start nothing.
+      completeButton().dispatchEvent(new Event('click'));
+      deleteButton().dispatchEvent(new Event('click'));
+      await type('#td-title', 'Typed meanwhile');
+      expect(saveButton().disabled).toBe(true);
+      field('#td-title').dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true }),
+      );
+      await refresh();
+      expect(callsOf(completeTask)).toHaveLength(1);
+      expect(callsOf(deleteTask)).toHaveLength(0);
+      expect(callsOf(updateTask)).toHaveLength(0);
+      expect(confirm).not.toHaveBeenCalled();
+
+      release();
+      await refresh();
+      expect(completeButton().disabled).toBe(false);
+      expect(deleteButton().disabled).toBe(false);
+    });
+
+    it('shows "Reopening…" and "Deleting…" while those run', async () => {
+      let reopen!: () => void;
+      hold.uncomplete = () =>
+        new Promise((resolve) => (reopen = () => resolve(task({ version: 2 }))));
+      let removed!: () => void;
+      hold.remove = () => new Promise<void>((resolve) => (removed = resolve));
+      await render(task({ completedAt: DONE_AT }));
+
+      await click(completeButton());
+      expect(label(completeButton())).toBe('Reopening…');
+      reopen();
+      await refresh();
+      expect(label(completeButton())).toBe('Complete');
+
+      await click(deleteButton());
+      expect(label(deleteButton())).toBe('Deleting…');
+      expect(completeButton().disabled).toBe(true);
+      removed();
+      await refresh();
+      expect(host.closed).toBe(1);
+    });
+
+    it('saves unsaved valid changes first, then completes the saved version', async () => {
+      await render();
+      await type('#td-title', 'Call the plumber at nine');
+
+      await click(completeButton());
+
+      const order = calls
+        .map((call) => call.fn)
+        .filter((fn) => fn === updateTask || fn === completeTask);
+      expect(order).toEqual([updateTask, completeTask]);
+      expect(callsOf(updateTask)[0].params).toMatchObject({
+        'If-Match': '"1"',
+        body: { title: 'Call the plumber at nine' },
+      });
+      expect(callsOf(completeTask)[0].params).toEqual({ id: 't1', 'If-Match': '"2"' });
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Call the plumber at nine');
+      expect(label(completeButton())).toBe('Reopen');
+      expect(text()).not.toContain('Unsaved changes');
+    });
+
+    it('does not complete when the changes are invalid', async () => {
+      await render();
+      await type('#td-title', '   ');
+      expect(completeButton().disabled).toBe(true);
+
+      completeButton().dispatchEvent(new Event('click'));
+      await refresh();
+
+      expect(callsOf(updateTask)).toHaveLength(0);
+      expect(callsOf(completeTask)).toHaveLength(0);
+    });
+
+    it('does not complete when saving the changes first fails', async () => {
+      await render();
+      await type('#td-title', 'Mine');
+      answer = ((previous) => (fn: unknown, params: Record<string, unknown>) =>
+        fn === updateTask
+          ? Promise.reject(new ApiError(500, 'Internal Server Error', 'The server failed.'))
+          : previous?.(fn, params))(answer);
+
+      await click(completeButton());
+
+      expect(callsOf(updateTask)).toHaveLength(1);
+      expect(callsOf(completeTask)).toHaveLength(0);
+      expect(text()).toContain('The server failed.');
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Mine');
+      expect(undo.completed).not.toHaveBeenCalled();
+    });
+
+    it('on a 412 while completing says the task changed elsewhere and reloads it', async () => {
+      hold.complete = () => {
+        server = task({ title: 'Theirs', version: 4 });
+        return Promise.reject(new ApiError(412, 'Precondition Failed'));
+      };
+      await render();
+
+      await click(completeButton());
+
+      expect(text()).toContain(CONFLICT_MESSAGE);
+      expect(callsOf(getTask)).toHaveLength(2);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Theirs');
+      expect(label(completeButton())).toBe('Complete');
+      expect(completeButton().disabled).toBe(false);
+      expect(undo.completed).not.toHaveBeenCalled();
+    });
+
+    it('shows the error when completing fails and lets the user retry', async () => {
+      hold.complete = () =>
+        Promise.reject(new ApiError(503, 'Service Unavailable', 'Try again later.'));
+      await render();
+
+      await click(completeButton());
+
+      expect(text()).toContain('Try again later.');
+      expect(label(completeButton())).toBe('Complete');
+      expect(undo.completed).not.toHaveBeenCalled();
+
+      hold.complete = undefined;
+      await click(completeButton());
+      expect(text()).not.toContain('Try again later.');
+      expect(label(completeButton())).toBe('Reopen');
+    });
+
+    it('shows the error when reopening fails', async () => {
+      hold.uncomplete = () => Promise.reject(new ApiError(500, 'Internal Server Error', 'Nope.'));
+      await render(task({ completedAt: DONE_AT }));
+
+      await click(completeButton());
+
+      expect(text()).toContain('Nope.');
+      expect(label(completeButton())).toBe('Reopen');
+    });
+
+    it('does not reload on a change event while completing', async () => {
+      let release!: () => void;
+      hold.complete = () =>
+        new Promise((resolve) => {
+          release = () => {
+            server = { ...server, completedAt: DONE_AT, version: server.version + 1 };
+            resolve({ ...server, needsNextStep: false });
+          };
+        });
+      await render();
+      await click(completeButton());
+      events.next({ type: 'TASK', id: 't1', op: 'UPDATED' } as ChangeEvent);
+      await refresh();
+      expect(callsOf(getTask)).toHaveLength(1);
+
+      release();
+      await refresh();
+      expect(label(completeButton())).toBe('Reopen');
+    });
+
+    it('drops a background reload that started before completing', async () => {
+      let oldAnswer!: () => void;
+      await render();
+      answer = ((previous) => (fn: unknown, params: Record<string, unknown>) => {
+        if (fn === getTask) {
+          const before = task({ version: 1 });
+          return new Promise((resolve) => (oldAnswer = () => resolve(before)));
+        }
+        return previous?.(fn, params);
+      })(answer);
+      events.next({ type: 'TASK', id: 't1', op: 'UPDATED' } as ChangeEvent);
+      await refresh();
+
+      await click(completeButton());
+      oldAnswer();
+      await refresh();
+
+      expect(label(completeButton())).toBe('Reopen');
+      expect(text()).toContain('Done');
+    });
+
+    it('does not show the completion of the previous task in the new one', async () => {
+      let release!: () => void;
+      answer = ((previous) => (fn: unknown, params: Record<string, unknown>) => {
+        if (fn === getTask && params['id'] === 't2') {
+          return Promise.resolve(task({ id: 't2', title: 'Water the plants', version: 7 }));
+        }
+        if (fn === completeTask) {
+          return new Promise((resolve) => {
+            release = () =>
+              resolve({ ...task({ completedAt: DONE_AT, version: 2 }), needsNextStep: false });
+          });
+        }
+        return previous?.(fn, params);
+      })(answer);
+      await render();
+      await click(completeButton());
+      host.id.set('t2');
+      await refresh();
+      // The new task is not blocked by the previous task's action.
+      expect(label(completeButton())).toBe('Complete');
+      expect(completeButton().disabled).toBe(false);
+
+      release();
+      await refresh();
+
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Water the plants');
+      expect(label(completeButton())).toBe('Complete');
+      expect(text()).not.toContain('Done');
+    });
+
+    it('deletes a task without unsaved changes at once, offers Undo and closes', async () => {
+      const confirm = vi.spyOn(window, 'confirm');
+      await render(task({ version: 6 }));
+      expect(label(deleteButton())).toBe('Delete');
+
+      await click(deleteButton());
+
+      expect(confirm).not.toHaveBeenCalled();
+      const call = callsOf(deleteTask)[0];
+      expect(call.params).toEqual({ id: 't1', 'If-Match': '"6"' });
+      expect(call.context?.get(SILENT_ERRORS)).toBe(true);
+      expect(undo.deleted).toHaveBeenCalledTimes(1);
+      expect(undo.deleted.mock.calls[0][0]).toMatchObject({ id: 't1', title: 'Call the plumber' });
+      expect(host.closed).toBe(1);
+      expect(undo.completed).not.toHaveBeenCalled();
+    });
+
+    it('asks before deleting a task with unsaved changes and keeps them when cancelled', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      await render();
+      await type('#td-title', 'Half typed');
+
+      await click(deleteButton());
+
+      expect(confirm).toHaveBeenCalledWith(
+        'Move this task to the Trash? Your unsaved changes are discarded.',
+      );
+      expect(callsOf(deleteTask)).toHaveLength(0);
+      expect(host.closed).toBe(0);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Half typed');
+      expect(text()).toContain('Unsaved changes');
+    });
+
+    it('deletes the saved version, without saving, when the user confirms dropping changes', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      await render();
+      await type('#td-title', 'Half typed');
+
+      await click(deleteButton());
+
+      expect(callsOf(updateTask)).toHaveLength(0);
+      expect(callsOf(deleteTask)[0].params).toEqual({ id: 't1', 'If-Match': '"1"' });
+      expect(host.closed).toBe(1);
+    });
+
+    it('does not show "moved to the Trash" for its own deletion event', async () => {
+      let release!: () => void;
+      hold.remove = () => new Promise<void>((resolve) => (release = resolve));
+      await render();
+
+      await click(deleteButton());
+      events.next({ type: 'TASK', id: 't1', op: 'DELETED' } as ChangeEvent);
+      await refresh();
+
+      expect(text()).not.toContain('This task was moved to the Trash.');
+      expect(field<HTMLTextAreaElement>('#td-title')).not.toBeNull();
+
+      release();
+      await refresh();
+      expect(host.closed).toBe(1);
+    });
+
+    it('still shows "moved to the Trash" when someone else deletes it during a completion', async () => {
+      let release!: () => void;
+      hold.complete = () =>
+        new Promise((_, reject) => (release = () => reject(new ApiError(404, 'Not Found'))));
+      await render();
+
+      await click(completeButton());
+      events.next({ type: 'TASK', id: 't1', op: 'DELETED' } as ChangeEvent);
+      await refresh();
+
+      expect(text()).toContain('This task was moved to the Trash.');
+      release();
+      await refresh();
+    });
+
+    it('on a 412 while deleting says the task changed elsewhere, reloads and stays', async () => {
+      hold.remove = () => {
+        server = task({ title: 'Theirs', version: 9 });
+        return Promise.reject(new ApiError(412, 'Precondition Failed'));
+      };
+      await render();
+
+      await click(deleteButton());
+
+      expect(text()).toContain(CONFLICT_MESSAGE);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Theirs');
+      expect(host.closed).toBe(0);
+      expect(undo.deleted).not.toHaveBeenCalled();
+      expect(label(deleteButton())).toBe('Delete');
+      expect(deleteButton().disabled).toBe(false);
+    });
+
+    it('shows the error when deleting fails and stays', async () => {
+      hold.remove = () =>
+        Promise.reject(new ApiError(500, 'Internal Server Error', 'Could not delete.'));
+      await render();
+
+      await click(deleteButton());
+
+      expect(text()).toContain('Could not delete.');
+      expect(host.closed).toBe(0);
+      expect(undo.deleted).not.toHaveBeenCalled();
+    });
+
+    it('does not close the new task when the deletion of the previous one answers late', async () => {
+      let release!: () => void;
+      answer = ((previous) => (fn: unknown, params: Record<string, unknown>) => {
+        if (fn === getTask && params['id'] === 't2') {
+          return Promise.resolve(task({ id: 't2', title: 'Water the plants', version: 7 }));
+        }
+        return previous?.(fn, params);
+      })(answer);
+      hold.remove = () => new Promise<void>((resolve) => (release = resolve));
+      await render();
+      await click(deleteButton());
+      host.id.set('t2');
+      await refresh();
+
+      release();
+      await refresh();
+
+      expect(host.closed).toBe(0);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Water the plants');
+      // The deleted task can still be restored.
+      expect(undo.deleted).toHaveBeenCalledTimes(1);
+      expect(undo.deleted.mock.calls[0][0]).toMatchObject({ id: 't1' });
+    });
+  });
+
+  describe('rendered notes', () => {
+    const view = () => element.querySelector<HTMLElement>('#td-notes-view');
+    const source = () => element.querySelector<HTMLTextAreaElement>('#td-notes');
+    const editButton = () => element.querySelector<HTMLButtonElement>('button.edit-notes');
+
+    afterEach(() => vi.restoreAllMocks());
+
+    it('shows the textarea directly for empty or blank notes', async () => {
+      await render(task({ notesMd: '  \n ' }));
+      expect(view()).toBeNull();
+      expect(editButton()).toBeNull();
+      expect(source()).not.toBeNull();
+    });
+
+    it('renders the notes as Markdown, with an Edit button', async () => {
+      await render(
+        task({
+          notesMd: '## Parts\n- **washer**\n- *tape*\n\nSee [shop](https://example.com/shop)',
+        }),
+      );
+      expect(source()).toBeNull();
+      expect(editButton()?.textContent?.trim()).toBe('Edit');
+      expect(view()!.querySelector('h4')?.textContent).toBe('Parts');
+      expect(view()!.querySelector('li strong')?.textContent).toBe('washer');
+      expect(view()!.querySelector('li em')?.textContent).toBe('tape');
+      expect(view()!.querySelector('a')?.getAttribute('href')).toBe('https://example.com/shop');
+      expect(view()!.getAttribute('tabindex')).toBe('0');
+    });
+
+    it('escapes HTML in the notes instead of rendering it', async () => {
+      await render(task({ notesMd: '<img src=x onerror="alert(1)"> <script>bad()</script>' }));
+      expect(view()!.querySelector('img')).toBeNull();
+      expect(view()!.querySelector('script')).toBeNull();
+      expect(view()!.textContent).toContain('<img src=x');
+    });
+
+    it('switches to the focused textarea with Edit', async () => {
+      await render(task({ notesMd: 'Buy a **washer**' }));
+      editButton()!.click();
+      await refresh();
+      expect(view()).toBeNull();
+      expect(editButton()).toBeNull();
+      expect(source()!.value).toBe('Buy a **washer**');
+      expect(document.activeElement).toBe(source());
+    });
+
+    it('switches to the textarea on a click on the rendered notes', async () => {
+      await render(task({ notesMd: 'Buy a **washer**' }));
+      view()!.querySelector('strong')!.click();
+      await refresh();
+      expect(source()!.value).toBe('Buy a **washer**');
+    });
+
+    it('switches to the textarea with Enter on the rendered notes', async () => {
+      await render(task({ notesMd: 'Buy a washer' }));
+      view()!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await refresh();
+      expect(source()).not.toBeNull();
+    });
+
+    it('keeps the notes rendered when a link in them is clicked', async () => {
+      await render(task({ notesMd: 'See [shop](https://example.com/shop)' }));
+      const link = view()!.querySelector('a')!;
+      // The test environment has no navigation; only the editor's reaction matters.
+      link.addEventListener('click', (event) => event.preventDefault());
+      link.click();
+      await refresh();
+      expect(view()).not.toBeNull();
+      expect(source()).toBeNull();
+    });
+
+    it('keeps the notes rendered while text in them is being selected', async () => {
+      await render(task({ notesMd: 'Copy this part' }));
+      vi.spyOn(window, 'getSelection').mockReturnValue({
+        toString: () => 'this part',
+      } as Selection);
+      view()!.click();
+      await refresh();
+      expect(view()).not.toBeNull();
+    });
+
+    it('stays in the textarea while typing, also when the notes become empty', async () => {
+      await render(task({ notesMd: 'Old' }));
+      editButton()!.click();
+      await refresh();
+      await type('#td-notes', 'New **text**');
+      expect(source()).not.toBeNull();
+      await type('#td-notes', '');
+      await type('#td-notes', 'Back again');
+      expect(source()!.value).toBe('Back again');
+      expect(view()).toBeNull();
+    });
+
+    it('renders the notes again after saving', async () => {
+      await render(task({ notesMd: 'Old' }));
+      editButton()!.click();
+      await refresh();
+      await type('#td-notes', 'New **text**');
+
+      await save();
+
+      expect(callsOf(updateTask)[0].params).toMatchObject({ body: { notesMd: 'New **text**' } });
+      expect(source()).toBeNull();
+      expect(view()!.querySelector('strong')?.textContent).toBe('text');
+    });
+
+    it('renders the notes again after discarding', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      await render(task({ notesMd: 'Old' }));
+      editButton()!.click();
+      await refresh();
+      await type('#td-notes', 'Thrown away');
+
+      [...element.querySelectorAll<HTMLButtonElement>('button')]
+        .find((button) => button.textContent?.trim() === 'Discard')!
+        .click();
+      await refresh();
+
+      expect(source()).toBeNull();
+      expect(view()!.textContent).toBe('Old');
+    });
+
+    it('renders the notes of the next task when the editor switches', async () => {
+      answer = (fn, params) =>
+        fn === getTask && params['id'] === 't2'
+          ? Promise.resolve(task({ id: 't2', notesMd: 'Second *task*', version: 2 }))
+          : undefined;
+      await render(task({ notesMd: 'First' }));
+      editButton()!.click();
+      await refresh();
+      expect(source()).not.toBeNull();
+
+      host.id.set('t2');
+      await refresh();
+
+      expect(source()).toBeNull();
+      expect(view()!.querySelector('em')?.textContent).toBe('task');
+    });
+
+    it('shows the source when the server rejects the notes', async () => {
+      await render(task({ notesMd: 'Old' }));
+      editButton()!.click();
+      await refresh();
+      await type('#td-notes', 'Too long, pretend');
+      answer = (fn) =>
+        fn === updateTask
+          ? Promise.reject(
+              new ApiError(400, 'Bad Request', undefined, undefined, undefined, [
+                { field: 'notesMd', message: 'Notes are too long.' },
+              ]),
+            )
+          : undefined;
+
+      await save();
+
+      expect(source()!.value).toBe('Too long, pretend');
+      expect(text()).toContain('Notes are too long.');
     });
   });
 });

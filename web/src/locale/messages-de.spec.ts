@@ -121,6 +121,29 @@ describe('German translations (messages.de.xlf)', () => {
     expect(mismatched).toEqual([]);
   });
 
+  it('has the task actions, undo and notes messages in English and German (web-task-actions)', () => {
+    const ids = [
+      'gtd.undo.completed',
+      'gtd.undo.deleted',
+      'gtd.undo.action',
+      'taskDetail.complete',
+      'taskDetail.reopen',
+      'taskDetail.completing',
+      'taskDetail.reopening',
+      'taskDetail.delete',
+      'taskDetail.deleting',
+      'taskDetail.editNotes',
+      'taskDetail.deleteDirtyConfirm',
+      'taskDetail.stepRename',
+      'taskDetail.stepRenameField',
+    ];
+    expect(ids.filter((id) => !english.has(id))).toEqual([]);
+    expect(ids.filter((id) => !german.get(id)?.target?.trim())).toEqual([]);
+    // The undo messages name the task.
+    expect(english.get('gtd.undo.completed')?.placeholders).toEqual(['title']);
+    expect(german.get('gtd.undo.deleted')?.targetPlaceholders).toEqual(['title']);
+  });
+
   it('keeps the quick-capture due keywords the parser accepts (SPEC.md: !today, !tomorrow)', () => {
     // The parser (server CaptureParser) only understands the English keywords, so a hint that
     // shows a translated keyword teaches syntax that silently does nothing.

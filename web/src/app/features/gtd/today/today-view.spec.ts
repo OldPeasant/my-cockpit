@@ -12,9 +12,11 @@ import {
   listProjects,
   listTasks,
   TaskResponse,
+  uncompleteTask,
 } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
 import { habit } from '../../habits/testing';
+import { TaskUndo } from '../ui';
 import { TASK_PAGE_SIZE } from '../data';
 import { provideTodaySection, TODAY_SECTIONS, todaySectionProvider } from './today-sections';
 import TodayView from './today-view';
@@ -406,6 +408,68 @@ describe('TodayView', () => {
       expect.objectContaining({ id: PAY_INVOICE.id }),
     );
     expect(sectionIds()).toEqual(['today-overdue']);
+  });
+
+  describe('undo after completing', () => {
+    let undo: { completed: ReturnType<typeof vi.fn>; deleted: ReturnType<typeof vi.fn> };
+
+    beforeEach(() => {
+      undo = { completed: vi.fn().mockResolvedValue(false), deleted: vi.fn() };
+      const original = api.invoke.getMockImplementation()!;
+      api.invoke.mockImplementation((fn: unknown, params?: Record<string, unknown>) => {
+        if (fn === completeTask) {
+          return Promise.resolve({
+            ...PAY_INVOICE,
+            completedAt: '2026-10-20T09:31:00Z',
+            version: 2,
+            needsNextStep: false,
+          });
+        }
+        if (fn === uncompleteTask) return Promise.resolve({ ...PAY_INVOICE, version: 3 });
+        return original(fn, params);
+      });
+    });
+
+    it('offers Undo, which reopens the task into its section', async () => {
+      configure([{ provide: TaskUndo, useValue: undo }]);
+      await render();
+      await answer([RENEW_PASSPORT], [PAY_INVOICE], []);
+
+      root
+        .querySelector<HTMLInputElement>(
+          'section[aria-labelledby="today-due"] input[type=checkbox]',
+        )!
+        .click();
+      await refresh();
+      expect(sectionIds()).toEqual(['today-overdue']);
+      expect(undo.completed).toHaveBeenCalledTimes(1);
+      expect(undo.completed.mock.calls[0][0]).toMatchObject({ id: PAY_INVOICE.id });
+
+      await (undo.completed.mock.calls[0][1] as () => Promise<unknown>)();
+      await refresh();
+
+      expect(api.invoke).toHaveBeenCalledWith(uncompleteTask, {
+        id: PAY_INVOICE.id,
+        'If-Match': '"2"',
+      });
+      expect(titlesIn('due')).toEqual(['Pay the fictitious invoice']);
+    });
+
+    it('offers no Undo when completing fails', async () => {
+      const original = api.invoke.getMockImplementation()!;
+      api.invoke.mockImplementation((fn: unknown, params?: Record<string, unknown>) =>
+        fn === completeTask ? Promise.reject(new Error('409')) : original(fn, params),
+      );
+      configure([{ provide: TaskUndo, useValue: undo }]);
+      await render();
+      await answer([], [PAY_INVOICE], []);
+
+      root.querySelector<HTMLInputElement>('section.group input[type=checkbox]')!.click();
+      await refresh();
+
+      expect(undo.completed).not.toHaveBeenCalled();
+      expect(titlesIn('due')).toEqual(['Pay the fictitious invoice']);
+    });
   });
 
   it('brings a task back into its section when completing it fails', async () => {

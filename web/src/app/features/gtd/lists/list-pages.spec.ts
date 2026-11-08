@@ -16,6 +16,7 @@ import {
 } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
 import { addDays, localDate } from '../data';
+import { TaskUndo } from '../ui';
 import { LogbookPage } from './logbook-page';
 import { ScheduledPage } from './scheduled-page';
 import { SomedayPage } from './someday-page';
@@ -291,6 +292,65 @@ describe('GTD list pages', () => {
       await click(element.querySelector<HTMLElement>('app-task-row .title')!);
 
       expect(navigate).toHaveBeenCalledWith(['/tasks', 't2']);
+    });
+  });
+
+  describe('undo after completing', () => {
+    let undo: { completed: ReturnType<typeof vi.fn>; deleted: ReturnType<typeof vi.fn> };
+    const reopenFromSnackbar = () => (undo.completed.mock.calls[0][1] as () => Promise<unknown>)();
+
+    beforeEach(() => {
+      undo = { completed: vi.fn().mockResolvedValue(false), deleted: vi.fn() };
+      TestBed.overrideProvider(TaskUndo, { useValue: undo });
+    });
+
+    it.each([
+      ['Waiting For', WaitingPage, task('t1', { title: 'Lease papers', list: 'WAITING' })],
+      ['Someday', SomedayPage, task('t1', { title: 'Lease papers', list: 'SOMEDAY' })],
+      [
+        'Scheduled',
+        ScheduledPage,
+        task('t1', { title: 'Lease papers', list: 'SCHEDULED', scheduledDate: today }),
+      ],
+    ] as const)(
+      '%s offers Undo, which reopens the task',
+      async (_name, page: Type<unknown>, row) => {
+        await render(page, [row]);
+
+        await click(element.querySelector<HTMLElement>('[aria-label="Complete “Lease papers”"]')!);
+
+        expect(undo.completed).toHaveBeenCalledTimes(1);
+        expect(undo.completed.mock.calls[0][0]).toMatchObject({ id: 't1', title: 'Lease papers' });
+        expect(titles()).not.toContain('Lease papers');
+
+        await reopenFromSnackbar();
+        await refresh();
+
+        expect(callsOf(uncompleteTask)).toHaveLength(1);
+        expect(callsOf(uncompleteTask)[0].params).toMatchObject({ id: 't1' });
+        expect(titles()).toContain('Lease papers');
+      },
+    );
+
+    it('offers no Undo when completing fails', async () => {
+      await render(WaitingPage, [task('t1', { title: 'Lease papers' })]);
+      failing = completeTask;
+
+      await click(element.querySelector<HTMLElement>('[aria-label="Complete “Lease papers”"]')!);
+
+      expect(undo.completed).not.toHaveBeenCalled();
+      expect(titles()).toContain('Lease papers');
+    });
+
+    it('offers no Undo when reopening from the Logbook', async () => {
+      await render(LogbookPage, [
+        task('t1', { title: 'Paid rent', list: 'NEXT', completedAt: new Date().toISOString() }),
+      ]);
+
+      await click(element.querySelector<HTMLElement>('[aria-label="Reopen “Paid rent”"]')!);
+
+      expect(callsOf(uncompleteTask)).toHaveLength(1);
+      expect(undo.completed).not.toHaveBeenCalled();
     });
   });
 

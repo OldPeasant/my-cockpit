@@ -11,10 +11,11 @@ import {
 } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { BehaviorSubject, Subject } from 'rxjs';
-import { Api, ChangeEvent } from '../../../api/generated';
+import { Api, ChangeEvent, deleteTask, getTask } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
 import { ApiError } from '../../../core/http';
 import { BackNavigation, provideBackNavigation } from '../../../shared/navigation';
+import { TaskUndo } from '../ui';
 import { TaskDetail } from './task-detail';
 import { TaskDetailPage } from './task-detail-page';
 import gtdRoutes from '../gtd.routes';
@@ -191,6 +192,64 @@ describe('TaskDetailPage with the real editor', () => {
     const element: HTMLElement = fixture.nativeElement;
     expect(element.textContent).toContain('This task does not exist or is in the Trash.');
     [...element.querySelectorAll('button')].find((b) => b.textContent?.includes('Back'))!.click();
+    expect(navigation.back).toHaveBeenCalledExactlyOnceWith('/inbox');
+  });
+
+  it('goes back through the shared back navigation after deleting the task, offering Undo', async () => {
+    const navigation = new FakeBackNavigation();
+    navigation.previous.set({ id: 2, url: '/today', label: 'Today' });
+    const undo = { completed: vi.fn(), deleted: vi.fn().mockResolvedValue(false) };
+    const shown = {
+      id: 'task-42',
+      title: 'Return the fictitious library book',
+      list: 'NEXT',
+      position: 1,
+      contextIds: [],
+      createdAt: '2026-11-01T08:00:00Z',
+      updatedAt: '2026-11-01T08:00:00Z',
+      version: 3,
+    };
+    const invoke = vi.fn(async (fn: unknown) => {
+      if (fn === getTask) return shown;
+      if (fn === deleteTask) return undefined;
+      return { items: [] };
+    });
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: { paramMap: new BehaviorSubject(convertToParamMap({ id: 'task-42' })) },
+        },
+        { provide: BackNavigation, useValue: navigation },
+        { provide: Api, useValue: { invoke } },
+        { provide: TaskUndo, useValue: undo },
+        {
+          provide: ChangeEventsService,
+          useValue: { resync$: new Subject<void>(), events$: () => new Subject<ChangeEvent>() },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(TaskDetailPage);
+    fixture.detectChanges();
+    const settle = async () => {
+      for (let i = 0; i < 3; i++) {
+        await new Promise((resolve) => setTimeout(resolve));
+        TestBed.tick();
+      }
+    };
+    await settle();
+    const element: HTMLElement = fixture.nativeElement;
+
+    element.querySelector<HTMLButtonElement>('button.delete')!.click();
+    await settle();
+
+    expect(invoke).toHaveBeenCalledWith(
+      deleteTask,
+      { id: 'task-42', 'If-Match': '"3"' },
+      expect.anything(),
+    );
+    expect(undo.deleted).toHaveBeenCalledWith(shown);
     expect(navigation.back).toHaveBeenCalledExactlyOnceWith('/inbox');
   });
 });

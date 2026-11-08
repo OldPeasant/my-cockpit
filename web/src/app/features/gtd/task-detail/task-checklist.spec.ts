@@ -482,6 +482,191 @@ describe('TaskChecklist', () => {
     });
   });
 
+  describe('rename', () => {
+    const renameInput = () => element.querySelector<HTMLInputElement>('input.rename');
+
+    async function startRename(index: number): Promise<void> {
+      await click(buttons('Rename step')[index]);
+    }
+
+    async function typeRename(value: string): Promise<void> {
+      renameInput()!.value = value;
+      renameInput()!.dispatchEvent(new Event('input'));
+      await refresh();
+    }
+
+    async function key(name: string): Promise<void> {
+      renameInput()!.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true }));
+      await refresh();
+    }
+
+    it('turns the step into a focused input with its text', async () => {
+      await render();
+      expect(buttons('Rename step')).toHaveLength(3);
+      await startRename(1);
+
+      expect(renameInput()).not.toBeNull();
+      expect(renameInput()!.value).toBe('Step b');
+      expect(renameInput()!.getAttribute('aria-label')).toBe('Step text');
+      expect(document.activeElement).toBe(renameInput());
+      // The other steps keep their labels.
+      expect(texts()).toEqual(['Step a', 'Step c']);
+    });
+
+    it('saves the trimmed text with Enter, with the item version', async () => {
+      await render();
+      await startRename(0);
+      await typeRename('  Call the fictitious plumber  ');
+      await key('Enter');
+
+      expect(updates).toEqual([
+        { item: item('a', 0), body: { text: 'Call the fictitious plumber' } },
+      ]);
+      expect(renameInput()).toBeNull();
+      expect(texts()).toEqual(['Call the fictitious plumber', 'Step b', 'Step c']);
+      expect(stored['t1'][0]).toMatchObject({ text: 'Call the fictitious plumber', version: 2 });
+      expect(alert()).toBeUndefined();
+    });
+
+    it('saves when the input loses focus', async () => {
+      await render();
+      await startRename(2);
+      await typeRename('Buy fittings');
+      renameInput()!.dispatchEvent(new Event('blur'));
+      await refresh();
+
+      expect(updates.map((u) => [u.item.id, u.body])).toEqual([['c', { text: 'Buy fittings' }]]);
+      expect(texts()).toEqual(['Step a', 'Step b', 'Buy fittings']);
+    });
+
+    it('cancels with Escape and keeps the old text', async () => {
+      await render();
+      await startRename(0);
+      await typeRename('Never saved');
+      const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true });
+      const outer = vi.fn();
+      element.addEventListener('keydown', outer);
+      renameInput()!.dispatchEvent(escape);
+      await refresh();
+
+      expect(renameInput()).toBeNull();
+      expect(updates).toEqual([]);
+      expect(texts()).toEqual(['Step a', 'Step b', 'Step c']);
+      // Escape stays with the input (it must not close the surrounding editor).
+      expect(outer).not.toHaveBeenCalled();
+    });
+
+    it('changes nothing for an empty, blank or unchanged text', async () => {
+      await render();
+      for (const value of ['', '   ', 'Step a', '  Step a  ']) {
+        await startRename(0);
+        await typeRename(value);
+        await key('Enter');
+        expect(renameInput()).toBeNull();
+      }
+      expect(updates).toEqual([]);
+      expect(texts()).toEqual(['Step a', 'Step b', 'Step c']);
+    });
+
+    it('saves only once when Enter is followed by a blur', async () => {
+      await render();
+      await startRename(0);
+      await typeRename('Once');
+      const input = renameInput()!;
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      input.dispatchEvent(new Event('blur'));
+      await refresh();
+      expect(updates).toHaveLength(1);
+    });
+
+    it('shows the new text at once and rolls it back when saving fails', async () => {
+      await render();
+      const pending = deferred<never>();
+      const original = service.updateChecklistItem;
+      service.updateChecklistItem = async (old, body) => {
+        updates.push({ item: old, body });
+        return pending.promise;
+      };
+      try {
+        await startRename(0);
+        await typeRename('Optimistic text');
+        await key('Enter');
+        expect(texts()).toEqual(['Optimistic text', 'Step b', 'Step c']);
+        // Nothing else can start while the rename saves.
+        expect(buttons('Rename step').every((b) => b.disabled)).toBe(true);
+
+        pending.reject(new ApiError(500, 'Internal Server Error', 'Could not rename the step.'));
+        await refresh();
+      } finally {
+        service.updateChecklistItem = original;
+      }
+      expect(texts()).toEqual(['Step a', 'Step b', 'Step c']);
+      expect(alert()).toBe('Could not rename the step.');
+      expect(buttons('Rename step').every((b) => !b.disabled)).toBe(true);
+    });
+
+    it('on 412 reloads the checklist and says it changed elsewhere', async () => {
+      failUpdate = () => {
+        stored['t1'] = [item('a', 0, { text: 'Renamed elsewhere', version: 3 }), item('c', 1)];
+        return new ApiError(412, 'Precondition Failed');
+      };
+      await render();
+      await startRename(0);
+      await typeRename('Mine');
+      await key('Enter');
+
+      expect(loads).toEqual(['t1', 't1']);
+      expect(alert()).toBe(CHECKLIST_CONFLICT);
+      expect(texts()).toEqual(['Renamed elsewhere', 'Step c']);
+    });
+
+    it('does not start a rename while another change is saving', async () => {
+      await render();
+      const pending = deferred<ChecklistItemResponse>();
+      const original = service.updateChecklistItem;
+      service.updateChecklistItem = async (old, body) => {
+        updates.push({ item: old, body });
+        return pending.promise;
+      };
+      try {
+        await click(checkboxes()[0]);
+        expect(buttons('Rename step').every((b) => b.disabled)).toBe(true);
+        // Even a click that reaches the disabled button opens no input.
+        buttons('Rename step')[1].dispatchEvent(new Event('click'));
+        await refresh();
+        expect(renameInput()).toBeNull();
+        pending.resolve(item('a', 0, { done: true, version: 2 }));
+        await refresh();
+      } finally {
+        service.updateChecklistItem = original;
+      }
+    });
+
+    it('uses the saved version for a rename after a toggle of the same step', async () => {
+      await render();
+      await click(checkboxes()[0]);
+      await startRename(0);
+      await typeRename('After toggle');
+      await key('Enter');
+      expect(updates.map((u) => [u.item.version, u.body])).toEqual([
+        [1, { done: true }],
+        [2, { text: 'After toggle' }],
+      ]);
+    });
+
+    it('drops an open rename when the editor switches to another task', async () => {
+      await render();
+      await startRename(0);
+      await typeRename('Half typed');
+      host.id.set('t2');
+      await refresh();
+
+      expect(renameInput()).toBeNull();
+      expect(texts()).toEqual(['Other task step']);
+      expect(updates).toEqual([]);
+    });
+  });
+
   describe('task change', () => {
     it('loads the checklist of the new task', async () => {
       await render();

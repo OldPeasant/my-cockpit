@@ -3,17 +3,20 @@ import { TestBed } from '@angular/core/testing';
 import {
   Api,
   ChecklistItemResponse,
+  completeTask,
   convertTaskToEvent,
   convertTaskToNote,
   ConvertToEventRequest,
   createChecklistItem,
   deleteChecklistItem,
+  deleteTask,
   EventResponse,
   getTask,
   listChecklistItems,
   moveTask,
   NoteResponse,
   TaskResponse,
+  uncompleteTask,
   updateChecklistItem,
   updateTask,
 } from '../../../api/generated';
@@ -77,6 +80,42 @@ describe('TaskDetailService', () => {
     const call = only();
     expect(call.fn).toBe(getTask);
     expect(call.params).toEqual({ id: 't1' });
+    expect(call.context?.get(SILENT_ERRORS)).toBe(true);
+  });
+
+  it('completes a task silently with If-Match of its version', async () => {
+    response = { ...TASK, completedAt: '2026-11-08T10:00:00Z', version: 8, needsNextStep: false };
+    const done = await service.complete(TASK);
+    expect(done).toMatchObject({ version: 8, needsNextStep: false });
+    const call = only();
+    expect(call.fn).toBe(completeTask);
+    expect(call.params).toEqual({ id: 't1', 'If-Match': '"7"' });
+    expect(call.context?.get(SILENT_ERRORS)).toBe(true);
+  });
+
+  it('reopens a task silently by default', async () => {
+    response = { ...TASK, version: 8 };
+    expect((await service.uncomplete(TASK)).version).toBe(8);
+    const call = only();
+    expect(call.fn).toBe(uncompleteTask);
+    expect(call.params).toEqual({ id: 't1', 'If-Match': '"7"' });
+    expect(call.context?.get(SILENT_ERRORS)).toBe(true);
+  });
+
+  it('reopens a task with errors shown by the HTTP layer when asked to toast', async () => {
+    response = { ...TASK, version: 8 };
+    await service.uncomplete(TASK, true);
+    const call = only();
+    expect(call.fn).toBe(uncompleteTask);
+    expect(call.context).toBeUndefined();
+  });
+
+  it('moves a task to the Trash silently with If-Match', async () => {
+    response = undefined;
+    await expect(service.remove(TASK)).resolves.toBeUndefined();
+    const call = only();
+    expect(call.fn).toBe(deleteTask);
+    expect(call.params).toEqual({ id: 't1', 'If-Match': '"7"' });
     expect(call.context?.get(SILENT_ERRORS)).toBe(true);
   });
 

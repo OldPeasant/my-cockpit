@@ -20,11 +20,13 @@ import {
   Settings,
   SettingsPatch,
   TaskResponse,
+  uncompleteTask,
 } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
 import { SettingsService } from '../../settings/settings.service';
 import { fakeSettings } from '../../settings/testing';
 import { TASK_PAGE_SIZE } from '../data';
+import { TaskUndo } from '../ui';
 import { FilterPresets, MAX_PRESETS, PRESETS_SETTING } from './filter-presets';
 import NextView from './next-view';
 import nextRoutes from './next.routes';
@@ -623,6 +625,62 @@ describe('NextView', () => {
         expect.objectContaining({ id: WATER_PLANTS.id }),
       );
       expect(shownTitles()).toEqual([]);
+    });
+
+    describe('undo after completing', () => {
+      let undo: { completed: ReturnType<typeof vi.fn>; deleted: ReturnType<typeof vi.fn> };
+
+      beforeEach(() => {
+        undo = { completed: vi.fn().mockResolvedValue(false), deleted: vi.fn() };
+        TestBed.overrideProvider(TaskUndo, { useValue: undo });
+        const original = api.invoke.getMockImplementation()!;
+        api.invoke.mockImplementation(async (fn: unknown, params?: Record<string, unknown>) => {
+          if (fn === completeTask) {
+            return {
+              ...WATER_PLANTS,
+              completedAt: '2026-10-20T10:00:00Z',
+              version: 2,
+              needsNextStep: false,
+            };
+          }
+          if (fn === uncompleteTask) return { ...WATER_PLANTS, version: 3 };
+          return original(fn, params);
+        });
+      });
+
+      it('offers Undo, which reopens the completed version and shows the task again', async () => {
+        serverTasks = [WATER_PLANTS];
+        await open('/next');
+
+        await click(root.querySelector<HTMLInputElement>('ul.tasks input[type=checkbox]')!);
+        expect(shownTitles()).toEqual([]);
+        expect(undo.completed).toHaveBeenCalledTimes(1);
+        expect(undo.completed.mock.calls[0][0]).toMatchObject({ id: WATER_PLANTS.id });
+
+        await (undo.completed.mock.calls[0][1] as () => Promise<unknown>)();
+        await stable();
+
+        expect(api.invoke).toHaveBeenCalledWith(uncompleteTask, {
+          id: WATER_PLANTS.id,
+          'If-Match': '"2"',
+        });
+        expect(shownTitles()).toEqual(['Water the plants']);
+      });
+
+      it('offers no Undo when completing fails', async () => {
+        const original = api.invoke.getMockImplementation()!;
+        api.invoke.mockImplementation(async (fn: unknown, params?: Record<string, unknown>) => {
+          if (fn === completeTask) throw new Error('409');
+          return original(fn, params);
+        });
+        serverTasks = [WATER_PLANTS];
+        await open('/next');
+
+        await click(root.querySelector<HTMLInputElement>('ul.tasks input[type=checkbox]')!);
+
+        expect(undo.completed).not.toHaveBeenCalled();
+        expect(shownTitles()).toEqual(['Water the plants']);
+      });
     });
 
     it('opens a task on its title', async () => {
