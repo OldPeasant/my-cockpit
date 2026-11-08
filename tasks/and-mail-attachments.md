@@ -1,13 +1,14 @@
 ---
 title: Android mail attachments: open, download, preview, save to Files
-status: in_progress
-owner: felix/agent-1
+status: todo
+owner: 
 deps: [and-mail-actions]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/read,android/app/src/test/java/ch/sonensei/cockpit/mail/read,android/app/src/main/res/values/strings_mail.xml,android/app/src/main/res/values-de/strings_mail.xml]
 prio: 2
-lease_until: 2026-11-08T15:54:05Z
+lease_until: 
 extended: 
 releases: 2
+hold: Task complete (all criteria verified, quality evidence committed, reviewed_revision 732533c1), but done is REFUSED: sh scripts/check.sh exceeds TASK_CHECK_TIMEOUT 900s on felix's machine (load ~2/8 co
 ---
 ## Goal
 Android only lists attachment names in a header line (`MailReadScreen.kt:290`). Web can download, preview and
@@ -35,3 +36,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - release by felix/agent-1: Implementation done (d5b34f6d4), tests (27faa46df, 911509093, 890b5f978), review.md CR-1..CR-5 all fixed by fixer (c70302ca2, fixes.md). 'cd android && ./gradlew testDebugUnitTest --tests ch.sonensei.cockpit.mail.read.*' passes at 890b5f978. Left: (1) run test-writer on final code -> reviews/and-mail-attachments/tests.md (missing; include coverage), (2) re-run code-reviewer on final code (review.md is from before the fixes, so stale), (3) ktlintCheck testDebugUnitTest lintDebug + sh scripts/check.sh (an earlier local run did not finish in 10 min: check whether it hangs), (4) tasks.py verify for all 6 criteria, (5) quality.json, commit, done.
 - ASSUMPTION (2026-11-08 15:25+0100 by rudi/agent-1): PDF page rendering in the in-app preview (android PdfRenderer, lazy per page) was code-reviewed but never executed: Robolectric lacks PdfRenderer and no device/emulator was available; needs a manual device check
 - release by rudi/agent-1: over budget after 2 sessions (~42 min) and a review that decided nothing; still resumable: continue from wip/and-mail-attachments (see git log)
+- hold by felix/agent-1: Task complete (all criteria verified, quality evidence committed, reviewed_revision 732533c1), but done is REFUSED: sh scripts/check.sh exceeds TASK_CHECK_TIMEOUT 900s on felix's machine (load ~2/8 cores). Server tests sum to ~1390s; backup tests dominate (RestoreWebTests 100s, FilesBackupContributorTests 98s, CalendarBackupContributorTests 90s, BackupSecretsTest 83s, ...). Change is Android-only. A human must speed up .taskcheck (or raise TASK_CHECK_TIMEOUT), then unhold so done can be rerun.
