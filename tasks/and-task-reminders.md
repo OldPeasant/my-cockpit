@@ -18,7 +18,8 @@ Goal: Android task detail offers the same as the web: add/remove reminders on a 
   - skipped (2026-11-09 00:03+0100 by dell26/agent-1): No emulator/device in this environment to fire a real notification; the tap path (OpenItemRequest.taskId -> TaskRoutes.detail in CockpitShell) is covered by unit tests only
 - [x] New strings in English and German (`res/values{,-de}/strings_task_detail.xml`)
   - verified (2026-11-09 00:28+0100 by dell26/agent-1): grep -c 'name="task_detail_remind' android/app/src/main/res/values{,-de}/strings_task_detail.xml -> 13 and 13 (same keys/format args); TaskDetailStringsTest + android lintDebug in scripts/check.sh pass (no missing translations)
-- [ ] Unit tests cover the new behavior; `sh scripts/check.sh` passes
+- [x] Unit tests cover the new behavior; `sh scripts/check.sh` passes
+  - verified (2026-11-09 00:28+0100 by dell26/agent-1): New TaskRemindersTest, TaskRemindersContentTest, OpenItemRequestTaskTest, ReminderUiTest task-detail test pass (task-scoped line coverage 90.5%, TaskReminders.kt 97.7%); sh scripts/check.sh at 4be818e65 -> exit 0
 
 ## Notes
 - Work done on `task-reminders` before the split is on `origin/wip/task-reminders` (if it exists): merge it first if your part builds on it.
