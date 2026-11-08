@@ -16,7 +16,8 @@ Web converts a task to a note (reference) or an event from task detail and inbox
 ## Acceptance criteria
 - [x] Inbox processing has "To reference" (converts to a note, opens it or shows a link) and "To calendar" (dialog: calendar, start, duration/all-day)
   - verified (2026-11-08 19:03+0100 by felix/agent-1): cd android && ./gradlew testDebugUnitTest --tests '*Convert*' --tests '*Conversion*' --tests '*EventPlan*' --tests '*TaskDetailStringsTest' --tests '*InboxRepositoryTest' --tests '*TaskDetailRepositoryTest' at c24989938 -> 183 passed, 0 failed; InboxConvertViewModelTest (18) + InboxConversionRepositoryTest cover To reference (note, Open) and To calendar dialog (calendar, start, duration/all-day, synced zone)
-- [ ] Task detail has the same two actions in its menu
+- [x] Task detail has the same two actions in its menu
+  - verified (2026-11-08 19:03+0100 by felix/agent-1): cd android && ./gradlew testDebugUnitTest --tests '*Convert*' --tests '*Conversion*' --tests '*EventPlan*' --tests '*TaskDetailStringsTest' --tests '*InboxRepositoryTest' --tests '*TaskDetailRepositoryTest' at c24989938 -> 183 passed, 0 failed; TaskDetailConvertRouteTest (Compose) + TaskConversionRepositoryTest cover both menu actions incl. To reference confirmation dialog
 - [ ] After converting, the user sees where the item went with an "Open" action
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
