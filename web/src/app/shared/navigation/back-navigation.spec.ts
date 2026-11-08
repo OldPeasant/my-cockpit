@@ -2,7 +2,7 @@ import { Location } from '@angular/common';
 import { provideLocationMocks } from '@angular/common/testing';
 import { Component, ErrorHandler, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
+import { NavigationEnd, provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { BackNavigation } from './back-navigation';
 import { BackButton } from './back-button';
@@ -579,6 +579,38 @@ describe('BackNavigation when a Back does not reach its page', () => {
     await navigation.back('/mail');
     await settle();
     expect(router.url).toBe('/today');
+  });
+
+  it('resolves back() only when the navigation a guard redirected the Back to has ended', async () => {
+    await go('/today');
+    await go('/guarded');
+    await go('/mail/messages/m1');
+    redirecting = true;
+    const ends: string[] = [];
+    const subscription = router.events.subscribe((event) => {
+      if (event instanceof NavigationEnd) ends.push(event.urlAfterRedirects);
+    });
+    try {
+      await navigation.back('/mail');
+      // No settle(): back() itself waited for the redirect to the login.
+      expect(ends).toEqual(['/login']);
+      expect(router.url).toBe('/login');
+    } finally {
+      subscription.unsubscribe();
+    }
+  });
+
+  it('goes to the parent route after a redirected Back to an entry it never saw', async () => {
+    await go('/new');
+    // E.g. a history entry from before a reload: its navigation id is unknown.
+    location.go('/guarded', '', { navigationId: 999 });
+    await go('/mail/messages/m1');
+    expect(navigation.previous()?.url).toBe('/new');
+    redirecting = true;
+    location.back();
+    await settle();
+    expect(router.url).toBe('/login');
+    expect(navigation.canGoBack()).toBe(false);
   });
 
   it('goes back only once when back() is called again while the Back runs', async () => {

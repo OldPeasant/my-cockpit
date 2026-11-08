@@ -4,92 +4,86 @@ Date: 2026-11-08
 
 Task: web-back-navigation (web back buttons return to the page they were opened from)
 
-Scope: current task; findings CR-1 (reviews/web-back-navigation/review.md) and TW-1 (the low-severity
-setLabel observation in reviews/web-back-navigation/tests.md). Base commit
-9a29669abe86beff6ba450f28a4435ba4087f0f3, fixes made on top of 4e18250b3 (uncommitted, the parent worker commits).
+Scope: current task; finding TW-1 of the second test pass (reviews/web-back-navigation/tests.md: a
+Back that a guard redirects leaves the back button one page off). Base: `git merge-base HEAD
+origin/main`; fixes made on top of b7aa7a329 (uncommitted, the parent worker commits).
+
+Earlier round: the previous fix round (CR-1, back() resolving before the Back navigation, and the
+earlier TW-1, setLabel recency) was fixed in commit 8b8bdd996. Of the current review report, CR-2
+(tighten the cancelled-Back test) was already done by the test writer; CR-1 (P3, refused Back then
+browser Forward) is accepted by the parent worker as a known limitation and was not changed here.
 
 ## Fixed findings
 
-### CR-1 — back() resolves before the Back navigation, so a second triage can apply again
-
-Files changed:
-- `web/src/app/shared/navigation/back-navigation.ts`
-- `web/src/app/shared/navigation/back-navigation.spec.ts`
-- `web/src/app/features/mail/read/mail-read-page.spec.ts`
-
-Problem:
-`BackNavigation.back()` returned as soon as it had called `location.back()`. The router handles the
-popstate later (in a setTimeout), so `MailReadPage.triage()` cleared `triaging` while the moved message
-was still shown. A second `e`/`!`/`#` or click in that window ran `mail.apply` again (a second Delete
-on a message in Trash could delete it for good).
-
-Fix:
-When it goes back in the history, `back()` now subscribes to the router events before calling
-`location.back()` and resolves on the next NavigationEnd, NavigationCancel, NavigationError or
-NavigationSkipped. A 1.5 s safety timeout (`BACK_TIMEOUT_MS`) resolves it anyway, so a popstate the
-browser never reports cannot hang callers. `MailReadPage` needed no change: its `finally` now runs only
-after the page was left, so `triaging` stays set (buttons disabled, shortcuts ignored) during the Back.
-The fallback path (`navigateByUrl`) is unchanged.
-
-New tests:
-- back-navigation.spec.ts "resolves back() only when the Back navigation has ended": back() is still
-  pending and the URL unchanged after the microtasks; once it resolves the previous page is shown.
-- back-navigation.spec.ts "resolves back() after a short while when no navigation follows": with
-  `location.back` stubbed out and fake timers, back() is pending after 1 s and resolved after 2 s.
-- mail-read-page.spec.ts "while going back" › "does not delete again on a second # until the list is
-  shown" and "... on a second click ...": a second `#` key press, or a click on Delete after change
-  detection, while the popstate navigation is still pending does not call `mail.apply` again; the app
-  ends on the folder with exactly one DELETE.
-
-All four new tests fail against the previous `back-navigation.ts` (checked by temporarily restoring
-the HEAD version of the file, then putting the fix back).
-
-Validation:
-- `cd web && npx ng test --watch=false --include src/app/shared/navigation/back-navigation.spec.ts --include src/app/features/mail/read/mail-read-page.spec.ts` — Pass (138 tests)
-- Same command with the HEAD version of back-navigation.ts — 5 failed (the 5 new tests, incl. TW-1), 133 passed, as expected
-
-### TW-1 — setLabel with the same name does not refresh its recency
+### TW-1 — A Back that a guard redirects leaves the back button one page off
 
 Files changed:
 - `web/src/app/shared/navigation/back-navigation.ts`
 - `web/src/app/shared/navigation/back-navigation.spec.ts`
 
 Problem:
-`setLabel` returned early when the path already had the same name, so the path kept its old position
-and could be evicted from the 100-name list although the page had just named itself again.
+When a guard of the restored page redirects a popstate (Back/Forward) navigation, `BackNavigation`
+ignored the redirecting NavigationCancel. The router keeps the browser on the restored entry and
+schedules the redirect as an imperative navigation with `replaceUrl` (verified in
+`@angular/router/fesm2022/_router-chunk.mjs`, `RedirectRequest` handling:
+`replaceUrl: ... || isBrowserTriggeredNavigation(currentTransition.source)`). The mirror therefore
+replaced the entry it was still on (the page that was left) instead of the restored one, so
+`previous()` named one page while `location.back()` went to another. Also, back() resolved on that
+redirecting NavigationCancel, before the redirect had ended.
 
 Fix:
-The early return now only applies when the path already has that name and is the most recent entry;
-otherwise the entry is moved to the most recent end, as for a new or changed name.
+- New `followRedirect(id)`: on a NavigationCancel with code `Redirect` whose id is the running
+  popstate (`restoring`), the mirror moves its index to the restored entry (found by `restoredId`;
+  if unknown, it keeps just the current entry, so nothing is known behind) and clears `restoring`,
+  without changing entries. The follow-up `replaceUrl` navigation then replaces that entry in
+  `record`, as the browser does.
+- `back()` no longer resolves on a redirecting NavigationCancel (`Redirect` or
+  `SupersededByNewNavigation`, the existing `isRedirecting` helper); it waits for the navigation that
+  takes over, still bounded by the 1.5 s safety timeout. Doc comment updated.
 
-New test:
-- back-navigation.spec.ts "keeps a name set again among the most recent names": p1 named, 99 other
-  names, p1 named again with the same name, one more name; p1 still has its name.
+Tests:
+- Kept unchanged and now passing: "leads to the page its back button names after a Back a guard
+  redirected".
+- Added "resolves back() only when the navigation a guard redirected the Back to has ended": without
+  settle(), after `await back()` the redirect's NavigationEnd to `/login` has been seen and the router
+  is on `/login`.
+- Added "goes to the parent route after a redirected Back to an entry it never saw": the restored
+  entry has an unknown navigation id; after the redirect nothing is known behind.
+- The first two fail against the HEAD version of `back-navigation.ts` (checked by temporarily putting
+  the HEAD file back: 2 failed, 44 passed; then the fix was restored). The unknown-entry test covers
+  the new not-found branch.
 
 Validation:
-- `cd web && npx ng test --watch=false --include src/app/shared/navigation/back-navigation.spec.ts --include src/app/features/mail/read/mail-read-page.spec.ts` — Pass
+- `cd web && npx ng test --watch=false --include src/app/shared/navigation/back-navigation.spec.ts --include src/app/features/mail/read/mail-read-page.spec.ts` — Pass (2 files, 148 tests)
 
 ## Not fixed
 
-None.
+### CR-1 (review.md) — refused Back then browser Forward
+
+Status:
+Out of scope for this round (accepted as a known limitation by the parent worker)
+
+Reason:
+The parent worker decided not to fix it; no code changed for it.
 
 ## Validation summary
 
 Focused tests:
-- `cd web && npx ng test --watch=false --include src/app/shared/navigation/back-navigation.spec.ts --include src/app/features/mail/read/mail-read-page.spec.ts` — Pass, 2 files, 138 tests
+- `cd web && npx ng test --watch=false --include src/app/shared/navigation/back-navigation.spec.ts --include src/app/features/mail/read/mail-read-page.spec.ts` — Pass, 148 tests
+- Same spec against the HEAD production file — 2 failed (the redirect tests), 44 passed, as expected
 
 Full test suite:
-- `cd web && npx ng test --watch=false` — Pass, 187 files, 4119 tests
+- `cd web && npx ng test --watch=false` — Pass, 187 files, 4129 tests
 
 Lint/type-check/build:
-- `cd web && npx prettier --check` on the three changed files — Pass
+- `cd web && npx prettier --check` on the two changed files — Pass
 - `cd web && npm run lint` — Pass (All files pass linting)
 
 `.taskcheck`:
 - Not run by the fixer (server and Android parts unchanged; the parent worker runs `sh scripts/check.sh`)
 
 Remaining unresolved findings:
-0
+0 (CR-1 accepted as a known limitation)
 
 ## Final status
 

@@ -76,6 +76,11 @@ export class BackNavigation {
       } else if (event instanceof NavigationEnd) {
         this.record(event);
       } else if (
+        event instanceof NavigationCancel &&
+        event.code === NavigationCancellationCode.Redirect
+      ) {
+        this.followRedirect(event.id);
+      } else if (
         event instanceof NavigationError ||
         (event instanceof NavigationCancel && !isRedirecting(event))
       ) {
@@ -95,9 +100,10 @@ export class BackNavigation {
    * `fallback` (the page's parent route). `replaceUrl` replaces the current entry on the fallback
    * path (e.g. after the shown item was archived, so Back does not open it again).
    *
-   * Resolves once the resulting navigation has finished (or after a short safety timeout, should
-   * the browser never report the Back), so a caller can stay busy until its page is left. A second
-   * call while that Back still runs (a double click) does not go back once more.
+   * Resolves once the resulting navigation has finished, including one a guard redirected it to
+   * (or after a short safety timeout, should the browser never report the Back), so a caller can
+   * stay busy until its page is left. A second call while that Back still runs (a double click)
+   * does not go back once more.
    */
   async back(fallback: string, options: { replaceUrl?: boolean } = {}): Promise<void> {
     if (this.goingBack) return this.goingBack;
@@ -107,7 +113,8 @@ export class BackNavigation {
           filter(
             (event) =>
               event instanceof NavigationEnd ||
-              event instanceof NavigationCancel ||
+              // A redirect or a newer navigation takes over: wait for that one.
+              (event instanceof NavigationCancel && !isRedirecting(event)) ||
               event instanceof NavigationError ||
               event instanceof NavigationSkipped,
           ),
@@ -163,6 +170,24 @@ export class BackNavigation {
       const next = [...entries];
       next[found] = current;
       return { entries: next, index: found };
+    });
+  }
+
+  /**
+   * A Back or Forward that a guard redirected (e.g. to the login): the browser stays on the entry
+   * it moved to, and the router's follow-up navigation replaces that entry (`replaceUrl`), which
+   * {@link record} then does on the mirror too.
+   */
+  private followRedirect(id: number): void {
+    const restoring = this.restoring?.id === id ? this.restoring : null;
+    if (!restoring) return;
+    this.restoring = null;
+    this.history.update(({ entries, index }) => {
+      const current = entries[index];
+      if (!current) return { entries, index };
+      const found = entries.findIndex((known) => known.id === restoring.restoredId);
+      if (found < 0) return { entries: [current], index: 0 };
+      return { entries, index: found };
     });
   }
 
