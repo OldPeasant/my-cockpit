@@ -18,7 +18,8 @@ Android's capture sheet has neither and can only attach files that came from a s
   - verified (2026-11-08 18:37+0100 by dell26/agent-3): same run -> CaptureSheetCaptureTest add-another tests, ShareViewModelCaptureTest add-another tests and ShareAddAnotherActivityTest 'save and add another queues the share, keeps the sheet open and cleared, then a plain save closes it' (real activity + Hilt + Room queue, Robolectric) pass
 - [x] An attach button picks files/photos (system picker) and attachments can be removed before saving; works with the offline queue
   - verified (2026-11-08 18:38+0100 by dell26/agent-3): same run -> CaptureSheetCaptureTest attach/remove tests (OpenMultipleDocuments */* via ActivityResultRegistry stand-in; remove only via close button) and ShareViewModelCaptureTest 'picked files are copied into the offline queue on save and survive the source going away' pass. Real DocumentsUI on a device not run (no emulator)
-- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [x] New strings are in English and German (`res/values/` + `res/values-de/`)
+  - verified (2026-11-08 18:38+0100 by dell26/agent-3): values/ + values-de/ strings_share.xml hold all 7 new strings; lintDebug (MissingTranslation) passes; CaptureSheetCaptureTest @Config(qualifiers=de) 'the new controls and chips are in German' passes
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
