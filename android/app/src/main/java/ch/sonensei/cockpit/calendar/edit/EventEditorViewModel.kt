@@ -179,6 +179,9 @@ class EventEditorViewModel internal constructor(
     /** Load the local calendars, the links, suggestions, or send invitations: beside [job]. */
     private var sourcesJob: Job? = null
     private var linksJob: Job? = null
+
+    /** The pending links load: a newer load cancels it, so an older answer never overrides a newer one. */
+    private var loadLinksJob: Job? = null
     private var suggestJob: Job? = null
     private var inviteJob: Job? = null
 
@@ -300,7 +303,7 @@ class EventEditorViewModel internal constructor(
 
     private fun reset() {
         job?.cancel()
-        listOf(sourcesJob, linksJob, suggestJob, inviteJob).forEach { it?.cancel() }
+        listOf(sourcesJob, linksJob, loadLinksJob, suggestJob, inviteJob).forEach { it?.cancel() }
         occurrence = null
         initial = null
         newId = null
@@ -608,8 +611,9 @@ class EventEditorViewModel internal constructor(
     fun loadLinks() {
         val source = extras ?: return
         val edited = occurrence ?: return
+        loadLinksJob?.cancel()
         state.update { s -> s.copy(links = (s.links ?: LinksUiState()).copy(loading = true, failed = false)) }
-        linksJob =
+        loadLinksJob =
             viewModelScope.launch {
                 val result = source.links(edited.eventId)
                 state.update { s ->
