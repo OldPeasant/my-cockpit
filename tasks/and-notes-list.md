@@ -20,3 +20,4 @@ Android notes have no search, pin, archive or archived view (web: `notes-page.ht
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 - ASSUMPTION (2026-11-08 16:12+0100 by rudi/agent-1): Search uses GET /api/v1/search?types=NOTE (limit 50) and shows the loaded notes of the current view/tag whose id was found, in list order (pinned first) rather than relevance order; more than 50 matching notes are cut off
+- ASSUMPTION (2026-11-08 16:12+0100 by rudi/agent-1): Pin/archive/delete conflicts (409/412) in the list show a snackbar and reload; in the editor a pin/archive conflict opens the existing conflict banner, a delete conflict shows 'refused'. Delete from the editor discards unsaved text (Undo restores the saved version). Archive/unarchive shows a snackbar without Undo (only delete has Undo, as the criterion asks)
