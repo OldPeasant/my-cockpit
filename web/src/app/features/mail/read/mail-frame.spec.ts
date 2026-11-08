@@ -58,6 +58,26 @@ describe('MailFrame', () => {
       expect([...csp.keys()]).not.toContain('connect-src');
     });
 
+    it('allows exactly the listed sources in every directive (no other host or keyword)', () => {
+      const origin = 'https://cockpit.example.test';
+      expect(Object.fromEntries(csp)).toEqual({
+        'default-src': ["'none'"],
+        'img-src': ["'self'", origin, 'data:'],
+        'style-src': ["'unsafe-inline'"],
+        'font-src': ["'self'", origin, 'data:'],
+        'script-src': ["'none'"],
+        'frame-src': ["'none'"],
+        'form-action': ["'none'"],
+        'base-uri': ["'none'"],
+      });
+    });
+
+    it('keeps the port of a development origin', () => {
+      const dev = directives(mailFrameCsp('http://localhost:4200'));
+      expect(dev.get('img-src')).toEqual(["'self'", 'http://localhost:4200', 'data:']);
+      expect(dev.get('font-src')).toEqual(["'self'", 'http://localhost:4200', 'data:']);
+    });
+
     it('uses the page origin by default', () => {
       expect(mailFrameCsp()).toBe(mailFrameCsp(location.origin));
       expect(directives(mailFrameCsp()).get('img-src')).toContain(location.origin);
