@@ -154,6 +154,23 @@ class AuthRepositoryTest {
         }
 
     @Test
+    fun `the web enrollment page stays below a server address with a sub-path`() =
+        runBlocking {
+            server.enqueue(json(403, PROBLEM))
+
+            val result = repository.login(server.url("/cockpit").toString(), "alex", "pw", SecondFactor.Totp("123456"))
+
+            assertEquals(LoginResult.TotpResetRequired, result)
+            assertEquals(server.url("/cockpit/enroll-totp").toString(), repository.totpEnrollmentUrl())
+        }
+
+    @Test
+    fun `without a configured server there is no web enrollment page`() =
+        runBlocking {
+            assertNull(repository.totpEnrollmentUrl())
+        }
+
+    @Test
     fun `400 is an invalid request`() =
         runBlocking {
             server.enqueue(json(400, PROBLEM))

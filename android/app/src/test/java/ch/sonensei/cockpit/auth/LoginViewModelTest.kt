@@ -256,6 +256,21 @@ class LoginViewModelTest {
         }
 
     @Test
+    fun `a TOTP re-enrollment without a known enrollment page still shows the error`() =
+        runTest(dispatcher) {
+            coEvery { repository.totpEnrollmentUrl() } returns null
+            coEvery { repository.login(any(), any(), any(), any()) } returns LoginResult.TotpResetRequired
+            val viewModel = filledIn()
+
+            viewModel.submit()
+            advanceUntilIdle()
+
+            assertEquals(LoginError.TOTP_RESET_REQUIRED, viewModel.uiState.value.error)
+            assertNull(viewModel.uiState.value.totpEnrollmentUrl)
+            assertFalse(viewModel.uiState.value.submitting)
+        }
+
+    @Test
     fun `without a configured server the address field stays empty`() =
         runTest(dispatcher) {
             every { repository.serverUrl } returns flowOf(null)

@@ -378,6 +378,43 @@ class LoginScreenTest {
     }
 
     @Test
+    @Config(qualifiers = "de")
+    fun `the web enrollment button is labelled in German`() {
+        show(LoginUiState(error = LoginError.TOTP_RESET_REQUIRED, totpEnrollmentUrl = "https://cockpit.example.org/enroll-totp"))
+
+        composeRule
+            .onNodeWithTag(LoginTags.OPEN_TOTP_ENROLLMENT)
+            .performScrollTo()
+            .assertTextContains("Einrichtung im Browser öffnen")
+    }
+
+    @Test
+    fun `the web enrollment button does not crash without a browser`() {
+        val noBrowser =
+            object : UriHandler {
+                override fun openUri(uri: String): Unit = throw IllegalStateException("no activity can open $uri")
+            }
+        composeRule.setContent {
+            CompositionLocalProvider(LocalUriHandler provides noBrowser) {
+                LoginScreen(
+                    LoginUiState(error = LoginError.TOTP_RESET_REQUIRED, totpEnrollmentUrl = "https://cockpit.example.org/enroll-totp"),
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(LoginTags.OPEN_TOTP_ENROLLMENT).performScrollTo().performClick()
+
+        composeRule.onNodeWithTag(LoginTags.ERROR).assertExists()
+        composeRule.onNodeWithTag(LoginTags.OPEN_TOTP_ENROLLMENT).assertExists()
+    }
+
+    @Test
     fun `the web enrollment button is shown only with the TOTP re-enrollment error`() {
         var state by mutableStateOf(LoginUiState(error = LoginError.TOTP_RESET_REQUIRED))
         composeRule.setContent { LoginScreen(state, {}, {}, {}, {}, {}, {}) }
