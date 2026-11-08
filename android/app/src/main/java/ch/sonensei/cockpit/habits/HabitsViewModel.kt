@@ -98,17 +98,19 @@ class HabitsViewModel
         }
 
         /**
-         * Loads the list; the answer is dropped when another load started meanwhile, and (when [quiet]) also when a
-         * local change started or finished meanwhile: the list may have been read before it and would undo it.
+         * Loads the list; the answer is dropped when another load started meanwhile. A [quiet] load (like web
+         * `reloadQuietly`) does not count as a new load, so it never cancels a user or view load still on its way; its
+         * answer is also dropped when a local change started or finished meanwhile (the list may have been read before
+         * it and would undo it), unless the view has no list yet.
          */
         private fun startLoad(quiet: Boolean = false) {
-            val seq = ++loadSeq
+            val seq = if (quiet) loadSeq else ++loadSeq
             val changes = changeSeq
             val archived = state.value.archived
             viewModelScope.launch {
                 val result = habits.list(archived)
                 if (seq != loadSeq) return@launch
-                if (quiet && changes != changeSeq) {
+                if (quiet && changes != changeSeq && state.value.loaded) {
                     state.update { it.copy(loading = false) }
                     return@launch
                 }

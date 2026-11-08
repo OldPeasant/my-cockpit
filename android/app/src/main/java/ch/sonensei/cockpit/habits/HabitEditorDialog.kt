@@ -51,7 +51,6 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
-import java.util.Locale
 
 internal object HabitEditorTags {
     const val DIALOG = "habit-editor"
@@ -269,11 +268,12 @@ private fun ReminderField(
     onPick: (LocalTime?) -> Unit,
 ) {
     var picking by rememberSaveable { mutableStateOf(false) }
+    val locale = LocalConfiguration.current.locales[0]
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(stringResource(R.string.habits_field_reminder), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
         OutlinedButton(onClick = { picking = true }, enabled = !saving, modifier = Modifier.testTag(HabitEditorTags.REMINDER)) {
             Text(
-                time?.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(Locale.getDefault()))
+                time?.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale))
                     ?: stringResource(R.string.habits_reminder_none),
             )
         }

@@ -685,6 +685,46 @@ class HabitsViewModelManageTest {
         }
 
     @Test
+    fun `a conflict reload after a view switch does not cancel the view load, so the view still gets its list`() =
+        runTest(dispatcher) {
+            val viewLoad = CompletableDeferred<HabitsResult<List<Habit>>>()
+            val reload = CompletableDeferred<HabitsResult<List<Habit>>>()
+            val check = CompletableDeferred<HabitsResult<Habit>>()
+            val conflict = CompletableDeferred<HabitsResult<Habit>>()
+            var archivedLists = 0
+            coEvery { repo.list(true) } coAnswers {
+                if (archivedLists++ == 0) viewLoad.await() else reload.await()
+            }
+            coEvery { repo.check(water) } coAnswers { conflict.await() }
+            coEvery { repo.check(stretch) } coAnswers { check.await() }
+            val vm = newViewModel()
+            runCurrent()
+
+            vm.toggle(water.id)
+            vm.toggle(stretch.id)
+            runCurrent()
+            vm.showArchived(true)
+            runCurrent()
+            conflict.complete(HabitsResult.Failed(412))
+            runCurrent()
+            assertEquals(HabitsMessage.CONFLICT, vm.uiState.value.message)
+            check.complete(HabitsResult.Ok(stretch.copy(todayCount = 1, version = 2)))
+            runCurrent()
+            reload.complete(HabitsResult.Ok(listOf(piano)))
+            runCurrent()
+            val newer = piano.copy(version = 2)
+            viewLoad.complete(HabitsResult.Ok(listOf(newer)))
+            advanceUntilIdle()
+
+            assertTrue(vm.uiState.value.archived)
+            assertTrue(vm.uiState.value.loaded)
+            assertFalse(vm.uiState.value.loading)
+            assertEquals(listOf(newer), vm.uiState.value.habits)
+            assertEquals(emptySet<UUID>(), vm.uiState.value.checking)
+            coVerify(exactly = 2) { repo.list(true) }
+        }
+
+    @Test
     fun `taps on a habit with a target of three count one more each time from the last answer, then reset`() =
         runTest(dispatcher) {
             val pushUps = habit(5, "Push-ups").copy(targetCount = 3)
