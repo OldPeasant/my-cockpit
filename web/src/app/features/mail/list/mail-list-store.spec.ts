@@ -1312,7 +1312,8 @@ describe('MailListStore', () => {
       mail.loadOlders[0].resolve({ loaded: 0, hasMore: false });
       await done;
 
-      expect(store.olderError()).toBe('There are no older messages on the server.');
+      expect(store.olderNote()).toBe('There are no older messages on the server.');
+      expect(store.olderError()).toBeNull();
       expect(store.loadingOlder()).toBe(false);
       expect(mail.lists).toHaveLength(lists);
       expect(ids()).toEqual(['a']);
@@ -1333,6 +1334,12 @@ describe('MailListStore', () => {
       expect(store.olderError()).toBeNull();
       mail.loadOlders[1].resolve({ loaded: 0, hasMore: false });
       await retry;
+      expect(store.olderError()).toBeNull();
+      expect(store.olderNote()).not.toBeNull();
+
+      // The next try clears the note of the one before.
+      void store.loadOlder();
+      expect(store.olderNote()).toBeNull();
     });
 
     it('shows a generic message when the connection fails', async () => {
@@ -1397,9 +1404,92 @@ describe('MailListStore', () => {
       const done = store.loadOlder();
       mail.loadOlders[0].resolve({ loaded: 0, hasMore: false });
       await done;
-      expect(store.olderError()).not.toBeNull();
+      expect(store.olderNote()).not.toBeNull();
       await loaded([summary('a')], folder);
+      expect(store.olderNote()).toBeNull();
+    });
+
+    it('ends the progress when the list is reloaded or restored while it loads older', async () => {
+      await loaded([summary('a')], folder);
+      const snapshot = store.snapshot()!;
+      void store.loadOlder();
+      void store.reload();
+      expect(store.loadingOlder()).toBe(false);
+      mail.lists.at(-1)!.resolve({ items: [summary('a')], nextCursor: null });
+      await flush();
+
+      void store.loadOlder();
+      expect(store.loadingOlder()).toBe(true);
+      store.restore(snapshot);
+      expect(store.loadingOlder()).toBe(false);
+      // The dropped requests' answers change nothing.
+      mail.loadOlders[0].resolve({ loaded: 0, hasMore: false });
+      mail.loadOlders[1].reject(new ApiError(503, 'Unavailable', 'Mail server unreachable'));
+      await flush();
+      expect(store.loadingOlder()).toBe(false);
+      expect(store.olderNote()).toBeNull();
       expect(store.olderError()).toBeNull();
+      expect(ids()).toEqual(['a']);
+    });
+
+    it('does not undo an action that ran while it read the list; it reads the list again after it', async () => {
+      await loaded([summary('a'), summary('b')], folder);
+      const done = store.loadOlder();
+      mail.loadOlders[0].resolve({ loaded: 2, hasMore: false });
+      await flush();
+      const stale = mail.lists.at(-1)!;
+
+      // Archive 'a' while the list is read: the read may be from before the archive.
+      const archived = store.apply('ARCHIVE', undefined, ['a']);
+      await flush();
+      expect(ids()).toEqual(['b']);
+      stale.resolve({
+        items: [summary('a'), summary('b'), summary('c'), summary('d')],
+        nextCursor: null,
+      });
+      await flush();
+      expect(ids()).toEqual(['b']);
+      expect(store.loadingOlder()).toBe(true);
+      expect(mail.lists.at(-1)).toBe(stale);
+
+      // Once the archive is done, the list is read again and shown.
+      mail.succeed();
+      expect(await archived).toBe(true);
+      await flush();
+      expect(mail.lists.at(-1)).not.toBe(stale);
+      mail.lists.at(-1)!.resolve({
+        items: [summary('b'), summary('c'), summary('d')],
+        nextCursor: null,
+      });
+      await done;
+      expect(ids()).toEqual(['b', 'c', 'd']);
+      expect(store.loadingOlder()).toBe(false);
+    });
+
+    it('reads the list again when an action changed it while it was read', async () => {
+      await loaded([summary('a'), summary('b')], folder);
+      const done = store.loadOlder();
+      mail.loadOlders[0].resolve({ loaded: 1, hasMore: false });
+      await flush();
+      const stale = mail.lists.at(-1)!;
+
+      const starred = store.apply('FLAG', undefined, ['b']);
+      await flush();
+      mail.succeed();
+      await starred;
+      // The action is done, but the read started before it.
+      stale.resolve({ items: [summary('a'), summary('b'), summary('c')], nextCursor: null });
+      await flush();
+      expect(store.items()!.find((item) => item.id === 'b')?.flagged).toBe(true);
+      expect(mail.lists.at(-1)).not.toBe(stale);
+
+      mail.lists.at(-1)!.resolve({
+        items: [summary('a'), summary('b', { flagged: true }), summary('c')],
+        nextCursor: null,
+      });
+      await done;
+      expect(ids()).toEqual(['a', 'b', 'c']);
+      expect(store.items()![1].flagged).toBe(true);
     });
   });
 });

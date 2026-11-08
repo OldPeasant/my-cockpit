@@ -8293,28 +8293,28 @@
         <source> Loading older messages from the server… </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
-          <context context-type="linenumber">293,295</context>
+          <context context-type="linenumber">296,298</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.loadOlderFromServer" datatype="html">
         <source> Load older from server </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
-          <context context-type="linenumber">303,305</context>
+          <context context-type="linenumber">306,308</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.loading" datatype="html">
         <source>Loading messages…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
-          <context context-type="linenumber">308,311</context>
+          <context context-type="linenumber">311,314</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.keysHint" datatype="html">
         <source> Keys: j/k next/previous, o or click open, x select, e archive, # delete, Shift+I read, u unread, s star, v move, ! spam, / search </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
-          <context context-type="linenumber">312,315</context>
+          <context context-type="linenumber">315,318</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.search.unknownAccount" datatype="html">
@@ -8367,21 +8367,21 @@
         <source>There are no older messages on the server.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-store.ts</context>
-          <context context-type="linenumber">271</context>
+          <context context-type="linenumber">283</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.list.actionFailed" datatype="html">
         <source>Not every message could be changed: <x id="reason" equiv-text="reason"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-store.ts</context>
-          <context context-type="linenumber">439</context>
+          <context context-type="linenumber">474</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.list.error" datatype="html">
         <source>Something went wrong.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-store.ts</context>
-          <context context-type="linenumber">638</context>
+          <context context-type="linenumber">678</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/new/new-page.ts</context>

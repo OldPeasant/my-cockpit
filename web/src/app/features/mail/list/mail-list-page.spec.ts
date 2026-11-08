@@ -1688,10 +1688,11 @@ describe('MailListPage', () => {
       await flush();
       fixture.detectChanges();
 
-      expect(older()?.querySelector('.error')?.getAttribute('role')).toBe('status');
-      expect(older()?.querySelector('.error')?.textContent).toContain(
-        'There are no older messages on the server.',
-      );
+      // A normal outcome, not a failure: a neutral note without the failure's prefix.
+      expect(older()?.querySelector('.error')).toBeNull();
+      const note = older()?.querySelector('p.note');
+      expect(note?.getAttribute('role')).toBe('status');
+      expect(note?.textContent?.trim()).toBe('There are no older messages on the server.');
       expect(rows()).toHaveLength(3);
       expect(olderButton()?.disabled).toBe(false);
       expect(errors).toEqual([]);
@@ -1704,7 +1705,9 @@ describe('MailListPage', () => {
       await flush();
       fixture.detectChanges();
 
-      expect(older()?.querySelector('.error')?.textContent).toContain('Mail server unreachable');
+      expect(older()?.querySelector('.error')?.textContent?.trim()).toBe(
+        'Nothing older loaded: Mail server unreachable',
+      );
       expect(rows()).toHaveLength(3);
       expect(errors).toEqual([]);
     });

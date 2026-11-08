@@ -1498,6 +1498,14 @@
           <context context-type="linenumber">293,296</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="calendar.invite.open" datatype="html">
+        <source>Send invitations</source>
+        <target state="translated">Einladungen senden</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.html</context>
+          <context context-type="linenumber">305,307</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="calendar.edit.close" datatype="html">
         <source>Close</source>
         <target state="translated">Schließen</target>
@@ -1630,6 +1638,30 @@
           <context context-type="linenumber">292</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="calendar.invite.saveFirst" datatype="html">
+        <source>Save your changes before sending invitations.</source>
+        <target state="translated">Speichere deine Änderungen, bevor du Einladungen sendest.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
+          <context context-type="linenumber">363</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.invite.cancelSent" datatype="html">
+        <source>Cancellation sent to <x id="count" equiv-text="sent.recipients.length"/> guest(s).</source>
+        <target state="translated">Absage an <x id="count" equiv-text="sent.recipients.length"/> Gast/Gäste gesendet.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
+          <context context-type="linenumber">375</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.invite.requestSent" datatype="html">
+        <source>Invitation sent to <x id="count" equiv-text="sent.recipients.length"/> guest(s).</source>
+        <target state="translated">Einladung an <x id="count" equiv-text="sent.recipients.length"/> Gast/Gäste gesendet.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
+          <context context-type="linenumber">376</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="calendar.edit.failed" datatype="html">
         <source>The event could not be saved.</source>
         <target state="translated">Der Termin konnte nicht gespeichert werden.</target>
@@ -1668,6 +1700,102 @@
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-editor.ts</context>
           <context context-type="linenumber">92</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.invite.title" datatype="html">
+        <source>Send invitations</source>
+        <target state="translated">Einladungen senden</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/invitation-dialog.ts</context>
+          <context context-type="linenumber">82,84</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.invite.to" datatype="html">
+        <source>To:</source>
+        <target state="translated">An:</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/invitation-dialog.ts</context>
+          <context context-type="linenumber">86,87</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.invite.method" datatype="html">
+        <source>What to send</source>
+        <target state="translated">Was gesendet wird</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/invitation-dialog.ts</context>
+          <context context-type="linenumber">96,98</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.invite.request" datatype="html">
+        <source>Invitation (or update)</source>
+        <target state="translated">Einladung (oder Aktualisierung)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/invitation-dialog.ts</context>
+          <context context-type="linenumber">99,101</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.invite.cancel" datatype="html">
+        <source>Cancellation</source>
+        <target state="translated">Absage</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/invitation-dialog.ts</context>
+          <context context-type="linenumber">102,104</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.invite.loading" datatype="html">
+        <source>Loading mail accounts…</source>
+        <target state="translated">E-Mail-Konten werden geladen…</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/invitation-dialog.ts</context>
+          <context context-type="linenumber">107,108</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.invite.noAccounts" datatype="html">
+        <source> Add a mail account in the settings to send invitations. </source>
+        <target state="translated">Füge in den Einstellungen ein E-Mail-Konto hinzu, um Einladungen zu senden.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/invitation-dialog.ts</context>
+          <context context-type="linenumber">117,120</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.invite.account" datatype="html">
+        <source>Send from</source>
+        <target state="translated">Senden von</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/invitation-dialog.ts</context>
+          <context context-type="linenumber">121,122</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.invite.send" datatype="html">
+        <source> Send </source>
+        <target state="translated">Senden</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/invitation-dialog.ts</context>
+          <context context-type="linenumber">153,155</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.invite.accountsFailed" datatype="html">
+        <source>The mail accounts could not be loaded.</source>
+        <target state="translated">Die E-Mail-Konten konnten nicht geladen werden.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/invitation-dialog.ts</context>
+          <context context-type="linenumber">236</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.invite.failed" datatype="html">
+        <source>The invitations could not be sent.</source>
+        <target state="translated">Die Einladungen konnten nicht gesendet werden.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/invitation-dialog.ts</context>
+          <context context-type="linenumber">265</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.invite.rejected" datatype="html">
+        <source>The mail server refused the message. Check the guests&apos; addresses.</source>
+        <target state="translated">Der Mailserver hat die Nachricht abgelehnt. Prüfe die Adressen der Gäste.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/invitation-dialog.ts</context>
+          <context context-type="linenumber">268</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.scope.deleteTitle" datatype="html">
@@ -2155,7 +2283,7 @@
         </context-group>
       </trans-unit>
       <trans-unit id="capture.save" datatype="html">
-        <source> Save to Inbox </source>
+        <source>Save to Inbox</source>
         <target state="translated">Im Eingang speichern</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/capture/capture-dialog.html</context>

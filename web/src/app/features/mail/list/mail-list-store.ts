@@ -85,8 +85,10 @@ export class MailListStore {
   readonly searchResult = signal<MailSearchExtras | null>(null);
   /** Older messages are being loaded from the mail server ("load older from server"). */
   readonly loadingOlder = signal(false);
-  /** Why loading older messages from the server failed or found nothing; null otherwise. */
+  /** Why loading older messages from the server failed; null otherwise. */
   readonly olderError = signal<string | null>(null);
+  /** Loading older messages from the server found nothing older; not a failure. */
+  readonly olderNote = signal<string | null>(null);
   /** A search on the server runs while the cached results of the same query are shown. */
   readonly searchingServer = signal(false);
 
@@ -124,6 +126,8 @@ export class MailListStore {
   private listGeneration = 0;
   private running = 0;
   private refreshQueued = false;
+  /** Called once no action runs any more (see {@link actionsSettled}). */
+  private settledWaiters: (() => void)[] = [];
 
   constructor() {
     const events = inject(ChangeEventsService);
@@ -152,7 +156,7 @@ export class MailListStore {
     this.nextCursor.set(null);
     this.loadError.set(null);
     this.moreError.set(null);
-    this.olderError.set(null);
+    this.resetOlder();
     this.selectedIds.set(new Set());
     this.searchingServer.set(keep);
     if (!keep) {
@@ -236,9 +240,16 @@ export class MailListStore {
     this.searchResult.set(snapshot.searchResult);
     this.loadError.set(null);
     this.moreError.set(null);
-    this.olderError.set(null);
+    this.resetOlder();
     this.searchingServer.set(false);
     this.selectedIds.set(new Set());
+  }
+
+  /** Forgets a load-older of the list before: its answer is dropped, so its progress ends here. */
+  private resetOlder(): void {
+    this.loadingOlder.set(false);
+    this.olderError.set(null);
+    this.olderNote.set(null);
   }
 
   /** Whether the end of the shown list is the end of a folder's cache ("load older from server"). */
@@ -253,8 +264,8 @@ export class MailListStore {
 
   /**
    * Loads messages older than the sync window of the shown folder from the mail server (SPEC.md
-   * §7.2), then shows the newly cached ones at the end of the list. A failure, or nothing older on
-   * the server, is shown in {@link olderError}; the list stays as it is.
+   * §7.2), then shows the newly cached ones at the end of the list. A failure is shown in
+   * {@link olderError}, nothing older on the server in {@link olderNote}; the list stays as it is.
    */
   async loadOlder(): Promise<void> {
     if (!this.canLoadOlder() || this.loadingOlder()) return;
@@ -263,18 +274,40 @@ export class MailListStore {
     const seq = this.loadSeq;
     this.loadingOlder.set(true);
     this.olderError.set(null);
+    this.olderNote.set(null);
     try {
       const result = await this.mail.loadOlder(folderId);
       if (seq !== this.loadSeq) return;
       if (result.loaded === 0) {
-        this.olderError.set(
+        this.olderNote.set(
           $localize`:@@mail.list.nothingOlder:There are no older messages on the server.`,
         );
         return;
       }
-      const wanted = (this.items() ?? []).length + result.loaded;
+      await this.showUpTo(seq, scope, (this.items() ?? []).length + result.loaded);
+    } catch (error) {
+      if (seq === this.loadSeq) this.olderError.set(errorMessage(error));
+    } finally {
+      if (seq === this.loadSeq) this.loadingOlder.set(false);
+    }
+  }
+
+  /**
+   * Reads the first `wanted` items of the shown list and shows them, keeping the cursor and the
+   * selection on the items still there. Like {@link refresh}, it does not overwrite a running
+   * action's optimistic state: it waits until the actions are done and reads the list again when
+   * one changed it while it was read.
+   */
+  private async showUpTo(seq: number, scope: MailScope, wanted: number): Promise<void> {
+    for (;;) {
+      if (this.running > 0) {
+        await this.actionsSettled();
+        if (seq !== this.loadSeq) return;
+      }
+      const mutation = this.mutationSeq;
       const page = await this.fetchUpTo(scope, wanted);
       if (seq !== this.loadSeq) return;
+      if (mutation !== this.mutationSeq || this.running > 0) continue;
       const ids = new Set(page.items.map((item) => item.id));
       this.selectedIds.update((selected) => new Set([...selected].filter((id) => ids.has(id))));
       this.items.set(page.items);
@@ -283,11 +316,13 @@ export class MailListStore {
       this.mutationSeq++;
       const cursor = this.cursorId();
       if (!cursor || !ids.has(cursor)) this.cursorId.set(page.items[0]?.id ?? null);
-    } catch (error) {
-      if (seq === this.loadSeq) this.olderError.set(errorMessage(error));
-    } finally {
-      if (seq === this.loadSeq) this.loadingOlder.set(false);
+      return;
     }
+  }
+
+  /** Resolves once no action runs any more (after a failed action's rollback). */
+  private actionsSettled(): Promise<void> {
+    return new Promise((resolve) => this.settledWaiters.push(resolve));
   }
 
   /** The first `wanted` items of a scope (fewer if it has fewer), in pages of the server's limit. */
@@ -440,6 +475,11 @@ export class MailListStore {
       );
       // Overlapping actions on the same items: the server's state settles what the view shows.
       this.refreshQueued = true;
+    }
+    if (this.running === 0) {
+      const waiters = this.settledWaiters;
+      this.settledWaiters = [];
+      waiters.forEach((resolve) => resolve());
     }
     this.runQueuedRefresh();
     return failed.length === 0;

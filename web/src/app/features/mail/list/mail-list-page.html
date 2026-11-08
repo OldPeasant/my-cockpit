@@ -288,6 +288,9 @@
               Nothing older loaded: {{ error }}
             </p>
           }
+          @if (store.olderNote(); as note) {
+            <p class="note" role="status">{{ note }}</p>
+          }
           @if (store.loadingOlder()) {
             <p class="note" role="status" i18n="@@mail.loadingOlder">
               Loading older messages from the server…
