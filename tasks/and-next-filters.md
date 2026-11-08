@@ -16,7 +16,8 @@ Web Next has filters by due and area/project and saved presets synced via the `n
   - verified (2026-11-08 16:13+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest on bffd4e704 -> NextViewModelPresetsTest (due overdue/today/week/any, area via project, project, area change drops other-area project), NextFilterMatchTest, NextScreenPresetsTest (due chips incl. Any, area/project menus) pass; 3672 tests, 0 failures
 - [x] Saved presets: apply, save current, delete; read/written through the shared `nextActionPresets` setting so presets are the same as on web
   - verified (2026-11-08 16:13+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest on bffd4e704 -> NextPresetsTest (reads/writes exact web filter-presets.ts JSON, same-name replace, delete, unreadable kept), NextViewModelPresetsTest + NextViewModelPresetEdgeCasesTest (apply/toggle, save current, delete, PATCH via UserSettingsRepository nextActionPresets, conflict/offline/not-loaded, serialized writes, 50 limit) and NextScreenPresetsTest pass, 0 failures
-- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [x] New strings are in English and German (`res/values/` + `res/values-de/`)
+  - verified (2026-11-08 16:13+0100 by dell26/agent-1): 21 new strings + plurals next_preset_too_many in res/values and res/values-de strings_next_today.xml; ./gradlew lintDebug (MissingTranslation) on bffd4e704 -> pass; NextScreenPresetsTest German qualifier test shows Fällig/Nächste 7 Tage/Alle Bereiche/Filter speichern… -> pass
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
