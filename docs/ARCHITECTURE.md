@@ -160,9 +160,9 @@ Server test infrastructure (`server/src/test/kotlin/ch/sonensei/cockpit/support/
   (htpasswd user, config copied in by the test).
 - `test` runs test classes in parallel JVM forks (`server/build.gradle.kts`): one per 4 cores, at most 4, 2 GB heap
   each, so a 16-core machine runs 4 and GitHub's 4-core runners 1. Each fork has its own Postgres container and
-  data dir (`build/test-data/fork-<n>`); the JVM temp dir is shared, so a test that lists temp folders uses its own
-  `@TempDir`, and no test may rely on another class having run first. `-PtestForks=<n>` or `COCKPIT_TEST_FORKS=<n>`
-  overrides the count (`1` = one JVM, as before).
+  data dir (`build/test-data/fork-{worker id}`, emptied at the start of each test task); the JVM temp dir is
+  shared, so a test that lists temp folders uses its own `@TempDir`, and no test may rely on another class having
+  run first. `-PtestForks=<n>` or `COCKPIT_TEST_FORKS=<n>` overrides the count (`1` = one JVM, as before).
 - Argon2 is cheap in every Spring test context (`support/FastTestCrypto.kt`, registered in
   `src/test/resources/META-INF/spring.factories`): password/recovery-code hashing and the backup secrets KDF use
   Argon2id with the minimum cost. The production parameters stay covered by the plain unit tests

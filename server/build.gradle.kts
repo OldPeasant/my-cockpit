@@ -95,8 +95,9 @@ allOpen {
 // The contract file and UPDATE_OPENAPI are inputs, so OpenApiContractTest is not skipped as UP-TO-DATE
 // when api/openapi.yaml changed or a regeneration is requested (see api/README.md).
 // `test` runs test classes in parallel JVM forks: one per 4 cores, at most 4 (heap 2 GB each). Every fork has its own
-// Postgres container (PostgresTestBase) and data dir (test config/application.properties). The temp dir (below) is
-// shared: JVM arguments are the same for all forks, so tests use their own @TempDir where they list temp folders.
+// Postgres container (PostgresTestBase) and data dir (test config/application.properties, cleared per run, below).
+// The temp dir (below) is shared: JVM arguments are the same for all forks, so tests use their own @TempDir where
+// they list temp folders.
 // Override with -PtestForks=<n> or COCKPIT_TEST_FORKS=<n> (1 = the old serial run).
 val testForks: Int =
 	providers
@@ -126,6 +127,9 @@ tasks.test {
 // scripts/check.sh runs Gradle with --quiet, which only shows the quiet level, so both levels are set.
 // Test JVMs keep their temp files (java.io.tmpdir) in build/tmp/test-jvm/<task>, emptied at the start of each run,
 // so leftovers of killed runs (no @AfterAll cleanup) do not pile up in /tmp; `clean` removes them.
+// The test data dirs (build/test-data, shared by all test tasks) are deleted at the start of each run too: the
+// per-fork folder names use Gradle's worker id, which keeps growing within a daemon, so old ones would pile up.
+// No test relies on data from an earlier run (each run starts with fresh Postgres containers).
 tasks.withType<Test>().configureEach {
 	testLogging {
 		listOf(this, quiet).forEach {
@@ -134,8 +138,10 @@ tasks.withType<Test>().configureEach {
 		}
 	}
 	val testTmpDir = layout.buildDirectory.dir("tmp/test-jvm/$name")
+	val testDataDir = layout.buildDirectory.dir("test-data")
 	jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-Djava.io.tmpdir=${testTmpDir.get().asFile}") })
 	doFirst {
+		testDataDir.get().asFile.deleteRecursively()
 		testTmpDir.get().asFile.run {
 			deleteRecursively()
 			mkdirs()
