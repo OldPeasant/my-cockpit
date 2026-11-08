@@ -1,11 +1,11 @@
 ---
 title: Android weekly review: waiting, projects, next, someday steps
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-review-flow]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/review,android/app/src/test/java/ch/sonensei/cockpit/review,android/app/src/main/res/values/strings_review.xml,android/app/src/main/res/values-de/strings_review.xml]
 prio: 2
-lease_until: 2026-11-08T17:50:33Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -33,3 +33,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 16:49+0100 by felix/agent-1): Delete in the next-actions and someday steps moves to the trash without a confirmation dialog, matching the web wizard (trash is recoverable).
 - ASSUMPTION (2026-11-08 16:49+0100 by felix/agent-1): Follow up creates a Next task titled like the Waiting list's follow-up (waiting_follow_up_title[_who]) in the waiting task's project, matching web followUpTask(); the waiting task itself stays.
 - release by felix/agent-1: over budget after 2 sessions (~54 min) and a review that decided nothing; still resumable: continue from wip/and-review-steps (see git log)
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 88s on a1de649f0; criteria verified 6/6
