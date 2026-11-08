@@ -4,35 +4,56 @@ Date: 2026-11-08
 
 Task: and-files-preview - Android files: in-app preview
 
-Scope: `git diff b3359b2e9..63d0999f4 -- android`. This covers the task's commits 340c6c113..39d2acf2e, merged in by 16ff6931d, and the fix commit 63d0999f4. It is a re-review of revision 63d0999f4 after the fixer's report (reviews/and-files-preview/fixes.md). Uncommitted working-tree changes are not part of this review: a test-writer's in-progress edit to FilePreviewScreenTest.kt and an untracked tests.md.
+Scope: `git diff b3359b2e9..b521e71c9 -- android`. This is the full task scope, from the task's commits 340c6c113..39d2acf2e (merged in by 16ff6931d) through the fix commits 63d0999f4, 6459fb674 and b521e71c9. This is a re-review of the final revision b521e71c9. It looks closely at the round-2 fixes, `git diff 63d0999f4..b521e71c9`, which changed FilePreviewView.kt, PdfPages.kt and FilePreviewScreenTest.kt. The working tree was clean.
 
 Requirements:
-- tasks/and-files-preview.md: the acceptance criteria and the three ASSUMPTION notes (tap previews every type, image types JPEG/PNG/WebP/GIF via /preview, thumbnails at size=256, memory-only Coil loader, PDF cached whole in cacheDir/files-preview, rendered at 2x width capped at 2048 px, text from the server's 256 KB preview)
+- tasks/and-files-preview.md: the four acceptance criteria and the ASSUMPTION notes:
+    - a tap previews every file type;
+    - images (JPEG/PNG/WebP/GIF) load through /preview;
+    - thumbnails use size=256, with a memory-only Coil loader;
+    - a PDF is cached whole in cacheDir/files-preview and rendered at 2x the width, capped at 2048 px;
+    - text comes from the server's 256 KB preview.
 - SPEC.md §8.2 (in-app preview, PDF via Android `PdfRenderer`)
-- AGENTS.md project notes (no secrets or contents in logs, no lint suppressions, EN and DE strings, feature folder)
-- Parent instructions (resource handling, Compose state, coroutine cancellation, verification of CR-1 to CR-3)
+- AGENTS.md project notes:
+    - no secrets or contents in logs;
+    - no lint suppressions;
+    - EN and DE strings;
+    - each feature in its own folder, inside the task's `touches`.
+- reviews/and-files-preview/fixes.md "Round 2" and the previous review of 63d0999f4
+- Parent instructions: verify the previous CR-1 and CR-2, check that the NonCancellable + IO close is correct and the tests are deterministic, check the KTX createBitmap change, and re-check the whole task.
 
 Git range:
 - Branch: main
-- HEAD: 63d0999f4d0a44a55a964eaa1953cb7fe70c47da
-- Base/start: b3359b2e9133ab1cabc75989e6502e2212856de0
-- Commits reviewed: 8 (340c6c113, 2c2f1d1c0, 723be35f0, a6d362b12, 4f1e44be2, a60d93e81, 39d2acf2e, 63d0999f4), plus the merge commit 16ff6931d
+- HEAD: b521e71c9
+- Base/start: b3359b2e9
+- Commits reviewed: 10:
+    - task commits: 340c6c113, 2c2f1d1c0, 723be35f0, a6d362b12, 4f1e44be2, a60d93e81, 39d2acf2e;
+    - fix and test commits: 63d0999f4, 6459fb674, b521e71c9;
+    - plus the merge commit 16ff6931d.
 
-Summary: 0 P0, 0 P1, 1 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## Status of the previous findings
 
-- CR-1 (a cancelled PDF download kept running, and its late cleanup deleted a newer load's file): **fixed.**
-    - `copy` in FilesRepository.kt:279-298 is now `suspend` and calls `ensureActive()` before each 64 KB buffer.
-    - `PreviewFiles.target` (DeviceFiles.kt:92-100) is `@Synchronized`, deletes earlier loads' files, and returns a unique `{id}-{n}.pdf` per load.
-    - `loadPdf` (FilesViewModel.kt:561-576) calls `ensureActive()` after the download, and its `finally` deletes only its own `cache`.
-    - Tests cover each part: FilesRepositoryTest "a cancelled download stops copying at the next buffer", PreviewFilesTest "every load of the same PDF gets a file of its own...", and FilePreviewViewModelTest "opening the same PDF again while its first download still runs keeps the new file".
-    - Side effect: the existing open and save downloads also stop on cancellation now, and their `finally` discards the partial file. This is an improvement.
-- CR-2 (Save and "Open with" stayed enabled in the preview while another file downloaded): **fixed.**
-    - FilesScreen.kt passes `busy = state.downloading != null`.
-    - PreviewTopBar disables Save and "Open with" while `busy`, and `OpenWithButton` takes `busy` in both the unsupported card and the PDF-failed card.
-    - FilePreviewScreenTest covers this: "while another file downloads, Save and Open with are disabled...", plus the unsupported-type and PDF-failed variants.
-- CR-3 (formatter-wrapped status checks): **fixed.** `loadText` uses `when (result.status)`. The Problem branch in FilePreviewView computes `offline` and `text` locals.
+- Previous CR-1 (P2): a PDF that finished opening after the preview had moved on was never closed. **Fixed.**
+    - FilePreviewView.kt:374-383 declares `var pages: PdfPages? = null` before the `try`. It assigns the result inside `withContext(NonCancellable + Dispatchers.IO) { pages = opener(pdf) }`.
+    - The assignment runs inside the block that cannot be cancelled. Suppose the `produceState` coroutine is cancelled while the opener runs. Then `withContext` still throws `CancellationException` on its way back (prompt cancellation). But `pages` is already set, and the `finally` closes it.
+    - The result is written on an IO thread and read back on the main thread. This is safe: resuming through the dispatcher orders the write before the read.
+    - If `opener` returns null, or throws (`openPdf` catches IOException and SecurityException), `pages` stays null, and nothing is left to close.
+    - The regression test "a PDF still opening when the preview moves on is closed once it is open" (FilePreviewScreenTest.kt:464-482) is deterministic:
+        - the opener blocks on a latch, so cancellation always happens before the opener returns;
+        - `assertTextEquals` on the next file's text waits until recomposition has removed `PdfPreview`, which cancels the coroutine;
+        - only after that is the latch released.
+    - The fixer reports that this test fails with the old line restored.
+- Previous CR-2 (P3): the PDF was closed on the main thread. **Fixed.**
+    - The `finally` closes with `withContext(NonCancellable + Dispatchers.IO) { pages?.close() }`. `NonCancellable` is needed: without it, `withContext` in an already cancelled coroutine would throw before the close runs. With it, the close is guaranteed.
+    - `RendererPdfPages.close` is `@Synchronized` and idempotent. So when it waits for a page that is still rendering, it now blocks an IO thread, not the UI thread.
+    - The tests now close asynchronously and use `assertClosed` (FilePreviewScreenTest.kt:117-121):
+        - `waitForIdle()` lets the composition leave;
+        - a bounded `waitUntil` (5 s) waits for the close;
+        - then an unconditional `assertTrue` checks it.
+    - The assertion is not weakened: a PDF that is never closed still fails the test. `FakePdf.closed` is `@Volatile`, so the IO-thread write is visible to the test thread.
+- lintDebug UseKtx fix (PdfPages.kt:62): `createBitmap(w, h)` from `androidx.core.graphics` defaults to `Bitmap.Config.ARGB_8888`, so behavior is unchanged. The parent reports lintDebug as clean on b521e71c9.
 
 ## P0 Critical
 
@@ -44,38 +65,38 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | A PDF opened while the preview is leaving is never closed (PdfRenderer and file descriptor leak)**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/files/FilePreviewView.kt:374`
-    - Category: Correctness
-    - Problem: `PdfPreview` opens the PDF with `val pages = withContext(NonCancellable + Dispatchers.IO) { opener(pdf) }`, then closes `pages` in a `finally` that only begins after this line. The comment says the PDF is "opened even when the preview moves on meanwhile, so it is always closed again", but that does not hold. `NonCancellable` only keeps the block itself from being cancelled. The switch from the composition's Main dispatcher to IO means the result is sent back to the caller with the prompt-cancellation guarantee of `withContext`: if the `produceState` coroutine was cancelled while `opener` ran (the user stepped to the next file, closed the preview or pressed back, or the screen was disposed), `withContext` throws `CancellationException` and drops the returned `PdfPages`. The `try`/`finally` is never entered, so the `PdfRenderer` and its `ParcelFileDescriptor` stay open. Only the finalizers release them later, with CloseGuard warnings. The existing tests ("the open PDF is closed when the preview moves on...") use a fake opener that returns before cancellation, so they do not cover this window.
-    - Why it matters: Paging quickly through a folder of PDFs is a normal action. Each lost renderer holds a native PDF document and an fd on a cache file that `PreviewFiles.target` has already unlinked. This is the resource-safety property the code explicitly claims.
-    - Suggested fix: Assign the result inside the non-cancellable block, so the `finally` always sees it. For example: `var pages: PdfPages? = null; try { withContext(NonCancellable + Dispatchers.IO) { pages = opener(pdf) }; ... } finally { pages?.close() }`. Alternatively, close the result in the block's own cancellation path. Add a test whose opener suspends or blocks until the preview has moved on, then assert that the fake was closed.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | Closing the PDF can block the main thread while a page renders**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/files/FilePreviewView.kt:379`
-    - Category: Quality
-    - Problem: `RendererPdfPages.render` and `close` are both `@Synchronized` (PdfPages.kt), and `render` runs on `Dispatchers.IO` for a bitmap up to 2048 x 8192 px. The `finally { pages?.close() }` in `PdfPreview` runs in the `produceState` coroutine on the main dispatcher. If the user steps away or closes the preview during a render, the UI thread waits on the lock until that render finishes.
-    - Why it matters: This causes a visible stall (jank) on next/close for large pages. The serialization itself is correct and needed.
-    - Suggested fix: Close on IO, for example `withContext(NonCancellable + Dispatchers.IO) { pages?.close() }` in the `finally`.
+None.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
 
-Notes on what was checked and found sound:
-- Acceptance criterion 1 is implemented:
-    - Images get pinch zoom, double-tap zoom and clamped panning.
-    - PDFs render through `PdfRenderer` with page buttons. The fd is closed if the constructor fails, each page is closed in `finally`, bitmaps are capped and drawn on white paper, and a PDF with no pages or that cannot be opened offers "Open with".
-    - Text shows the server's preview in a monospace face with a notice when it is cut. A 415 falls back to "Open with".
+Notes on what was checked and found sound on b521e71c9:
+- Acceptance criterion 1:
+    - Images: pinch zoom (1x to 5x), double-tap zoom and clamped panning. A failed image offers a retry that loads it again.
+    - PDFs: rendered through `PdfRenderer`, with buttons for the previous and next page.
+        - The fd is closed if the constructor fails.
+        - Each page is closed in `finally`.
+        - Bitmaps are capped and drawn on white paper.
+        - The open PDF is closed on every way out, including during opening (see above).
+        - A PDF that cannot be opened, or has no pages, offers "Open with".
+    - Text: shown monospaced, with a notice when the server cut it. A 415 falls back to "Open with".
     - Other types show the "Open with" card.
-- Acceptance criterion 2 is implemented:
+- Acceptance criterion 2:
     - Previous and next walk the folder's files in list order.
     - Only the file still shown takes a loaded result, and a late result after close is dropped.
-    - Back closes the preview first.
-    - Image rows load `/thumbnail?size=256` through the authenticated, memory-only `FileImages` loader over the type tile.
-- Acceptance criterion 3: all 13 new strings exist in values/ and values-de/. `files_open` changed to "Open with…" / "Öffnen mit…" in both.
-- Nothing is logged, and no `@Suppress`, `ktlint-disable` or `@Ignore` was added.
-- Existing FilesRouteInAppTest cases were adapted to open files through the row menu (a tap now previews). Their assertions were not weakened.
-- Acceptance criterion 4: the parent reports `./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.files.*'` on 63d0999f4 as passing. `lintDebug` and `sh scripts/check.sh` still need to be run and recorded by the parent.
+    - A cancelled PDF download stops at the next buffer, and each load gets its own cache file.
+    - Image rows show `/thumbnail?size=256` from the authenticated, memory-only `FileImages` loader, over the type tile.
+- Acceptance criterion 3: every new preview string exists in values/ and values-de/. FilePreviewScreenTest "every new preview string has its own German translation" checks this.
+- Acceptance criterion 4: the parent reports that `./gradlew ktlintCheck lintDebug createDebugUnitTestCoverageReport` on b521e71c9 ran 3860 unit tests with 0 failures, and lintDebug was clean. `sh scripts/check.sh` still has to be run and recorded by the parent.
+- Conventions:
+    - Nothing is logged.
+    - No `@Suppress`, `ktlint-disable` or `@Ignore` was added.
+    - Every change stays inside the task's `touches` (files feature folders and strings_files.xml).
+    - Test data is fictitious.
+    - Existing FilesRouteInAppTest cases now open files through the row menu, without weaker assertions.
+- Coverage: PdfPages.kt has low line coverage (24%) because the real `PdfRenderer` cannot run under Robolectric. Its pure size logic (`pageSize`) is unit-tested, and the renderer path is behind the `PdfPages` interface that the screen tests fake. This is an accepted limit, not a finding.
