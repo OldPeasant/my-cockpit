@@ -20,7 +20,8 @@ panel with add (search-as-you-type), remove and "create linked…" (`web/src/app
   - verified (2026-11-08 20:59+0100 by dell26/agent-1): TaskDetailContentTest, ContactsScreensTest (panel slot, related rows clickable, not clickable without callback), ContactsRouteInAppTest, BirthdayContactTest via ./gradlew testDebugUnitTest at ae6701993 -> pass; TaskDetailScreen/ContactDetailRoute/SearchContact/BirthdayContact render LinkedItemsSection
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 20:59+0100 by dell26/agent-1): python key diff of values/ vs values-de/ strings_links (22/22), strings_contacts, strings_task_detail -> identical key sets; lintDebug (Typos, UnusedResources) clean; LinkedItemsPanelTest German strings test passes
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 21:00+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug at ae6701993 -> BUILD SUCCESSFUL, 4582 tests 0 failures; sh scripts/check.sh -> exit 0
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
