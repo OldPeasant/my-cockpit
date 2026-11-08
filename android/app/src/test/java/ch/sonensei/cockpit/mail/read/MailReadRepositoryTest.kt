@@ -86,7 +86,30 @@ class MailReadRepositoryTest {
             assertEquals("<p>Hi</p>", message.html)
             assertEquals("Hi", message.text)
             assertEquals(3, message.remoteImagesBlocked)
-            assertEquals(listOf(MailAttachment("2", "report.pdf", 1024), MailAttachment("4", "4", null)), message.attachments)
+            assertEquals(
+                listOf(MailAttachment("2", "report.pdf", 1024, "application/pdf"), MailAttachment("4", "4", null, "text/plain")),
+                message.attachments,
+            )
+        }
+
+    @Test
+    fun `an attachment without a content type, or with a blank one, is listed without a type`() =
+        runBlocking {
+            server.enqueue(
+                json(
+                    """{"id":"${id(1)}","attachments":[{"partId":"2","filename":"notes.txt","inline":false},
+                    |{"partId":"3","filename":"scan.pdf","contentType":"  ","sizeBytes":2048,"inline":false}]}
+                    """.trimMargin().replace("\n", ""),
+                ),
+            )
+
+            val message = (repository.message(id(1)) as MailResult.Ok).value
+
+            // No type: the view falls back to the file name for its icon, preview and the app that opens it.
+            assertEquals(
+                listOf(MailAttachment("2", "notes.txt", null, null), MailAttachment("3", "scan.pdf", 2048, null)),
+                message.attachments,
+            )
         }
 
     @Test

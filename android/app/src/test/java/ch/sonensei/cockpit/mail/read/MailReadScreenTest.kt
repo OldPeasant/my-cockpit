@@ -128,7 +128,8 @@ class MailReadScreenTest {
             ),
         )
 
-        composeRule.onNodeWithTag(MailReadTags.ATTACHMENTS).assertTextEquals("Attachments: report.pdf, notes.txt")
+        composeRule.onNodeWithTag(MailAttachmentTags.row("2")).assertTextContains("report.pdf").assertTextContains("1.0 KB")
+        composeRule.onNodeWithTag(MailAttachmentTags.row("3")).assertTextContains("notes.txt")
         composeRule.onNodeWithTag(MailReadTags.IMAGES_BLOCKED).assertTextEquals("2 remote images were blocked.")
     }
 
@@ -302,6 +303,7 @@ class MailReadScreenTest {
                     onClose = { calls += "close" },
                     onRemoved = { calls += "removed $it" },
                     viewModel = vm,
+                    attachmentsViewModel = attachmentsViewModel(),
                 )
             }
         }
@@ -337,6 +339,7 @@ class MailReadScreenTest {
                     onSeen = { calls += "seen $it" },
                     onRemoved = { calls += "removed $it" },
                     viewModel = vm,
+                    attachmentsViewModel = attachmentsViewModel(),
                 )
             }
         }
@@ -428,7 +431,7 @@ class MailReadScreenTest {
 
         composeRule.setContent {
             CockpitTheme {
-                MailReadRoute(id = id(1), onClose = { calls += "close" }, viewModel = vm)
+                MailReadRoute(id = id(1), onClose = { calls += "close" }, viewModel = vm, attachmentsViewModel = attachmentsViewModel())
             }
         }
         composeRule.waitForIdle()
@@ -448,7 +451,9 @@ class MailReadScreenTest {
 
         composeRule.setContent {
             CockpitTheme {
-                MailReadRoute(id = id(1), onClose = { calls += "close" }, onSeen = { calls += "seen" }, viewModel = vm)
+                MailReadRoute(id = id(1), onClose = {
+                    calls += "close"
+                }, onSeen = { calls += "seen" }, viewModel = vm, attachmentsViewModel = attachmentsViewModel())
             }
         }
         composeRule.onNodeWithTag(MailReadTags.ERROR).assertTextContains("no longer", substring = true)

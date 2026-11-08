@@ -22,6 +22,9 @@ internal fun readViewModel(
     settings: UserSettingsRepository = settingsWith(),
 ): MailReadViewModel = MailReadViewModel(reader, mail, settings, mockk())
 
+/** An attachments view model for route tests that never touch an attachment. */
+internal fun attachmentsViewModel(): MailAttachmentsViewModel = MailAttachmentsViewModel(mockk(), mockk())
+
 /** A resource request of the mail page, as the WebView hands it to `shouldInterceptRequest` (needs Robolectric). */
 internal fun pageRequest(
     url: String,
