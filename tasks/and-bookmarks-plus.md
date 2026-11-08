@@ -20,7 +20,8 @@ Android can add bookmarks only through the share sheet and has no snapshot reade
   - verified (2026-11-08 19:12+0100 by dell26/agent-3): Read-later toggle (PATCH with If-Match, conflict reload) covered by BookmarksAddReaderViewModelTest/ScreenTest/RepositoryTest; cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL, 0 failures
 - [x] Snapshot reader view (server snapshot)
   - verified (2026-11-08 19:12+0100 by dell26/agent-3): Snapshot reader (GET /files/{id}/preview, save copy, retry, reopen during save) covered by BookmarksAddReaderViewModelTest/ScreenTest/RepositoryTest; cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL, 0 failures
-- [ ] "To Inbox task" action
+- [x] "To Inbox task" action
+  - verified (2026-11-08 19:12+0100 by dell26/agent-3): To Inbox: idempotent UUIDv7 task create + origin link, tests in BookmarksRepositoryTest ('to Inbox links the task the server answered with') and ViewModel/Screen tests; cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL, 0 failures
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
