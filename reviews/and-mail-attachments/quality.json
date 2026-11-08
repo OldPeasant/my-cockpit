@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "task": "and-mail-attachments",
+  "reviewed_revision": "6569b8ae1ef596c27a214f18092cd0368f5ea5a1",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-mail-attachments/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-mail-attachments/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-mail-attachments/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "download copy loop ignored cancellation"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "PDF preview rendered all pages eagerly (OOM risk); now lazy per page"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "cache file name now includes the mail id"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "pending save-as survives process restore"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "open from preview reuses the downloaded file"},
+    {"id": "TW-GAP-1", "source": "test-writer", "severity": "Low", "disposition": "accepted", "note": "valid-PDF page rendering cannot run under Robolectric; needs a device check (criterion 3 skipped with reason, assumption recorded)"}
+  ],
+  "validation": [
+    {"command": "android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.read.*'", "result": "pass"},
+    {"command": "cd android && ./gradlew createDebugUnitTestCoverageReport", "result": "pass"}
+  ]
+}
