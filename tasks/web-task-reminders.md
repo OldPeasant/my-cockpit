@@ -1,11 +1,11 @@
 ---
 title: Reminders on tasks (web)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-task-detail-dates, web-task-actions, and-links-panel]
 prio: 2
 parent: task-reminders
-lease_until: 2026-11-09T00:15:04Z
+lease_until: 
 ---
 ## Goal
 Part of `task-reminders` (Reminders on tasks (web + Android)), which was split.
@@ -26,3 +26,4 @@ Goal: web task detail lets the user add/remove reminders on a task via `POST/DEL
 - ASSUMPTION (2026-11-09 00:39+0100 by dell26/agent-1): Presets mirror Android (and-task-reminders): when due, 1 h before due (only with a due time), 1 day before due, on the scheduled day; a date without a time reminds at 09:00 local; only future presets are offered; exact time via datetime-local; presets use the saved task dates, not unsaved edits
 - ASSUMPTION (2026-11-09 00:39+0100 by dell26/agent-1): Browser-notification firing for task reminders was not manually verified; relies on existing core/notifications handling of the reminder SSE event with the item's deepLink
 - ASSUMPTION (2026-11-09 00:57+0100 by dell26/agent-1): Left the final-review P3 (duplicate reminder row after A->B->A while an add is pending) unfixed: display-only and unreachable on the task page, which recreates the reminders section per task
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 70s on ef7566e74; criteria verified 3/4, skipped #2
