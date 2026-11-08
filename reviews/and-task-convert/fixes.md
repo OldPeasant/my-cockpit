@@ -97,3 +97,53 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+---
+
+# Round 2: CR-1 inbox converted race
+
+Date: 2026-11-08
+
+Scope: current task; finding CR-1 (P2) of the second review of reviews/and-task-convert/review.md (HEAD 9bfdc2fe6b668285f8b57e9e477f0b47a350aa97)
+
+## Fixed findings
+
+### CR-1 — Inbox: an older conversion answering last replaces the newer one's "where it went" snackbar
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/gtd/inbox/InboxViewModel.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/gtd/inbox/InboxConvertViewModelTest.kt`
+
+Problem:
+`run()` set `converted` from every `ProcessResult.Converted`, whatever the order of the answers. Inbox actions run concurrently, so when item A's conversion answered after item B's, A replaced B in `converted` and the snackbar for B was cancelled.
+
+Fix:
+Same variant as the web Inbox (inbox-page.ts, `seq === this.runSeq`: the status describes only the latest action, whatever answers last). The view model has a `runSeq` counter; every `run()` (conversion or plain action) takes `val seq = ++runSeq`, and a conversion's answer sets `converted` only when `seq == runSeq`. Otherwise `converted` keeps its value. Unlike the web, an answering plain action still never clears `converted`, so "a later plain action keeps the converted item until it was shown" stays valid. The existing regression test "an older conversion answering last does not replace where the newer one went" was disabled (`// TEMP-COVERAGE-RUN @Test`) and is enabled again (`@Test`), unchanged otherwise.
+
+Validation:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.*'` — Pass (BUILD SUCCESSFUL; 1111 tests in ch.sonensei.cockpit.gtd, 0 failures, 0 errors, 0 skipped; the re-enabled test ran and passed)
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.*'` — Pass
+
+Full test suite:
+- Not run in this round (the change is limited to `InboxViewModel.run()`; the gtd package suite covers it).
+
+Lint/type-check/build:
+- ktlintCheck — Pass (part of the command above). lintDebug not run in this round.
+
+`.taskcheck`:
+- Not run by the fixer; the parent worker runs it before `done`.
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed.

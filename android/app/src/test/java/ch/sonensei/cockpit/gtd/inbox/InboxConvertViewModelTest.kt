@@ -343,7 +343,7 @@ class InboxConvertViewModelTest {
             assertNull(vm.uiState.value.converted)
         }
 
-    // TEMP-COVERAGE-RUN @Test
+    @Test
     fun `an older conversion answering last does not replace where the newer one went`() =
         test { vm ->
             // The first item leaves the queue at once, so the second can be converted before the first one answers.

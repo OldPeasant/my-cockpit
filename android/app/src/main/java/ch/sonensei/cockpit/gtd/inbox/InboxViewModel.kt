@@ -137,6 +137,9 @@ class InboxViewModel internal constructor(
     /** When the last action started: taps right after it belong to the item that just left (see [choose]). */
     private var lastRunAt: Long? = null
 
+    /** Counts the started actions: "where it went" describes only the latest action, whatever answers last (as on the web). */
+    private var runSeq = 0
+
     /** The running load of the "To calendar" calendars: a newer load cancels it, so an older answer never wins. */
     private var calendarsJob: Job? = null
 
@@ -309,6 +312,7 @@ class InboxViewModel internal constructor(
         action: InboxAction,
     ) {
         lastRunAt = uptimeMs()
+        val seq = ++runSeq
         val clarification = clarificationOf(task, local.value)
         local.update { it.copy(busy = it.busy + task.id, prompt = null, message = null) }
         viewModelScope.launch {
@@ -326,7 +330,7 @@ class InboxViewModel internal constructor(
                     processed = if (message == null) it.processed + 1 else it.processed,
                     edit = it.edit?.takeIf { (id, _) -> id != task.id || message != null },
                     message = message ?: it.message,
-                    converted = (result as? ProcessResult.Converted)?.item ?: it.converted,
+                    converted = (result as? ProcessResult.Converted)?.item?.takeIf { seq == runSeq } ?: it.converted,
                 )
             }
         }
