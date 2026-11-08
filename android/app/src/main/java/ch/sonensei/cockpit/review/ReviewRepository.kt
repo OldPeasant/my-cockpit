@@ -5,6 +5,7 @@ import ch.sonensei.cockpit.core.network.generated.models.MoveWeeklyReviewRequest
 import ch.sonensei.cockpit.core.network.generated.models.OccurrenceResponse
 import ch.sonensei.cockpit.core.network.generated.models.ProjectResponse
 import ch.sonensei.cockpit.core.network.generated.models.WeeklyReviewResponse
+import ch.sonensei.cockpit.gtd.data.ProjectStatus
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -65,6 +66,9 @@ data class ReviewProject(
     val id: UUID,
     val title: String,
     val stalled: Boolean,
+    val status: ProjectStatus = ProjectStatus.ACTIVE,
+    /** Sent back as `If-Match` when the project is changed. */
+    val version: Long = 0,
 )
 
 /** An event occurrence of the past or upcoming calendar step. */
@@ -155,32 +159,31 @@ class ReviewRepository internal constructor(
             val zone = zone()
             body(response).items.map { it.toReviewEvent(zone) }
         }
-
-    private suspend fun <T> load(block: suspend () -> T): ReviewResult<T> =
-        try {
-            ReviewResult.Ok(block())
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: IOException) {
-            ReviewResult.Offline
-        } catch (e: ReviewHttpFailure) {
-            if (e.status >= SERVER_ERROR) ReviewResult.Offline else ReviewResult.Failed(e.status)
-        } catch (_: SerializationException) {
-            ReviewResult.Failed(null)
-        } catch (_: IllegalArgumentException) {
-            ReviewResult.Failed(null)
-        } catch (_: DateTimeException) {
-            ReviewResult.Failed(null)
-        }
-
-    private companion object {
-        const val SERVER_ERROR = 500
-    }
 }
+
+/** Runs a call of the review; a failure becomes [ReviewResult.Offline] or [ReviewResult.Failed]. */
+internal suspend fun <T> load(block: suspend () -> T): ReviewResult<T> =
+    try {
+        ReviewResult.Ok(block())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: IOException) {
+        ReviewResult.Offline
+    } catch (e: ReviewHttpFailure) {
+        if (e.status >= SERVER_ERROR) ReviewResult.Offline else ReviewResult.Failed(e.status)
+    } catch (_: SerializationException) {
+        ReviewResult.Failed(null)
+    } catch (_: IllegalArgumentException) {
+        ReviewResult.Failed(null)
+    } catch (_: DateTimeException) {
+        ReviewResult.Failed(null)
+    }
+
+private const val SERVER_ERROR = 500
 
 private fun WeeklyReviewResponse.toOpenReview() = OpenReview(id, ReviewStep.valueOf(step.value), startedAt.toInstant(), version)
 
-private fun ProjectResponse.toProject() = ReviewProject(id, title, stalled)
+internal fun ProjectResponse.toProject() = ReviewProject(id, title, stalled, ProjectStatus.valueOf(status.value), version)
 
 /** An occurrence as the review shows it: all-day events on their date, timed ones on their local start. */
 internal fun OccurrenceResponse.toReviewEvent(zone: ZoneId): ReviewEvent {
@@ -201,14 +204,14 @@ internal fun OccurrenceResponse.toReviewEvent(zone: ZoneId): ReviewEvent {
     )
 }
 
-private fun etag(version: Long) = "\"$version\""
+internal fun etag(version: Long) = "\"$version\""
 
 /** A non-2xx answer; its message carries only the status, never the body. */
-private class ReviewHttpFailure(
+internal class ReviewHttpFailure(
     val status: Int,
 ) : Exception("HTTP $status")
 
-private fun <T> body(response: Response<T>): T {
+internal fun <T> body(response: Response<T>): T {
     val body = response.body()
     if (!response.isSuccessful || body == null) throw ReviewHttpFailure(response.code())
     return body

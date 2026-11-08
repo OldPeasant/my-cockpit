@@ -296,6 +296,19 @@ class ProjectsViewModel internal constructor(
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), ProjectsUiState(today = LocalDate.now(clock)))
 
+    init {
+        // A project another screen asked to open (the weekly review), also one asked for while this screen was kept.
+        viewModelScope.launch {
+            ProjectOpenRequests.requests.collect { id ->
+                if (id != null && ProjectOpenRequests.take(id)) {
+                    prompt.value = null
+                    confirm.value = null
+                    selected.value = id
+                }
+            }
+        }
+    }
+
     fun open(project: GtdProject) {
         prompt.value = null
         confirm.value = null
