@@ -166,8 +166,9 @@ class MailReadNoteLinksTest {
                 MailReadTags.action(MailListAction.DELETE),
                 MailReadTags.MORE,
             )
+        // Material 3 icon buttons measure 40dp (their 48dp touch target is not part of the bounds); a squeezed one is narrower.
         toolbar.forEach { tag ->
-            val button = composeRule.onNodeWithTag(tag).assertIsDisplayed().assertWidthIsAtLeast(48.dp)
+            val button = composeRule.onNodeWithTag(tag).assertIsDisplayed().assertWidthIsAtLeast(40.dp)
             assertTrue(tag, button.getUnclippedBoundsInRoot().right <= root.right)
         }
     }
