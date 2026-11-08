@@ -6,6 +6,7 @@ deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/bookmarks,android/app/src/test/java/ch/sonensei/cockpit/bookmarks,android/app/src/main/res/values/strings_bookmarks.xml,android/app/src/main/res/values-de/strings_bookmarks.xml]
 prio: 2
 lease_until: 2026-11-08T17:33:15Z
+extended: rudi/agent-2
 ---
 ## Goal
 Android can add bookmarks only through the share sheet and has no snapshot reader (web: `bookmarks-page.html:25-56`,
@@ -21,3 +22,4 @@ Android can add bookmarks only through the share sheet and has no snapshot reade
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- extended by rudi/agent-2: Implementation + CR-1..5 fixes done (HEAD 8e3dc677); 2nd review.md: 0 P0-P2, 2 optional P3 (reader-close cancels save -> stale version; 'Nothing was changed' text on offline create). android ktlintCheck testDebugUnitTest lintDebug passes. Left: re-run test-writer on final code (tests.md is stale, test files changed after), optionally fix the 2 P3s (then re-review), tasks.py verify #1-#6 (scripts/check.sh web part fails on Node v20.9.0 here: skip-record it), write+commit quality.json, done.
