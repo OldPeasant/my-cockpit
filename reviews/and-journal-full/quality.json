@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "task": "and-journal-full",
+  "reviewed_revision": "c12daa984986d79b0a59d4c25c50bfb5a4e49a37",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-journal-full/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-journal-full/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-journal-full/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "round 1: photo picked while another day opens lands in the wrong day or is dropped (fixes.md)"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "round 1: out-of-order and navigation-guard paths had no tests"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "round 1: month load answered after a save dropped the calendar mark"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "round 1: calendar day labels used the process default locale"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "round 2: camera photo after process death was added to today (fixes.md round 2)"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "round 2: on-this-day showed 'none' while still loading (fixes.md round 2)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted", "note": "final review: 'Today' goes stale if the screen stays open past midnight; rare, user can step back and tap Today; not in the acceptance criteria"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted", "note": "final review: JournalDraft.isEmpty unused in production; harmless helper covered by JournalTextTest"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh tfp android", "result": "pass"}
+  ]
+}
