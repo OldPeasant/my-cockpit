@@ -1,13 +1,13 @@
 ---
 title: Android: convert tasks to notes and events
-status: in_progress
-owner: felix/agent-1
+status: todo
+owner: 
 deps: [and-task-detail-dates,and-inbox-rows]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/test/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/java/ch/sonensei/cockpit/gtd/inbox,android/app/src/test/java/ch/sonensei/cockpit/gtd/inbox,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml,android/app/src/main/res/values/strings_inbox.xml,android/app/src/main/res/values-de/strings_inbox.xml]
 prio: 2
-lease_until: 2026-11-08T19:11:32Z
+lease_until: 
 extended: 
-releases: 1
+releases: 2
 ---
 ## Goal
 Web converts a task to a note (reference) or an event from task detail and inbox processing (`gtd-convert-note`,
@@ -32,3 +32,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 16:13+0100 by dell26/agent-3): Task detail: after converting, a Long snackbar 'Moved to ... / Open'; Open closes the detail and opens the item, dismiss closes the detail (like delete). Convert actions only for open (not completed) tasks. Inbox: To calendar under 'Defer it', To reference under 'Drop it'; inline clarification is not saved before converting (like Trash).
 - extended by dell26/agent-3: Impl (4ebb4f268) + tests (a2668a93b, f0492d419) + reviews/and-task-convert/review.md committed. Left: run fixer for CR-1 (use synced settings.timeZone ?: clock.zone like EventEditorViewModel), CR-2 (cancel previous loadCalendars job; 2 failing regression tests InboxConvertViewModelTest/TaskDetailConvertViewModelTest 'calendars of an earlier ... answering last' cover it), CR-3 (confirm To reference or assume), CR-4 optional; then test-writer -> tests.md with coverage, re-run code-reviewer, verify #1-#5, quality.json, done. check.sh takes ~5 min.
 - release by dell26/agent-3: Impl (9ba2576b5), tests (aa1bb9148, ca1381434, 509d011a2 TaskDetailConvertRouteTest), review.md + fixer for CR-1..CR-4 (9e8160904, fixes.md) committed; sh scripts/check.sh passes at 509d011a2. Left: run test-writer on final code -> reviews/and-task-convert/tests.md with coverage (fold in/validate TaskDetailConvertRouteTest); re-run code-reviewer (review.md is stale after fixes); tasks.py verify 1-5; write quality.json (docs/QUALITY.md); done. check.sh takes ~5 min.
+- release by felix/agent-1: over budget after 2 sessions (~50 min) and a review that decided nothing; still resumable: continue from wip/and-task-convert (see git log)
