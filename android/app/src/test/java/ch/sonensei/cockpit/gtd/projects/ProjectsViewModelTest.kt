@@ -1506,7 +1506,33 @@ class ProjectsViewModelTest {
         }
 
     @Test
-    fun `an older save answering after a newer one was saved does not undo the newer order`() =
+    fun `a newer save sends its order only after the older one finished, so the server applies the last order last`() =
+        test { vm ->
+            val older = listOf(hotel.id, book.id, visa.id)
+            val newer = listOf(hotel.id, visa.id, book.id)
+            val first = CompletableDeferred<ActionOutcome>()
+            val second = CompletableDeferred<ActionOutcome>()
+            coEvery { work0.reorder(holiday.id, older) } coAnswers { first.await() }
+            coEvery { work0.reorder(holiday.id, newer) } coAnswers { second.await() }
+            taskFlow.value = Live(listOf(book, hotel, visa))
+            vm.open(holiday)
+            vm.reorder(older)
+            vm.reorder(newer)
+            // The newer order shows at once, but is not sent while the older request runs.
+            assertEquals(listOf(hotel, visa, book), vm.shownTasks())
+            coVerify(exactly = 1) { work0.reorder(holiday.id, older) }
+            coVerify(exactly = 0) { work0.reorder(holiday.id, newer) }
+            first.complete(ActionOutcome.DONE)
+            coVerify(exactly = 1) { work0.reorder(holiday.id, newer) }
+            assertEquals(listOf(hotel, visa, book), vm.shownTasks())
+            second.complete(ActionOutcome.DONE)
+            // The newer order was saved: the next load ends it.
+            taskFlow.value = Live(listOf(visa, book, hotel))
+            assertEquals(listOf(visa, book, hotel), vm.shownTasks())
+        }
+
+    @Test
+    fun `an older save failing after the newer one was answered does not undo the newer order`() =
         test { vm ->
             val first = CompletableDeferred<ActionOutcome>()
             val second = CompletableDeferred<ActionOutcome>()
@@ -1516,6 +1542,7 @@ class ProjectsViewModelTest {
             vm.open(holiday)
             vm.reorder(listOf(hotel.id, book.id, visa.id))
             vm.reorder(listOf(hotel.id, visa.id, book.id))
+            // The newer answer is ready first, but its request is only sent once the older one finished.
             second.complete(ActionOutcome.DONE)
             first.complete(ActionOutcome.FAILED)
             assertEquals(listOf(hotel, visa, book), vm.shownTasks())

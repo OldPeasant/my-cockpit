@@ -31,6 +31,8 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import java.time.Clock
@@ -206,6 +208,9 @@ class ProjectsViewModel internal constructor(
 
     /** The order the user gave the project's tasks, shown until the server has it (or refused it). */
     private val pendingOrder = MutableStateFlow<PendingOrder?>(null)
+
+    /** Sends the order saves one after another, in the order they were made, so the server applies the last one last. */
+    private val orderSaves = Mutex()
 
     /** Counts the forms opened and closed: a save only applies its result to the form it was started from. */
     private var formSession = 0L
@@ -582,7 +587,8 @@ class ProjectsViewModel internal constructor(
         val pending = PendingOrder(detail.project.id, taskIds)
         pendingOrder.value = pending
         viewModelScope.launch {
-            val outcome = work.reorder(pending.projectId, taskIds)
+            // The mutex is fair: the saves run in launch order.
+            val outcome = orderSaves.withLock { work.reorder(pending.projectId, taskIds) }
             pendingOrder.update { current ->
                 when {
                     current == null || current !== pending -> current

@@ -71,7 +71,10 @@ object ProjectTaskTags {
     const val ADD_BUTTON = "project-add-task-button"
     const val ADD_MAKE_NEXT = "project-add-task-make-next"
 
-    /** The reorderable item of a task (row and divider): long-press drag and the move actions are on it. */
+    /**
+     * The reorderable item of a task (row and divider): the long-press drag is on it. The move actions are on the row
+     * inside it (`TaskListTags.row`), the node a screen reader focuses.
+     */
     fun item(id: UUID) = "project-task-$id"
 }
 
@@ -182,32 +185,36 @@ internal fun ProjectTaskList(
                                 // Restarted (keys) when the tasks change, so these see the current ones.
                                 onStart = { drag.start(listState, task.id, dropped) },
                                 onDrag = { dy -> drag.by(dy, listState) },
-                                onEnd = {
+                                onDrop = {
                                     val result = drag.stop() ?: return@longPressDrag
                                     dropped = result
                                     if (result != ids) reorder(result)
                                 },
+                                // Cancelled (the tasks changed, the list went read-only, the system took the gesture):
+                                // nothing is saved and the list keeps showing the state's order.
+                                onCancel = { drag.stop() },
                             )
                         } else {
                             Modifier
                         },
-                    ).semantics {
-                        if (canReorder) {
-                            customActions =
-                                listOfNotNull(
-                                    CustomAccessibilityAction(moveUp) {
-                                        callbacks.move(task, -1)
-                                        true
-                                    }.takeIf { index > 0 },
-                                    CustomAccessibilityAction(moveDown) {
-                                        callbacks.move(task, 1)
-                                        true
-                                    }.takeIf { index < order.lastIndex },
-                                )
-                        }
-                    },
+                    ),
             ) {
-                ProjectTaskRow(state, detail, task, callbacks)
+                val actions =
+                    if (canReorder) {
+                        listOfNotNull(
+                            CustomAccessibilityAction(moveUp) {
+                                callbacks.move(task, -1)
+                                true
+                            }.takeIf { index > 0 },
+                            CustomAccessibilityAction(moveDown) {
+                                callbacks.move(task, 1)
+                                true
+                            }.takeIf { index < order.lastIndex },
+                        )
+                    } else {
+                        emptyList()
+                    }
+                ProjectTaskRow(state, detail, task, callbacks, actions)
                 HorizontalDivider()
             }
         }
@@ -287,24 +294,30 @@ private class DragState {
 }
 
 /**
- * A long press picks the element up, then every move until the finger lifts goes to [onDrag]. Once picked up the
- * gesture takes all events first, so the row underneath neither opens nor toggles on release.
+ * A long press picks the element up, then every move until the finger lifts goes to [onDrag], and lifting it to
+ * [onDrop]. A gesture that ends otherwise (restarted by [keys], the modifier removed, the pointer gone, or cancelled by
+ * the system) goes to [onCancel] instead. Once picked up the gesture takes all events first, so the row underneath
+ * neither opens nor toggles on release.
  */
 private fun Modifier.longPressDrag(
     keys: Array<Any>,
     onStart: () -> Unit,
     onDrag: (Float) -> Unit,
-    onEnd: () -> Unit,
+    onDrop: () -> Unit,
+    onCancel: () -> Unit,
 ): Modifier =
     pointerInput(*keys) {
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
             val pressed = awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
             onStart()
+            var lifted = false
             try {
                 while (true) {
                     val change = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == pressed.id } ?: break
                     if (change.changedToUpIgnoreConsumed()) {
+                        // A gesture the system cancelled arrives as an up that is already consumed: not a drop.
+                        lifted = !change.isConsumed
                         change.consume()
                         break
                     }
@@ -312,7 +325,7 @@ private fun Modifier.longPressDrag(
                     change.consume()
                 }
             } finally {
-                onEnd()
+                if (lifted) onDrop() else onCancel()
             }
         }
     }
@@ -323,6 +336,7 @@ private fun ProjectTaskRow(
     detail: ProjectDetailState,
     task: GtdTask,
     callbacks: ProjectsCallbacks,
+    actions: List<CustomAccessibilityAction>,
 ) {
     val isNext = task.id == detail.project.nextTaskId
     val busy = task.id in state.busy
@@ -331,6 +345,8 @@ private fun ProjectTaskRow(
         readOnly = state.readOnly,
         busy = busy,
         onComplete = callbacks.complete,
+        // On the row's clickable node, which a screen reader focuses, so its actions menu offers them.
+        modifier = Modifier.semantics { if (actions.isNotEmpty()) customActions = actions },
         overline =
             if (isNext) {
                 {

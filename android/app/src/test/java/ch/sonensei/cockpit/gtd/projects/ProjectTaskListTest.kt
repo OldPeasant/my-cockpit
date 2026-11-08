@@ -32,6 +32,7 @@ import ch.sonensei.cockpit.gtd.task.LocalTaskOpener
 import ch.sonensei.cockpit.gtd.task.TaskOpener
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -141,6 +142,21 @@ class ProjectTaskListTest {
         assertEquals(listOf("Move down"), actions(book))
         assertEquals(listOf("Move up", "Move down"), actions(hotel))
         assertEquals(listOf("Move up"), actions(visa))
+        // On the clickable row a screen reader focuses, not on the item around it, which it does not focus.
+        assertTrue(
+            composeRule
+                .onNodeWithTag(TaskListTags.row(hotel.id))
+                .fetchSemanticsNode()
+                .config
+                .contains(SemanticsActions.OnClick),
+        )
+        assertNull(
+            composeRule
+                .onNodeWithTag(ProjectTaskTags.item(hotel.id))
+                .fetchSemanticsNode()
+                .config
+                .getOrNull(SemanticsActions.CustomActions),
+        )
         composeRule.runOnIdle { action(hotel, "Move up") }
         composeRule.runOnIdle { action(hotel, "Move down") }
         assertEquals(listOf("move Compare hotels -1", "move Compare hotels 1"), calls)
@@ -382,9 +398,10 @@ class ProjectTaskListTest {
             .fetchSemanticsNode()
             .boundsInRoot.top
 
+    /** The move actions on the row's merged, clickable node: the one a screen reader focuses and lists actions of. */
     private fun actions(task: GtdTask): List<String> =
         composeRule
-            .onNodeWithTag(ProjectTaskTags.item(task.id))
+            .onNodeWithTag(TaskListTags.row(task.id))
             .fetchSemanticsNode()
             .config
             .getOrNull(SemanticsActions.CustomActions)
@@ -396,7 +413,7 @@ class ProjectTaskListTest {
         label: String,
     ) {
         composeRule
-            .onNodeWithTag(ProjectTaskTags.item(task.id))
+            .onNodeWithTag(TaskListTags.row(task.id))
             .fetchSemanticsNode()
             .config[SemanticsActions.CustomActions]
             .first { it.label == label }
