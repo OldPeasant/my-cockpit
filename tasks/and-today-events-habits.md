@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-next-filters]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/today,android/app/src/test/java/ch/sonensei/cockpit/gtd/today,android/app/src/main/res/values/strings_next_today.xml,android/app/src/main/res/values-de/strings_next_today.xml]
 prio: 2
-lease_until: 2026-11-08T21:58:51Z
+lease_until: 2026-11-08T22:03:54Z
 ---
 ## Goal
 Web Today shows today's calendar events and due habits with one-tap check (`today-view.html:7`,
