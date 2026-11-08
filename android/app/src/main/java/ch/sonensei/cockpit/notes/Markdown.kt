@@ -22,6 +22,8 @@ sealed interface MdBlock {
         val marker: String,
         val checked: Boolean? = null,
         val depth: Int = 0,
+        /** The index of the item's line in the source, so a checklist item can be toggled there; `-1`: unknown. */
+        val line: Int = -1,
     ) : MdBlock
 
     data class Quote(
@@ -51,6 +53,13 @@ sealed interface ImageSource {
     ) : ImageSource
 }
 
+/** An inline link being typed: `[[` at [start], the cursor at [end], [query] typed in between. */
+data class LinkQuery(
+    val start: Int,
+    val end: Int,
+    val query: String,
+)
+
 object Markdown {
     private val heading = Regex("""^(#{1,6})\s+(.*?)\s*#*\s*$""")
     private val bullet = Regex("""^(\s*)([-*+])\s+(.*)$""")
@@ -59,6 +68,53 @@ object Markdown {
     private val image = Regex("""!\[([^\]]*)]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)""")
     private val rule = Regex("""^\s{0,3}([-*_])(\s*\1){2,}\s*$""")
     private val fence = Regex("""^\s{0,3}(```|~~~)""")
+
+    /**
+     * [markdown] with the checklist item on line [line] (as in [MdBlock.ListItem.line]) checked or unchecked; unchanged
+     * when that line is no checklist item.
+     */
+    fun toggleChecklist(
+        markdown: String,
+        line: Int,
+    ): String {
+        val lines = markdown.split('\n').toMutableList()
+        val text = lines.getOrNull(line) ?: return markdown
+        val item = (bullet.find(text) ?: ordered.find(text)) ?: return markdown
+        val rest = item.groups[3]!!
+        val box = checkbox.find(rest.value) ?: return markdown
+        val mark = rest.range.first + box.groups[1]!!.range.first
+        val toggled = if (text[mark] == ' ') 'x' else ' '
+        lines[line] = text.substring(0, mark) + toggled + text.substring(mark + 1)
+        return lines.joinToString("\n")
+    }
+
+    /** The `[[query` right before [cursor] in [text] (an inline link being typed), or `null`. */
+    fun linkQuery(
+        text: String,
+        cursor: Int,
+    ): LinkQuery? {
+        if (cursor < 0 || cursor > text.length) return null
+        val match = linkTrigger.find(text.substring(maxOf(0, cursor - MAX_LINK_QUERY), cursor)) ?: return null
+        return LinkQuery(start = cursor - match.value.length, end = cursor, query = match.groupValues[1])
+    }
+
+    /**
+     * [text] with the `[[query` of [query] (and a `]]` typed right after it) replaced by `[[type:id]]`; returns the
+     * text and the cursor after the link.
+     */
+    fun insertLink(
+        text: String,
+        query: LinkQuery,
+        type: String,
+        id: UUID,
+    ): Pair<String, Int> {
+        val end = if (text.startsWith("]]", query.end)) query.end + 2 else query.end
+        val link = "[[$type:$id]]"
+        return text.substring(0, query.start) + link + text.substring(end) to query.start + link.length
+    }
+
+    private val linkTrigger = Regex("""\[\[([^\]\n]*)$""")
+    private const val MAX_LINK_QUERY = 100
 
     fun parse(markdown: String): List<MdBlock> {
         val blocks = mutableListOf<MdBlock>()
@@ -106,7 +162,8 @@ object Markdown {
                     val box = checkbox.find(rest)
                     val depth = indent.replace("\t", "    ").length / 2
                     if (box != null) {
-                        blocks += MdBlock.ListItem(box.groupValues[2], marker, checked = box.groupValues[1] != " ", depth = depth)
+                        blocks +=
+                            MdBlock.ListItem(box.groupValues[2], marker, checked = box.groupValues[1] != " ", depth = depth, line = i)
                     } else {
                         addText(blocks, rest) { MdBlock.ListItem(it, marker, depth = depth) }
                     }

@@ -39,6 +39,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import ch.sonensei.cockpit.R
 import coil3.ImageLoader
 import coil3.compose.AsyncImage
@@ -46,6 +48,7 @@ import coil3.compose.AsyncImage
 internal object MarkdownTags {
     const val IMAGE = "markdown-image"
     const val WEB_IMAGE = "markdown-web-image"
+    const val CHECK_ITEM = "markdown-check-item"
 }
 
 /** A note's Markdown, rendered: drive images are loaded with [imageLoader] (`null`, e.g. in tests: a placeholder). */
@@ -54,17 +57,30 @@ fun MarkdownView(
     markdown: String,
     imageLoader: ImageLoader?,
     modifier: Modifier = Modifier,
+    onToggleChecklist: ((line: Int) -> Unit)? = null,
 ) {
     val blocks = remember(markdown) { Markdown.parse(markdown) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        blocks.forEach { block -> MdBlockView(block, imageLoader) }
+        blocks.forEach { block -> MdBlockView(block, imageLoader, onToggleChecklist) }
     }
 }
+
+/** A checklist item that [onToggle] checks or unchecks when tapped (`null`: read-only). */
+private fun Modifier.checklistToggle(
+    block: MdBlock.ListItem,
+    onToggle: ((Int) -> Unit)?,
+): Modifier =
+    if (block.checked == null || onToggle == null || block.line < 0) {
+        this
+    } else {
+        toggleable(value = block.checked, role = Role.Checkbox) { onToggle(block.line) }.testTag(MarkdownTags.CHECK_ITEM)
+    }
 
 @Composable
 private fun MdBlockView(
     block: MdBlock,
     imageLoader: ImageLoader?,
+    onToggleChecklist: ((Int) -> Unit)? = null,
 ) {
     val typography = MaterialTheme.typography
     when (block) {
@@ -80,7 +96,9 @@ private fun MdBlockView(
         }
         is MdBlock.Paragraph -> Text(inline(block.text), style = typography.bodyLarge)
         is MdBlock.ListItem ->
-            Row(Modifier.padding(start = (block.depth * 16).dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                Modifier.checklistToggle(block, onToggleChecklist).padding(start = (block.depth * 16).dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 when (block.checked) {
                     null ->
                         Text(
