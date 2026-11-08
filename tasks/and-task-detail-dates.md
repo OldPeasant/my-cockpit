@@ -16,7 +16,8 @@ move to Next/Someday/Waiting. Web edits all of them (`task-detail.html:124-330`)
 ## Acceptance criteria
 - [x] Scheduled date and tickler date can be set and cleared (date picker with quick chips like inbox processing)
   - verified (2026-11-08 13:02+0100 by felix/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.task.*' (HEAD 0f8ca9e7a) -> 223 tests pass, incl. TaskDetailListFieldsTest scheduled/tickler chip, picker and clear cases and TaskDraftListTest scheduled/tickler cases
-- [ ] The list can be changed to any of Inbox/Next/Waiting/Scheduled/Someday; waiting-since is editable
+- [x] The list can be changed to any of Inbox/Next/Waiting/Scheduled/Someday; waiting-since is editable
+  - verified (2026-11-08 13:02+0100 by felix/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.task.*' (HEAD 0f8ca9e7a) -> 223 tests pass, incl. TaskDetailListFieldsTest 'every list is offered...' and waiting-since picker cases, TaskDetailViewModelRelistTest move/patch cases
 - [ ] Recurrence editor: presets (daily, weekdays, weekly, monthly, yearly), interval, FIXED vs AFTER_COMPLETION, keep an existing custom RRULE shown as text
 - [ ] Checklist items can be reordered (long-press drag + accessibility actions)
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
