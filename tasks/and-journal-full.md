@@ -21,7 +21,8 @@ and "on this day" (`journal-page.html`).
   - verified (2026-11-08 21:12+0100 by rudi/agent-1): cd android && ./gradlew testDebugUnitTest (Robolectric Compose + VM tests, JVM; no device here): JournalDaysScreenTest month calendar cases, JournalDaysScreenStatesTest(12) -> all pass; days with entries marked, tap opens day
 - [x] "On this day" in earlier years
   - verified (2026-11-08 21:12+0100 by rudi/agent-1): cd android && ./gradlew testDebugUnitTest (Robolectric Compose + VM tests, JVM; no device here): JournalDaysViewModelTest on-this-day cases, JournalLateAnswersViewModelTest(8, incl. loading state), JournalDaysScreenStatesTest -> all pass
-- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [x] New strings are in English and German (`res/values/` + `res/values-de/`)
+  - verified (2026-11-08 21:12+0100 by rudi/agent-1): JournalGermanTest(2) + JournalLocaleScreenTest(1) under de locale -> pass; every new key in values/strings_journal.xml and values-de/strings_journal.xml; lintDebug (MissingTranslation) -> pass
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
