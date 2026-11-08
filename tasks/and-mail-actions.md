@@ -1,10 +1,11 @@
 ---
 title: Android mail: unread, flag, move, spam, multi-select
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [and-mail-search-nav]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/list,android/app/src/test/java/ch/sonensei/cockpit/mail/list,android/app/src/main/java/ch/sonensei/cockpit/mail/read,android/app/src/test/java/ch/sonensei/cockpit/mail/read,android/app/src/main/res/values/strings_mail.xml,android/app/src/main/res/values-de/strings_mail.xml]
 prio: 2
+lease_until: 2026-11-08T10:28:33Z
 ---
 ## Goal
 Android mail cannot mark read/unread, flag, or move, has spam only in the read view and no multi-select (web:
