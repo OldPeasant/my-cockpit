@@ -6,6 +6,7 @@ deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/projects,android/app/src/test/java/ch/sonensei/cockpit/gtd/projects,android/app/src/main/res/values/strings_projects_lists.xml,android/app/src/main/res/values-de/strings_projects_lists.xml]
 prio: 1
 lease_until: 2026-11-08T10:56:36Z
+extended: felix/agent-1
 ---
 ## Goal
 Android cannot create a project (only inside inbox "To project → New") nor edit one (SPEC.md §5.3; web:
@@ -26,3 +27,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 10:43+0100 by felix/agent-1): Project delete: the server's rule (ProjectService.delete) is 'project to Trash, tasks keep their project'; gtd-delete-reassign concerns contexts/areas only. Android always confirms delete and tells how many open tasks keep the project; no reassignment.
 - ASSUMPTION (2026-11-08 10:43+0100 by felix/agent-1): New project is an Add (+) icon action in the Projects list header, not a FAB: the app shell already places a global capture FAB (LocalFabClearance). New projects are created ACTIVE (status is editable afterwards), matching the criterion's field list.
 - ASSUMPTION (2026-11-08 10:43+0100 by felix/agent-1): 412 on save keeps the form open: projects are reloaded, the form is rebased on the current version keeping only the fields the user changed, and a banner + snackbar say so; the user saves again. 412 on status change/delete reloads and shows a snackbar.
+- extended by felix/agent-1: Implementation + review fixes committed (ef146b4a2): new-project action, edit form w/ status, markdown description edit/preview, delete w/ confirm, 412 handling, en/de strings, tests. fixes.md resolves CR-1..CR-3 from review.md (scoped android ktlint/test/lint passed per fixer). Left: code changed after review, so re-run test-writer + code-reviewer on final code, write quality.json, tasks.py verify #1-#7, run full scripts/check.sh (was slow >10min this session, server step, likely machine load), then done.
