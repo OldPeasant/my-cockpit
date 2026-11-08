@@ -348,6 +348,92 @@ class TaskDetailRepositoryTest {
             assertTrue(body["waitingForText"] == null || body["waitingForText"] == JsonNull)
         }
 
+    private fun JsonObject.absent(key: String) = this[key] == null || this[key] == JsonNull
+
+    @Test
+    fun `relisting to Scheduled sends the list, project, scheduled date and tickler with If-Match`() =
+        runBlocking {
+            dispatcher.enqueue(
+                "$taskPath/move",
+                json(taskJson(1, "Buy seeds", "SCHEDULED", extra = ""","scheduledDate":"2026-11-05"""")),
+            )
+
+            val move = TaskMove(TaskList.SCHEDULED, LocalDate.of(2026, 11, 5), LocalDate.of(2026, 12, 1), waitingForText = "Anna")
+            val moved = (repository.relist(task, move) as TaskResult.Ok).value
+
+            assertEquals(TaskList.SCHEDULED, moved.list)
+            assertEquals(LocalDate.of(2026, 11, 5), moved.scheduledDate)
+            val sent = request("POST", "$taskPath/move")
+            assertEquals("\"3\"", sent.headers["If-Match"])
+            val body = sent.bodyJson()
+            assertEquals(JsonPrimitive("SCHEDULED"), body["list"])
+            assertEquals(JsonPrimitive(uuid(20)), body["projectId"])
+            assertEquals(JsonPrimitive("2026-11-05"), body["scheduledDate"])
+            assertEquals(JsonPrimitive("2026-12-01"), body["ticklerDate"])
+            // A person is only sent for Waiting.
+            assertTrue(body.absent("waitingForText"))
+        }
+
+    @Test
+    fun `relisting to Waiting sends the trimmed person and no scheduled date`() =
+        runBlocking {
+            dispatcher.enqueue("$taskPath/move", json(taskJson(1, "Buy seeds", "WAITING", extra = ""","waitingForText":"Anna"""")))
+
+            repository.relist(task, TaskMove(TaskList.WAITING, scheduledDate = LocalDate.of(2026, 11, 5), waitingForText = "  Anna "))
+
+            val body = request("POST", "$taskPath/move").bodyJson()
+            assertEquals(JsonPrimitive("WAITING"), body["list"])
+            assertEquals(JsonPrimitive("Anna"), body["waitingForText"])
+            assertTrue(body.absent("scheduledDate"))
+            assertTrue(body.absent("ticklerDate"))
+        }
+
+    @Test
+    fun `relisting with a blank person or to another list sends no person, a task without a project none`() =
+        runBlocking {
+            dispatcher.enqueue("$taskPath/move", json(taskJson(1, "Buy seeds", "WAITING")))
+            repository.relist(task.copy(projectId = null), TaskMove(TaskList.WAITING, waitingForText = "   "))
+            val body = request("POST", "$taskPath/move").bodyJson()
+            assertTrue(body.absent("waitingForText"))
+            assertTrue(body.absent("projectId"))
+        }
+
+    @Test
+    fun `relisting to Inbox with a tickler keeps it, a refused relist is read like any refusal`() =
+        runBlocking {
+            dispatcher.enqueue("$taskPath/move", json(taskJson(1, "Buy seeds", "INBOX")))
+            repository.relist(task, TaskMove(TaskList.INBOX, ticklerDate = LocalDate.of(2027, 1, 4)))
+            val body = request("POST", "$taskPath/move").bodyJson()
+            assertEquals(JsonPrimitive("INBOX"), body["list"])
+            assertEquals(JsonPrimitive("2027-01-04"), body["ticklerDate"])
+
+            dispatcher.enqueue("$taskPath/move", status(412))
+            assertEquals(TaskResult.Conflict, repository.relist(task, TaskMove(TaskList.SOMEDAY)))
+            dispatcher.enqueue(
+                "$taskPath/move",
+                problemResponse(
+                    422,
+                    """{"title":"Invalid","detail":"Invalid move","errors":[{"field":"ticklerDate","message":"must be in the future"}]}""",
+                ),
+            )
+            val invalid = repository.relist(task, TaskMove(TaskList.SOMEDAY, ticklerDate = LocalDate.of(2020, 1, 1)))
+            assertEquals(mapOf("ticklerDate" to "must be in the future"), (invalid as TaskResult.Invalid).fields)
+        }
+
+    @Test
+    fun `the recurrence mode of a task is read with its rule`() =
+        runBlocking {
+            val extra = ""","recurrenceRule":"FREQ=DAILY","recurrenceMode":"AFTER_COMPLETION""""
+            dispatcher.enqueue(taskPath, json(taskJson(1, "Water the plants", "NEXT", extra = extra)))
+            dispatcher.enqueue(checklistPath, json("""{"items":[]}"""))
+            dispatcher.enqueue(linksPath, json("""{"items":[]}"""))
+
+            val detail = (repository.load(taskId) as TaskResult.Ok).value
+
+            assertEquals("FREQ=DAILY", detail.recurrenceRule)
+            assertEquals(RecurrenceMode.AFTER_COMPLETION, detail.recurrenceMode)
+        }
+
     @Test
     fun `delete moves the task to the Trash with If-Match, restore takes it out again`() =
         runBlocking {
