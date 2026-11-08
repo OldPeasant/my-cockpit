@@ -158,6 +158,17 @@ Server test infrastructure (`server/src/test/kotlin/ch/sonensei/cockpit/support/
 - Tests against external systems are annotated `@ExternalTest` (JUnit tag `external`). `test` excludes
   them, `integrationTest` runs only them. CalDAV tests use `docker.io/tomsquest/docker-radicale:3.5.4.0`
   (htpasswd user, config copied in by the test).
+- `test` runs test classes in parallel JVM forks (`server/build.gradle.kts`): one per 4 cores, at most 4, 2 GB heap
+  each, so a 16-core machine runs 4 and GitHub's 4-core runners 1. Each fork has its own Postgres container and
+  data dir (`build/test-data/fork-<n>`); the JVM temp dir is shared, so a test that lists temp folders uses its own
+  `@TempDir`, and no test may rely on another class having run first. `-PtestForks=<n>` or `COCKPIT_TEST_FORKS=<n>`
+  overrides the count (`1` = one JVM, as before).
+- Argon2 is cheap in every Spring test context (`support/FastTestCrypto.kt`, registered in
+  `src/test/resources/META-INF/spring.factories`): password/recovery-code hashing and the backup secrets KDF use
+  Argon2id with the minimum cost. The production parameters stay covered by the plain unit tests
+  `FastTestCryptoTests` and `BackupSecretsCryptoTests`.
+- No server test was moved out of `test`: CI's `check-server` job still runs all of them, `integrationTest` the
+  `external` ones. Find the slowest classes with the JUnit XML in `server/build/test-results/test/` (attribute `time`).
 - Docker/Podman is required for `./gradlew test`, and therefore for `.taskcheck`. With Podman set
   `DOCKER_HOST` and `TESTCONTAINERS_RYUK_DISABLED=true` (see "Install").
 
