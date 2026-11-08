@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [web-mail-search-nav]
 touches: [web/src/app/features/mail/read,web/src/app/features/mail/list,web/src/locale]
 prio: 2
-lease_until: 2026-11-08T13:56:19Z
+lease_until: 2026-11-08T14:01:22Z
 ---
 ## Goal
 In the web read view mark unread, flag and move are missing (only reachable from list selection), and the SPEC
