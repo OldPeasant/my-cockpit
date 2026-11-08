@@ -484,6 +484,18 @@ class EventEditorExtrasScreenTest {
     }
 
     @Test
+    fun `a delegated or unknown own answer counts as not answered and selects no button`() {
+        val update = show(invited.copy(form = form.copy(attendees = listOf(ada, me.copy(status = AttendeeStatus.DELEGATED)))))
+        assertInside(EventEditorTags.RESPONSE, "You have not answered yet.")
+        INVITATION_RESPONSES.forEach {
+            composeRule.onNodeWithTag(EventEditorTags.respond(it)).performScrollTo().assertIsNotSelected()
+        }
+        update(invited.copy(ownAddresses = emptySet()))
+        assertInside(EventEditorTags.RESPONSE, "You have not answered yet.")
+        composeRule.onNodeWithTag(EventEditorTags.respond(AttendeeStatus.ACCEPTED)).performScrollTo().assertIsEnabled()
+    }
+
+    @Test
     fun `while an answer is sent or after a conflict the answers are disabled`() {
         val update = show(invited.copy(responding = AttendeeStatus.ACCEPTED))
         INVITATION_RESPONSES.forEach {

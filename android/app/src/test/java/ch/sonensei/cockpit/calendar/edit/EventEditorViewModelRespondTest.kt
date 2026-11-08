@@ -175,6 +175,23 @@ class EventEditorViewModelRespondTest {
         }
 
     @Test
+    fun `a reload of a new event neither fetches the sources again nor drops the form`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.create(LocalDate.parse("2026-10-22"), calendars)
+            advanceUntilIdle()
+            vm.update { it.copy(title = "Team lunch") }
+            vm.reload()
+            advanceUntilIdle()
+            val state = vm.uiState.value
+            assertEquals("Team lunch", state.form?.title)
+            assertFalse(state.respondable)
+            coVerify(exactly = 1) { extras.localCalendars() }
+            coVerify(exactly = 0) { extras.invitationCalendars() }
+            coVerify(exactly = 0) { repo.event(any()) }
+        }
+
+    @Test
     fun `without a matching own address there is no current answer, but the invitation can still be answered`() =
         runTest(dispatcher) {
             coEvery { extras.ownAddresses() } returns CalendarResult.Offline
