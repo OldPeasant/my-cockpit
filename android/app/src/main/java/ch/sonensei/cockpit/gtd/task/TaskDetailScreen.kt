@@ -1102,7 +1102,7 @@ internal fun ProblemText(
 ) {
     Text(
         when (problem) {
-            FieldProblem.Required -> stringResource(R.string.task_detail_error_required)
+            FieldProblem.Required -> stringResource(requiredMessage(field))
             FieldProblem.TooLong -> pluralStringResource(R.plurals.task_detail_error_too_long, TaskDraft.MAX_TITLE, TaskDraft.MAX_TITLE)
             FieldProblem.NotANumber -> stringResource(R.string.task_detail_error_estimate, TaskDraft.MAX_ESTIMATE)
             FieldProblem.NotFuture -> stringResource(R.string.task_detail_error_future)
@@ -1114,6 +1114,15 @@ internal fun ProblemText(
         modifier = Modifier.testTag(TaskDetailTags.error(field)),
     )
 }
+
+/** The "this field is required" message for [field]: each required field names what is missing. */
+internal fun requiredMessage(field: TaskField): Int =
+    when (field) {
+        TaskField.SCHEDULED -> R.string.task_detail_error_scheduled_required
+        TaskField.WAITING_FOR -> R.string.task_detail_error_waiting_for_required
+        TaskField.RECURRENCE -> R.string.task_detail_error_repeat_rule_required
+        else -> R.string.task_detail_error_required
+    }
 
 /** Shows [message] on [host]; after a delete it offers Undo and closes the screen once the offer is gone. */
 @Composable

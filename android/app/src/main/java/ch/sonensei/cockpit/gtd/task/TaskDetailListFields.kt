@@ -279,7 +279,7 @@ internal fun RepeatFields(
     localProblem?.let {
         Text(
             when {
-                it == FieldProblem.Required -> stringResource(R.string.task_detail_error_required)
+                it == FieldProblem.Required -> stringResource(requiredMessage(TaskField.RECURRENCE))
                 repeat.preset == RepeatPreset.CUSTOM -> stringResource(R.string.task_detail_error_repeat_rule)
                 else -> stringResource(R.string.task_detail_error_repeat_interval, RepeatDraft.MAX_INTERVAL)
             },

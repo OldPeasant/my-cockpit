@@ -102,6 +102,9 @@
     <string name="task_detail_date_week">In einer Woche</string>
     <string name="task_detail_date_month">In einem Monat</string>
     <string name="task_detail_waiting_since_label">Wartet seit</string>
+    <string name="task_detail_error_scheduled_required">Wähle ein Datum.</string>
+    <string name="task_detail_error_waiting_for_required">Gib ein, auf wen du wartest.</string>
+    <string name="task_detail_error_repeat_rule_required">Gib eine Regel ein, z. B. FREQ=WEEKLY;BYDAY=MO.</string>
     <string name="task_detail_error_future">Wähle einen Tag nach heute.</string>
     <string name="task_detail_error_repeat_interval">Gib eine Zahl von 1 bis %1$d ein.</string>
     <string name="task_detail_error_repeat_rule">Die Regel braucht eine FREQ, z. B. FREQ=WEEKLY;BYDAY=MO.</string>
