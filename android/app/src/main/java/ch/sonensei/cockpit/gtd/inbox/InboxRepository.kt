@@ -15,6 +15,9 @@ import ch.sonensei.cockpit.gtd.data.RefreshResult
 import ch.sonensei.cockpit.gtd.data.TaskRepository
 import ch.sonensei.cockpit.gtd.data.TaskView
 import ch.sonensei.cockpit.gtd.data.body
+import ch.sonensei.cockpit.gtd.task.ConvertedItem
+import ch.sonensei.cockpit.gtd.task.TargetCalendar
+import ch.sonensei.cockpit.gtd.task.TaskConverter
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -65,6 +68,7 @@ class InboxRepository
         private val projectsApi: ProjectsApi,
         private val tasks: TaskRepository,
         private val connectivity: GtdConnectivity,
+        private val converter: TaskConverter,
     ) {
         /**
          * Items whose clarification was saved but whose action then failed, with the server's answer: a retry patches
@@ -84,17 +88,19 @@ class InboxRepository
         )
 
         /**
-         * Saves [clarification] (if it changed) and runs [action] on [task]. Trashing saves nothing: the attributes of
-         * a trashed item do not matter. On success the Inbox is reloaded, so the item leaves the cached list.
+         * Saves [clarification] (if it changed) and runs [action] on [task]. Trashing and converting save nothing: the
+         * attributes of a task that goes to the Trash do not matter. On success the Inbox is reloaded, so the item
+         * leaves the cached list.
          */
         suspend fun process(
             task: GtdTask,
             clarification: Clarification,
             action: InboxAction,
         ): ProcessResult {
+            var converted: ConvertedItem? = null
             val result =
                 connectivity.refreshing {
-                    apply(task.id, clarify(task, if (action == InboxAction.Trash) null else clarification), action)
+                    converted = apply(task, clarify(task, clarification.takeUnless { action.trashes() }), action)
                 }
             if (result == RefreshResult.Refreshed) {
                 clarified.remove(task.id)
@@ -103,7 +109,7 @@ class InboxRepository
             // A conflict means the cached item is outdated: reloading shows its current state.
             if (result != RefreshResult.Offline) tasks.refresh(TaskView.INBOX)
             return when (result) {
-                RefreshResult.Refreshed -> ProcessResult.Processed
+                RefreshResult.Refreshed -> converted?.let(ProcessResult::Converted) ?: ProcessResult.Processed
                 RefreshResult.Offline -> ProcessResult.Offline
                 is RefreshResult.Failed -> if (result.status in CONFLICTS) ProcessResult.Conflict else ProcessResult.Rejected(result.status)
             }
@@ -123,11 +129,23 @@ class InboxRepository
             return updated.version
         }
 
+        /** The calendars "To calendar" offers; `null` when they cannot be loaded. */
+        suspend fun calendars(): List<TargetCalendar>? =
+            try {
+                converter.calendars()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            }
+
+        /** Runs [action] on version [version] of [task]; returns the note or event a conversion made. */
         private suspend fun apply(
-            id: UUID,
+            task: GtdTask,
             version: Long,
             action: InboxAction,
-        ) {
+        ): ConvertedItem? {
+            val id = task.id
             val ifMatch = etag(version)
 
             suspend fun move(request: MoveTaskRequest) = body(tasksApi.moveTask(id, request, ifMatch))
@@ -155,7 +173,10 @@ class InboxRepository
                     makeNextStepIfStalled(projectId, id)
                 }
                 InboxAction.Trash -> succeeded(tasksApi.deleteTask(id, ifMatch))
+                InboxAction.ToReference -> return converter.toNote(task.copy(version = version))
+                is InboxAction.ToCalendar -> return converter.toEvent(task.copy(version = version), action.request)
             }
+            return null
         }
 
         /**
@@ -185,6 +206,9 @@ class InboxRepository
             val CONFLICTS = setOf(404, 409, 412)
         }
     }
+
+/** Whether [this] sends the item to the Trash, so its clarification is not worth saving. */
+private fun InboxAction.trashes() = this == InboxAction.Trash || this == InboxAction.ToReference || this is InboxAction.ToCalendar
 
 /** The `If-Match` value of [version] (the server's strong ETag). */
 private fun etag(version: Long) = "\"$version\""

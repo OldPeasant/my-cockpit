@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.gtd.task
 
+import ch.sonensei.cockpit.core.network.generated.models.ConvertToEventRequest
 import ch.sonensei.cockpit.gtd.data.GtdTask
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -122,6 +123,30 @@ class FakeTaskDetailSource(
     override suspend fun checklist(taskId: UUID): TaskResult<List<ChecklistItem>> {
         checklistLoads++
         return checklistResult
+    }
+
+    /** What the conversions answer; `null` is a new note or event. */
+    var convertResult: TaskResult<ConvertedItem>? = null
+    var calendarsResult: TaskResult<List<TargetCalendar>> = TaskResult.Ok(emptyList())
+    val eventRequests = mutableListOf<ConvertToEventRequest>()
+
+    override suspend fun convertToNote(task: GtdTask): TaskResult<ConvertedItem> {
+        calls += "toNote"
+        return convertResult ?: TaskResult.Ok(ConvertedItem(ConvertedType.NOTE, UUID.randomUUID(), task.title))
+    }
+
+    override suspend fun convertToEvent(
+        task: GtdTask,
+        request: ConvertToEventRequest,
+    ): TaskResult<ConvertedItem> {
+        calls += "toEvent"
+        eventRequests += request
+        return convertResult ?: TaskResult.Ok(ConvertedItem(ConvertedType.EVENT, UUID.randomUUID(), task.title, request.startDate))
+    }
+
+    override suspend fun calendars(): TaskResult<List<TargetCalendar>> {
+        calls += "calendars"
+        return calendarsResult
     }
 
     override suspend fun changed() {

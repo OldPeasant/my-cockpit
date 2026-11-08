@@ -45,6 +45,9 @@ import ch.sonensei.cockpit.gtd.lists.SomedayScreen
 import ch.sonensei.cockpit.gtd.lists.WaitingScreen
 import ch.sonensei.cockpit.gtd.next.NextScreen
 import ch.sonensei.cockpit.gtd.projects.ProjectsScreen
+import ch.sonensei.cockpit.gtd.task.ConvertedOpener
+import ch.sonensei.cockpit.gtd.task.ConvertedType
+import ch.sonensei.cockpit.gtd.task.LocalConvertedOpener
 import ch.sonensei.cockpit.gtd.task.LocalTaskOpener
 import ch.sonensei.cockpit.gtd.task.TaskDetailNavigation
 import ch.sonensei.cockpit.gtd.task.TaskDetailScreen
@@ -113,6 +116,17 @@ internal fun CockpitShellFrame(
             }
         }
 
+    // The note a task became opens on top (as from search); an event's Calendar tab has no screen per event yet.
+    val openConverted =
+        remember(navController) {
+            ConvertedOpener { item ->
+                when (item.type) {
+                    ConvertedType.NOTE -> navController.navigate(SearchRoutes.item("NOTE", item.id))
+                    ConvertedType.EVENT -> navController.open(CockpitDestination.Calendar)
+                }
+            }
+        }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -157,7 +171,7 @@ internal fun CockpitShellFrame(
     ) { innerPadding ->
         Column(Modifier.padding(innerPadding)) {
             prompts()
-            CompositionLocalProvider(LocalTaskOpener provides openTask) {
+            CompositionLocalProvider(LocalTaskOpener provides openTask, LocalConvertedOpener provides openConverted) {
                 CockpitNavHost(navController, destinationContent, Modifier.weight(1f))
             }
         }

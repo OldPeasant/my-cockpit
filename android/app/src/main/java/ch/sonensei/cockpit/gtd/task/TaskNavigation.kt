@@ -33,6 +33,14 @@ fun interface TaskOpener {
  */
 val LocalTaskOpener = staticCompositionLocalOf<TaskOpener?> { null }
 
+/** Opens the note or event a task was converted into ("To reference", "To calendar"). */
+fun interface ConvertedOpener {
+    fun open(item: ConvertedItem)
+}
+
+/** How screens open a converted item, provided by the shell; `null` (screen tests, previews) offers no "Open". */
+val LocalConvertedOpener = staticCompositionLocalOf<ConvertedOpener?> { null }
+
 /** The navigation route of the task detail screen. */
 object TaskRoutes {
     const val ARG_ID = "id"

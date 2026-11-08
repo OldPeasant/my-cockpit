@@ -1,8 +1,10 @@
 package ch.sonensei.cockpit.gtd.inbox
 
+import ch.sonensei.cockpit.core.network.generated.models.ConvertToEventRequest
 import ch.sonensei.cockpit.gtd.data.Creativity
 import ch.sonensei.cockpit.gtd.data.Energy
 import ch.sonensei.cockpit.gtd.data.GtdTask
+import ch.sonensei.cockpit.gtd.task.ConvertedItem
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -11,10 +13,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import java.time.LocalDate
 import java.util.UUID
 
-/**
- * What processing does with an inbox item (SPEC.md §5.3). "To reference" and "To calendar" come with the notes and
- * calendar screens.
- */
+/** What processing does with an inbox item (SPEC.md §5.3). */
 sealed interface InboxAction {
     /** Do it now (< 2 min): the item is done. */
     data object Done : InboxAction
@@ -42,6 +41,14 @@ sealed interface InboxAction {
     ) : InboxAction
 
     data object Trash : InboxAction
+
+    /** Not actionable but worth keeping: the item becomes a note (and leaves for the Trash). */
+    data object ToReference : InboxAction
+
+    /** The item happens at a fixed time: it becomes the event of [request] (and leaves for the Trash). */
+    data class ToCalendar(
+        val request: ConvertToEventRequest,
+    ) : InboxAction
 }
 
 sealed interface ProjectChoice {
@@ -80,6 +87,11 @@ data class Clarification(
 /** The outcome of processing an item. */
 sealed interface ProcessResult {
     data object Processed : ProcessResult
+
+    /** The item became [item] (a note or an event). */
+    data class Converted(
+        val item: ConvertedItem,
+    ) : ProcessResult
 
     /** The server could not be reached; nothing more was changed. */
     data object Offline : ProcessResult

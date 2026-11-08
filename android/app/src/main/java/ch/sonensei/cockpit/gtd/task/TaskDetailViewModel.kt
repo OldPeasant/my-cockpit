@@ -28,9 +28,11 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import okhttp3.HttpUrl
+import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZonedDateTime
 import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
@@ -260,7 +262,18 @@ sealed interface DetailMessage {
     data object Deleted : DetailMessage
 
     data object Restored : DetailMessage
+
+    /** The task became [item] (a note or an event) and is in the Trash; the snackbar offers to open the item. */
+    data class Converted(
+        val item: ConvertedItem,
+    ) : DetailMessage
 }
+
+/** The open "To calendar" dialog: the plan being edited and the calendars it offers. */
+data class CalendarDialogState(
+    val plan: EventPlan,
+    val choice: CalendarChoice = CalendarChoice(),
+)
 
 data class TaskDetailUiState(
     val loading: Boolean = true,
@@ -285,9 +298,13 @@ data class TaskDetailUiState(
     val deleted: Boolean = false,
     val message: DetailMessage? = null,
     val server: HttpUrl? = null,
+    /** The open "To calendar" dialog. */
+    val calendarDialog: CalendarDialogState? = null,
+    /** What the task was converted into here: it is in the Trash now, the screen offers to open the item, then closes. */
+    val converted: ConvertedItem? = null,
 ) {
     /** Changes need the server and a loaded task. */
-    val readOnly: Boolean get() = offline || detail == null || deleted || notFound
+    val readOnly: Boolean get() = offline || detail == null || deleted || notFound || converted != null
 
     val editing: Boolean get() = draft != null
 }
@@ -305,6 +322,8 @@ class TaskDetailViewModel internal constructor(
     server: Flow<HttpUrl?>,
     /** Loads the drive images of the notes; `null` (tests) shows placeholders. */
     val imageLoader: ImageLoader? = null,
+    /** The clock and zone "To calendar" starts from and puts timed events in. */
+    private val clock: Clock = Clock.systemDefaultZone(),
 ) : ViewModel() {
     @Inject
     constructor(
@@ -582,6 +601,85 @@ class TaskDetailViewModel internal constructor(
                 if (result !is TaskResult.Ok) break
             }
             result
+        }
+    }
+
+    /** Converts the task into a note ("To reference", SPEC.md §5.3). */
+    fun toReference() = convert { source.convertToNote(it) }
+
+    /** Opens the "To calendar" dialog, starting at the next full hour, and loads the calendars it offers. */
+    fun openToCalendar() {
+        val s = state.value
+        if (s.detail?.task == null || s.readOnly || s.busy || s.detail.completed) return
+        state.update { it.copy(calendarDialog = CalendarDialogState(EventPlan.startingAfter(ZonedDateTime.now(clock)))) }
+        loadCalendars()
+    }
+
+    fun editPlan(change: (EventPlan) -> EventPlan) =
+        state.update { s -> s.calendarDialog?.let { s.copy(calendarDialog = it.copy(plan = change(it.plan))) } ?: s }
+
+    fun retryCalendars() = loadCalendars()
+
+    fun cancelToCalendar() = state.update { it.copy(calendarDialog = null) }
+
+    /** Converts the task into the event of the dialog's plan. The dialog stays open until the server answered. */
+    fun confirmToCalendar() {
+        val dialog = state.value.calendarDialog ?: return
+        if (!dialog.plan.isValid || dialog.choice.calendars.isNullOrEmpty()) return
+        val request = dialog.plan.request(clock.zone)
+        convert(closesDialog = true) { source.convertToEvent(it, request) }
+    }
+
+    private fun loadCalendars() {
+        state.update { s -> s.copy(calendarDialog = s.calendarDialog?.copy(choice = CalendarChoice())) }
+        viewModelScope.launch {
+            val result = source.calendars()
+            state.update { s ->
+                val dialog = s.calendarDialog ?: return@update s
+                val choice =
+                    when (result) {
+                        is TaskResult.Ok -> CalendarChoice(result.value)
+                        else -> CalendarChoice(failed = true)
+                    }
+                s.copy(
+                    calendarDialog =
+                        dialog.copy(
+                            plan = choice.calendars?.let { dialog.plan.withCalendarOf(it) } ?: dialog.plan,
+                            choice = choice,
+                        ),
+                )
+            }
+        }
+    }
+
+    /** Runs a conversion; on success the task is gone (in the Trash) and the screen shows where it went. */
+    private fun convert(
+        closesDialog: Boolean = false,
+        request: suspend (GtdTask) -> TaskResult<ConvertedItem>,
+    ) {
+        val s = state.value
+        val task = s.detail?.task ?: return
+        if (s.busy || s.readOnly || s.detail.completed) return
+        state.update { it.copy(busy = true, draft = null, problems = emptyMap()) }
+        viewModelScope.launch {
+            when (val result = request(task)) {
+                is TaskResult.Ok -> {
+                    state.update {
+                        it.copy(
+                            busy = false,
+                            calendarDialog = null,
+                            converted = result.value,
+                            message = DetailMessage.Converted(result.value),
+                        )
+                    }
+                    source.changed()
+                }
+                else -> {
+                    // A refusal the dialog cannot fix (gone, changed elsewhere) closes it; an offline one keeps it to retry.
+                    if (closesDialog && result != TaskResult.Offline) state.update { it.copy(calendarDialog = null) }
+                    afterRefusal(result)
+                }
+            }
         }
     }
 

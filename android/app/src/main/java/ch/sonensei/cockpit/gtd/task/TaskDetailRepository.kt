@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.gtd.task
 import ch.sonensei.cockpit.auth.SessionCache
 import ch.sonensei.cockpit.core.network.generated.apis.TasksApi
 import ch.sonensei.cockpit.core.network.generated.models.ChecklistItemResponse
+import ch.sonensei.cockpit.core.network.generated.models.ConvertToEventRequest
 import ch.sonensei.cockpit.core.network.generated.models.CreateChecklistItemRequest
 import ch.sonensei.cockpit.core.network.generated.models.LinkListResponse
 import ch.sonensei.cockpit.core.network.generated.models.LinkResponse
@@ -23,6 +24,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.Json
@@ -44,6 +46,7 @@ import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
+import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
@@ -224,6 +227,18 @@ interface TaskDetailSource {
 
     suspend fun checklist(taskId: UUID): TaskResult<List<ChecklistItem>>
 
+    /** Turns the task into a note ("To reference"); the server trashes the task. */
+    suspend fun convertToNote(task: GtdTask): TaskResult<ConvertedItem>
+
+    /** Turns the task into an event ("To calendar"); the server trashes the task. */
+    suspend fun convertToEvent(
+        task: GtdTask,
+        request: ConvertToEventRequest,
+    ): TaskResult<ConvertedItem>
+
+    /** The calendars "To calendar" offers. */
+    suspend fun calendars(): TaskResult<List<TargetCalendar>>
+
     /** Reloads the cached task views and tells the live lists, after a change. */
     suspend fun changed()
 }
@@ -246,6 +261,7 @@ class TaskDetailRepository
         private val dao: GtdCacheDao,
         private val connectivity: GtdConnectivity,
         private val tasks: TaskRepository,
+        private val converter: TaskConverter,
     ) : TaskDetailSource {
         override suspend fun load(id: UUID): TaskResult<TaskDetail> =
             coroutineScope {
@@ -348,6 +364,28 @@ class TaskDetailRepository
 
         override suspend fun checklist(taskId: UUID): TaskResult<List<ChecklistItem>> =
             call({ api.listChecklistItems(taskId) }) { body -> body!!.items.map { it.toItem() }.sortedBy { it.position } }
+
+        override suspend fun convertToNote(task: GtdTask): TaskResult<ConvertedItem> =
+            call({ api.convertTaskToNote(task.id, etag(task.version)) }) { it!!.toConverted() }
+
+        override suspend fun convertToEvent(
+            task: GtdTask,
+            request: ConvertToEventRequest,
+        ): TaskResult<ConvertedItem> = call({ api.convertTaskToEvent(task.id, request, etag(task.version)) }) { it!!.toConverted() }
+
+        /** Not through [call]: a failing list of calendars must not mark the GTD screens offline. */
+        override suspend fun calendars(): TaskResult<List<TargetCalendar>> =
+            try {
+                TaskResult.Ok(converter.calendars())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: IOException) {
+                TaskResult.Offline
+            } catch (e: HttpFailure) {
+                TaskResult.Failed(e.status)
+            } catch (_: Exception) {
+                TaskResult.Failed(null)
+            }
 
         override suspend fun changed() {
             TaskEdits.changed()

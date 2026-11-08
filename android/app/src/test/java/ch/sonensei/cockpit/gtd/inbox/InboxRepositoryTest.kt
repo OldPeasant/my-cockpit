@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.gtd.inbox
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import ch.sonensei.cockpit.core.network.generated.apis.CalendarsApi
 import ch.sonensei.cockpit.core.network.generated.apis.ProjectsApi
 import ch.sonensei.cockpit.core.network.generated.apis.TasksApi
 import ch.sonensei.cockpit.core.network.generated.infrastructure.Serializer
@@ -18,6 +19,7 @@ import ch.sonensei.cockpit.gtd.data.status
 import ch.sonensei.cockpit.gtd.data.taskJson
 import ch.sonensei.cockpit.gtd.data.taskPage
 import ch.sonensei.cockpit.gtd.data.uuid
+import ch.sonensei.cockpit.gtd.task.TaskConverter
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
@@ -70,6 +72,7 @@ class InboxRepositoryTest {
                 retrofit.create(ProjectsApi::class.java),
                 gtd.tasks,
                 gtd.connectivity,
+                TaskConverter(retrofit.create(TasksApi::class.java), retrofit.create(CalendarsApi::class.java)),
             )
         // The reload after an action.
         repeat(3) { dispatcher.enqueue("$TASKS|INBOX", json(taskPage())) }
@@ -494,6 +497,7 @@ class InboxRepositoryTest {
                 projects,
                 gtd.tasks,
                 gtd.connectivity,
+                TaskConverter(retrofit.create(TasksApi::class.java), retrofit.create(CalendarsApi::class.java)),
             )
         dispatcher.enqueue("$path/move", taskAnswer())
 

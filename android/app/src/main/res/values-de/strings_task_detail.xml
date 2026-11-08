@@ -143,4 +143,22 @@
     </plurals>
     <string name="task_detail_item_move_up">Nach oben</string>
     <string name="task_detail_item_move_down">Nach unten</string>
+    <string name="task_detail_convert_reference">Zu Referenz</string>
+    <string name="task_detail_convert_calendar">In den Kalender</string>
+    <string name="task_detail_convert_calendar_title">In den Kalender verschieben</string>
+    <string name="task_detail_convert_calendar_calendar">Kalender</string>
+    <string name="task_detail_convert_calendar_loading">Kalender werden geladen…</string>
+    <string name="task_detail_convert_calendar_failed">Die Kalender konnten nicht geladen werden.</string>
+    <string name="task_detail_convert_calendar_none">Es gibt keinen Kalender, in den Termine eingetragen werden können.</string>
+    <string name="task_detail_convert_calendar_all_day">Ganztägig</string>
+    <string name="task_detail_convert_calendar_start">Beginn</string>
+    <string name="task_detail_convert_calendar_duration">Dauer</string>
+    <string name="task_detail_convert_calendar_minutes">%1$d Min.</string>
+    <string name="task_detail_convert_calendar_hours">%1$d Std.</string>
+    <string name="task_detail_convert_calendar_hours_minutes">%1$d Std. %2$d Min.</string>
+    <string name="task_detail_convert_calendar_confirm">In den Kalender</string>
+    <string name="task_detail_convert_moved_note">Als Notiz „%1$s“ zur Referenz verschoben</string>
+    <string name="task_detail_convert_moved_event">Als Termin „%1$s“ in den Kalender verschoben</string>
+    <string name="task_detail_convert_moved_event_on">Als Termin „%1$s“ am %2$s in den Kalender verschoben</string>
+    <string name="task_detail_convert_open">Öffnen</string>
 </resources>

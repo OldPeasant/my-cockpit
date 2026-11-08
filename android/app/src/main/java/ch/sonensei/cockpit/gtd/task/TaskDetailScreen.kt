@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.gtd.task
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.res.Resources
 import android.widget.Toast
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
@@ -26,8 +27,10 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.DragIndicator
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material3.AlertDialog
@@ -149,6 +152,14 @@ fun TaskDetailRoute(
         callbacks =
             TaskDetailCallbacks.of(viewModel).copy(
                 close = navigation.close,
+                // The task is in the Trash now: leave its screen, then open the item it became.
+                openConverted = { item ->
+                    navigation.close()
+                    when (item.type) {
+                        ConvertedType.NOTE -> navigation.openItem("NOTE", item.id)
+                        ConvertedType.EVENT -> navigation.openScreen(CockpitDestination.Calendar)
+                    }
+                },
                 openLink = { link ->
                     when (val target = linkTarget(link, state.server)) {
                         is SearchTarget.InApp ->
@@ -206,6 +217,14 @@ data class TaskDetailCallbacks(
     val moveItem: (ChecklistItem, Int) -> Unit = { _, _ -> },
     val openLink: (TaskLink) -> Unit = {},
     val dismiss: (DetailMessage) -> Unit = {},
+    val toReference: () -> Unit = {},
+    val openToCalendar: () -> Unit = {},
+    val editPlan: ((EventPlan) -> EventPlan) -> Unit = {},
+    val retryCalendars: () -> Unit = {},
+    val cancelToCalendar: () -> Unit = {},
+    val confirmToCalendar: () -> Unit = {},
+    /** Opens the note or event the task was converted into. */
+    val openConverted: (ConvertedItem) -> Unit = {},
 ) {
     companion object {
         fun of(vm: TaskDetailViewModel) =
@@ -226,6 +245,12 @@ data class TaskDetailCallbacks(
                 deleteItem = vm::deleteChecklistItem,
                 moveItem = vm::moveChecklistItem,
                 dismiss = vm::dismiss,
+                toReference = vm::toReference,
+                openToCalendar = vm::openToCalendar,
+                editPlan = vm::editPlan,
+                retryCalendars = vm::retryCalendars,
+                cancelToCalendar = vm::cancelToCalendar,
+                confirmToCalendar = vm::confirmToCalendar,
             )
     }
 }
@@ -244,6 +269,8 @@ object TaskDetailTags {
     const val REOPEN = "task-detail-reopen"
     const val MORE = "task-detail-more"
     const val DELETE = "task-detail-delete"
+    const val TO_REFERENCE = "task-detail-to-reference"
+    const val TO_CALENDAR = "task-detail-to-calendar"
     const val WAITING_INPUT = "task-detail-waiting-input"
     const val WAITING_CONFIRM = "task-detail-waiting-confirm"
     const val FORM = "task-detail-form"
@@ -315,6 +342,17 @@ fun TaskDetailContent(
             }
         }
         SnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter))
+    }
+    state.calendarDialog?.let { dialog ->
+        ToCalendarDialog(
+            plan = dialog.plan,
+            choice = dialog.choice,
+            update = callbacks.editPlan,
+            onConfirm = callbacks.confirmToCalendar,
+            onDismiss = callbacks.cancelToCalendar,
+            onRetry = callbacks.retryCalendars,
+            enabled = !state.busy && !state.offline,
+        )
     }
 }
 
@@ -473,6 +511,24 @@ private fun Actions(
                             modifier = Modifier.testTag(TaskDetailTags.move(target)),
                         )
                     }
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.task_detail_convert_reference)) },
+                        leadingIcon = { Icon(Icons.Outlined.Description, contentDescription = null) },
+                        onClick = {
+                            menu = false
+                            callbacks.toReference()
+                        },
+                        modifier = Modifier.testTag(TaskDetailTags.TO_REFERENCE),
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.task_detail_convert_calendar)) },
+                        leadingIcon = { Icon(Icons.Outlined.Event, contentDescription = null) },
+                        onClick = {
+                            menu = false
+                            callbacks.openToCalendar()
+                        },
+                        modifier = Modifier.testTag(TaskDetailTags.TO_CALENDAR),
+                    )
                 }
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.task_detail_delete)) },
@@ -1152,8 +1208,18 @@ private fun MessageEffect(
                     )
                 DetailMessage.Deleted -> resources.getString(R.string.task_detail_message_deleted)
                 DetailMessage.Restored -> resources.getString(R.string.task_detail_message_restored)
+                is DetailMessage.Converted -> convertedText(resources, message.item)
             }
-        if (message == DetailMessage.Deleted) {
+        if (message is DetailMessage.Converted) {
+            val result =
+                host.showSnackbar(
+                    text,
+                    actionLabel = resources.getString(R.string.task_detail_convert_open),
+                    duration = SnackbarDuration.Long,
+                )
+            callbacks.dismiss(message)
+            if (result == SnackbarResult.ActionPerformed) callbacks.openConverted(message.item) else callbacks.close()
+        } else if (message == DetailMessage.Deleted) {
             val result =
                 host.showSnackbar(
                     text,
@@ -1168,6 +1234,23 @@ private fun MessageEffect(
         }
     }
 }
+
+/** Where a converted task went, for the snackbar: the note, or the event with its day. */
+fun convertedText(
+    resources: Resources,
+    item: ConvertedItem,
+): String =
+    when (item.type) {
+        ConvertedType.NOTE -> resources.getString(R.string.task_detail_convert_moved_note, item.title)
+        ConvertedType.EVENT ->
+            item.day?.let {
+                resources.getString(
+                    R.string.task_detail_convert_moved_event_on,
+                    item.title,
+                    DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(it),
+                )
+            } ?: resources.getString(R.string.task_detail_convert_moved_event, item.title)
+    }
 
 private fun moveDestination(target: MoveTarget) =
     when (target) {

@@ -63,4 +63,6 @@
     <string name="inbox_confirm_schedule">Schedule</string>
     <string name="inbox_confirm_tickler">Hide until then</string>
     <string name="inbox_confirm_project">Move to project</string>
+    <string name="inbox_action_reference">To reference</string>
+    <string name="inbox_action_calendar">To calendar</string>
 </resources>

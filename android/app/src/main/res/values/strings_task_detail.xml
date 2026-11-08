@@ -143,4 +143,22 @@
     </plurals>
     <string name="task_detail_item_move_up">Move up</string>
     <string name="task_detail_item_move_down">Move down</string>
+    <string name="task_detail_convert_reference">To reference</string>
+    <string name="task_detail_convert_calendar">To calendar</string>
+    <string name="task_detail_convert_calendar_title">Move to the calendar</string>
+    <string name="task_detail_convert_calendar_calendar">Calendar</string>
+    <string name="task_detail_convert_calendar_loading">Loading calendars…</string>
+    <string name="task_detail_convert_calendar_failed">The calendars could not be loaded.</string>
+    <string name="task_detail_convert_calendar_none">There is no calendar to add events to.</string>
+    <string name="task_detail_convert_calendar_all_day">All day</string>
+    <string name="task_detail_convert_calendar_start">Start</string>
+    <string name="task_detail_convert_calendar_duration">Duration</string>
+    <string name="task_detail_convert_calendar_minutes">%1$d min</string>
+    <string name="task_detail_convert_calendar_hours">%1$d h</string>
+    <string name="task_detail_convert_calendar_hours_minutes">%1$d h %2$d min</string>
+    <string name="task_detail_convert_calendar_confirm">Move to calendar</string>
+    <string name="task_detail_convert_moved_note">Moved to reference as note “%1$s”</string>
+    <string name="task_detail_convert_moved_event">Moved to the calendar as event “%1$s”</string>
+    <string name="task_detail_convert_moved_event_on">Moved to the calendar on %2$s as event “%1$s”</string>
+    <string name="task_detail_convert_open">Open</string>
 </resources>

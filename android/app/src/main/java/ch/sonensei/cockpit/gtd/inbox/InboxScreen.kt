@@ -35,19 +35,23 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -67,6 +71,10 @@ import ch.sonensei.cockpit.gtd.next.CompletionSnackbar
 import ch.sonensei.cockpit.gtd.next.CompletionSnackbarEffect
 import ch.sonensei.cockpit.gtd.next.TaskListTags
 import ch.sonensei.cockpit.gtd.next.opensTask
+import ch.sonensei.cockpit.gtd.task.ConvertedItem
+import ch.sonensei.cockpit.gtd.task.LocalConvertedOpener
+import ch.sonensei.cockpit.gtd.task.ToCalendarDialog
+import ch.sonensei.cockpit.gtd.task.convertedText
 import ch.sonensei.cockpit.ui.LocalFabClearance
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
@@ -120,6 +128,9 @@ data class InboxCallbacks(
     val complete: (GtdTask) -> Unit = {},
     val undo: (CompletionSnackbar.Undo) -> Unit = {},
     val dismissSnackbar: (CompletionSnackbar) -> Unit = {},
+    val retryCalendars: () -> Unit = {},
+    /** The converted item was shown (or opened). */
+    val dismissConverted: (ConvertedItem) -> Unit = {},
 ) {
     companion object {
         fun of(vm: InboxViewModel) =
@@ -139,6 +150,8 @@ data class InboxCallbacks(
                 vm::complete,
                 vm::undo,
                 vm::dismissSnackbar,
+                vm::retryCalendars,
+                vm::dismissConverted,
             )
     }
 }
@@ -165,6 +178,7 @@ fun InboxContent(
 ) {
     val snackbarHost = remember { SnackbarHostState() }
     CompletionSnackbarEffect(state.snackbar, snackbarHost, callbacks.undo, callbacks.dismissSnackbar)
+    ConvertedSnackbarEffect(state.converted, snackbarHost, callbacks.dismissConverted)
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             if (state.offline) OfflineBanner(state.refreshedAt, state.retrying, callbacks.retry)
@@ -176,6 +190,29 @@ fun InboxContent(
             }
         }
         SnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter).padding(bottom = LocalFabClearance.current))
+    }
+}
+
+/** Tells where a converted item went, with "Open" when the shell can open it. */
+@Composable
+private fun ConvertedSnackbarEffect(
+    converted: ConvertedItem?,
+    host: SnackbarHostState,
+    dismiss: (ConvertedItem) -> Unit,
+) {
+    val resources = LocalResources.current
+    val opener = LocalConvertedOpener.current
+    LaunchedEffect(converted) {
+        val item = converted ?: return@LaunchedEffect
+        val result =
+            host.showSnackbar(
+                convertedText(resources, item),
+                actionLabel = opener?.let { resources.getString(R.string.task_detail_convert_open) },
+                withDismissAction = opener == null,
+                duration = SnackbarDuration.Long,
+            )
+        dismiss(item)
+        if (result == SnackbarResult.ActionPerformed) opener?.open(item)
     }
 }
 
@@ -331,7 +368,18 @@ private fun ProcessingMode(
             ClarificationPanel(state, callbacks)
             HorizontalDivider()
             val prompt = state.prompt
-            if (prompt == null) {
+            if (prompt?.kind == InboxActionKind.CALENDAR) {
+                Actions(state.actionsEnabled) { kind -> callbacks.choose(task.id, kind) }
+                ToCalendarDialog(
+                    plan = checkNotNull(prompt.plan),
+                    choice = prompt.calendars,
+                    update = { change -> callbacks.updatePrompt { p -> p.copy(plan = p.plan?.let(change)) } },
+                    onConfirm = { callbacks.confirmPrompt(task.id) },
+                    onDismiss = callbacks.cancelPrompt,
+                    onRetry = callbacks.retryCalendars,
+                    enabled = state.actionsEnabled,
+                )
+            } else if (prompt == null) {
                 Actions(state.actionsEnabled) { kind -> callbacks.choose(task.id, kind) }
             } else {
                 PromptPanel(prompt, state, callbacks.updatePrompt, callbacks.cancelPrompt) { callbacks.confirmPrompt(task.id) }
@@ -428,8 +476,14 @@ private val ACTION_GROUPS =
     listOf(
         R.string.inbox_group_act to listOf(InboxActionKind.DONE, InboxActionKind.NEXT, InboxActionKind.PROJECT),
         R.string.inbox_group_defer to
-            listOf(InboxActionKind.WAITING, InboxActionKind.SCHEDULE, InboxActionKind.TICKLER, InboxActionKind.SOMEDAY),
-        R.string.inbox_group_drop to listOf(InboxActionKind.TRASH),
+            listOf(
+                InboxActionKind.WAITING,
+                InboxActionKind.SCHEDULE,
+                InboxActionKind.CALENDAR,
+                InboxActionKind.TICKLER,
+                InboxActionKind.SOMEDAY,
+            ),
+        R.string.inbox_group_drop to listOf(InboxActionKind.REFERENCE, InboxActionKind.TRASH),
     )
 
 @Composable
@@ -609,6 +663,8 @@ private fun InboxActionKind.label() =
         InboxActionKind.TICKLER -> R.string.inbox_action_tickler
         InboxActionKind.SOMEDAY -> R.string.inbox_action_someday
         InboxActionKind.TRASH -> R.string.inbox_action_trash
+        InboxActionKind.CALENDAR -> R.string.inbox_action_calendar
+        InboxActionKind.REFERENCE -> R.string.inbox_action_reference
     }
 
 private fun InboxActionKind.confirmLabel() =

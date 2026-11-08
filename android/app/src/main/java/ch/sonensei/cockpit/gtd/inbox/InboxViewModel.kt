@@ -16,6 +16,9 @@ import ch.sonensei.cockpit.gtd.next.CompletionMessage
 import ch.sonensei.cockpit.gtd.next.CompletionSnackbar
 import ch.sonensei.cockpit.gtd.next.TaskCompleter
 import ch.sonensei.cockpit.gtd.next.TaskCompletionRepository
+import ch.sonensei.cockpit.gtd.task.CalendarChoice
+import ch.sonensei.cockpit.gtd.task.ConvertedItem
+import ch.sonensei.cockpit.gtd.task.EventPlan
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -28,11 +31,13 @@ import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.util.UUID
 import javax.inject.Inject
 
 /** The buttons of the processing mode, in the order of the GTD decision: act on it, defer it, or drop it. */
-enum class InboxActionKind { DONE, NEXT, PROJECT, WAITING, SCHEDULE, TICKLER, SOMEDAY, TRASH }
+enum class InboxActionKind { DONE, NEXT, PROJECT, WAITING, SCHEDULE, CALENDAR, TICKLER, SOMEDAY, REFERENCE, TRASH }
 
 /** The value an action asks for before it runs: a date, who it waits for, or the project. */
 data class InboxPrompt(
@@ -41,16 +46,23 @@ data class InboxPrompt(
     val text: String = "",
     /** The chosen project; `null` creates a new one named [text]. */
     val projectId: UUID? = null,
+    /** Where and when "To calendar" puts the item. */
+    val plan: EventPlan? = null,
+    /** The calendars "To calendar" offers. */
+    val calendars: CalendarChoice = CalendarChoice(),
 ) {
     fun isValid(today: LocalDate): Boolean =
         when (kind) {
             InboxActionKind.TICKLER -> date.isAfter(today)
             InboxActionKind.PROJECT -> projectId != null || text.isNotBlank()
+            InboxActionKind.CALENDAR -> plan?.isValid == true && !calendars.calendars.isNullOrEmpty()
             else -> true
         }
 
-    fun action(): InboxAction =
+    /** The action to run; timed events of "To calendar" are in [zone]. */
+    fun action(zone: ZoneId = ZoneId.systemDefault()): InboxAction =
         when (kind) {
+            InboxActionKind.CALENDAR -> InboxAction.ToCalendar(checkNotNull(plan).request(zone))
             InboxActionKind.WAITING -> InboxAction.Waiting(text)
             InboxActionKind.SCHEDULE -> InboxAction.Schedule(date)
             InboxActionKind.TICKLER -> InboxAction.Tickler(date)
@@ -84,6 +96,8 @@ data class InboxUiState(
     val today: LocalDate = LocalDate.MIN,
     /** The undo offer after a task was completed from the list, or why completing failed. */
     val snackbar: CompletionSnackbar? = null,
+    /** Where the last converted item went ("To reference", "To calendar"), until the user saw it. */
+    val converted: ConvertedItem? = null,
 ) {
     /** The item being processed. */
     val current: GtdTask? get() = tasks.firstOrNull()
@@ -128,6 +142,7 @@ class InboxViewModel internal constructor(
         val prompt: Pair<UUID, InboxPrompt>? = null,
         val message: InboxMessage? = null,
         val retrying: Boolean = false,
+        val converted: ConvertedItem? = null,
     )
 
     private val local = MutableStateFlow(Local())
@@ -156,6 +171,7 @@ class InboxViewModel internal constructor(
                 retrying = l.retrying,
                 today = today(),
                 snackbar = done.snackbar,
+                converted = l.converted,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), InboxUiState(today = today()))
 
@@ -206,6 +222,7 @@ class InboxViewModel internal constructor(
                 InboxActionKind.NEXT -> InboxAction.Next
                 InboxActionKind.SOMEDAY -> InboxAction.Someday
                 InboxActionKind.TRASH -> InboxAction.Trash
+                InboxActionKind.REFERENCE -> InboxAction.ToReference
                 else -> null
             }
         if (action != null) {
@@ -214,9 +231,31 @@ class InboxViewModel internal constructor(
         }
         // The project named in the capture (`#project`) is offered first while it is active.
         val project = state.projects.firstOrNull { it.id == task.projectId } ?: state.projects.firstOrNull()
-        val prompt = InboxPrompt(kind, date = state.today.plusDays(1), projectId = project?.id)
+        val plan = if (kind == InboxActionKind.CALENDAR) EventPlan.startingAfter(ZonedDateTime.now(clock)) else null
+        val prompt = InboxPrompt(kind, date = state.today.plusDays(1), projectId = project?.id, plan = plan)
         local.update { it.copy(prompt = task.id to prompt, message = null) }
+        if (kind == InboxActionKind.CALENDAR) loadCalendars()
     }
+
+    /** Loads the calendars of the open "To calendar" prompt again, after they failed to load. */
+    fun retryCalendars() = loadCalendars()
+
+    private fun loadCalendars() {
+        val itemId = local.value.prompt?.first ?: return
+        updatePrompt { it.copy(calendars = CalendarChoice()) }
+        viewModelScope.launch {
+            val calendars = inbox.calendars()
+            local.update { l ->
+                val (id, prompt) = l.prompt?.takeIf { it.first == itemId && it.second.kind == InboxActionKind.CALENDAR } ?: return@update l
+                val choice = CalendarChoice(calendars, failed = calendars == null)
+                val plan = calendars?.let { prompt.plan?.withCalendarOf(it) } ?: prompt.plan
+                l.copy(prompt = id to prompt.copy(calendars = choice, plan = plan))
+            }
+        }
+    }
+
+    /** The converted item was shown (or opened). */
+    fun dismissConverted(shown: ConvertedItem) = local.update { if (it.converted == shown) it.copy(converted = null) else it }
 
     fun updatePrompt(change: (InboxPrompt) -> InboxPrompt) =
         local.update { l -> l.copy(prompt = l.prompt?.let { (id, p) -> id to change(p) }) }
@@ -229,7 +268,7 @@ class InboxViewModel internal constructor(
         val task = state.current?.takeIf { it.id == itemId } ?: return
         val prompt = state.prompt ?: return
         if (state.offline || justRan() || !prompt.isValid(state.today)) return
-        run(task, prompt.action())
+        run(task, prompt.action(clock.zone))
     }
 
     fun dismissMessage() = local.update { it.copy(message = null) }
@@ -261,7 +300,7 @@ class InboxViewModel internal constructor(
             local.update {
                 val message =
                     when (result) {
-                        ProcessResult.Processed -> null
+                        ProcessResult.Processed, is ProcessResult.Converted -> null
                         ProcessResult.Offline -> InboxMessage.OFFLINE
                         ProcessResult.Conflict -> InboxMessage.CONFLICT
                         is ProcessResult.Rejected -> InboxMessage.FAILED
@@ -271,6 +310,7 @@ class InboxViewModel internal constructor(
                     processed = if (message == null) it.processed + 1 else it.processed,
                     edit = it.edit?.takeIf { (id, _) -> id != task.id || message != null },
                     message = message ?: it.message,
+                    converted = (result as? ProcessResult.Converted)?.item ?: it.converted,
                 )
             }
         }

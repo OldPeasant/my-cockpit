@@ -63,4 +63,6 @@
     <string name="inbox_confirm_schedule">Einplanen</string>
     <string name="inbox_confirm_tickler">Bis dahin ausblenden</string>
     <string name="inbox_confirm_project">Zum Projekt verschieben</string>
+    <string name="inbox_action_reference">Zu Referenz</string>
+    <string name="inbox_action_calendar">In den Kalender</string>
 </resources>
