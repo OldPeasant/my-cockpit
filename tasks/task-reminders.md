@@ -1,11 +1,11 @@
 ---
 title: Reminders on tasks (web + Android)
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [and-task-detail-dates, web-task-actions, and-links-panel, web-task-reminders, and-task-reminders]
 touches: [web/src/app/features/gtd/task-detail,android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/test/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml,web/src/locale]
 prio: 2
-lease_until: 
+lease_until: 2026-11-09T00:19:51Z
 subtasks: web-task-reminders, and-task-reminders
 releases: 0
 extended: 
