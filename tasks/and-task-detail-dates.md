@@ -1,13 +1,14 @@
 ---
 title: Android task detail: scheduled, tickler, recurrence, all lists
-status: in_progress
-owner: rudi/agent-1
+status: todo
+owner: 
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/test/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml]
 prio: 2
-lease_until: 2026-11-08T12:56:37Z
+lease_until: 
 extended: 
-releases: 2
+releases: 3
+hold: given back 3 times; last: Everything done except the final check: code, tests, review (0 findings), tests.md, quality.json (reviewed_revision 18ce008a = rebased 76244b1e) committed; criteria 1-5 verif
 ---
 ## Goal
 Android task detail shows scheduled/tickler/recurrence read-only (`TaskDetailScreen.kt:553,554,574`) and can only
@@ -36,3 +37,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - release by rudi/agent-1: Implementation complete and committed (up to 28546b99); android ktlintCheck testDebugUnitTest lintDebug passes; previous review CR-1/CR-2 fixed. Left: (1) fix new review P3 CR-1 in reviews/and-task-detail-dates/review.md: RepeatDraft.of (TaskRepeat.kt:84) must treat INTERVAL>999 as a custom rule so such tasks stay saveable, plus a TaskRepeatTest case; (2) run test-writer (reviews/.../tests.md missing) and code-reviewer on the final code; (3) tasks.py verify all 6 criteria; (4) sh scripts/check.sh; (5) write quality.json; (6) done.
 - release by felix/agent-1: over budget after 2 sessions (~52 min) and a review that decided nothing; still resumable: continue from wip/and-task-detail-dates (see git log)
 - ASSUMPTION (2026-11-08 13:36+0100 by rudi/agent-1): check.sh fails on rudi's machine only in unrelated server PageFetcherSizeLimitTests (HTTP/2 reuse case, 4/50 TIMEOUT; failed also alone 4 of 4 runs); android ktlintCheck testDebugUnitTest lintDebug passes; filed fix-flaky-pagefetcher-size-test
+- release by rudi/agent-1: Everything done except the final check: code, tests, review (0 findings), tests.md, quality.json (reviewed_revision 18ce008a = rebased 76244b1e) committed; criteria 1-5 verified; 'cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug' passes (2026-11-08). Left: sh scripts/check.sh must pass, then verify #6 and done. Blocker on rudi's machine: server PageFetcherSizeLimitTests HTTP/2 reuse case fails every run (TIMEOUT 4/50), unrelated to this Android task -> new task fix-flaky-pagefetcher-size-test; finish on another machine or after that fix.
