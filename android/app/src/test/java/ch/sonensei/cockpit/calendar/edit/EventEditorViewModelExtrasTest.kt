@@ -825,4 +825,114 @@ class EventEditorViewModelExtrasTest {
             assertEquals(EventEditorUiState(), vm.uiState.value)
             coVerify(exactly = 0) { extras.suggestions(any()) }
         }
+
+    // --- Answers arriving late or out of order
+
+    @Test
+    fun `the links answer of a closed editor never shows in the next event`() =
+        runTest(dispatcher) {
+            val pending = CompletableDeferred<CalendarResult<List<LinkedItem>>>()
+            coEvery { extras.links(local.eventId) } coAnswers { pending.await() }
+            coEvery { extras.links(synced.eventId) } returns CalendarResult.Ok(emptyList())
+            val vm = editing()
+            assertTrue(
+                vm.uiState.value.links!!
+                    .loading,
+            )
+            vm.close()
+            vm.edit(synced, calendars)
+            advanceUntilIdle()
+            assertEquals(LinksUiState(), vm.uiState.value.links)
+
+            pending.complete(CalendarResult.Ok(listOf(link)))
+            advanceUntilIdle()
+            assertEquals("the closed event's links stay out", LinksUiState(), vm.uiState.value.links)
+        }
+
+    @Test
+    fun `an older suggestions answer arriving after a newer query is dropped`() =
+        runTest(dispatcher) {
+            val older = CompletableDeferred<CalendarResult<List<Attendee>>>()
+            val carol = Attendee("carol@example.org", "Carol")
+            val dave = Attendee("dave@example.org", "Dave")
+            coEvery { extras.suggestions("ca") } coAnswers { older.await() }
+            coEvery { extras.suggestions("da") } returns CalendarResult.Ok(listOf(dave))
+            val vm = editing()
+            vm.setGuestQuery("ca")
+            advanceTimeBy(300)
+            runCurrent()
+            vm.setGuestQuery("da")
+            advanceUntilIdle()
+            assertEquals(listOf(dave), vm.uiState.value.suggestions)
+
+            older.complete(CalendarResult.Ok(listOf(carol)))
+            advanceUntilIdle()
+            assertEquals(listOf(dave), vm.uiState.value.suggestions)
+        }
+
+    @Test
+    fun `suggestions still loading when a guest is added are not shown afterwards`() =
+        runTest(dispatcher) {
+            val pending = CompletableDeferred<CalendarResult<List<Attendee>>>()
+            coEvery { extras.suggestions(any()) } coAnswers { pending.await() }
+            val vm = editing()
+            vm.setGuestQuery("carol@example.org")
+            advanceTimeBy(300)
+            runCurrent()
+            vm.addGuest()
+            pending.complete(CalendarResult.Ok(listOf(Attendee("carol.other@example.org", "Carol Other"))))
+            advanceUntilIdle()
+            val state = vm.uiState.value
+            assertEquals(emptyList<Attendee>(), state.suggestions)
+            assertEquals("", state.guestQuery)
+            assertEquals(
+                listOf(ada.email, bob.email, "carol@example.org"),
+                state.form!!.attendees.map { it.email },
+            )
+        }
+
+    @Test
+    fun `a reopened invitation prompt shows the newer accounts answer, not an older failure`() =
+        runTest(dispatcher) {
+            val older = CompletableDeferred<CalendarResult<List<MailAccount>>>()
+            coEvery { extras.mailAccounts() } coAnswers { older.await() } andThen CalendarResult.Ok(listOf(other))
+            val vm = editing()
+            vm.invite()
+            runCurrent()
+            vm.dismissInvitation()
+            vm.invite()
+            advanceUntilIdle()
+            older.complete(CalendarResult.Offline)
+            advanceUntilIdle()
+            val prompt = vm.uiState.value.invitation!!
+            assertFalse("an older failure must not replace a newer answer", prompt.loadFailed)
+            assertEquals(listOf(other), prompt.accounts)
+            assertEquals(other.id, prompt.accountId)
+            assertTrue(prompt.canSend)
+        }
+
+    @Test
+    fun `a save tapped twice while it runs creates the event once and offers one prompt`() =
+        runTest(dispatcher) {
+            val pending = CompletableDeferred<CalendarResult<EventDetails>>()
+            coEvery { repo.create(any()) } coAnswers { pending.await() }
+            val vm = viewModel()
+            vm.create(today.plusDays(1), calendars)
+            advanceUntilIdle()
+            vm.update { it.copy(title = "Kick-off") }
+            vm.setGuestQuery(ada.email)
+            vm.addGuest()
+            vm.save()
+            runCurrent()
+            vm.save()
+            vm.addGuest(bob)
+            pending.complete(CalendarResult.Ok(details(local, listOf(ada))))
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.create(any()) }
+            assertEquals(
+                listOf(ada.email),
+                vm.uiState.value.invitation!!
+                    .recipients,
+            )
+        }
 }
