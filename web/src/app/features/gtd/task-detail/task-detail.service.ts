@@ -3,11 +3,14 @@ import { inject, Injectable } from '@angular/core';
 import {
   Api,
   ChecklistItemResponse,
+  completeTask,
+  CompletedTaskResponse,
   convertTaskToEvent,
   convertTaskToNote,
   ConvertToEventRequest,
   createChecklistItem,
   deleteChecklistItem,
+  deleteTask,
   EventResponse,
   getTask,
   listChecklistItems,
@@ -16,6 +19,7 @@ import {
   NoteResponse,
   TaskPatchRequest,
   TaskResponse,
+  uncompleteTask,
   updateChecklistItem,
   UpdateChecklistItemRequest,
   updateTask,
@@ -49,6 +53,32 @@ export class TaskDetailService {
       { id: task.id, 'If-Match': etag(task.version), body },
       silent(),
     );
+  }
+
+  /** Marks the task done; the answer tells whether its project needs a new next step. */
+  complete(task: TaskResponse): Promise<CompletedTaskResponse> {
+    return this.api.invoke(
+      completeTask,
+      { id: task.id, 'If-Match': etag(task.version) },
+      silent(),
+    );
+  }
+
+  /**
+   * Reopens a done task. `toast`: the HTTP layer shows an error (for the undo snackbar, which may
+   * outlive the editor).
+   */
+  uncomplete(task: TaskResponse, toast = false): Promise<TaskResponse> {
+    return this.api.invoke(
+      uncompleteTask,
+      { id: task.id, 'If-Match': etag(task.version) },
+      toast ? undefined : silent(),
+    );
+  }
+
+  /** Moves the task to the Trash. */
+  async remove(task: TaskResponse): Promise<void> {
+    await this.api.invoke(deleteTask, { id: task.id, 'If-Match': etag(task.version) }, silent());
   }
 
   /** Moves the task to reference: it becomes a note, the task goes to the Trash. */

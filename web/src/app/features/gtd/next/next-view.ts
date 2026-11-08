@@ -25,6 +25,7 @@ import {
   Segmented,
   SegmentedOption,
   TaskRow,
+  TaskUndo,
 } from '../ui';
 import {
   FilterPreset,
@@ -70,6 +71,7 @@ export default class NextView {
   private readonly router = inject(Router);
   private readonly api = inject(Api);
   protected readonly store = inject(TaskStore);
+  private readonly undo = inject(TaskUndo);
   protected readonly projects = inject(ProjectStore);
   protected readonly contexts = inject(ContextStore);
   protected readonly presetStore = inject(FilterPresets);
@@ -219,9 +221,14 @@ export default class NextView {
   }
 
   protected toggleDone(task: TaskResponse): void {
-    void (task.completedAt ? this.store.uncomplete(task) : this.store.complete(task)).catch(
-      () => undefined,
-    );
+    if (task.completedAt) {
+      this.store.uncomplete(task).catch(() => undefined);
+      return;
+    }
+    this.store
+      .complete(task)
+      .then((done) => this.undo.completed(task, () => this.store.uncomplete(done)))
+      .catch(() => undefined);
   }
 
   protected open(task: TaskResponse): void {

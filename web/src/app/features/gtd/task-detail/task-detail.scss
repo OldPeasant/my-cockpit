@@ -40,7 +40,10 @@
   white-space: nowrap;
 }
 
-.to-calendar {
+// Complete, Delete, then the conversions, at the end of the header.
+.actions {
+  display: inline-flex;
+  gap: var(--app-space-2);
   margin-inline-start: auto;
 }
 

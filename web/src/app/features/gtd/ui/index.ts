@@ -12,3 +12,4 @@ export {
 export { CreativityPicker, EnergyPicker, EstimatePicker } from './pickers';
 export { Segmented, type SegmentedOption } from './segmented';
 export { TaskRow } from './task-row';
+export { TaskUndo, UNDO_DURATION_MS } from './task-undo';

@@ -51,7 +51,12 @@
     accent-color: var(--app-accent);
   }
 
-  &.done .step-text {
+  &.done .rename {
+  min-width: 0;
+  font: var(--mat-sys-body-medium);
+}
+
+.step-text {
     color: var(--app-fg-muted);
     text-decoration: line-through;
   }

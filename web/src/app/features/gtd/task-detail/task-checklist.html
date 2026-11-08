@@ -19,8 +19,36 @@
           [disabled]="busy()"
           (change)="toggleItem(item)"
         />
-        <label class="step-text" [for]="uid + '-step-' + item.id">{{ item.text }}</label>
+        @if (renaming()?.id === item.id) {
+          <input
+            type="text"
+            class="rename"
+            [value]="renaming()?.text"
+            (input)="renaming.set({ id: item.id, text: text($event) })"
+            (keydown.enter)="$event.preventDefault(); saveRename()"
+            (keydown.escape)="$event.stopPropagation(); cancelRename()"
+            (blur)="saveRename()"
+            i18n-aria-label="@@taskDetail.stepRenameField"
+            aria-label="Step text"
+          />
+        } @else {
+          <label class="step-text" [for]="uid + '-step-' + item.id">{{ item.text }}</label>
+        }
         <span class="step-actions">
+          <button
+            type="button"
+            class="icon"
+            [disabled]="busy()"
+            (click)="startRename(item)"
+            i18n-aria-label="@@taskDetail.stepRename"
+            aria-label="Rename step"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+              />
+            </svg>
+          </button>
           <button
             type="button"
             class="icon"

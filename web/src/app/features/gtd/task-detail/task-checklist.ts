@@ -1,10 +1,13 @@
 import { CdkDrag, CdkDragDrop, CdkDragHandle, CdkDropList } from '@angular/cdk/drag-drop';
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
   effect,
+  ElementRef,
   inject,
+  Injector,
   input,
   signal,
   untracked,
@@ -19,7 +22,7 @@ export const CHECKLIST_CONFLICT = $localize`:@@taskDetail.checklistConflict:The 
 let nextUid = 0;
 
 /**
- * The checklist of a task (SPEC.md §5.2): add, toggle, remove and reorder steps (drag, or the
+ * The checklist of a task (SPEC.md §5.2): add, toggle, rename, remove and reorder steps (drag, or the
  * up/down buttons). Each change is saved at once with the item's `If-Match`; a 412 reloads the list.
  * Needs a {@link TaskDetailService} from the parent.
  */
@@ -32,6 +35,8 @@ let nextUid = 0;
 })
 export class TaskChecklist {
   private readonly service = inject(TaskDetailService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
 
   readonly taskId = input.required<string>();
 
@@ -40,6 +45,10 @@ export class TaskChecklist {
   protected readonly error = signal<string | null>(null);
   protected readonly newItem = signal('');
   protected readonly busy = signal(false);
+  /** The step being renamed and its text so far, if any. */
+  protected readonly renaming = signal<{ readonly id: string; readonly text: string } | null>(
+    null,
+  );
   protected readonly doneCount = computed(() => this.items().filter((item) => item.done).length);
 
   constructor() {
@@ -47,6 +56,7 @@ export class TaskChecklist {
       const id = this.taskId();
       untracked(() => {
         this.items.set([]);
+        this.renaming.set(null);
         void this.load(id);
       });
     });
@@ -76,6 +86,39 @@ export class TaskChecklist {
     this.replace({ ...item, done: !item.done });
     await this.change(
       async () => this.replace(await this.service.updateChecklistItem(item, { done: !item.done })),
+      () => this.replace(item),
+    );
+  }
+
+  /** Turns the step's text into an input (Enter or leaving it saves, Escape cancels). */
+  protected startRename(item: ChecklistItemResponse): void {
+    if (this.busy()) return;
+    this.renaming.set({ id: item.id, text: item.text });
+    afterNextRender(
+      () => {
+        const input = this.host.nativeElement.querySelector<HTMLInputElement>('.rename');
+        input?.focus();
+        input?.select();
+      },
+      { injector: this.injector },
+    );
+  }
+
+  protected cancelRename(): void {
+    this.renaming.set(null);
+  }
+
+  /** Saves the new text of the step being renamed; an empty or unchanged text changes nothing. */
+  async saveRename(): Promise<void> {
+    const renaming = this.renaming();
+    if (!renaming) return;
+    this.renaming.set(null);
+    const item = this.items().find((other) => other.id === renaming.id);
+    const text = renaming.text.trim();
+    if (!item || !text || text === item.text) return;
+    this.replace({ ...item, text });
+    await this.change(
+      async () => this.replace(await this.service.updateChecklistItem(item, { text })),
       () => this.replace(item),
     );
   }

@@ -48,10 +48,35 @@
           @if (task()?.completedAt) {
             <span class="done" i18n="@@taskDetail.completed">Done</span>
           }
+          <span class="actions">
+            <button
+              type="button"
+              class="quiet complete"
+              [disabled]="busy() || (dirty() && !valid())"
+              (click)="toggleDone()"
+            >
+              @if (acting() === 'complete') {
+                <ng-container i18n="@@taskDetail.completing">Completing…</ng-container>
+              } @else if (acting() === 'reopen') {
+                <ng-container i18n="@@taskDetail.reopening">Reopening…</ng-container>
+              } @else if (task()?.completedAt) {
+                <ng-container i18n="@@taskDetail.reopen">Reopen</ng-container>
+              } @else {
+                <ng-container i18n="@@taskDetail.complete">Complete</ng-container>
+              }
+            </button>
+            <button type="button" class="quiet delete" [disabled]="busy()" (click)="remove()">
+              @if (acting() === 'delete') {
+                <ng-container i18n="@@taskDetail.deleting">Deleting…</ng-container>
+              } @else {
+                <ng-container i18n="@@taskDetail.delete">Delete</ng-container>
+              }
+            </button>
+          </span>
           <button
             type="button"
             class="quiet to-calendar"
-            [disabled]="saving() || converting()"
+            [disabled]="busy()"
             (click)="toCalendar()"
           >
             @if (converting() === 'event') {
@@ -63,7 +88,7 @@
           <button
             type="button"
             class="quiet reference"
-            [disabled]="saving() || converting()"
+            [disabled]="busy()"
             (click)="toReference()"
           >
             @if (converting() === 'note') {
@@ -97,10 +122,30 @@
             }
 
             <div class="block">
+              @let showSource = editingNotes() || !d.notesMd.trim() || !!error('notesMd');
               <div class="block-head">
                 <label for="td-notes" i18n="@@taskDetail.notes">Notes</label>
                 <span class="hint" i18n="@@taskDetail.notesHint">Markdown</span>
+                @if (!showSource) {
+                  <button
+                    type="button"
+                    class="quiet edit-notes"
+                    (click)="editNotes()"
+                    i18n="@@taskDetail.editNotes"
+                  >
+                    Edit
+                  </button>
+                }
               </div>
+              @if (!showSource) {
+                <!-- Clicking the rendered notes edits them; the Edit button is the keyboard way. -->
+                <div
+                  id="td-notes-view"
+                  class="markdown notes-view"
+                  [innerHTML]="notesHtml()"
+                  (click)="notesClicked($event)"
+                ></div>
+              } @else {
               <textarea
                 id="td-notes"
                 class="notes"
@@ -114,6 +159,7 @@
               ></textarea>
               @if (error('notesMd'); as message) {
                 <p id="td-notes-error" class="field-error">{{ message }}</p>
+              }
               }
             </div>
 
@@ -360,7 +406,7 @@
             type="submit"
             class="primary"
             aria-keyshortcuts="Control+Enter Meta+Enter Control+S Meta+S"
-            [disabled]="!dirty() || !valid() || saving()"
+            [disabled]="!dirty() || !valid() || busy()"
           >
             <ng-container i18n="@@taskDetail.save">Save changes</ng-container>
             <kbd aria-hidden="true" i18n="@@taskDetail.saveShortcut">Ctrl/⌘ ↵</kbd>

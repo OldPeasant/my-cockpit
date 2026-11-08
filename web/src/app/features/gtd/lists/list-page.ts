@@ -2,6 +2,7 @@ import { Directive, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { TaskResponse } from '../../../api/generated';
 import { ContextStore, localDate, ProjectStore, TaskQuery, TaskStore } from '../data';
+import { TaskUndo } from '../ui';
 
 /**
  * What the GTD list views share: the task store of their list (each view provides its own
@@ -14,6 +15,7 @@ export abstract class ListPage {
   protected readonly contexts = inject(ContextStore);
   protected readonly projects = inject(ProjectStore);
   private readonly router = inject(Router);
+  private readonly undo = inject(TaskUndo);
 
   protected readonly today = signal(localDate());
   /** Ids of the tasks whose action is running. */
@@ -37,10 +39,16 @@ export abstract class ListPage {
     void this.router.navigate(['/tasks', task.id]);
   }
 
-  /** The row checkbox: completes an open task, reopens a done one. */
+  /** The row checkbox: completes an open task (with an undo snackbar), reopens a done one. */
   protected toggleDone(task: TaskResponse): void {
-    const change = task.completedAt ? this.tasks.uncomplete(task) : this.tasks.complete(task);
-    change.catch(ignore);
+    if (task.completedAt) {
+      this.tasks.uncomplete(task).catch(ignore);
+      return;
+    }
+    this.tasks
+      .complete(task)
+      .then((done) => this.undo.completed(task, () => this.tasks.uncomplete(done)))
+      .catch(ignore);
   }
 
   /**

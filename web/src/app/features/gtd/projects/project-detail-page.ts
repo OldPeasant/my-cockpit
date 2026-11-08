@@ -23,7 +23,7 @@ import { map } from 'rxjs';
 import { ProjectResponse, TaskResponse } from '../../../api/generated';
 import { BackButton, BackNavigation } from '../../../shared/navigation';
 import { ContextStore, localDate, ProjectStore } from '../data';
-import { TaskRow } from '../ui';
+import { TaskRow, TaskUndo } from '../ui';
 import { AreaStore } from './area-store';
 import { renderMarkdown } from './markdown';
 import { MAX_PROJECT_TITLE, ProjectForm } from './project-form';
@@ -63,6 +63,7 @@ export class ProjectDetailPage {
   protected readonly contexts = inject(ContextStore);
   protected readonly areas = inject(AreaStore);
   private readonly router = inject(Router);
+  private readonly undo = inject(TaskUndo);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
 
@@ -140,16 +141,25 @@ export class ProjectDetailPage {
     void this.router.navigate(['/tasks', task.id]);
   }
 
-  /** The row checkbox: completes the task; when it was the next step, asks for the new one. */
+  /**
+   * The row checkbox: completes the task (with an undo snackbar); when it was the next step, asks
+   * for the new one. Undoing reopens the task and closes that prompt.
+   */
   protected async complete(task: TaskResponse): Promise<void> {
+    let done: TaskResponse | undefined;
     await this.run(task.id, async () => {
-      const done = await this.tasks.complete(task);
-      if (done.needsNextStep) {
+      const completed = await this.tasks.complete(task);
+      done = completed;
+      if (completed.needsNextStep) {
         this.nextTask.set('');
         this.openPrompt({ done: task.title });
         await this.projects.refresh();
       }
     });
+    if (!done) return;
+    const reopened = done;
+    const undone = await this.undo.completed(task, () => this.tasks.uncomplete(reopened));
+    if (undone && this.prompt()?.done === task.title) this.prompt.set(null);
   }
 
   /** Makes `task` the project's next step (from a row or the prompt). */

@@ -10,7 +10,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { TaskResponse } from '../../../api/generated';
 import { ContextStore, localDate, ProjectStore, TaskStore } from '../data';
-import { TaskRow } from '../ui';
+import { TaskRow, TaskUndo } from '../ui';
 import { TodayEvents } from './today-events';
 import { TODAY_SECTIONS } from './today-sections';
 
@@ -46,6 +46,7 @@ interface TaskSection {
 })
 export default class TodayView {
   private readonly router = inject(Router);
+  private readonly undo = inject(TaskUndo);
   private readonly overdue = inject(OVERDUE);
   private readonly dueToday = inject(DUE_TODAY);
   private readonly scheduled = inject(SCHEDULED);
@@ -109,7 +110,14 @@ export default class TodayView {
 
   protected toggleDone(section: TaskSection, task: TaskResponse): void {
     const store = section.store;
-    void (task.completedAt ? store.uncomplete(task) : store.complete(task)).catch(() => undefined);
+    if (task.completedAt) {
+      store.uncomplete(task).catch(() => undefined);
+      return;
+    }
+    store
+      .complete(task)
+      .then((done) => this.undo.completed(task, () => store.uncomplete(done)))
+      .catch(() => undefined);
   }
 
   protected open(task: TaskResponse): void {

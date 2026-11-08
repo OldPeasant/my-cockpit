@@ -1,10 +1,13 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
   DestroyRef,
   effect,
+  ElementRef,
   inject,
+  Injector,
   input,
   output,
   signal,
@@ -19,6 +22,7 @@ import { ChangeEventsService } from '../../../core/events';
 import { ApiError } from '../../../core/http';
 import { LinkedItems } from '../../../shared/links';
 import { ContextStore, localDate, ProjectStore } from '../data';
+import { renderMarkdown } from '../projects/markdown';
 import {
   ContextChips,
   Creativity,
@@ -27,6 +31,7 @@ import {
   EnergyPicker,
   EstimatePicker,
   Segmented,
+  TaskUndo,
 } from '../ui';
 import {
   RECURRENCE_MODES,
@@ -86,7 +91,7 @@ type LoadKind = 'initial' | 'background' | 'conflict';
   ],
   providers: [TaskDetailService],
   templateUrl: './task-detail.html',
-  styleUrls: ['./controls.scss', './task-detail.scss'],
+  styleUrls: ['./controls.scss', './task-detail.scss', './task-detail-notes.scss'],
   host: { '(keydown)': 'onKeydown($event)' },
 })
 export class TaskDetail {
@@ -94,7 +99,10 @@ export class TaskDetail {
   protected readonly contexts = inject(ContextStore);
   private readonly projects = inject(ProjectStore);
   private readonly router = inject(Router);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
   private readonly dialog = inject(MatDialog);
+  private readonly undo = inject(TaskUndo);
 
   readonly taskId = input.required<string>();
   /** Where closing leads ("Today", the project's title), shown on the close button; none: "Close". */
@@ -130,6 +138,20 @@ export class TaskDetail {
     const conversion = this.conversion();
     return conversion?.id === this.taskId() ? conversion.to : null;
   });
+  /** The task whose Complete, Reopen or Delete is running, if any, and which one. */
+  private readonly action = signal<{ id: string; kind: TaskAction } | null>(null);
+  /** Which of Complete, Reopen or Delete runs for the task shown. */
+  protected readonly acting = computed<TaskAction | null>(() => {
+    const action = this.action();
+    return action?.id === this.taskId() ? action.kind : null;
+  });
+  /** Saving, converting or another action runs: the actions and the save button wait. */
+  protected readonly busy = computed(
+    () => this.saving() || this.converting() !== null || this.acting() !== null,
+  );
+  /** The notes are edited as Markdown source (else shown rendered, when there are any). */
+  protected readonly editingNotes = signal(false);
+  protected readonly notesHtml = computed(() => renderMarkdown(this.draft()?.notesMd ?? ''));
   /** The task met a newer version on the server and was reloaded. */
   protected readonly conflict = signal(false);
   /** The last save error other than a conflict or field errors. */
@@ -168,7 +190,10 @@ export class TaskDetail {
     void this.projects.ensureLoaded();
     effect(() => {
       const id = this.taskId();
-      untracked(() => void this.load(id, 'initial'));
+      untracked(() => {
+        this.editingNotes.set(false);
+        void this.load(id, 'initial');
+      });
     });
     const events = inject(ChangeEventsService);
     events
@@ -178,10 +203,13 @@ export class TaskDetail {
         takeUntilDestroyed(),
       )
       .subscribe((event) => {
-        if (event.op === 'DELETED') this.state.set('deleted');
+        // Our own Delete navigates back; the event must not replace the page meanwhile.
+        if (event.op === 'DELETED') {
+          if (this.acting() !== 'delete') this.state.set('deleted');
+        }
         // Someone else changed it: show the new version unless the user is editing or the task
         // is turning into a note or an event.
-        else if (!this.dirty() && !this.saving() && !this.converting()) {
+        else if (!this.dirty() && !this.busy()) {
           void this.load(this.taskId(), 'background');
         }
       });
@@ -248,10 +276,101 @@ export class TaskDetail {
     else if (mode !== current) this.edit({ repeatMode: mode });
   }
 
+  /** Switches the notes to their Markdown source and focuses it. */
+  protected editNotes(): void {
+    this.editingNotes.set(true);
+    afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('#td-notes')?.focus(), {
+      injector: this.injector,
+    });
+  }
+
+  /**
+   * A click on the rendered notes edits them, except on a link (which opens) or while text is
+   * being selected.
+   */
+  protected notesClicked(event: MouseEvent): void {
+    if ((event.target as HTMLElement).closest('a')) return;
+    if (window.getSelection()?.toString()) return;
+    this.editNotes();
+  }
+
+  /**
+   * Marks the task done, or reopens it when it is done. Unsaved changes are saved first. Completing
+   * offers "Undo" in a snackbar.
+   */
+  async toggleDone(): Promise<void> {
+    if (this.busy() || !this.task()) return;
+    if (this.dirty()) {
+      await this.save();
+      if (this.dirty()) return;
+    }
+    const task = this.task();
+    if (!task) return;
+    const kind: TaskAction = task.completedAt ? 'reopen' : 'complete';
+    await this.act(task, kind, async () => {
+      const result =
+        kind === 'complete'
+          ? await this.service.complete(task)
+          : await this.service.uncomplete(task);
+      if (task.id !== this.taskId()) return;
+      this.showSaved(result);
+      if (kind === 'complete') {
+        void this.undo.completed(task, () => this.reopenFromUndo(result));
+      }
+    });
+  }
+
+  /**
+   * Moves the task to the Trash (unsaved changes are confirmed and dropped), offers "Undo" in a
+   * snackbar and goes back to where the task was opened from.
+   */
+  async remove(): Promise<void> {
+    const task = this.task();
+    if (!task || this.busy()) return;
+    if (this.dirty() && !confirm(DELETE_DIRTY_CONFIRM)) return;
+    await this.act(task, 'delete', async () => {
+      await this.service.remove(task);
+      void this.undo.deleted(task);
+      if (task.id === this.taskId()) this.closed.emit();
+    });
+  }
+
+  /** The snackbar's "Undo" after completing: reopens the newest version known of the task. */
+  private async reopenFromUndo(done: TaskResponse): Promise<void> {
+    const shown = this.task();
+    const latest = shown?.id === done.id && shown.version > done.version ? shown : done;
+    const reopened = await this.service.uncomplete(latest, true);
+    // Show it, unless the editor moved on or the user started editing meanwhile.
+    if (reopened.id === this.taskId() && !this.dirty() && !this.busy()) this.showSaved(reopened);
+  }
+
+  /** Runs Complete, Reopen or Delete of `task`; errors show like save errors. */
+  private async act(task: TaskResponse, kind: TaskAction, run: () => Promise<void>): Promise<void> {
+    this.action.set({ id: task.id, kind });
+    this.saveError.set(null);
+    this.conflict.set(false);
+    // A background reload started before would answer with an older version.
+    this.loadSeq++;
+    try {
+      await run();
+    } catch (error) {
+      if (task.id === this.taskId()) await this.failed(error);
+    } finally {
+      if (this.action()?.id === task.id) this.action.set(null);
+    }
+  }
+
+  /** Shows `task` as the saved version (form included). */
+  private showSaved(task: TaskResponse): void {
+    this.task.set(task);
+    this.draft.set(draftOf(task));
+  }
+
   /** Puts the form back to the saved task. */
   protected discard(): void {
     const task = this.task();
     if (task) this.draft.set(draftOf(task));
+    this.editingNotes.set(false);
     this.serverErrors.set({});
     this.saveError.set(null);
   }
@@ -267,7 +386,7 @@ export class TaskDetail {
    */
   async toReference(): Promise<void> {
     const task = this.task();
-    if (!task || this.saving() || this.converting()) return;
+    if (!task || this.busy()) return;
     if (!confirm(this.dirty() ? REFERENCE_DIRTY_CONFIRM : REFERENCE_CONFIRM)) return;
     await this.convert(task, 'note', async () => {
       const note = await this.service.convertToNote(task);
@@ -282,10 +401,10 @@ export class TaskDetail {
    */
   async toCalendar(): Promise<void> {
     const task = this.task();
-    if (!task || this.saving() || this.converting()) return;
+    if (!task || this.busy()) return;
     const request = await askForCalendar(this.dialog, { title: task.title, unsaved: this.dirty() });
     // Cancelled, or the editor moved on (another task, a save) while the dialog was open.
-    if (!request || task.id !== this.taskId() || this.saving() || this.converting()) return;
+    if (!request || task.id !== this.taskId() || this.busy()) return;
     await this.convert(task, 'event', async () => {
       const event = await this.service.convertToEvent(this.task() ?? task, request);
       return { commands: ['/calendar'], queryParams: { date: eventStartDay(event) } };
@@ -329,7 +448,7 @@ export class TaskDetail {
   async save(): Promise<void> {
     const task = this.task();
     const draft = this.draft();
-    if (!task || !draft || this.saving() || this.converting() || !this.valid() || !this.dirty()) {
+    if (!task || !draft || this.busy() || !this.valid() || !this.dirty()) {
       return;
     }
     this.saving.set(true);
@@ -348,7 +467,10 @@ export class TaskDetail {
       if (task.id !== this.taskId()) return;
       this.task.set(current);
       // Edits made while the save ran stay: they are compared with the saved version now.
-      if (this.draft() === draft) this.draft.set(draftOf(current));
+      if (this.draft() === draft) {
+        this.draft.set(draftOf(current));
+        this.editingNotes.set(false);
+      }
       this.flashSaved();
     } catch (error) {
       // Neither the result nor a conflict reload of the previous task belongs to the new one.
@@ -413,7 +535,7 @@ export class TaskDetail {
   /** A background answer must not replace edits, a running save or a newer version. */
   private isStale(task: TaskResponse): boolean {
     const shown = this.task();
-    return this.dirty() || this.saving() || (!!shown && task.version < shown.version);
+    return this.dirty() || this.busy() || (!!shown && task.version < shown.version);
   }
 
   private flashSaved(): void {
@@ -426,8 +548,12 @@ export class TaskDetail {
 /** What a task can be converted into. */
 type ConversionTarget = 'note' | 'event';
 
+/** The actions of the header besides the conversions. */
+type TaskAction = 'complete' | 'reopen' | 'delete';
+
 const REFERENCE_CONFIRM = $localize`:@@taskDetail.referenceConfirm:Move this task to reference? It becomes a note and the task goes to the Trash.`;
 const REFERENCE_DIRTY_CONFIRM = $localize`:@@taskDetail.referenceDirtyConfirm:Move this task to reference? Your unsaved changes are discarded; the note gets the saved version.`;
+const DELETE_DIRTY_CONFIRM = $localize`:@@taskDetail.deleteDirtyConfirm:Move this task to the Trash? Your unsaved changes are discarded.`;
 const DISCARD_CONFIRM = $localize`:@@taskDetail.discardConfirm:Discard your unsaved changes?`;
 
 /** The fields the form shows server errors under; others go to the save bar. */
