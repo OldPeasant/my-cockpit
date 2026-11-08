@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
+import androidx.core.graphics.createBitmap
 import java.io.Closeable
 import java.io.File
 import java.io.IOException
@@ -58,7 +59,7 @@ private class RendererPdfPages(
         return try {
             if (page.width <= 0 || page.height <= 0) return null
             val (w, h) = pageSize(width, page.width, page.height)
-            Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also {
+            createBitmap(w, h).also {
                 // Pages are transparent where nothing is drawn: paper is white, also in the dark theme.
                 it.eraseColor(Color.WHITE)
                 page.render(it, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)

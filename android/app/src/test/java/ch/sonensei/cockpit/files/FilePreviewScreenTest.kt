@@ -45,6 +45,8 @@ import java.io.File
 import java.io.IOException
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /** The in-app preview over the Files list, driven by states the tests control; PDFs come from a fake renderer. */
 @RunWith(AndroidJUnit4::class)
@@ -109,6 +111,13 @@ class FilePreviewScreenTest {
             CockpitTheme { FilesContent(live.value, callbacks, imageLoader = imageLoader, pdfOpener = pdfOpener) }
         }
         return live
+    }
+
+    /** Lets the preview leave, then waits a while for the PDF to close, which happens off the main thread. */
+    private fun assertClosed(pdf: FakePdf) {
+        composeRule.waitForIdle()
+        runCatching { composeRule.waitUntil(WAIT_MS) { pdf.closed } }
+        assertTrue("the PDF was left open", pdf.closed)
     }
 
     private fun waitForTag(tag: String) =
@@ -447,9 +456,28 @@ class FilePreviewScreenTest {
         assertFalse(fake.closed)
 
         state.value = preview(2, PreviewContent.Text("Milch", false))
-        composeRule.waitForIdle()
-        assertTrue("the PDF was left open", fake.closed)
+        assertClosed(fake)
         composeRule.onNodeWithTag(PreviewTags.TEXT).assertTextEquals("Milch")
+        composeRule.onNodeWithTag(PreviewTags.PDF_PAGE).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a PDF still opening when the preview moves on is closed once it is open`() {
+        val fake = FakePdf(pageCount = 2)
+        val opening = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val state =
+            show(preview(1, PreviewContent.Pdf(File("fictitious/2025.pdf")))) {
+                opening.countDown()
+                release.await(WAIT_MS, TimeUnit.MILLISECONDS)
+                fake
+            }
+        assertTrue("the PDF was never opened", opening.await(WAIT_MS, TimeUnit.MILLISECONDS))
+
+        state.value = preview(2, PreviewContent.Text("Milch", false))
+        composeRule.onNodeWithTag(PreviewTags.TEXT).assertTextEquals("Milch")
+        release.countDown()
+        assertClosed(fake)
         composeRule.onNodeWithTag(PreviewTags.PDF_PAGE).assertDoesNotExist()
     }
 
@@ -460,8 +488,7 @@ class FilePreviewScreenTest {
         waitForTag(PreviewTags.PDF_PAGE)
 
         state.value = state.value.copy(preview = null)
-        composeRule.waitForIdle()
-        assertTrue("the PDF was left open", fake.closed)
+        assertClosed(fake)
         composeRule.onNodeWithTag(PreviewTags.PREVIEW).assertDoesNotExist()
         composeRule.onNodeWithTag(FilesTags.entry(pdf.id)).assertExists()
     }
@@ -509,8 +536,7 @@ class FilePreviewScreenTest {
         composeRule.onNodeWithTag(PreviewTags.PDF_PAGE).assertDoesNotExist()
 
         state.value = state.value.copy(preview = null)
-        composeRule.waitForIdle()
-        assertTrue("the PDF was left open", empty.closed)
+        assertClosed(empty)
     }
 
     @Test

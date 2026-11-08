@@ -370,13 +370,16 @@ private fun PdfPreview(
     file: DriveEntry.File,
 ) {
     val state by produceState<PdfState>(PdfState.Opening, pdf) {
-        // Opened even when the preview moves on meanwhile, so it is always closed again.
-        val pages = withContext(NonCancellable + Dispatchers.IO) { opener(pdf) }
+        // Kept inside the non-cancellable block: a PDF opened while the preview moves on is still closed again.
+        var pages: PdfPages? = null
         try {
-            value = if (pages == null || pages.pageCount <= 0) PdfState.Failed else PdfState.Open(pages)
+            withContext(NonCancellable + Dispatchers.IO) { pages = opener(pdf) }
+            val opened = pages
+            value = if (opened == null || opened.pageCount <= 0) PdfState.Failed else PdfState.Open(opened)
             awaitCancellation()
         } finally {
-            pages?.close()
+            // Off the main thread: closing waits for a page that is still rendering.
+            withContext(NonCancellable + Dispatchers.IO) { pages?.close() }
         }
     }
     when (val s = state) {

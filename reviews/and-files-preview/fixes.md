@@ -92,3 +92,77 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed. The fixer could not run validation, so the parent must run it.
+
+# Round 2 (review of 63d0999f4)
+
+Date: 2026-11-08
+
+Task: and-files-preview - Android files: in-app preview
+
+Scope: the two findings of the re-review of 63d0999f4 (reviews/and-files-preview/review.md), on top of HEAD 6459fb674.
+
+## Fixed findings
+
+### CR-1 — A PDF opened while the preview is leaving is never closed (PdfRenderer and file descriptor leak)
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/files/FilePreviewView.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/files/FilePreviewScreenTest.kt`
+
+Problem:
+`PdfPreview` took the opened `PdfPages` as the return value of `withContext(NonCancellable + Dispatchers.IO)`. If the `produceState` coroutine was cancelled while the opener ran, `withContext` threw `CancellationException` on its way back and the result was dropped before the `try`/`finally` began, so the renderer and its fd stayed open.
+
+Fix:
+`pages` is now a local `var` declared before the `try`, and the opener result is assigned to it inside the non-cancellable block. The `finally` therefore always sees the opened PDF and closes it, also when the cancellation surfaces as the block returns.
+
+Regression test: "a PDF still opening when the preview moves on is closed once it is open". Its opener blocks on a latch, the test steps the preview to the next file and waits until the text shows, then releases the opener and asserts that the returned fake PDF was closed. With the old line restored (result taken from the `withContext` return value), this test fails ("the PDF was left open"). With the fix, it passes.
+
+Validation:
+- `./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.files.FilePreviewScreenTest'` with the old open line temporarily restored — Fail, as expected (1 of 33: the new test)
+- `./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.files.*'` with the fix — Pass
+
+### CR-2 — Closing the PDF can block the main thread while a page renders
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/files/FilePreviewView.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/files/FilePreviewScreenTest.kt`
+
+Problem:
+`pages?.close()` ran in the `finally` on the composition's main dispatcher, and `RendererPdfPages.close` waits on the same lock as a running `render`.
+
+Fix:
+The `finally` now closes with `withContext(NonCancellable + Dispatchers.IO) { pages?.close() }`. `NonCancellable` lets the block run in the already cancelled coroutine, so the close is still guaranteed.
+
+Because the close now runs on IO, the three existing tests that asserted `closed` right after `waitForIdle()` would race. They now use a helper `assertClosed`, which calls `waitForIdle()` (this lets the preview leave and the `finally` start), then waits up to `WAIT_MS` for the close, then asserts with the same message "the PDF was left open". The assertions are not weakened: each test still fails if the PDF is never closed. A trace confirmed that `waitUntil` alone does not let the composition leave, so the `waitForIdle()` is needed.
+
+Validation:
+- `./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.files.*'` — Pass (FilePreviewScreenTest 33/33, FilesViewModelTest 61, FilesScreenTest 28, FilesRouteInAppTest 24, FilesRepositoryTest 23, FilePreviewViewModelTest 18, DeviceFilesTest 18, FilePreviewModelsTest 12, PreviewFilesTest 5, FilesModelsTest 5, 0 failures)
+
+## Not fixed
+
+None of the supplied findings.
+
+Observed, not a supplied finding: `./gradlew lintDebug` fails with 1 error, `UseKtx` ("Use the KTX function createBitmap instead?"), at `android/app/src/main/java/ch/sonensei/cockpit/files/PdfPages.kt:61`. This line comes from task commit 340c6c113 and was not changed in this round. The fixer did not change it because it was not among the supplied findings. The parent should decide whether to fix it, since acceptance criterion 4 needs lintDebug to pass.
+
+## Validation summary
+
+Focused tests:
+- `./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.files.*'` — Pass
+- `./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.files.FilePreviewScreenTest'` — Pass, 33/33
+
+Full test suite:
+- Not run (the full Android unit suite and `sh scripts/check.sh` are left to the parent)
+
+Lint/type-check/build:
+- `./gradlew ktlintCheck` — Pass
+- `./gradlew lintDebug` — Fail: 1 error (UseKtx, PdfPages.kt:61), not caused by this round's changes
+
+`.taskcheck`:
+- Not run
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed. Focused validation passed. lintDebug still fails on an existing error that was not among the supplied findings.
