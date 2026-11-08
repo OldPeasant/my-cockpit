@@ -128,6 +128,7 @@ class Host {
 describe('TaskReminders', () => {
   const now = new Date(2026, 10, 10, 12, 0);
   let stored: Record<string, ReminderResponse[]>;
+  let loads: string[];
   let added: { taskId: string; remindAt: string }[];
   let deleted: string[];
   let failAdd: unknown;
@@ -142,6 +143,7 @@ describe('TaskReminders', () => {
 
   beforeEach(() => {
     stored = { t1: [], t2: [] };
+    loads = [];
     added = [];
     deleted = [];
     failAdd = failDelete = failLoad = undefined;
@@ -150,6 +152,7 @@ describe('TaskReminders', () => {
     let seq = 0;
     const service = {
       reminders: async (taskId: string) => {
+        loads.push(taskId);
         await loadGate[taskId];
         if (failLoad) throw failLoad;
         return stored[taskId] ?? [];
@@ -555,6 +558,83 @@ describe('TaskReminders', () => {
     expect(buttons('.retry').length).toBe(0);
     expect(banner()).toBeUndefined();
     expect(rows().length).toBe(1);
+  });
+
+  it('shows the error again and keeps the retry when the retry fails too', async () => {
+    failLoad = new Error('offline');
+    await render();
+    buttons('.retry')[0].click();
+    await refresh();
+    expect(loads).toEqual(['t1', 't1']);
+    expect(banner()).toBe('Something went wrong. Try again.');
+    expect(buttons('.retry').length).toBe(1);
+    expect(element.querySelector('.empty')).toBeNull();
+  });
+
+  it('does not reload while an add after a failed load is pending', async () => {
+    failLoad = new Error('offline');
+    await render();
+    const gate = deferred();
+    addGate = gate.promise;
+    buttons('.chip')[0].click();
+    await refresh();
+    // A retry while the add is pending would load a list without it, so it waits.
+    buttons('.retry')[0].click();
+    await refresh();
+    expect(loads).toEqual(['t1']);
+    gate.resolve();
+    await refresh();
+    expect(rows().length).toBe(1);
+    expect(buttons('.retry').length).toBe(1);
+  });
+
+  it('drops the retry when switching to a task whose list loads', async () => {
+    failLoad = new Error('offline');
+    await render();
+    expect(buttons('.retry').length).toBe(1);
+    failLoad = undefined;
+    host.id.set('t2');
+    await refresh();
+    expect(buttons('.retry').length).toBe(0);
+    expect(banner()).toBeUndefined();
+    expect(element.querySelector('.empty')?.textContent).toContain('No reminders.');
+  });
+
+  it('ignores a late answer from an earlier visit of the same task', async () => {
+    stored['t1'] = [reminder('r1', new Date(2026, 10, 21, 8, 0))];
+    const slow = deferred();
+    loadGate['t1'] = slow.promise;
+    await render();
+    host.id.set('t2');
+    await refresh();
+    // Back on t1: this visit's load answers at once, and the user adds a reminder.
+    delete loadGate['t1'];
+    host.id.set('t1');
+    await refresh();
+    expect(rows().length).toBe(1);
+    buttons('.chip')[0].click();
+    await refresh();
+    expect(rows().length).toBe(2);
+    // The load of the first visit answers last, with the list from before the add.
+    slow.resolve();
+    await refresh();
+    expect(rows().length).toBe(2);
+  });
+
+  it('ignores a late load failure from an earlier visit of the same task', async () => {
+    const slow = deferred();
+    loadGate['t1'] = slow.promise;
+    await render();
+    host.id.set('t2');
+    await refresh();
+    delete loadGate['t1'];
+    host.id.set('t1');
+    await refresh();
+    slow.reject(new Error('offline'));
+    await refresh();
+    expect(banner()).toBeUndefined();
+    expect(buttons('.retry').length).toBe(0);
+    expect(element.querySelector('.empty')?.textContent).toContain('No reminders.');
   });
 
   it('clears the typed time and the error when the task changes', async () => {
