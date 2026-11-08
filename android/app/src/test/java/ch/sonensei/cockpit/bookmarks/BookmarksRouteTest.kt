@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -18,6 +19,7 @@ import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -108,5 +110,54 @@ class BookmarksRouteTest {
 
         assertEquals(BookmarksSnackbar.NoBrowser, viewModel.uiState.value.snackbar)
         composeRule.onNodeWithText("No app on this device opens web pages.").assertExists()
+    }
+
+    @Test
+    fun `a bookmark added in the dialog is saved and shown in the queue`() {
+        val added = bookmark(3, "Added by hand").copy(createdAt = Instant.parse("2026-10-02T09:00:00Z"))
+        coEvery { repo.create(NewBookmark("https://example.org/3", readLater = true)) } returns BookmarksResult.Ok(added)
+        showRoute()
+
+        composeRule.onNodeWithTag(AdderTags.ADD).performClick()
+        composeRule.onNodeWithTag(AdderTags.URL).performTextInput("https://example.org/3")
+        composeRule.onNodeWithTag(AdderTags.SAVE).performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(AdderTags.DIALOG).assertDoesNotExist()
+        composeRule.onNodeWithTag(BookmarksTags.bookmark(added.id)).assertExists()
+    }
+
+    /** Opens the reader on bookmark 1 through its row menu, with [html] as its readable copy. */
+    private fun openReaderWith(html: String) {
+        val withCopy = bookmark(1, "Saved earlier").copy(url = "https://example.org/articles/1", snapshotFileId = id(90))
+        coEvery { repo.get(id(1)) } returns BookmarksResult.Ok(withCopy)
+        coEvery { repo.snapshot(id(90)) } returns BookmarksResult.Ok(BookmarkSnapshot(html, truncated = false))
+        showRoute()
+        composeRule.onNodeWithTag(BookmarksTags.menu(id(1))).performClick()
+        composeRule.onNodeWithTag(BookmarksTags.ACTION_OPEN_READER).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(ReaderTags.TEXT).assertExists()
+    }
+
+    @Test
+    fun `a relative link in the readable copy opens in the browser, resolved against the page`() {
+        openReaderWith("""<a href="next">Next part</a>""")
+
+        composeRule.onNodeWithTag(ReaderTags.TEXT).performClick()
+        composeRule.waitForIdle()
+
+        val started = shadowOf(composeRule.activity).nextStartedActivity
+        assertEquals(Intent.ACTION_VIEW, started.action)
+        assertEquals("https://example.org/articles/next", started.dataString)
+    }
+
+    @Test
+    fun `a script link in the readable copy opens nothing`() {
+        openReaderWith("""<a href="javascript:alert(1)">Click me</a>""")
+
+        composeRule.onNodeWithTag(ReaderTags.TEXT).performClick()
+        composeRule.waitForIdle()
+
+        assertNull(shadowOf(composeRule.activity).nextStartedActivity)
     }
 }

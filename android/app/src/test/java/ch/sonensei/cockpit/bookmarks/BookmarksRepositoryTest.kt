@@ -2,7 +2,12 @@ package ch.sonensei.cockpit.bookmarks
 
 import ch.sonensei.cockpit.core.network.generated.apis.BookmarksApi
 import ch.sonensei.cockpit.core.network.generated.infrastructure.Serializer
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import okhttp3.MediaType.Companion.toMediaType
@@ -11,8 +16,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
+import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import java.io.IOException
 import java.util.UUID
 
 /** The bookmark calls against a fake server: what is asked, and how answers and refusals are reported. */
@@ -162,5 +169,213 @@ class BookmarksRepositoryTest {
             assertEquals(BookmarksResult.Failed(null), repo.get(id(1)))
             server.close()
             assertEquals(BookmarksResult.Offline, repo.delete(bookmark(1)))
+        }
+
+    @Test
+    fun `toggling read later sends only the read-later flag with If-Match`() =
+        runBlocking {
+            server.enqueue(json(bookmarkJson(1).replace("\"readLater\":true", "\"readLater\":false")))
+
+            val result = repo.setReadLater(bookmark(1), readLater = false) as BookmarksResult.Ok
+
+            assertEquals(false, result.value.readLater)
+            val request = server.takeRequest()
+            assertEquals("PATCH", request.method)
+            assertEquals("/api/v1/bookmarks/${id(1)}", request.url.encodedPath)
+            assertEquals("\"7\"", request.headers["If-Match"])
+            assertEquals("""{"readLater":false}""", request.body?.utf8())
+        }
+
+    @Test
+    fun `a new bookmark sends the trimmed address, title, parsed tags and read later`() =
+        runBlocking {
+            server.enqueue(json(bookmarkJson(1), code = 201))
+
+            val result = repo.create(NewBookmark(" https://example.org/1 ", " Page 1 ", "#reading, Rust rust", readLater = true))
+
+            assertEquals(id(1), (result as BookmarksResult.Ok).value.id)
+            val request = server.takeRequest()
+            assertEquals("POST", request.method)
+            assertEquals("/api/v1/bookmarks", request.url.encodedPath)
+            assertEquals(
+                """{"url":"https://example.org/1","title":"Page 1","tags":["reading","Rust"],"readLater":true}""",
+                request.body?.utf8(),
+            )
+        }
+
+    @Test
+    fun `a new bookmark without title and tags leaves them out for the server to fill`() =
+        runBlocking {
+            server.enqueue(json(bookmarkJson(1), code = 201))
+
+            repo.create(NewBookmark("https://example.org/1", "   ", " , # "))
+
+            assertEquals("""{"url":"https://example.org/1","readLater":false}""", server.takeRequest().body?.utf8())
+        }
+
+    @Test
+    fun `a refused new bookmark is a failure with its status, no connection is offline`() =
+        runBlocking {
+            server.enqueue(status(400))
+            server.enqueue(status(500))
+
+            assertEquals(BookmarksResult.Failed(400), repo.create(NewBookmark("https://example.org/bad")))
+            assertEquals(BookmarksResult.Offline, repo.create(NewBookmark("https://example.org/1")))
+            server.close()
+            assertEquals(BookmarksResult.Offline, repo.create(NewBookmark("https://example.org/1")))
+        }
+
+    @Test
+    fun `the readable copy is the file preview, and says when it was cut short`() =
+        runBlocking {
+            val file = id(90)
+            server.enqueue(
+                MockResponse
+                    .Builder()
+                    .addHeader("Content-Type", "text/html")
+                    .addHeader("X-Preview-Truncated", "TRUE")
+                    .body("<p>Slow <a href=\"/next\">reading</a></p>")
+                    .build(),
+            )
+            server.enqueue(
+                MockResponse
+                    .Builder()
+                    .addHeader("Content-Type", "text/html")
+                    .body("<p>Short</p>")
+                    .build(),
+            )
+
+            val long = repo.snapshot(file)
+            val short = repo.snapshot(file)
+
+            assertEquals(BookmarksResult.Ok(BookmarkSnapshot("<p>Slow <a href=\"/next\">reading</a></p>", truncated = true)), long)
+            assertEquals(BookmarksResult.Ok(BookmarkSnapshot("<p>Short</p>", truncated = false)), short)
+            val request = server.takeRequest()
+            assertEquals("GET", request.method)
+            assertEquals("/api/v1/files/$file/preview", request.url.encodedPath)
+        }
+
+    @Test
+    fun `a readable copy that is gone or unreachable is a failure or offline`() =
+        runBlocking {
+            server.enqueue(status(404))
+            server.enqueue(status(503))
+
+            assertEquals(BookmarksResult.Failed(404), repo.snapshot(id(90)))
+            assertEquals(BookmarksResult.Offline, repo.snapshot(id(90)))
+        }
+
+    @Test
+    fun `saving a copy asks the server with If-Match and returns the bookmark with its copy`() =
+        runBlocking {
+            server.enqueue(json(bookmarkJson(1, extra = ",\"snapshotFileId\":\"${id(90)}\"")))
+
+            val result = repo.saveSnapshot(bookmark(1)) as BookmarksResult.Ok
+
+            assertEquals(id(90), result.value?.snapshotFileId)
+            val request = server.takeRequest()
+            assertEquals("POST", request.method)
+            assertEquals("/api/v1/bookmarks/${id(1)}/snapshot", request.url.encodedPath)
+            assertEquals("\"7\"", request.headers["If-Match"])
+        }
+
+    @Test
+    fun `a page the server cannot read is ok without a bookmark, other refusals stay failures`() =
+        runBlocking {
+            server.enqueue(
+                MockResponse
+                    .Builder()
+                    .code(502)
+                    .addHeader("Content-Type", "application/problem+json")
+                    .body("""{"status":502,"title":"Bad Gateway"}""")
+                    .build(),
+            )
+            server.enqueue(status(412))
+            server.enqueue(status(404))
+            server.enqueue(status(503))
+
+            assertEquals(BookmarksResult.Ok(null), repo.saveSnapshot(bookmark(1)))
+            assertEquals(BookmarksResult.Failed(412), repo.saveSnapshot(bookmark(1)))
+            assertEquals(BookmarksResult.Failed(404), repo.saveSnapshot(bookmark(1)))
+            assertEquals(BookmarksResult.Offline, repo.saveSnapshot(bookmark(1)))
+        }
+
+    @Test
+    fun `to Inbox creates an Inbox task with the title and address and links the bookmark as its origin`() =
+        runBlocking {
+            val task = id(50)
+            server.enqueue(json("""{"id":"$task","title":"Page 1"}""", code = 201))
+            server.enqueue(json("""{"id":"${id(51)}"}""", code = 201))
+
+            assertEquals(BookmarksResult.Ok(true), repo.toInbox(bookmark(1)))
+
+            val create = server.takeRequest()
+            assertEquals("POST", create.method)
+            assertEquals("/api/v1/tasks", create.url.encodedPath)
+            assertEquals("""{"title":"Page 1","notesMd":"https://example.org/1","list":"INBOX"}""", create.body?.utf8())
+            val link = server.takeRequest()
+            assertEquals("POST", link.method)
+            assertEquals("/api/v1/links", link.url.encodedPath)
+            assertEquals(
+                """{"source":{"type":"TASK","id":"$task"},"target":{"type":"BOOKMARK","id":"${id(1)}"},"label":"origin"}""",
+                link.body?.utf8(),
+            )
+        }
+
+    @Test
+    fun `a task title longer than the server allows is cut to 500 characters`() =
+        runBlocking {
+            server.enqueue(json("""{"id":"${id(50)}"}""", code = 201))
+            server.enqueue(json("""{"id":"${id(51)}"}""", code = 201))
+            val long = "x".repeat(600)
+
+            repo.toInbox(bookmark(1).copy(title = long, displayTitle = long))
+
+            val body = server.takeRequest().body!!.utf8()
+            assertEquals(true, body.contains("\"title\":\"${"x".repeat(500)}\""))
+            assertEquals(false, body.contains("x".repeat(501)))
+        }
+
+    @Test
+    fun `a task whose link fails is still ok but reported unlinked`() =
+        runBlocking {
+            server.enqueue(json("""{"id":"${id(50)}"}""", code = 201))
+            server.enqueue(status(400))
+            server.enqueue(json("""{"id":"${id(52)}"}""", code = 201))
+            server.enqueue(status(503))
+
+            assertEquals(BookmarksResult.Ok(false), repo.toInbox(bookmark(1)))
+            assertEquals(BookmarksResult.Ok(false), repo.toInbox(bookmark(1)))
+            assertEquals(4, server.requestCount)
+        }
+
+    @Test
+    fun `a task whose link has no connection is still ok but reported unlinked`() =
+        runBlocking {
+            val writeApi = mockk<BookmarksWriteApi>()
+            coEvery { writeApi.createTask(any()) } returns
+                Response.success(JsonObject(mapOf("id" to JsonPrimitive(id(50).toString()))))
+            coEvery { writeApi.createLink(any()) } throws IOException("connection lost")
+            val offlineLink = BookmarksRepository(mockk(), writeApi)
+
+            assertEquals(BookmarksResult.Ok(false), offlineLink.toInbox(bookmark(1)))
+            coVerify(exactly = 1) { writeApi.createLink(any()) }
+        }
+
+    @Test
+    fun `a refused or unreadable task makes no link`() =
+        runBlocking {
+            server.enqueue(status(400))
+            server.enqueue(json("""{"title":"no id"}""", code = 201))
+            server.enqueue(json("""{"id":"not-a-uuid"}""", code = 201))
+            server.enqueue(status(503))
+
+            assertEquals(BookmarksResult.Failed(400), repo.toInbox(bookmark(1)))
+            assertEquals(BookmarksResult.Failed(null), repo.toInbox(bookmark(1)))
+            assertEquals(BookmarksResult.Failed(null), repo.toInbox(bookmark(1)))
+            assertEquals(BookmarksResult.Offline, repo.toInbox(bookmark(1)))
+            // Only the four task calls, no link call.
+            assertEquals(4, server.requestCount)
+            repeat(4) { assertEquals("/api/v1/tasks", server.takeRequest().url.encodedPath) }
         }
 }

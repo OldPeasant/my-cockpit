@@ -93,4 +93,33 @@ class BookmarksModelsTest {
     fun `the If-Match value is the quoted version`() {
         assertEquals("\"42\"", etag(42))
     }
+
+    @Test
+    fun `a web address is an absolute http or https address with a host`() {
+        assertTrue(isWebAddress("https://example.org"))
+        assertTrue(isWebAddress("  HTTP://example.org/a?b=c  "))
+        assertFalse(isWebAddress(""))
+        assertFalse(isWebAddress("   "))
+        assertFalse(isWebAddress("example.org"))
+        assertFalse(isWebAddress("ftp://example.org/file"))
+        assertFalse(isWebAddress("mailto:someone@example.org"))
+        assertFalse(isWebAddress("javascript:alert(1)"))
+        assertFalse(isWebAddress("https://"))
+        assertFalse(isWebAddress("https:///path-only"))
+        assertFalse(isWebAddress("https://exa mple.org"))
+    }
+
+    @Test
+    fun `a link in the readable copy is resolved against the page, and only web addresses are opened`() {
+        val page = "https://example.org/articles/slow-reading"
+        assertEquals("https://example.org/articles/next", resolveLink(page, "next"))
+        assertEquals("https://example.org/about", resolveLink(page, " /about "))
+        assertEquals("https://other.example.net/x", resolveLink(page, "https://other.example.net/x"))
+        assertEquals("https://cdn.example.org/a", resolveLink(page, "//cdn.example.org/a"))
+        assertEquals(null, resolveLink(page, "javascript:alert(1)"))
+        assertEquals(null, resolveLink(page, "mailto:someone@example.org"))
+        assertEquals(null, resolveLink(page, "not a link"))
+        // A page address that is no web address cannot make a relative link one.
+        assertEquals(null, resolveLink("not a page", "next"))
+    }
 }
