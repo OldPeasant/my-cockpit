@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "task": "and-files-preview",
+  "reviewed_revision": "b521e71c92e151bc48913b68f364165a30cde45b",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-files-preview/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-files-preview/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-files-preview/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "cancelled PDF download kept copying and its cleanup deleted a newer load's cache file; cancellable copy loop + per-load cache file {id}-{n}.pdf (63d0999f4), repository/PreviewFiles/view-model tests"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "Save/Open with enabled during another file's download; busy = state.downloading != null disables them in top bar and cards (63d0999f4), Compose tests"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "formatter-wrapped status checks rewritten as when/local vals (63d0999f4)"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "PdfPages opened while the preview was cancelled leaked; assigned inside NonCancellable block, closed in finally (b521e71c9), test 'a PDF still opening when the preview moves on is closed once it is open'"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "PDF closed on main thread; now withContext(NonCancellable + Dispatchers.IO) (b521e71c9)"},
+    {"id": "LINT-1", "source": "parent", "severity": "P2", "disposition": "fixed",
+     "note": "lintDebug UseKtx error in PdfPages.kt; KTX createBitmap (b521e71c9), reviewed in final code review"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck lintDebug createDebugUnitTestCoverageReport -q (b521e71c9, 3860 tests, 0 failures; task files line coverage 1500/1541, branches 761/846)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
