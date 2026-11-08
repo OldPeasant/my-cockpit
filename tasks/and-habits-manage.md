@@ -20,3 +20,4 @@ target (`habits-page.ts:169`). The owner decided habits editing comes to Android
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 19:23+0100 by dell26/agent-3): Habit create/edit uses an AlertDialog form with +/- steppers for days-a-week (1-7) and times-a-day (1-1000) instead of free number fields, matching mobile idioms; the reminder uses the Material TimePicker and can be removed.
