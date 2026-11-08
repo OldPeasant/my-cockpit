@@ -119,6 +119,8 @@ class ContactsScreensTest {
         composeRule.onNodeWithText("Engineer, Beispiel AG").assertIsDisplayed()
         composeRule.onNodeWithTag(ContactsTags.CALL).performClick()
         composeRule.onNodeWithTag(ContactsTags.MAIL).performClick()
+        // The header (with its source line) can push the number rows below the fold of the lazy detail.
+        composeRule.onNodeWithTag(ContactsTags.DETAIL).performScrollToNode(hasTestTag(ContactsTags.phone("044 765 43 21")))
         composeRule.onNodeWithTag(ContactsTags.phone("044 765 43 21")).performClick()
         composeRule.onNodeWithTag(ContactsTags.DETAIL).performScrollToNode(hasTestTag(ContactsTags.email("anna@example.org")))
         composeRule.onNodeWithTag(ContactsTags.email("anna@example.org")).performClick()

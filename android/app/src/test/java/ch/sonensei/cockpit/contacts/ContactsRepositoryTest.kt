@@ -3,6 +3,11 @@ package ch.sonensei.cockpit.contacts
 import ch.sonensei.cockpit.core.network.generated.apis.ContactsApi
 import ch.sonensei.cockpit.core.network.generated.infrastructure.Serializer
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -10,6 +15,7 @@ import mockwebserver3.RecordedRequest
 import okhttp3.MediaType.Companion.toMediaType
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import retrofit2.Retrofit
@@ -128,5 +134,117 @@ class ContactsRepositoryTest {
         runBlocking {
             server.close()
             assertEquals(ContactsResult.Offline, contacts.list(null))
+        }
+
+    private val carlaJson =
+        """{"id":"${id(5)}","displayName":"Carla Beispiel","givenName":"Carla","familyName":"Beispiel","emails":[
+        |{"address":"carla@example.org"}],"phones":[],"addresses":[{"street":"Musterweg 1","city":"Zürich","label":"home"}],
+        |"photoFileId":"${id(9)}","source":"LOCAL","createdAt":"2026-10-01T09:00:00Z","updatedAt":"2026-10-02T09:00:00Z","version":8}
+        """.trimMargin().replace("\n", "")
+
+    private val base =
+        Contact(id(5), "Carla Beispiel", "Beispiel AG", null, emptyList(), emptyList(), emptyList(), null, null, "LOCAL", version = 7)
+
+    private fun sent(request: RecordedRequest) = Json.parseToJsonElement(request.body!!.utf8()).jsonObject
+
+    @Test
+    fun `create posts the form without If-Match and reads back the saved contact`() =
+        runBlocking {
+            server.enqueue(json(carlaJson))
+            val form = ContactForm(givenName = " Carla ", familyName = "Beispiel", emails = listOf(LabeledField("carla@example.org")))
+            val request = form.toRequest()
+
+            val saved = (contacts.create(request) as ContactsResult.Ok).value
+
+            val recorded = server.takeRequest()
+            assertEquals("POST", recorded.method)
+            assertEquals("/api/v1/contacts", recorded.url.encodedPath)
+            assertNull(recorded.headers["If-Match"])
+            val body = sent(recorded)
+            assertEquals("Carla", body["givenName"]?.jsonPrimitive?.content)
+            val email = body["emails"]!!.jsonArray.single().jsonObject
+            assertEquals("carla@example.org", email["address"]?.jsonPrimitive?.content)
+            assertEquals(id(5), saved.id)
+            assertEquals(8L, saved.version)
+            assertEquals("Carla", saved.givenName)
+            assertEquals("Beispiel", saved.familyName)
+            assertEquals(id(9), saved.photoFileId)
+            assertEquals("Zürich", saved.addressFields.single().city)
+        }
+
+    @Test
+    fun `update patches the contact with its version as If-Match and sends cleared fields as null`() =
+        runBlocking {
+            server.enqueue(json(carlaJson))
+            val request = ContactForm(givenName = "Carla", familyName = "Beispiel", organization = " ").toRequest()
+
+            val saved = (contacts.update(base, request) as ContactsResult.Ok).value
+
+            val recorded = server.takeRequest()
+            assertEquals("PATCH", recorded.method)
+            assertEquals("/api/v1/contacts/${id(5)}", recorded.url.encodedPath)
+            assertEquals("\"7\"", recorded.headers["If-Match"])
+            // The form replaces every field: an emptied organization must reach the server as null to clear it.
+            val body = sent(recorded)
+            assertEquals(JsonNull, body["organization"])
+            assertEquals(0, body["emails"]!!.jsonArray.size)
+            assertEquals(8L, saved.version)
+        }
+
+    @Test
+    fun `update reports a change made elsewhere and other refusals by status`() =
+        runBlocking {
+            val request = ContactForm(givenName = "Carla").toRequest()
+            server.enqueue(status(412))
+            assertEquals(ContactsResult.Failed(412), contacts.update(base, request))
+            server.enqueue(status(409))
+            assertEquals(ContactsResult.Failed(409), contacts.update(base, request))
+            server.enqueue(status(403))
+            assertEquals(ContactsResult.Failed(403), contacts.update(base, request))
+            server.enqueue(status(502))
+            assertEquals(ContactsResult.Offline, contacts.update(base, request))
+            server.enqueue(json("""{"nope":1}"""))
+            assertEquals(ContactsResult.Failed(null), contacts.update(base, request))
+        }
+
+    @Test
+    fun `create reports refusals`() =
+        runBlocking {
+            server.enqueue(status(400))
+            assertEquals(ContactsResult.Failed(400), contacts.create(ContactForm(givenName = "Carla").toRequest()))
+        }
+
+    @Test
+    fun `delete moves the contact to the Trash with its version as If-Match`() =
+        runBlocking {
+            server.enqueue(status(204))
+
+            assertEquals(ContactsResult.Ok(Unit), contacts.delete(base))
+
+            val recorded = server.takeRequest()
+            assertEquals("DELETE", recorded.method)
+            assertEquals("/api/v1/contacts/${id(5)}", recorded.url.encodedPath)
+            assertEquals("\"7\"", recorded.headers["If-Match"])
+        }
+
+    @Test
+    fun `a refused delete reports its status, a server error is offline`() =
+        runBlocking {
+            for (code in listOf(403, 404, 405, 409, 412)) {
+                server.enqueue(status(code))
+                assertEquals(ContactsResult.Failed(code), contacts.delete(base))
+            }
+            server.enqueue(status(503))
+            assertEquals(ContactsResult.Offline, contacts.delete(base))
+        }
+
+    @Test
+    fun `writes without a connection are offline`() =
+        runBlocking {
+            server.close()
+            val request = ContactForm(givenName = "Carla").toRequest()
+            assertEquals(ContactsResult.Offline, contacts.create(request))
+            assertEquals(ContactsResult.Offline, contacts.update(base, request))
+            assertEquals(ContactsResult.Offline, contacts.delete(base))
         }
 }

@@ -4,21 +4,26 @@ import android.app.Activity
 import android.app.Application
 import android.content.Intent
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.testing.WorkManagerTestInitHelper
 import ch.sonensei.cockpit.MainActivity
 import ch.sonensei.cockpit.auth.PersistentTokenStore
+import ch.sonensei.cockpit.capture.entry.CaptureButtonTags
 import ch.sonensei.cockpit.core.network.AuthTokens
 import ch.sonensei.cockpit.ui.navigation.CockpitDestination
 import ch.sonensei.cockpit.ui.screenTag
@@ -229,6 +234,136 @@ class ContactsRouteInAppTest {
         waitForTag(ContactsTags.CALL)
         composeRule.onNodeWithText("Anna Muster").assertExists()
         composeRule.onNodeWithTag(ContactsTags.LIST).assertDoesNotExist()
+    }
+
+    /**
+     * Triggers New by its click action rather than a touch: whether a touch reaches it (the shell's capture button
+     * covers the same corner) is tested on its own below.
+     */
+    private fun clickNew() {
+        composeRule.onNodeWithTag(ContactsTags.NEW).performSemanticsAction(SemanticsActions.OnClick)
+    }
+
+    private fun waitForText(text: String) =
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
+
+    @Test
+    fun `New contact opens the form, Save creates the contact and shows it`() {
+        val carlaId = UUID.fromString("00000000-0000-7000-8000-000000000003")
+        val carla = bert.copy(id = carlaId, displayName = "Carla Beispiel", givenName = "Carla", familyName = "Beispiel")
+        coEvery { repo.create(any()) } returns ContactsResult.Ok(carla)
+        coEvery { repo.get(carlaId) } returns ContactsResult.Ok(carla)
+        coEvery { repo.related(carlaId) } returns ContactsResult.Ok(ContactRelated(emptyList(), emptyList(), emptyList()))
+        openContacts()
+
+        clickNew()
+        waitForTag(ContactEditTags.FORM)
+        composeRule.onNodeWithText("New contact").assertExists()
+        composeRule.onNodeWithTag(ContactEditTags.GIVEN).performTextInput("Carla")
+        composeRule.onNodeWithTag(ContactEditTags.FAMILY).performTextInput("Beispiel")
+        composeRule.onNodeWithTag(ContactEditTags.SAVE).performClick()
+
+        waitForTag(ContactsTags.SOURCE)
+        composeRule.onNodeWithText("Carla Beispiel").assertExists()
+        composeRule.onNodeWithTag(ContactEditTags.FORM).assertDoesNotExist()
+        coVerify(exactly = 1) { repo.create(match { it.givenName == "Carla" && it.familyName == "Beispiel" }) }
+    }
+
+    @Test
+    fun `the New contact button is not covered by the shell's capture button`() {
+        openContacts()
+        composeRule.onNodeWithTag(ContactsTags.NEW).assertIsDisplayed()
+        // Screens with their own button in the bottom corner move Capture to the app bar (CockpitDestination.withOwnFab);
+        // otherwise both buttons sit in the same corner and a tap on New opens Capture instead.
+        composeRule.onNodeWithTag(CaptureButtonTags.FAB).assertDoesNotExist()
+    }
+
+    @Test
+    fun `Cancel on a new contact returns to the list without saving`() {
+        openContacts()
+        clickNew()
+        waitForTag(ContactEditTags.FORM)
+        composeRule.onNodeWithTag(ContactEditTags.CANCEL).performClick()
+        waitForTag(ContactsTags.contact(annaId))
+        coVerify(exactly = 0) { repo.create(any()) }
+    }
+
+    @Test
+    fun `Edit opens the form with the contact, Save updates it and the detail shows the change`() {
+        coEvery { repo.get(annaId) } returns ContactsResult.Ok(anna) andThen ContactsResult.Ok(anna.copy(title = "CEO"))
+        coEvery { repo.update(any(), any()) } returns ContactsResult.Ok(anna.copy(title = "CEO", version = 1))
+        openAnna()
+
+        composeRule.onNodeWithTag(ContactsTags.EDIT).performClick()
+        waitForTag(ContactEditTags.FORM)
+        composeRule.onNodeWithText("Edit contact").assertExists()
+        composeRule.onNodeWithTag(ContactEditTags.TITLE).performTextInput("CEO")
+        composeRule.onNodeWithTag(ContactEditTags.SAVE).performClick()
+
+        waitForText("CEO, Beispiel AG")
+        composeRule.onNodeWithTag(ContactEditTags.FORM).assertDoesNotExist()
+        coVerify(exactly = 1) { repo.update(anna, match { it.title == "CEO" && it.organization == "Beispiel AG" }) }
+    }
+
+    @Test
+    fun `cancelling the form after a failed save leaves no error on the detail`() {
+        coEvery { repo.update(any(), any()) } returns ContactsResult.Failed(400)
+        openAnna()
+        composeRule.onNodeWithTag(ContactsTags.EDIT).performClick()
+        waitForTag(ContactEditTags.FORM)
+        composeRule.onNodeWithTag(ContactEditTags.SAVE).performClick()
+        waitForTag(ContactEditTags.ERROR)
+
+        composeRule.onNodeWithTag(ContactEditTags.CANCEL).performClick()
+        waitForTag(ContactsTags.EDIT)
+        // Nothing was deleted, so the detail must not say a delete failed.
+        composeRule.onNodeWithTag(ContactsTags.ACTION_ERROR).assertDoesNotExist()
+        composeRule.onNodeWithText("The contact could not be deleted.").assertDoesNotExist()
+    }
+
+    @Test
+    fun `Delete asks first, and confirming moves the contact to the Trash and returns to the list`() {
+        coEvery { repo.delete(any()) } returns ContactsResult.Ok(Unit)
+        openAnna()
+
+        composeRule.onNodeWithTag(ContactsTags.DELETE).performClick()
+        composeRule.onNodeWithText("Delete contact?").assertExists()
+        composeRule.onNodeWithText("\"Anna Muster\" is moved to the Trash.").assertExists()
+        coVerify(exactly = 0) { repo.delete(any()) }
+
+        composeRule.onNodeWithTag(ContactsTags.CONFIRM_DELETE).performClick()
+        waitForTag(ContactsTags.contact(annaId))
+        composeRule.onNodeWithTag(ContactsTags.CALL).assertDoesNotExist()
+        assertEquals("Moved \"Anna Muster\" to the Trash", ShadowToast.getTextOfLatestToast())
+        coVerify(exactly = 1) { repo.delete(anna) }
+    }
+
+    @Test
+    fun `cancelling the delete question keeps the contact`() {
+        openAnna()
+        composeRule.onNodeWithTag(ContactsTags.DELETE).performClick()
+        composeRule.onNodeWithText("Cancel").performClick()
+        composeRule.onNodeWithText("Delete contact?").assertDoesNotExist()
+        composeRule.onNodeWithTag(ContactsTags.CALL).assertExists()
+        coVerify(exactly = 0) { repo.delete(any()) }
+    }
+
+    @Test
+    fun `a delete refused by a synced source stays on the contact and says where to change it`() {
+        val google = anna.copy(source = "GOOGLE")
+        coEvery { repo.get(annaId) } returns ContactsResult.Ok(google)
+        coEvery { repo.delete(any()) } returns ContactsResult.Failed(403)
+        openAnna()
+        composeRule.onNodeWithText("Synced with Google").assertExists()
+
+        composeRule.onNodeWithTag(ContactsTags.DELETE).performClick()
+        composeRule.onNodeWithTag(ContactsTags.CONFIRM_DELETE).performClick()
+
+        waitForTag(ContactsTags.ACTION_ERROR)
+        composeRule
+            .onNodeWithText("This contact comes from Google, which does not accept changes from the cockpit. Change it there.")
+            .assertExists()
+        composeRule.onNodeWithTag(ContactsTags.CALL).assertExists()
     }
 
     private companion object {
