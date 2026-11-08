@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: []
 touches: [web/src/app/features/mail/read/mail-frame.ts,web/src/app/features/mail/read/mail-frame.spec.ts,web/e2e/mail-read,web/playwright.config.ts]
 prio: 1
-lease_until: 2026-11-08T09:35:39Z
+lease_until: 2026-11-08T09:40:44Z
 extended: felix/agent-1
 ---
 ## Goal
