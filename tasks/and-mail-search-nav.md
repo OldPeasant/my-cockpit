@@ -18,7 +18,8 @@ coming back, and the read view needs previous/next through the matches. Back mus
   - verified (2026-11-08 10:26+0100 by dell26/agent-1): ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.read.MailReadNavigation*' --tests '*MailReadNavigationInAppTest' -> 7+14+2+11 passed: prev/next through mailbox and search results ('2 of 3'), disabled at ends and while busy, delete/archive/spam open the next mail, last mail closes to the list, last loaded mail fetches the next page (also after a running refresh)
 - [x] Back from a mail returns to its origin for every entry point (New, Mail list, search results, global search, dashboard, contact, task links); add a test per entry point that has its own navigation code
   - verified (2026-11-08 10:26+0100 by dell26/agent-1): ./gradlew testDebugUnitTest --tests '*MailBackToOriginInAppTest' --tests '*MailOriginShellTest' --tests '*MailRouteInAppTest' --tests '*MailSearchRouteInAppTest' -> all pass: New (system/toolbar back, delete), global search (system/toolbar back, delete returns to search - fails without the shell close guard), Dashboard->Mail tab->mail->back->list->back->Dashboard, task link item route back->task->origin, Mail list, search results. Contacts open no in-app mail (phone mail app), see assumption
-- [ ] Manually verified on an emulator or device (or skipped with reason)
+- [~] Manually verified on an emulator or device (or skipped with reason)
+  - skipped (2026-11-08 10:26+0100 by dell26/agent-1): no emulator/device or adb on this machine (which adb emulator -> not found); behavior covered by Robolectric in-app tests on the real MainActivity
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
