@@ -20,6 +20,8 @@ data class MailAttachment(
     val partId: String,
     val name: String,
     val sizeBytes: Long?,
+    /** The type the mail gives it (`application/pdf`), `null` when it gives none. */
+    val contentType: String? = null,
 )
 
 /**
@@ -119,7 +121,14 @@ private fun MailMessageDto.toMessage() =
         attachments =
             attachments
                 .filterNot { it.inline }
-                .map { MailAttachment(it.partId, it.filename?.takeIf { n -> n.isNotBlank() } ?: it.partId, it.sizeBytes) },
+                .map {
+                    MailAttachment(
+                        it.partId,
+                        it.filename?.takeIf { n -> n.isNotBlank() } ?: it.partId,
+                        it.sizeBytes,
+                        it.contentType?.takeIf { type -> type.isNotBlank() },
+                    )
+                },
         fromAddress = from.firstNotNullOfOrNull { it.address?.trim()?.takeIf { address -> address.isNotEmpty() } },
         flagged = flagged,
         accountId = accountId?.let { runCatching { UUID.fromString(it) }.getOrNull() },

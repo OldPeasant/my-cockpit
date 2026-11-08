@@ -188,6 +188,7 @@ class MailReadNavigationScreenTest {
                             current = it
                         },
                     viewModel = vm,
+                    attachmentsViewModel = attachmentsViewModel(),
                 )
             }
         }

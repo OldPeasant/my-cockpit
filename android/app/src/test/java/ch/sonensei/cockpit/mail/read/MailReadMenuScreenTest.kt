@@ -218,6 +218,7 @@ class MailReadMenuScreenTest {
                     onMarked = { mailId, action -> calls += "marked $mailId $action" },
                     accounts = accounts,
                     viewModel = vm,
+                    attachmentsViewModel = attachmentsViewModel(),
                 )
             }
         }
