@@ -59,4 +59,9 @@
     <string name="notes_change_conflict">This note was changed elsewhere. The list was reloaded.</string>
     <string name="notes_change_failed">Not changed: the server refused the change.</string>
     <string name="notes_change_conflict_editor">Not changed: this note was changed elsewhere. Its latest version is shown.</string>
+    <string name="notes_link_hint">Type to search for an item to link</string>
+    <string name="notes_link_searching">Searching…</string>
+    <string name="notes_link_none">No matching items</string>
+    <string name="notes_link_offline">Cannot search: no connection.</string>
+    <string name="notes_link_failed">Cannot search: the server refused it.</string>
 </resources>

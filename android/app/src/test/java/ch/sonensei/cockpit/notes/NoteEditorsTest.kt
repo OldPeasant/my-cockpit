@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import ch.sonensei.cockpit.search.SearchResult
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -69,7 +70,8 @@ class NoteEditorsTest {
     /** The Notes screen's editors, in a store standing for the Notes back stack entry. */
     private fun editors(): Holder {
         val store = ViewModelStore()
-        val factory = viewModelFactory { initializer { NoteEditors(repo, images, NoteSaveScope()) } }
+        val factory =
+            viewModelFactory { initializer { NoteEditors(repo, images, NoteSaveScope(), NoteLinkSearch { SearchResult.Ok(emptyList()) }) } }
         return Holder(ViewModelProvider(store, factory)[NoteEditors::class.java], store)
     }
 

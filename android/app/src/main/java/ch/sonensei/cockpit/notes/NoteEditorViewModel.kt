@@ -2,6 +2,8 @@ package ch.sonensei.cockpit.notes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ch.sonensei.cockpit.search.SearchHit
+import ch.sonensei.cockpit.search.SearchResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -46,6 +48,23 @@ data class NoteConflict(
     val current: Note?,
 )
 
+/** Finds items to link inline (`[[type:id]]`), so the editor can be tested without a server. */
+fun interface NoteLinkSearch {
+    suspend fun search(query: String): SearchResult
+}
+
+/** Why link suggestions could not be found. */
+enum class LinkSearchError { OFFLINE, FAILED }
+
+/** The suggestions for the inline link `[[query` being typed. */
+data class LinkSuggestions(
+    val query: String,
+    val hits: List<SearchHit> = emptyList(),
+    /** A search for [query] is running (or waits for typing to pause). */
+    val searching: Boolean = false,
+    val error: LinkSearchError? = null,
+)
+
 data class NoteEditorUiState(
     /** The note as last loaded or saved; `null` for a new note that was not saved yet. */
     val note: Note? = null,
@@ -70,6 +89,8 @@ data class NoteEditorUiState(
     val deleted: Note? = null,
     /** A pin, archive or delete is running. */
     val changing: Boolean = false,
+    /** An inline link `[[` is being typed: items it may link to; `null` otherwise. */
+    val links: LinkSuggestions? = null,
 ) {
     val draft: NoteDraft get() = NoteDraft(title, body)
 
@@ -91,6 +112,7 @@ class NoteEditorViewModel
         private val notes: NotesRepository,
         images: NoteImages,
         private val saves: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+        private val linkSearch: NoteLinkSearch = NoteLinkSearch { SearchResult.Ok(emptyList()) },
     ) : ViewModel() {
         val imageLoader = images.loader
 
@@ -99,6 +121,7 @@ class NoteEditorViewModel
 
         private val saving = Mutex()
         private var autosave: Job? = null
+        private var linkSearchJob: Job? = null
         private var opened = false
         private var opening: Any? = null
 
@@ -185,6 +208,41 @@ class NoteEditorViewModel
         fun setTitle(title: String) = change { it.copy(title = title) }
 
         fun setBody(body: String) = change { it.copy(body = body) }
+
+        /** Checks or unchecks the checklist item on [line] of the body (tapped in the rendered note): saved like an edit. */
+        fun toggleChecklist(line: Int) {
+            if (Markdown.toggleChecklist(state.value.body, line) == state.value.body) return
+            change { it.copy(body = Markdown.toggleChecklist(it.body, line)) }
+        }
+
+        /**
+         * The inline link `[[query` being typed changed to [query] (`null`: none is typed any more): searches items to
+         * link once typing pauses for [LINK_SEARCH_DELAY_MS]. A search for an older query never overwrites newer results.
+         */
+        fun searchLinks(query: String?) {
+            if (query != null && query == state.value.links?.query) return
+            linkSearchJob?.cancel()
+            linkSearchJob = null
+            val q = query?.trim()
+            when {
+                query == null -> state.update { it.copy(links = null) }
+                q.isNullOrEmpty() -> state.update { it.copy(links = LinkSuggestions(query)) }
+                else -> {
+                    state.update { it.copy(links = LinkSuggestions(query, hits = it.links?.hits.orEmpty(), searching = true)) }
+                    linkSearchJob =
+                        viewModelScope.launch {
+                            delay(LINK_SEARCH_DELAY_MS)
+                            val links =
+                                when (val result = linkSearch.search(q)) {
+                                    is SearchResult.Ok -> LinkSuggestions(query, result.groups.flatMap { it.hits })
+                                    SearchResult.Offline -> LinkSuggestions(query, error = LinkSearchError.OFFLINE)
+                                    is SearchResult.Failed -> LinkSuggestions(query, error = LinkSearchError.FAILED)
+                                }
+                            state.update { if (it.links?.query == query) it.copy(links = links) else it }
+                        }
+                }
+            }
+        }
 
         private fun change(edit: (NoteEditorUiState) -> NoteEditorUiState) {
             if (!state.value.editable) return
@@ -435,6 +493,7 @@ class NoteEditorViewModel
 
         companion object {
             const val AUTOSAVE_DELAY_MS = 1_000L
+            const val LINK_SEARCH_DELAY_MS = 250L
             private const val NOT_FOUND = 404
 
             /** [body] with [image] inserted at [at] (clamped; `null`: the end), on a line of its own. */

@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -56,6 +58,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.search.SearchHit
+import ch.sonensei.cockpit.search.searchTypeStyle
 import coil3.ImageLoader
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -80,6 +84,10 @@ data class NoteEditorCallbacks(
     val togglePin: () -> Unit = {},
     val toggleArchived: () -> Unit = {},
     val delete: () -> Unit = {},
+    /** A checklist item, by its line in the body, was tapped in the rendered note. */
+    val toggleChecklist: (Int) -> Unit = {},
+    /** The inline link `[[query` being typed changed (`null`: none is typed). */
+    val searchLinks: (String?) -> Unit = {},
 )
 
 internal object NoteEditorTags {
@@ -102,6 +110,8 @@ internal object NoteEditorTags {
     const val PIN = "note-pin"
     const val ARCHIVE = "note-archive"
     const val DELETE = "note-delete"
+    const val LINK_SUGGESTIONS = "note-link-suggestions"
+    const val LINK_HIT = "note-link-hit"
 }
 
 /**
@@ -185,6 +195,8 @@ fun NoteEditorRoute(
                 togglePin = viewModel::togglePin,
                 toggleArchived = viewModel::toggleArchived,
                 delete = viewModel::delete,
+                toggleChecklist = viewModel::toggleChecklist,
+                searchLinks = viewModel::searchLinks,
             ),
         modifier = modifier,
     )
@@ -235,11 +247,22 @@ fun NoteEditorContent(
                             enabled = state.editable,
                             modifier = Modifier.fillMaxWidth().testTag(NoteEditorTags.TITLE),
                         )
+                        val query = body.linkQuery()
+                        val links = state.links
+                        if (query != null && links != null && state.editable) {
+                            LinkSuggestionsPanel(links) { hit ->
+                                val (text, cursor) = Markdown.insertLink(body.text, query, hit.type.lowercase(), hit.id)
+                                body = TextFieldValue(text, TextRange(cursor))
+                                callbacks.setBody(text)
+                                callbacks.searchLinks(null)
+                            }
+                        }
                         OutlinedTextField(
                             value = body,
                             onValueChange = {
                                 body = it
                                 if (it.text != state.body) callbacks.setBody(it.text)
+                                callbacks.searchLinks(it.linkQuery()?.query)
                             },
                             placeholder = { Text(stringResource(R.string.notes_body_hint)) },
                             textStyle = MaterialTheme.typography.bodyLarge,
@@ -266,13 +289,73 @@ fun NoteEditorContent(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         } else {
-                            MarkdownView(state.body, imageLoader)
+                            MarkdownView(
+                                state.body,
+                                imageLoader,
+                                onToggleChecklist = callbacks.toggleChecklist.takeIf { state.editable },
+                            )
                         }
                     }
             }
         }
     }
 }
+
+/** The inline link `[[query` right before the cursor, if nothing is selected. */
+private fun TextFieldValue.linkQuery(): LinkQuery? = if (selection.collapsed) Markdown.linkQuery(text, selection.start) else null
+
+/** Items the inline link being typed may point to; [onPick] inserts the link to one. */
+@Composable
+private fun LinkSuggestionsPanel(
+    links: LinkSuggestions,
+    onPick: (SearchHit) -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth().testTag(NoteEditorTags.LINK_SUGGESTIONS),
+    ) {
+        Column(Modifier.padding(vertical = 4.dp)) {
+            val info =
+                when {
+                    links.error == LinkSearchError.OFFLINE -> R.string.notes_link_offline
+                    links.error == LinkSearchError.FAILED -> R.string.notes_link_failed
+                    links.query.isBlank() -> R.string.notes_link_hint
+                    links.hits.isEmpty() && links.searching -> R.string.notes_link_searching
+                    links.hits.isEmpty() -> R.string.notes_link_none
+                    else -> null
+                }
+            info?.let {
+                Text(
+                    stringResource(it),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (links.error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                )
+            }
+            links.hits.take(MAX_LINK_HITS).forEachIndexed { index, hit ->
+                if (index > 0) HorizontalDivider()
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { onPick(hit) }
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .testTag(NoteEditorTags.LINK_HIT),
+                ) {
+                    Text(hit.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
+                    Text(
+                        listOfNotNull(stringResource(searchTypeStyle(hit.type).labelRes), hit.subtitle).joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private const val MAX_LINK_HITS = 6
 
 @Composable
 private fun EditorBar(

@@ -59,4 +59,9 @@
     <string name="notes_change_conflict">Diese Notiz wurde anderswo geändert. Die Liste wurde neu geladen.</string>
     <string name="notes_change_failed">Nicht geändert: Der Server hat die Änderung abgelehnt.</string>
     <string name="notes_change_conflict_editor">Nicht geändert: Diese Notiz wurde anderswo geändert. Die neueste Version wird angezeigt.</string>
+    <string name="notes_link_hint">Tippen, um ein Element zum Verlinken zu suchen</string>
+    <string name="notes_link_searching">Suche läuft…</string>
+    <string name="notes_link_none">Keine passenden Elemente</string>
+    <string name="notes_link_offline">Suche nicht möglich: keine Verbindung.</string>
+    <string name="notes_link_failed">Suche nicht möglich: der Server hat sie abgelehnt.</string>
 </resources>

@@ -5,7 +5,12 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import ch.sonensei.cockpit.search.SearchRepository
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -19,6 +24,14 @@ import javax.inject.Singleton
 class NoteSaveScope
     @Inject
     constructor() : CoroutineScope by CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+/** Inline links of notes are found by the global search, over all item types. */
+@Module
+@InstallIn(SingletonComponent::class)
+object NoteLinkSearchModule {
+    @Provides
+    fun noteLinkSearch(searches: SearchRepository): NoteLinkSearch = NoteLinkSearch { searches.search(it, emptySet()) }
+}
 
 /**
  * The note editors of the Notes screen, each in its own store, so one can be dropped once nothing in it waits.
@@ -36,6 +49,7 @@ class NoteEditors
         private val notes: NotesRepository,
         private val images: NoteImages,
         private val saves: NoteSaveScope,
+        private val linkSearch: NoteLinkSearch,
     ) : ViewModel() {
         private class Editor(
             val store: ViewModelStore,
@@ -62,7 +76,7 @@ class NoteEditors
                 return created.value.viewModel
             }
             val store = ViewModelStore()
-            val factory = viewModelFactory { initializer { NoteEditorViewModel(notes, images, saves) } }
+            val factory = viewModelFactory { initializer { NoteEditorViewModel(notes, images, saves, linkSearch) } }
             val viewModel = ViewModelProvider(store, factory)[NoteEditorViewModel::class.java]
             editors[key] = Editor(store, viewModel)
             return viewModel
