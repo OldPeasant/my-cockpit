@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "task": "and-review-flow",
+  "reviewed_revision": "a51ef0aeae63f2f479f748e431f321e2d1bc8929",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-review-flow/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-review-flow/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-review-flow/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (first review)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "Stale overview load overwrote a newer move/complete; save counter keeps the newer review state, see fixes.md"},
+    {"id": "CR-2 (first review)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "Reflection draft and open wizard lost on tab switch; @Singleton ReviewDrafts holder keyed by review id, assumption corrected"},
+    {"id": "CR-3 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "Quick-add double capture; capturing guard and disabled button"},
+    {"id": "CR-4 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "Reflection appended twice after offline-but-committed save; ReflectionSaver skips when the section is already there"},
+    {"id": "CR-5 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "Step-track segments below 48dp; tap area now 48dp tall"},
+    {"id": "TW-1 (first test pass)", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "Failing ReviewWizardRouteInAppTest: back from the step-1 Mail link went to the Dashboard; Review now pushes Mail on top of itself (PARITY decision 6)"},
+    {"id": "CR-1 (final review)", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "Text typed into the reflection while the journal save is in flight is cleared after SAVED; narrow window, the saved text is in the journal; not worth another fix/review round"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
