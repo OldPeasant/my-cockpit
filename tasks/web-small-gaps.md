@@ -1,11 +1,11 @@
 ---
 title: Web: search type filter, read-later capture, Android download link
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [mail-images-web-settings]
 touches: [web/src/app/features/search,web/src/app/features/capture,web/src/app/features/settings/general,web/src/locale]
 prio: 3
-lease_until: 2026-11-08T16:52:54Z
+lease_until: 
 ---
 ## Goal
 Small web gaps found in the parity check (docs/PARITY.md): Android's global search has a type filter, Android
@@ -29,3 +29,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 17:14+0100 by dell26/agent-1): Capture Inbox/Read later choice shows only when the trimmed text is exactly one http(s) URL and no file is attached (a bookmark has no files); notes become the bookmark description; the choice persists for Shift+Enter captures. POST /bookmarks has no client id, so a retry after a lost answer may create a second bookmark (same as Android).
 - ASSUMPTION (2026-11-08 17:14+0100 by dell26/agent-1): Android app row in Settings > General: GET /download/android/version silently; 404 -> 'No Android app is available on this server' with no link; other errors -> in-place message with Try again. Link is a plain <a download href=/download/android> (session cookie auth).
 - ASSUMPTION (2026-11-08 17:14+0100 by dell26/agent-1): i18n:extract pulled unrelated untranslated units (calendar.invite.* etc.) into messages.xlf; only this task's 15 units were inserted into messages.xlf/messages.de.xlf.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 128s on b2b3ffbb3; criteria verified 5/5
