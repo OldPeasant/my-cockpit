@@ -12,7 +12,8 @@ Small web gaps found in the parity check (docs/PARITY.md): Android's global sear
 capture can send a URL to Read later, and web never offers the Android app download (API exists, SPEC.md §11).
 
 ## Acceptance criteria
-- [ ] Ctrl+K search can filter by type (chips or `type:` prefix)
+- [x] Ctrl+K search can filter by type (chips or `type:` prefix)
+  - verified (2026-11-08 17:31+0100 by dell26/agent-1): npm --prefix web run test:ci --include search/** (search-query.spec 'type:' prefix parsing incl. German labels, search-palette.provider.spec sends types=TASK&types=NOTE for 'type:note,Tasks passport') -> 69 passed; full npm --prefix web run check -> 4520 passed
 - [ ] Capture of a single URL offers "Inbox" or "Read later" (bookmark)
 - [ ] Settings shows the Android app version with a download link (`/download/android`)
 - [ ] New UI strings are in `web/src/locale` (English + German)
