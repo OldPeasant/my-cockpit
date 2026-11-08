@@ -1,11 +1,11 @@
 ---
 title: Android: add tasks directly to a project and reorder them
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-projects-manage]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/projects,android/app/src/test/java/ch/sonensei/cockpit/gtd/projects,android/app/src/main/res/values/strings_projects_lists.xml,android/app/src/main/res/values-de/strings_projects_lists.xml]
 prio: 1
-lease_until: 2026-11-08T12:40:31Z
+lease_until: 
 ---
 ## Goal
 On Android a task can only be added to a project as "next step" inside the choose-next-step prompt; web has an
@@ -28,3 +28,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 12:54+0100 by dell26/agent-1): Android project detail: the Add task field sits above the task list (web has it below) so it stays reachable over a long list; 'Make it the next step' is only offered while the project has a next step, since a stalled project gets the new task as next step anyway (web rule).
 - ASSUMPTION (2026-11-08 12:54+0100 by dell26/agent-1): Android reorder: long-press anywhere on a task row drags it; no auto-scroll at the list edges while dragging (long lists: drag in steps or use the Move up/down accessibility actions). A drag only shows a snackbar on failure; Move up/down announce 'Moved X to position n of m' like web's live region. Adding a task shows 'Added X'.
 - ASSUMPTION (2026-11-08 13:15+0100 by dell26/agent-1): TalkBack listing Move up/Move down was not checked on a device (none available); relied on Compose semantics tests that put the customActions on the focused clickable row node
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 117s on f3dc78234; criteria verified 5/5
