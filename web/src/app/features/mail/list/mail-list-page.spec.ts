@@ -1220,6 +1220,151 @@ describe('MailListPage', () => {
         expect(rows()).toEqual([]);
         expect(mail.lists[0].scope).toEqual({ folderId: 'proj-1', threaded: false });
       });
+
+      const savedInbox =
+        (extra: Record<string, unknown> = {}) =>
+        () =>
+          TestBed.inject(MailListSession).save({
+            url: '/mail/folders/inbox-1',
+            scrollTop: 0,
+            scope: { folderId: 'inbox-1', threaded: false },
+            items: [summary('a'), summary('b')],
+            nextCursor: null,
+            cursorId: 'b',
+            searchResult: null,
+            ...extra,
+          });
+
+      it('restores the saved list only when the page is shown, not when the folder changes back', async () => {
+        await create('inbox-1', { firstPage: 'pending', before: savedInbox() });
+        expect(mail.lists).toHaveLength(1); // the background refetch
+        params.next(convertToParamMap({ folderId: 'proj-1' }));
+        await flush();
+        fixture.detectChanges();
+        expect(rows()).toEqual([]);
+        expect(mail.lists[1].scope).toEqual({ folderId: 'proj-1', threaded: false });
+        params.next(convertToParamMap({ folderId: 'inbox-1' }));
+        await flush();
+        fixture.detectChanges();
+        expect(rows()).toEqual([]);
+        expect(mail.lists[2].scope).toEqual({ folderId: 'inbox-1', threaded: false });
+        expect(mail.lists[2].cursor).toBeUndefined();
+      });
+
+      it('does not restore a folder list saved for the other view (by conversation)', async () => {
+        localStorage.setItem(THREADED_KEY, 'true');
+        await create('inbox-1', { firstPage: 'pending', before: savedInbox() });
+        expect(rows()).toEqual([]);
+        expect(mail.lists[0].scope).toEqual({ folderId: 'inbox-1', threaded: true });
+      });
+
+      it('saves nothing after the list failed to load', async () => {
+        await create('inbox-1', { firstPage: new ApiError(502, 'Bad gateway', 'Down') });
+        expect(leave()).toBeNull();
+      });
+
+      it('saves nothing while the server search runs', async () => {
+        await create(null, { queryParams: { q: 'report' }, firstPage: 'pending' });
+        await answer(found);
+        serverBox().click();
+        await flush();
+        expect(listStore().searchingServer()).toBe(true);
+        expect(leave()).toBeNull();
+      });
+
+      it('saves the server option and the folder of a search in the URL', async () => {
+        await create('proj-1', {
+          queryParams: { q: ' lunch ', server: '1' },
+          firstPage: 'pending',
+        });
+        expect(mail.searches[0]).toMatchObject({
+          query: 'lunch',
+          folderId: 'proj-1',
+          server: true,
+        });
+        mail.searches[0].resolve({ items: [summary('l')], hasMore: false, failedAccountIds: [] });
+        await flush();
+        expect(leave()).toMatchObject({
+          url: '/mail/folders/proj-1?q=lunch&server=1',
+          scope: { folderId: 'proj-1', search: { query: 'lunch', server: true } },
+        });
+      });
+
+      describe('scroll position', () => {
+        // jsdom has no layout: the body stands in for the scrolling container of the shell.
+        let scrollIntoView: ReturnType<
+          typeof vi.fn<(arg?: boolean | ScrollIntoViewOptions) => void>
+        >;
+        beforeEach(() => {
+          document.body.style.overflowY = 'auto';
+          Object.defineProperty(document.body, 'scrollTop', {
+            value: 0,
+            writable: true,
+            configurable: true,
+          });
+          scrollIntoView = vi.fn();
+          Element.prototype.scrollIntoView = scrollIntoView;
+        });
+        afterEach(() => {
+          document.body.style.overflowY = '';
+          delete (document.body as { scrollTop?: number }).scrollTop;
+          delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+        });
+
+        it('saves how far the list was scrolled when it is left', async () => {
+          await create('inbox-1');
+          fixture.detectChanges();
+          await fixture.whenStable();
+          document.body.scrollTop = 340;
+          document.body.dispatchEvent(new Event('scroll'));
+          expect(leave()?.scrollTop).toBe(340);
+        });
+
+        it('scrolls back to where the list was and brings the cursor row into view', async () => {
+          await create('inbox-1', { firstPage: 'pending', before: savedInbox({ scrollTop: 250 }) });
+          await fixture.whenStable();
+          fixture.detectChanges();
+          expect(document.body.scrollTop).toBe(250);
+          expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
+          expect(scrollIntoView.mock.contexts.at(-1)).toBe(rows()[1]);
+          // Left again without scrolling: the restored position is kept.
+          expect(leave()?.scrollTop).toBe(250);
+        });
+
+        it('scrolls back also for search results that found nothing (no cursor row)', async () => {
+          await create(null, {
+            queryParams: { q: 'nothing' },
+            firstPage: 'pending',
+            before: savedInbox({
+              url: '/mail?q=nothing',
+              scope: {
+                folderId: null,
+                threaded: false,
+                search: { query: 'nothing', server: false },
+              },
+              items: [],
+              cursorId: null,
+              searchResult: { hasMore: false, failedAccountIds: [] },
+              scrollTop: 40,
+            }),
+          });
+          await fixture.whenStable();
+          fixture.detectChanges();
+          expect(mail.searches).toEqual([]);
+          expect(rows()).toEqual([]);
+          expect(document.body.scrollTop).toBe(40);
+          expect(scrollIntoView).not.toHaveBeenCalled();
+        });
+
+        it('does not scroll a list that was loaded anew', async () => {
+          document.body.scrollTop = 0;
+          await create('proj-1', { before: savedInbox({ scrollTop: 250 }) });
+          await fixture.whenStable();
+          fixture.detectChanges();
+          expect(document.body.scrollTop).toBe(0);
+          expect(scrollIntoView).not.toHaveBeenCalled();
+        });
+      });
     });
 
     it('does not refetch results on a live change event', async () => {

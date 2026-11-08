@@ -763,6 +763,156 @@ describe('MailListStore', () => {
     });
   });
 
+  describe('snapshot and restore', () => {
+    const report: MailScope = {
+      folderId: null,
+      threaded: false,
+      search: { query: 'report', server: false },
+    };
+
+    it('takes no snapshot before the first page, after a failed load or during a server search', async () => {
+      expect(store.snapshot()).toBeNull();
+      void store.load({ folderId: INBOX, threaded: false });
+      expect(store.snapshot()).toBeNull();
+      mail.lists[0].reject(new ApiError(502, 'Bad gateway', 'Mail server down'));
+      await flush();
+      expect(store.snapshot()).toBeNull();
+
+      const first = store.load(report);
+      mail.searches[0].resolve({ items: [summary('a')], hasMore: false, failedAccountIds: [] });
+      await first;
+      expect(store.snapshot()).not.toBeNull();
+      // The cached results stay shown while the server is searched: they are not the final list.
+      void store.load({ ...report, search: { query: 'report', server: true } });
+      expect(store.searchingServer()).toBe(true);
+      expect(store.snapshot()).toBeNull();
+    });
+
+    it('takes the shown list with its scope, next page cursor, list cursor and search extras', async () => {
+      await loaded([summary('a'), summary('b')], { folderId: OTHER, threaded: true }, 'c1');
+      store.setCursor('b');
+      expect(store.snapshot()).toEqual({
+        scope: { folderId: OTHER, threaded: true },
+        items: [summary('a'), summary('b')],
+        nextCursor: 'c1',
+        cursorId: 'b',
+        searchResult: null,
+      });
+
+      const done = store.load(report);
+      mail.searches[0].resolve({ items: [summary('n')], hasMore: true, failedAccountIds: ['x'] });
+      await done;
+      expect(store.snapshot()).toMatchObject({
+        scope: report,
+        nextCursor: null,
+        cursorId: 'n',
+        searchResult: { hasMore: true, failedAccountIds: ['x'] },
+      });
+    });
+
+    it('shows a snapshot again without loading, with nothing selected and no errors', async () => {
+      await loaded([summary('a'), summary('b')], undefined, 'c1');
+      store.setCursor('b');
+      const snapshot = store.snapshot()!;
+      const failing = store.load({ folderId: OTHER, threaded: false });
+      mail.lists[1].reject(new ApiError(500, 'Error', 'Broken'));
+      await failing;
+      store.toggleSelected('zzz');
+      expect(store.loadError()).toBe('Broken');
+
+      store.restore(snapshot);
+      expect(mail.lists).toHaveLength(2);
+      expect(ids()).toEqual(['a', 'b']);
+      expect(store.scope()).toEqual({ folderId: INBOX, threaded: false });
+      expect(store.cursorId()).toBe('b');
+      expect(store.nextCursor()).toBe('c1');
+      expect(store.loadError()).toBeNull();
+      expect(store.moreError()).toBeNull();
+      expect(store.selection()).toEqual([]);
+      expect(store.searchingServer()).toBe(false);
+    });
+
+    it('restores search results with their extras, and refresh leaves them alone', async () => {
+      store.restore({
+        scope: report,
+        items: [summary('n'), summary('o')],
+        nextCursor: null,
+        cursorId: 'o',
+        searchResult: { hasMore: true, failedAccountIds: [] },
+      });
+      expect(ids()).toEqual(['n', 'o']);
+      expect(store.searchResult()).toEqual({ hasMore: true, failedAccountIds: [] });
+      await store.refresh();
+      expect(mail.lists).toEqual([]);
+      expect(mail.searches).toEqual([]);
+    });
+
+    it('does not share its items with the snapshot', async () => {
+      await loaded([summary('a'), summary('b')]);
+      const snapshot = store.snapshot()!;
+      store.restore(snapshot);
+      const done = store.apply('ARCHIVE');
+      await flush();
+      expect(ids()).toEqual(['b']);
+      expect(snapshot.items.map((item) => item.id)).toEqual(['a', 'b']);
+      mail.applies[0].resolve([{ id: 'a', ok: true, detail: null, errorCode: null }]);
+      await done;
+    });
+
+    it('drops a first page that arrives after a restore', async () => {
+      const pending = store.load({ folderId: OTHER, threaded: false });
+      store.restore({
+        scope: { folderId: INBOX, threaded: false },
+        items: [summary('a')],
+        nextCursor: null,
+        cursorId: 'a',
+        searchResult: null,
+      });
+      mail.lists[0].resolve({ items: [summary('stale')], nextCursor: 'c9' });
+      await pending;
+      expect(ids()).toEqual(['a']);
+      expect(store.nextCursor()).toBeNull();
+      expect(store.scope().folderId).toBe(INBOX);
+    });
+
+    it('drops a next page and a refetch that arrive after a restore', async () => {
+      await loaded([summary('a')], undefined, 'c1');
+      const more = store.loadMore();
+      const refetch = store.refresh();
+      store.restore({
+        scope: { folderId: INBOX, threaded: false },
+        items: [summary('x'), summary('y')],
+        nextCursor: 'cx',
+        cursorId: 'y',
+        searchResult: null,
+      });
+      mail.lists[1].resolve({ items: [summary('stale-more')], nextCursor: 'c2' });
+      mail.lists[2].resolve({ items: [summary('stale-refetch')], nextCursor: 'c3' });
+      await more;
+      await refetch;
+      expect(ids()).toEqual(['x', 'y']);
+      expect(store.nextCursor()).toBe('cx');
+      expect(store.cursorId()).toBe('y');
+    });
+
+    it('keeps a restored folder list, its cursor and selection current on the next refetch', async () => {
+      store.restore({
+        scope: { folderId: INBOX, threaded: false },
+        items: [summary('a'), summary('b')],
+        nextCursor: null,
+        cursorId: 'b',
+        searchResult: null,
+      });
+      const refetch = store.refresh();
+      expect(mail.lists[0]).toMatchObject({ scope: { folderId: INBOX, threaded: false } });
+      mail.lists[0].resolve({ items: [summary('a'), summary('c')], nextCursor: null });
+      await refetch;
+      expect(ids()).toEqual(['a', 'c']);
+      // The restored cursor's message is gone: the cursor moves to its neighbour that is left.
+      expect(store.cursorId()).toBe('a');
+    });
+  });
+
   describe('search', () => {
     const searchScope = (
       query: string,

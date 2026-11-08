@@ -2001,4 +2001,119 @@ describe('MailReadPage previous/next through the list it was opened from', () =>
     expect(url()).toBe(LIST);
     expect(TestBed.inject(MailListSession).saved()!.items).toEqual([]);
   });
+
+  it('does not step with j or k while a dialog is open', async () => {
+    const harness = await openFromList(B);
+    const dialog = TestBed.inject(MatDialog);
+    const ref = dialog.open(StubDialog, { enterAnimationDuration: 0, exitAnimationDuration: 0 });
+    await flush();
+    key('j');
+    await settle(harness);
+    key('k');
+    await settle(harness);
+    expect(url()).toBe(`/mail/messages/${B}`);
+    ref.close();
+    await flush();
+    key('j');
+    await settle(harness);
+    expect(url()).toBe(`/mail/messages/${C}`);
+  });
+
+  it('does not step with j or k while typing', async () => {
+    const harness = await openFromList(B);
+    const input = document.createElement('input');
+    const editor = document.createElement('div');
+    Object.defineProperty(editor, 'isContentEditable', { value: true });
+    document.body.append(input, editor);
+    try {
+      for (const target of [input, editor]) {
+        for (const k of ['j', 'k']) {
+          const event = new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true });
+          target.dispatchEvent(event);
+          expect(event.defaultPrevented).toBe(false);
+        }
+      }
+      await settle(harness);
+      expect(url()).toBe(`/mail/messages/${B}`);
+    } finally {
+      input.remove();
+      editor.remove();
+    }
+  });
+
+  it('disables previous/next while the next page loads, and stays when the user went back meanwhile', async () => {
+    const D = '0192f0c4-0000-7000-8000-0000000000dd';
+    const harness = await openFromList(C, {
+      scope: { folderId: null, threaded: false },
+      searchResult: null,
+      nextCursor: 'cur-1',
+    });
+    const page = deferred<{ items: MailSummary[]; nextCursor: string | null }>();
+    mail.list.mockReturnValue(page.promise);
+    button(harness, '.next')!.click();
+    await settle(harness);
+    expect(button(harness, '.next')!.disabled).toBe(true);
+    expect(button(harness, '.previous')!.disabled).toBe(true);
+    // A second press while it loads asks for nothing more.
+    key('j');
+    key('k');
+    await settle(harness);
+    expect(mail.list).toHaveBeenCalledTimes(1);
+    expect(url()).toBe(`/mail/messages/${C}`);
+
+    TestBed.inject(Location).back();
+    await settle(harness);
+    expect(url()).toBe(LIST);
+    page.resolve({ items: [item(D)], nextCursor: null });
+    await settle(harness);
+    expect(url()).toBe(LIST);
+  });
+
+  it('stays on the message when the next page fails to load', async () => {
+    const harness = await openFromList(C, {
+      scope: { folderId: null, threaded: false },
+      searchResult: null,
+      nextCursor: 'cur-1',
+    });
+    mail.list.mockRejectedValue(new Error('offline'));
+    button(harness, '.next')!.click();
+    await settle(harness);
+    expect(url()).toBe(`/mail/messages/${C}`);
+    expect(button(harness, '.next')!.disabled).toBe(false);
+    expect(count(harness)).toBe('3 of 3+');
+  });
+
+  it('keeps the message in the list when archiving it fails', async () => {
+    const harness = await openFromList(B);
+    mail.answer = new Error('offline');
+    key('e');
+    await settle(harness);
+    expect(url()).toBe(`/mail/messages/${B}`);
+    expect(
+      TestBed.inject(MailListSession)
+        .saved()!
+        .items.map((entry) => entry.id),
+    ).toEqual([A, B, C]);
+  });
+
+  it('takes an archived message out of the list but stays on the one the user moved on to', async () => {
+    const harness = await openFromList(A);
+    const answer = deferred<{ id: string; ok: boolean }[]>();
+    mail.answer = answer.promise;
+    key('e');
+    await settle(harness);
+    // While Archive runs, the user moves on with Next (the triage button keys are busy, j is not).
+    key('j');
+    await settle(harness);
+    expect(url()).toBe(`/mail/messages/${B}`);
+    answer.resolve([{ id: A, ok: true }]);
+    await settle(harness);
+    expect(url()).toBe(`/mail/messages/${B}`);
+    expect(
+      TestBed.inject(MailListSession)
+        .saved()!
+        .items.map((entry) => entry.id),
+    ).toEqual([B, C]);
+    expect(count(harness)).toBe('1 of 2');
+  });
 });

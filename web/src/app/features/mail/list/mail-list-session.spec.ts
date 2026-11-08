@@ -110,6 +110,56 @@ describe('MailListSession', () => {
     expect(session.saved()?.items.map((item) => item.id)).toEqual(['x']);
   });
 
+  it('asks for the next page once when next is pressed again while it loads', async () => {
+    session.save(saved({ scope: { folderId: null, threaded: false }, nextCursor: 'cur-1' }));
+    const first = session.step('c', 1);
+    const second = session.step('c', 1);
+    await flush();
+    expect(mail.lists).toHaveLength(1);
+    mail.lists[0].resolve({ items: [summary('d'), summary('e')], nextCursor: 'cur-2' });
+    expect(await first).toBe('d');
+    expect(await second).toBe('d');
+    expect(session.saved()?.items.map((item) => item.id)).toEqual(['a', 'b', 'c', 'd', 'e']);
+    expect(session.position('e')).toMatchObject({ more: true, nextId: null });
+  });
+
+  it('drops a next page when the same list was saved anew with another cursor meanwhile', async () => {
+    const scope = { folderId: null, threaded: false };
+    session.save(saved({ scope, nextCursor: 'cur-1' }));
+    const step = session.step('c', 1);
+    await flush();
+    // The list page was shown again, loaded further and left again.
+    session.save(saved({ scope, nextCursor: 'cur-5', items: [summary('a'), summary('c')] }));
+    mail.lists[0].resolve({ items: [summary('d')], nextCursor: 'cur-2' });
+    expect(await step).toBeNull();
+    expect(session.saved()?.items.map((item) => item.id)).toEqual(['a', 'c']);
+    expect(session.saved()?.nextCursor).toBe('cur-5');
+  });
+
+  it('gives no step for a message that is not in the list or not opened from it', async () => {
+    session.save(saved());
+    expect(await session.step('zzz', 1)).toBeNull();
+    previous.set({ url: '/new' });
+    expect(await session.step('a', 1)).toBeNull();
+  });
+
+  it('keeps a read message and the counts of a message without thread counts as they are', () => {
+    session.save(saved({ items: [summary('a', { seen: true, threadUnread: 3 }), summary('b')] }));
+    session.visited('a');
+    expect(session.saved()?.items[0]).toMatchObject({ seen: true, threadUnread: 3 });
+    session.save(saved({ items: [summary('a', { threadUnread: undefined })] }));
+    session.visited('a');
+    expect(session.saved()?.items[0]).toMatchObject({ seen: true, threadUnread: 0 });
+  });
+
+  it('keeps the list cursor when another message than the cursor is removed', () => {
+    session.save(saved({ cursorId: 'a' }));
+    expect(session.remove('c')).toBe('b');
+    expect(session.saved()?.cursorId).toBe('a');
+    expect(session.remove('unknown')).toBeNull();
+    expect(session.saved()?.items.map((item) => item.id)).toEqual(['a', 'b']);
+  });
+
   it('never loads more for search results', async () => {
     session.save(saved({ nextCursor: 'cur-1' }));
     expect(session.position('c')?.more).toBe(false);
