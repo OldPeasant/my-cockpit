@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "task": "and-projects-manage",
+  "reviewed_revision": "0a2ecdbf8d3d268e7297f345104a3f0d65033ef3",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-projects-manage/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-projects-manage/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-projects-manage/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "review round 1: an old form save could close or replace a later form; fixed with formSession (fixes.md round 1)"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review round 1: complete/drop skipped confirmation while tasks loaded; fixed (fixes.md round 1)"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review round 1: stale confirmation for another project; fixed (fixes.md round 1)"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review round 2: CONFLICT path read the project after the session check; fixed in 2befbc9c0 (fixes.md round 2)"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "review round 2: finishing a project that left the cache did nothing; fixed in 2befbc9c0 (fixes.md round 2)"},
+    {"id": "R2-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "fixes.md round 1 left the .taskcheck result as CHECK_RESULT_PLACEHOLDER; the helper report is not edited by hand. The real result is recorded here: sh scripts/check.sh on 0a2ecdbf8 passed ('all checks passed')."}
+  ],
+  "validation": [
+    {"command": "android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug (at 2befbc9c0, production code identical to final)", "result": "pass"},
+    {"command": "android/gradlew -p android ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.projects.*' (at 0a2ecdbf8)", "result": "pass"},
+    {"command": "sh scripts/check.sh (at 0a2ecdbf8)", "result": "pass"}
+  ]
+}
