@@ -1,11 +1,11 @@
 ---
 title: Android contacts: create, edit, delete
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-links-panel]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/contacts,android/app/src/test/java/ch/sonensei/cockpit/contacts,android/app/src/main/res/values/strings_contacts.xml,android/app/src/main/res/values-de/strings_contacts.xml]
 prio: 2
-lease_until: 2026-11-08T21:53:48Z
+lease_until: 
 releases: 2
 extended: 
 ---
@@ -33,3 +33,4 @@ vCard import/export and CardDAV account setup stay web-only.
 - ASSUMPTION (2026-11-08 22:16+0100 by dell26/agent-1): Outside touches: added Contacts to CockpitDestination.withOwnFab (+ its copies in CaptureButtonTest/FabClearanceTest) so the shell's Capture FAB no longer covers the contacts New FAB (TW-3). CR-8 accepted: Android always sends photoFileId; if the photo file is gone the 400 detail is shown.
 - release by dell26/agent-1: Fixer done and committed (99ae7faf1, reviews/and-contacts-edit/fixes.md): all CR/TW findings fixed; fixer reports ktlintCheck testDebugUnitTest lintDebug and check.sh pass. LEFT: rerun test-writer + code-reviewer on final code (stale), verify criteria 1-5, quality.json (fixes_required=true), done.
 - ASSUMPTION (2026-11-08 22:36+0100 by dell26/agent-1): TW-4 accepted: an old delete error may reappear when the same contact is reopened within the same activity (edit view model is activity-scoped per contact); no requirement defines it and other contacts are unaffected
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 72s on ed3027e88; criteria verified 5/5
