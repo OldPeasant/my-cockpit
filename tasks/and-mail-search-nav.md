@@ -22,3 +22,4 @@ coming back, and the read view needs previous/next through the matches. Back mus
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 - ASSUMPTION (2026-11-08 10:13+0100 by dell26/agent-1): Previous/next is offered only in the Mail tab (mailbox list or its search results). Mails opened from New, global search or task links show no previous/next: New mixes tasks and mails, the others open one item.
+- ASSUMPTION (2026-11-08 10:13+0100 by dell26/agent-1): Archive/delete/spam in the read view shows the next mail of the list; at the end of the list it returns to the list (as web-mail-search-nav: next, else back to the list), not to the previous mail.
