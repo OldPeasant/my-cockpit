@@ -17,7 +17,8 @@ Android notes have no search, pin, archive or archived view (web: `notes-page.ht
   - verified (2026-11-08 17:57+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*' on a4af5022 -> pass; NotesListViewModelTest covers GET /api/v1/search?types=NOTE (title+body server search), out-of-order/cancel/failure cases; reviewed by code-reviewer (0 findings)
 - [x] Pin/unpin and archive/unarchive (row menu and editor menu); an Archived view
   - verified (2026-11-08 17:57+0100 by dell26/agent-1): notes unit + Compose tests (NotesListViewModelTest, NoteEditorViewModelTest incl. editor unpin, NotesActionsScreensTest row/editor menus, Archived view with archived=true query) on a4af5022 -> pass
-- [ ] Delete a note (to Trash, with undo)
+- [x] Delete a note (to Trash, with undo)
+  - verified (2026-11-08 17:57+0100 by dell26/agent-1): notes tests for delete to Trash + Undo via POST /api/v1/trash/NOTE/{id}/restore (list and editor) on a4af5022 -> pass
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
