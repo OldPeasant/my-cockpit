@@ -232,6 +232,41 @@ describe('ImageAllowlist', () => {
     expect(settings.patches).toEqual([]);
   });
 
+  it('rejects removing a settings entry without saving, then saves from the loaded list once the settings load', async () => {
+    settings.stored = fakeSettings({
+      mailImageAllowedSenders: ['erika@example.test', 'example.org'],
+    });
+    settings.loadError = new Error('offline');
+    await expect(list.removeEntry('example.org')).rejects.toThrow();
+    expect(settings.patches).toEqual([]);
+
+    settings.loadError = undefined;
+    await list.add('max@example.test');
+    expect(settings.patches).toEqual([
+      { mailImageAllowedSenders: ['erika@example.test', 'example.org', 'max@example.test'] },
+    ]);
+  });
+
+  it('keeps the old local list when reading it fails and merges it on the next page load', async () => {
+    localStorage.setItem(IMAGE_ALLOWLIST_KEY, JSON.stringify(['max@example.test']));
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('SecurityError');
+    });
+    try {
+      await list.ready();
+    } finally {
+      getItem.mockRestore();
+    }
+    expect(settings.patches).toEqual([]);
+    expect(localStorage.getItem(IMAGE_ALLOWLIST_KEY)).toBe('["max@example.test"]');
+
+    // A new page load creates a new instance, which can read the storage again.
+    const next = TestBed.runInInjectionContext(() => new ImageAllowlist());
+    await next.ready();
+    expect(settings.patches).toEqual([{ mailImageAllowedSenders: ['max@example.test'] }]);
+    expect(localStorage.getItem(IMAGE_ALLOWLIST_KEY)).toBeNull();
+  });
+
   it('keeps the old local list when merging fails and tries again next time', async () => {
     localStorage.setItem(IMAGE_ALLOWLIST_KEY, JSON.stringify(['max@example.test']));
     settings.updateError = new Error('refused');

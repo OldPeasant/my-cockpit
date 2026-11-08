@@ -388,6 +388,20 @@ describe('MailReadPage', () => {
       expect(button('Stop')).toBeUndefined();
     });
 
+    it('hide "Stop" for a listed sender when the policy changes to "allow" while the mail is open', async () => {
+      settings.current.update((s) => ({
+        ...s!,
+        mailImageAllowedSenders: ['max.muster@example.test'],
+      }));
+      await create(blocked(), proxied());
+      expect(button('Stop')).toBeDefined();
+
+      settings.current.update((s) => ({ ...s!, mailImagePolicy: 'allow' }));
+      fixture.detectChanges();
+      expect(button('Stop')).toBeUndefined();
+      expect(iframe()!.srcdoc).toContain('image-proxy');
+    });
+
     it('stay blocked, and the message still shows, when the settings cannot be loaded', async () => {
       settings.current.set(null);
       settings.load = () => Promise.reject(new ApiError(503, 'Unavailable', 'Offline'));
@@ -395,6 +409,19 @@ describe('MailReadPage', () => {
       expect(service.gets).toEqual([{ id: ID, loadImages: false }]);
       expect(el().querySelector('h1')?.textContent?.trim()).toBe('Quarterly report');
       expect(button('Load images')).toBeDefined();
+    });
+
+    it('load once, without saving the sender, on "Always load" when the settings cannot be loaded', async () => {
+      settings.current.set(null);
+      settings.load = () => Promise.reject(new ApiError(503, 'Unavailable', 'Offline'));
+      await create(blocked(), proxied());
+      button('Always load from this sender')!.click();
+      await flush();
+      fixture.detectChanges();
+      expect(service.gets.map((g) => g.loadImages)).toEqual([false, true]);
+      expect(iframe()!.srcdoc).toContain('image-proxy');
+      expect(settings.patches).toEqual([]);
+      expect(button('Stop')).toBeUndefined();
     });
 
     it('do not request a message left while the settings were still loading', async () => {
