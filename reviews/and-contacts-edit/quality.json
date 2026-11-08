@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "task": "and-contacts-edit",
+  "reviewed_revision": "c36374f737e876645773f55d79326fc91f2b730e",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-contacts-edit/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-contacts-edit/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-contacts-edit/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "ContactDetailRoute only uses hiltViewModel() inside a Hilt activity; BirthdayContactTest passes"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "test-writer added contacts unit/Compose tests for all new behavior"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "form session saved across recreation; running save not reset; recreate test added"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "edit view model keyed per contact / new; cancel clears error"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "delete conflict reloads the contact and shows delete-specific text (EN+DE)"},
+    {"id": "CR-6", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "display name derivation incl. organization/first email like server and web"},
+    {"id": "CR-7", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "400 shows the server Problem detail in the form"},
+    {"id": "CR-8", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "Android always sends photoFileId so edits never clear the photo; a missing photo file surfaces as the 400 detail (CR-7); recorded as assumption"},
+    {"id": "CR-9", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "notes only trimEnd; German strings use consistent quotes"},
+    {"id": "CR-1 (round 2)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "ContactsRouteInAppTest covers delete 412 -> reload -> delete with new version; see fixes.md Round 2"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "same defect as CR-6"},
+    {"id": "TW-2", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "same defect as CR-4"},
+    {"id": "TW-3", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "Contacts added to CockpitDestination.withOwnFab so the Capture FAB no longer covers New (assumption recorded)"},
+    {"id": "TW-4", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "unconfirmed observation by reading: an old delete error may reappear when the same contact is reopened in the same activity; no requirement defines it, other contacts are not affected (tested)"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport --continue", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
