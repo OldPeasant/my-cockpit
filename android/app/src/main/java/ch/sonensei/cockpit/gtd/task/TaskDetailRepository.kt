@@ -13,6 +13,7 @@ import ch.sonensei.cockpit.gtd.data.GtdConnectivity
 import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.data.HttpFailure
 import ch.sonensei.cockpit.gtd.data.RefreshResult
+import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.gtd.data.TaskRepository
 import ch.sonensei.cockpit.gtd.data.TaskView
 import ch.sonensei.cockpit.gtd.data.toDomain
@@ -123,8 +124,10 @@ data class TaskDetail(
     val completedAt: Instant? = null,
     /** The tickler date of a Someday task (it comes back to the Inbox then). */
     val ticklerDate: LocalDate? = null,
-    /** The RFC 5545 rule of a repeating task, shown read-only. */
+    /** The RFC 5545 rule of a repeating task (without the `RRULE:` prefix). */
     val recurrenceRule: String? = null,
+    /** How the next date of a repeating task is found; `null` when it does not repeat. */
+    val recurrenceMode: RecurrenceMode? = null,
 ) {
     val completed: Boolean get() = completedAt != null
 }
@@ -159,6 +162,18 @@ sealed interface TaskResult<out T> {
 /** Where moving a task sends it. */
 enum class MoveTarget { NEXT, SOMEDAY, WAITING }
 
+/**
+ * A move to [list] from the edit form. The server clears the tickler of a move without one and the scheduled date of
+ * a move to another list than SCHEDULED, so both are always sent as the form has them.
+ */
+data class TaskMove(
+    val list: TaskList,
+    val scheduledDate: LocalDate? = null,
+    val ticklerDate: LocalDate? = null,
+    /** The person waited for, only for a move to WAITING. */
+    val waitingForText: String? = null,
+)
+
 /** The calls the detail screen makes, so its view model can be tested without a server. */
 interface TaskDetailSource {
     suspend fun load(id: UUID): TaskResult<TaskDetail>
@@ -179,6 +194,12 @@ interface TaskDetailSource {
         task: GtdTask,
         target: MoveTarget,
         waitingFor: String? = null,
+    ): TaskResult<GtdTask>
+
+    /** Moves the task with the edit form's list, scheduled and tickler dates. */
+    suspend fun relist(
+        task: GtdTask,
+        move: TaskMove,
     ): TaskResult<GtdTask>
 
     suspend fun delete(task: GtdTask): TaskResult<Unit>
@@ -290,6 +311,21 @@ class TaskDetailRepository
             return call({ api.moveTask(task.id, request, etag(task.version)) }) { it!!.toTask() }
         }
 
+        override suspend fun relist(
+            task: GtdTask,
+            move: TaskMove,
+        ): TaskResult<GtdTask> {
+            val request =
+                MoveTaskRequest(
+                    list = MoveTaskRequest.List.valueOf(move.list.name),
+                    projectId = task.projectId,
+                    scheduledDate = move.scheduledDate.takeIf { move.list == TaskList.SCHEDULED },
+                    ticklerDate = move.ticklerDate,
+                    waitingForText = move.waitingForText?.trim()?.takeIf { move.list == TaskList.WAITING && it.isNotEmpty() },
+                )
+            return call({ api.moveTask(task.id, request, etag(task.version)) }) { it!!.toTask() }
+        }
+
         override suspend fun delete(task: GtdTask): TaskResult<Unit> = call({ api.deleteTask(task.id, etag(task.version)) }) { }
 
         override suspend fun restore(id: UUID): TaskResult<Unit> = call({ writeApi.restoreTask(id) }) { }
@@ -393,6 +429,7 @@ private fun TaskResponse.toDetail(
     completedAt = completedAt?.toInstant(),
     ticklerDate = ticklerDate,
     recurrenceRule = recurrenceRule,
+    recurrenceMode = recurrenceMode?.let { RecurrenceMode.valueOf(it.name) },
 )
 
 private fun ChecklistItemResponse.toItem() = ChecklistItem(id, text, done, position, version)
@@ -414,6 +451,20 @@ internal fun jsonOf(value: Any?): JsonElement =
         is Collection<*> -> JsonArray(value.map(::jsonOf))
         else -> JsonPrimitive(value.toString())
     }
+
+/** The checklist [items] with [item] moved to [to] (clamped to the list), as the order to save. */
+internal fun reordered(
+    items: List<ChecklistItem>,
+    item: ChecklistItem,
+    to: Int,
+): List<ChecklistItem> {
+    val from = items.indexOfFirst { it.id == item.id }
+    if (from < 0) return items
+    val list = items.toMutableList()
+    val moved = list.removeAt(from)
+    list.add(to.coerceIn(0, list.size), moved)
+    return list
+}
 
 /** Whether the task is on a list it can be moved from to [target]. */
 internal fun canMove(

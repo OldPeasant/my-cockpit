@@ -92,4 +92,52 @@
     <string name="task_detail_message_deleted">Aufgabe in den Papierkorb verschoben</string>
     <string name="task_detail_message_restored">Aufgabe wiederhergestellt</string>
     <string name="task_detail_undo">Rückgängig</string>
+
+    <string name="task_detail_list_label">Liste</string>
+    <string name="task_detail_scheduled_hint">Mit einem Tag steht die Aufgabe bis dahin auf der Liste Geplant.</string>
+    <string name="task_detail_tickler_hint">Bis dahin ausgeblendet; an diesem Tag kommt sie zurück in den Eingang.</string>
+    <string name="task_detail_date_pick">Tag wählen</string>
+    <string name="task_detail_date_clear">Datum entfernen</string>
+    <string name="task_detail_date_tomorrow">Morgen</string>
+    <string name="task_detail_date_week">In einer Woche</string>
+    <string name="task_detail_date_month">In einem Monat</string>
+    <string name="task_detail_waiting_since_label">Wartet seit</string>
+    <string name="task_detail_error_future">Wähle einen Tag nach heute.</string>
+    <string name="task_detail_error_repeat_interval">Gib eine Zahl von 1 bis %1$d ein.</string>
+    <string name="task_detail_error_repeat_rule">Die Regel braucht eine FREQ, z. B. FREQ=WEEKLY;BYDAY=MO.</string>
+    <string name="task_detail_repeat_none">Keine Wiederholung</string>
+    <string name="task_detail_repeat_daily">Täglich</string>
+    <string name="task_detail_repeat_weekdays">Werktags</string>
+    <string name="task_detail_repeat_weekly">Wöchentlich</string>
+    <string name="task_detail_repeat_monthly">Monatlich</string>
+    <string name="task_detail_repeat_yearly">Jährlich</string>
+    <string name="task_detail_repeat_custom">Eigene Regel</string>
+    <string name="task_detail_repeat_every">Alle</string>
+    <string name="task_detail_repeat_rule">Regel (RFC-5545-RRULE)</string>
+    <string name="task_detail_repeat_mode">Nächstes Datum</string>
+    <string name="task_detail_repeat_fixed">Nach Plan</string>
+    <string name="task_detail_repeat_after_completion">Nach Erledigung</string>
+    <string name="task_detail_repeat_weekdays_every">Werktags, %1$s</string>
+    <plurals name="task_detail_repeat_every_count">
+        <item quantity="one">jeden %1$d. %2$s</item>
+        <item quantity="other">alle %1$d %2$s</item>
+    </plurals>
+    <plurals name="task_detail_repeat_days">
+        <item quantity="one">Tag</item>
+        <item quantity="other">Tage</item>
+    </plurals>
+    <plurals name="task_detail_repeat_weeks">
+        <item quantity="one">Woche</item>
+        <item quantity="other">Wochen</item>
+    </plurals>
+    <plurals name="task_detail_repeat_months">
+        <item quantity="one">Monat</item>
+        <item quantity="other">Monate</item>
+    </plurals>
+    <plurals name="task_detail_repeat_years">
+        <item quantity="one">Jahr</item>
+        <item quantity="other">Jahre</item>
+    </plurals>
+    <string name="task_detail_item_move_up">Nach oben</string>
+    <string name="task_detail_item_move_down">Nach unten</string>
 </resources>

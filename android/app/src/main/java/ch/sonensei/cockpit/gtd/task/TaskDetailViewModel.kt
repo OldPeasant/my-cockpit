@@ -11,6 +11,7 @@ import ch.sonensei.cockpit.gtd.data.GtdProject
 import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.data.ProjectRepository
 import ch.sonensei.cockpit.gtd.data.ProjectStatus
+import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.notes.NoteImages
 import coil3.ImageLoader
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -48,6 +49,13 @@ enum class TaskField(
     ESTIMATE("timeEstimateMin"),
     ENERGY("energy"),
     CREATIVITY("creativity"),
+    LIST("list"),
+    SCHEDULED("scheduledDate"),
+    TICKLER("ticklerDate"),
+    WAITING_FOR("waitingForText"),
+    WAITING_SINCE("waitingSince"),
+    RECURRENCE("recurrenceRule"),
+    RECURRENCE_MODE("recurrenceMode"),
     ;
 
     companion object {
@@ -63,12 +71,19 @@ sealed interface FieldProblem {
 
     data object NotANumber : FieldProblem
 
+    /** A tickler date must be after today. */
+    data object NotFuture : FieldProblem
+
+    /** A repeat interval that is no number in range, or a custom rule without `FREQ`. */
+    data object Invalid : FieldProblem
+
     data class Server(
         val message: String,
     ) : FieldProblem
 }
 
 /** The edit form's values. [estimate] is the text typed (minutes). */
+@Suppress("LongParameterList")
 data class TaskDraft(
     val title: String,
     val notes: String,
@@ -79,9 +94,34 @@ data class TaskDraft(
     val estimate: String,
     val energy: Energy?,
     val creativity: Creativity?,
+    val list: TaskList = TaskList.INBOX,
+    /** Only kept on the SCHEDULED list. */
+    val scheduledDate: LocalDate? = null,
+    val ticklerDate: LocalDate? = null,
+    /** The person waited for, only kept on the WAITING list. */
+    val waitingFor: String = "",
+    val waitingSince: LocalDate? = null,
+    val repeat: RepeatDraft = RepeatDraft(),
 ) {
+    /** The draft on [target]: a list other than SCHEDULED has no scheduled date. */
+    fun onList(target: TaskList): TaskDraft = copy(list = target, scheduledDate = scheduledDate.takeIf { target == TaskList.SCHEDULED })
+
+    /**
+     * The draft with the scheduled date [date]: a date puts the task on the SCHEDULED list, clearing it takes a
+     * scheduled task to Next (where the server puts it on its date, too).
+     */
+    fun scheduledOn(date: LocalDate?): TaskDraft =
+        when {
+            date != null -> copy(list = TaskList.SCHEDULED, scheduledDate = date)
+            list == TaskList.SCHEDULED -> copy(list = TaskList.NEXT, scheduledDate = null)
+            else -> copy(scheduledDate = null)
+        }
+
     /** The problems found before sending: the server would refuse these. */
-    fun problems(): Map<TaskField, FieldProblem> =
+    fun problems(
+        before: TaskDetail? = null,
+        today: LocalDate = LocalDate.now(),
+    ): Map<TaskField, FieldProblem> =
         buildMap {
             if (title.isBlank()) put(TaskField.TITLE, FieldProblem.Required)
             if (title.trim().length > MAX_TITLE) put(TaskField.TITLE, FieldProblem.TooLong)
@@ -89,7 +129,56 @@ data class TaskDraft(
             if (minutes.isNotEmpty() && minutes.toIntOrNull()?.takeIf { it in 0..MAX_ESTIMATE } == null) {
                 put(TaskField.ESTIMATE, FieldProblem.NotANumber)
             }
+            if (list == TaskList.SCHEDULED && scheduledDate == null) put(TaskField.SCHEDULED, FieldProblem.Required)
+            // Every move sends the tickler: one that is no longer in the future would be refused.
+            val moving = before != null && move(before) != null
+            if (moving && ticklerDate != null && !ticklerDate.isAfter(today)) put(TaskField.TICKLER, FieldProblem.NotFuture)
+            val toWaiting = before != null && list == TaskList.WAITING && before.task.list != TaskList.WAITING
+            if (toWaiting && waitingFor.isBlank()) put(TaskField.WAITING_FOR, FieldProblem.Required)
+            repeat.problem()?.let { put(TaskField.RECURRENCE, it) }
         }
+
+    /** The move that puts the task on the draft's list with its tickler, or `null` when neither changed. */
+    fun move(before: TaskDetail): TaskMove? {
+        if (list == before.task.list && ticklerDate == before.ticklerDate) return null
+        return TaskMove(
+            list = list,
+            scheduledDate = scheduledDate.takeIf { list == TaskList.SCHEDULED },
+            ticklerDate = ticklerDate,
+            waitingForText = waitingFor.trim().takeIf { list == TaskList.WAITING && it.isNotEmpty() },
+        )
+    }
+
+    /**
+     * The PATCH turning [task] (after the [move], if any) and the repeat it has ([recurrence]) into the draft. The
+     * list-bound fields are only sent while the task is on their list; the list and tickler change with [move].
+     */
+    fun patch(
+        task: GtdTask,
+        recurrence: RepeatDraft,
+    ): JsonObject {
+        val fields = patch(task).toMutableMap()
+        if (task.list == TaskList.SCHEDULED && list == TaskList.SCHEDULED && scheduledDate != task.scheduledDate) {
+            fields[TaskField.SCHEDULED.apiName] = jsonOf(scheduledDate?.toString())
+        }
+        if (task.list == TaskList.WAITING && list == TaskList.WAITING) {
+            val person = waitingFor.trim().ifEmpty { null }
+            if (person != task.waitingForText?.ifBlank { null }) fields[TaskField.WAITING_FOR.apiName] = jsonOf(person)
+            if (waitingSince != null && waitingSince != task.waitingSince) {
+                fields[TaskField.WAITING_SINCE.apiName] = jsonOf(waitingSince.toString())
+            }
+        }
+        if (!repeat.sameAs(recurrence)) {
+            val rule = repeat.rule()
+            if (rule != recurrence.rule()) fields[TaskField.RECURRENCE.apiName] = jsonOf(rule)
+            if (repeat.modeOrNull() !=
+                recurrence.modeOrNull()
+            ) {
+                fields[TaskField.RECURRENCE_MODE.apiName] = jsonOf(repeat.modeOrNull()?.name)
+            }
+        }
+        return JsonObject(fields)
+    }
 
     /** The PATCH body with the fields that differ from [task]: only those change, `null` clears one. */
     fun patch(task: GtdTask): JsonObject {
@@ -128,6 +217,17 @@ data class TaskDraft(
                 estimate = task.timeEstimateMin?.toString().orEmpty(),
                 energy = task.energy,
                 creativity = task.creativity,
+                list = task.list,
+                scheduledDate = task.scheduledDate,
+                waitingFor = task.waitingForText.orEmpty(),
+                waitingSince = task.waitingSince,
+            )
+
+        /** The form for [detail]: the task with its tickler and repeat. */
+        fun of(detail: TaskDetail) =
+            of(detail.task).copy(
+                ticklerDate = detail.ticklerDate,
+                repeat = RepeatDraft.of(detail.recurrenceRule, detail.recurrenceMode),
             )
     }
 }
@@ -294,9 +394,8 @@ class TaskDetailViewModel internal constructor(
 
     fun startEditing() {
         val s = state.value
-        val task = s.detail?.task ?: return
-        if (s.readOnly || s.detail.completed) return
-        state.update { it.copy(draft = TaskDraft.of(task), problems = emptyMap()) }
+        if (s.detail?.task == null || s.readOnly || s.detail.completed) return
+        state.update { it.copy(draft = TaskDraft.of(s.detail), problems = emptyMap()) }
     }
 
     fun edit(change: (TaskDraft) -> TaskDraft) =
@@ -310,50 +409,78 @@ class TaskDetailViewModel internal constructor(
 
     fun cancelEditing() = state.update { it.copy(draft = null, problems = emptyMap()) }
 
-    /** Sends the form's changes with the loaded version as `If-Match`. */
+    /**
+     * Sends the form's changes with the loaded version as `If-Match`: first a move when the list or tickler changed,
+     * then a PATCH of the other fields on the moved task.
+     */
     fun save() {
         val s = state.value
         val draft = s.draft ?: return
-        val task = s.detail?.task ?: return
+        val detail = s.detail ?: return
         if (s.busy || s.readOnly) return
-        val problems = draft.problems()
+        val problems = draft.problems(detail)
         if (problems.isNotEmpty()) {
             state.update { it.copy(problems = problems) }
             return
         }
-        val patch = draft.patch(task)
-        if (patch.isEmpty()) {
+        val move = draft.move(detail)
+        val recurrence = RepeatDraft.of(detail.recurrenceRule, detail.recurrenceMode)
+        if (move == null && draft.patch(detail.task, recurrence).isEmpty()) {
             state.update { it.copy(draft = null, problems = emptyMap()) }
             return
         }
         state.update { it.copy(busy = true) }
         viewModelScope.launch {
-            when (val result = source.update(task, patch)) {
+            var task = detail.task
+            if (move != null) {
+                when (val moved = source.relist(task, move)) {
+                    is TaskResult.Ok -> {
+                        task = moved.value
+                        // The move went through: a refused PATCH below starts again from the moved task.
+                        state.update { it.copy(detail = it.detail?.copy(task = task, ticklerDate = move.ticklerDate)) }
+                    }
+                    else -> return@launch refused(moved)
+                }
+            }
+            val patch = draft.patch(task, recurrence)
+            val result = if (patch.isEmpty()) TaskResult.Ok(task) else source.update(task, patch)
+            when (result) {
                 is TaskResult.Ok -> {
                     state.update {
                         it.copy(
                             busy = false,
                             draft = null,
                             problems = emptyMap(),
-                            detail = it.detail?.copy(task = result.value),
+                            detail =
+                                it.detail?.copy(
+                                    task = result.value,
+                                    recurrenceRule = draft.repeat.rule(),
+                                    recurrenceMode = draft.repeat.modeOrNull(),
+                                ),
                             message = DetailMessage.Saved,
                         )
                     }
                     source.changed()
                 }
-                is TaskResult.Invalid -> {
-                    val fields = result.fields.mapNotNull { (name, text) -> TaskField.ofApi(name)?.let { it to FieldProblem.Server(text) } }
-                    val unplaced = result.fields.keys.any { TaskField.ofApi(it) == null }
-                    state.update {
-                        it.copy(
-                            busy = false,
-                            problems = fields.toMap(),
-                            message = if (fields.isEmpty() || unplaced) DetailMessage.Failed(result.message) else null,
-                        )
-                    }
+                else -> {
+                    refused(result)
+                    if (move != null) source.changed()
                 }
-                else -> afterRefusal(result)
             }
+        }
+    }
+
+    /** After a refused save: the invalid fields show their problems, the rest is handled as any refusal. */
+    private suspend fun refused(result: TaskResult<*>) {
+        if (result !is TaskResult.Invalid) return afterRefusal(result)
+        val fields = result.fields.mapNotNull { (name, text) -> TaskField.ofApi(name)?.let { it to FieldProblem.Server(text) } }
+        val unplaced = result.fields.keys.any { TaskField.ofApi(it) == null }
+        state.update {
+            it.copy(
+                busy = false,
+                problems = fields.toMap(),
+                message = if (fields.isEmpty() || unplaced) DetailMessage.Failed(result.message) else null,
+            )
         }
     }
 
@@ -435,6 +562,29 @@ class TaskDetailViewModel internal constructor(
     }
 
     fun deleteChecklistItem(item: ChecklistItem) = checklistChange { id -> source.deleteChecklistItem(id, item) }
+
+    /** Moves [item] to index [to] of the checklist and saves the positions that changed (0, 1, 2, ...). */
+    fun moveChecklistItem(
+        item: ChecklistItem,
+        to: Int,
+    ) {
+        val s = state.value
+        val items = s.detail?.checklist ?: return
+        if (s.busy || s.readOnly) return
+        val order = reordered(items, item, to)
+        if (order.map { it.id } == items.map { it.id }) return
+        // Shown at once; the server's checklist replaces it when the positions are saved.
+        state.update { it.copy(detail = it.detail?.copy(checklist = order)) }
+        checklistChange { id ->
+            var result: TaskResult<*> = TaskResult.Ok(Unit)
+            for ((index, entry) in order.withIndex()) {
+                if (entry.position == index) continue
+                result = source.updateChecklistItem(id, entry, JsonObject(mapOf("position" to jsonOf(index))))
+                if (result !is TaskResult.Ok) break
+            }
+            result
+        }
+    }
 
     /** Hides [shown] once it was dismissed or timed out; a newer message stays. */
     fun dismiss(shown: DetailMessage) = state.update { if (it.message == shown) it.copy(message = null) else it }
@@ -522,6 +672,12 @@ class TaskDetailViewModel internal constructor(
             TaskField.ESTIMATE -> a.estimate != b.estimate
             TaskField.ENERGY -> a.energy != b.energy
             TaskField.CREATIVITY -> a.creativity != b.creativity
+            TaskField.LIST -> a.list != b.list
+            TaskField.SCHEDULED -> a.scheduledDate != b.scheduledDate || a.list != b.list
+            TaskField.TICKLER -> a.ticklerDate != b.ticklerDate
+            TaskField.WAITING_FOR -> a.waitingFor != b.waitingFor || a.list != b.list
+            TaskField.WAITING_SINCE -> a.waitingSince != b.waitingSince
+            TaskField.RECURRENCE, TaskField.RECURRENCE_MODE -> a.repeat != b.repeat
         }
 
     private companion object {

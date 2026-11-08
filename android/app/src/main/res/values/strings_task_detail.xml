@@ -92,4 +92,52 @@
     <string name="task_detail_message_deleted">Task moved to the Trash</string>
     <string name="task_detail_message_restored">Task restored</string>
     <string name="task_detail_undo">Undo</string>
+
+    <string name="task_detail_list_label">List</string>
+    <string name="task_detail_scheduled_hint">Picking a day puts the task on the Scheduled list until then.</string>
+    <string name="task_detail_tickler_hint">Hidden until then; on that day it comes back to the Inbox.</string>
+    <string name="task_detail_date_pick">Pick a day</string>
+    <string name="task_detail_date_clear">Remove date</string>
+    <string name="task_detail_date_tomorrow">Tomorrow</string>
+    <string name="task_detail_date_week">In a week</string>
+    <string name="task_detail_date_month">In a month</string>
+    <string name="task_detail_waiting_since_label">Waiting since</string>
+    <string name="task_detail_error_future">Pick a day after today.</string>
+    <string name="task_detail_error_repeat_interval">Enter a number from 1 to %1$d.</string>
+    <string name="task_detail_error_repeat_rule">The rule needs a FREQ, e.g. FREQ=WEEKLY;BYDAY=MO.</string>
+    <string name="task_detail_repeat_none">Does not repeat</string>
+    <string name="task_detail_repeat_daily">Daily</string>
+    <string name="task_detail_repeat_weekdays">Weekdays</string>
+    <string name="task_detail_repeat_weekly">Weekly</string>
+    <string name="task_detail_repeat_monthly">Monthly</string>
+    <string name="task_detail_repeat_yearly">Yearly</string>
+    <string name="task_detail_repeat_custom">Custom rule</string>
+    <string name="task_detail_repeat_every">Every</string>
+    <string name="task_detail_repeat_rule">Rule (RFC 5545 RRULE)</string>
+    <string name="task_detail_repeat_mode">Next date</string>
+    <string name="task_detail_repeat_fixed">On schedule</string>
+    <string name="task_detail_repeat_after_completion">After completion</string>
+    <string name="task_detail_repeat_weekdays_every">Weekdays, %1$s</string>
+    <plurals name="task_detail_repeat_every_count">
+        <item quantity="one">every %1$d %2$s</item>
+        <item quantity="other">every %1$d %2$s</item>
+    </plurals>
+    <plurals name="task_detail_repeat_days">
+        <item quantity="one">day</item>
+        <item quantity="other">days</item>
+    </plurals>
+    <plurals name="task_detail_repeat_weeks">
+        <item quantity="one">week</item>
+        <item quantity="other">weeks</item>
+    </plurals>
+    <plurals name="task_detail_repeat_months">
+        <item quantity="one">month</item>
+        <item quantity="other">months</item>
+    </plurals>
+    <plurals name="task_detail_repeat_years">
+        <item quantity="one">year</item>
+        <item quantity="other">years</item>
+    </plurals>
+    <string name="task_detail_item_move_up">Move up</string>
+    <string name="task_detail_item_move_down">Move down</string>
 </resources>

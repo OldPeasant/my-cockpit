@@ -64,6 +64,26 @@ class FakeTaskDetailSource(
         return moveResult ?: TaskResult.Ok(task)
     }
 
+    /** What relist answers; `null` is the task on the new list with its scheduled date. */
+    var relistResult: TaskResult<GtdTask>? = null
+    val relists = mutableListOf<Pair<GtdTask, TaskMove>>()
+
+    override suspend fun relist(
+        task: GtdTask,
+        move: TaskMove,
+    ): TaskResult<GtdTask> {
+        relists += task to move
+        return relistResult
+            ?: TaskResult.Ok(
+                task.copy(
+                    list = move.list,
+                    scheduledDate = move.scheduledDate,
+                    waitingForText = if (move.list == ch.sonensei.cockpit.gtd.data.TaskList.WAITING) move.waitingForText else null,
+                    version = task.version + 1,
+                ),
+            )
+    }
+
     override suspend fun delete(task: GtdTask): TaskResult<Unit> {
         calls += "delete"
         return actionResult ?: TaskResult.Ok(Unit)

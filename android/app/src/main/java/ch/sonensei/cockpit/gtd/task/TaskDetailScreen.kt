@@ -4,7 +4,9 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +26,7 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.DragIndicator
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
@@ -56,23 +59,32 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -101,6 +113,7 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.UUID
+import kotlin.math.roundToInt
 
 /** Where the detail screen sends the user: back, another task, an item with an Android screen, or a list screen. */
 data class TaskDetailNavigation(
@@ -189,6 +202,8 @@ data class TaskDetailCallbacks(
     val renameItem: (ChecklistItem, String) -> Unit = { _, _ -> },
     val addItem: (String) -> Unit = {},
     val deleteItem: (ChecklistItem) -> Unit = {},
+    /** Moves the item to the index of the checklist. */
+    val moveItem: (ChecklistItem, Int) -> Unit = { _, _ -> },
     val openLink: (TaskLink) -> Unit = {},
     val dismiss: (DetailMessage) -> Unit = {},
 ) {
@@ -209,6 +224,7 @@ data class TaskDetailCallbacks(
                 renameItem = vm::renameChecklistItem,
                 addItem = vm::addChecklistItem,
                 deleteItem = vm::deleteChecklistItem,
+                moveItem = vm::moveChecklistItem,
                 dismiss = vm::dismiss,
             )
     }
@@ -412,15 +428,6 @@ private fun statusText(
         stringResource(listLabel(task.list))
     }
 
-private fun listLabel(list: TaskList) =
-    when (list) {
-        TaskList.INBOX -> R.string.task_detail_list_inbox
-        TaskList.NEXT -> R.string.task_detail_list_next
-        TaskList.WAITING -> R.string.task_detail_list_waiting
-        TaskList.SOMEDAY -> R.string.task_detail_list_someday
-        TaskList.SCHEDULED -> R.string.task_detail_list_scheduled
-    }
-
 @Composable
 private fun Actions(
     state: TaskDetailUiState,
@@ -577,7 +584,9 @@ private fun Properties(
                 listOfNotNull(task.waitingForText?.takeIf { it.isNotBlank() } ?: none, since).joinToString(" · "),
             )
         }
-        detail.recurrenceRule?.let { Property("repeat", stringResource(R.string.task_detail_repeat), it) }
+        detail.recurrenceRule?.takeIf { it.isNotBlank() }?.let {
+            Property("repeat", stringResource(R.string.task_detail_repeat), repeatText(it, detail.recurrenceMode))
+        }
     }
 }
 
@@ -617,11 +626,68 @@ private fun Checklist(
     var renaming by remember { mutableStateOf<ChecklistItem?>(null) }
     var newItem by rememberSaveable { mutableStateOf("") }
     SectionTitle(stringResource(R.string.task_detail_checklist))
-    detail.checklist.forEach { item ->
+    var dragging by remember { mutableStateOf<UUID?>(null) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val moveUp = stringResource(R.string.task_detail_item_move_up)
+    val moveDown = stringResource(R.string.task_detail_item_move_down)
+    val last = detail.checklist.lastIndex
+    detail.checklist.forEachIndexed { index, item ->
+        var rowHeight by remember(item.id) { mutableIntStateOf(1) }
+        val lifted = dragging == item.id
         Row(
-            Modifier.fillMaxWidth().padding(end = 4.dp).testTag(TaskDetailTags.item(item.id)),
+            Modifier
+                .fillMaxWidth()
+                .onSizeChanged { rowHeight = it.height.coerceAtLeast(1) }
+                .zIndex(if (lifted) 1f else 0f)
+                .graphicsLayer { translationY = if (lifted) dragOffset else 0f }
+                .background(if (lifted) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent)
+                .pointerInput(item.id, index, enabled) {
+                    if (!enabled) return@pointerInput
+                    // Long-press, then drag: the item lands where it is let go, by whole rows.
+                    detectDragGesturesAfterLongPress(
+                        onDragStart = {
+                            dragging = item.id
+                            dragOffset = 0f
+                        },
+                        onDragEnd = {
+                            val steps = (dragOffset / rowHeight).roundToInt()
+                            dragging = null
+                            dragOffset = 0f
+                            if (steps != 0) callbacks.moveItem(item, (index + steps).coerceIn(0, last))
+                        },
+                        onDragCancel = {
+                            dragging = null
+                            dragOffset = 0f
+                        },
+                    ) { change, amount ->
+                        change.consume()
+                        dragOffset += amount.y
+                    }
+                }.semantics {
+                    if (enabled) {
+                        customActions =
+                            listOfNotNull(
+                                CustomAccessibilityAction(
+                                    moveUp,
+                                ) { true.also { callbacks.moveItem(item, index - 1) } }.takeIf { index > 0 },
+                                CustomAccessibilityAction(moveDown) { true.also { callbacks.moveItem(item, index + 1) } }.takeIf {
+                                    index <
+                                        last
+                                },
+                            )
+                    }
+                }.padding(end = 4.dp)
+                .testTag(TaskDetailTags.item(item.id)),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (enabled && last > 0) {
+                Icon(
+                    Icons.Outlined.DragIndicator,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 8.dp).size(20.dp),
+                )
+            }
             val toggleLabel = stringResource(R.string.task_detail_item_toggle, item.text)
             Checkbox(
                 checked = item.done,
@@ -818,6 +884,7 @@ private fun EditFields(
             minLines = 3,
             modifier = Modifier.fillMaxWidth().testTag(TaskDetailTags.NOTES_INPUT),
         )
+        ListFields(state, draft, callbacks, enabled)
         ProjectPicker(state, draft, callbacks, enabled)
         FormGroup(stringResource(R.string.task_detail_contexts), state.problems[TaskField.CONTEXTS]?.let { TaskField.CONTEXTS to it }) {
             if (state.contexts.isEmpty()) {
@@ -892,6 +959,7 @@ private fun EditFields(
                 )
             }
         }
+        RepeatFields(state, draft, callbacks, enabled)
     }
 }
 
@@ -1015,7 +1083,7 @@ private fun DueFields(
 }
 
 @Composable
-private fun FormGroup(
+internal fun FormGroup(
     title: String,
     problem: Pair<TaskField, FieldProblem>?,
     content: @Composable () -> Unit,
@@ -1028,7 +1096,7 @@ private fun FormGroup(
 }
 
 @Composable
-private fun ProblemText(
+internal fun ProblemText(
     field: TaskField,
     problem: FieldProblem,
 ) {
@@ -1037,6 +1105,8 @@ private fun ProblemText(
             FieldProblem.Required -> stringResource(R.string.task_detail_error_required)
             FieldProblem.TooLong -> pluralStringResource(R.plurals.task_detail_error_too_long, TaskDraft.MAX_TITLE, TaskDraft.MAX_TITLE)
             FieldProblem.NotANumber -> stringResource(R.string.task_detail_error_estimate, TaskDraft.MAX_ESTIMATE)
+            FieldProblem.NotFuture -> stringResource(R.string.task_detail_error_future)
+            FieldProblem.Invalid -> stringResource(R.string.task_detail_error_invalid)
             is FieldProblem.Server -> problem.message.ifBlank { stringResource(R.string.task_detail_error_invalid) }
         },
         color = MaterialTheme.colorScheme.error,

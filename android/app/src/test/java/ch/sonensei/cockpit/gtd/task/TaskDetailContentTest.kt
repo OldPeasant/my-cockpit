@@ -103,7 +103,7 @@ class TaskDetailContentTest {
         property("contexts", "@home")
         property("estimate", "15 min")
         property("energy", "High")
-        property("repeat", "FREQ=WEEKLY")
+        property("repeat", "Weekly")
         composeRule.onNodeWithTag(TaskDetailTags.NOTES).performScrollTo()
         composeRule.onNodeWithText("Tomatoes and basil", substring = true).assertExists()
         composeRule.onNodeWithText("Tomatoes **and** basil", substring = true).assertDoesNotExist()
