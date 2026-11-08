@@ -5,7 +5,7 @@ owner: rudi/agent-1
 deps: [and-mail-actions]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/read,android/app/src/test/java/ch/sonensei/cockpit/mail/read,android/app/src/main/res/values/strings_mail.xml,android/app/src/main/res/values-de/strings_mail.xml]
 prio: 2
-lease_until: 2026-11-08T14:57:36Z
+lease_until: 2026-11-08T15:02:37Z
 extended: 
 releases: 1
 ---
