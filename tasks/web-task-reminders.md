@@ -19,3 +19,4 @@ Goal: web task detail lets the user add/remove reminders on a task via `POST/DEL
 
 ## Notes
 - Work done on `task-reminders` before the split is on `origin/wip/task-reminders` (if it exists): merge it first if your part builds on it.
+- ASSUMPTION (2026-11-09 00:39+0100 by dell26/agent-1): Presets mirror Android (and-task-reminders): when due, 1 h before due (only with a due time), 1 day before due, on the scheduled day; a date without a time reminds at 09:00 local; only future presets are offered; exact time via datetime-local; presets use the saved task dates, not unsaved edits
