@@ -4,26 +4,39 @@ Date: 2026-11-08
 
 Task: and-files-manage - Android files: new folder, rename, move, delete
 
-Scope: Production code of the task, commit 68e70cb9 (android/app/src/main/java/ch/sonensei/cockpit/files, res/values*/strings_files.xml) on top of base f4d52874. Test commit 9a43afc0 was read for context only; uncommitted test changes in the working tree (FilesRouteInAppTest.kt, being edited by a concurrent test-writer) were not reviewed.
+Scope: Committed changes c670a3fc..8c57f7a9 (reviewed HEAD 8c57f7a976ef08f518a37152760e4e91f4857517). Primary: production code in android/app/src/main/java/ch/sonensei/cockpit/files and res/values{,-de}/strings_files.xml from 496bfdd6 (implementation) and 8c57f7a9 (fixes for the previous review's CR-1..CR-4). Test commits 54955c19 and 6493185f, plus the test part of 8c57f7a9, were read for coverage. The working tree was clean when the review was done.
 
 Requirements:
 - tasks/and-files-manage.md acceptance criteria
 - SPEC.md §4.2 (ETag/If-Match), §8.2 (Files)
-- docs/PARITY.md (row "Files: no new folder/rename/move/delete")
-- api/openapi.yaml (createFolder, updateFile, updateFolder, deleteFile, deleteFolder, FilePatchRequest, FolderPatchRequest)
-- server FilesService / FileNames / ETags (actual 409/412 semantics)
-- web reference web/src/app/features/files/browser (files-page.ts, move-dialog.ts, name-dialog.ts)
 - AGENTS.md project notes
+- Server contract: server/src/main/kotlin/ch/sonensei/cockpit/files/domain/FilesService.kt (409/404 semantics of createFolder, updateFolder, updateFile, deleteFolder, deleteFile), files/api/FilesWebSupport.kt (412/428)
+- Previous review reviews/and-files-manage/review.md (revision 9a43afc0) and fixes in reviews/and-files-manage/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: 9a43afc070496be5f0b0c060097e869cb0d22676
-- Base/start: f4d52874950632743a0ab4f704c61c947c4acd87
-- Commits reviewed: 2 (68e70cb9 production, primary; 9a43afc0 tests, context)
+- HEAD: 8c57f7a976ef08f518a37152760e4e91f4857517
+- Base/start: c670a3fc7efe1beb679d18f688a3bd7e90a4ec49
+- Commits reviewed: 4 (496bfdd6, 54955c19, 6493185f, 8c57f7a9)
 
-Summary: 0 P0, 0 P1, 2 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 2 P3
 
-What was checked and holds: the If-Match value matches the server's strong ETag (`"<version>"`, core/web/ETags.kt). A move to the drive root sends an explicit `null` for `folderId`/`parentId` through the hand-built JSON body, as FilePatchRequest/FolderPatchRequest require. Folders use `parentId` and files use `folderId`. `Response<Unit>` for the 200 PATCH responses is handled by Retrofit's built-in Unit converter. The move picker can't open the folders being moved, so a folder can't be moved into its own subtree from the UI. Special folders have no menu and can't be selected (the server refuses them anyway). Deleting has no confirmation, which matches the web (files-page.ts "no confirmation, as it can be restored"). Double submits are guarded (`saving`, `moving`, `working`), and picker loads cancel the earlier load. Every new string is in both values/ and values-de/, plurals included. No secrets and no logging of names or contents were found.
+Status of the earlier findings (checked against the code at HEAD):
+- CR-1 (retrying after a 412 from the rename dialog or move picker) is resolved. After a refusal that maps to CHANGED, `reloadStale()` sets `adoptVersions`. The next successful load runs `FilesUiState.withVersionsOf`, which swaps in the reloaded versions by id for the dialog entry and the picker entries (FilesViewModel.kt:176-189, :512-526). An ordinary reload leaves the versions alone. Tests at FilesViewModelTest.kt:545, :571, :897 and :928 cover this.
+- CR-2 (wrong meaning given to a 409) is resolved, and the mapping matches FilesService. A 409 on create or folder rename means NAME_TAKEN, a 409 on a folder move means MOVE_CONFLICT, and a 409 on a file rename, file move or any delete means CHANGED with a reload (FilesViewModel.kt:249, :325, :364, :489). updateFile throws no ConflictException, and the client never sends a delete for a special folder, so those 409s can only come from something else.
+- CR-3 (confirmation names a failed entry) is resolved. The name now comes from the first entry whose result is `Ok` (FilesViewModel.kt:339, :368).
+- CR-4 (control characters) is resolved. `nameProblem` now rejects ISO control characters (FilesModels.kt:50), and both EN and DE `files_name_invalid` mention them.
+
+What else was checked and holds:
+- If-Match carries the strong ETag `"<version>"`.
+- A move to the root sends an explicit JSON `null` through the hand-built JsonObject body, which goes through the kotlinx-serialization converter registered in NetworkModule.
+- Folder moves use `parentId` and file moves use `folderId`.
+- Special folders have no menu and cannot be selected, and the folders being moved cannot be opened in the picker.
+- Double submits are guarded by `saving`, `moving` and `working`.
+- A picker load cancels the one before it.
+- Back clears the selection before it leaves the folder.
+- Every new string is in both values/ and values-de/, plurals included.
+- Nothing logs names or contents, and no secrets were found.
 
 ## P0 Critical
 
@@ -35,42 +48,28 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | After a 412, retrying from the open rename dialog or move picker always fails again**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/files/FilesViewModel.kt:235` (rename dialog), `:311` (move picker)
-    - Category: Correctness
-    - Problem: When a rename fails, the dialog stays open with `dialog.copy(...)`, so `NameDialog.entry` keeps the old `version`. When a move partly fails, the picker keeps `picker.copy(entries = failures...)`, which also holds the old versions. After a 412, `refresh()` reloads `state.entries`, but it never updates the entry held by `nameDialog` or `movePicker`. The message tells the user "The folder was reloaded; try again" (`files_action_changed`). Pressing Rename or "Move here" again sends the same old `If-Match` and gets 412 every time. The only way out is to cancel and start over from the list.
-    - Why it matters: The recovery path the UI offers can never succeed, so a normal concurrent edit (e.g. the same file renamed on the web) leaves the dialog in a retry loop.
-    - Suggested fix: On a stale result, either close the dialog or picker so the user restarts from the reloaded list, or, once the refresh finishes, replace the entries held by the dialog or picker with their reloaded versions by id (drop the ones that are gone). Add a ViewModel test: rename returns 412, the list reloads with a newer version, and the retry sends the new version.
-
-- [ ] **CR-2 | 409 responses are mapped to messages that are wrong for files and for delete**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/files/FilesViewModel.kt:464-470` (used at `:235`, `:303`, `:338`)
-    - Category: Correctness
-    - Problem: `actionMessage(nameTaken)` turns every 409 into NAME_TAKEN (create/rename) or MOVE_CONFLICT (everything else). On the server, though:
-      - `deleteFile`/`deleteFolder` can only return 409 for a concurrent change (the client blocks special folders). The delete path still shows MOVE_CONFLICT, "Not moved: the folder already has an item with that name, or a folder would go into itself", after a delete.
-      - `updateFile` never checks names ("File names need not be unique", openapi updateFile). A 409 on a file rename or move is a concurrent change, but it shows "That name is already in this folder" or "Not moved: ...".
-      
-      Because `isStale()` only covers 412/404, these concurrent-change 409s also don't trigger a reload. The test-writer's committed test `a delete the server refuses with a conflict does not say an item was not moved` (FilesViewModelTest.kt:961) expects the opposite of the current behavior.
-    - Why it matters: Users get a false explanation and the list isn't reloaded after a concurrent change.
-    - Suggested fix: Choose the 409 meaning per operation and entry type: NAME_TAKEN/MOVE_CONFLICT only for folder create, rename and move. For delete and for file rename/move, map 409 to CHANGED and reload, as for 412.
+None.
 
 ## P3 Low
 
-- [ ] **CR-3 | When the first entry failed, the confirmation of a partial move or delete names that failed entry**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/files/FilesViewModel.kt:316`, `:342`
+- [ ] **CR-1 | A rename or move refused with 404 says "try again", but every retry gets 404 again**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/files/FilesViewModel.kt:517` (rename dialog), `:520` and `:502` (move picker)
     - Category: Correctness
-    - Problem: The `Changed` event uses `picker.entries.first().name` / `entries.first().name` no matter which entries succeeded. Take a selection [A, B] where A fails and B succeeds: the toast says "Moved A" or "Moved A to the Trash", and the banner says A failed. The committed tests `the confirmation of a partly failed move names what was moved` (:816) and `... delete names what was trashed` (:946) expect the name of the entry that succeeded.
-    - Why it matters: The confirmation contradicts the error shown at the same time.
-    - Suggested fix: Take the name from the first entry whose result is `Ok`.
+    - Problem: `actionMessage` turns a 404 into CHANGED ("It was changed elsewhere meanwhile. The folder was reloaded; try again"), and `reloadStale()` runs. Two cases get stuck after that:
+      - Rename dialog: `withVersionsOf` keeps the old entry when the reloaded list doesn't have it (`byId[it.id] ?: it`). If the entry was trashed elsewhere, the dialog stays open, and every Rename press gets 404 and CHANGED again. The picker already handles this case: it drops gone entries and closes when none are left.
+      - Move picker: according to FilesService.updateFile/updateFolder, a 404 on a move also means "the target folder does not exist or is in the Trash". The entries being moved are still in the origin folder, so they stay in the picker. The picker's own folder list isn't reloaded, so "Move here" into the trashed folder keeps returning 404 and CHANGED. The test at FilesViewModelTest.kt:588 confirms that a 404 rename keeps the dialog open.
+    - Why it matters: The message tells the user to try again, but trying again can't work. The user has to work out that Cancel is the only way out. This is small (Cancel always works, and nothing is lost), but it is the same kind of dead end CR-1 of the previous review fixed for 412.
+    - Suggested fix: In `withVersionsOf`, close the name dialog when its entry isn't in `fresh`, and set `actionMessage = CHANGED`, the same way the picker handles gone entries. For a move that fails with 404 while its entries are still there, reload the picker's folder (`loadPicker()`) or send it back to `origin`, so a trashed target disappears from view. Add a test for each case.
 
-- [ ] **CR-4 | The client name check misses control characters, which the server refuses**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/files/FilesModels.kt:42-47`
-    - Category: Correctness
-    - Problem: `nameProblem` mirrors `FileNames.validate` but leaves out its "no ISO control characters" rule. A pasted name with a tab or newline passes the dialog's check, the server returns 400, and the user only sees the generic "That did not work."
-    - Why it matters: Small, but the dialog promises to explain refusals before sending.
-    - Suggested fix: Add `trimmed.any { it.isISOControl() }` to the INVALID case and to the text of `files_name_invalid` (EN + DE).
+- [ ] **CR-2 | The formatter split simple expressions in the move picker across several lines**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/files/FilesScreen.kt:529-550`
+    - Category: Quality
+    - Problem: `if (folder.special !=\n null) { ... }` and `if (picker.canOpen(\n folder,\n )) { ... }` are spread over 22 lines. `picker.canOpen(folder)` is also evaluated three times in the same row (lines 519, 537, 543).
+    - Why it matters: This is hard to read in a composable that is already long, and it doesn't match the compact style used elsewhere in the file (for example `FolderRow`, line 704).
+    - Suggested fix: Compute `val openable = picker.canOpen(folder)` and `val kind = if (folder.special != null) FileKind.SPECIAL_FOLDER else FileKind.FOLDER` before the `Row`, then pass these values in. ktlint keeps short expressions like these on one line.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
 
-Note for the parent worker: the committed tests at FilesViewModelTest.kt:816, :946 and :961 (commit 9a43afc0) encode CR-2 and CR-3. They are expected to fail against the production code in 68e70cb9 until those findings are fixed. This review did not run the Gradle suites (read-only review).
+The four findings of the previous review are resolved, and the two new findings are low priority. Note for the parent worker: `python tasks.py verify and-files-manage` still lists all four criteria as unrecorded. They need evidence before `done`, including a fresh `sh scripts/check.sh` run, because fixes.md records a server test failure there that it treats as unrelated. This review did not run Gradle or the check, because it was a read-only review.

@@ -482,4 +482,50 @@ class FilesScreenTest {
                 useUnmergedTree = true,
             ).assertTextEquals("Dieser Name ist in diesem Ordner schon vergeben")
     }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `in German, the move picker and why a move failed are German`() {
+        val state =
+            showLive(
+                FilesUiState(
+                    entries = listOf(docs, pdf),
+                    loaded = true,
+                    movePicker = MovePicker(listOf(pdf), origin = emptyList(), path = listOf(FolderCrumb(docs.id, "Documents"))),
+                ),
+            )
+        composeRule.onNodeWithText("2025.pdf verschieben").assertExists()
+        composeRule.onNodeWithTag(FilesTags.PICKER_MOVE).assertTextEquals("Hierher verschieben")
+        composeRule.onNodeWithTag(FilesTags.PICKER_EMPTY).assertTextEquals("Hier sind keine Ordner")
+
+        state.value =
+            state.value.copy(
+                movePicker =
+                    MovePicker(
+                        listOf(docs, pdf),
+                        origin = emptyList(),
+                        path = listOf(FolderCrumb(id(4), "tax")),
+                        moveMessage = ActionMessage.MOVE_CONFLICT,
+                    ),
+            )
+        composeRule.onNodeWithText("2 Elemente verschieben").assertExists()
+        composeRule
+            .onNodeWithTag(FilesTags.ACTION_MESSAGE)
+            .assertTextEquals(
+                "Nicht verschoben: Im Ordner gibt es schon ein Element mit diesem Namen, oder ein Ordner käme in sich selbst.",
+            )
+    }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `in German, an invalid name names control characters too`() {
+        showAll(FilesUiState(entries = listOf(pdf), loaded = true, nameDialog = NameDialog()))
+        composeRule.onNodeWithTag(FilesTags.NAME_FIELD).performTextInput("a/b")
+        composeRule
+            .onNodeWithTag(FilesTags.NAME_ERROR, useUnmergedTree = true)
+            .assertTextEquals(
+                "Ein Name darf nicht „.“ oder „..“ sein und weder / oder \\ noch Steuerzeichen wie Tabulatoren oder Zeilenumbrüche enthalten",
+            )
+        composeRule.onNodeWithTag(FilesTags.NAME_SAVE).assertIsNotEnabled()
+    }
 }

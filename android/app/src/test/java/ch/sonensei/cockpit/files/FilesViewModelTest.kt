@@ -1213,4 +1213,143 @@ class FilesViewModelTest {
             coVerify(exactly = 0) { repo.delete(txt) }
             coVerify(exactly = 1) { repo.delete(pdf) }
         }
+
+    /** CR-1: when the reload after a refusal fails, the next load that arrives (the user's retry) still adopts. */
+    @Test
+    fun `a reload after a refusal that fails offline leaves the adoption to the next load that arrives`() =
+        runTest(dispatcher) {
+            val old = pdf.copy(version = 1)
+            val newer = pdf.copy(version = 2)
+            coEvery { repo.list(null) } returnsMany
+                listOf(FilesResult.Ok(listOf(old)), FilesResult.Offline, FilesResult.Ok(listOf(newer)))
+            coEvery { repo.rename(old, any()) } returns FilesResult.Failed(412)
+            val vm = FilesViewModel(repo, dispatcher)
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.startRename(old)
+            vm.saveName("2026.pdf")
+            advanceUntilIdle()
+            assertEquals(FilesMessage.OFFLINE, vm.uiState.value.message)
+            assertEquals(NameDialog(old, saving = false, message = ActionMessage.CHANGED), vm.uiState.value.nameDialog)
+
+            vm.refresh()
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.message)
+            assertEquals(NameDialog(newer, saving = false, message = ActionMessage.CHANGED), vm.uiState.value.nameDialog)
+        }
+
+    /** A folder created in a folder deleted elsewhere is refused with 404: the dialog says so and the folder reloads. */
+    @Test
+    fun `a new folder in a folder gone elsewhere says it was changed and reloads, without a confirmation`() =
+        runTest(dispatcher) {
+            coEvery { repo.list(docs.id) } returnsMany listOf(FilesResult.Ok(emptyList()), FilesResult.Failed(404))
+            coEvery { repo.createFolder(docs.id, "Taxes") } returns FilesResult.Failed(404)
+            val vm = atRoot(docs)
+            vm.openFolder(docs)
+            advanceUntilIdle()
+
+            vm.startNewFolder()
+            vm.saveName("Taxes")
+            advanceUntilIdle()
+            assertEquals(NameDialog(null, saving = false, message = ActionMessage.CHANGED), vm.uiState.value.nameDialog)
+            assertEquals(FilesMessage.FAILED, vm.uiState.value.message)
+            coVerify(exactly = 2) { repo.list(docs.id) }
+            assertNull(withTimeoutOrNull(1) { vm.events.first() })
+        }
+
+    /** CR-1 with CR-3: of a partly outdated move, only the refused entry stays, with its reloaded version. */
+    @Test
+    fun `a partly outdated move keeps only the refused entry with its reloaded version, and confirms what moved`() =
+        runTest(dispatcher) {
+            val old = pdf.copy(version = 1)
+            val newer = pdf.copy(version = 2)
+            coEvery { repo.list(null) } returnsMany
+                listOf(FilesResult.Ok(listOf(docs, old, txt)), FilesResult.Ok(listOf(docs, newer)))
+            coEvery { repo.list(docs.id) } returns FilesResult.Ok(emptyList())
+            coEvery { repo.move(old, docs.id) } returns FilesResult.Failed(412)
+            coEvery { repo.move(txt, docs.id) } returns FilesResult.Ok(Unit)
+            coEvery { repo.move(newer, docs.id) } returns FilesResult.Ok(Unit)
+            val vm = FilesViewModel(repo, dispatcher)
+            vm.refresh()
+            advanceUntilIdle()
+            vm.toggleSelected(old)
+            vm.toggleSelected(txt)
+            vm.startMoveSelected()
+            advanceUntilIdle()
+            vm.pickerOpen(docs)
+            advanceUntilIdle()
+
+            vm.confirmMove()
+            advanceUntilIdle()
+            val picker = vm.uiState.value.movePicker!!
+            assertEquals(listOf<DriveEntry>(newer), picker.entries)
+            assertEquals(ActionMessage.CHANGED, picker.moveMessage)
+            assertEquals(FilesEvent.Changed(FilesChange.MOVED, 1, "notes.txt"), vm.events.first())
+
+            vm.confirmMove()
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.movePicker)
+            coVerify(exactly = 1) { repo.move(txt, docs.id) }
+            coVerify(exactly = 1) { repo.move(newer, docs.id) }
+            assertEquals(emptySet<UUID>(), vm.uiState.value.selected)
+        }
+
+    /**
+     * CR-1, ordering: "Move here" is pressed again before the reload after a 412 arrived. That reload cannot change the
+     * running move; its refusal reloads again, and the retry after that sends the current version.
+     */
+    @Test
+    fun `a move retried before the reload after a refusal arrived ends with the reloaded version`() =
+        runTest(dispatcher) {
+            val old = pdf.copy(version = 1)
+            val newer = pdf.copy(version = 2)
+            val staleReload = CompletableDeferred<FilesResult<List<DriveEntry>>>()
+            val secondMove = CompletableDeferred<FilesResult<Unit>>()
+            var lists = 0
+            coEvery { repo.list(null) } coAnswers {
+                // 1: the list, 2: the picker starting at the drive root, 3: the reload after the refusal.
+                when (++lists) {
+                    1, 2 -> FilesResult.Ok(listOf(docs, old))
+                    3 -> staleReload.await()
+                    else -> FilesResult.Ok(listOf(docs, newer))
+                }
+            }
+            coEvery { repo.list(docs.id) } returns FilesResult.Ok(emptyList())
+            var moves = 0
+            coEvery { repo.move(old, docs.id) } coAnswers { if (++moves == 1) FilesResult.Failed(412) else secondMove.await() }
+            coEvery { repo.move(newer, docs.id) } returns FilesResult.Ok(Unit)
+            val vm = FilesViewModel(repo, dispatcher)
+            vm.refresh()
+            advanceUntilIdle()
+            vm.startMove(old)
+            advanceUntilIdle()
+            vm.pickerOpen(docs)
+            advanceUntilIdle()
+
+            vm.confirmMove()
+            advanceUntilIdle()
+            // The reload after the refusal is still on its way; the user tries again.
+            vm.confirmMove()
+            advanceUntilIdle()
+            assertTrue(
+                vm.uiState.value.movePicker!!
+                    .moving,
+            )
+            staleReload.complete(FilesResult.Ok(listOf(docs, newer)))
+            advanceUntilIdle()
+            assertEquals(listOf<DriveEntry>(docs, newer), vm.uiState.value.entries)
+
+            secondMove.complete(FilesResult.Failed(412))
+            advanceUntilIdle()
+            val picker = vm.uiState.value.movePicker!!
+            assertFalse(picker.moving)
+            assertEquals(listOf<DriveEntry>(newer), picker.entries)
+
+            vm.confirmMove()
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.movePicker)
+            coVerify(exactly = 2) { repo.move(old, docs.id) }
+            coVerify(exactly = 1) { repo.move(newer, docs.id) }
+        }
 }
