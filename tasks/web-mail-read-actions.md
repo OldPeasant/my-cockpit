@@ -19,3 +19,4 @@ shortcuts `r`, `a`, `f`, `c` (SPEC.md §7.3) are not implemented.
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 14:28+0100 by dell26/agent-1): Shortcut help = the global ? overview: added a small root PageShortcuts registry in web/src/app/shell (outside the task's touches) so the mail list and read view show their keys there while open; no other mail shortcut help existed
