@@ -1,13 +1,13 @@
 ---
 title: Android mail attachments: open, download, preview, save to Files
-status: in_progress
-owner: rudi/agent-1
+status: todo
+owner: 
 deps: [and-mail-actions]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/read,android/app/src/test/java/ch/sonensei/cockpit/mail/read,android/app/src/main/res/values/strings_mail.xml,android/app/src/main/res/values-de/strings_mail.xml]
 prio: 2
-lease_until: 2026-11-08T15:22:48Z
+lease_until: 
 extended: 
-releases: 1
+releases: 2
 ---
 ## Goal
 Android only lists attachment names in a header line (`MailReadScreen.kt:290`). Web can download, preview and
@@ -34,3 +34,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - extended by felix/agent-1: Implementation + tests committed (a5ec0a6e7, 0894f7f89, b8a5d741a); reviews/and-mail-attachments/review.md has 2 P2 (CR-1 download copy loop ignores cancellation; CR-2 PDF preview renders all 30 pages eagerly, OOM risk) + 3 P3. Left: run fixer for CR-1/CR-2 (P3 as judged), re-run test-writer (tests.md is missing) and code-reviewer on final code, tasks.py verify all 6 criteria, quality.json, done. Note: scripts/check.sh did not finish within 10 min locally (stopped after server ktlint start) - rerun and investigate.
 - release by felix/agent-1: Implementation done (d5b34f6d4), tests (27faa46df, 911509093, 890b5f978), review.md CR-1..CR-5 all fixed by fixer (c70302ca2, fixes.md). 'cd android && ./gradlew testDebugUnitTest --tests ch.sonensei.cockpit.mail.read.*' passes at 890b5f978. Left: (1) run test-writer on final code -> reviews/and-mail-attachments/tests.md (missing; include coverage), (2) re-run code-reviewer on final code (review.md is from before the fixes, so stale), (3) ktlintCheck testDebugUnitTest lintDebug + sh scripts/check.sh (an earlier local run did not finish in 10 min: check whether it hangs), (4) tasks.py verify for all 6 criteria, (5) quality.json, commit, done.
 - ASSUMPTION (2026-11-08 15:25+0100 by rudi/agent-1): PDF page rendering in the in-app preview (android PdfRenderer, lazy per page) was code-reviewed but never executed: Robolectric lacks PdfRenderer and no device/emulator was available; needs a manual device check
+- release by rudi/agent-1: over budget after 2 sessions (~42 min) and a review that decided nothing; still resumable: continue from wip/and-mail-attachments (see git log)
