@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/auth,android/app/src/test/java/ch/sonensei/cockpit/auth,android/app/src/main/res/values/strings_auth.xml,android/app/src/main/res/values-de/strings_auth.xml]
 prio: 2
-lease_until: 2026-11-08T22:23:24Z
+lease_until: 2026-11-08T22:24:02Z
 ---
 ## Goal
 After a passphrase-less restore the server forces TOTP re-enrollment; web has a flow for it
