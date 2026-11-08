@@ -109,7 +109,11 @@ class LinksRepository
             source: ItemRef,
             target: ItemRef,
         ): LinksResult<LinkedItem> {
-            val request = CreateLinkRequest(source.toDto() ?: return LinksResult.Failed(null), target.toDto() ?: return LinksResult.Failed(null))
+            val request =
+                CreateLinkRequest(
+                    source.toDto() ?: return LinksResult.Failed(null),
+                    target.toDto() ?: return LinksResult.Failed(null),
+                )
             return call({ links.createLink(request) }) { it.toLinkedItem(source) }
         }
 
@@ -129,9 +133,11 @@ class LinksRepository
 
         override suspend fun search(query: String): SearchResult = searches.search(query, emptySet())
 
-        override suspend fun createTask(title: String): LinksResult<UUID> = call({ tasks.createTask(CreateTaskRequest(title = title)) }) { it.id }
+        override suspend fun createTask(title: String): LinksResult<UUID> =
+            call({ tasks.createTask(CreateTaskRequest(title = title)) }) { it.id }
 
-        override suspend fun createNote(title: String): LinksResult<UUID> = call({ notes.createNote(CreateNoteRequest(title = title)) }) { it.id }
+        override suspend fun createNote(title: String): LinksResult<UUID> =
+            call({ notes.createNote(CreateNoteRequest(title = title)) }) { it.id }
 
         private suspend fun <B, T> call(
             request: suspend () -> Response<B>,
@@ -165,7 +171,10 @@ class LinksRepository
         }
     }
 
-private fun ItemRef.toDto(): ItemRefDto? = ItemRefDto.Type.entries.firstOrNull { it.value == type }?.let { ItemRefDto(id, it) }
+private fun ItemRef.toDto(): ItemRefDto? =
+    ItemRefDto.Type.entries
+        .firstOrNull { it.value == type }
+        ?.let { ItemRefDto(id, it) }
 
 /** The end of [this] link that is not [item]; the direction is relative to the queried item (a create answer: its source). */
 internal fun LinkResponse.toLinkedItem(item: ItemRef): LinkedItem {

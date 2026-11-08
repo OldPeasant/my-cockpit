@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.contacts
 
+import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
@@ -53,11 +54,20 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.core.links.ItemRef
+import ch.sonensei.cockpit.core.links.LinkedItemsSection
+import ch.sonensei.cockpit.core.links.LinkedItemsViewModel
+import ch.sonensei.cockpit.search.SearchHit
+import ch.sonensei.cockpit.search.SearchItemScreen
+import ch.sonensei.cockpit.search.SearchTarget
+import ch.sonensei.cockpit.search.searchTarget
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
+import okhttp3.HttpUrl
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -99,28 +109,75 @@ fun ContactsRoute(modifier: Modifier = Modifier) {
             modifier = modifier,
         )
     } else {
-        val viewModel: ContactDetailViewModel = hiltViewModel()
-        val state by viewModel.uiState.collectAsStateWithLifecycle()
-        LaunchedEffect(current) { viewModel.open(current) }
-        BackHandler { open = null }
-        val context = LocalContext.current
-        val noApp = stringResource(R.string.contacts_no_app)
-        val launch = { intent: android.content.Intent ->
-            if (!ContactIntents.launch(context, intent)) Toast.makeText(context, noApp, Toast.LENGTH_SHORT).show()
-        }
-        ContactDetailContent(
-            state = state,
-            callbacks =
-                ContactDetailCallbacks(
-                    back = { open = null },
-                    call = { launch(ContactIntents.dial(it)) },
-                    mail = { launch(ContactIntents.mail(it)) },
-                    retry = viewModel::refresh,
-                ),
-            modifier = modifier,
-        )
+        ContactDetailRoute(current, onClose = { open = null }, modifier = modifier)
     }
 }
+
+/**
+ * One contact with its linked-items panel; tapping a related or linked item opens it here (tasks, mails, notes,
+ * contacts in their Android views, other items such as events in the web app). Back returns to the contact.
+ */
+@Composable
+fun ContactDetailRoute(
+    id: UUID,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var opened by rememberSaveable(id) { mutableStateOf<String?>(null) }
+    val item = opened?.split(':')?.let { (type, itemId) -> type to UUID.fromString(itemId) }
+    if (item != null) {
+        BackHandler { opened = null }
+        SearchItemScreen(item.first, item.second, onClose = { opened = null }, modifier = modifier)
+        return
+    }
+    val viewModel: ContactDetailViewModel = hiltViewModel()
+    val links: LinkedItemsViewModel = hiltViewModel(key = "links:CONTACT:$id")
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val linkState by links.uiState.collectAsStateWithLifecycle()
+    LaunchedEffect(id) { viewModel.open(id) }
+    BackHandler(onBack = onClose)
+    val context = LocalContext.current
+    val noApp = stringResource(R.string.contacts_no_app)
+    val noBrowser = stringResource(R.string.links_no_browser)
+    val launch = { intent: Intent ->
+        if (!ContactIntents.launch(context, intent)) Toast.makeText(context, noApp, Toast.LENGTH_SHORT).show()
+    }
+    val openTarget = { target: SearchTarget ->
+        when (target) {
+            is SearchTarget.InApp -> opened = "${target.type}:${target.id}"
+            is SearchTarget.Web ->
+                if (!ContactIntents.launch(context, Intent(Intent.ACTION_VIEW, target.url.toUri()))) {
+                    Toast.makeText(context, noBrowser, Toast.LENGTH_SHORT).show()
+                }
+            // The contacts screen has no navigation to other screens; such items have a web link instead.
+            is SearchTarget.Screen -> Unit
+        }
+    }
+    ContactDetailContent(
+        state = state,
+        callbacks =
+            ContactDetailCallbacks(
+                back = onClose,
+                call = { launch(ContactIntents.dial(it)) },
+                mail = { launch(ContactIntents.mail(it)) },
+                retry = viewModel::refresh,
+                openRelated = { type, itemId -> openTarget(relatedTarget(type, itemId, linkState.server)) },
+            ),
+        modifier = modifier,
+        linksPanel = { LinkedItemsSection(ItemRef("CONTACT", id), open = openTarget, viewModel = links) },
+    )
+}
+
+/** Where a related row leads: tasks and mails in-app, events in the web app's calendar. */
+internal fun relatedTarget(
+    type: String,
+    id: UUID,
+    server: HttpUrl?,
+): SearchTarget =
+    when (type) {
+        "EVENT" -> searchTarget(SearchHit(id, type, "", null, "/calendar/events/$id"), server)
+        else -> SearchTarget.InApp(type, id)
+    }
 
 /** What the list can ask for, so it can be tested without a view model. */
 data class ContactsListCallbacks(
@@ -135,6 +192,8 @@ data class ContactDetailCallbacks(
     val call: (String) -> Unit = {},
     val mail: (String) -> Unit = {},
     val retry: () -> Unit = {},
+    /** Opens a related item (waiting-for task `TASK`, mail `EMAIL`, event `EVENT`) by its type and id. */
+    val openRelated: (String, UUID) -> Unit = { _, _ -> },
 )
 
 internal object ContactsTags {
@@ -296,6 +355,8 @@ fun ContactDetailContent(
     state: ContactDetailUiState,
     callbacks: ContactDetailCallbacks,
     modifier: Modifier = Modifier,
+    /** The linked-items panel below the related items (the routes pass [ch.sonensei.cockpit.core.links.LinkedItemsSection]). */
+    linksPanel: @Composable () -> Unit = {},
 ) {
     Column(modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -327,7 +388,8 @@ fun ContactDetailContent(
                     )
                 }
             }
-            state.related?.let { related(it) }
+            state.related?.let { related(it, callbacks.openRelated) }
+            item(key = "links") { linksPanel() }
         }
     }
 }
@@ -403,8 +465,11 @@ private fun LazyListScope.details(
     }
 }
 
-private fun LazyListScope.related(related: ContactRelated) {
-    if (related.waitingFor.isEmpty() && related.mails.isEmpty() && related.events.isEmpty() && related.links.isEmpty()) {
+private fun LazyListScope.related(
+    related: ContactRelated,
+    open: (String, UUID) -> Unit,
+) {
+    if (related.waitingFor.isEmpty() && related.mails.isEmpty() && related.events.isEmpty()) {
         item {
             Text(
                 stringResource(R.string.contacts_nothing_related),
@@ -418,7 +483,9 @@ private fun LazyListScope.related(related: ContactRelated) {
     if (related.waitingFor.isNotEmpty()) {
         section(R.string.contacts_waiting_for)
         items(related.waitingFor, key = { "w${it.id}" }) { task ->
-            RelatedRow(task.id, task.title, task.waitingSince?.let { stringResource(R.string.contacts_waiting_since, formatDate(it)) })
+            RelatedRow(task.id, task.title, task.waitingSince?.let { stringResource(R.string.contacts_waiting_since, formatDate(it)) }) {
+                open("TASK", task.id)
+            }
         }
     }
     if (related.mails.isNotEmpty()) {
@@ -429,26 +496,15 @@ private fun LazyListScope.related(related: ContactRelated) {
                 mail.id,
                 mail.subject ?: stringResource(R.string.contacts_no_subject),
                 stringResource(if (mail.fromContact) R.string.contacts_mail_from else R.string.contacts_mail_to, at).trimEnd(',', ' '),
-            )
+            ) { open("EMAIL", mail.id) }
         }
     }
     if (related.events.isNotEmpty()) {
         section(R.string.contacts_events)
         items(related.events, key = { "e${it.eventId}${it.start}${it.startDate}" }) { event ->
-            RelatedRow(event.eventId, event.title, event.start?.let(::formatInstant) ?: event.startDate?.let(::formatDate))
-        }
-    }
-    if (related.links.isNotEmpty()) {
-        section(R.string.contacts_links)
-        items(related.links, key = { "l${it.id}" }) { link ->
-            val title = link.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.contacts_untitled)
-            val subtitle =
-                if (link.available) {
-                    listOfNotNull(typeName(link.type), link.subtitle?.takeIf { it.isNotBlank() }).joinToString(", ")
-                } else {
-                    stringResource(R.string.contacts_link_deleted)
-                }
-            RelatedRow(link.id, title, subtitle)
+            RelatedRow(event.eventId, event.title, event.start?.let(::formatInstant) ?: event.startDate?.let(::formatDate)) {
+                open("EVENT", event.eventId)
+            }
         }
     }
 }
@@ -511,10 +567,12 @@ private fun RelatedRow(
     id: UUID,
     title: String,
     subtitle: String?,
+    onClick: () -> Unit,
 ) {
     Column(
         Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .semantics(mergeDescendants = true) {}
             .padding(horizontal = 24.dp, vertical = 8.dp)
             .testTag(ContactsTags.related(id)),

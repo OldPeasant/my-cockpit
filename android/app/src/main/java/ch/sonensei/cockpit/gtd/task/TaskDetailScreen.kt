@@ -157,7 +157,14 @@ fun TaskDetailRoute(
         linksPanel = {
             LinkedItemsSection(ItemRef("TASK", id), open = { target ->
                 when (target) {
-                    is SearchTarget.InApp -> if (target.type == "TASK") navigation.openTask(target.id) else navigation.openItem(target.type, target.id)
+                    is SearchTarget.InApp ->
+                        if (target.type ==
+                            "TASK"
+                        ) {
+                            navigation.openTask(target.id)
+                        } else {
+                            navigation.openItem(target.type, target.id)
+                        }
                     is SearchTarget.Screen -> navigation.openScreen(target.destination)
                     is SearchTarget.Web -> Unit
                 }
@@ -279,7 +286,6 @@ object TaskDetailTags {
     fun itemCheck(id: UUID) = "task-detail-item-check-$id"
 
     fun itemDelete(id: UUID) = "task-detail-item-delete-$id"
-
 }
 
 @Composable

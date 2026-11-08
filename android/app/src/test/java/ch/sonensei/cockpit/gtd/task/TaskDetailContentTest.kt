@@ -78,7 +78,6 @@ class TaskDetailContentTest {
             renameItem = { item, text -> calls += "rename ${item.text} -> $text" },
             addItem = { calls += "add $it" },
             deleteItem = { calls += "delete item ${it.text}" },
-            openLink = { calls += "open ${it.title}" },
             dismiss = { calls += "dismiss $it" },
         )
 
@@ -96,7 +95,7 @@ class TaskDetailContentTest {
     }
 
     @Test
-    fun `shows the task's fields, notes rendered as Markdown, checklist and linked items`() {
+    fun `shows the task's fields, notes rendered as Markdown, and checklist`() {
         show(loaded(TaskDetail(seeds, checklist = listOf(tick), links = listOf(noteLink, trashedLink), recurrenceRule = "FREQ=WEEKLY")))
         composeRule.onNodeWithTag(TaskDetailTags.TITLE).assertIsDisplayed()
         property("project", "Garden")
@@ -108,9 +107,7 @@ class TaskDetailContentTest {
         composeRule.onNodeWithText("Tomatoes and basil", substring = true).assertExists()
         composeRule.onNodeWithText("Tomatoes **and** basil", substring = true).assertDoesNotExist()
         composeRule.onNodeWithTag(TaskDetailTags.item(tick.id)).performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithTag(TaskDetailTags.link(noteLink.itemId)).performScrollTo().performClick()
-        composeRule.onNodeWithTag(TaskDetailTags.link(trashedLink.itemId)).performScrollTo().performClick()
-        assertEquals(listOf("open Seed list"), calls)
+        assertTrue(calls.isEmpty())
     }
 
     @Test

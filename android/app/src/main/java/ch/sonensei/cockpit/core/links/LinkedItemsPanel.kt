@@ -235,7 +235,11 @@ private fun LinkRow(
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (link.manual) {
-            IconButton(onClick = { callbacks.remove(link) }, enabled = !removing, modifier = Modifier.testTag(LinkedItemsTags.remove(link))) {
+            IconButton(
+                onClick = { callbacks.remove(link) },
+                enabled = !removing,
+                modifier = Modifier.testTag(LinkedItemsTags.remove(link)),
+            ) {
                 Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.links_remove, title))
             }
         }
@@ -261,7 +265,10 @@ private fun Message(
     text: String,
     retry: (() -> Unit)? = null,
 ) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).testTag(LinkedItemsTags.ERROR), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp).testTag(LinkedItemsTags.ERROR),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
         if (retry != null) TextButton(onClick = retry) { Text(stringResource(R.string.links_retry)) }
     }
