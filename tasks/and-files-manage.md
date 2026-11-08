@@ -19,7 +19,8 @@ Android Files can browse, download and upload only (web: `files-page.html:76-200
   - verified (2026-11-08 14:07+0100 by dell26/agent-1): same gradle run (3430 tests, 0 failures): FilesRouteInAppTest 'a folder and a file picked by long presses go to the Trash together, and the selection ends' and FilesViewModelTest selection move/delete tests (partial failures, back ends selection) pass
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 14:07+0100 by dell26/agent-1): diffed res/values/strings_files.xml vs res/values-de/strings_files.xml: every new string/plural in both; ./gradlew lintDebug (MissingTranslation) -> BUILD SUCCESSFUL; reviewer confirmed same format args EN/DE
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 14:19+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport at 4294509ec (=e48467de5 after rebase) -> BUILD SUCCESSFUL, 3430 tests 0 failures; files tests: FilesViewModelTest 61, FilesScreenTest 28, FilesRouteInAppTest 21, FilesRepositoryTest 19, FilesModelsTest 5; changed-line coverage 534/535 lines; sh scripts/check.sh at 86ba84ee1 -> all checks passed, exit 0
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
