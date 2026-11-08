@@ -18,7 +18,8 @@ the layout cannot be edited (web: `dashboard-page.html`).
   - verified (2026-11-08 20:28+0100 by felix/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug --continue -> 4468 tests, all dashboard tests pass incl. DashboardRouteInAppTest (project/bookmark/event editor/birthday contact/note editor) and DashboardActionsScreenTest item openers + Inbox mail/tasks lines; only failure auth/AppStartRoutingTest, which also fails on origin/main with the task files reverted
 - [x] The weekly review widget has Start/Continue review (opens the review flow from and-review-flow, or the review screen until then)
   - verified (2026-11-08 20:28+0100 by felix/agent-1): same run -> DashboardActionsScreenTest review button states (Start/Continue) and DashboardRouteInAppTest review opens Review screen pass
-- [ ] "Customize": show/hide widgets and reorder (long-press drag + accessibility actions), reset; saved in the same setting the web uses
+- [x] "Customize": show/hide widgets and reorder (long-press drag + accessibility actions), reset; saved in the same setting the web uses
+  - verified (2026-11-08 20:28+0100 by felix/agent-1): same run -> DashboardActionsScreenTest (checkbox toggle, a11y move actions, long-press drag, reset), DashboardSaveLayoutTest (PATCH /settings dashboardWidgets with If-Match, retry), DashboardSlotsTest pass
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
