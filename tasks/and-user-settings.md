@@ -24,7 +24,8 @@ the basic ones.
   - verified (2026-11-08 09:23+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest -> InboxUserLabelsTest and TaskDetailUserLabelsTest (Robolectric Compose: renamed energy/creativity labels from settings shown, defaults translated) + UserSettingsTest pass, 0 failures
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 09:23+0100 by dell26/agent-1): grep -c '<string' res/values/strings_settings.xml res/values-de/strings_settings.xml -> 52/52, 10 new keys added to both; ./gradlew lintDebug (MissingTranslation) -> pass
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 09:23+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -q -> exit 0, 2940 tests, 0 failures (c317d934e) + EdgeCasesTest 11/11 (8c228f06e); sh scripts/check.sh on c317d934e -> all checks passed (tfp, server, web, android)
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
