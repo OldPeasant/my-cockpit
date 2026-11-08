@@ -9,6 +9,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
@@ -18,6 +21,7 @@ import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -25,6 +29,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.text.AnnotatedString
 import androidx.core.app.ActivityOptionsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
@@ -32,6 +37,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowToast
 import java.time.LocalDate
 
@@ -205,7 +211,11 @@ class CaptureSheetCaptureTest {
         update(ShareUiState(savedAndCleared = 1))
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithTag(ShareTags.TEXT).assertIsFocused().assertTextEquals("")
+        // The placeholder is part of the field's Text semantics, so the typed text is checked as EditableText.
+        composeRule
+            .onNodeWithTag(ShareTags.TEXT)
+            .assertIsFocused()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
     }
 
     // Attachments
@@ -279,11 +289,16 @@ class CaptureSheetCaptureTest {
     }
 
     @Test
-    fun `a tap on the attachment chip removes it too`() {
+    fun `a tap on the attachment's name does not remove it, only its close button does`() {
         show(ShareUiState(text = "Holiday", files = listOf(beach)))
 
-        composeRule.onNodeWithTag(ShareTags.FILE).assertIsEnabled().performClick()
+        // The chip body has no action at all, for TalkBack either (CR-2).
+        composeRule.onNodeWithTag(ShareTags.FILE).assert(SemanticsMatcher.keyNotDefined(SemanticsActions.OnClick))
+        composeRule.onNodeWithText("beach.jpg").performClick()
+        composeRule.waitForIdle()
+        assertTrue(removed.isEmpty())
 
+        composeRule.onNodeWithContentDescription("Remove beach.jpg").performClick()
         assertEquals(listOf(beach.uri), removed)
     }
 
@@ -329,5 +344,67 @@ class CaptureSheetCaptureTest {
         composeRule.waitForIdle()
 
         assertEquals(0, ShadowToast.shownToastCount())
+    }
+
+    @Test
+    fun `a sheet recreated with its view model does not repeat the confirmation`() {
+        var state by mutableStateOf(ShareUiState())
+        val restoration = StateRestorationTester(composeRule)
+        restoration.setContent { SavedAndClearedToast(state) }
+        state = ShareUiState(savedAndCleared = 2)
+        composeRule.waitForIdle()
+        assertEquals(1, ShadowToast.shownToastCount())
+
+        // A rotation: the view model, and so its count, survives.
+        restoration.emulateSavedInstanceStateRestore()
+        composeRule.waitForIdle()
+        assertEquals(1, ShadowToast.shownToastCount())
+
+        state = ShareUiState(savedAndCleared = 3)
+        composeRule.waitForIdle()
+        assertEquals(2, ShadowToast.shownToastCount())
+    }
+
+    @Test
+    fun `after process death the next capture saved with add another is confirmed`() {
+        var state by mutableStateOf(ShareUiState())
+        val restoration = StateRestorationTester(composeRule)
+        restoration.setContent { SavedAndClearedToast(state) }
+        state = ShareUiState(savedAndCleared = 2)
+        composeRule.waitForIdle()
+        assertEquals(1, ShadowToast.shownToastCount())
+
+        // Process death (CR-3): the saved instance state comes back, but the new view model counts from 0 again.
+        state = ShareUiState()
+        restoration.emulateSavedInstanceStateRestore()
+        composeRule.waitForIdle()
+        state = ShareUiState(savedAndCleared = 1)
+        composeRule.waitForIdle()
+
+        assertEquals(2, ShadowToast.shownToastCount())
+        assertEquals("Saved to Inbox", ShadowToast.getTextOfLatestToast())
+    }
+
+    // German
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `the new controls and chips are in German`() {
+        show(typed("Fliesen kaufen #garden @home !2026-04-01 ^Anna").copy(files = listOf(beach)))
+
+        composeRule.onNodeWithTag(ShareTags.SAVE_ANOTHER).assertTextEquals("Speichern und weitere")
+        composeRule.onNodeWithContentDescription("Dateien oder Fotos anhängen").assertExists()
+        composeRule.onNodeWithContentDescription("beach.jpg entfernen").assertExists()
+        composeRule.onNodeWithContentDescription("Erkannt").assertExists()
+        composeRule.onNodeWithTag(ShareTags.PREVIEW_DUE).assert(hasAnyDescendant(hasText("Fällig ", substring = true)))
+        composeRule.onNodeWithTag(ShareTags.PREVIEW_WAITING).assert(hasAnyDescendant(hasText("Wartet auf Anna")))
+    }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `waiting without a name is a plain German waiting chip`() {
+        show(typed("Offerte Dach ^waiting"))
+
+        composeRule.onNodeWithTag(ShareTags.PREVIEW_WAITING).assert(hasAnyDescendant(hasText("Wartet")))
     }
 }

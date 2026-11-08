@@ -2,7 +2,9 @@ package ch.sonensei.cockpit.capture.share
 
 import android.content.Context
 import android.content.Intent
-import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -12,6 +14,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.text.AnnotatedString
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.core.app.ActivityScenario
@@ -116,7 +119,10 @@ class ShareAddAnotherActivityTest {
         composeRule.waitUntil(5_000) { stateOf(scenario).savedAndCleared == 1 }
 
         assertFalse(scenario.closing())
-        composeRule.onNodeWithTag(ShareTags.TEXT).assertTextEquals("")
+        // The empty field's Text semantics hold the placeholder; the typed text is its EditableText.
+        composeRule
+            .onNodeWithTag(ShareTags.TEXT)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
         awaitCount(ShareTags.FILE, 0)
         composeRule.waitUntil(5_000) { ShadowToast.getTextOfLatestToast() == "Saved to Inbox" }
         val first = queued().single()

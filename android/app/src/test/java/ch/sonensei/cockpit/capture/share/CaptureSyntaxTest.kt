@@ -238,4 +238,32 @@ class CaptureSyntaxTest {
 
         assertEquals(listOf(padded), CaptureSyntax.parse("Print @office", today, CaptureVocabulary(contexts = listOf(padded))).contexts)
     }
+
+    @Test
+    fun `only ASCII whitespace separates tokens, as on the server (CR-1)`() {
+        // No-break and narrow no-break spaces are part of the word on the server's java.util.regex; the device must agree
+        // even where its own regex engine would treat them as \s.
+        val noBreak = "Call @phone and #garden"
+        assertEquals(CapturePreview(noBreak), parse(noBreak))
+        parse("Call\t@phone\u000B#garden\u000C!today").let {
+            assertEquals(listOf(phone), it.contexts)
+            assertEquals(garden, it.project)
+            assertEquals(today, it.dueDate)
+        }
+    }
+
+    @Test
+    fun `a no-break space does not end a token, so the longer name is unknown`() {
+        parse("Call @phone now").let {
+            assertEquals(emptyList<SyntaxContext>(), it.contexts)
+            assertEquals("Call @phone now", it.title)
+        }
+    }
+
+    @Test
+    fun `a project title with runs of spaces or tabs is matched like single spaces`() {
+        val spaced = SyntaxProject("00000000-0000-7000-8000-000000000004", "Tax  Return\t2026")
+
+        assertEquals(spaced, CaptureSyntax.parse("File #tax-return_2026", today, CaptureVocabulary(listOf(spaced))).project)
+    }
 }

@@ -505,6 +505,24 @@ class ShareViewModelCaptureTest {
     }
 
     @Test
+    fun `files cannot be removed once the capture is queued and the sheet closes`() {
+        val a = TestFilesProvider.share("a.jpg", "a")
+        val viewModel = viewModel()
+        viewModel.onTextChange("Queued")
+        picked(viewModel, listOf(a))
+        viewModel.save()
+        assertTrue(viewModel.uiState.value.saved)
+
+        viewModel.removeFile(a)
+
+        assertEquals(
+            listOf(a),
+            viewModel.uiState.value.files
+                .map { it.uri },
+        )
+    }
+
+    @Test
     fun `attaching files to a shared page turns a read-later choice into an Inbox capture`() {
         val pdf = TestFilesProvider.share("tulips.pdf", "t")
         val viewModel = viewModel()
