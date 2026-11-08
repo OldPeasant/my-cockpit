@@ -100,10 +100,11 @@ data class ContactForm(
                 givenName = contact.givenName.orEmpty(),
                 familyName = contact.familyName.orEmpty(),
                 displayName =
-                    contact.displayName.takeIf {
-                        val derived = listOfNotNull(contact.givenName, contact.familyName).joinToString(" ")
-                        derived.isEmpty() || it != derived
-                    }.orEmpty(),
+                    contact.displayName
+                        .takeIf {
+                            val derived = listOfNotNull(contact.givenName, contact.familyName).joinToString(" ")
+                            derived.isEmpty() || it != derived
+                        }.orEmpty(),
                 organization = contact.organization.orEmpty(),
                 title = contact.title.orEmpty(),
                 emails = contact.emails.map { LabeledField(it.value, it.label.orEmpty()) },

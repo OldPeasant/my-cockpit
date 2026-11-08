@@ -202,11 +202,18 @@ class ContactEditViewModel
             state.update { it.copy(base = contact, saving = true, error = null) }
             viewModelScope.launch {
                 val result = contacts.delete(contact)
-                state.update { it.copy(saving = false, deleted = result is ContactsResult.Ok, error = if (result is ContactsResult.Ok) null else result.saveError()) }
+                state.update {
+                    it.copy(
+                        saving = false,
+                        deleted = result is ContactsResult.Ok,
+                        error = if (result is ContactsResult.Ok) null else result.saveError(),
+                    )
+                }
             }
         }
 
-        fun dismissError() = state.update { it.copy(error = null) }
+        /** The screen handled [ContactEditUiState.saved] or [ContactEditUiState.deleted]; the next screen starts clean. */
+        fun finished() = state.update { it.copy(saved = null, deleted = false, error = null) }
     }
 
 private fun ContactsResult<*>.saveError() =

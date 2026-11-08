@@ -26,8 +26,13 @@ import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Contacts
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Email
+import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -94,6 +99,11 @@ fun ContactsScreen(modifier: Modifier = Modifier) {
 fun ContactsRoute(modifier: Modifier = Modifier) {
     var open by rememberSaveable { mutableStateOf<String?>(null) }
     val listViewModel: ContactsListViewModel = hiltViewModel()
+    if (open == NEW) {
+        val editViewModel: ContactEditViewModel = hiltViewModel()
+        ContactEditRoute(null, editViewModel, onDone = { saved -> open = saved?.id?.toString() }, modifier = modifier)
+        return
+    }
     val current = open?.let(UUID::fromString)
     if (current == null) {
         val state by listViewModel.uiState.collectAsStateWithLifecycle()
@@ -106,12 +116,42 @@ fun ContactsRoute(modifier: Modifier = Modifier) {
                     open = { open = it.toString() },
                     search = listViewModel::search,
                     retry = listViewModel::refresh,
+                    create = { open = NEW },
                 ),
             modifier = modifier,
         )
     } else {
         ContactDetailRoute(current, onClose = { open = null }, modifier = modifier)
     }
+}
+
+private const val NEW = "new"
+
+/**
+ * The form for [contact] (`null`: a new one); [onDone] gets the saved contact, or `null` when cancelled. Back cancels.
+ */
+@Composable
+fun ContactEditRoute(
+    contact: Contact?,
+    viewModel: ContactEditViewModel,
+    onDone: (Contact?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LaunchedEffect(contact?.id) { viewModel.start(contact) }
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val saved = state.saved
+    LaunchedEffect(saved) {
+        if (saved != null) {
+            viewModel.finished()
+            onDone(saved)
+        }
+    }
+    BackHandler(enabled = !state.saving) { onDone(null) }
+    ContactEditContent(
+        state = state,
+        callbacks = ContactEditCallbacks(change = viewModel::change, save = viewModel::save, cancel = { onDone(null) }),
+        modifier = modifier,
+    )
 }
 
 /**
@@ -124,8 +164,30 @@ fun ContactDetailRoute(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ContactDetailViewModel = hiltViewModel(),
+    editViewModel: ContactEditViewModel = hiltViewModel(),
 ) {
     var opened by rememberSaveable(id) { mutableStateOf<String?>(null) }
+    var editing by rememberSaveable(id) { mutableStateOf(false) }
+    var confirmDelete by rememberSaveable(id) { mutableStateOf(false) }
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val editState by editViewModel.uiState.collectAsStateWithLifecycle()
+    val shown = state.contact
+    if (editing && shown != null) {
+        ContactEditRoute(shown, editViewModel, onDone = { saved ->
+            editing = false
+            if (saved != null) viewModel.refresh()
+        }, modifier = modifier)
+        return
+    }
+    val context = LocalContext.current
+    val trashed = shown?.let { stringResource(R.string.contacts_trashed, it.displayName) }
+    LaunchedEffect(editState.deleted) {
+        if (editState.deleted) {
+            editViewModel.finished()
+            trashed?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+            onClose()
+        }
+    }
     val item = opened?.split(':')?.let { (type, itemId) -> type to UUID.fromString(itemId) }
     if (item != null) {
         BackHandler { opened = null }
@@ -139,7 +201,6 @@ fun ContactDetailRoute(
         } else {
             null
         }
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
     val server =
         links
             ?.uiState
@@ -148,7 +209,6 @@ fun ContactDetailRoute(
             ?.server
     LaunchedEffect(id) { viewModel.open(id) }
     BackHandler(onBack = onClose)
-    val context = LocalContext.current
     val noApp = stringResource(R.string.contacts_no_app)
     val noBrowser = stringResource(R.string.links_no_browser)
     val launch = { intent: Intent ->
@@ -174,9 +234,38 @@ fun ContactDetailRoute(
                 mail = { launch(ContactIntents.mail(it)) },
                 retry = viewModel::refresh,
                 openRelated = { type, itemId -> openTarget(relatedTarget(type, itemId, server)) },
+                edit = { editing = true },
+                delete = { confirmDelete = true },
             ),
+        busy = editState.saving,
+        actionError = editState.error,
         modifier = modifier,
         linksPanel = { links?.let { LinkedItemsSection(ItemRef("CONTACT", id), open = openTarget, viewModel = it) } },
+    )
+    if (confirmDelete && shown != null) {
+        DeleteDialog(shown.displayName, onConfirm = {
+            confirmDelete = false
+            editViewModel.delete(shown)
+        }, onDismiss = { confirmDelete = false })
+    }
+}
+
+@Composable
+private fun DeleteDialog(
+    name: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.contacts_delete_title)) },
+        text = { Text(stringResource(R.string.contacts_delete_text, name)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm, modifier = Modifier.testTag(ContactsTags.CONFIRM_DELETE)) {
+                Text(stringResource(R.string.contacts_delete))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.contacts_cancel)) } },
     )
 }
 
@@ -196,6 +285,8 @@ data class ContactsListCallbacks(
     val open: (UUID) -> Unit = {},
     val search: (String) -> Unit = {},
     val retry: () -> Unit = {},
+    /** Opens the form for a new contact; without it there is no New button. */
+    val create: (() -> Unit)? = null,
 )
 
 /** What the detail can ask for: [call] gets a phone number, [mail] an email address. */
@@ -209,6 +300,10 @@ data class ContactDetailCallbacks(
      * related rows are not tappable.
      */
     val openRelated: ((String, UUID) -> Unit)? = null,
+    /** Opens the edit form; without it (and [delete]) there are no edit actions. */
+    val edit: (() -> Unit)? = null,
+    /** Asks to move the contact to the Trash. */
+    val delete: (() -> Unit)? = null,
 )
 
 internal object ContactsTags {
@@ -224,6 +319,12 @@ internal object ContactsTags {
     const val MAIL = "contact-mail"
     const val RELATED_MESSAGE = "contact-related-message"
     const val NOTHING_RELATED = "contact-nothing-related"
+    const val NEW = "contacts-new"
+    const val EDIT = "contact-edit"
+    const val DELETE = "contact-delete"
+    const val CONFIRM_DELETE = "contact-confirm-delete"
+    const val SOURCE = "contact-source"
+    const val ACTION_ERROR = "contact-action-error"
 
     fun contact(id: UUID) = "contacts-contact:$id"
 
@@ -240,7 +341,25 @@ fun ContactsListContent(
     callbacks: ContactsListCallbacks,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier.fillMaxSize()) {
+    Box(modifier.fillMaxSize()) {
+        ContactsList(state, callbacks)
+        callbacks.create?.let { create ->
+            ExtendedFloatingActionButton(
+                onClick = create,
+                icon = { Icon(Icons.Outlined.PersonAdd, contentDescription = null) },
+                text = { Text(stringResource(R.string.contacts_new)) },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp).testTag(ContactsTags.NEW),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ContactsList(
+    state: ContactsListUiState,
+    callbacks: ContactsListCallbacks,
+) {
+    Column(Modifier.fillMaxSize()) {
         OutlinedTextField(
             value = state.query,
             onValueChange = callbacks.search,
@@ -271,7 +390,7 @@ fun ContactsListContent(
                 modifier = Modifier.padding(24.dp).testTag(ContactsTags.EMPTY),
             )
         } else {
-            LazyColumn(Modifier.fillMaxSize().testTag(ContactsTags.LIST), contentPadding = PaddingValues(bottom = 24.dp)) {
+            LazyColumn(Modifier.fillMaxSize().testTag(ContactsTags.LIST), contentPadding = PaddingValues(bottom = 88.dp)) {
                 items(state.contacts, key = { it.id }) { contact ->
                     ContactRow(contact, onClick = { callbacks.open(contact.id) })
                     HorizontalDivider(Modifier.padding(start = 72.dp))
@@ -372,13 +491,32 @@ fun ContactDetailContent(
     modifier: Modifier = Modifier,
     /** The linked-items panel below the related items (the routes pass [ch.sonensei.cockpit.core.links.LinkedItemsSection]). */
     linksPanel: @Composable () -> Unit = {},
+    /** A save or delete is running: the edit actions are disabled. */
+    busy: Boolean = false,
+    /** Why the last delete did not work. */
+    actionError: ContactSaveError? = null,
 ) {
     Column(modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = callbacks.back, modifier = Modifier.testTag(ContactsTags.BACK)) {
                 Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.contacts_back))
             }
+            Spacer(Modifier.weight(1f))
+            if (state.contact != null) {
+                callbacks.edit?.let {
+                    IconButton(onClick = it, enabled = !busy, modifier = Modifier.testTag(ContactsTags.EDIT)) {
+                        Icon(Icons.Outlined.Edit, contentDescription = stringResource(R.string.contacts_edit))
+                    }
+                }
+                callbacks.delete?.let {
+                    IconButton(onClick = it, enabled = !busy, modifier = Modifier.testTag(ContactsTags.DELETE)) {
+                        Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.contacts_delete))
+                    }
+                }
+            }
         }
+        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+        actionError?.let { ErrorBanner(deleteErrorText(it, state.contact), ContactsTags.ACTION_ERROR) }
         val contact = state.contact
         if (contact == null) {
             state.message?.let { Banner(it, R.string.contacts_offline, R.string.contacts_not_loaded, state.loading, callbacks.retry) }
@@ -425,6 +563,16 @@ private fun Header(
         if (role.isNotEmpty()) {
             Text(role, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        Text(
+            if (contact.source == "LOCAL") {
+                stringResource(R.string.contacts_source_local)
+            } else {
+                stringResource(R.string.contacts_source_synced, sourceName(contact.source))
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag(ContactsTags.SOURCE),
+        )
         val phone = contact.phones.firstOrNull()
         val email = contact.emails.firstOrNull()
         if (phone != null || email != null) {
@@ -603,6 +751,17 @@ private fun RelatedRow(
         subtitle?.takeIf { it.isNotEmpty() }?.let { Label(it) }
     }
 }
+
+/** A failed delete: a refused one says where to change the contact instead. */
+@Composable
+private fun deleteErrorText(
+    error: ContactSaveError,
+    contact: Contact?,
+): String =
+    when (error) {
+        ContactSaveError.FAILED -> stringResource(R.string.contacts_delete_failed)
+        else -> saveErrorText(error, contact)
+    }
 
 /** `JOURNAL_ENTRY` → `Journal entry`. */
 internal fun typeName(type: String): String = type.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
