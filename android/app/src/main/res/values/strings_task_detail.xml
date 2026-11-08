@@ -156,4 +156,19 @@
     <string name="task_detail_convert_moved_event">Moved to the calendar as event “%1$s”</string>
     <string name="task_detail_convert_moved_event_on">Moved to the calendar on %2$s as event “%1$s”</string>
     <string name="task_detail_convert_open">Open</string>
+
+    <!-- Reminders on the task detail screen -->
+    <string name="task_detail_reminders">Reminders</string>
+    <string name="task_detail_reminders_none">No reminders</string>
+    <string name="task_detail_reminder_fired">%1$s (sent)</string>
+    <string name="task_detail_reminder_remove">Remove reminder at %1$s</string>
+    <string name="task_detail_reminder_at_due">At due time</string>
+    <string name="task_detail_reminder_hour_before_due">1 hour before due</string>
+    <string name="task_detail_reminder_day_before_due">1 day before due</string>
+    <string name="task_detail_reminder_at_scheduled">On scheduled date</string>
+    <string name="task_detail_reminder_custom">Date and time…</string>
+    <string name="task_detail_reminder_past">That time has already passed. Pick a time in the future.</string>
+    <string name="task_detail_reminder_invalid">The reminder was not accepted.</string>
+    <string name="task_detail_reminders_offline">Offline: reminders need a connection.</string>
+    <string name="task_detail_reminders_failed">The reminders could not be loaded or changed.</string>
 </resources>

@@ -154,6 +154,9 @@ fun TaskDetailRoute(
             ),
         imageLoader = viewModel.imageLoader,
         modifier = modifier,
+        remindersPanel = { detail, editable ->
+            TaskRemindersSection(id, detail.task.reminderAnchors(), editable)
+        },
         linksPanel = {
             LinkedItemsSection(ItemRef("TASK", id), open = { target ->
                 when (target) {
@@ -296,6 +299,8 @@ fun TaskDetailContent(
     imageLoader: ImageLoader? = null,
     /** The linked-items panel below the checklist (the route passes [LinkedItemsSection]). */
     linksPanel: @Composable () -> Unit = {},
+    /** The reminders panel above the links, given the task and whether it can be changed now. */
+    remindersPanel: @Composable (TaskDetail, Boolean) -> Unit = { _, _ -> },
 ) {
     val snackbarHost = remember { SnackbarHostState() }
     MessageEffect(state.message, snackbarHost, callbacks)
@@ -310,7 +315,7 @@ fun TaskDetailContent(
                     if (draft != null) {
                         EditForm(state, draft, callbacks)
                     } else {
-                        Details(state, detail, callbacks, imageLoader, linksPanel)
+                        Details(state, detail, callbacks, imageLoader, linksPanel, remindersPanel)
                     }
                 }
                 state.loadFailed -> LoadFailed(state.offline, callbacks.retry)
@@ -399,6 +404,7 @@ private fun Details(
     callbacks: TaskDetailCallbacks,
     imageLoader: ImageLoader?,
     linksPanel: @Composable () -> Unit,
+    remindersPanel: @Composable (TaskDetail, Boolean) -> Unit,
 ) {
     val task = detail.task
     val enabled = !state.readOnly && !state.busy
@@ -426,6 +432,7 @@ private fun Details(
             MarkdownView(notes, imageLoader, Modifier.padding(horizontal = 16.dp).testTag(TaskDetailTags.NOTES))
         }
         Checklist(detail, callbacks, enabled)
+        remindersPanel(detail, !state.readOnly)
         linksPanel()
     }
 }

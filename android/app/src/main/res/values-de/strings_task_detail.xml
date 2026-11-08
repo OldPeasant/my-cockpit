@@ -156,4 +156,19 @@
     <string name="task_detail_convert_moved_event">Als Termin „%1$s“ in den Kalender verschoben</string>
     <string name="task_detail_convert_moved_event_on">Als Termin „%1$s“ am %2$s in den Kalender verschoben</string>
     <string name="task_detail_convert_open">Öffnen</string>
+
+    <!-- Reminders on the task detail screen -->
+    <string name="task_detail_reminders">Erinnerungen</string>
+    <string name="task_detail_reminders_none">Keine Erinnerungen</string>
+    <string name="task_detail_reminder_fired">%1$s (gesendet)</string>
+    <string name="task_detail_reminder_remove">Erinnerung um %1$s entfernen</string>
+    <string name="task_detail_reminder_at_due">Zum Fälligkeitszeitpunkt</string>
+    <string name="task_detail_reminder_hour_before_due">1 Stunde vor Fälligkeit</string>
+    <string name="task_detail_reminder_day_before_due">1 Tag vor Fälligkeit</string>
+    <string name="task_detail_reminder_at_scheduled">Am geplanten Datum</string>
+    <string name="task_detail_reminder_custom">Datum und Uhrzeit…</string>
+    <string name="task_detail_reminder_past">Dieser Zeitpunkt ist schon vorbei. Wähle einen Zeitpunkt in der Zukunft.</string>
+    <string name="task_detail_reminder_invalid">Die Erinnerung wurde nicht angenommen.</string>
+    <string name="task_detail_reminders_offline">Offline: Erinnerungen brauchen eine Verbindung.</string>
+    <string name="task_detail_reminders_failed">Die Erinnerungen konnten nicht geladen oder geändert werden.</string>
 </resources>
