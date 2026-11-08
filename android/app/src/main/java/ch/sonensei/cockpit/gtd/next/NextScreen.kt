@@ -9,9 +9,12 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.Checklist
@@ -34,6 +37,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -228,7 +232,16 @@ private fun Filters(
     callbacks: NextCallbacks,
 ) {
     val filter = state.filter
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).testTag(NextTags.FILTERS)) {
+    // At most half the screen, scrolling, so the list stays in view on small or landscape screens.
+    val maxHeight = (LocalConfiguration.current.screenHeightDp / 2).dp
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(max = maxHeight)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
+            .testTag(NextTags.FILTERS),
+    ) {
         if (state.contexts.isNotEmpty()) {
             FilterGroup(stringResource(R.string.next_filter_context)) {
                 state.contexts.forEach { context ->

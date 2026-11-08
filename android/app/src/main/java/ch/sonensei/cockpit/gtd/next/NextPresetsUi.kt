@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.gtd.next
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -13,7 +14,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -50,12 +51,16 @@ internal fun Presets(
                     onClick = { callbacks.applyPreset(preset) },
                     label = { Text(preset.name) },
                     trailingIcon = {
-                        IconButton(
-                            onClick = { callbacks.removePreset(preset) },
-                            modifier = Modifier.size(24.dp).testTag(NextTags.presetDelete(index)),
-                        ) {
-                            Icon(Icons.Outlined.Close, contentDescription = deleteLabel, modifier = Modifier.size(18.dp))
-                        }
+                        // Not an IconButton: its 48 dp touch target would cover the chip and take its taps.
+                        Icon(
+                            Icons.Outlined.Close,
+                            contentDescription = deleteLabel,
+                            modifier =
+                                Modifier
+                                    .size(18.dp)
+                                    .clickable(role = Role.Button) { callbacks.removePreset(preset) }
+                                    .testTag(NextTags.presetDelete(index)),
+                        )
                     },
                     modifier = Modifier.testTag(NextTags.preset(index)),
                 )

@@ -12,6 +12,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.gtd.data.Creativity
@@ -92,10 +93,10 @@ class NextScreenTest {
     fun `each filter chip calls its toggle`() {
         show(loaded)
         composeRule.onNodeWithTag(NextTags.FILTER_TOGGLE).performClick()
-        composeRule.onNodeWithTag(NextTags.context(phone.id)).performClick()
-        composeRule.onNodeWithTag(NextTags.energy(Energy.LOW)).performClick()
-        composeRule.onNodeWithTag(NextTags.creativity(Creativity.MIXED)).performClick()
-        composeRule.onNodeWithTag(NextTags.estimate(15)).performClick()
+        composeRule.onNodeWithTag(NextTags.context(phone.id)).performScrollTo().performClick()
+        composeRule.onNodeWithTag(NextTags.energy(Energy.LOW)).performScrollTo().performClick()
+        composeRule.onNodeWithTag(NextTags.creativity(Creativity.MIXED)).performScrollTo().performClick()
+        composeRule.onNodeWithTag(NextTags.estimate(15)).performScrollTo().performClick()
         assertEquals(listOf("context ${phone.id}", "energy LOW", "creativity MIXED", "max 15"), calls)
     }
 
@@ -106,7 +107,7 @@ class NextScreenTest {
         composeRule.onNodeWithText("Filter (2)").performClick()
         composeRule.onNodeWithTag(NextTags.context(phone.id)).assertIsSelected()
         composeRule.onNodeWithTag(NextTags.estimate(15)).assertIsSelected()
-        composeRule.onNodeWithTag(NextTags.CLEAR).performClick()
+        composeRule.onNodeWithTag(NextTags.CLEAR).performScrollTo().performClick()
         assertEquals(listOf("clear"), calls)
     }
 
