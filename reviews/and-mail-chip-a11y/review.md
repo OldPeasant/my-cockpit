@@ -4,21 +4,21 @@ Date: 2026-11-08
 
 Task: and-mail-chip-a11y - Android compose: 48dp remove target and accessibility action for recipient chips
 
-Scope: task commit 2355d2957 on top of base 3d7682042cd179cd8bc578ae269b340757ed8845 (`git diff 3d76820..2355d2957`). This covers `android/app/src/main/java/ch/sonensei/cockpit/mail/compose/RecipientInput.kt` (`RecipientChip`, the `RecipientInput` call site) and the Compose tests in `android/app/src/test/java/ch/sonensei/cockpit/mail/compose` (`MailComposeChipA11yTest.kt`, plus the updated `MailComposeRecipientsFilesReviewFixesScreenTest.kt`). Committed changes only. The working tree was clean at the start.
+Scope: the final task code at be05d532bd487f75f63db4af6fc9caa795ab66d5 on top of base 3d7682042cd179cd8bc578ae269b340757ed8845. Commits 0d1aaa7ff (the implementation) and be05d532b (the CR-1 fix, one TalkBack label test, and the first reports). This is a re-review after the fix for CR-1 from the previous review at 2355d2957. Files reviewed in full at HEAD: `android/app/src/main/java/ch/sonensei/cockpit/mail/compose/RecipientInput.kt` and `android/app/src/test/java/ch/sonensei/cockpit/mail/compose/MailComposeChipA11yTest.kt`. Committed changes only.
 
 Requirements:
-- tasks/and-mail-chip-a11y.md (acceptance criteria #1-#3)
+- tasks/and-mail-chip-a11y.md (acceptance criteria #1-#3, plus the custom-chip assumption)
+- reviews/and-mail-chip-a11y/review.md (previous revision), reviews/and-mail-chip-a11y/fixes.md
 - reviews/and-mail-compose-plus/review.md CR-1 (where this task comes from)
 - AGENTS.md project notes (lint contract, English and German strings)
-- `res/values{,-de}/strings_mail_compose.xml`
 
 Git range:
 - Branch: main
-- HEAD: 2355d2957
+- HEAD: be05d532bd487f75f63db4af6fc9caa795ab66d5
 - Base/start: 3d7682042cd179cd8bc578ae269b340757ed8845
-- Commits reviewed: 1 (2355d2957)
+- Commits reviewed: 2 (0d1aaa7ff, be05d532b)
 
-Summary: 0 P0, 0 P1, 0 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## P0 Critical
 
@@ -34,24 +34,21 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | The remove icon of a disabled chip is dimmed twice**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/mail/compose/RecipientInput.kt:213` (and `:236`)
-    - Category: Quality
-    - Problem: When the chip is disabled, the whole `Surface` is drawn with `alpha(DISABLED_ALPHA)` (0.38). Inside it, `IconButton(enabled = false)` also applies Material's disabled content color, which is the content color at 0.38 alpha. So the close icon ends up at about 0.14 effective alpha, while the label is at 0.38.
-    - Why it matters: The disabled chip looks uneven, and the icon is close to invisible. This only happens while sending, so the impact is cosmetic. Disabled controls are exempt from contrast requirements.
-    - Suggested fix: Dim only once. Either leave the alpha off the `IconButton` (for example, pass `IconButtonDefaults.iconButtonColors(disabledContentColor = LocalContentColor.current)`), or apply the alpha only to the container and label.
+None.
 
 ## Notes
 
-- Criterion #1 (48 dp target) is met. The remove control is an `IconButton` with `Modifier.size(48.dp)`. `MailComposeChipA11yTest` checks that it has a click action and is at least 48 dp wide and tall.
-- Criterion #2 (no dead action; a "Remove" action in English and German) is met:
-  - The chip is now a `Surface` without a click handler, so the chip node has no `OnClick` and no `Role`. Tests check both.
-  - The chip node uses `semantics(mergeDescendants = true)`. It merges the label `Text`. It does not swallow the `IconButton`, because `clickable` is its own merge boundary. TalkBack therefore focuses the chip as "<label>, actions available" and then the button as "Remove <address>, button". The disabled state follows the same split.
-  - The custom action uses the existing `mail_compose_remove_recipient` key ("Remove" / "Entfernen"), which is present in both `values/` and `values-de/`. A Robolectric test with `@Config(qualifiers = "de")` checks the German label.
-  - When the chip is disabled, it is marked `disabled()`, offers no custom action, and the `IconButton` is disabled. Tests cover this.
-  - The action lambda captures the current `value`/`index` on each recomposition, so it removes the right chip. A test checks this on the second chip.
-- Criterion #3 (tests): Compose tests cover the target size, no click action on the body, the label and role, the custom action on valid and invalid chips, the German locale, and the disabled state. The earlier body-tap test now also asserts that no `OnClick` exists. No test was weakened. This reviewer could not use a shell (Bash was denied), so it did not run Gradle, `sh scripts/check.sh` or `python tasks.py verify and-mail-chip-a11y`. It also could not read the raw diff, so it reviewed the files at HEAD instead. The parent worker must record the evidence for #3 from real runs of `./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh`.
-- Visual side effect, not a finding: the 48 dp button sits inside the bordered `Surface`, so the chip is now 48 dp tall instead of the Material input chip's 32 dp. The task explicitly allows an `IconButton`, so this is accepted.
+- Previous CR-1 (the disabled remove icon was dimmed twice) is resolved. `RecipientChip` (`RecipientInput.kt:202-245`) no longer applies `Modifier.alpha` to the whole `Surface`, and the unused `alpha` import is gone. When the chip is disabled, the label color (`:231`) and the border color (`:212`) are each multiplied by `DISABLED_ALPHA` once. The close icon is dimmed only by the disabled `IconButton`. That button's disabled content color comes from `LocalContentColor`, which the `Surface` sets to `content`, at 0.38. So the label, border and icon all end up at the same effective alpha. When the chip is enabled, `dim` is 1f and nothing changes from the reviewed design.
+- Side effect, not a finding: the container fill is no longer dimmed when the chip is disabled. For an invalid chip, which has `errorContainer` and no border, the disabled state now shows only through the dimmed label and icon. This lasts only while sending, and disabled controls are exempt from contrast rules, so it is acceptable.
+- No regression found:
+  - The semantics block is unchanged: it uses `mergeDescendants`, is `disabled()` when disabled, and otherwise has the "Remove" custom action.
+  - The 48 dp `IconButton`, the `onRemove` capture of `value`/`index`, and the call site are unchanged.
+- Criterion #1 (48 dp target) is met. `IconButton` uses `Modifier.size(48.dp)`, and a test checks the click action and that it is at least 48 x 48 dp.
+- Criterion #2 is met:
+  - The chip body has no `OnClick` and no `Role`. Tests check both, and the added TalkBack test also checks that the chip node reads "Ann Example".
+  - The "Remove" custom action works on valid and invalid chips, removes only its own recipient (tested on the second chip), and has the German label "Entfernen" (Robolectric `@Config(qualifiers = "de")`).
+  - When disabled, the chip is marked disabled and offers no action.
+- Criterion #3: Compose tests cover the behavior above. No test was weakened. The visual alpha is not asserted by a test, which is reasonable for a purely cosmetic detail. This reviewer had no shell (Bash was denied), so it did not run Gradle, `sh scripts/check.sh` or `tasks.py verify`, and it could not read the raw diff. The parent reports that `ktlintCheck` and all `mail.compose` unit tests pass. Before recording evidence for #3, the parent worker must also run the full `./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh`.
 
 ## Review conclusion
 
