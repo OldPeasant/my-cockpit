@@ -22,7 +22,8 @@ and cannot complete/reopen it from task detail. Android has both, with undo.
   - verified (2026-11-08 15:35+0100 by dell26/agent-1): npx ng test --include task-detail.spec.ts 'rendered notes' -> pass (Markdown rendered when not editing, HTML escaped, Edit/click/Enter switch to textarea, link click keeps view, renders again after save/discard); part of npm run check -> 4429 passed
 - [x] New UI strings are in `web/src/locale` (English + German)
   - verified (2026-11-08 15:35+0100 by dell26/agent-1): npx ng test --include src/locale/messages-de.spec.ts -> pass ('has the task actions, undo and notes messages in English and German'); all 13 new ids in messages.xlf and messages.de.xlf (code review); npm run check (build incl. locales) -> pass
-- [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+- [x] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 15:42+0100 by dell26/agent-1): unit tests per criteria 1-5 (test-writer coverage on changed files: lines 647/652, branches 395/424); cd web && npm run check at c2b8a9e48 -> api:check, lint, e2e typecheck, 190 files/4429 tests passed, build OK; sh scripts/check.sh -> tfp, server, web, android all passed ('== all checks passed')
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
