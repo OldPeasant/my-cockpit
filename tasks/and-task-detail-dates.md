@@ -1,10 +1,11 @@
 ---
 title: Android task detail: scheduled, tickler, recurrence, all lists
-status: todo
-owner:
+status: in_progress
+owner: rudi/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/test/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml]
 prio: 2
+lease_until: 2026-11-08T09:35:05Z
 ---
 ## Goal
 Android task detail shows scheduled/tickler/recurrence read-only (`TaskDetailScreen.kt:553,554,574`) and can only
