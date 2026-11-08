@@ -515,15 +515,73 @@ class FilesViewModelTest {
     @Test
     fun `a taken name keeps the dialog open with the reason, and nothing is reloaded`() =
         runTest(dispatcher) {
+            coEvery { repo.rename(docs, "tax") } returns FilesResult.Failed(409)
+            val vm = atRoot(docs, tax)
+            vm.startRename(docs)
+            assertEquals(NameDialog(docs), vm.uiState.value.nameDialog)
+            vm.saveName("tax")
+            advanceUntilIdle()
+
+            assertEquals(NameDialog(docs, saving = false, message = ActionMessage.NAME_TAKEN), vm.uiState.value.nameDialog)
+            coVerify(exactly = 1) { repo.list(null) }
+        }
+
+    /** CR-2: file names need not be unique, so a 409 on a file rename is a concurrent change, not a taken name. */
+    @Test
+    fun `a conflict on a file rename says it was changed elsewhere and reloads`() =
+        runTest(dispatcher) {
             coEvery { repo.rename(pdf, "notes.txt") } returns FilesResult.Failed(409)
             val vm = atRoot(pdf, txt)
             vm.startRename(pdf)
-            assertEquals(NameDialog(pdf), vm.uiState.value.nameDialog)
             vm.saveName("notes.txt")
             advanceUntilIdle()
 
-            assertEquals(NameDialog(pdf, saving = false, message = ActionMessage.NAME_TAKEN), vm.uiState.value.nameDialog)
-            coVerify(exactly = 1) { repo.list(null) }
+            assertEquals(NameDialog(pdf, saving = false, message = ActionMessage.CHANGED), vm.uiState.value.nameDialog)
+            coVerify(exactly = 2) { repo.list(null) }
+        }
+
+    /** CR-1: after a 412 the dialog takes the reloaded version, so trying again sends the current If-Match. */
+    @Test
+    fun `a rename refused as outdated is retried with the reloaded version`() =
+        runTest(dispatcher) {
+            val old = pdf.copy(version = 1)
+            val newer = pdf.copy(version = 2)
+            coEvery { repo.list(null) } returnsMany listOf(FilesResult.Ok(listOf(old)), FilesResult.Ok(listOf(newer)))
+            coEvery { repo.rename(old, any()) } returns FilesResult.Failed(412)
+            coEvery { repo.rename(newer, any()) } returns FilesResult.Ok(Unit)
+            val vm = FilesViewModel(repo, dispatcher)
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.startRename(old)
+            vm.saveName("2026.pdf")
+            advanceUntilIdle()
+            assertEquals(NameDialog(newer, saving = false, message = ActionMessage.CHANGED), vm.uiState.value.nameDialog)
+
+            vm.saveName("2026.pdf")
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.rename(old, "2026.pdf") }
+            coVerify(exactly = 1) { repo.rename(newer, "2026.pdf") }
+            assertNull(vm.uiState.value.nameDialog)
+            assertEquals(FilesEvent.Changed(FilesChange.RENAMED, 1, "2026.pdf"), vm.events.first())
+        }
+
+    /** CR-1: only a refusal adopts reloaded versions; an ordinary reload keeps the version the rename started from. */
+    @Test
+    fun `an ordinary reload does not change the version an open rename sends`() =
+        runTest(dispatcher) {
+            val old = pdf.copy(version = 1)
+            val newer = pdf.copy(version = 2)
+            coEvery { repo.list(null) } returnsMany listOf(FilesResult.Ok(listOf(old)), FilesResult.Ok(listOf(newer)))
+            val vm = FilesViewModel(repo, dispatcher)
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.startRename(old)
+            vm.refresh()
+            advanceUntilIdle()
+            assertEquals(listOf<DriveEntry>(newer), vm.uiState.value.entries)
+            assertEquals(NameDialog(old), vm.uiState.value.nameDialog)
         }
 
     @Test
@@ -784,10 +842,10 @@ class FilesViewModelTest {
     fun `a partly failed move keeps only what was not moved in the picker, with the reason`() =
         runTest(dispatcher) {
             coEvery { repo.list(docs.id) } returns FilesResult.Ok(emptyList())
-            coEvery { repo.move(pdf, docs.id) } returns FilesResult.Failed(409)
+            coEvery { repo.move(tax, docs.id) } returns FilesResult.Failed(409)
             coEvery { repo.move(txt, docs.id) } returns FilesResult.Ok(Unit)
-            val vm = atRoot(docs, pdf, txt)
-            vm.toggleSelected(pdf)
+            val vm = atRoot(docs, tax, txt)
+            vm.toggleSelected(tax)
             vm.toggleSelected(txt)
             vm.startMoveSelected()
             advanceUntilIdle()
@@ -797,18 +855,94 @@ class FilesViewModelTest {
             advanceUntilIdle()
 
             val picker = vm.uiState.value.movePicker!!
-            assertEquals(listOf(pdf), picker.entries)
+            assertEquals(listOf<DriveEntry>(tax), picker.entries)
             assertEquals(ActionMessage.MOVE_CONFLICT, picker.moveMessage)
             assertFalse(picker.moving)
             assertEquals(1, (vm.events.first() as FilesEvent.Changed).count)
 
             // Trying again moves only what is left.
-            coEvery { repo.move(pdf, docs.id) } returns FilesResult.Ok(Unit)
+            coEvery { repo.move(tax, docs.id) } returns FilesResult.Ok(Unit)
             vm.confirmMove()
             advanceUntilIdle()
             coVerify(exactly = 1) { repo.move(txt, docs.id) }
-            coVerify(exactly = 2) { repo.move(pdf, docs.id) }
+            coVerify(exactly = 2) { repo.move(tax, docs.id) }
             assertNull(vm.uiState.value.movePicker)
+        }
+
+    /** CR-2: a file move checks no names, so its 409 is a concurrent change; the folder is reloaded. */
+    @Test
+    fun `a conflict on a file move says it was changed elsewhere and reloads`() =
+        runTest(dispatcher) {
+            coEvery { repo.list(docs.id) } returns FilesResult.Ok(emptyList())
+            coEvery { repo.move(pdf, docs.id) } returns FilesResult.Failed(409)
+            val vm = atRoot(docs, pdf)
+            vm.startMove(pdf)
+            advanceUntilIdle()
+            vm.pickerOpen(docs)
+            advanceUntilIdle()
+            vm.confirmMove()
+            advanceUntilIdle()
+
+            assertEquals(
+                ActionMessage.CHANGED,
+                vm.uiState.value.movePicker!!
+                    .moveMessage,
+            )
+            // The list, the picker starting at the drive root, and the reload after the refusal.
+            coVerify(exactly = 3) { repo.list(null) }
+        }
+
+    /** CR-1: after a 412 the picker takes the reloaded version, so moving again sends the current If-Match. */
+    @Test
+    fun `a move refused as outdated is retried with the reloaded version`() =
+        runTest(dispatcher) {
+            val old = pdf.copy(version = 1)
+            val newer = pdf.copy(version = 2)
+            coEvery { repo.list(null) } returnsMany listOf(FilesResult.Ok(listOf(docs, old)), FilesResult.Ok(listOf(docs, newer)))
+            coEvery { repo.list(docs.id) } returns FilesResult.Ok(emptyList())
+            coEvery { repo.move(old, docs.id) } returns FilesResult.Failed(412)
+            coEvery { repo.move(newer, docs.id) } returns FilesResult.Ok(Unit)
+            val vm = FilesViewModel(repo, dispatcher)
+            vm.refresh()
+            advanceUntilIdle()
+            vm.startMove(old)
+            advanceUntilIdle()
+            vm.pickerOpen(docs)
+            advanceUntilIdle()
+
+            vm.confirmMove()
+            advanceUntilIdle()
+            val picker = vm.uiState.value.movePicker!!
+            assertEquals(listOf<DriveEntry>(newer), picker.entries)
+            assertEquals(ActionMessage.CHANGED, picker.moveMessage)
+
+            vm.confirmMove()
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.move(old, docs.id) }
+            coVerify(exactly = 1) { repo.move(newer, docs.id) }
+            assertNull(vm.uiState.value.movePicker)
+        }
+
+    /** CR-1: what is gone after the reload leaves the picker; with nothing left it closes and says why. */
+    @Test
+    fun `a move of something gone elsewhere closes the picker once the reload no longer has it`() =
+        runTest(dispatcher) {
+            coEvery { repo.list(null) } returnsMany listOf(FilesResult.Ok(listOf(docs, pdf)), FilesResult.Ok(listOf(docs)))
+            coEvery { repo.list(docs.id) } returns FilesResult.Ok(emptyList())
+            coEvery { repo.move(pdf, docs.id) } returns FilesResult.Failed(404)
+            val vm = FilesViewModel(repo, dispatcher)
+            vm.refresh()
+            advanceUntilIdle()
+            vm.startMove(pdf)
+            advanceUntilIdle()
+            vm.pickerOpen(docs)
+            advanceUntilIdle()
+
+            vm.confirmMove()
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.movePicker)
+            assertEquals(ActionMessage.CHANGED, vm.uiState.value.actionMessage)
+            assertEquals(listOf<DriveEntry>(docs), vm.uiState.value.entries)
         }
 
     /** TW-1: the confirmation of a partly failed move names an entry that was not moved. */
@@ -918,7 +1052,8 @@ class FilesViewModelTest {
             advanceUntilIdle()
             assertNull(vm.uiState.value.actionMessage)
             assertEquals(emptySet<UUID>(), vm.uiState.value.selected)
-            assertEquals(FilesEvent.Changed(FilesChange.TRASHED, 2, "Documents"), vm.events.first())
+            // Documents was already gone, so the confirmation names the first entry actually trashed (CR-3).
+            assertEquals(FilesEvent.Changed(FilesChange.TRASHED, 2, "2025.pdf"), vm.events.first())
         }
 
     @Test
@@ -966,6 +1101,18 @@ class FilesViewModelTest {
             advanceUntilIdle()
             assertNotNull(vm.uiState.value.actionMessage)
             assertNotEquals(ActionMessage.MOVE_CONFLICT, vm.uiState.value.actionMessage)
+        }
+
+    /** CR-2: deleting checks no names, so a 409 means it was changed elsewhere; the folder is reloaded. */
+    @Test
+    fun `a delete refused with a conflict says it was changed elsewhere and reloads`() =
+        runTest(dispatcher) {
+            coEvery { repo.delete(pdf) } returns FilesResult.Failed(409)
+            val vm = atRoot(pdf)
+            vm.delete(pdf)
+            advanceUntilIdle()
+            assertEquals(ActionMessage.CHANGED, vm.uiState.value.actionMessage)
+            coVerify(exactly = 2) { repo.list(null) }
         }
 
     @Test

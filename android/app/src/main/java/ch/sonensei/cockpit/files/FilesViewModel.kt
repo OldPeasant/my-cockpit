@@ -152,6 +152,12 @@ class FilesViewModel internal constructor(
     private var pickerJob: Job? = null
     private var nextUploadKey = 0L
 
+    /**
+     * A change was refused because the version sent was outdated: the next load that arrives gives the open dialog or
+     * picker the reloaded versions, so trying again from there can work.
+     */
+    private var adoptVersions = false
+
     /** The folder shown; `null` at the drive root. */
     private fun folderId(): UUID? =
         state.value.path
@@ -166,18 +172,29 @@ class FilesViewModel internal constructor(
         loadJob =
             viewModelScope.launch {
                 val result = files.list(folder)
+                val fresh = (result as? FilesResult.Ok)?.value
+                val adopt = fresh != null && adoptVersions
+                if (fresh != null) adoptVersions = false
                 state.update {
-                    val entries = (result as? FilesResult.Ok)?.value ?: it.entries
-                    it.copy(
-                        entries = entries,
-                        // What is gone (moved or deleted elsewhere) cannot stay selected.
-                        selected = it.selected.filterTo(mutableSetOf()) { id -> entries.any { e -> e.id == id } },
-                        loading = false,
-                        loaded = it.loaded || result is FilesResult.Ok,
-                        message = result.message(),
-                    )
+                    val entries = fresh ?: it.entries
+                    val loadedState =
+                        it.copy(
+                            entries = entries,
+                            // What is gone (moved or deleted elsewhere) cannot stay selected.
+                            selected = it.selected.filterTo(mutableSetOf()) { id -> entries.any { e -> e.id == id } },
+                            loading = false,
+                            loaded = it.loaded || result is FilesResult.Ok,
+                            message = result.message(),
+                        )
+                    if (adopt) loadedState.withVersionsOf(entries, folder) else loadedState
                 }
             }
+    }
+
+    /** Reloads the folder shown after a change was refused because it was changed elsewhere (see [adoptVersions]). */
+    private fun reloadStale() {
+        adoptVersions = true
+        refresh()
     }
 
     fun openFolder(folder: DriveEntry.Folder) = show(state.value.path + FolderCrumb(folder.id, folder.name))
@@ -228,13 +245,16 @@ class FilesViewModel internal constructor(
         viewModelScope.launch {
             val entry = dialog.entry
             val result = if (entry == null) files.createFolder(folder, name) else files.rename(entry, name)
+            // Folder names are unique in their folder, file names need not be: a 409 on a file is a concurrent change.
+            val message = result.actionMessage(conflict = if (entry is DriveEntry.File) ActionMessage.CHANGED else ActionMessage.NAME_TAKEN)
             if (result is FilesResult.Ok) {
                 state.update { it.copy(nameDialog = null) }
                 eventChannel.send(FilesEvent.Changed(if (entry == null) FilesChange.CREATED else FilesChange.RENAMED, 1, name.trim()))
+                refresh()
             } else {
-                state.update { it.copy(nameDialog = dialog.copy(saving = false, message = result.actionMessage(nameTaken = true))) }
+                state.update { it.copy(nameDialog = dialog.copy(saving = false, message = message)) }
+                if (message == ActionMessage.CHANGED) reloadStale()
             }
-            if (result is FilesResult.Ok || result.isStale()) refresh()
         }
     }
 
@@ -298,9 +318,12 @@ class FilesViewModel internal constructor(
         val target = picker.path.lastOrNull()?.id
         updatePicker { it.copy(moving = true, moveMessage = null) }
         viewModelScope.launch {
-            val failures = picker.entries.map { it to files.move(it, target) }.filter { (_, result) -> result !is FilesResult.Ok }
+            val results = picker.entries.map { it to files.move(it, target) }
+            val failures = results.filter { (_, result) -> result !is FilesResult.Ok }
             val moved = picker.entries.size - failures.size
-            val problem = failures.firstOrNull()?.second?.actionMessage(nameTaken = false)
+            // Only a folder move can clash with a name or go into itself; for a file a 409 is a concurrent change.
+            val messages = failures.map { (entry, result) -> result.actionMessage(conflict = entry.moveConflict()) }
+            val problem = messages.firstOrNull()
             state.update {
                 it.copy(
                     // Only what is left to move stays in the picker, so trying again does not move anything twice.
@@ -313,8 +336,10 @@ class FilesViewModel internal constructor(
                     selected = if (problem == null) emptySet() else it.selected,
                 )
             }
-            if (moved > 0) eventChannel.send(FilesEvent.Changed(FilesChange.MOVED, moved, picker.entries.first().name))
-            refresh()
+            results.firstOrNull { (_, result) -> result is FilesResult.Ok }?.let { (first, _) ->
+                eventChannel.send(FilesEvent.Changed(FilesChange.MOVED, moved, first.name))
+            }
+            if (ActionMessage.CHANGED in messages) reloadStale() else refresh()
         }
     }
 
@@ -335,11 +360,14 @@ class FilesViewModel internal constructor(
             state.update {
                 it.copy(
                     working = false,
-                    actionMessage = failures.firstOrNull()?.actionMessage(nameTaken = false),
+                    // Deleting checks no names: a 409 is a concurrent change.
+                    actionMessage = failures.firstOrNull()?.actionMessage(conflict = ActionMessage.CHANGED),
                     selected = if (failures.isEmpty()) emptySet() else it.selected,
                 )
             }
-            if (trashed > 0) eventChannel.send(FilesEvent.Changed(FilesChange.TRASHED, trashed, entries.first().name))
+            entries.zip(results).firstOrNull { (_, result) -> result is FilesResult.Ok }?.let { (first, _) ->
+                eventChannel.send(FilesEvent.Changed(FilesChange.TRASHED, trashed, first.name))
+            }
             refresh()
         }
     }
@@ -457,21 +485,45 @@ private const val NOT_FOUND = 404
 private const val CONFLICT = 409
 private const val PRECONDITION_FAILED = 412
 
-/** A refusal because what was shown is outdated: the folder is reloaded. */
-private fun FilesResult<*>.isStale() = this is FilesResult.Failed && (status == PRECONDITION_FAILED || status == NOT_FOUND)
+/** What a `409` on moving this entry means: a clash of folder names or a folder into itself, for a file a concurrent change. */
+private fun DriveEntry.moveConflict() = if (this is DriveEntry.Folder) ActionMessage.MOVE_CONFLICT else ActionMessage.CHANGED
 
-/** Why a change failed; a `409` is a taken name for a create or rename, and may be more for a move. */
-private fun FilesResult<*>.actionMessage(nameTaken: Boolean) =
+/**
+ * Why a change failed. What a `409` means depends on the operation and the entry ([conflict]); [ActionMessage.CHANGED]
+ * (outdated or gone) means the folder is reloaded.
+ */
+private fun FilesResult<*>.actionMessage(conflict: ActionMessage) =
     when (this) {
         is FilesResult.Ok -> null
         FilesResult.Offline -> ActionMessage.OFFLINE
         is FilesResult.Failed ->
             when (status) {
-                CONFLICT -> if (nameTaken) ActionMessage.NAME_TAKEN else ActionMessage.MOVE_CONFLICT
+                CONFLICT -> conflict
                 PRECONDITION_FAILED, NOT_FOUND -> ActionMessage.CHANGED
                 else -> ActionMessage.FAILED
             }
     }
+
+/**
+ * The open dialog and picker take the reloaded versions of their entries from [fresh], the contents of [folder], so
+ * trying again sends the current `If-Match`. Entries gone from the folder the picker moves from are dropped; when none
+ * is left, the picker closes and says why.
+ */
+private fun FilesUiState.withVersionsOf(
+    fresh: List<DriveEntry>,
+    folder: UUID?,
+): FilesUiState {
+    val byId = fresh.associateBy { it.id }
+    val dialog = nameDialog?.let { d -> d.copy(entry = d.entry?.let { byId[it.id] ?: it }) }
+    val picker = movePicker
+    if (picker == null || picker.moving || picker.origin.lastOrNull()?.id != folder) return copy(nameDialog = dialog)
+    val left = picker.entries.mapNotNull { byId[it.id] }
+    return if (left.isEmpty()) {
+        copy(nameDialog = dialog, movePicker = null, actionMessage = picker.moveMessage ?: ActionMessage.CHANGED)
+    } else {
+        copy(nameDialog = dialog, movePicker = picker.copy(entries = left))
+    }
+}
 
 private fun FilesResult<*>.uploadState() =
     when (this) {

@@ -35,7 +35,7 @@
     <string name="files_clear_selection">Auswahl aufheben</string>
     <string name="files_name_empty">Gib einen Namen ein</string>
     <string name="files_name_too_long">Höchstens 255 Zeichen</string>
-    <string name="files_name_invalid">Ein Name darf nicht „.“ oder „..“ sein und kein / oder \\ enthalten</string>
+    <string name="files_name_invalid">Ein Name darf nicht „.“ oder „..“ sein und weder / oder \\ noch Steuerzeichen wie Tabulatoren oder Zeilenumbrüche enthalten</string>
     <string name="files_name_taken">Dieser Name ist in diesem Ordner schon vergeben</string>
     <string name="files_action_offline">Offline. Es wurde nichts geändert.</string>
     <string name="files_action_conflict">Nicht verschoben: Im Ordner gibt es schon ein Element mit diesem Namen, oder ein Ordner käme in sich selbst.</string>

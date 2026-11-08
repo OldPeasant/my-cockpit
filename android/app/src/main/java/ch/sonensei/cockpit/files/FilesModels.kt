@@ -38,13 +38,16 @@ data class FolderCrumb(
     val name: String,
 )
 
-/** A name the server rejects for its characters (it trims, so blanks count as empty), or `null` when it is fine. */
+/**
+ * A name the server rejects for its characters (it trims, so blanks count as empty; control characters such as tabs or
+ * line breaks are refused), or `null` when it is fine.
+ */
 internal fun nameProblem(name: String): NameProblem? {
     val trimmed = name.trim()
     return when {
         trimmed.isEmpty() -> NameProblem.EMPTY
         trimmed.length > MAX_NAME_LENGTH -> NameProblem.TOO_LONG
-        trimmed == "." || trimmed == ".." || trimmed.any { it == '/' || it == '\\' } -> NameProblem.INVALID
+        trimmed == "." || trimmed == ".." || trimmed.any { it == '/' || it == '\\' || it.isISOControl() } -> NameProblem.INVALID
         else -> null
     }
 }

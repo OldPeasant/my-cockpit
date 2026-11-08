@@ -37,4 +37,13 @@ class FilesModelsTest {
         assertEquals(NameProblem.INVALID, nameProblem("a\\b"))
         assertEquals(NameProblem.INVALID, nameProblem("/"))
     }
+
+    /** CR-4: the server refuses ISO control characters, so the dialog does too. */
+    @Test
+    fun `control characters inside a name are invalid`() {
+        assertEquals(NameProblem.INVALID, nameProblem("a\tb"))
+        assertEquals(NameProblem.INVALID, nameProblem("line\nbreak"))
+        assertEquals(NameProblem.INVALID, nameProblem("bell\u0007"))
+        assertEquals(NameProblem.INVALID, nameProblem("del\u007F"))
+    }
 }

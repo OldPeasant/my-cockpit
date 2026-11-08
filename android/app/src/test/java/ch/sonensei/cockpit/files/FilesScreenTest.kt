@@ -324,7 +324,7 @@ class FilesScreenTest {
             .onNodeWithTag(
                 FilesTags.NAME_ERROR,
                 useUnmergedTree = true,
-            ).assertTextEquals("A name cannot be “.” or “..” or contain / or \\")
+            ).assertTextEquals("A name cannot be “.” or “..” or contain / or \\ or control characters such as tabs or line breaks")
         composeRule.onNodeWithTag(FilesTags.NAME_SAVE).assertIsNotEnabled()
         composeRule.onNodeWithTag(FilesTags.NAME_FIELD).performTextReplacement("   ")
         composeRule.onNodeWithTag(FilesTags.NAME_ERROR, useUnmergedTree = true).assertTextEquals("Enter a name")

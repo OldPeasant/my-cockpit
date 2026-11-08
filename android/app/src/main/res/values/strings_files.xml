@@ -35,7 +35,7 @@
     <string name="files_clear_selection">Clear selection</string>
     <string name="files_name_empty">Enter a name</string>
     <string name="files_name_too_long">At most 255 characters</string>
-    <string name="files_name_invalid">A name cannot be “.” or “..” or contain / or \\</string>
+    <string name="files_name_invalid">A name cannot be “.” or “..” or contain / or \\ or control characters such as tabs or line breaks</string>
     <string name="files_name_taken">That name is already in this folder</string>
     <string name="files_action_offline">Offline. Nothing was changed.</string>
     <string name="files_action_conflict">Not moved: the folder already has an item with that name, or a folder would go into itself.</string>
