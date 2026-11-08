@@ -20,3 +20,4 @@ On Android a task can only be added to a project as "next step" inside the choos
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 12:54+0100 by dell26/agent-1): Android project detail: the Add task field sits above the task list (web has it below) so it stays reachable over a long list; 'Make it the next step' is only offered while the project has a next step, since a stalled project gets the new task as next step anyway (web rule).
