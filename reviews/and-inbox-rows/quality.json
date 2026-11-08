@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "task": "and-inbox-rows",
+  "reviewed_revision": "0215c218d62ceb9208b8e576659892089e54e716",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-inbox-rows/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-inbox-rows/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-inbox-rows/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: Inbox cache was never reloaded after complete/undo, so a later action got 412; InboxViewModel now reloads INBOX after the server answers (2c5c2b473)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "offline check reads the shared completer snackbar; only wrong with two overlapping requests plus a network drop, and the next refresh heals it; no code change"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.inbox.*' --tests 'ch.sonensei.cockpit.newitems.*' createDebugUnitTestCoverageReport --rerun-tasks", "result": "pass (test-writer; 68/68 changed executable lines covered)"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}

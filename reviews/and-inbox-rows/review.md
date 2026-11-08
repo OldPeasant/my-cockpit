@@ -4,21 +4,21 @@ Date: 2026-11-08
 
 Task: and-inbox-rows - Android: inbox and New view rows complete and open tasks
 
-Scope: `git diff db8cd5ded..3a3ca26ec -- android` (commits 7771bba40 implementation, 1f0cacae8 test-writer tests, 3a3ca26ec fix for the earlier CR-1). Uncommitted working-tree changes from the concurrent test-writer are out of scope.
+Scope: `git diff 2ec89bec4..0215c218d -- android` (commits 81933fe51 implementation, 434d7f2ac test-writer tests, 2c5c2b473 fix for the first review's CR-1, 0215c218d extra undo reload tests and reports). This is a re-review of the final revision. The production code under `android/app/src/main` is the same as at 2c5c2b473, which the previous review covered under earlier hashes. Since then only `InboxViewModelTest.kt` has changed. There were no uncommitted changes.
 
 Requirements:
 - `tasks/and-inbox-rows.md` acceptance criteria and recorded assumptions
 - SPEC.md §5.3 (New view: opening a row opens the item in its own view, task detail or mail read view)
-- docs/PARITY.md line 41 (row "Inbox rows: no complete, no open; New view task opens read-only sheet")
-- docs/ARCHITECTURE.md, AGENTS.md project notes
-- Earlier review (CR-1) and `reviews/and-inbox-rows/fixes.md`
-- Shared code used by the change: `gtd/next/TaskCompletion.kt` (TaskCompleter, TaskCompletionRepository, CompletionState)
+- docs/PARITY.md (the Inbox rows / New view task gap)
+- docs/ARCHITECTURE.md, AGENTS.md project notes, docs/QUALITY.md
+- Previous review reports and `reviews/and-inbox-rows/fixes.md`
+- Shared code the change relies on: `gtd/next/TaskCompletion.kt` (TaskCompleter, TaskCompletionRepository, CompletionState)
 
 Git range:
 - Branch: main
-- HEAD: 3a3ca26ece6e4cf8ea36d25568c9e1bea0d6078d
-- Base/start: db8cd5ded04a2d1cb51257378035dff4eeeed45c
-- Commits reviewed: 3
+- HEAD: 0215c218d
+- Base/start: 2ec89bec4825c32dd1901814c6645b74719cdee9
+- Commits reviewed: 4
 
 Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
@@ -36,21 +36,34 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | The Inbox reload decides "offline" from the shared snackbar, not from the result of this task's request**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/inbox/InboxViewModel.kt:284-287`
+- [ ] **CR-1 | The Inbox reload decides "offline" from the shared snackbar, not from the result of this task's request** (status: open from the previous review, still present at HEAD; the parent worker accepts it as low impact with no code change)
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/inbox/InboxViewModel.kt:284-289`
     - Category: Correctness
-    - Problem: `refreshInboxAfter(taskId)` waits until `taskId` leaves `pending`, then skips the reload when `answered.snackbar == Failed(OFFLINE)`. The snackbar is shared by every completion and undo in the `TaskCompleter`, so it can come from a different task. `completer.state` is a conflating `StateFlow`. Suppose task B is refused (CONFLICT) and task A fails as OFFLINE (the network drops mid-request) before B's collector runs. B's collector then sees A's OFFLINE snackbar and skips the reload. B then has the stale-version problem the earlier CR-1 fixed. The same thing happens when an undo is pending and another completion fails offline at that moment. The reverse case, an extra reload after an offline failure, does no harm.
-    - Why it matters: This only happens with two overlapping requests and a network drop, so the impact is small. The result is the 412-on-retry behaviour that the fix was meant to remove, and the check depends on UI state instead of the request's own result.
-    - Suggested fix: Base the decision on the request's own outcome. One way is to always call `tasks.refresh(TaskView.INBOX)` once the task leaves `pending`. A refresh while offline only marks the cache offline, which matches how other Inbox writes reload. The other way is to have `TaskCompleter` expose the per-task result. If the code stays as it is, a short comment saying the check is a best-effort shortcut is enough.
+    - Problem: `refreshInboxAfter(taskId)` waits until `taskId` is no longer in `pending`. It then skips the reload when `answered.snackbar == Failed(OFFLINE)`. Every completion and undo in the `TaskCompleter` writes to the same snackbar, so that value can belong to a different task. `completer.state` is a conflating `StateFlow`. Example: task B is refused (CONFLICT), then task A fails as OFFLINE before B's collector runs. B's collector sees A's OFFLINE snackbar and skips the Inbox reload, so B keeps its stale version.
+    - Why it matters: It needs two overlapping requests plus a network drop, so it is unlikely. When it happens, a later action on B gets a 412 until the next sync. That is the problem the first review's CR-1 fixed.
+    - Suggested fix: Base the decision on this request's own result. One option is to always refresh once the task leaves `pending`; a refresh while offline only marks the cache offline. Another is to have `TaskCompleter` expose a per-task result. If the code stays as it is, add a short comment saying the check is a best-effort shortcut.
 
 ## Notes (not findings)
 
-- Earlier CR-1 (Inbox never reloaded after a complete or undo, so a later action could get 412): **resolved**. `InboxViewModel.complete`/`undo` now reload `TaskView.INBOX` after the server answers, including CONFLICT/FAILED refusals, and skip it after OFFLINE. `complete` returns early for a task that is already hidden, so a double tap does not start a second reload. `TaskCompletion.kt` (outside `touches`) is not changed. Tests: `InboxViewModelTest` "complete, undo and complete again sends the version of the reloaded inbox" checks that the second completion uses the reloaded version 3 and that the Inbox reloads 3 times. Other tests cover a refused completion versus an offline one, and that the reload waits for the server's answer. `InboxRouteTest` only added the `refresh(INBOX)` stub the strict mock needs; no assertion was weakened.
-- Criterion 1: `InboxRow` has a checkbox wired to the shared `TaskCompleter`. The checkbox is disabled offline and the view model also guards against offline. It is labelled `tasks_complete`. The undo snackbar comes from `CompletionSnackbarEffect`, the same one Next uses, and the snackbar and list padding keep clear of the shell FAB. A tap on a row calls `opensTask(task)` and passes the list's copy as the snapshot. Hiding uses `CompletionState.hides` for both the list and the processing queue. `InboxScreenTest` and `InboxRouteTest` cover all of this.
-- Criterion 2: the New view's `TaskRow` calls `LocalTaskOpener`. `NewOpen.Task`, `NewTaskView`, `NewTags.TASK_VIEW`, `NewUiState.inbox`/`task()` and their tests are removed. A saved `task:` state from the old version is ignored (`NewStoresTest`). `NewRouteTest` runs inside `CockpitShellFrame` and checks the detail route, the snapshot, Back, the filter staying selected, the scroll position kept, and that only one view model is created. This matches SPEC.md §5.3.
-- Criterion 3: no new strings were added. The reused `tasks_complete`/`tasks_completed`/`tasks_undo`/`task_detail_open` exist in `values/` and `values-de/`. The now-unused `new_task_created_at`/`new_task_hint` were removed from both locales. No other file still references them.
-- Criterion 4 evidence: `python tasks.py verify and-inbox-rows` still showed all four criteria unverified when this review ran. The parent worker must record the Gradle and `scripts/check.sh` runs. This review did not run them.
-- docs/PARITY.md line 41 still lists the gap. Whether to update it is the parent worker's decision, because `docs/` is outside this task's `touches`.
+- New in 0215c218d: two tests in `InboxViewModelTest`:
+    - "a refused undo reloads the inbox, an undo that failed offline does not"
+    - "an undo is reloaded only once the server answered it"
+  
+  They fill the undo side of the reload behaviour, which was only tested for completion before. Both assert observable behaviour: how many times `tasks.refresh(INBOX)` is called, the snackbar, and the visible task list. They do not weaken any existing assertion. This review ran `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.inbox.InboxViewModelTest'`: 43 tests, 0 failures, 0 errors, 0 skipped.
+- The first review's CR-1 (Inbox not reloaded after a complete or undo, so a later action got 412) remains **resolved** at HEAD.
+- Criterion 1:
+    - `InboxRow` has a checkbox wired to the shared `TaskCompleter`. The checkbox is disabled offline, and the view model also refuses to complete offline.
+    - The undo snackbar comes from Next's `CompletionSnackbarEffect`. The snackbar and the list padding stay clear of the FAB.
+    - Tapping a row uses `opensTask(task)`.
+    - Covered by `InboxScreenTest`, `InboxRouteTest` and `InboxViewModelTest`.
+- Criterion 2:
+    - New view task rows open the task detail through `LocalTaskOpener`.
+    - `NewOpen.Task`, `NewTaskView`, `NewTags.TASK_VIEW` and `NewUiState.inbox`/`task()` are removed.
+    - A saved `task:` state from the old version is ignored.
+    - `NewRouteTest` covers inside the shell frame: the detail route opens, Back returns to New, and the filter and scroll position are kept.
+- Criterion 3: no new strings were added. The reused strings exist in both `values/` and `values-de/`. The unused `new_task_created_at`/`new_task_hint` were removed from both, and nothing else references them.
+- Criterion 4 evidence: `python tasks.py verify and-inbox-rows` still lists all four criteria as unverified. The parent worker must record the full `./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` runs. This review ran only the focused test class above.
+- docs/PARITY.md still lists this gap. Updating it is outside this task's `touches`, so it is the parent worker's decision.
 
 ## Review conclusion
 
