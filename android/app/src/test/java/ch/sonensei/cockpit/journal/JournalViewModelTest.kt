@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import ch.sonensei.cockpit.notes.NoteImages
 import ch.sonensei.cockpit.notes.NotePhoto
 import ch.sonensei.cockpit.notes.SaveStatus
+import io.mockk.MockKMatcherScope
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -51,6 +52,8 @@ class JournalViewModelTest {
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         coEvery { repo.get(day) } returns JournalResult.Ok(loaded)
+        coEvery { repo.days(any(), any()) } returns JournalResult.Ok(emptyMap())
+        coEvery { repo.onThisDay(any()) } returns JournalResult.Ok(emptyList())
     }
 
     @After
@@ -95,7 +98,7 @@ class JournalViewModelTest {
     @Test
     fun `autosaves a second after the last change, over the saved version`() =
         test { vm ->
-            coEvery { repo.save(day, loaded, "Morning run, 5 km") } returns saved("Morning run, 5 km", 4)
+            coEvery { repo.saveEntry(day, loaded, body("Morning run, 5 km")) } returns saved("Morning run, 5 km", 4)
             runCurrent()
             vm.setEditing(true)
             vm.setBody("Morning run, 5")
@@ -103,10 +106,10 @@ class JournalViewModelTest {
             vm.setBody("Morning run, 5 km")
             assertEquals(SaveStatus.UNSAVED, vm.uiState.value.status)
             advanceTimeBy(900)
-            coVerify(exactly = 0) { repo.save(any(), any(), any()) }
+            coVerify(exactly = 0) { repo.saveEntry(any(), any(), any()) }
             advanceUntilIdle()
 
-            coVerify(exactly = 1) { repo.save(any(), any(), any()) }
+            coVerify(exactly = 1) { repo.saveEntry(any(), any(), any()) }
             assertEquals(
                 4L,
                 vm.uiState.value.entry!!
@@ -118,8 +121,8 @@ class JournalViewModelTest {
     @Test
     fun `the next save goes over the version the previous one returned`() =
         test { vm ->
-            coEvery { repo.save(day, loaded, "A") } returns saved("A", 4)
-            coEvery { repo.save(day, loaded.copy(bodyMd = "A", version = 4), "AB") } returns saved("AB", 5)
+            coEvery { repo.saveEntry(day, loaded, body("A")) } returns saved("A", 4)
+            coEvery { repo.saveEntry(day, loaded.copy(bodyMd = "A", version = 4), body("AB")) } returns saved("AB", 5)
             runCurrent()
             vm.setBody("A")
             advanceUntilIdle()
@@ -137,34 +140,35 @@ class JournalViewModelTest {
     @Test
     fun `a new entry is only created once it has text`() =
         test({ coEvery { repo.get(day) } returns JournalResult.Ok(null) }) { vm ->
-            coEvery { repo.save(day, null, "Hello") } returns saved("Hello", 1)
+            coEvery { repo.saveEntry(day, null, body("Hello")) } returns
+                JournalSaveResult.Saved(loaded.copy(bodyMd = "Hello", mood = null, tags = emptyList(), version = 1))
             runCurrent()
             vm.setEditing(false)
             advanceUntilIdle()
-            coVerify(exactly = 0) { repo.save(any(), any(), any()) }
+            coVerify(exactly = 0) { repo.saveEntry(any(), any(), any()) }
 
             vm.setBody("Hello")
             advanceUntilIdle()
-            coVerify(exactly = 1) { repo.save(day, null, "Hello") }
+            coVerify(exactly = 1) { repo.saveEntry(day, null, body("Hello")) }
             assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
         }
 
     @Test
     fun `leaving the editor saves at once`() =
         test { vm ->
-            coEvery { repo.save(day, loaded, "Morning run!") } returns saved("Morning run!", 4)
+            coEvery { repo.saveEntry(day, loaded, body("Morning run!")) } returns saved("Morning run!", 4)
             runCurrent()
             vm.setEditing(true)
             vm.setBody("Morning run!")
             vm.setEditing(false)
             runCurrent()
-            coVerify(exactly = 1) { repo.save(day, loaded, "Morning run!") }
+            coVerify(exactly = 1) { repo.saveEntry(day, loaded, body("Morning run!")) }
         }
 
     @Test
     fun `an offline save keeps the text and can be retried`() =
         test { vm ->
-            coEvery { repo.save(day, loaded, "More") } returnsMany listOf(JournalSaveResult.Offline, saved("More", 4))
+            coEvery { repo.saveEntry(day, loaded, body("More")) } returnsMany listOf(JournalSaveResult.Offline, saved("More", 4))
             runCurrent()
             vm.setBody("More")
             advanceUntilIdle()
@@ -179,7 +183,7 @@ class JournalViewModelTest {
     @Test
     fun `a refused save is reported as failed`() =
         test { vm ->
-            coEvery { repo.save(any(), any(), any()) } returns JournalSaveResult.Failed(400)
+            coEvery { repo.saveEntry(any(), any(), any()) } returns JournalSaveResult.Failed(400)
             runCurrent()
             vm.setBody("More")
             advanceUntilIdle()
@@ -189,7 +193,7 @@ class JournalViewModelTest {
     @Test
     fun `text waiting for its autosave is saved when the screen goes away`() =
         runTest(dispatcher) {
-            coEvery { repo.save(day, loaded, "Unsaved") } returns saved("Unsaved", 4)
+            coEvery { repo.saveEntry(day, loaded, body("Unsaved")) } returns saved("Unsaved", 4)
             val store = ViewModelStore()
             val vm =
                 ViewModelProvider(
@@ -200,15 +204,15 @@ class JournalViewModelTest {
             vm.setBody("Unsaved")
             store.clear()
             advanceUntilIdle()
-            coVerify(exactly = 1) { repo.save(day, loaded, "Unsaved") }
+            coVerify(exactly = 1) { repo.saveEntry(day, loaded, body("Unsaved")) }
         }
 
     @Test
     fun `a conflict stops the autosave until the user keeps their text`() =
         test { vm ->
             val theirs = loaded.copy(bodyMd = "From the web", version = 7)
-            coEvery { repo.save(day, loaded, "Mine") } returns JournalSaveResult.Conflict(theirs)
-            coEvery { repo.save(day, theirs, "Mine") } returns saved("Mine", 8)
+            coEvery { repo.saveEntry(day, loaded, body("Mine")) } returns JournalSaveResult.Conflict(theirs)
+            coEvery { repo.saveEntry(day, theirs, body("Mine")) } returns saved("Mine", 8)
             runCurrent()
             vm.setEditing(true)
             vm.setBody("Mine")
@@ -222,7 +226,7 @@ class JournalViewModelTest {
 
             vm.keepMine()
             advanceUntilIdle()
-            coVerify(exactly = 1) { repo.save(day, theirs, "Mine") }
+            coVerify(exactly = 1) { repo.saveEntry(day, theirs, body("Mine")) }
             assertNull(vm.uiState.value.conflict)
             assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
         }
@@ -231,7 +235,7 @@ class JournalViewModelTest {
     fun `using the other version drops the text written here`() =
         test { vm ->
             val theirs = loaded.copy(bodyMd = "From the web", version = 7)
-            coEvery { repo.save(day, loaded, "Mine") } returns JournalSaveResult.Conflict(theirs)
+            coEvery { repo.saveEntry(day, loaded, body("Mine")) } returns JournalSaveResult.Conflict(theirs)
             runCurrent()
             vm.setBody("Mine")
             advanceUntilIdle()
@@ -242,21 +246,21 @@ class JournalViewModelTest {
             assertEquals("From the web", state.body)
             assertEquals(theirs, state.entry)
             assertEquals(SaveStatus.SAVED, state.status)
-            coVerify(exactly = 1) { repo.save(any(), any(), any()) }
+            coVerify(exactly = 1) { repo.saveEntry(any(), any(), any()) }
         }
 
     @Test
     fun `an entry deleted elsewhere can be saved again as a new one`() =
         test { vm ->
-            coEvery { repo.save(day, loaded, "Mine") } returns JournalSaveResult.Conflict(null)
-            coEvery { repo.save(day, null, "Mine") } returns saved("Mine", 1)
+            coEvery { repo.saveEntry(day, loaded, body("Mine")) } returns JournalSaveResult.Conflict(null)
+            coEvery { repo.saveEntry(day, null, body("Mine")) } returns saved("Mine", 1)
             runCurrent()
             vm.setBody("Mine")
             advanceUntilIdle()
 
             vm.keepMine()
             advanceUntilIdle()
-            coVerify(exactly = 1) { repo.save(day, null, "Mine") }
+            coVerify(exactly = 1) { repo.saveEntry(day, null, body("Mine")) }
         }
 
     @Test
@@ -279,7 +283,7 @@ class JournalViewModelTest {
         test { vm ->
             val image = "![lake.jpg](cockpit-file:$id)"
             coEvery { repo.uploadImage(photo) } returns JournalResult.Ok(image)
-            coEvery { repo.save(day, loaded, "Morning\n$image\n run") } returns saved("Morning\n$image\n run", 4)
+            coEvery { repo.saveEntry(day, loaded, body("Morning\n$image\n run")) } returns saved("Morning\n$image\n run", 4)
             runCurrent()
             vm.addPhoto(photo, at = 7)
             assertTrue(vm.uiState.value.uploading)
@@ -318,8 +322,8 @@ class JournalViewModelTest {
             val upload = CompletableDeferred<JournalResult<String>>()
             val theirs = loaded.copy(bodyMd = "Theirs", version = 7)
             coEvery { repo.uploadImage(photo) } coAnswers { upload.await() }
-            coEvery { repo.save(day, loaded, "Mine") } returns JournalSaveResult.Conflict(theirs)
-            coEvery { repo.save(day, theirs, any()) } answers { saved(thirdArg(), 8) }
+            coEvery { repo.saveEntry(day, loaded, body("Mine")) } returns JournalSaveResult.Conflict(theirs)
+            coEvery { repo.saveEntry(day, theirs, any()) } answers { saved(thirdArg<JournalDraft>().bodyMd, 8) }
             runCurrent()
             vm.setBody("Mine")
             vm.addPhoto(photo, at = 4)
@@ -339,8 +343,8 @@ class JournalViewModelTest {
         test { vm ->
             val first = CompletableDeferred<JournalSaveResult>()
             val v4 = loaded.copy(bodyMd = "A", version = 4)
-            coEvery { repo.save(day, loaded, "A") } coAnswers { first.await() }
-            coEvery { repo.save(day, v4, "AB") } returns saved("AB", 5)
+            coEvery { repo.saveEntry(day, loaded, body("A")) } coAnswers { first.await() }
+            coEvery { repo.saveEntry(day, v4, body("AB")) } returns saved("AB", 5)
             runCurrent()
             vm.setBody("A")
             advanceTimeBy(1_001)
@@ -349,12 +353,12 @@ class JournalViewModelTest {
             vm.setBody("AB")
             advanceTimeBy(1_001)
             // The second save waits for the first: nothing goes out over the old version twice.
-            coVerify(exactly = 1) { repo.save(any(), any(), any()) }
+            coVerify(exactly = 1) { repo.saveEntry(any(), any(), any()) }
             assertEquals(SaveStatus.UNSAVED, vm.uiState.value.status)
 
             first.complete(JournalSaveResult.Saved(v4))
             advanceUntilIdle()
-            coVerify(exactly = 1) { repo.save(day, v4, "AB") }
+            coVerify(exactly = 1) { repo.saveEntry(day, v4, body("AB")) }
             assertEquals("AB", vm.uiState.value.body)
             assertEquals(
                 5L,
@@ -369,8 +373,8 @@ class JournalViewModelTest {
         test { vm ->
             val first = CompletableDeferred<JournalSaveResult>()
             val theirs = loaded.copy(bodyMd = "From the web", version = 7)
-            coEvery { repo.save(day, loaded, "Mine") } coAnswers { first.await() }
-            coEvery { repo.save(day, theirs, "Mine and more") } returns saved("Mine and more", 8)
+            coEvery { repo.saveEntry(day, loaded, body("Mine")) } coAnswers { first.await() }
+            coEvery { repo.saveEntry(day, theirs, body("Mine and more")) } returns saved("Mine and more", 8)
             runCurrent()
             vm.setBody("Mine")
             advanceTimeBy(1_001)
@@ -381,11 +385,11 @@ class JournalViewModelTest {
             // The pending autosave did not go out over the conflict.
             assertEquals(JournalConflict(theirs), vm.uiState.value.conflict)
             assertEquals("Mine and more", vm.uiState.value.body)
-            coVerify(exactly = 1) { repo.save(any(), any(), any()) }
+            coVerify(exactly = 1) { repo.saveEntry(any(), any(), any()) }
 
             vm.keepMine()
             advanceUntilIdle()
-            coVerify(exactly = 1) { repo.save(day, theirs, "Mine and more") }
+            coVerify(exactly = 1) { repo.saveEntry(day, theirs, body("Mine and more")) }
             assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
             assertTrue(vm.uiState.value.editable)
         }
@@ -395,9 +399,9 @@ class JournalViewModelTest {
         test { vm ->
             val theirs = loaded.copy(bodyMd = "From the web", version = 7)
             val kept = loaded.copy(bodyMd = "Mine", version = 8)
-            coEvery { repo.save(day, loaded, "Mine") } returns JournalSaveResult.Conflict(theirs)
-            coEvery { repo.save(day, theirs, "Mine") } returns JournalSaveResult.Saved(kept)
-            coEvery { repo.save(day, kept, "Mine, later") } returns saved("Mine, later", 9)
+            coEvery { repo.saveEntry(day, loaded, body("Mine")) } returns JournalSaveResult.Conflict(theirs)
+            coEvery { repo.saveEntry(day, theirs, body("Mine")) } returns JournalSaveResult.Saved(kept)
+            coEvery { repo.saveEntry(day, kept, body("Mine, later")) } returns saved("Mine, later", 9)
             runCurrent()
             vm.setBody("Mine")
             advanceUntilIdle()
@@ -408,7 +412,7 @@ class JournalViewModelTest {
             assertTrue(vm.uiState.value.editing)
             vm.setBody("Mine, later")
             advanceUntilIdle()
-            coVerify(exactly = 1) { repo.save(day, kept, "Mine, later") }
+            coVerify(exactly = 1) { repo.saveEntry(day, kept, body("Mine, later")) }
             assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
         }
 
@@ -417,9 +421,9 @@ class JournalViewModelTest {
         test { vm ->
             // The first save reached the server, but its answer was lost: the retry then hits the new version.
             val onServer = loaded.copy(bodyMd = "Mine", version = 4)
-            coEvery { repo.save(day, loaded, "Mine") } returnsMany
+            coEvery { repo.saveEntry(day, loaded, body("Mine")) } returnsMany
                 listOf(JournalSaveResult.Offline, JournalSaveResult.Conflict(onServer))
-            coEvery { repo.save(day, onServer, "Mine") } returns saved("Mine", 5)
+            coEvery { repo.saveEntry(day, onServer, body("Mine")) } returns saved("Mine", 5)
             runCurrent()
             vm.setBody("Mine")
             advanceUntilIdle()
@@ -438,7 +442,7 @@ class JournalViewModelTest {
     @Test
     fun `discarding my text when the entry was deleted elsewhere leaves an empty day in the editor`() =
         test { vm ->
-            coEvery { repo.save(day, loaded, "Mine") } returns JournalSaveResult.Conflict(null)
+            coEvery { repo.saveEntry(day, loaded, body("Mine")) } returns JournalSaveResult.Conflict(null)
             runCurrent()
             vm.setBody("Mine")
             advanceUntilIdle()
@@ -451,7 +455,7 @@ class JournalViewModelTest {
             assertEquals("", state.body)
             assertTrue(state.editing)
             assertEquals(SaveStatus.SAVED, state.status)
-            coVerify(exactly = 1) { repo.save(any(), any(), any()) }
+            coVerify(exactly = 1) { repo.saveEntry(any(), any(), any()) }
         }
 
     @Test
@@ -461,8 +465,8 @@ class JournalViewModelTest {
             val upload = CompletableDeferred<JournalResult<String>>()
             val theirs = loaded.copy(bodyMd = "Theirs", version = 7)
             coEvery { repo.uploadImage(photo) } coAnswers { upload.await() }
-            coEvery { repo.save(day, loaded, "Mine here") } returns JournalSaveResult.Conflict(theirs)
-            coEvery { repo.save(day, theirs, any()) } answers { saved(thirdArg(), 8) }
+            coEvery { repo.saveEntry(day, loaded, body("Mine here")) } returns JournalSaveResult.Conflict(theirs)
+            coEvery { repo.saveEntry(day, theirs, any()) } answers { saved(thirdArg<JournalDraft>().bodyMd, 8) }
             runCurrent()
             vm.setBody("Mine here")
             vm.addPhoto(photo, at = 4)
@@ -473,7 +477,7 @@ class JournalViewModelTest {
             vm.keepMine()
             advanceUntilIdle()
             assertEquals("Mine\n$image\n here", vm.uiState.value.body)
-            coVerify(exactly = 1) { repo.save(day, theirs, "Mine\n$image\n here") }
+            coVerify(exactly = 1) { repo.saveEntry(day, theirs, body("Mine\n$image\n here")) }
             assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
         }
 
@@ -516,7 +520,10 @@ class JournalViewModelTest {
             vm.setEditing(true)
             vm.setEditing(false)
             advanceUntilIdle()
-            coVerify(exactly = 0) { repo.save(any(), any(), any()) }
+            coVerify(exactly = 0) { repo.saveEntry(any(), any(), any()) }
             assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
         }
 }
+
+/** Matches a draft by its text. */
+private fun MockKMatcherScope.body(text: String) = match<JournalDraft> { it.bodyMd == text }

@@ -217,6 +217,6 @@ class JournalScreenTest {
     fun `an empty entry invites to write`() {
         show(loaded(body = ""))
 
-        composeRule.onNodeWithText("Nothing written today yet", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("Nothing written for this day yet", substring = true).assertIsDisplayed()
     }
 }
