@@ -1,10 +1,11 @@
 ---
 title: Server check: make .taskcheck's server tests fast again
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [server/build.gradle.kts,server/src/test,scripts/check.sh,.github/workflows/ci.yml,docs/ARCHITECTURE.md]
 prio: 1
+lease_until: 2026-11-08T17:54:51Z
 ---
 ## Goal
 `sh scripts/check.sh` (`.taskcheck`, run by every `tasks.py done`) should take < 2 min but no longer finishes in
