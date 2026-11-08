@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "and-task-detail-dates",
-  "reviewed_revision": "76244b1ec09446895c54fd4efbd98e25dbea438f",
+  "reviewed_revision": "18ce008a543976d236898bc8296e9ed7228d78b4",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/and-task-detail-dates/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/and-task-detail-dates/review.md"},
