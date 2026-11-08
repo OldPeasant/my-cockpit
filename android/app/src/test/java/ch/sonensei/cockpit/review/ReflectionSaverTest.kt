@@ -97,6 +97,35 @@ class ReflectionSaverTest {
         }
 
     @Test
+    fun `a retry after a save that reached the server but was reported offline does not append again`() =
+        runTest {
+            val committed = entry("Morning run.\n\n## Weekly review\n\nA calm week.\n", version = 2)
+            coEvery { journal.get(today) } returns JournalResult.Ok(committed)
+            assertEquals(ReflectionOutcome.SAVED, saver.save("  A calm week. "))
+            coVerify(exactly = 0) { journal.save(any(), any(), any()) }
+        }
+
+    @Test
+    fun `an entry whose last section is a different reflection still gets the new one`() =
+        runTest {
+            val earlier = entry("## Weekly review\n\nLast week.\n")
+            coEvery { journal.get(today) } returns JournalResult.Ok(earlier)
+            coEvery { journal.save(today, earlier, any()) } returns JournalSaveResult.Saved(earlier)
+            assertEquals(ReflectionOutcome.SAVED, saver.save("This week."))
+            coVerify { journal.save(today, earlier, "## Weekly review\n\nLast week.\n\n## Weekly review\n\nThis week.\n") }
+        }
+
+    @Test
+    fun `a conflict whose current entry already holds the reflection counts as saved`() =
+        runTest {
+            val newer = entry("## Weekly review\n\nNotes", version = 3)
+            coEvery { journal.get(today) } returns JournalResult.Ok(null)
+            coEvery { journal.save(today, null, any()) } returns JournalSaveResult.Conflict(newer)
+            assertEquals(ReflectionOutcome.SAVED, saver.save("Notes"))
+            coVerify(exactly = 1) { journal.save(any(), any(), any()) }
+        }
+
+    @Test
     fun `repeated conflicts give up instead of looping`() =
         runTest {
             coEvery { journal.get(today) } returns JournalResult.Ok(null)

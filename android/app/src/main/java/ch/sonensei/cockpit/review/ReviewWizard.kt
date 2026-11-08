@@ -83,7 +83,8 @@ internal fun ReviewWizard(
             stringResource(step.hint),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
+            // No top padding: the step track's touch target already leaves room below its bar.
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
         )
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (step) {
@@ -203,7 +204,8 @@ private fun StepTrack(
             Box(
                 Modifier
                     .weight(1f)
-                    .height(24.dp)
+                    // A full-height touch target (Material's 48dp minimum); the visible bar inside stays thin.
+                    .height(48.dp)
                     .clickable(enabled = !saving && step != current, role = Role.Button) { onJump(step) }
                     .semantics { contentDescription = listOfNotNull("${step.number}. $label", stateText).joinToString(", ") }
                     .testTag(ReviewTags.segment(step)),
@@ -354,7 +356,7 @@ private fun CaptureField(
             )
             TextButton(
                 onClick = callbacks.capture,
-                enabled = state.captureText.isNotBlank(),
+                enabled = state.captureText.isNotBlank() && !state.capturing,
                 modifier = Modifier.padding(start = 4.dp).testTag(ReviewTags.CAPTURE_ADD),
             ) { Text(stringResource(R.string.review_capture_add)) }
         }

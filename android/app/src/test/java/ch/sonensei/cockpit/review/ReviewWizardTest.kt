@@ -9,10 +9,13 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -117,11 +120,19 @@ class ReviewWizardTest {
             ),
         )
         composeRule.onNodeWithTag(ReviewTags.event(dentist)).assertTextContains("Dentist", substring = true)
+        // The test window is small: the second event may lie below the fold of the lazy list.
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(ReviewTags.event(holiday)))
         composeRule.onNodeWithTag(ReviewTags.event(holiday)).assertTextContains("All day", substring = true)
         composeRule.onNodeWithTag(ReviewTags.CAPTURED).assertTextEquals("Added “Book flights” to the inbox.")
         composeRule.onNodeWithTag(ReviewTags.CAPTURE_FIELD).performTextInput("!")
         composeRule.onNodeWithTag(ReviewTags.CAPTURE_ADD).performClick()
         assertEquals(listOf("text:!Send invoice", "capture"), calls.filter { it.startsWith("text") || it == "capture" })
+    }
+
+    @Test
+    fun `the quick-add button is disabled while a capture is stored`() {
+        show(wizard(ReviewStep.PAST_CALENDAR, ReviewUiState(captureText = "Send invoice", capturing = true)))
+        composeRule.onNodeWithTag(ReviewTags.CAPTURE_ADD).assertIsNotEnabled()
     }
 
     @Test

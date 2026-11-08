@@ -42,6 +42,8 @@ class ReflectionSaver internal constructor(
                 is JournalResult.Failed -> return ReflectionOutcome.FAILED
             }
         repeat(ATTEMPTS) {
+            // A retry after a save that reached the server but was reported offline must not append it a second time.
+            if (base?.bodyMd?.trimEnd()?.endsWith(section(text)) == true) return ReflectionOutcome.SAVED
             when (val saved = journal.save(date, base, appended(base, text))) {
                 is JournalSaveResult.Saved -> return ReflectionOutcome.SAVED
                 is JournalSaveResult.Conflict -> base = saved.current
@@ -56,10 +58,12 @@ class ReflectionSaver internal constructor(
         base: JournalEntry?,
         text: String,
     ): String {
-        val section = "## ${heading()}\n\n${text.trim()}"
+        val section = section(text)
         val before = base?.bodyMd?.trimEnd().orEmpty()
         return if (before.isEmpty()) "$section\n" else "$before\n\n$section\n"
     }
+
+    private fun section(text: String) = "## ${heading()}\n\n${text.trim()}"
 
     private companion object {
         const val ATTEMPTS = 2

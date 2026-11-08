@@ -179,8 +179,14 @@ private fun CockpitNavHost(
         CockpitDestination.entries.forEach { destination ->
             composable(destination.route) {
                 // Screens with their own snackbars keep them above the shell's FAB (LocalFabClearance).
+                // The review opens Mail and its lists on top of itself, so back returns to the wizard (PARITY.md decision 6).
+                val onTop = destination == CockpitDestination.Review
                 CompositionLocalProvider(LocalFabClearance provides fabClearance(destination)) {
-                    destinationContent(destination, { navController.open(it) }, Modifier.testTag(screenTag(destination)))
+                    destinationContent(
+                        destination,
+                        { if (onTop) navController.navigate(it.route) { launchSingleTop = true } else navController.open(it) },
+                        Modifier.testTag(screenTag(destination)),
+                    )
                 }
             }
         }

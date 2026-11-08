@@ -66,6 +66,8 @@ data class ReviewUiState(
     val habits: StepData<List<Habit>> = StepData(),
     /** The quick-add field of the calendar steps. */
     val captureText: String = "",
+    /** A quick-add capture is being stored. */
+    val capturing: Boolean = false,
     /** The title last added to the inbox from the calendar steps. */
     val captured: String? = null,
     /** The reflection of the last step, saved in today's journal entry when the review is completed. */
@@ -89,12 +91,16 @@ class ReviewViewModel
         private val captures: CaptureQueue,
         private val habits: HabitsRepository,
         private val reflections: ReflectionSaver,
+        private val drafts: ReviewDrafts = ReviewDrafts(),
     ) : ViewModel() {
         private val state = MutableStateFlow(ReviewUiState())
         val uiState: StateFlow<ReviewUiState> = state.asStateFlow()
 
         private var loadJob: Job? = null
         private val stepJobs = mutableMapOf<ReviewStep, Job>()
+
+        /** Counts the saved starts, moves and completions; a load begun before the last one must not undo it. */
+        private var saves = 0
 
         /** Loads again; a load still running is dropped. A failed load keeps what was shown and says why. */
         fun refresh() = reload(onOk = null)
@@ -108,13 +114,25 @@ class ReviewViewModel
             loadJob =
                 viewModelScope.launch {
                     state.update { it.copy(loading = true) }
+                    val savesBefore = saves
                     val result = reviews.overview()
                     state.update {
-                        val overview = (result as? ReviewResult.Ok)?.value ?: it.overview
+                        val loaded = (result as? ReviewResult.Ok)?.value
+                        val overview =
+                            when {
+                                loaded == null -> it.overview
+                                // A change saved meanwhile is newer than the review this load read.
+                                saves != savesBefore && it.overview != null ->
+                                    loaded.copy(current = it.current, daysSinceLastReview = it.overview.daysSinceLastReview)
+                                else -> loaded
+                            }
+                        val current = overview?.current
                         it.copy(
                             overview = overview,
                             loading = false,
-                            wizard = it.wizard && overview?.current != null,
+                            // The wizard and draft outlive this screen (a tab switch), so they come back with the review.
+                            wizard = current != null && (it.wizard || drafts.wizardFor == current.id),
+                            reflection = current?.let { open -> drafts.reflection(open.id) } ?: it.reflection,
                             message =
                                 when (result) {
                                     is ReviewResult.Ok -> onOk
@@ -130,18 +148,21 @@ class ReviewViewModel
         fun start() {
             val current = state.value.current
             if (current != null) {
+                drafts.wizardFor = current.id
                 state.update { it.copy(wizard = true, completed = false, message = null) }
                 return
             }
             save {
                 when (val result = reviews.start()) {
                     is ReviewResult.Ok -> {
+                        saves++
+                        drafts.wizardFor = result.value.id
                         state.update {
                             it.copy(
                                 overview = (it.overview ?: ReviewOverview(null, null, emptyList())).copy(current = result.value),
                                 wizard = true,
                                 completed = false,
-                                reflection = "",
+                                reflection = drafts.reflection(result.value.id),
                             )
                         }
                         null
@@ -152,7 +173,10 @@ class ReviewViewModel
         }
 
         /** Back to the overview; the review stays open on the server. */
-        fun closeWizard() = state.update { it.copy(wizard = false) }
+        fun closeWizard() {
+            drafts.wizardFor = null
+            state.update { it.copy(wizard = false) }
+        }
 
         /** Saves [step] as the current step: any step, also an earlier one. */
         fun goTo(step: ReviewStep) {
@@ -161,6 +185,7 @@ class ReviewViewModel
             save {
                 when (val result = reviews.move(review, step)) {
                     is ReviewResult.Ok -> {
+                        saves++
                         state.update { it.copy(overview = it.overview?.copy(current = result.value)) }
                         null
                     }
@@ -193,7 +218,10 @@ class ReviewViewModel
                 if (text.isNotEmpty()) {
                     when (reflections.save(text)) {
                         // Saved: a retry after a failed completion must not append it a second time.
-                        ReflectionOutcome.SAVED -> state.update { it.copy(reflection = "") }
+                        ReflectionOutcome.SAVED -> {
+                            drafts.setReflection(review.id, "")
+                            state.update { it.copy(reflection = "") }
+                        }
                         ReflectionOutcome.OFFLINE -> return@save ReviewResult.Offline
                         ReflectionOutcome.FAILED -> {
                             state.update { it.copy(message = ReviewMessage.REFLECTION_FAILED) }
@@ -203,6 +231,8 @@ class ReviewViewModel
                 }
                 when (val result = reviews.complete(review)) {
                     is ReviewResult.Ok -> {
+                        saves++
+                        drafts.clear(review.id)
                         state.update {
                             it.copy(
                                 overview = it.overview?.copy(current = null, daysSinceLastReview = 0),
@@ -217,24 +247,31 @@ class ReviewViewModel
             }
         }
 
-        fun setReflection(text: String) = state.update { it.copy(reflection = text) }
+        fun setReflection(text: String) {
+            state.value.current?.let { drafts.setReflection(it.id, text) }
+            state.update { it.copy(reflection = text) }
+        }
 
         fun setCaptureText(text: String) = state.update { it.copy(captureText = text) }
 
         /** Adds the quick-add text to the inbox; offline it is queued and sent later (SPEC.md §9.3). */
         fun capture() {
             val text = state.value.captureText.trim()
-            if (text.isEmpty()) return
+            if (text.isEmpty() || state.value.capturing) return
+            state.update { it.copy(capturing = true) }
             viewModelScope.launch {
                 try {
                     captures.capture(text)
-                    state.update { it.copy(captureText = "", captured = text) }
+                    // Text typed while it was stored stays in the field.
+                    state.update { it.copy(captureText = if (it.captureText.trim() == text) "" else it.captureText, captured = text) }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: IllegalArgumentException) {
                     state.update { it.copy(message = ReviewMessage.CAPTURE_FAILED) }
                 } catch (_: IOException) {
                     state.update { it.copy(message = ReviewMessage.CAPTURE_FAILED) }
+                } finally {
+                    state.update { it.copy(capturing = false) }
                 }
             }
         }
