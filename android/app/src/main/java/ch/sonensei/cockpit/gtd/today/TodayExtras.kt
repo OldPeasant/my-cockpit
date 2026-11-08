@@ -25,14 +25,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.os.ConfigurationCompat
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.calendar.agenda.Occurrence
 import ch.sonensei.cockpit.habits.Habit
@@ -124,7 +123,7 @@ private fun EventRow(
     zone: ZoneId,
     open: (Occurrence) -> Unit,
 ) {
-    val locale = ConfigurationCompat.getLocales(LocalConfiguration.current)[0] ?: Locale.getDefault()
+    val locale = LocalLocale.current.platformLocale
     val time = (if (event.allDay) null else eventTime(event, today, zone, locale)) ?: stringResource(R.string.today_event_all_day)
     Row(
         Modifier
@@ -168,6 +167,9 @@ internal fun eventTime(
     locale: Locale,
 ): String? {
     val start = event.start ?: return null
+    val dayStart = today.atStartOfDay(zone).toInstant()
+    val dayEnd = today.plusDays(1).atStartOfDay(zone).toInstant()
+    if (start <= dayStart && event.end?.let { it >= dayEnd } == true) return null
     val format = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale)
     val startText = format.format(start.atZone(zone)).takeIf { start.atZone(zone).toLocalDate() == today }
     val end = event.end?.takeIf { it > start } ?: start

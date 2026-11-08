@@ -16,7 +16,7 @@ import ch.sonensei.cockpit.calendar.edit.EventEditorViewModel
 import java.util.UUID
 
 /**
- * Today with its events and habits: a tapped event opens the calendar's event editor (a birthday opens its contact),
+ * Today with its events and habits: a tapped event opens the calendar's event editor (a birthday opens its contact, [contact]),
  * and the events and habits load again whenever the editor closes, so a saved change shows.
  */
 @Composable
@@ -26,13 +26,14 @@ fun TodayWithEditor(
     viewModel: TodayViewModel = hiltViewModel(),
     extras: TodayExtrasViewModel = hiltViewModel(),
     editor: EventEditorViewModel = hiltViewModel(),
+    contact: @Composable (id: UUID, back: () -> Unit) -> Unit = { id, back -> BirthdayContact(id, back, modifier) },
 ) {
     val editorState by editor.uiState.collectAsStateWithLifecycle()
     val extrasState by extras.uiState.collectAsStateWithLifecycle()
     var contactId by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(editorState.open) { if (!editorState.open) extras.load() }
     contactId?.let {
-        BirthdayContact(UUID.fromString(it), { contactId = null }, modifier)
+        contact(UUID.fromString(it)) { contactId = null }
         return
     }
     if (editorState.open) {

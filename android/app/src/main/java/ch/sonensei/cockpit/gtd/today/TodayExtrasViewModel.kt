@@ -48,26 +48,54 @@ class TodayExtrasViewModel internal constructor(
     private val state = MutableStateFlow(TodayExtrasUiState(zone = clock.zone))
     val uiState: StateFlow<TodayExtrasUiState> = state.asStateFlow()
 
-    /** Loads both again; a failed load keeps what was shown (the events and habits are an extra on Today). */
+    /** Numbers the event loads, so the answer of a load that a newer one replaced is dropped. */
+    private var eventsSeq = 0
+
+    /** Numbers the habit loads, so the answer of a load that a newer one replaced is dropped. */
+    private var habitsSeq = 0
+
+    /** Counts the starts and ends of habit checks, so a habit list requested before one of them is known to be stale. */
+    private var changeSeq = 0
+
+    /** For each habit checked here: [changeSeq] at the last start or end of its check. */
+    private val lastChange = mutableMapOf<UUID, Int>()
+
+    /**
+     * Loads both again; a failed load keeps what was shown (the events and habits are an extra on Today). Only the
+     * newest load's answers are shown, and a habit whose check started or ended after the list was requested keeps
+     * what is on screen (the list may have been read before the check and would undo it).
+     */
     fun load() {
+        val eventsLoad = ++eventsSeq
         viewModelScope.launch {
             val zone = clock.zone
             val today = LocalDate.now(clock)
             val calendars = (calendar.calendars() as? CalendarResult.Ok)?.value
             val occurrences = calendar.occurrences(today, today.plusDays(1), zone)
-            if (calendars != null && occurrences is CalendarResult.Ok) {
+            if (eventsLoad == eventsSeq && calendars != null && occurrences is CalendarResult.Ok) {
                 val visible = calendars.filter { it.visible }.map { it.id }.toSet()
                 val events =
                     occurrences.value
-                        .filter { it.calendarId in visible }
+                        .filter { it.calendarId in visible && it.isOn(today) }
                         .sortedWith(compareBy<Occurrence>({ !it.allDay }, { it.start }, { it.title }))
                 state.update { it.copy(events = events, calendars = calendars, zone = zone) }
             }
         }
+        val habitsLoad = ++habitsSeq
+        val changes = changeSeq
         viewModelScope.launch {
             val loaded = habits.list()
-            if (loaded is HabitsResult.Ok) {
-                state.update { it.copy(habits = loaded.value.filter { habit -> habit.dueToday && !habit.archived }) }
+            if (habitsLoad == habitsSeq && loaded is HabitsResult.Ok) {
+                state.update { current ->
+                    val due =
+                        loaded.value
+                            .filter { habit -> habit.dueToday && !habit.archived }
+                            .map { habit ->
+                                val checkedSince = (lastChange[habit.id] ?: 0) > changes
+                                current.habits.firstOrNull { it.id == habit.id }?.takeIf { checkedSince } ?: habit
+                            }
+                    current.copy(habits = due, checkFailed = current.checkFailed && changes != changeSeq)
+                }
             }
         }
     }
@@ -76,8 +104,10 @@ class TodayExtrasViewModel internal constructor(
     fun check(habit: Habit) {
         if (habit.id in state.value.checking) return
         state.update { it.copy(checking = it.checking + habit.id, checkFailed = false) }
+        lastChange[habit.id] = ++changeSeq
         viewModelScope.launch {
             val result = habits.check(habit)
+            lastChange[habit.id] = ++changeSeq
             state.update { current ->
                 val checking = current.checking - habit.id
                 if (result is HabitsResult.Ok) {
@@ -91,4 +121,16 @@ class TodayExtrasViewModel internal constructor(
             }
         }
     }
+}
+
+/**
+ * Whether this occurrence is on [day]: a timed one always (the query asked for that day), an all-day one when its days
+ * ([Occurrence.startDate] up to the exclusive [Occurrence.endDate]) contain [day]. The server picks all-day occurrences
+ * by the synced time zone, so when the device zone differs it can also return a neighbouring day's (as web `isOnDate`).
+ */
+internal fun Occurrence.isOn(day: LocalDate): Boolean {
+    val first = startDate
+    if (!allDay || first == null) return true
+    val end = endDate?.takeIf { it > first } ?: first.plusDays(1)
+    return first <= day && day < end
 }

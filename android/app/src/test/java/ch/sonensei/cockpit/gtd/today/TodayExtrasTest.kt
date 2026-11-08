@@ -211,6 +211,98 @@ class TodayExtrasTest {
         assertEquals("09:00–", eventTime(intoTomorrow, today, zone, Locale.GERMANY))
         assertNull(eventTime(fromYesterday.copy(end = Instant.parse("2026-10-21T01:00:00Z")), today, zone, Locale.GERMANY))
         assertEquals("09:00", eventTime(standup.copy(end = null), today, zone, Locale.GERMANY))
+        val wholeDay = standup.copy(start = Instant.parse("2026-10-20T00:00:00Z"), end = Instant.parse("2026-10-21T00:00:00Z"))
+        assertNull(eventTime(wholeDay, today, zone, Locale.GERMANY))
+        assertNull(eventTime(wholeDay.copy(start = Instant.parse("2026-10-19T12:00:00Z")), today, zone, Locale.GERMANY))
+        assertEquals("00:00–23:00", eventTime(wholeDay.copy(end = Instant.parse("2026-10-20T23:00:00Z")), today, zone, Locale.GERMANY))
+    }
+
+    @Test
+    fun `only the newest load's events show, also when an older load answers last`() {
+        val older = CompletableDeferred<CalendarResult<List<Occurrence>>>()
+        val newer = CompletableDeferred<CalendarResult<List<Occurrence>>>()
+        val answers = ArrayDeque(listOf(older, newer))
+        coEvery { calendar.occurrences(today, today.plusDays(1), ZoneOffset.UTC) } coAnswers { answers.removeFirst().await() }
+        val vm = TodayExtrasViewModel(calendar, habits, clock)
+        vm.load()
+        vm.load()
+        newer.complete(CalendarResult.Ok(listOf(standup)))
+        older.complete(CalendarResult.Ok(listOf(standup, holiday)))
+        assertEquals(listOf(standup), vm.uiState.value.events)
+    }
+
+    @Test
+    fun `only the newest load's habits show, also when an older load answers last`() {
+        val older = CompletableDeferred<HabitsResult<List<Habit>>>()
+        val newer = CompletableDeferred<HabitsResult<List<Habit>>>()
+        val answers = ArrayDeque(listOf(older, newer))
+        coEvery { habits.list() } coAnswers { answers.removeFirst().await() }
+        val vm = TodayExtrasViewModel(calendar, habits, clock)
+        vm.load()
+        vm.load()
+        val updated = water.copy(todayCount = 2)
+        newer.complete(HabitsResult.Ok(listOf(updated)))
+        older.complete(HabitsResult.Ok(listOf(water)))
+        assertEquals(listOf(updated), vm.uiState.value.habits)
+    }
+
+    @Test
+    fun `a habit list requested before a check finished does not undo the check`() {
+        val vm = TodayExtrasViewModel(calendar, habits, clock)
+        vm.load()
+        val pendingList = CompletableDeferred<HabitsResult<List<Habit>>>()
+        coEvery { habits.list() } coAnswers { pendingList.await() }
+        val checked = water.copy(todayCount = 2)
+        coEvery { habits.check(water) } returns HabitsResult.Ok(checked)
+        vm.load()
+        vm.check(water)
+        assertEquals(listOf(checked), vm.uiState.value.habits)
+        val other = habit(23, "Read")
+        pendingList.complete(HabitsResult.Ok(listOf(water, other)))
+        assertEquals(listOf(checked, other), vm.uiState.value.habits)
+    }
+
+    @Test
+    fun `a habit list requested while a check is on its way keeps the checked habit`() {
+        val vm = TodayExtrasViewModel(calendar, habits, clock)
+        vm.load()
+        val pendingCheck = CompletableDeferred<HabitsResult<Habit>>()
+        coEvery { habits.check(water) } coAnswers { pendingCheck.await() }
+        val pendingList = CompletableDeferred<HabitsResult<List<Habit>>>()
+        coEvery { habits.list() } coAnswers { pendingList.await() }
+        vm.check(water)
+        vm.load()
+        val checked = water.copy(todayCount = 2)
+        pendingCheck.complete(HabitsResult.Ok(checked))
+        pendingList.complete(HabitsResult.Ok(listOf(water)))
+        assertEquals(listOf(checked), vm.uiState.value.habits)
+    }
+
+    @Test
+    fun `a later load shows habits checked elsewhere and clears the failed check message`() {
+        coEvery { habits.check(water) } returns HabitsResult.Offline
+        val vm = TodayExtrasViewModel(calendar, habits, clock)
+        vm.load()
+        vm.check(water)
+        assertTrue(vm.uiState.value.checkFailed)
+        val elsewhere = water.copy(todayCount = 3, doneToday = true)
+        coEvery { habits.list() } returns HabitsResult.Ok(listOf(elsewhere))
+        vm.load()
+        assertFalse(vm.uiState.value.checkFailed)
+        assertEquals(listOf(elsewhere), vm.uiState.value.habits)
+    }
+
+    @Test
+    fun `all-day events of other days are left out`() {
+        val tomorrow = holiday.copy(eventId = id(13), title = "Tomorrow", startDate = today.plusDays(1), endDate = today.plusDays(2))
+        val endedYesterday = holiday.copy(eventId = id(14), title = "Ended", startDate = today.minusDays(2), endDate = today)
+        val trip = holiday.copy(eventId = id(15), title = "Trip", startDate = today.minusDays(1), endDate = today.plusDays(2))
+        val noEnd = holiday.copy(eventId = id(16), title = "No end", endDate = null)
+        coEvery { calendar.occurrences(today, today.plusDays(1), ZoneOffset.UTC) } returns
+            CalendarResult.Ok(listOf(standup, tomorrow, endedYesterday, trip, holiday, noEnd))
+        val vm = TodayExtrasViewModel(calendar, habits, clock)
+        vm.load()
+        assertEquals(listOf(holiday, noEnd, trip, standup), vm.uiState.value.events)
     }
 
     private fun show(
