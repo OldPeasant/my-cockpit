@@ -1,7 +1,7 @@
 ---
 title: Android mail attachments: open, download, preview, save to Files
-status: todo
-owner: 
+status: in_progress
+owner: Peter Gürtler
 deps: [and-mail-actions]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/read,android/app/src/test/java/ch/sonensei/cockpit/mail/read,android/app/src/main/res/values/strings_mail.xml,android/app/src/main/res/values-de/strings_mail.xml]
 prio: 2
