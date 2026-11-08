@@ -17,3 +17,4 @@ Web has a Scheduled list (`lists/scheduled-page.html`); Android has no destinati
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 13:28+0100 by dell26/agent-1): Scheduled is a More entry after Someday (web nav order: Waiting, Someday, Scheduled, Logbook); adding the enum entry needed a one-line edit of ui/CockpitShell.kt (DestinationContent's exhaustive when), outside touches, plus the CockpitDestinationTest order. Rows complete with the checkbox and open the task detail; no extra row action (web has none). Past dates show as Yesterday/full date, undated tasks under 'No date' last, like web.
