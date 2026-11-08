@@ -6,6 +6,7 @@ deps: [fix-mail-images-firefox]
 touches: [web/src/app/shared/navigation,web/src/app/features/mail/read,web/src/app/features/gtd/task-detail,web/src/app/features/notes/editor,web/src/app/features/contacts,web/src/app/features/gtd/projects]
 prio: 1
 lease_until: 2026-11-08T11:24:54Z
+extended: dell26/agent-1
 ---
 ## Goal
 Detail pages have hardcoded back links, e.g. the mail read view's "Mail" button is `routerLink="/mail"`
@@ -28,3 +29,4 @@ Android already returns to the origin for New → mail (`NewScreen.kt:118`); And
 - ASSUMPTION (2026-11-08 11:16+0100 by dell26/agent-1): Mail read Archive/Spam/Delete now go back in history (Forward may reopen the moved message) and only replace the message with /mail when opened by a deep link; moving from message A to B and deleting B returns to A (real back), no longer to the list A was opened from.
 - ASSUMPTION (2026-11-08 11:16+0100 by dell26/agent-1): Mail compose keeps its fixed 'Mail' back link: it is an editor with draft/send navigation, not a detail page. The bookmark reader (detail page found by grep, outside touches) uses the shared back button too. Parent labels read 'Projects'/'Notes'/'Contacts'/'Bookmarks' (nav titles) instead of 'All projects'/'Back to contacts'; e2e locators updated to 'Back to Projects'.
 - ASSUMPTION (2026-11-08 11:43+0100 by dell26/agent-1): Known limitation (review CR-1, P3): after a Back that a page refused (unsaved changes), pressing the browser's Forward is ignored by the Angular router (same URL), so the back-navigation mirror stays one step behind and the next back-button click seems to do nothing; the browser's own Back behaves the same. Rare sequence, accepted rather than adding more router special-casing.
+- extended by dell26/agent-1: Impl complete for all 7 criteria (service, back button, labels, used by mail/task/project/note/contact/bookmark, mail actions, i18n). Left: (1) fix or consciously descope skipped test 'goes to the parent route after a Back to an entry it never saw that another navigation took over' in back-navigation.spec.ts (previous() still returns left page); stop chasing further exotic history races, record as assumption; (2) re-run test-writer + code-reviewer on final code (reports are stale since 42661c14c); (3) verify criteria 1-7, write quality.json, sh scripts/check.sh, done.
