@@ -13,7 +13,8 @@ chip's close icon in `RecipientInput.kt` is the only way to remove a recipient, 
 the chip itself is announced to TalkBack as a clickable control that does nothing.
 
 ## Acceptance criteria
-- [ ] The chip's remove control has at least a 48 dp touch target (`IconButton` or `minimumInteractiveComponentSize()`)
+- [x] The chip's remove control has at least a 48 dp touch target (`IconButton` or `minimumInteractiveComponentSize()`)
+  - verified (2026-11-08 21:24+0100 by felix/agent-1): MailComposeChipA11yTest 'the remove control has a 48 dp touch target' (IconButton size 48.dp; assertWidth/HeightIsAtLeast(48.dp)) via ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.compose.*' -> pass
 - [ ] TalkBack does not announce the chip body as an action that does nothing; the chip offers a "Remove" accessibility action (English and German string)
 - [ ] Compose tests cover it; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
