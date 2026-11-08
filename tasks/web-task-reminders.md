@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-task-detail-dates, web-task-actions, and-links-panel]
 prio: 2
 parent: task-reminders
-lease_until: 2026-11-09T00:10:01Z
+lease_until: 2026-11-09T00:15:04Z
 ---
 ## Goal
 Part of `task-reminders` (Reminders on tasks (web + Android)), which was split.
