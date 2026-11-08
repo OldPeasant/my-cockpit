@@ -20,7 +20,8 @@ coming back, and the read view needs previous/next through the matches. Back mus
   - verified (2026-11-08 10:26+0100 by dell26/agent-1): ./gradlew testDebugUnitTest --tests '*MailBackToOriginInAppTest' --tests '*MailOriginShellTest' --tests '*MailRouteInAppTest' --tests '*MailSearchRouteInAppTest' -> all pass: New (system/toolbar back, delete), global search (system/toolbar back, delete returns to search - fails without the shell close guard), Dashboard->Mail tab->mail->back->list->back->Dashboard, task link item route back->task->origin, Mail list, search results. Contacts open no in-app mail (phone mail app), see assumption
 - [~] Manually verified on an emulator or device (or skipped with reason)
   - skipped (2026-11-08 10:26+0100 by dell26/agent-1): no emulator/device or adb on this machine (which adb emulator -> not found); behavior covered by Robolectric in-app tests on the real MainActivity
-- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [x] New strings are in English and German (`res/values/` + `res/values-de/`)
+  - verified (2026-11-08 10:26+0100 by dell26/agent-1): grep mail_read_previous/next/position android/app/src/main/res/values{,-de}/strings_mail.xml -> en 'Previous mail'/'Next mail'/'%1$d of %2$d', de 'Vorherige Mail'/'Nächste Mail'/'%1$d von %2$d'; MailReadNavigationGermanTest 2/2 passed; lintDebug clean (no MissingTranslation)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
