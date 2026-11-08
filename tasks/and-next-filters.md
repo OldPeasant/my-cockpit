@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-user-settings]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/next,android/app/src/test/java/ch/sonensei/cockpit/gtd/next,android/app/src/main/res/values/strings_next_today.xml,android/app/src/main/res/values-de/strings_next_today.xml]
 prio: 2
-lease_until: 2026-11-08T15:12:00Z
+lease_until: 2026-11-08T15:17:02Z
 ---
 ## Goal
 Web Next has filters by due and area/project and saved presets synced via the `nextActionPresets` setting
