@@ -20,3 +20,4 @@ capture can send a URL to Read later, and web never offers the Android app downl
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 17:14+0100 by dell26/agent-1): Search type filter is a type: prefix in the Ctrl+K query (type:note,task text), not chips: the palette input lives in shell/ (outside this task's touches). Types by id, UI label or alias (mail, journal), plural s ok; an unknown type: word stays search text.
