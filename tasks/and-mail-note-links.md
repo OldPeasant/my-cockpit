@@ -19,3 +19,4 @@ Android only has To task / Waiting.
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 21:10+0100 by dell26/agent-1): Create note is a 7th toolbar icon (NoteAdd) next to To task/To Waiting, as on the web; MailApi.toNote added in mail/list (one line outside touches, needed for the server call)
