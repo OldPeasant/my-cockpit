@@ -24,7 +24,8 @@ Android can add bookmarks only through the share sheet and has no snapshot reade
   - verified (2026-11-08 19:12+0100 by dell26/agent-3): To Inbox: idempotent UUIDv7 task create + origin link, tests in BookmarksRepositoryTest ('to Inbox links the task the server answered with') and ViewModel/Screen tests; cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL, 0 failures
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 19:13+0100 by dell26/agent-3): strings_bookmarks.xml in values/ and values-de/ (56 keys each); BookmarksStringsTest key/placeholder parity + lintDebug MissingTranslation -> pass
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 19:13+0100 by dell26/agent-3): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL (4387 tests, 0 failures); sh scripts/check.sh (Node v24.21.0) -> all checks passed; task coverage 98.2% lines / 91.0% branches (tests.md)
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
