@@ -24,3 +24,4 @@ the basic ones.
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 Editing GTD contexts/areas, labels or time zone on Android is out of scope (web-only admin, owner decision 2026-11-08).
+- ASSUMPTION (2026-11-08 08:45+0100 by dell26/agent-1): The server publishes no settings SSE/push event (SettingsChangedEvent is internal only), so Android refreshes the settings at each sign-in and whenever MainActivity comes to the front (onStart), plus the DataStore cache at process start.
