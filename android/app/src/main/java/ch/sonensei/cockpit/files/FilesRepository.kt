@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.files
 
 import ch.sonensei.cockpit.core.network.generated.apis.FilesApi
+import ch.sonensei.cockpit.core.network.generated.models.CreateFolderRequest
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -9,6 +10,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.MediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -18,7 +22,10 @@ import okio.BufferedSink
 import okio.source
 import retrofit2.Response
 import retrofit2.Retrofit
+import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Header
+import retrofit2.http.PATCH
 import retrofit2.http.Path
 import retrofit2.http.Streaming
 import java.io.IOException
@@ -41,11 +48,34 @@ interface FileContentApi {
     ): Response<ResponseBody>
 }
 
+/**
+ * Renames and moves: the generated patch models leave out a `null` folder, but `null` is how a move to the drive root
+ * is asked for, so the bodies are built by hand.
+ */
+interface FilesWriteApi {
+    @PATCH("api/v1/files/{id}")
+    suspend fun patchFile(
+        @Path("id") id: UUID,
+        @Body patch: JsonObject,
+        @Header("If-Match") ifMatch: String,
+    ): Response<Unit>
+
+    @PATCH("api/v1/folders/{id}")
+    suspend fun patchFolder(
+        @Path("id") id: UUID,
+        @Body patch: JsonObject,
+        @Header("If-Match") ifMatch: String,
+    ): Response<Unit>
+}
+
 @Module
 @InstallIn(SingletonComponent::class)
 object FilesModule {
     @Provides
     fun fileContentApi(retrofit: Retrofit): FileContentApi = retrofit.create(FileContentApi::class.java)
+
+    @Provides
+    fun filesWriteApi(retrofit: Retrofit): FilesWriteApi = retrofit.create(FilesWriteApi::class.java)
 }
 
 /** The outcome of a call. */
@@ -75,13 +105,17 @@ interface UploadSource {
     fun open(): InputStream?
 }
 
-/** The drive on the server (SPEC.md §8.2): browse, download and upload. No local cache: every screen loads what it shows. */
+/**
+ * The drive on the server (SPEC.md §8.2): browse, download, upload, and create, rename, move or delete (to the Trash).
+ * No local cache: every screen loads what it shows.
+ */
 @Singleton
 class FilesRepository
     @Inject
     constructor(
         private val api: FilesApi,
         private val content: FileContentApi,
+        private val write: FilesWriteApi,
     ) {
         /** Everything in folder [folderId] (`null`: the drive root), folders first, in the server's order. */
         suspend fun list(folderId: UUID?): FilesResult<List<DriveEntry>> =
@@ -134,6 +168,54 @@ class FilesRepository
             return if (body.unreadable) FilesResult.Failed(null) else result
         }
 
+        /** Creates folder [name] in folder [parentId] (`null`: the drive root); `Failed(409)` when the name is taken. */
+        suspend fun createFolder(
+            parentId: UUID?,
+            name: String,
+        ): FilesResult<DriveEntry.Folder> =
+            call {
+                val folder = body(api.createFolder(CreateFolderRequest(name = name.trim(), parentId = parentId)))
+                DriveEntry.Folder(folder.id, folder.name, folder.special?.value, folder.version)
+            }
+
+        /** Renames [entry]; `Failed(409)` when the name is taken, `Failed(412)` when it was changed meanwhile. */
+        suspend fun rename(
+            entry: DriveEntry,
+            name: String,
+        ): FilesResult<Unit> = patch(entry, JsonObject(mapOf("name" to JsonPrimitive(name.trim()))))
+
+        /** Moves [entry] into folder [targetId] (`null`: the drive root). */
+        suspend fun move(
+            entry: DriveEntry,
+            targetId: UUID?,
+        ): FilesResult<Unit> {
+            val field = if (entry is DriveEntry.Folder) "parentId" else "folderId"
+            val target = targetId?.let { JsonPrimitive(it.toString()) } ?: JsonNull
+            return patch(entry, JsonObject(mapOf(field to target)))
+        }
+
+        /** Moves [entry] to the Trash (a folder with everything in it). */
+        suspend fun delete(entry: DriveEntry): FilesResult<Unit> =
+            call {
+                val ifMatch = etag(entry.version)
+                when (entry) {
+                    is DriveEntry.Folder -> success(api.deleteFolder(entry.id, ifMatch))
+                    is DriveEntry.File -> success(api.deleteFile(entry.id, ifMatch))
+                }
+            }
+
+        private suspend fun patch(
+            entry: DriveEntry,
+            body: JsonObject,
+        ): FilesResult<Unit> =
+            call {
+                val ifMatch = etag(entry.version)
+                when (entry) {
+                    is DriveEntry.Folder -> success(write.patchFolder(entry.id, body, ifMatch))
+                    is DriveEntry.File -> success(write.patchFile(entry.id, body, ifMatch))
+                }
+            }
+
         private suspend fun <T> call(block: suspend () -> T): FilesResult<T> =
             try {
                 FilesResult.Ok(block())
@@ -162,6 +244,13 @@ class FilesRepository
 private class FilesHttpFailure(
     val status: Int,
 ) : Exception("HTTP $status")
+
+/** The `If-Match` value of [version] (the server's strong ETag). */
+private fun etag(version: Long) = "\"$version\""
+
+private fun success(response: Response<*>) {
+    if (!response.isSuccessful) throw FilesHttpFailure(response.code())
+}
 
 private fun <T> body(response: Response<T>): T {
     val body = response.body()

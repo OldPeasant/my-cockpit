@@ -21,4 +21,44 @@
     <string name="files_upload_too_large">Zu groß für das Laufwerk</string>
     <string name="files_upload_failed">Konnte nicht hochgeladen werden</string>
     <string name="files_special">Von Cockpit verwaltet</string>
+    <string name="files_new_folder">Neuer Ordner</string>
+    <string name="files_folder_name">Ordnername</string>
+    <string name="files_create">Erstellen</string>
+    <string name="files_rename">Umbenennen</string>
+    <string name="files_new_name">Neuer Name</string>
+    <string name="files_move">Verschieben</string>
+    <string name="files_move_title">%1$s verschieben</string>
+    <string name="files_move_here">Hierher verschieben</string>
+    <string name="files_move_no_folders">Hier sind keine Ordner</string>
+    <string name="files_delete">In den Papierkorb</string>
+    <string name="files_cancel">Abbrechen</string>
+    <string name="files_clear_selection">Auswahl aufheben</string>
+    <string name="files_name_empty">Gib einen Namen ein</string>
+    <string name="files_name_too_long">Höchstens 255 Zeichen</string>
+    <string name="files_name_invalid">Ein Name darf nicht „.“ oder „..“ sein und kein / oder \\ enthalten</string>
+    <string name="files_name_taken">Dieser Name ist in diesem Ordner schon vergeben</string>
+    <string name="files_action_offline">Offline. Es wurde nichts geändert.</string>
+    <string name="files_action_conflict">Nicht verschoben: Im Ordner gibt es schon ein Element mit diesem Namen, oder ein Ordner käme in sich selbst.</string>
+    <string name="files_action_changed">Es wurde inzwischen anderswo geändert. Der Ordner wurde neu geladen; versuche es erneut.</string>
+    <string name="files_action_failed">Das hat nicht geklappt.</string>
+    <string name="files_created">%1$s erstellt</string>
+    <string name="files_renamed">In %1$s umbenannt</string>
+    <string name="files_moved">%1$s verschoben</string>
+    <string name="files_trashed">%1$s in den Papierkorb verschoben</string>
+    <plurals name="files_move_title_many">
+        <item quantity="one">%1$d Element verschieben</item>
+        <item quantity="other">%1$d Elemente verschieben</item>
+    </plurals>
+    <plurals name="files_selected">
+        <item quantity="one">%1$d ausgewählt</item>
+        <item quantity="other">%1$d ausgewählt</item>
+    </plurals>
+    <plurals name="files_moved_many">
+        <item quantity="one">%1$d Element verschoben</item>
+        <item quantity="other">%1$d Elemente verschoben</item>
+    </plurals>
+    <plurals name="files_trashed_many">
+        <item quantity="one">%1$d Element in den Papierkorb verschoben</item>
+        <item quantity="other">%1$d Elemente in den Papierkorb verschoben</item>
+    </plurals>
 </resources>

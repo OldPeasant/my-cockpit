@@ -49,7 +49,63 @@ data class FilesUiState(
     /** Why the last download did not work. */
     val downloadMessage: FilesMessage? = null,
     val uploads: List<UploadItem> = emptyList(),
+    /** Entries picked by a long press, to move or delete together; empty when not selecting. */
+    val selected: Set<UUID> = emptySet(),
+    /** A move or delete started from the list is running. */
+    val working: Boolean = false,
+    /** Why the last move or delete did not (fully) work. */
+    val actionMessage: ActionMessage? = null,
+    /** The "new folder" or "rename" dialog, when open. */
+    val nameDialog: NameDialog? = null,
+    /** The folder picker of a move, when open. */
+    val movePicker: MovePicker? = null,
+) {
+    val selecting: Boolean get() = selected.isNotEmpty()
+}
+
+/** Why a change of the drive did not work. */
+enum class ActionMessage {
+    OFFLINE,
+
+    /** An entry with that name is already in the folder. */
+    NAME_TAKEN,
+
+    /** The target already holds an entry of that name, or a folder would go into itself. */
+    MOVE_CONFLICT,
+
+    /** It was changed elsewhere meanwhile; the folder was reloaded. */
+    CHANGED,
+    FAILED,
+}
+
+/** Asks for a name: of a new folder in the folder shown ([entry] `null`), or the new name of [entry]. */
+data class NameDialog(
+    val entry: DriveEntry? = null,
+    val saving: Boolean = false,
+    val message: ActionMessage? = null,
 )
+
+/** Picks the folder to move [entries] into, browsing from the folder they are in ([origin]). */
+data class MovePicker(
+    val entries: List<DriveEntry>,
+    val origin: List<FolderCrumb>,
+    /** The folder browsed, from the drive root; moving puts the entries here. */
+    val path: List<FolderCrumb>,
+    val folders: List<DriveEntry.Folder> = emptyList(),
+    val loading: Boolean = false,
+    val message: FilesMessage? = null,
+    val moving: Boolean = false,
+    val moveMessage: ActionMessage? = null,
+) {
+    /** A folder cannot go into itself, so the folders being moved cannot be opened. */
+    fun canOpen(folder: DriveEntry.Folder) = entries.none { it.id == folder.id }
+
+    /** Moving into the folder they are already in changes nothing. */
+    val canMove: Boolean get() = !moving && path.map { it.id } != origin.map { it.id }
+}
+
+/** What a finished change did, for a short confirmation. */
+enum class FilesChange { CREATED, RENAMED, MOVED, TRASHED }
 
 /** What the screen does once a download is complete. */
 sealed interface FilesEvent {
@@ -63,10 +119,18 @@ sealed interface FilesEvent {
     data class Saved(
         val name: String,
     ) : FilesEvent
+
+    /** [change] was done to [count] entries; [name] is the (new) name of the first. */
+    data class Changed(
+        val change: FilesChange,
+        val count: Int,
+        val name: String,
+    ) : FilesEvent
 }
 
 /**
- * The drive (SPEC.md §8.2 on the phone, §9.2 item 7): browse folders, open or save files, upload from the device.
+ * The drive (SPEC.md §8.2 on the phone, §9.2 item 7): browse folders, open or save files, upload from the device, and
+ * create folders, rename, move or delete (to the Trash) entries, one or a long-press selection at a time.
  * Device files (the cache, picked files) are touched on [io], never on the main thread.
  */
 @HiltViewModel
@@ -85,6 +149,7 @@ class FilesViewModel internal constructor(
 
     private var loadJob: Job? = null
     private var downloadJob: Job? = null
+    private var pickerJob: Job? = null
     private var nextUploadKey = 0L
 
     /** The folder shown; `null` at the drive root. */
@@ -102,8 +167,11 @@ class FilesViewModel internal constructor(
             viewModelScope.launch {
                 val result = files.list(folder)
                 state.update {
+                    val entries = (result as? FilesResult.Ok)?.value ?: it.entries
                     it.copy(
-                        entries = (result as? FilesResult.Ok)?.value ?: it.entries,
+                        entries = entries,
+                        // What is gone (moved or deleted elsewhere) cannot stay selected.
+                        selected = it.selected.filterTo(mutableSetOf()) { id -> entries.any { e -> e.id == id } },
                         loading = false,
                         loaded = it.loaded || result is FilesResult.Ok,
                         message = result.message(),
@@ -129,8 +197,151 @@ class FilesViewModel internal constructor(
 
     private fun show(path: List<FolderCrumb>) {
         // Nothing of the new folder has arrived yet: neither the old entries nor its "empty" text may show.
-        state.update { it.copy(path = path, entries = emptyList(), loaded = false, message = null) }
+        state.update { it.copy(path = path, entries = emptyList(), loaded = false, message = null, selected = emptySet()) }
         refresh()
+    }
+
+    /** Adds [entry] to the selection or takes it out; the auto-managed folders cannot be changed, so not selected. */
+    fun toggleSelected(entry: DriveEntry) {
+        if (entry is DriveEntry.Folder && entry.special != null) return
+        state.update { it.copy(selected = if (entry.id in it.selected) it.selected - entry.id else it.selected + entry.id) }
+    }
+
+    fun clearSelection() = state.update { it.copy(selected = emptySet()) }
+
+    fun dismissActionMessage() = state.update { it.copy(actionMessage = null) }
+
+    private fun selectedEntries(): List<DriveEntry> = state.value.let { s -> s.entries.filter { it.id in s.selected } }
+
+    fun startNewFolder() = state.update { it.copy(nameDialog = NameDialog()) }
+
+    fun startRename(entry: DriveEntry) = state.update { it.copy(nameDialog = NameDialog(entry)) }
+
+    fun cancelName() = state.update { if (it.nameDialog?.saving == true) it else it.copy(nameDialog = null) }
+
+    /** Creates the folder or renames the entry of the open dialog; it stays open, with the reason, when that fails. */
+    fun saveName(name: String) {
+        val dialog = state.value.nameDialog ?: return
+        if (dialog.saving || nameProblem(name) != null) return
+        val folder = folderId()
+        state.update { it.copy(nameDialog = dialog.copy(saving = true, message = null)) }
+        viewModelScope.launch {
+            val entry = dialog.entry
+            val result = if (entry == null) files.createFolder(folder, name) else files.rename(entry, name)
+            if (result is FilesResult.Ok) {
+                state.update { it.copy(nameDialog = null) }
+                eventChannel.send(FilesEvent.Changed(if (entry == null) FilesChange.CREATED else FilesChange.RENAMED, 1, name.trim()))
+            } else {
+                state.update { it.copy(nameDialog = dialog.copy(saving = false, message = result.actionMessage(nameTaken = true))) }
+            }
+            if (result is FilesResult.Ok || result.isStale()) refresh()
+        }
+    }
+
+    /** Opens the folder picker to move [entry]. */
+    fun startMove(entry: DriveEntry) = startMove(listOf(entry))
+
+    /** Opens the folder picker to move the selected entries. */
+    fun startMoveSelected() = startMove(selectedEntries())
+
+    private fun startMove(entries: List<DriveEntry>) {
+        if (entries.isEmpty()) return
+        val path = state.value.path
+        state.update { it.copy(movePicker = MovePicker(entries, origin = path, path = path)) }
+        loadPicker()
+    }
+
+    private fun loadPicker() {
+        val picker = state.value.movePicker ?: return
+        pickerJob?.cancel()
+        updatePicker { it.copy(folders = emptyList(), loading = true, message = null) }
+        pickerJob =
+            viewModelScope.launch {
+                val result = files.list(picker.path.lastOrNull()?.id)
+                updatePicker {
+                    it.copy(
+                        folders = (result as? FilesResult.Ok)?.value?.filterIsInstance<DriveEntry.Folder>() ?: emptyList(),
+                        loading = false,
+                        message = result.message(),
+                    )
+                }
+            }
+    }
+
+    private fun updatePicker(change: (MovePicker) -> MovePicker) = state.update { s -> s.copy(movePicker = s.movePicker?.let(change)) }
+
+    fun pickerOpen(folder: DriveEntry.Folder) {
+        val picker = state.value.movePicker ?: return
+        if (picker.moving || !picker.canOpen(folder)) return
+        updatePicker { it.copy(path = it.path + FolderCrumb(folder.id, folder.name), moveMessage = null) }
+        loadPicker()
+    }
+
+    /** Shows the folder at [depth] of the picker's path: 0 is the drive root. */
+    fun pickerGoTo(depth: Int) {
+        val picker = state.value.movePicker ?: return
+        if (picker.moving || depth >= picker.path.size) return
+        updatePicker { it.copy(path = it.path.take(depth.coerceAtLeast(0)), moveMessage = null) }
+        loadPicker()
+    }
+
+    fun cancelMove() {
+        if (state.value.movePicker?.moving == true) return
+        pickerJob?.cancel()
+        state.update { it.copy(movePicker = null) }
+    }
+
+    /** Moves the picker's entries into the folder it shows, one after the other; the picker stays open if one fails. */
+    fun confirmMove() {
+        val picker = state.value.movePicker ?: return
+        if (!picker.canMove) return
+        val target = picker.path.lastOrNull()?.id
+        updatePicker { it.copy(moving = true, moveMessage = null) }
+        viewModelScope.launch {
+            val failures = picker.entries.map { it to files.move(it, target) }.filter { (_, result) -> result !is FilesResult.Ok }
+            val moved = picker.entries.size - failures.size
+            val problem = failures.firstOrNull()?.second?.actionMessage(nameTaken = false)
+            state.update {
+                it.copy(
+                    // Only what is left to move stays in the picker, so trying again does not move anything twice.
+                    movePicker =
+                        if (problem == null) {
+                            null
+                        } else {
+                            picker.copy(entries = failures.map { (entry, _) -> entry }, moving = false, moveMessage = problem)
+                        },
+                    selected = if (problem == null) emptySet() else it.selected,
+                )
+            }
+            if (moved > 0) eventChannel.send(FilesEvent.Changed(FilesChange.MOVED, moved, picker.entries.first().name))
+            refresh()
+        }
+    }
+
+    /** Moves [entry] to the Trash. No confirmation: it can be restored from there. */
+    fun delete(entry: DriveEntry) = delete(listOf(entry))
+
+    /** Moves the selected entries to the Trash. */
+    fun deleteSelected() = delete(selectedEntries())
+
+    private fun delete(entries: List<DriveEntry>) {
+        if (entries.isEmpty() || state.value.working) return
+        state.update { it.copy(working = true, actionMessage = null) }
+        viewModelScope.launch {
+            val results = entries.map { files.delete(it) }
+            // Already gone (deleted elsewhere) is what was asked for.
+            val failures = results.filter { it !is FilesResult.Ok && !(it is FilesResult.Failed && it.status == NOT_FOUND) }
+            val trashed = results.count { it is FilesResult.Ok }
+            state.update {
+                it.copy(
+                    working = false,
+                    actionMessage = failures.firstOrNull()?.actionMessage(nameTaken = false),
+                    selected = if (failures.isEmpty()) emptySet() else it.selected,
+                )
+            }
+            if (trashed > 0) eventChannel.send(FilesEvent.Changed(FilesChange.TRASHED, trashed, entries.first().name))
+            refresh()
+        }
     }
 
     /**
@@ -242,6 +453,25 @@ private fun FilesResult<*>.message() =
     }
 
 private const val TOO_LARGE = 413
+private const val NOT_FOUND = 404
+private const val CONFLICT = 409
+private const val PRECONDITION_FAILED = 412
+
+/** A refusal because what was shown is outdated: the folder is reloaded. */
+private fun FilesResult<*>.isStale() = this is FilesResult.Failed && (status == PRECONDITION_FAILED || status == NOT_FOUND)
+
+/** Why a change failed; a `409` is a taken name for a create or rename, and may be more for a move. */
+private fun FilesResult<*>.actionMessage(nameTaken: Boolean) =
+    when (this) {
+        is FilesResult.Ok -> null
+        FilesResult.Offline -> ActionMessage.OFFLINE
+        is FilesResult.Failed ->
+            when (status) {
+                CONFLICT -> if (nameTaken) ActionMessage.NAME_TAKEN else ActionMessage.MOVE_CONFLICT
+                PRECONDITION_FAILED, NOT_FOUND -> ActionMessage.CHANGED
+                else -> ActionMessage.FAILED
+            }
+    }
 
 private fun FilesResult<*>.uploadState() =
     when (this) {

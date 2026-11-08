@@ -74,7 +74,12 @@ class FilesRepositoryTest {
                 .baseUrl(server.url("/"))
                 .addConverterFactory(Serializer.kotlinxSerializationJson.asConverterFactory("application/json".toMediaType()))
                 .build()
-        files = FilesRepository(retrofit.create(FilesApi::class.java), retrofit.create(FileContentApi::class.java))
+        files =
+            FilesRepository(
+                retrofit.create(FilesApi::class.java),
+                retrofit.create(FileContentApi::class.java),
+                retrofit.create(FilesWriteApi::class.java),
+            )
     }
 
     @After
@@ -94,7 +99,7 @@ class FilesRepositoryTest {
 
             val result = files.list(id(9)) as FilesResult.Ok
             assertEquals(
-                listOf(DriveEntry.Folder(id(1), "Attachments", "ATTACHMENTS")),
+                listOf(DriveEntry.Folder(id(1), "Attachments", "ATTACHMENTS", version = 1)),
                 result.value.filterIsInstance<DriveEntry.Folder>(),
             )
             assertEquals(listOf("tax.pdf", "notes.txt"), result.value.filterIsInstance<DriveEntry.File>().map { it.name })
@@ -143,7 +148,7 @@ class FilesRepositoryTest {
     fun `an entry whose folder is missing is skipped`() =
         runBlocking {
             server.enqueue(json("""{"items":[{"type":"FOLDER"},{"type":"FOLDER","folder":${folderJson(4, "Projects")}}]}"""))
-            assertEquals(FilesResult.Ok(listOf(DriveEntry.Folder(id(4), "Projects", null))), files.list(null))
+            assertEquals(FilesResult.Ok(listOf(DriveEntry.Folder(id(4), "Projects", null, version = 1))), files.list(null))
         }
 
     @Test

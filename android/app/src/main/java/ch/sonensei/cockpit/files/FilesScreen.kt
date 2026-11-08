@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.files
 
+import android.content.res.Resources
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
@@ -7,7 +8,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,19 +18,28 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.outlined.AudioFile
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.CreateNewFolder
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.FolderSpecial
 import androidx.compose.material.icons.outlined.Image
@@ -35,6 +47,7 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.Upload
 import androidx.compose.material.icons.outlined.VideoFile
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -44,6 +57,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -57,15 +72,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -101,6 +120,8 @@ fun FilesRoute(modifier: Modifier = Modifier) {
     // Reloaded each time the screen is shown, so files changed on the web meanwhile show up.
     LaunchedEffect(Unit) { viewModel.refresh() }
     BackHandler(enabled = state.path.isNotEmpty()) { viewModel.up() }
+    // Registered later, so it goes first: back ends a selection before it leaves the folder.
+    BackHandler(enabled = state.selecting) { viewModel.clearSelection() }
 
     val noApp = stringResource(R.string.files_no_app)
     val resources = LocalResources.current
@@ -113,6 +134,8 @@ fun FilesRoute(modifier: Modifier = Modifier) {
                     }
                 is FilesEvent.Saved ->
                     Toast.makeText(context, resources.getString(R.string.files_saved, event.name), Toast.LENGTH_SHORT).show()
+                is FilesEvent.Changed ->
+                    Toast.makeText(context, changedText(resources, event), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -150,9 +173,48 @@ fun FilesRoute(modifier: Modifier = Modifier) {
                 dismissUpload = viewModel::dismissUpload,
                 dismissDownloadMessage = viewModel::dismissDownloadMessage,
                 retry = viewModel::refresh,
+                toggleSelected = viewModel::toggleSelected,
+                clearSelection = viewModel::clearSelection,
+                newFolder = viewModel::startNewFolder,
+                rename = viewModel::startRename,
+                move = viewModel::startMove,
+                delete = viewModel::delete,
+                moveSelected = viewModel::startMoveSelected,
+                deleteSelected = viewModel::deleteSelected,
+                dismissActionMessage = viewModel::dismissActionMessage,
+                saveName = viewModel::saveName,
+                cancelName = viewModel::cancelName,
+                pickerOpen = viewModel::pickerOpen,
+                pickerGoTo = viewModel::pickerGoTo,
+                confirmMove = viewModel::confirmMove,
+                cancelMove = viewModel::cancelMove,
             ),
         modifier = modifier,
     )
+}
+
+/** The confirmation of a finished change: the name for one entry, the count for several. */
+internal fun changedText(
+    resources: Resources,
+    event: FilesEvent.Changed,
+): String {
+    val one = event.count == 1
+    return when (event.change) {
+        FilesChange.CREATED -> resources.getString(R.string.files_created, event.name)
+        FilesChange.RENAMED -> resources.getString(R.string.files_renamed, event.name)
+        FilesChange.MOVED ->
+            if (one) {
+                resources.getString(R.string.files_moved, event.name)
+            } else {
+                resources.getQuantityString(R.plurals.files_moved_many, event.count, event.count)
+            }
+        FilesChange.TRASHED ->
+            if (one) {
+                resources.getString(R.string.files_trashed, event.name)
+            } else {
+                resources.getQuantityString(R.plurals.files_trashed_many, event.count, event.count)
+            }
+    }
 }
 
 /** The file waiting for the "save as" picker's answer, kept as strings in the saved state. */
@@ -173,6 +235,23 @@ data class FilesCallbacks(
     val dismissUpload: (Long) -> Unit = {},
     val dismissDownloadMessage: () -> Unit = {},
     val retry: () -> Unit = {},
+    /** A long press, or a tap while selecting. */
+    val toggleSelected: (DriveEntry) -> Unit = {},
+    val clearSelection: () -> Unit = {},
+    val newFolder: () -> Unit = {},
+    val rename: (DriveEntry) -> Unit = {},
+    val move: (DriveEntry) -> Unit = {},
+    val delete: (DriveEntry) -> Unit = {},
+    val moveSelected: () -> Unit = {},
+    val deleteSelected: () -> Unit = {},
+    val dismissActionMessage: () -> Unit = {},
+    val saveName: (String) -> Unit = {},
+    val cancelName: () -> Unit = {},
+    val pickerOpen: (DriveEntry.Folder) -> Unit = {},
+    /** Depth of the picker's path to show: 0 is the drive root. */
+    val pickerGoTo: (Int) -> Unit = {},
+    val confirmMove: () -> Unit = {},
+    val cancelMove: () -> Unit = {},
 )
 
 internal object FilesTags {
@@ -185,6 +264,30 @@ internal object FilesTags {
     const val DOWNLOADING = "files-downloading"
     const val OPEN = "files-menu-open"
     const val SAVE = "files-menu-save"
+    const val RENAME = "files-menu-rename"
+    const val MOVE = "files-menu-move"
+    const val DELETE = "files-menu-delete"
+    const val NEW_FOLDER = "files-new-folder"
+    const val ACTION_MESSAGE = "files-action-message"
+    const val SELECTION_BAR = "files-selection"
+    const val SELECTION_COUNT = "files-selection-count"
+    const val SELECTION_CLEAR = "files-selection-clear"
+    const val SELECTION_MOVE = "files-selection-move"
+    const val SELECTION_DELETE = "files-selection-delete"
+    const val NAME_DIALOG = "files-name-dialog"
+    const val NAME_FIELD = "files-name-field"
+    const val NAME_ERROR = "files-name-error"
+    const val NAME_SAVE = "files-name-save"
+    const val NAME_CANCEL = "files-name-cancel"
+    const val PICKER = "files-picker"
+    const val PICKER_EMPTY = "files-picker-empty"
+    const val PICKER_MESSAGE = "files-picker-message"
+    const val PICKER_MOVE = "files-picker-move"
+    const val PICKER_CANCEL = "files-picker-cancel"
+
+    fun pickerCrumb(depth: Int) = "files-picker-crumb:$depth"
+
+    fun pickerFolder(id: UUID) = "files-picker-folder:$id"
 
     fun crumb(depth: Int) = "files-crumb:$depth"
 
@@ -205,7 +308,18 @@ fun FilesContent(
 ) {
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            Breadcrumbs(state.path, callbacks.goTo)
+            if (state.selecting) {
+                SelectionBar(state.selected.size, state.working, callbacks)
+            } else {
+                Breadcrumbs(state.path, callbacks.goTo)
+            }
+            state.actionMessage?.let {
+                Banner(text = it.text(), error = true, tag = FilesTags.ACTION_MESSAGE, icon = Icons.Outlined.ErrorOutline) {
+                    IconButton(onClick = callbacks.dismissActionMessage) {
+                        Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.files_dismiss))
+                    }
+                }
+            }
             state.message?.let {
                 Banner(
                     text = if (it == FilesMessage.OFFLINE) R.string.files_offline else R.string.files_failed,
@@ -240,22 +354,229 @@ fun FilesContent(
             } else {
                 LazyColumn(Modifier.fillMaxSize().testTag(FilesTags.LIST), contentPadding = PaddingValues(bottom = 96.dp)) {
                     items(state.entries, key = { it.id }) { entry ->
+                        // Not selecting: null; selecting: whether this one is picked.
+                        val selected = if (state.selecting) entry.id in state.selected else null
                         when (entry) {
-                            is DriveEntry.Folder -> FolderRow(entry) { callbacks.openFolder(entry) }
-                            is DriveEntry.File -> FileRow(entry, state.downloading, callbacks)
+                            is DriveEntry.Folder -> FolderRow(entry, selected, state.working, callbacks)
+                            is DriveEntry.File -> FileRow(entry, selected, state.downloading, state.working, callbacks)
                         }
                         HorizontalDivider(Modifier.padding(start = 72.dp))
                     }
                 }
             }
         }
-        ExtendedFloatingActionButton(
-            onClick = callbacks.upload,
-            icon = { Icon(Icons.Outlined.Upload, contentDescription = null) },
-            text = { Text(stringResource(R.string.files_upload)) },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp).testTag(FilesTags.UPLOAD),
-        )
+        if (!state.selecting) {
+            Column(
+                Modifier.align(Alignment.BottomEnd).padding(16.dp),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                SmallFloatingActionButton(onClick = callbacks.newFolder, modifier = Modifier.testTag(FilesTags.NEW_FOLDER)) {
+                    Icon(Icons.Outlined.CreateNewFolder, contentDescription = stringResource(R.string.files_new_folder))
+                }
+                ExtendedFloatingActionButton(
+                    onClick = callbacks.upload,
+                    icon = { Icon(Icons.Outlined.Upload, contentDescription = null) },
+                    text = { Text(stringResource(R.string.files_upload)) },
+                    modifier = Modifier.testTag(FilesTags.UPLOAD),
+                )
+            }
+        }
     }
+    state.nameDialog?.let { NameDialogView(it, callbacks) }
+    state.movePicker?.let { MovePickerDialog(it, callbacks) }
+}
+
+/** Replaces the breadcrumbs while selecting: how many are picked, and what can be done with them. */
+@Composable
+private fun SelectionBar(
+    count: Int,
+    working: Boolean,
+    callbacks: FilesCallbacks,
+) {
+    Surface(color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth().testTag(FilesTags.SELECTION_BAR)) {
+        Row(Modifier.padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = callbacks.clearSelection, modifier = Modifier.testTag(FilesTags.SELECTION_CLEAR)) {
+                Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.files_clear_selection))
+            }
+            Text(
+                pluralStringResource(R.plurals.files_selected, count, count),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f).padding(start = 8.dp).testTag(FilesTags.SELECTION_COUNT),
+            )
+            if (working) CircularProgressIndicator(Modifier.padding(12.dp).size(24.dp), strokeWidth = 2.dp)
+            IconButton(onClick = callbacks.moveSelected, enabled = !working, modifier = Modifier.testTag(FilesTags.SELECTION_MOVE)) {
+                Icon(Icons.AutoMirrored.Outlined.DriveFileMove, contentDescription = stringResource(R.string.files_move))
+            }
+            IconButton(onClick = callbacks.deleteSelected, enabled = !working, modifier = Modifier.testTag(FilesTags.SELECTION_DELETE)) {
+                Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.files_delete))
+            }
+        }
+    }
+}
+
+private fun ActionMessage.text() =
+    when (this) {
+        ActionMessage.OFFLINE -> R.string.files_action_offline
+        ActionMessage.NAME_TAKEN -> R.string.files_name_taken
+        ActionMessage.MOVE_CONFLICT -> R.string.files_action_conflict
+        ActionMessage.CHANGED -> R.string.files_action_changed
+        ActionMessage.FAILED -> R.string.files_action_failed
+    }
+
+private fun NameProblem.text() =
+    when (this) {
+        NameProblem.EMPTY -> R.string.files_name_empty
+        NameProblem.TOO_LONG -> R.string.files_name_too_long
+        NameProblem.INVALID -> R.string.files_name_invalid
+    }
+
+/** The name of a new folder, or the new name of an entry; the problem shows once something was typed. */
+@Composable
+private fun NameDialogView(
+    dialog: NameDialog,
+    callbacks: FilesCallbacks,
+) {
+    val initial = dialog.entry?.name.orEmpty()
+    var name by rememberSaveable(dialog.entry?.id) { mutableStateOf(initial) }
+    var edited by rememberSaveable(dialog.entry?.id) { mutableStateOf(false) }
+    val problem = nameProblem(name)
+    // A rename to the same name changes nothing.
+    val unchanged = dialog.entry != null && name.trim() == initial
+    val canSave = problem == null && !unchanged && !dialog.saving
+    val error = (if (edited) problem?.text() else null) ?: dialog.message?.text()
+    AlertDialog(
+        onDismissRequest = callbacks.cancelName,
+        title = { Text(stringResource(if (dialog.entry == null) R.string.files_new_folder else R.string.files_rename)) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = {
+                    name = it
+                    edited = true
+                },
+                label = { Text(stringResource(if (dialog.entry == null) R.string.files_folder_name else R.string.files_new_name)) },
+                singleLine = true,
+                isError = error != null,
+                enabled = !dialog.saving,
+                supportingText = error?.let { { Text(stringResource(it), modifier = Modifier.testTag(FilesTags.NAME_ERROR)) } },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { if (canSave) callbacks.saveName(name) }),
+                modifier = Modifier.fillMaxWidth().testTag(FilesTags.NAME_FIELD),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { callbacks.saveName(name) }, enabled = canSave, modifier = Modifier.testTag(FilesTags.NAME_SAVE)) {
+                Text(stringResource(if (dialog.entry == null) R.string.files_create else R.string.files_rename))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = callbacks.cancelName, enabled = !dialog.saving, modifier = Modifier.testTag(FilesTags.NAME_CANCEL)) {
+                Text(stringResource(R.string.files_cancel))
+            }
+        },
+        modifier = Modifier.testTag(FilesTags.NAME_DIALOG),
+    )
+}
+
+/** Browses the drive's folders to pick where the entries go; the ones being moved cannot be opened. */
+@Composable
+private fun MovePickerDialog(
+    picker: MovePicker,
+    callbacks: FilesCallbacks,
+) {
+    val title =
+        if (picker.entries.size == 1) {
+            stringResource(R.string.files_move_title, picker.entries.first().name)
+        } else {
+            pluralStringResource(R.plurals.files_move_title_many, picker.entries.size, picker.entries.size)
+        }
+    AlertDialog(
+        onDismissRequest = callbacks.cancelMove,
+        title = { Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+        text = {
+            Column {
+                PathCrumbs(picker.path, enabled = !picker.moving, tag = FilesTags::pickerCrumb, goTo = callbacks.pickerGoTo)
+                if (picker.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                picker.message?.let {
+                    Text(
+                        stringResource(if (it == FilesMessage.OFFLINE) R.string.files_offline else R.string.files_failed),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(vertical = 8.dp).testTag(FilesTags.PICKER_MESSAGE),
+                    )
+                }
+                if (!picker.loading && picker.message == null && picker.folders.isEmpty()) {
+                    Text(
+                        stringResource(R.string.files_move_no_folders),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(vertical = 16.dp).testTag(FilesTags.PICKER_EMPTY),
+                    )
+                }
+                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
+                    items(picker.folders, key = { it.id }) { folder ->
+                        val open = picker.canOpen(folder) && !picker.moving
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable(enabled = open) { callbacks.pickerOpen(folder) }
+                                .padding(vertical = 8.dp, horizontal = 4.dp)
+                                .testTag(FilesTags.pickerFolder(folder.id)),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            KindTile(
+                                if (folder.special !=
+                                    null
+                                ) {
+                                    FileKind.SPECIAL_FOLDER
+                                } else {
+                                    FileKind.FOLDER
+                                },
+                                dimmed = !picker.canOpen(folder),
+                            )
+                            Text(
+                                folder.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color =
+                                    if (picker.canOpen(
+                                            folder,
+                                        )
+                                    ) {
+                                        MaterialTheme.colorScheme.onSurface
+                                    } else {
+                                        MaterialTheme.colorScheme.outline
+                                    },
+                                maxLines = 1,
+                                overflow = TextOverflow.MiddleEllipsis,
+                                modifier = Modifier.weight(1f).padding(start = 12.dp),
+                            )
+                        }
+                    }
+                }
+                picker.moveMessage?.let {
+                    Text(
+                        stringResource(it.text()),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 8.dp).testTag(FilesTags.ACTION_MESSAGE),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = callbacks.confirmMove, enabled = picker.canMove, modifier = Modifier.testTag(FilesTags.PICKER_MOVE)) {
+                Text(stringResource(R.string.files_move_here))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = callbacks.cancelMove, enabled = !picker.moving, modifier = Modifier.testTag(FilesTags.PICKER_CANCEL)) {
+                Text(stringResource(R.string.files_cancel))
+            }
+        },
+        modifier = Modifier.testTag(FilesTags.PICKER),
+    )
 }
 
 /** The drive root, then each folder down to the one shown; the last is where you are. */
@@ -263,10 +584,19 @@ fun FilesContent(
 private fun Breadcrumbs(
     path: List<FolderCrumb>,
     goTo: (Int) -> Unit,
+) = PathCrumbs(path, enabled = true, tag = FilesTags::crumb, goTo = goTo, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+
+@Composable
+private fun PathCrumbs(
+    path: List<FolderCrumb>,
+    enabled: Boolean,
+    tag: (Int) -> String,
+    goTo: (Int) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val names = listOf(stringResource(R.string.files_root)) + path.map { it.name }
     Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 4.dp),
+        modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         names.forEachIndexed { depth, name ->
@@ -279,7 +609,7 @@ private fun Breadcrumbs(
                     modifier = Modifier.size(18.dp),
                 )
             }
-            TextButton(onClick = { goTo(depth) }, enabled = !current, modifier = Modifier.testTag(FilesTags.crumb(depth))) {
+            TextButton(onClick = { goTo(depth) }, enabled = enabled && !current, modifier = Modifier.testTag(tag(depth))) {
                 Text(
                     name,
                     style = MaterialTheme.typography.titleSmall,
@@ -298,12 +628,13 @@ private fun Banner(
     text: Int,
     error: Boolean,
     tag: String,
+    icon: ImageVector = Icons.Outlined.CloudOff,
     action: @Composable () -> Unit,
 ) {
     val color = if (error) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer
     Surface(color = color, modifier = Modifier.fillMaxWidth().testTag(tag)) {
         Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.CloudOff, contentDescription = null)
+            Icon(icon, contentDescription = null)
             Text(
                 stringResource(text),
                 style = MaterialTheme.typography.bodyMedium,
@@ -362,90 +693,156 @@ private fun UploadState.isProblem() = this != UploadState.UPLOADING && this != U
 @Composable
 private fun FolderRow(
     folder: DriveEntry.Folder,
-    onClick: () -> Unit,
+    selected: Boolean?,
+    working: Boolean,
+    callbacks: FilesCallbacks,
 ) {
+    // The auto-managed folders cannot be renamed, moved or deleted: no menu, and no selection.
+    val special = folder.special != null
     EntryRow(
-        tag = FilesTags.entry(folder.id),
-        kind = if (folder.special != null) FileKind.SPECIAL_FOLDER else FileKind.FOLDER,
-        title = folder.name,
-        subtitle = folder.special?.let { stringResource(R.string.files_special) },
-        onClick = onClick,
-    )
+        entry = folder,
+        kind = if (special) FileKind.SPECIAL_FOLDER else FileKind.FOLDER,
+        subtitle = if (special) stringResource(R.string.files_special) else null,
+        selected = selected,
+        onClick = { callbacks.openFolder(folder) },
+        callbacks = callbacks,
+        selectable = !special,
+    ) {
+        if (!special && selected == null) EntryMenu(folder, working, callbacks) {}
+    }
 }
 
 @Composable
 private fun FileRow(
     file: DriveEntry.File,
+    selected: Boolean?,
     downloading: UUID?,
+    working: Boolean,
     callbacks: FilesCallbacks,
 ) {
-    var menu by remember { mutableStateOf(false) }
     // One download at a time: while one runs, no file can be opened or saved (the "save as" picker would create a document).
     val idle = downloading == null
     EntryRow(
-        tag = FilesTags.entry(file.id),
+        entry = file,
         kind = fileKind(file.mime),
-        title = file.name,
         subtitle = "${formatSize(file.size)}, ${formatInstant(file.updatedAt)}",
+        selected = selected,
         onClick = { callbacks.openFile(file) },
-        enabled = idle,
+        callbacks = callbacks,
+        enabled = idle || selected != null,
     ) {
         if (downloading == file.id) {
             CircularProgressIndicator(
                 Modifier.padding(12.dp).size(24.dp).testTag(FilesTags.DOWNLOADING),
                 strokeWidth = 2.dp,
             )
-        } else {
-            Box {
-                IconButton(onClick = { menu = true }, modifier = Modifier.testTag(FilesTags.more(file.id))) {
-                    Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.files_more, file.name))
-                }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.files_open)) },
-                        onClick = {
-                            menu = false
-                            callbacks.openFile(file)
-                        },
-                        enabled = idle,
-                        modifier = Modifier.testTag(FilesTags.OPEN),
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.files_save)) },
-                        onClick = {
-                            menu = false
-                            callbacks.saveFile(file)
-                        },
-                        enabled = idle,
-                        modifier = Modifier.testTag(FilesTags.SAVE),
-                    )
-                }
+        } else if (selected == null) {
+            EntryMenu(file, working, callbacks) { close ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.files_open)) },
+                    onClick = {
+                        close()
+                        callbacks.openFile(file)
+                    },
+                    enabled = idle,
+                    modifier = Modifier.testTag(FilesTags.OPEN),
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.files_save)) },
+                    onClick = {
+                        close()
+                        callbacks.saveFile(file)
+                    },
+                    enabled = idle,
+                    modifier = Modifier.testTag(FilesTags.SAVE),
+                )
+            }
+        }
+    }
+}
+
+/** The "more" menu of an entry: [first] (open, save) and then rename, move and delete. */
+@Composable
+private fun EntryMenu(
+    entry: DriveEntry,
+    working: Boolean,
+    callbacks: FilesCallbacks,
+    first: @Composable (close: () -> Unit) -> Unit,
+) {
+    var menu by remember { mutableStateOf(false) }
+    val close = { menu = false }
+    Box {
+        IconButton(onClick = { menu = true }, modifier = Modifier.testTag(FilesTags.more(entry.id))) {
+            Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.files_more, entry.name))
+        }
+        DropdownMenu(expanded = menu, onDismissRequest = close) {
+            first(close)
+            MenuAction(R.string.files_rename, Icons.Outlined.Edit, FilesTags.RENAME, enabled = !working) {
+                close()
+                callbacks.rename(entry)
+            }
+            MenuAction(R.string.files_move, Icons.AutoMirrored.Outlined.DriveFileMove, FilesTags.MOVE, enabled = !working) {
+                close()
+                callbacks.move(entry)
+            }
+            MenuAction(R.string.files_delete, Icons.Outlined.Delete, FilesTags.DELETE, enabled = !working) {
+                close()
+                callbacks.delete(entry)
             }
         }
     }
 }
 
 @Composable
-private fun EntryRow(
+private fun MenuAction(
+    text: Int,
+    icon: ImageVector,
     tag: String,
-    kind: FileKind,
-    title: String,
-    subtitle: String?,
+    enabled: Boolean,
     onClick: () -> Unit,
+) = DropdownMenuItem(
+    text = { Text(stringResource(text)) },
+    leadingIcon = { Icon(icon, contentDescription = null) },
+    onClick = onClick,
+    enabled = enabled,
+    modifier = Modifier.testTag(tag),
+)
+
+/**
+ * A row of the list. A long press starts selecting (or adds to it); while selecting ([selected] not `null`), a tap
+ * picks or unpicks the row instead of opening it.
+ */
+@Composable
+private fun EntryRow(
+    entry: DriveEntry,
+    kind: FileKind,
+    subtitle: String?,
+    selected: Boolean?,
+    onClick: () -> Unit,
+    callbacks: FilesCallbacks,
     enabled: Boolean = true,
+    selectable: Boolean = true,
     trailing: @Composable () -> Unit = {},
 ) {
+    val selecting = selected != null
+    val toggle = { callbacks.toggleSelected(entry) }
+    val background = if (selected == true) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick)
+            .background(background)
+            .combinedClickable(
+                enabled = enabled && (!selecting || selectable),
+                onClick = if (selecting) toggle else onClick,
+                onLongClick = if (selectable) toggle else null,
+            ).semantics { if (selecting) this.selected = selected == true }
             .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp)
-            .testTag(tag),
+            .testTag(FilesTags.entry(entry.id)),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        KindTile(kind)
+        if (selected == true) SelectedTile() else KindTile(kind, dimmed = selecting && !selectable)
         Column(Modifier.weight(1f).padding(start = 16.dp, end = 8.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
+            Text(entry.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
             subtitle?.let {
                 Text(
                     it,
@@ -456,7 +853,8 @@ private fun EntryRow(
                 )
             }
         }
-        trailing()
+        // Keeps the row's height while selecting hides the menu.
+        Box(Modifier.heightIn(min = 48.dp), contentAlignment = Alignment.Center) { trailing() }
     }
 }
 
@@ -479,7 +877,10 @@ private val TEXT_TYPES = setOf("application/json", "application/xml", "applicati
 
 /** A rounded tonal square behind the icon, tinted by kind, so a folder can be scanned by shape and color. */
 @Composable
-private fun KindTile(kind: FileKind) {
+private fun KindTile(
+    kind: FileKind,
+    dimmed: Boolean = false,
+) {
     val colors = MaterialTheme.colorScheme
     val (icon: ImageVector, pair: Pair<Color, Color>) =
         when (kind) {
@@ -493,10 +894,27 @@ private fun KindTile(kind: FileKind) {
             FileKind.OTHER -> Icons.AutoMirrored.Outlined.InsertDriveFile to (colors.surfaceContainerHighest to colors.onSurfaceVariant)
         }
     Box(
-        Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(pair.first),
+        Modifier
+            .size(40.dp)
+            .alpha(if (dimmed) DIMMED else 1f)
+            .clip(RoundedCornerShape(12.dp))
+            .background(pair.first),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = null, tint = pair.second, modifier = Modifier.size(22.dp))
+    }
+}
+
+private const val DIMMED = 0.38f
+
+/** A picked row's tile: a filled check, so the selection reads at a glance. */
+@Composable
+private fun SelectedTile() {
+    Box(
+        Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.primary),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(Icons.Outlined.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(22.dp))
     }
 }
 
