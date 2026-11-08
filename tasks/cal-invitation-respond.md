@@ -1,10 +1,11 @@
 ---
 title: Accept, decline or tentatively accept invitations (web + Android)
-status: todo
-owner:
+status: in_progress
+owner: felix/agent-1
 deps: [and-cal-event-fields]
 touches: [web/src/app/features/calendar,android/app/src/main/java/ch/sonensei/cockpit/calendar/edit,android/app/src/test/java/ch/sonensei/cockpit/calendar/edit,android/app/src/main/res/values/strings_calendar_edit.xml,android/app/src/main/res/values-de/strings_calendar_edit.xml,web/src/locale]
 prio: 2
+lease_until: 2026-11-08T22:24:31Z
 ---
 ## Goal
 SPEC.md §6.2 requires responding to invitations; the API exists (`POST /api/v1/calendar/events/{id}/respond`)
