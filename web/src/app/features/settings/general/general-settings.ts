@@ -21,6 +21,7 @@ import { ReminderNotificationsToggle } from '../../../core/notifications';
 import { THEME_MODES } from '../../../shell/theme.service';
 import { ImageAllowlist } from '../../mail/read/image-allowlist';
 import { SettingsService } from '../settings.service';
+import { AndroidAppDownload } from './android-app-download';
 
 export const WEEK_DAYS = [
   'MONDAY',
@@ -58,7 +59,8 @@ export function timeZones(): string[] {
 
 /**
  * Settings → General (SPEC.md §4.7): time zone, week start, theme, the energy/creativity labels and
- * remote images in mail (ask or always load, and the senders whose images always load). Each row
+ * remote images in mail (ask or always load, and the senders whose images always load), plus the
+ * Android app download (read-only). Each row
  * saves as soon as it changes (labels and time zone when the field is left); the change shows at
  * once and is undone when the server refuses it.
  */
@@ -66,6 +68,7 @@ export function timeZones(): string[] {
   selector: 'app-general-settings',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    AndroidAppDownload,
     MatAutocompleteModule,
     MatButtonModule,
     MatButtonToggleModule,
