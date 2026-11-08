@@ -214,6 +214,58 @@ describe('MailListSession', () => {
     expect(mail.lists).toHaveLength(0);
   });
 
+  it('names the one before when the next page of a folder list comes back empty', async () => {
+    session.save(saved({ scope: { folderId: null, threaded: false }, nextCursor: 'cur-1' }));
+    const removed = session.remove('c');
+    await flush();
+    mail.lists[0].resolve({ items: [], nextCursor: null });
+    expect(await removed).toBe('b');
+    expect(session.saved()?.items.map((item) => item.id)).toEqual(['a', 'b']);
+    expect(session.saved()?.nextCursor).toBeNull();
+  });
+
+  it('keeps the list cursor when the last loaded message is removed after loading more', async () => {
+    session.save(saved({ scope: { folderId: null, threaded: false }, nextCursor: 'cur-1' }));
+    const removed = session.remove('c');
+    await flush();
+    mail.lists[0].resolve({ items: [summary('d')], nextCursor: null });
+    expect(await removed).toBe('d');
+    expect(session.saved()?.cursorId).toBe('a');
+  });
+
+  it('shares the next page request of a removal with a step while it loads', async () => {
+    session.save(saved({ scope: { folderId: null, threaded: false }, nextCursor: 'cur-1' }));
+    const removed = session.remove('c');
+    const step = session.step('c', 1);
+    await flush();
+    expect(mail.lists).toHaveLength(1);
+    mail.lists[0].resolve({ items: [summary('d')], nextCursor: null });
+    expect(await removed).toBe('d');
+    // The step resolves after the removal took the message out of the list.
+    expect(await step).toBeNull();
+    expect(session.saved()?.items.map((item) => item.id)).toEqual(['a', 'b', 'd']);
+  });
+
+  it('loads no next page when removing a message that was not opened from the folder list', async () => {
+    session.save(saved({ scope: { folderId: null, threaded: false }, nextCursor: 'cur-1' }));
+    previous.set({ url: '/new' });
+    expect(await session.remove('c')).toBeNull();
+    expect(mail.lists).toHaveLength(0);
+    expect(session.saved()?.items.map((item) => item.id)).toEqual(['a', 'b']);
+  });
+
+  it('drops a next page loaded for a removal when the list was saved anew meanwhile', async () => {
+    const scope = { folderId: null, threaded: false };
+    session.save(saved({ scope, nextCursor: 'cur-1' }));
+    const removed = session.remove('c');
+    await flush();
+    session.save(saved({ scope, nextCursor: 'cur-5', items: [summary('a'), summary('c')] }));
+    mail.lists[0].resolve({ items: [summary('d')], nextCursor: 'cur-2' });
+    expect(await removed).toBe('a');
+    expect(session.saved()?.items.map((item) => item.id)).toEqual(['a']);
+    expect(session.saved()?.nextCursor).toBe('cur-5');
+  });
+
   it('removes a message from the saved list also when it was not opened from it', async () => {
     session.save(saved({ cursorId: 'a' }));
     previous.set({ url: '/new' });

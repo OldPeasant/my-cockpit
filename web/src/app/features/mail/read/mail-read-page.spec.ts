@@ -2040,6 +2040,81 @@ describe('MailReadPage previous/next through the list it was opened from', () =>
     expect(url()).toBe(LIST);
   });
 
+  for (const [label, answer] of [
+    ['comes back empty', { items: [], nextCursor: null }],
+    ['fails', new Error('offline')],
+  ] as const) {
+    it(`moves to the message before after archiving the last loaded one when the next page ${label}`, async () => {
+      const harness = await openFromList(C, {
+        scope: { folderId: null, threaded: false },
+        searchResult: null,
+        nextCursor: 'cur-1',
+      });
+      if (answer instanceof Error) mail.list.mockRejectedValue(answer);
+      else mail.list.mockResolvedValue(answer);
+      key('e');
+      await settle(harness);
+      expect(mail.list).toHaveBeenCalledTimes(1);
+      expect(url()).toBe(`/mail/messages/${B}`);
+      expect(
+        TestBed.inject(MailListSession)
+          .saved()!
+          .items.map((entry) => entry.id),
+      ).toEqual([A, B]);
+    });
+  }
+
+  it('keeps the triage actions busy while the next page loads for an archive', async () => {
+    const D = '0192f0c4-0000-7000-8000-0000000000dd';
+    const harness = await openFromList(C, {
+      scope: { folderId: null, threaded: false },
+      searchResult: null,
+      nextCursor: 'cur-1',
+    });
+    const page = deferred<{ items: MailSummary[]; nextCursor: string | null }>();
+    mail.list.mockReturnValue(page.promise);
+    key('e');
+    await settle(harness);
+    const archive = [...harness.routeNativeElement!.querySelectorAll('button')].find(
+      (b) => b.textContent?.trim() === 'Archive',
+    )!;
+    expect(archive.disabled).toBe(true);
+    key('e');
+    key('#');
+    await settle(harness);
+    expect(mail.applies).toEqual([{ action: 'ARCHIVE', ids: [C] }]);
+    page.resolve({ items: [item(D)], nextCursor: null });
+    await settle(harness);
+    expect(url()).toBe(`/mail/messages/${D}`);
+  });
+
+  it('asks for the next page once when j is pressed while an archive loads it', async () => {
+    const D = '0192f0c4-0000-7000-8000-0000000000dd';
+    const harness = await openFromList(C, {
+      scope: { folderId: null, threaded: false },
+      searchResult: null,
+      nextCursor: 'cur-1',
+    });
+    const page = deferred<{ items: MailSummary[]; nextCursor: string | null }>();
+    mail.list.mockReturnValue(page.promise);
+    key('e');
+    await settle(harness);
+    key('j');
+    await settle(harness);
+    expect(mail.list).toHaveBeenCalledTimes(1);
+    page.resolve({ items: [item(D)], nextCursor: null });
+    await settle(harness);
+    expect(url()).toBe(`/mail/messages/${D}`);
+    expect(
+      TestBed.inject(MailListSession)
+        .saved()!
+        .items.map((entry) => entry.id),
+    ).toEqual([A, B, D]);
+    TestBed.inject(Location).back();
+    await settle(harness);
+    expect(url()).toBe(LIST);
+  });
+
   it('does not step with j or k while a dialog is open', async () => {
     const harness = await openFromList(B);
     const dialog = TestBed.inject(MatDialog);

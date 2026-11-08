@@ -1225,6 +1225,27 @@ describe('MailListPage', () => {
         expect(leave()).toMatchObject({ nextCursor: 'cur-5', cursorId });
       });
 
+      it('still refetches a saved folder list of exactly one server page', async () => {
+        const items = Array.from({ length: MAIL_MAX_PAGE_SIZE }, (_, i) => summary(`m${i}`));
+        await create('inbox-1', {
+          firstPage: 'pending',
+          before: () =>
+            TestBed.inject(MailListSession).save({
+              url: '/mail/folders/inbox-1',
+              scrollTop: 0,
+              scope: { folderId: 'inbox-1', threaded: false },
+              items,
+              nextCursor: 'cur-4',
+              cursorId: 'm150',
+              searchResult: null,
+            }),
+        });
+        expect(rows()).toHaveLength(MAIL_MAX_PAGE_SIZE);
+        expect(mail.lists).toEqual([
+          expect.objectContaining({ cursor: undefined, limit: MAIL_MAX_PAGE_SIZE }),
+        ]);
+      });
+
       it('loads anew when the saved list is another one', async () => {
         await create('proj-1', {
           firstPage: 'pending',
