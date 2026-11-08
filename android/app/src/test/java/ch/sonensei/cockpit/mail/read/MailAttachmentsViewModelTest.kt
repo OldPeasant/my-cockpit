@@ -401,6 +401,81 @@ class MailAttachmentsViewModelTest {
         }
 
     @Test
+    fun `showing another mail during an open removes the partial cache file and opens nothing`() =
+        runTest(dispatcher) {
+            val gate = CompletableDeferred<MailResult<Long>>()
+            coEvery { repository.download(id(1), pdf.partId, any()) } coAnswers {
+                thirdArg<() -> OutputStream?>()()!!.use { it.write("%PDF-1.4 half".toByteArray()) }
+                gate.await()
+            }
+            val vm = viewModel()
+            val cache = File(tmp.root, "report.pdf")
+            vm.open(pdf) { cache }
+            advanceUntilIdle()
+            assertTrue(cache.exists())
+
+            vm.show(id(2))
+            advanceUntilIdle()
+            gate.complete(MailResult.Ok(13))
+            advanceUntilIdle()
+
+            assertFalse("the half-downloaded file stays in the cache", cache.exists())
+            assertNull(withTimeoutOrNull(1) { vm.opens.first() })
+            assertEquals(MailAttachmentsUiState(), vm.state)
+        }
+
+    @Test
+    fun `showing another mail during a save to Files drops its notice`() =
+        runTest(dispatcher) {
+            val gate = CompletableDeferred<MailResult<SavedAttachment>>()
+            coEvery { files.list(null) } returns FilesResult.Ok(emptyList())
+            coEvery { repository.saveToFiles(id(1), "2", null) } coAnswers { gate.await() }
+            val vm = viewModel()
+            vm.pickFolder(pdf)
+            advanceUntilIdle()
+            vm.saveToFiles()
+            advanceUntilIdle()
+
+            vm.show(id(2))
+            gate.complete(MailResult.Ok(SavedAttachment(id(10), "report.pdf", id(50))))
+            advanceUntilIdle()
+
+            assertEquals(MailAttachmentsUiState(), vm.state)
+        }
+
+    @Test
+    fun `save here while another attachment downloads stores nothing and keeps the picker`() =
+        runTest(dispatcher) {
+            val gate = CompletableDeferred<MailResult<Long>>()
+            coEvery { files.list(null) } returns FilesResult.Ok(emptyList())
+            coEvery { repository.download(id(1), photo.partId, any()) } coAnswers {
+                thirdArg<() -> OutputStream?>()()?.close()
+                gate.await()
+            }
+            val vm = viewModel()
+            vm.pickFolder(pdf)
+            advanceUntilIdle()
+            vm.open(photo) { File(tmp.root, "photo.jpg") }
+            advanceUntilIdle()
+
+            vm.saveToFiles()
+            advanceUntilIdle()
+
+            coVerify(exactly = 0) { repository.saveToFiles(any(), any(), any()) }
+            assertEquals(pdf, vm.state.picker?.attachment)
+            assertEquals("3", vm.state.working)
+            gate.complete(MailResult.Ok(1))
+            advanceUntilIdle()
+        }
+
+    @Test
+    fun `type parameters, case and padding are ignored when choosing the preview kind`() {
+        assertEquals(AttachmentPreviewKind.PDF, previewKind(MailAttachment("1", "x", null, "Application/PDF; name=x.pdf")))
+        assertEquals(AttachmentPreviewKind.IMAGE, previewKind(MailAttachment("1", "x.bmp", null, " application/octet-stream ")))
+        assertNull(previewKind(MailAttachment("1", "trailing-dot.", null, null)))
+    }
+
+    @Test
     fun `showing the same mail again keeps what is shown`() =
         runTest(dispatcher) {
             val vm = viewModel()

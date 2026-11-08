@@ -11,6 +11,7 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.files.FilesRepository
@@ -51,6 +52,7 @@ class MailAttachmentsRouteTest {
 
     private val pdf = MailAttachment("2", "report.pdf", 1024, "application/pdf")
     private val generic = MailAttachment("3", "scan.pdf", 2048, "application/octet-stream")
+    private val untyped = MailAttachment("5", "notes.qqx1", null, null)
 
     private val message =
         MailMessage(
@@ -64,7 +66,7 @@ class MailAttachmentsRouteTest {
             html = "<p>Hello</p>",
             text = "Hello",
             remoteImagesBlocked = 0,
-            attachments = listOf(pdf, generic),
+            attachments = listOf(pdf, generic, untyped),
         )
 
     private val reader = mockk<MailReadRepository>()
@@ -133,6 +135,49 @@ class MailAttachmentsRouteTest {
         composeRule.waitUntil(WAIT_MS) { shadowOf(activity).peekNextStartedActivity() != null }
 
         assertEquals("application/pdf", shadowOf(activity).nextStartedActivity.type)
+    }
+
+    @Test
+    fun `an attachment without a type and with an unknown extension is opened as generic data`() {
+        downloadWrites("fictitious notes")
+        show()
+
+        composeRule.onNodeWithTag(MailAttachmentTags.row(untyped.partId)).performScrollTo().performClick()
+        composeRule.waitUntil(WAIT_MS) { shadowOf(activity).peekNextStartedActivity() != null }
+
+        val started = shadowOf(activity).nextStartedActivity
+        assertEquals("application/octet-stream", started.type)
+        assertTrue(started.data!!.path!!.endsWith("/notes.qqx1"))
+    }
+
+    @Test
+    fun `a pending save of an attachment without size or type survives a state restore`() {
+        PickedFilesProvider.register()
+        downloadWrites("fictitious notes")
+        val restoration = StateRestorationTester(composeRule)
+        val vm = readViewModel(reader, mail)
+        val attachmentsVm = MailAttachmentsViewModel(attachments, files)
+        restoration.setContent {
+            CockpitTheme {
+                MailReadRoute(id = id(1), onClose = {}, viewModel = vm, attachmentsViewModel = attachmentsVm)
+            }
+        }
+        waitForTag(MailAttachmentTags.row(untyped.partId))
+        composeRule.onNodeWithTag(MailAttachmentTags.more(untyped.partId)).performScrollTo().performClick()
+        composeRule.onNodeWithTag(MailAttachmentTags.saveDevice(untyped.partId)).performClick()
+        composeRule.waitForIdle()
+        val request = shadowOf(activity).nextStartedActivityForResult
+        assertEquals("notes.qqx1", request.intent.getStringExtra(Intent.EXTRA_TITLE))
+
+        restoration.emulateSavedInstanceStateRestore()
+        waitForTag(MailAttachmentTags.row(untyped.partId))
+        val picked = Intent().setData(PickedFilesProvider.uri("restored-notes.qqx1"))
+        shadowOf(activity).receiveResult(request.intent, Activity.RESULT_OK, picked)
+        waitForTag(MailAttachmentTags.NOTICE)
+
+        composeRule.onNodeWithTag(MailAttachmentTags.NOTICE).assertTextEquals("notes.qqx1 was saved.")
+        assertEquals("fictitious notes", PickedFilesProvider.file(activity, "restored-notes.qqx1").readText())
+        coVerify { attachments.download(id(1), untyped.partId, any()) }
     }
 
     @Test

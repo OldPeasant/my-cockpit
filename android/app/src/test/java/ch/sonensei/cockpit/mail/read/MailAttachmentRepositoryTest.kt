@@ -2,7 +2,9 @@ package ch.sonensei.cockpit.mail.read
 
 import ch.sonensei.cockpit.core.network.generated.apis.FilesApi
 import ch.sonensei.cockpit.core.network.generated.infrastructure.Serializer
+import ch.sonensei.cockpit.core.network.generated.models.FileResponse
 import ch.sonensei.cockpit.mail.list.MailResult
+import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -10,12 +12,19 @@ import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody
+import okhttp3.ResponseBody.Companion.asResponseBody
+import okio.Buffer
+import okio.Source
+import okio.Timeout
+import okio.buffer
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.io.ByteArrayOutputStream
@@ -163,6 +172,58 @@ class MailAttachmentRepositoryTest {
             server.enqueue(status(502))
 
             assertEquals(MailResult.Offline, repository.download(id(1), "2", { ByteArrayOutputStream() }))
+        }
+
+    @Test
+    fun `a connection lost in the middle of a download is offline, not a full disk, and closes target and body`() =
+        runBlocking {
+            var bodyClosed = false
+            val breaking =
+                object : Source {
+                    private var sent = false
+
+                    override fun read(
+                        sink: Buffer,
+                        byteCount: Long,
+                    ): Long {
+                        if (sent) throw IOException("Connection reset")
+                        sent = true
+                        sink.writeUtf8("%PDF-1.4 first part")
+                        return 19
+                    }
+
+                    override fun timeout() = Timeout.NONE
+
+                    override fun close() {
+                        bodyClosed = true
+                    }
+                }
+            val api =
+                object : MailAttachmentApi {
+                    override suspend fun download(
+                        id: String,
+                        partId: String,
+                    ): Response<ResponseBody> = Response.success(breaking.buffer().asResponseBody("application/pdf".toMediaType()))
+
+                    override suspend fun saveToFiles(
+                        id: String,
+                        partId: String,
+                    ): Response<FileResponse> = error("not called")
+                }
+            var targetClosed = false
+            val out =
+                object : ByteArrayOutputStream() {
+                    override fun close() {
+                        targetClosed = true
+                    }
+                }
+
+            val result = MailAttachmentRepository(api, mockk()).download(id(1), "2", { out })
+
+            assertEquals(MailResult.Offline, result)
+            assertEquals("%PDF-1.4 first part", out.toString())
+            assertTrue("target not closed", targetClosed)
+            assertTrue("response body not closed", bodyClosed)
         }
 
     @Test
