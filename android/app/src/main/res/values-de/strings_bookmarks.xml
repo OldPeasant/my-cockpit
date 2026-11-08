@@ -32,4 +32,25 @@
     <string name="bookmarks_change_conflict">Das Lesezeichen wurde anderswo geändert und neu geladen. Versuche es noch einmal.</string>
     <string name="bookmarks_change_failed">Das Lesezeichen konnte nicht geändert werden.</string>
     <string name="bookmarks_no_browser">Auf diesem Gerät gibt es keine App, die Webseiten öffnet.</string>
+    <string name="bookmarks_add">Lesezeichen hinzufügen</string>
+    <string name="bookmarks_add_heading">Lesezeichen hinzufügen</string>
+    <string name="bookmarks_field_url">Webadresse</string>
+    <string name="bookmarks_field_title_optional">Titel (optional)</string>
+    <string name="bookmarks_add_invalid_url">Gib eine vollständige Webadresse ein, die mit http:// oder https:// beginnt.</string>
+    <string name="bookmarks_add_failed">Das Lesezeichen konnte nicht gespeichert werden.</string>
+    <string name="bookmarks_read_later_add">Später lesen</string>
+    <string name="bookmarks_read_later_remove">Aus „Später lesen“ entfernen</string>
+    <string name="bookmarks_to_inbox">Als Aufgabe in den Eingang</string>
+    <string name="bookmarks_added_to_inbox">Zum Eingang hinzugefügt</string>
+    <string name="bookmarks_added_to_inbox_unlinked">Zum Eingang hinzugefügt, aber nicht mit dem Lesezeichen verknüpft</string>
+    <string name="bookmarks_open_reader">Gespeicherte Kopie lesen</string>
+    <string name="bookmarks_reader_back">Zurück zu den Lesezeichen</string>
+    <string name="bookmarks_reader_original">Original öffnen (%1$s)</string>
+    <string name="bookmarks_reader_no_copy">Für diese Seite wurde keine lesbare Kopie gespeichert.</string>
+    <string name="bookmarks_reader_save">Lesbare Kopie speichern</string>
+    <string name="bookmarks_reader_save_again">Neue Kopie speichern</string>
+    <string name="bookmarks_reader_offline">Der Server ist nicht erreichbar.</string>
+    <string name="bookmarks_reader_failed">Die lesbare Kopie konnte nicht geladen werden.</string>
+    <string name="bookmarks_reader_unreadable">Die Seite konnte nicht abgerufen werden oder enthält keinen lesbaren Text.</string>
+    <string name="bookmarks_reader_truncated">Die Kopie ist länger als hier angezeigt. Öffne das Original für den Rest.</string>
 </resources>

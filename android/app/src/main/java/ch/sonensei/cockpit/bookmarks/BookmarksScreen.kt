@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.CloudOff
@@ -29,6 +30,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -111,16 +113,22 @@ fun BookmarksRoute(
                 .components { add(OkHttpNetworkFetcherFactory()) }
                 .build()
         }
+    val browse = { url: String ->
+        try {
+            context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+        } catch (_: ActivityNotFoundException) {
+            viewModel.noBrowser()
+        }
+    }
     BookmarksContent(
         state = state,
         callbacks =
             BookmarksCallbacks(
-                open = { bookmark ->
-                    try {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, bookmark.url.toUri()))
-                    } catch (_: ActivityNotFoundException) {
-                        viewModel.noBrowser()
-                    }
+                open = { bookmark -> browse(bookmark.url) },
+                openLink = { link ->
+                    viewModel.uiState.value.reading
+                        ?.let { resolveLink(it.bookmark.url, link) }
+                        ?.let(browse)
                 },
                 selectView = viewModel::selectView,
                 selectTag = viewModel::selectTag,
@@ -128,6 +136,15 @@ fun BookmarksRoute(
                 refresh = { viewModel.refresh(pulled = true) },
                 retry = { viewModel.refresh() },
                 toggleRead = viewModel::toggleRead,
+                toggleReadLater = viewModel::toggleReadLater,
+                toInbox = viewModel::toInbox,
+                read = viewModel::openReader,
+                closeReader = viewModel::closeReader,
+                retryReader = viewModel::retryReader,
+                saveSnapshot = viewModel::saveSnapshot,
+                startAdd = viewModel::startAdd,
+                add = viewModel::add,
+                cancelAdd = viewModel::cancelAdd,
                 edit = viewModel::edit,
                 delete = viewModel::delete,
                 save = viewModel::save,
@@ -143,6 +160,8 @@ fun BookmarksRoute(
 /** What the screen can ask for, so it can be tested without a view model. */
 data class BookmarksCallbacks(
     val open: (Bookmark) -> Unit = {},
+    /** A link in the readable copy was tapped (as written in the page, maybe relative). */
+    val openLink: (String) -> Unit = {},
     val selectView: (BookmarkView) -> Unit = {},
     /** The tag to filter by; `null` shows all bookmarks of the view. */
     val selectTag: (String?) -> Unit = {},
@@ -151,6 +170,17 @@ data class BookmarksCallbacks(
     val refresh: () -> Unit = {},
     val retry: () -> Unit = {},
     val toggleRead: (Bookmark) -> Unit = {},
+    val toggleReadLater: (Bookmark) -> Unit = {},
+    val toInbox: (Bookmark) -> Unit = {},
+    /** Opens the reader on the bookmark. */
+    val read: (Bookmark) -> Unit = {},
+    val closeReader: () -> Unit = {},
+    val retryReader: () -> Unit = {},
+    /** Saves a new readable copy of the page of the open reader. */
+    val saveSnapshot: () -> Unit = {},
+    val startAdd: () -> Unit = {},
+    val add: (NewBookmark) -> Unit = {},
+    val cancelAdd: () -> Unit = {},
     val edit: (Bookmark) -> Unit = {},
     val delete: (Bookmark) -> Unit = {},
     val save: (BookmarkDraft) -> Unit = {},
@@ -177,6 +207,9 @@ internal object BookmarksTags {
     const val ACTION_READ = "bookmarks-action-read"
     const val ACTION_EDIT = "bookmarks-action-edit"
     const val ACTION_DELETE = "bookmarks-action-delete"
+    const val ACTION_OPEN_READER = "bookmarks-action-reader"
+    const val ACTION_READ_LATER = "bookmarks-action-read-later"
+    const val ACTION_INBOX = "bookmarks-action-inbox"
 
     fun view(view: BookmarkView) = "bookmarks-view:$view"
 
@@ -201,43 +234,65 @@ fun BookmarksContent(
     val snackbarHost = remember { SnackbarHostState() }
     BookmarksSnackbarEffect(state.snackbar, snackbarHost, callbacks.undo, callbacks.dismiss)
     Box(modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize()) {
-            ViewSwitch(state.view, callbacks.selectView)
-            SearchField(state.query, callbacks.search)
-            state.message?.let { ListMessage(it, state.loaded, state.loading, callbacks.retry) }
-            if (state.tags.isNotEmpty()) TagFilter(state, callbacks.selectTag)
-            if (state.loading && !state.refreshing) {
-                LinearProgressIndicator(Modifier.fillMaxWidth().testTag(BookmarksTags.LOADING))
-            } else {
-                Spacer(Modifier.padding(top = 4.dp))
-            }
-            PullToRefreshBox(
-                isRefreshing = state.refreshing,
-                onRefresh = callbacks.refresh,
-                modifier = Modifier.fillMaxSize(),
+        val reading = state.reading
+        if (reading != null) {
+            BookmarkReader(reading, busy = reading.bookmark.id in state.busy, callbacks = callbacks)
+        } else {
+            BookmarkList(state, callbacks, icons)
+            FloatingActionButton(
+                onClick = callbacks.startAdd,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp).testTag(AdderTags.ADD),
             ) {
-                val shown = state.shown
-                // Scrollable also when empty, so the list can be pulled down from the empty state too.
-                LazyColumn(Modifier.fillMaxSize().testTag(BookmarksTags.LIST), contentPadding = PaddingValues(bottom = 88.dp)) {
-                    if (shown.isEmpty() && state.loaded) {
-                        item(key = "empty") { EmptyText(state) }
-                    }
-                    items(shown, key = { it.id }) { bookmark ->
-                        BookmarkRow(
-                            bookmark = bookmark,
-                            showRead = state.view == BookmarkView.ALL,
-                            busy = bookmark.id in state.busy,
-                            callbacks = callbacks,
-                            icons = icons,
-                        )
-                        HorizontalDivider(Modifier.padding(start = 72.dp))
-                    }
-                }
+                Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.bookmarks_add))
             }
         }
         SnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter))
     }
     state.editing?.let { BookmarkEditor(it, state.draft, callbacks.save, callbacks.cancelEdit) }
+    state.adding?.let { BookmarkAdder(it, callbacks.add, callbacks.cancelAdd) }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BookmarkList(
+    state: BookmarksUiState,
+    callbacks: BookmarksCallbacks,
+    icons: ImageLoader?,
+) {
+    Column(Modifier.fillMaxSize()) {
+        ViewSwitch(state.view, callbacks.selectView)
+        SearchField(state.query, callbacks.search)
+        state.message?.let { ListMessage(it, state.loaded, state.loading, callbacks.retry) }
+        if (state.tags.isNotEmpty()) TagFilter(state, callbacks.selectTag)
+        if (state.loading && !state.refreshing) {
+            LinearProgressIndicator(Modifier.fillMaxWidth().testTag(BookmarksTags.LOADING))
+        } else {
+            Spacer(Modifier.padding(top = 4.dp))
+        }
+        PullToRefreshBox(
+            isRefreshing = state.refreshing,
+            onRefresh = callbacks.refresh,
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            val shown = state.shown
+            // Scrollable also when empty, so the list can be pulled down from the empty state too.
+            LazyColumn(Modifier.fillMaxSize().testTag(BookmarksTags.LIST), contentPadding = PaddingValues(bottom = 88.dp)) {
+                if (shown.isEmpty() && state.loaded) {
+                    item(key = "empty") { EmptyText(state) }
+                }
+                items(shown, key = { it.id }) { bookmark ->
+                    BookmarkRow(
+                        bookmark = bookmark,
+                        showRead = state.view == BookmarkView.ALL,
+                        busy = bookmark.id in state.busy,
+                        callbacks = callbacks,
+                        icons = icons,
+                    )
+                    HorizontalDivider(Modifier.padding(start = 72.dp))
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -484,6 +539,34 @@ private fun RowMenu(
                 modifier = Modifier.testTag(BookmarksTags.ACTION_READ),
             )
             DropdownMenuItem(
+                text = { Text(stringResource(R.string.bookmarks_open_reader)) },
+                onClick = {
+                    open = false
+                    callbacks.read(bookmark)
+                },
+                modifier = Modifier.testTag(BookmarksTags.ACTION_OPEN_READER),
+            )
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        stringResource(if (bookmark.readLater) R.string.bookmarks_read_later_remove else R.string.bookmarks_read_later_add),
+                    )
+                },
+                onClick = {
+                    open = false
+                    callbacks.toggleReadLater(bookmark)
+                },
+                modifier = Modifier.testTag(BookmarksTags.ACTION_READ_LATER),
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.bookmarks_to_inbox)) },
+                onClick = {
+                    open = false
+                    callbacks.toInbox(bookmark)
+                },
+                modifier = Modifier.testTag(BookmarksTags.ACTION_INBOX),
+            )
+            DropdownMenuItem(
                 text = { Text(stringResource(R.string.bookmarks_edit)) },
                 onClick = {
                     open = false
@@ -590,6 +673,14 @@ private fun BookmarksSnackbarEffect(
                                     BookmarkFailure.CONFLICT -> R.string.bookmarks_change_conflict
                                     BookmarkFailure.FAILED -> R.string.bookmarks_change_failed
                                 },
+                            ),
+                        duration = SnackbarDuration.Short,
+                    )
+                is BookmarksSnackbar.AddedToInbox ->
+                    host.showSnackbar(
+                        message =
+                            resources.getString(
+                                if (snackbar.linked) R.string.bookmarks_added_to_inbox else R.string.bookmarks_added_to_inbox_unlinked,
                             ),
                         duration = SnackbarDuration.Short,
                     )

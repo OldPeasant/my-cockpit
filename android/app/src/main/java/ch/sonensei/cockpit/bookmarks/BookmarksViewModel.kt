@@ -42,11 +42,48 @@ sealed interface BookmarksSnackbar {
         override val id: Long = 0,
     ) : BookmarksSnackbar
 
+    /** An Inbox task was made of a bookmark; [linked] is `false` when it could not be linked to the bookmark. */
+    data class AddedToInbox(
+        val linked: Boolean,
+        override val id: Long = 0,
+    ) : BookmarksSnackbar
+
     /** No app on the device opens web addresses. */
     data object NoBrowser : BookmarksSnackbar {
         override val id: Long get() = 0
     }
 }
+
+/** Why a new bookmark was not saved. */
+enum class AddFailure { INVALID_URL, OFFLINE, FAILED }
+
+/** The open "Add bookmark" dialog. */
+data class AddBookmarkState(
+    /** What the dialog starts with: the unsaved input of a save that failed. */
+    val draft: NewBookmark = NewBookmark(""),
+    val saving: Boolean = false,
+    val failure: AddFailure? = null,
+)
+
+/** Why the readable copy is not shown. */
+enum class ReaderFailure {
+    OFFLINE,
+    FAILED,
+
+    /** The server could not fetch the page or found nothing readable in it. */
+    UNREADABLE,
+}
+
+/** The open reader: the readable copy the server saved of [bookmark]'s page. */
+data class ReaderState(
+    val bookmark: Bookmark,
+    val snapshot: BookmarkSnapshot? = null,
+    /** The bookmark or its copy is being loaded. */
+    val loading: Boolean = false,
+    /** A new copy is being saved. */
+    val saving: Boolean = false,
+    val failure: ReaderFailure? = null,
+)
 
 data class BookmarksUiState(
     /** The bookmarks of the view and tag, newest first (before the search). */
@@ -71,6 +108,10 @@ data class BookmarksUiState(
     /** What the editor starts with instead of [editing]'s values: the unsaved edit of a save that failed. */
     val draft: BookmarkDraft? = null,
     val snackbar: BookmarksSnackbar? = null,
+    /** The add dialog, while it is open. */
+    val adding: AddBookmarkState? = null,
+    /** The reader, while it is open. */
+    val reading: ReaderState? = null,
 ) {
     /** What the list shows: the bookmarks matching the search. */
     val shown: List<Bookmark> get() = if (query.isBlank()) bookmarks else bookmarks.filter { it.matches(query) }
@@ -93,6 +134,7 @@ class BookmarksViewModel internal constructor(
     val uiState: StateFlow<BookmarksUiState> = state.asStateFlow()
 
     private var loadJob: Job? = null
+    private var readerJob: Job? = null
 
     /** The number of the last snackbar shown. */
     private var snackbars = 0L
@@ -158,6 +200,164 @@ class BookmarksViewModel internal constructor(
 
     /** Marks [bookmark] as read, or as unread again. */
     fun toggleRead(bookmark: Bookmark) = change(bookmark) { bookmarks.setRead(it, read = !it.read) }
+
+    /** Puts [bookmark] into the read-later list, or takes it out. */
+    fun toggleReadLater(bookmark: Bookmark) = change(bookmark) { bookmarks.setReadLater(it, readLater = !it.readLater) }
+
+    /** Opens the add dialog; read later is preset in the read-later view. */
+    fun startAdd() =
+        state.update {
+            if (it.adding != null) it else it.copy(adding = AddBookmarkState(NewBookmark("", readLater = it.view == BookmarkView.QUEUE)))
+        }
+
+    fun cancelAdd() = state.update { if (it.adding?.saving == true) it else it.copy(adding = null) }
+
+    /** Saves [bookmark]; the dialog closes when it is saved and stays open with the reason when it is not. */
+    fun add(bookmark: NewBookmark) {
+        val adding = state.value.adding ?: return
+        if (adding.saving) return
+        if (!isWebAddress(bookmark.url)) {
+            state.update { it.copy(adding = AddBookmarkState(bookmark, failure = AddFailure.INVALID_URL)) }
+            return
+        }
+        state.update { it.copy(adding = AddBookmarkState(bookmark, saving = true)) }
+        viewModelScope.launch {
+            when (val result = bookmarks.create(bookmark)) {
+                is BookmarksResult.Ok -> {
+                    state.update { s ->
+                        val added = result.value
+                        val list =
+                            if (s.belongs(added) &&
+                                s.loaded
+                            ) {
+                                (s.bookmarks.filterNot { it.id == added.id } + added).sortedWith(bookmarkOrder)
+                            } else {
+                                s.bookmarks
+                            }
+                        s.copy(adding = null, bookmarks = list)
+                    }
+                    reloadIfLoading()
+                    reloadTags()
+                }
+                else -> {
+                    val failure =
+                        when {
+                            result == BookmarksResult.Offline -> AddFailure.OFFLINE
+                            (result as? BookmarksResult.Failed)?.status == BAD_REQUEST -> AddFailure.INVALID_URL
+                            else -> AddFailure.FAILED
+                        }
+                    state.update { it.copy(adding = AddBookmarkState(bookmark, failure = failure)) }
+                }
+            }
+        }
+    }
+
+    /** Makes an Inbox task of [bookmark], linked to it (SPEC.md §4.5). */
+    fun toInbox(bookmark: Bookmark) =
+        run(bookmark) { current ->
+            when (val result = bookmarks.toInbox(current)) {
+                is BookmarksResult.Ok -> show(BookmarksSnackbar.AddedToInbox(result.value, nextSnackbar()))
+                else -> show(BookmarksSnackbar.Failed(failure(result), nextSnackbar()))
+            }
+        }
+
+    /** Opens the reader on [bookmark]: loads its latest version, then the readable copy, if the server saved one. */
+    fun openReader(bookmark: Bookmark) {
+        state.update { it.copy(reading = ReaderState(bookmark, loading = true)) }
+        loadReader(bookmark)
+    }
+
+    /** Loads the bookmark of the open reader and its copy again. */
+    fun retryReader() {
+        val reading = state.value.reading ?: return
+        if (reading.loading || reading.saving) return
+        state.update { it.copy(reading = reading.copy(loading = true, failure = null)) }
+        loadReader(reading.bookmark)
+    }
+
+    fun closeReader() {
+        readerJob?.cancel()
+        state.update { it.copy(reading = null) }
+    }
+
+    /** Asks the server to fetch the page of the open reader again and save a new readable copy. */
+    fun saveSnapshot() {
+        val reading = state.value.reading ?: return
+        if (reading.loading || reading.saving) return
+        val id = reading.bookmark.id
+        state.update { it.copy(reading = reading.copy(saving = true, failure = null)) }
+        readerJob =
+            viewModelScope.launch {
+                when (val result = bookmarks.saveSnapshot(reading.bookmark)) {
+                    is BookmarksResult.Ok -> {
+                        val saved = result.value
+                        if (saved == null) {
+                            updateReader(id) { it.copy(saving = false, failure = ReaderFailure.UNREADABLE) }
+                        } else {
+                            put(saved)
+                            updateReader(id) { it.copy(saving = false, loading = true) }
+                            loadSnapshot(saved)
+                        }
+                    }
+                    else -> {
+                        val latest = failed(reading.bookmark, result)
+                        if (latest == null) {
+                            closeReader()
+                        } else {
+                            updateReader(id) { it.copy(bookmark = latest, saving = false) }
+                        }
+                    }
+                }
+            }
+    }
+
+    private fun loadReader(bookmark: Bookmark) {
+        readerJob?.cancel()
+        readerJob =
+            viewModelScope.launch {
+                val latest =
+                    when (val fresh = bookmarks.get(bookmark.id)) {
+                        is BookmarksResult.Ok -> fresh.value.also { put(it) }
+                        is BookmarksResult.Failed -> {
+                            if (fresh.status == BookmarksRepository.NOT_FOUND) {
+                                remove(bookmark.id)
+                                closeReader()
+                                return@launch
+                            }
+                            updateReader(bookmark.id) { it.copy(loading = false, failure = ReaderFailure.FAILED) }
+                            return@launch
+                        }
+                        BookmarksResult.Offline -> {
+                            updateReader(bookmark.id) { it.copy(loading = false, failure = ReaderFailure.OFFLINE) }
+                            return@launch
+                        }
+                    }
+                loadSnapshot(latest)
+            }
+    }
+
+    /** Loads the readable copy of [bookmark] into the reader (none: the reader says so). */
+    private suspend fun loadSnapshot(bookmark: Bookmark) {
+        val fileId = bookmark.snapshotFileId
+        if (fileId == null) {
+            updateReader(bookmark.id) { it.copy(snapshot = null, loading = false) }
+            return
+        }
+        val result = bookmarks.snapshot(fileId)
+        updateReader(bookmark.id) {
+            when (result) {
+                is BookmarksResult.Ok -> it.copy(snapshot = result.value, loading = false, failure = null)
+                BookmarksResult.Offline -> it.copy(loading = false, failure = ReaderFailure.OFFLINE)
+                is BookmarksResult.Failed -> it.copy(loading = false, failure = ReaderFailure.FAILED)
+            }
+        }
+    }
+
+    /** Changes the reader, if it is still open on bookmark [id]. */
+    private fun updateReader(
+        id: UUID,
+        change: (ReaderState) -> ReaderState,
+    ) = state.update { s -> s.reading?.takeIf { it.bookmark.id == id }?.let { s.copy(reading = change(it)) } ?: s }
 
     fun edit(bookmark: Bookmark) = state.update { it.copy(editing = bookmark, draft = null) }
 
@@ -235,7 +435,11 @@ class BookmarksViewModel internal constructor(
         action: suspend (Bookmark) -> Unit,
     ) {
         if (bookmark.id in state.value.busy) return
-        val current = state.value.bookmarks.find { it.id == bookmark.id } ?: bookmark
+        val current =
+            state.value.bookmarks.find { it.id == bookmark.id }
+                ?: state.value.reading
+                    ?.bookmark
+                    ?.takeIf { it.id == bookmark.id } ?: bookmark
         state.update { it.copy(busy = it.busy + bookmark.id) }
         viewModelScope.launch {
             try {
@@ -250,7 +454,10 @@ class BookmarksViewModel internal constructor(
     private fun put(bookmark: Bookmark) {
         state.update {
             val stays = it.belongs(bookmark)
-            it.copy(bookmarks = it.bookmarks.mapNotNull { b -> if (b.id != bookmark.id) b else bookmark.takeIf { stays } })
+            it.copy(
+                bookmarks = it.bookmarks.mapNotNull { b -> if (b.id != bookmark.id) b else bookmark.takeIf { stays } },
+                reading = it.reading?.let { r -> if (r.bookmark.id == bookmark.id) r.copy(bookmark = bookmark) else r },
+            )
         }
         reloadIfLoading()
     }
@@ -305,6 +512,10 @@ class BookmarksViewModel internal constructor(
     private fun show(snackbar: BookmarksSnackbar) = state.update { it.copy(snackbar = snackbar) }
 
     private fun nextSnackbar() = ++snackbars
+
+    private companion object {
+        const val BAD_REQUEST = 400
+    }
 
     private fun reloadTags() {
         viewModelScope.launch {

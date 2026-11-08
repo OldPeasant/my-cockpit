@@ -25,6 +25,8 @@ data class Bookmark(
     val createdAt: Instant,
     /** Sent back as `If-Match` when it is changed. */
     val version: Long,
+    /** The file with the readable copy the server saved of the page; `null` when there is none. */
+    val snapshotFileId: UUID? = null,
 ) {
     val read: Boolean get() = readAt != null
 
@@ -51,6 +53,23 @@ data class BookmarkDraft(
     val notes: String,
 )
 
+/** A new bookmark as typed in the add dialog. */
+data class NewBookmark(
+    val url: String,
+    /** Blank: the server takes the page's title. */
+    val title: String = "",
+    /** Tags as typed: `reading, #rust kotlin`. */
+    val tags: String = "",
+    val readLater: Boolean = false,
+)
+
+/** The readable copy of a page as the server stores it: sanitized HTML (no scripts, styles, forms or images). */
+data class BookmarkSnapshot(
+    val html: String,
+    /** Only the start of a longer copy was sent. */
+    val truncated: Boolean,
+)
+
 internal fun BookmarkResponse.toBookmark() =
     Bookmark(
         id = id,
@@ -64,6 +83,7 @@ internal fun BookmarkResponse.toBookmark() =
         readAt = readAt?.toInstant(),
         createdAt = createdAt.toInstant(),
         version = version,
+        snapshotFileId = snapshotFileId,
     )
 
 /** The server's order: newest first. */
@@ -103,4 +123,23 @@ internal fun Bookmark.matches(query: String): Boolean {
             .joinToString("\n")
             .lowercase(Locale.ROOT)
     return words.all { it in text }
+}
+
+/** Whether [url] is an absolute http(s) address with a host, as the server requires for a bookmark. */
+internal fun isWebAddress(url: String): Boolean {
+    val uri = runCatching { URI(url.trim()) }.getOrNull() ?: return false
+    val scheme = uri.scheme?.lowercase(Locale.ROOT)
+    return (scheme == "http" || scheme == "https") && !uri.host.isNullOrEmpty()
+}
+
+/**
+ * Where a link in the readable copy of [base] leads: resolved against the page's address, and only http(s)
+ * addresses (`null` for any other link, e.g. `javascript:` or `mailto:`).
+ */
+internal fun resolveLink(
+    base: String,
+    link: String,
+): String? {
+    val resolved = runCatching { URI(base).resolve(link.trim()) }.getOrNull() ?: return null
+    return resolved.toString().takeIf { isWebAddress(it) }
 }

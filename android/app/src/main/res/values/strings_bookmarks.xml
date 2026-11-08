@@ -32,4 +32,25 @@
     <string name="bookmarks_change_conflict">The bookmark was changed elsewhere and has been reloaded. Try again.</string>
     <string name="bookmarks_change_failed">The bookmark could not be changed.</string>
     <string name="bookmarks_no_browser">No app on this device opens web pages.</string>
+    <string name="bookmarks_add">Add bookmark</string>
+    <string name="bookmarks_add_heading">Add bookmark</string>
+    <string name="bookmarks_field_url">Web address</string>
+    <string name="bookmarks_field_title_optional">Title (optional)</string>
+    <string name="bookmarks_add_invalid_url">Enter a full web address starting with http:// or https://.</string>
+    <string name="bookmarks_add_failed">The bookmark could not be saved.</string>
+    <string name="bookmarks_read_later_add">Read later</string>
+    <string name="bookmarks_read_later_remove">Remove from read later</string>
+    <string name="bookmarks_to_inbox">To Inbox task</string>
+    <string name="bookmarks_added_to_inbox">Added to the Inbox</string>
+    <string name="bookmarks_added_to_inbox_unlinked">Added to the Inbox, but it could not be linked to the bookmark</string>
+    <string name="bookmarks_open_reader">Read saved copy</string>
+    <string name="bookmarks_reader_back">Back to the bookmarks</string>
+    <string name="bookmarks_reader_original">Open original (%1$s)</string>
+    <string name="bookmarks_reader_no_copy">No readable copy was saved for this page.</string>
+    <string name="bookmarks_reader_save">Save readable copy</string>
+    <string name="bookmarks_reader_save_again">Save a new copy</string>
+    <string name="bookmarks_reader_offline">Can\'t reach the server.</string>
+    <string name="bookmarks_reader_failed">The readable copy could not be loaded.</string>
+    <string name="bookmarks_reader_unreadable">The page could not be fetched or has no readable text.</string>
+    <string name="bookmarks_reader_truncated">The copy is longer than shown here. Open the original for the rest.</string>
 </resources>

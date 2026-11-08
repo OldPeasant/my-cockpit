@@ -13,9 +13,12 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -37,6 +40,36 @@ interface BookmarksWriteApi {
         @Body patch: JsonObject,
         @Header("If-Match") ifMatch: String,
     ): Response<BookmarkResponse>
+
+    /** A new bookmark; hand-built so fields left empty are not sent (the server fills them from the page). */
+    @POST("api/v1/bookmarks")
+    suspend fun createBookmark(
+        @Body body: JsonObject,
+    ): Response<BookmarkResponse>
+
+    /** Fetches the page again and saves a readable copy of it. */
+    @POST("api/v1/bookmarks/{id}/snapshot")
+    suspend fun saveSnapshot(
+        @Path("id") id: UUID,
+        @Header("If-Match") ifMatch: String,
+    ): Response<BookmarkResponse>
+
+    /** A file's text preview: the readable copy of a page is a file in the Attachments folder. */
+    @GET("api/v1/files/{id}/preview")
+    suspend fun preview(
+        @Path("id") id: UUID,
+    ): Response<ResponseBody>
+
+    /** A new task (in the Inbox unless `list` says otherwise); only its `id` is read from the answer. */
+    @POST("api/v1/tasks")
+    suspend fun createTask(
+        @Body body: JsonObject,
+    ): Response<JsonObject>
+
+    @POST("api/v1/links")
+    suspend fun createLink(
+        @Body body: JsonObject,
+    ): Response<JsonObject>
 
     /** The Trash's restore, here so this screen needs no Trash client of its own (`BookmarksApi` has none). */
     @POST("api/v1/trash/BOOKMARK/{id}/restore")
@@ -122,6 +155,96 @@ class BookmarksRepository
             read: Boolean,
         ): BookmarksResult<Bookmark> = patch(base, mapOf("read" to JsonPrimitive(read)))
 
+        /** Puts [base] into the read-later list (`true`) or takes it out. */
+        suspend fun setReadLater(
+            base: Bookmark,
+            readLater: Boolean,
+        ): BookmarksResult<Bookmark> = patch(base, mapOf("readLater" to JsonPrimitive(readLater)))
+
+        /** Saves a new bookmark; a blank title is filled from the page by the server. */
+        suspend fun create(bookmark: NewBookmark): BookmarksResult<Bookmark> =
+            load {
+                val fields =
+                    buildMap {
+                        put("url", JsonPrimitive(bookmark.url.trim()))
+                        bookmark.title
+                            .trim()
+                            .takeIf { it.isNotEmpty() }
+                            ?.let { put("title", JsonPrimitive(it)) }
+                        val tags = parseTags(bookmark.tags)
+                        if (tags.isNotEmpty()) put("tags", JsonArray(tags.map(::JsonPrimitive)))
+                        put("readLater", JsonPrimitive(bookmark.readLater))
+                    }
+                body(writeApi.createBookmark(JsonObject(fields))).toBookmark()
+            }
+
+        /** The readable copy stored as file [fileId]. */
+        suspend fun snapshot(fileId: UUID): BookmarksResult<BookmarkSnapshot> =
+            load {
+                val response = writeApi.preview(fileId)
+                val text = body(response).use { it.string() }
+                BookmarkSnapshot(text, response.headers()["X-Preview-Truncated"].equals("true", ignoreCase = true))
+            }
+
+        /**
+         * Asks the server to fetch the page of [base] now and save a readable copy of it. Ok with `null` when the
+         * server could not fetch the page or found nothing readable in it (its 502, which is not an outage here).
+         */
+        suspend fun saveSnapshot(base: Bookmark): BookmarksResult<Bookmark?> =
+            load {
+                val response = writeApi.saveSnapshot(base.id, etag(base.version))
+                if (response.code() == BAD_GATEWAY) null else body(response).toBookmark()
+            }
+
+        /**
+         * Creates an Inbox task for [bookmark] (its title, the address in the notes) and links the bookmark to it as
+         * its origin (SPEC.md §4.5). Ok with `false` when the task exists but the link could not be made.
+         */
+        suspend fun toInbox(bookmark: Bookmark): BookmarksResult<Boolean> =
+            load {
+                val task =
+                    body(
+                        writeApi.createTask(
+                            JsonObject(
+                                mapOf(
+                                    "title" to JsonPrimitive(bookmark.displayTitle.take(MAX_TASK_TITLE)),
+                                    "notesMd" to JsonPrimitive(bookmark.url),
+                                    "list" to JsonPrimitive("INBOX"),
+                                ),
+                            ),
+                        ),
+                    )
+                val taskId = UUID.fromString(task["id"]?.jsonPrimitive?.content ?: throw SerializationException("task without id"))
+                link(taskId, bookmark.id)
+            }
+
+        /** Links task [taskId] to bookmark [bookmarkId] as its origin; `false` when that failed. */
+        private suspend fun link(
+            taskId: UUID,
+            bookmarkId: UUID,
+        ): Boolean =
+            try {
+                writeApi
+                    .createLink(
+                        JsonObject(
+                            mapOf(
+                                "source" to ref("TASK", taskId),
+                                "target" to ref("BOOKMARK", bookmarkId),
+                                "label" to JsonPrimitive("origin"),
+                            ),
+                        ),
+                    ).isSuccessful
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: IOException) {
+                false
+            }
+
+        private fun ref(
+            type: String,
+            id: UUID,
+        ) = JsonObject(mapOf("type" to JsonPrimitive(type), "id" to JsonPrimitive(id.toString())))
+
         /** Saves title, tags and notes of [draft] over [base]; a blank title or notes field clears it. */
         suspend fun save(
             base: Bookmark,
@@ -178,6 +301,8 @@ class BookmarksRepository
             private const val PAGE_SIZE = 200
             private const val MAX_PAGES = 50
             private const val SERVER_ERROR = 500
+            private const val MAX_TASK_TITLE = 500
+            private const val BAD_GATEWAY = 502
         }
     }
 
