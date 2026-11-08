@@ -1404,4 +1404,122 @@ class FilesViewModelTest {
             coVerify(exactly = 2) { repo.move(old, docs.id) }
             coVerify(exactly = 1) { repo.move(newer, docs.id) }
         }
+
+    /**
+     * Review 2 CR-1, below the drive root: after a 404 the picker goes back to the folder the entry is in (not to the
+     * drive root) and lists that folder again, where the trashed target is no longer offered.
+     */
+    @Test
+    fun `a move into a folder gone elsewhere sends the picker back to a subfolder the entry is in`() =
+        runTest(dispatcher) {
+            coEvery { repo.list(null) } returns FilesResult.Ok(listOf(docs))
+            // 1: the folder shown, 2: the picker starting there, then (target trashed elsewhere) without tax.
+            coEvery { repo.list(docs.id) } returnsMany
+                listOf(FilesResult.Ok(listOf(tax, pdf)), FilesResult.Ok(listOf(tax, pdf)), FilesResult.Ok(listOf(pdf)))
+            coEvery { repo.list(tax.id) } returns FilesResult.Ok(emptyList())
+            coEvery { repo.move(pdf, tax.id) } returns FilesResult.Failed(404)
+            val vm = FilesViewModel(repo, dispatcher)
+            vm.refresh()
+            advanceUntilIdle()
+            vm.openFolder(docs)
+            advanceUntilIdle()
+            vm.startMove(pdf)
+            advanceUntilIdle()
+            vm.pickerOpen(tax)
+            advanceUntilIdle()
+
+            vm.confirmMove()
+            advanceUntilIdle()
+            val picker = vm.uiState.value.movePicker!!
+            assertEquals(listOf(FolderCrumb(docs.id, "Documents")), picker.path)
+            assertEquals(emptyList<DriveEntry.Folder>(), picker.folders)
+            assertFalse(picker.loading)
+            assertEquals(listOf<DriveEntry>(pdf), picker.entries)
+            assertEquals(ActionMessage.CHANGED, picker.moveMessage)
+            assertFalse(picker.canMove)
+            assertEquals(listOf<DriveEntry>(pdf), vm.uiState.value.entries)
+            // The picker's reload and the folder's reload after the refusal.
+            coVerify(exactly = 4) { repo.list(docs.id) }
+            // The picker went back to where the entry is, not to the drive root.
+            coVerify(exactly = 1) { repo.list(null) }
+        }
+
+    /**
+     * Review 2 CR-1 with a selection: one entry moves, the other is refused with 404 because it was trashed elsewhere.
+     * The move is confirmed for the one that moved, and once the reload lacks the other, the picker closes with the
+     * reason and the selection ends.
+     */
+    @Test
+    fun `a partly moved selection whose other entry is gone elsewhere closes the picker after the reload`() =
+        runTest(dispatcher) {
+            // 1: the list, 2: the picker starting at the drive root, then: notes.txt moved, 2025.pdf trashed elsewhere.
+            coEvery { repo.list(null) } returnsMany
+                listOf(FilesResult.Ok(listOf(docs, pdf, txt)), FilesResult.Ok(listOf(docs, pdf, txt)), FilesResult.Ok(listOf(docs)))
+            coEvery { repo.list(docs.id) } returns FilesResult.Ok(emptyList())
+            coEvery { repo.move(pdf, docs.id) } returns FilesResult.Failed(404)
+            coEvery { repo.move(txt, docs.id) } returns FilesResult.Ok(Unit)
+            val vm = FilesViewModel(repo, dispatcher)
+            vm.refresh()
+            advanceUntilIdle()
+            vm.toggleSelected(pdf)
+            vm.toggleSelected(txt)
+            vm.startMoveSelected()
+            advanceUntilIdle()
+            vm.pickerOpen(docs)
+            advanceUntilIdle()
+
+            vm.confirmMove()
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.movePicker)
+            assertEquals(ActionMessage.CHANGED, vm.uiState.value.actionMessage)
+            assertEquals(listOf<DriveEntry>(docs), vm.uiState.value.entries)
+            assertEquals(emptySet<UUID>(), vm.uiState.value.selected)
+            assertEquals(FilesEvent.Changed(FilesChange.MOVED, 1, "notes.txt"), vm.events.first())
+            coVerify(exactly = 1) { repo.move(pdf, docs.id) }
+            coVerify(exactly = 1) { repo.move(txt, docs.id) }
+        }
+
+    /**
+     * Review 2 CR-1, ordering: the rename is saved again before the reload after a 404 arrived. That reload lacks the
+     * entry, but cannot close a dialog whose save is still running; the second refusal reloads again and closes it then.
+     */
+    @Test
+    fun `a rename dialog is not closed by a reload while its save is still running`() =
+        runTest(dispatcher) {
+            val staleReload = CompletableDeferred<FilesResult<List<DriveEntry>>>()
+            val secondRename = CompletableDeferred<FilesResult<Unit>>()
+            var lists = 0
+            coEvery { repo.list(null) } coAnswers {
+                // 1: the list, 2: the reload after the first refusal, then the reload after the second.
+                when (++lists) {
+                    1 -> FilesResult.Ok(listOf(docs, pdf))
+                    2 -> staleReload.await()
+                    else -> FilesResult.Ok(listOf(docs))
+                }
+            }
+            var renames = 0
+            coEvery { repo.rename(pdf, any()) } coAnswers { if (++renames == 1) FilesResult.Failed(404) else secondRename.await() }
+            val vm = FilesViewModel(repo, dispatcher)
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.startRename(pdf)
+            vm.saveName("2026.pdf")
+            advanceUntilIdle()
+            // The reload after the refusal is still on its way; the user tries again.
+            vm.saveName("2026.pdf")
+            advanceUntilIdle()
+            staleReload.complete(FilesResult.Ok(listOf(docs)))
+            advanceUntilIdle()
+            assertEquals(NameDialog(pdf, saving = true, message = null), vm.uiState.value.nameDialog)
+            assertEquals(listOf<DriveEntry>(docs), vm.uiState.value.entries)
+            assertNull(vm.uiState.value.actionMessage)
+
+            secondRename.complete(FilesResult.Failed(404))
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.nameDialog)
+            assertEquals(ActionMessage.CHANGED, vm.uiState.value.actionMessage)
+            coVerify(exactly = 2) { repo.rename(pdf, "2026.pdf") }
+            coVerify(exactly = 3) { repo.list(null) }
+        }
 }
