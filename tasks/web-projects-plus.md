@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [web-back-navigation]
 touches: [web/src/app/features/gtd/projects,web/src/locale]
 prio: 2
-lease_until: 2026-11-08T16:04:41Z
+lease_until: 2026-11-08T16:07:31Z
 ---
 ## Goal
 There is no UI to delete a project (`ProjectStore.remove` unused except in the review), and project detail shows
