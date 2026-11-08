@@ -1,6 +1,6 @@
 ---
 title: Android compose: recipient autocomplete, attach from Files
-status: in_progress
+status: done
 owner: Peter Gürtler
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/compose,android/app/src/test/java/ch/sonensei/cockpit/mail/compose,android/app/src/main/res/values/strings_mail_compose.xml,android/app/src/main/res/values-de/strings_mail_compose.xml]
@@ -33,3 +33,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - extended by rudi/agent-2: Implementation, first test-writer + code-reviewer, and fixer (CR-1..CR-4 + quote bug) are done and committed (f7101796). Left: re-run test-writer and code-reviewer on the final code (fixes changed code, so first review is stale), tasks.py verify #1-#4, run sh scripts/check.sh (fixer saw a flaky unrelated server test PageFetcherSizeLimitTests; full check did not finish within 10 min this session), write+commit reviews/and-mail-compose-plus/quality.json, then done.
 - ASSUMPTION (2026-11-08 17:00+0100 by rudi/agent-2): Web part of scripts/check.sh not run by me: this agent shell only has Node 20; the task touches no web file, so the web result is unaffected; done's .taskcheck run is the final gate
 - hold by rudi/agent-2: Everything is done and committed (impl, final test-writer + code-reviewer, quality.json, verify #1-#3, #4 skipped). done is REFUSED only because .taskcheck's web step needs Node >=22.22.3/24 and this agent shell has Node v20.9.0 (nvm not usable from the agent sandbox). Task touches no web file. Human: put Node 24 on the agents' PATH (or run done in a Node 24 shell), then unhold so done can finish.
+- done by Peter Gürtler: `sh scripts/check.sh` passed in 507s on b696416e9; criteria verified 4/4
