@@ -16,7 +16,8 @@ Goal: Android task detail offers the same as the web: add/remove reminders on a 
   - verified (2026-11-09 00:27+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.task.*' --tests 'ch.sonensei.cockpit.reminders.*' --tests 'ch.sonensei.cockpit.ui.*' -> 527 tests, 0 failures (TaskRemindersContentTest: list/add presets/custom date+time/remove in task detail; TaskRemindersTest: POST/DELETE/GET /api/v1/reminders itemType TASK via MockWebServer, ReminderSync.sync() called once after each successful create/delete)
 - [~] A reminder fires as a notification and opens the task (manually verified or skipped with reason)
   - skipped (2026-11-09 00:03+0100 by dell26/agent-1): No emulator/device in this environment to fire a real notification; the tap path (OpenItemRequest.taskId -> TaskRoutes.detail in CockpitShell) is covered by unit tests only
-- [ ] New strings in English and German (`res/values{,-de}/strings_task_detail.xml`)
+- [x] New strings in English and German (`res/values{,-de}/strings_task_detail.xml`)
+  - verified (2026-11-09 00:28+0100 by dell26/agent-1): grep -c 'name="task_detail_remind' android/app/src/main/res/values{,-de}/strings_task_detail.xml -> 13 and 13 (same keys/format args); TaskDetailStringsTest + android lintDebug in scripts/check.sh pass (no missing translations)
 - [ ] Unit tests cover the new behavior; `sh scripts/check.sh` passes
 
 ## Notes
