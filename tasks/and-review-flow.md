@@ -24,7 +24,8 @@ Android gets the full review). Web: `review-session.ts`, `steps/*`.
   - verified (2026-11-08 15:10+0100 by dell26/agent-2): ReflectionSaverTest + ReviewWizardTest: reflection appended as '## Weekly review' to today's journal entry (idempotent on retry), habit rate/streak shown, draft kept per review (ReviewDraftsTest), via cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug at a51ef0aea -> pass, review package 130 tests 0 failures
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 15:10+0100 by dell26/agent-2): lintDebug (MissingTranslation) pass + test-writer key diff: values/strings_review.xml and values-de/strings_review.xml have the same 66 keys
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 15:10+0100 by dell26/agent-2): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug at a51ef0aea -> pass, review package 130 tests 0 failures; sh scripts/check.sh -> == all checks passed
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
