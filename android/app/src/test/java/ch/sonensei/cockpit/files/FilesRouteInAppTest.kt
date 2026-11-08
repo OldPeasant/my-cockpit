@@ -117,6 +117,12 @@ class FilesRouteInAppTest {
         waitForTag(FilesTags.entry(pdf.id))
     }
 
+    /** "Open with" from the file's menu: a tap on the row previews it in the app instead. */
+    private fun openWith(file: DriveEntry.File) {
+        composeRule.onNodeWithTag(FilesTags.more(file.id)).performClick()
+        composeRule.onNodeWithTag(FilesTags.OPEN).performClick()
+    }
+
     /** The download writes [content] into whatever target the screen gave it, like the real repository does. */
     private fun downloadWrites(content: String) {
         coEvery { repo.download(pdf.id, any()) } coAnswers {
@@ -159,7 +165,7 @@ class FilesRouteInAppTest {
         downloadWrites("fictitious tax return")
         openFiles()
 
-        composeRule.onNodeWithTag(FilesTags.entry(pdf.id)).performClick()
+        openWith(pdf)
         composeRule.waitUntil(WAIT_MS) { shadowOf(activity()).peekNextStartedActivity() != null }
 
         val started = shadowOf(activity()).nextStartedActivity
@@ -187,8 +193,9 @@ class FilesRouteInAppTest {
         }
         openFiles()
 
-        composeRule.onNodeWithTag(FilesTags.entry(pdf.id)).performClick()
+        openWith(pdf)
         waitForTag(FilesTags.DOWNLOADING)
+        // While a file downloads, the other rows are disabled (their "Open with" too, see FilesScreenTest).
         composeRule.onNodeWithTag(FilesTags.entry(other.id)).performClick()
         composeRule.waitForIdle()
         gate.complete(Unit)
@@ -207,7 +214,7 @@ class FilesRouteInAppTest {
         openFiles()
         shadowOf(ApplicationProvider.getApplicationContext<Application>()).checkActivities(true)
 
-        composeRule.onNodeWithTag(FilesTags.entry(pdf.id)).performClick()
+        openWith(pdf)
         composeRule.waitUntil(WAIT_MS) { ShadowToast.getTextOfLatestToast() != null }
 
         assertEquals("No app on this phone opens this file", ShadowToast.getTextOfLatestToast())
@@ -220,7 +227,7 @@ class FilesRouteInAppTest {
         coEvery { repo.download(pdf.id, any()) } returns FilesResult.Offline
         openFiles()
 
-        composeRule.onNodeWithTag(FilesTags.entry(pdf.id)).performClick()
+        openWith(pdf)
         waitForTag(FilesTags.DOWNLOAD_MESSAGE)
 
         composeRule.onNodeWithText("Offline. The file could not be downloaded.").assertExists()
@@ -318,7 +325,7 @@ class FilesRouteInAppTest {
             FilesResult.Ok(18L)
         }
         openFiles()
-        composeRule.onNodeWithTag(FilesTags.entry(pdf.id)).performClick()
+        openWith(pdf)
         waitForTag(FilesTags.DOWNLOADING)
 
         // The picker has created the (empty) document by the time its result arrives.

@@ -52,6 +52,7 @@ class FilesScreenTest {
                     FilesCallbacks(
                         openFolder = { calls += "folder ${it.name}" },
                         openFile = { calls += "open ${it.name}" },
+                        preview = { calls += "preview ${it.name}" },
                         saveFile = { calls += "save ${it.name}" },
                         goTo = { calls += "goTo $it" },
                         upload = { calls += "upload" },
@@ -64,7 +65,7 @@ class FilesScreenTest {
         }
 
     @Test
-    fun `a folder lists folders then files, and opens either`() {
+    fun `a folder lists folders then files, opens a folder and previews a file`() {
         show(FilesUiState(entries = listOf(attachments, docs, pdf), loaded = true))
 
         val list = composeRule.onNodeWithTag(FilesTags.LIST)
@@ -74,7 +75,7 @@ class FilesScreenTest {
 
         composeRule.onNodeWithTag(FilesTags.entry(docs.id)).performClick()
         composeRule.onNodeWithTag(FilesTags.entry(pdf.id)).performClick()
-        assertEquals(listOf("folder Documents", "open 2025.pdf"), calls)
+        assertEquals(listOf("folder Documents", "preview 2025.pdf"), calls)
     }
 
     @Test
