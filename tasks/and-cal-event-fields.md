@@ -1,10 +1,11 @@
 ---
 title: Android events: reminders, attendees, invitations, time zone, links
-status: todo
-owner:
+status: in_progress
+owner: rudi/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/edit,android/app/src/test/java/ch/sonensei/cockpit/calendar/edit,android/app/src/main/res/values/strings_calendar_edit.xml,android/app/src/main/res/values-de/strings_calendar_edit.xml]
 prio: 2
+lease_until: 2026-11-08T13:03:41Z
 ---
 ## Goal
 The Android event editor lacks reminders, attendees, sending invitations, time zone editing and event links
