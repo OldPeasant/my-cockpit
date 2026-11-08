@@ -22,3 +22,4 @@ The action steps of the weekly review on Android, matching web `steps/waiting-st
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 - ASSUMPTION (2026-11-08 16:49+0100 by felix/agent-1): Project rows open the detail via a Hilt @Singleton ProjectOpenRequests (gtd/projects) that ProjectsViewModel takes on creation or while kept; this touches gtd/projects outside the task's touches, kept minimal (one class, one init block, one constructor param).
+- ASSUMPTION (2026-11-08 16:49+0100 by felix/agent-1): Delete in the next-actions and someday steps moves to the trash without a confirmation dialog, matching the web wizard (trash is recoverable).
