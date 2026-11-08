@@ -70,6 +70,10 @@ class PageFetcher(
 		HttpClient
 			.newBuilder()
 			.connectTimeout(properties.connectTimeout)
+			// HTTP/1.1 only: a page cut off at max-size is cancelled, which over HTTP/2 resets a stream on a connection
+			// shared by later fetches. Every few hundred fetches that connection then failed under the next fetch (EOF)
+			// or left it stalled until the timeout. Over HTTP/1.1 cancelling closes only that fetch's own connection.
+			.version(HttpClient.Version.HTTP_1_1)
 			.followRedirects(HttpClient.Redirect.NEVER)
 			.build()
 
@@ -201,7 +205,7 @@ class PageFetcher(
 			}
 		} finally {
 			// Only now that the response is complete (or abandoned): cancelling inside the body subscriber can fail the
-			// whole exchange (seen with HTTP/2) before the client hands out the truncated body.
+			// whole exchange before the client hands out the truncated body.
 			bodies.forEach(TruncatedBody::cancel)
 		}
 	}
@@ -295,7 +299,7 @@ class PageFetcher(
 /**
  * Collects a response body up to [max] bytes, then stops requesting data and completes with what it has. The caller
  * [cancel]s the rest of the download once it has the response: cancelling in here, before the client has handed out
- * the completed body, can make it fail the whole exchange (seen with HTTP/2).
+ * the completed body, can make it fail the whole exchange.
  */
 private class TruncatedBody(
 	private val max: Long,

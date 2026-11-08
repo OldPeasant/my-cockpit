@@ -84,12 +84,13 @@ class PageFetcherSizeLimitTests {
 	}
 
 	/**
-	 * The JDK client talks HTTP/2 to WireMock (h2c upgrade), as it does with most HTTPS sites (ALPN). Cancelling the
-	 * download at the limit races with the client failing the exchange ("Stream N cancelled"), so a single fetch only
-	 * sometimes shows it: every one of many fetches over the same client must return the page.
+	 * Cancelling the download at the limit must not break the next fetches of the same client. Over HTTP/2 (which the
+	 * JDK client would negotiate with WireMock by h2c upgrade, and with most HTTPS sites by ALPN) each cancel reset a
+	 * stream on the shared connection, and every few hundred fetches one failed (EOF) or hung until the timeout; so a
+	 * single fetch only rarely shows it: every one of many fetches over the same client must return the page.
 	 */
 	@Test
-	fun `pages larger than max-size are cut off reliably, also over a reused HTTP 2 connection`() {
+	fun `pages larger than max-size are cut off reliably, also many in a row over the same client`() {
 		stub("/large", "<title>Large</title>".toByteArray() + noise(1_000_000))
 
 		val outcomes =
@@ -102,6 +103,17 @@ class PageFetcherSizeLimitTests {
 			}
 
 		outcomes.groupingBy { it }.eachCount() shouldBe mapOf("$MAX bytes" to REPEATS)
+	}
+
+	@Test
+	fun `pages are fetched over HTTP 1_1, not HTTP 2, so a cancelled download cannot break a shared connection`() {
+		stub("/page", "<title>Page</title>".toByteArray())
+
+		fetcher.fetch(local("/page"))
+
+		server.allServeEvents
+			.single()
+			.request.protocol shouldBe "HTTP/1.1"
 	}
 
 	@Test
@@ -244,6 +256,6 @@ class PageFetcherSizeLimitTests {
 	private companion object {
 		const val MAX = 4_096L
 		const val SEED = 20261021
-		const val REPEATS = 50
+		const val REPEATS = 200
 	}
 }
