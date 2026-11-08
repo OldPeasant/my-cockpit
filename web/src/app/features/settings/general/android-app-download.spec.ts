@@ -75,6 +75,28 @@ describe('AndroidAppDownload', () => {
     expect(notifications.error).not.toHaveBeenCalled();
   });
 
+  it('treats an unreachable server as a failure, not as "no app"', async () => {
+    const req = http.expectOne({ method: 'GET', url: ANDROID_VERSION_PATH });
+    req.error(new ProgressEvent('error'), { status: 0, statusText: 'Unknown Error' });
+    await tick();
+    await fixture.whenStable();
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+      'The Android app version could not be loaded.',
+    );
+    expect(root.textContent).not.toContain('No Android app is available');
+    expect(root.querySelector('a')).toBeNull();
+    expect(notifications.error).not.toHaveBeenCalled();
+  });
+
+  it('a 404 after Try again also says that no app is available', async () => {
+    await answer({ status: 500, title: 'Server Error' }, problem(500, 'Server Error'));
+    root.querySelector<HTMLButtonElement>('[role="alert"] button')!.click();
+    fixture.detectChanges();
+    await answer({ status: 404, title: 'Not Found' }, problem(404, 'Not Found'));
+    expect(root.textContent?.trim()).toBe('No Android app is available on this server.');
+    expect(root.querySelector('[role="alert"]')).toBeNull();
+  });
+
   it('shows a failure in place and loads again on Try again', async () => {
     await answer(
       { status: 503, title: 'Service Unavailable' },

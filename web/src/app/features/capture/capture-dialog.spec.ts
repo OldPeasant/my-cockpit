@@ -1060,6 +1060,46 @@ describe('CaptureDialog', () => {
       await settle();
     });
 
+    it('Ctrl+Enter in the notes saves to Read later too', async () => {
+      type(URL_TEXT);
+      choose('readLater');
+      type('Long read', notesField());
+      press('Enter', { ctrlKey: true }, notesField());
+      http.expectNone('/api/v1/capture');
+      expect(expectBookmark().request.body).toEqual({
+        url: URL_TEXT,
+        readLater: true,
+        description: 'Long read',
+      });
+      await settle();
+    });
+
+    it('sends the bookmark once while its save is still running', async () => {
+      type(URL_TEXT);
+      choose('readLater');
+      press('Enter');
+      press('Enter');
+      saveButton().click();
+      const req = expectBookmark();
+      req.flush(bookmark('b1', { url: URL_TEXT }));
+      await settle();
+      expect(close).toHaveBeenCalledTimes(1);
+    });
+
+    it('Shift+Enter clears the saved notes as well, and keeps notes typed while saving', async () => {
+      type(URL_TEXT);
+      choose('readLater');
+      type('First note', notesField());
+      press('Enter', { shiftKey: true });
+      const req = expectBookmark();
+      type('Typed meanwhile', notesField());
+      req.flush(bookmark('b1'));
+      await settle();
+      expect(notesField().value).toBe('Typed meanwhile');
+      expect(textField().value).toBe('');
+      expect(notifications.info).toHaveBeenCalledWith('Saved to Read later');
+    });
+
     it('keeps the URL after a failed bookmark save, for a retry', async () => {
       type(URL_TEXT);
       choose('readLater');
@@ -1136,6 +1176,8 @@ describe('isSingleUrl', () => {
     ['HTTPS://Example.org/Path', true],
     ['https://example.org/a b', false],
     ['https://', false],
+    // Looks like a URL to the pattern, but the URL parser rejects it.
+    ['https://[::1', false],
     ['example.org', false],
     ['mailto:anna@example.org', false],
     ['javascript:alert(1)', false],

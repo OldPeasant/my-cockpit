@@ -1,3 +1,4 @@
+import { clearTranslations, loadTranslations } from '@angular/localize';
 import { parseSearchQuery, SEARCH_TYPES } from './search-query';
 
 describe('parseSearchQuery', () => {
@@ -50,5 +51,57 @@ describe('parseSearchQuery', () => {
     for (const type of SEARCH_TYPES) {
       expect(parseSearchQuery(`type:${type.toLowerCase()} x`).types).toEqual([type]);
     }
+  });
+
+  it('knows a label with a space written with a dash, and a plural with s', () => {
+    expect(parseSearchQuery('type:Journal-Entry,Habits x').types).toEqual([
+      'JOURNAL_ENTRY',
+      'HABIT',
+    ]);
+  });
+
+  it.each(['constructor', 'constructors', 'note,constructor'])(
+    'does not take an inherited object key (%j) for a type, and keeps an unknown word as text',
+    (names) => {
+      expect(parseSearchQuery(`type:${names} passport`)).toEqual({
+        text: `type:${names} passport`,
+        types: [],
+      });
+    },
+  );
+
+  it('accepts the prefix and the type name in any case', () => {
+    expect(parseSearchQuery('Type:Note')).toEqual({ text: '', types: ['NOTE'] });
+  });
+
+  it('keeps an empty query empty', () => {
+    expect(parseSearchQuery('   ')).toEqual({ text: '', types: [] });
+  });
+
+  describe('in German', () => {
+    // The same targets as messages.de.xlf: the labels are read at parse time.
+    beforeEach(() =>
+      loadTranslations({
+        'itemType.note': 'Notiz',
+        'itemType.event': 'Termin',
+        'itemType.email': 'E-Mail',
+        'itemType.journalEntry': 'Journaleintrag',
+      }),
+    );
+    afterEach(() => clearTranslations());
+
+    it.each([
+      ['type:notiz passport', ['NOTE']],
+      ['type:Termin passport', ['EVENT']],
+      ['type:E-Mail passport', ['EMAIL']],
+      ['type:journaleintrag passport', ['JOURNAL_ENTRY']],
+      ['type:termin,note passport', ['NOTE', 'EVENT']],
+    ])('reads %j as a filter by %j through the UI label', (query, types) => {
+      expect(parseSearchQuery(query)).toEqual({ text: 'passport', types });
+    });
+
+    it('still knows the ids and English aliases', () => {
+      expect(parseSearchQuery('type:note,mail x').types).toEqual(['NOTE', 'EMAIL']);
+    });
   });
 });
