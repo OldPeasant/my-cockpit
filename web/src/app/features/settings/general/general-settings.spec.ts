@@ -11,6 +11,7 @@ import {
 import { FakeBrowserNotifications } from '../../../core/notifications/testing';
 import { ThemeService } from '../../../shell/theme.service';
 import { fakeSettings } from '../testing';
+import { ANDROID_VERSION_PATH, fakeAndroidApp } from './android-app.testing';
 import GeneralSettings, { timeZones } from './general-settings';
 
 const PATH = '/api/v1/settings';
@@ -46,7 +47,11 @@ describe('GeneralSettings', () => {
     await fixture.whenStable();
   }
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    // The Android app row asks for the app version once the settings show (own spec).
+    for (const req of http.match(ANDROID_VERSION_PATH)) req.flush(fakeAndroidApp());
+    http.verify();
+  });
 
   function input(label: string): HTMLInputElement {
     return root.querySelector(`input[aria-label="${label}"]`) as HTMLInputElement;
@@ -666,6 +671,22 @@ describe('GeneralSettings', () => {
     await tick();
     await fixture.whenStable();
     expect(input('Label for low energy').value).toBe('Low');
+  });
+
+  it('shows the Android app row with its version and download link', async () => {
+    await setup();
+    await fixture.whenStable();
+    http.expectOne(ANDROID_VERSION_PATH).flush(fakeAndroidApp());
+    await tick();
+    await fixture.whenStable();
+
+    expect(root.textContent).toContain('Android app');
+    expect(root.querySelector('app-android-app-download .version')?.textContent?.trim()).toBe(
+      'Version 1.4.0',
+    );
+    expect(root.querySelector('app-android-app-download a[download]')?.getAttribute('href')).toBe(
+      '/download/android',
+    );
   });
 
   describe('reminder notifications row', () => {

@@ -1,6 +1,6 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { TaskResponse } from '../../api/generated';
+import { BookmarkResponse, TaskResponse } from '../../api/generated';
 import { ApiError, NotificationService, provideHttp, SILENT_ERRORS } from '../../core/http';
 import { CaptureService } from './capture.service';
 
@@ -74,5 +74,63 @@ describe('CaptureService', () => {
       );
     await expect(saved).rejects.toBeInstanceOf(ApiError);
     expect(notifications.error).toHaveBeenCalledTimes(1);
+  });
+
+  describe('readLater', () => {
+    const URL_TEXT = 'https://example.org/articles/slow-web';
+
+    it('posts a read-later bookmark with the description and resolves with it', async () => {
+      const created = {
+        id: ID,
+        url: URL_TEXT,
+        readLater: true,
+        description: 'From the newsletter',
+      } as unknown as BookmarkResponse;
+      const saved = service.readLater(URL_TEXT, 'From the newsletter');
+      const req = http.expectOne({ method: 'POST', url: '/api/v1/bookmarks' });
+      expect(req.request.body).toEqual({
+        url: URL_TEXT,
+        readLater: true,
+        description: 'From the newsletter',
+      });
+      // A failed save is shown to the user (the dialog relies on the interceptor's toast).
+      expect(req.request.context.get(SILENT_ERRORS)).toBe(false);
+      req.flush(created);
+      await expect(saved).resolves.toEqual(created);
+    });
+
+    it.each([undefined, ''])(
+      'leaves out a missing or empty description (%j)',
+      async (description) => {
+        const saved = service.readLater(URL_TEXT, description);
+        const req = http.expectOne({ method: 'POST', url: '/api/v1/bookmarks' });
+        expect(req.request.body).toEqual({ url: URL_TEXT, readLater: true });
+        expect('description' in req.request.body).toBe(false);
+        req.flush({ id: ID, url: URL_TEXT, readLater: true });
+        await saved;
+      },
+    );
+
+    it('sends no client id (POST /bookmarks has none)', async () => {
+      const saved = service.readLater(URL_TEXT);
+      const req = http.expectOne({ method: 'POST', url: '/api/v1/bookmarks' });
+      expect('id' in req.request.body).toBe(false);
+      req.flush({ id: ID, url: URL_TEXT, readLater: true });
+      await saved;
+    });
+
+    it('a failed bookmark save rejects and is shown to the user', async () => {
+      const saved = service.readLater(URL_TEXT);
+      http.expectOne('/api/v1/bookmarks').flush(
+        { title: 'Bad Request', status: 400, detail: 'URL is not valid' },
+        {
+          status: 400,
+          statusText: 'Bad Request',
+          headers: { 'Content-Type': 'application/problem+json' },
+        },
+      );
+      await expect(saved).rejects.toBeInstanceOf(ApiError);
+      expect(notifications.error).toHaveBeenCalledTimes(1);
+    });
   });
 });

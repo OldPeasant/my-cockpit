@@ -3,7 +3,8 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialogRef } from '@angular/material/dialog';
 import { CapturePreviewResponse, FileResponse, TaskResponse } from '../../api/generated';
 import { NotificationService, provideHttp, SILENT_ERRORS } from '../../core/http';
-import { CaptureDialog, PREVIEW_DEBOUNCE_MS } from './capture-dialog';
+import { bookmark } from '../bookmarks/testing';
+import { CaptureDialog, isSingleUrl, PREVIEW_DEBOUNCE_MS } from './capture-dialog';
 
 const UUIDV7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -926,6 +927,202 @@ describe('CaptureDialog', () => {
     });
   });
 
+  describe('read later', () => {
+    const URL_TEXT = 'https://example.org/articles/slow-web';
+    const radio = (value: 'inbox' | 'readLater') =>
+      el().querySelector<HTMLInputElement>(`.destination input[value="${value}"]`);
+
+    function choose(value: 'inbox' | 'readLater'): void {
+      const input = radio(value)!;
+      input.checked = true;
+      input.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+    }
+
+    function expectBookmark() {
+      return http.expectOne((r) => r.method === 'POST' && r.url === '/api/v1/bookmarks');
+    }
+
+    it('offers no choice for text that is not a single URL', () => {
+      for (const text of [
+        'Call plumber',
+        `${URL_TEXT} later`,
+        'example.org',
+        'ftp://example.org/a',
+      ]) {
+        type(text);
+        expect(el().querySelector('.destination')).toBeNull();
+      }
+      expect(saveButton().textContent?.trim()).toBe('Save to Inbox');
+    });
+
+    it('offers Inbox (chosen) or Read later for a single URL', () => {
+      type(`  ${URL_TEXT} `);
+      const group = el().querySelector('.destination')!;
+      expect(group.getAttribute('role')).toBe('radiogroup');
+      expect(group.getAttribute('aria-label')).toBe('Save to');
+      expect([...group.querySelectorAll('label')].map((l) => l.textContent?.trim())).toEqual([
+        'Inbox',
+        'Read later',
+      ]);
+      expect(radio('inbox')!.checked).toBe(true);
+      expect(radio('readLater')!.checked).toBe(false);
+    });
+
+    it('still captures a URL to the Inbox by default', async () => {
+      type(URL_TEXT);
+      press('Enter');
+      expect(expectCapture().request.body).toEqual({
+        id: expect.stringMatching(UUIDV7),
+        text: URL_TEXT,
+      });
+      await settle();
+    });
+
+    it('Read later saves a read-later bookmark with the notes as description, then closes', async () => {
+      type(URL_TEXT);
+      type('From the newsletter', notesField());
+      choose('readLater');
+      expect(saveButton().textContent?.trim()).toBe('Save to Read later');
+      expect(el().querySelector('.preview .hint')?.textContent?.trim()).toBe(
+        'Saved as a bookmark in Read later; the title comes from the page.',
+      );
+      press('Enter');
+      http.expectNone('/api/v1/capture');
+      const req = expectBookmark();
+      expect(req.request.body).toEqual({
+        url: URL_TEXT,
+        readLater: true,
+        description: 'From the newsletter',
+      });
+      const saved = bookmark('b1', { url: URL_TEXT });
+      req.flush(saved);
+      await settle();
+      expect(close).toHaveBeenCalledWith(saved);
+      expect(notifications.info).toHaveBeenCalledWith('Saved to Read later');
+    });
+
+    it('leaves out empty notes and can switch back to the Inbox', async () => {
+      type(URL_TEXT);
+      choose('readLater');
+      choose('inbox');
+      expect(saveButton().textContent?.trim()).toBe('Save to Inbox');
+      choose('readLater');
+      saveButton().click();
+      expect(expectBookmark().request.body).toEqual({ url: URL_TEXT, readLater: true });
+      await settle();
+    });
+
+    it('Shift+Enter keeps the dialog open and the choice for the next URL', async () => {
+      type(URL_TEXT);
+      choose('readLater');
+      press('Enter', { shiftKey: true });
+      expectBookmark().flush(bookmark('b1'));
+      await settle();
+      expect(close).not.toHaveBeenCalled();
+      expect(textField().value).toBe('');
+      expect(el().querySelector('.destination')).toBeNull();
+      expect(el().querySelector('.count')?.textContent?.trim()).toBe('1 item captured');
+
+      type('https://example.org/second');
+      expect(radio('readLater')!.checked).toBe(true);
+      press('Enter');
+      expect(expectBookmark().request.body.url).toBe('https://example.org/second');
+      await settle();
+    });
+
+    it('a text that is no longer a single URL goes to the Inbox again', async () => {
+      type(URL_TEXT);
+      choose('readLater');
+      type(`${URL_TEXT} #Reading`);
+      expect(el().querySelector('.destination')).toBeNull();
+      press('Enter');
+      expect(expectCapture().request.body.text).toBe(`${URL_TEXT} #Reading`);
+      await settle();
+    });
+
+    it('is not offered while a file is attached (a bookmark has no files)', async () => {
+      type(URL_TEXT);
+      choose('readLater');
+      const paste = new Event('paste', { cancelable: true }) as ClipboardEvent;
+      const file = new File(['x'], 'scan.pdf');
+      Object.defineProperty(paste, 'clipboardData', {
+        value: { files: Object.assign([file], { item: () => file }) },
+      });
+      el().querySelector<HTMLElement>('.capture')!.dispatchEvent(paste);
+      fixture.detectChanges();
+      expect(el().querySelector('.destination')).toBeNull();
+      expect(saveButton().textContent?.trim()).toBe('Save to Inbox');
+      expectUpload('scan.pdf').flush(stored('scan.pdf', FILE_A));
+      await settle();
+      press('Enter');
+      expect(expectCapture().request.body).toMatchObject({ text: URL_TEXT, fileIds: [FILE_A] });
+      await settle();
+    });
+
+    it('Ctrl+Enter in the notes saves to Read later too', async () => {
+      type(URL_TEXT);
+      choose('readLater');
+      type('Long read', notesField());
+      press('Enter', { ctrlKey: true }, notesField());
+      http.expectNone('/api/v1/capture');
+      expect(expectBookmark().request.body).toEqual({
+        url: URL_TEXT,
+        readLater: true,
+        description: 'Long read',
+      });
+      await settle();
+    });
+
+    it('sends the bookmark once while its save is still running', async () => {
+      type(URL_TEXT);
+      choose('readLater');
+      press('Enter');
+      press('Enter');
+      saveButton().click();
+      const req = expectBookmark();
+      req.flush(bookmark('b1', { url: URL_TEXT }));
+      await settle();
+      expect(close).toHaveBeenCalledTimes(1);
+    });
+
+    it('Shift+Enter clears the saved notes as well, and keeps notes typed while saving', async () => {
+      type(URL_TEXT);
+      choose('readLater');
+      type('First note', notesField());
+      press('Enter', { shiftKey: true });
+      const req = expectBookmark();
+      type('Typed meanwhile', notesField());
+      req.flush(bookmark('b1'));
+      await settle();
+      expect(notesField().value).toBe('Typed meanwhile');
+      expect(textField().value).toBe('');
+      expect(notifications.info).toHaveBeenCalledWith('Saved to Read later');
+    });
+
+    it('keeps the URL after a failed bookmark save, for a retry', async () => {
+      type(URL_TEXT);
+      choose('readLater');
+      press('Enter');
+      expectBookmark().flush(
+        { title: 'Bad URL', status: 400 },
+        {
+          status: 400,
+          statusText: 'Bad Request',
+          headers: { 'Content-Type': 'application/problem+json' },
+        },
+      );
+      await settle();
+      expect(close).not.toHaveBeenCalled();
+      expect(textField().value).toBe(URL_TEXT);
+      expect(radio('readLater')!.checked).toBe(true);
+      press('Enter');
+      expectBookmark().flush(bookmark('b1'));
+      await settle();
+      expect(close).toHaveBeenCalled();
+    });
+  });
+
   it('Cancel closes without saving', () => {
     el().querySelector<HTMLButtonElement>('button.quiet')!.click();
     expect(close).toHaveBeenCalledWith();
@@ -969,5 +1166,23 @@ describe('CaptureDialog outside a MatDialog', () => {
     expect(notifications.info).toHaveBeenCalledWith('Captured to Inbox: Water the plants');
 
     expect(() => el.querySelector<HTMLButtonElement>('button.quiet')!.click()).not.toThrow();
+  });
+});
+
+describe('isSingleUrl', () => {
+  it.each([
+    ['https://example.org', true],
+    ['http://example.org/a?b=c#d', true],
+    ['HTTPS://Example.org/Path', true],
+    ['https://example.org/a b', false],
+    ['https://', false],
+    // Looks like a URL to the pattern, but the URL parser rejects it.
+    ['https://[::1', false],
+    ['example.org', false],
+    ['mailto:anna@example.org', false],
+    ['javascript:alert(1)', false],
+    ['', false],
+  ])('%j -> %s', (text, expected) => {
+    expect(isSingleUrl(text)).toBe(expected);
   });
 });

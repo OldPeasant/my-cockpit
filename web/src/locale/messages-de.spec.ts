@@ -144,6 +144,45 @@ describe('German translations (messages.de.xlf)', () => {
     expect(german.get('gtd.undo.deleted')?.targetPlaceholders).toEqual(['title']);
   });
 
+  it('has the read-later capture and Android app messages in English and German (web-small-gaps)', () => {
+    const ids = [
+      'capture.destinationLabel',
+      'capture.destinationInbox',
+      'capture.destinationReadLater',
+      'capture.readLaterHint',
+      'capture.save',
+      'capture.saveReadLater',
+      'capture.savedReadLater',
+      'settings.androidApp',
+      'settings.androidApp.hint',
+      'settings.androidApp.loading',
+      'settings.androidApp.none',
+      'settings.androidApp.failed',
+      'settings.androidApp.version',
+      'settings.androidApp.versionUnknown',
+      'settings.androidApp.details',
+      'settings.androidApp.download',
+      'settings.retry',
+    ];
+    expect(ids.filter((id) => !english.has(id))).toEqual([]);
+    expect(ids.filter((id) => !german.get(id)?.target?.trim())).toEqual([]);
+    // The German text is a translation, not the English text copied over.
+    const copied = ids.filter(
+      (id) =>
+        !['settings.androidApp.version'].includes(id) &&
+        german.get(id)?.target?.trim() === english.get(id)?.source.trim(),
+    );
+    expect(copied).toEqual([]);
+    // The version and the size/date details keep their interpolations.
+    expect(german.get('settings.androidApp.version')?.targetPlaceholders).toEqual([
+      'INTERPOLATION',
+    ]);
+    expect(german.get('settings.androidApp.details')?.targetPlaceholders).toEqual([
+      'INTERPOLATION',
+      'INTERPOLATION_1',
+    ]);
+  });
+
   it('keeps the quick-capture due keywords the parser accepts (SPEC.md: !today, !tomorrow)', () => {
     // The parser (server CaptureParser) only understands the English keywords, so a hint that
     // shows a translated keyword teaches syntax that silently does nothing.

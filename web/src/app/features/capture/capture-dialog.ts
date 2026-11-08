@@ -21,6 +21,19 @@ import { uuidv7 } from './uuidv7';
 /** How long typing must pause before the syntax preview is requested. */
 export const PREVIEW_DEBOUNCE_MS = 250;
 
+/** Where a capture goes: a task in the Inbox, or (a single URL only) a bookmark in Read later. */
+export type CaptureDestination = 'inbox' | 'readLater';
+
+/** Whether `text` (trimmed) is exactly one absolute http(s) URL, which can go to Read later. */
+export function isSingleUrl(text: string): boolean {
+  if (!/^https?:\/\/\S+$/i.test(text)) return false;
+  try {
+    return Boolean(new URL(text).hostname);
+  } catch {
+    return false;
+  }
+}
+
 interface PreviewResult {
   readonly text: string;
   readonly response: CapturePreviewResponse;
@@ -32,6 +45,8 @@ interface PreviewResult {
  * root right away; the capture links the uploaded ones (`fileIds`), so saving waits until none is
  * still uploading or failed (the user retries or removes a failed one).
  * Enter saves to the Inbox and closes, Shift+Enter saves and keeps the dialog open for the next one.
+ * A single URL without attachments can go to Read later instead (a bookmark, its notes as the
+ * description); the choice is kept for the next capture of the open dialog.
  *
  * Every draft has a client-generated UUIDv7 id: a failed save that is retried reuses it, so the
  * server never creates the item twice. A save that is still running ignores further submits.
@@ -41,7 +56,7 @@ interface PreviewResult {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [DatePipe],
   templateUrl: './capture-dialog.html',
-  styleUrl: './capture-dialog.scss',
+  styleUrls: ['./capture-dialog.scss', './capture-destination.scss'],
 })
 export class CaptureDialog {
   private readonly captures = inject(CaptureService);
@@ -62,6 +77,16 @@ export class CaptureDialog {
   );
   protected readonly saving = signal(false);
   protected readonly dragging = signal(false);
+  /** The chosen destination; only used while `readLaterOffered`. */
+  protected readonly destination = signal<CaptureDestination>('inbox');
+  /** Read later takes one URL and no attachments (a bookmark has no files). */
+  protected readonly readLaterOffered = computed(
+    () => this.files().length === 0 && isSingleUrl(this.text().trim()),
+  );
+  /** Whether saving now creates a read-later bookmark instead of an Inbox task. */
+  protected readonly toReadLater = computed(
+    () => this.readLaterOffered() && this.destination() === 'readLater',
+  );
   /** Captures saved while the dialog stayed open (Shift+Enter). */
   protected readonly savedCount = signal(0);
 
@@ -136,7 +161,8 @@ export class CaptureDialog {
   }
 
   /**
-   * Saves the draft to the Inbox; with `keepOpen` the dialog is cleared for the next capture.
+   * Saves the draft to the Inbox (or Read later, see `toReadLater`); with `keepOpen` the dialog is
+   * cleared for the next capture.
    * Returns whether a capture was saved.
    */
   async submit(keepOpen = false): Promise<boolean> {
@@ -147,16 +173,26 @@ export class CaptureDialog {
     const rawNotes = this.notes();
     const files = this.files();
     const fileIds = files.flatMap((job) => job.result()?.id ?? []);
+    const readLater = this.toReadLater();
     try {
       const notes = rawNotes.trim();
-      const task = await this.captures.save({
-        id: this.draftId,
-        text,
-        ...(notes ? { notes } : {}),
-        ...(fileIds.length ? { fileIds } : {}),
-      });
-      this.draftId = uuidv7();
-      this.notifications.info($localize`:@@capture.saved:Captured to Inbox: ${task.title}:title:`);
+      let saved: unknown;
+      if (readLater) {
+        saved = await this.captures.readLater(text, notes || undefined);
+        this.notifications.info($localize`:@@capture.savedReadLater:Saved to Read later`);
+      } else {
+        const task = await this.captures.save({
+          id: this.draftId,
+          text,
+          ...(notes ? { notes } : {}),
+          ...(fileIds.length ? { fileIds } : {}),
+        });
+        saved = task;
+        this.draftId = uuidv7();
+        this.notifications.info(
+          $localize`:@@capture.saved:Captured to Inbox: ${task.title}:title:`,
+        );
+      }
       if (keepOpen) {
         // Clear only what was saved: input added while the save ran is the next capture.
         if (this.text() === rawText) this.text.set('');
@@ -165,7 +201,7 @@ export class CaptureDialog {
         this.savedCount.update((n) => n + 1);
         this.textField().nativeElement.focus();
       } else {
-        this.dialogRef?.close(task);
+        this.dialogRef?.close(saved);
       }
       return true;
     } catch {
