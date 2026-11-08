@@ -105,15 +105,18 @@ class PageFetcherSizeLimitTests {
 		outcomes.groupingBy { it }.eachCount() shouldBe mapOf("$MAX bytes" to REPEATS)
 	}
 
+	/**
+	 * Two fetches: WireMock records the first request of an h2c upgrade as HTTP/1.1 even when the JDK client then
+	 * talks HTTP/2, only the next request on that connection shows up as HTTP/2.0. One fetch alone would pass with
+	 * an HTTP/2 client too.
+	 */
 	@Test
 	fun `pages are fetched over HTTP 1_1, not HTTP 2, so a cancelled download cannot break a shared connection`() {
 		stub("/page", "<title>Page</title>".toByteArray())
 
-		fetcher.fetch(local("/page"))
+		repeat(2) { fetcher.fetch(local("/page")) }
 
-		server.allServeEvents
-			.single()
-			.request.protocol shouldBe "HTTP/1.1"
+		server.allServeEvents.map { it.request.protocol } shouldBe listOf("HTTP/1.1", "HTTP/1.1")
 	}
 
 	@Test
