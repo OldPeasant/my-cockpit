@@ -14,7 +14,8 @@ Android cannot create a project (only inside inbox "To project → New") nor edi
 `projects-page.html:5`, `project-form.html`). Parity decided by the owner 2026-11-08 (see docs/PARITY.md).
 
 ## Acceptance criteria
-- [ ] The Projects screen has a "New project" FAB/action: title (required), area (pick an existing area), due date, review date, description
+- [x] The Projects screen has a "New project" FAB/action: title (required), area (pick an existing area), due date, review date, description
+  - verified (2026-11-08 12:29+0100 by dell26/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.projects.*' at 0a2ecdbf8 -> BUILD SUCCESSFUL; ProjectsScreenTest 'the list header's plus opens a new project, offline it is disabled', 'the new project form has no status, asks for a missing title, and saves or cancels', 'an area can be picked from the known areas', date-picker tests and ProjectsViewModelTest create tests pass (Add icon action instead of a FAB, see assumption)
 - [ ] Project detail has Edit: title, status (active/someday/on hold/completed/dropped), area, due date, review date; completing or dropping from a menu asks for confirmation if open tasks remain (same rule as web)
 - [ ] The description is rendered as Markdown and can be edited (edit/preview), using the existing Android Markdown renderer from notes
 - [ ] Deleting a project: menu action with confirmation, tasks handled like on the server's delete-reassign rules (`gtd-delete-reassign`)
