@@ -12,7 +12,8 @@ On Android a task can only be added to a project as "next step" inside the choos
 "Add task" field on project detail (`project-detail-page.html:186-205`) and reordering (`:124-138`).
 
 ## Acceptance criteria
-- [ ] Project detail has an "Add task" field/button that creates a Next task in the project (quick entry, stays open for several tasks); optional "make it the next step"
+- [x] Project detail has an "Add task" field/button that creates a Next task in the project (quick entry, stays open for several tasks); optional "make it the next step"
+  - verified (2026-11-08 13:15+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests '*gtd.projects*' (HEAD e14b996c3) -> 228 tests, 0 failures; ProjectTaskListTest 'the add field adds a task with the button and with the keyboard, and stays open', 'a project without a next step does not offer the choice...', ProjectsViewModelTest add/next-step tests, ProjectWorkRepositoryTest create-in-project tests pass
 - [ ] Tasks can be reordered with long-press drag (with accessibility actions "move up/down"); the order is saved like on web
 - [ ] A task row opens task detail; tasks of other lists (Waiting/Someday/Scheduled) keep their list label
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
