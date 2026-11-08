@@ -92,14 +92,29 @@ sealed interface ProjectConfirm {
     ) : ProjectConfirm
 }
 
-/** How a change on the project titled [title] went. */
+/**
+ * How a change on the project titled [title] went; for [Kind.TASK_ADDED] and an announced [Kind.MOVED] [title] is the
+ * task's, and a move says where it went: [position] (from 1) of [count].
+ */
 data class ProjectMessage(
     val kind: Kind,
     val title: String,
     val outcome: ActionOutcome,
+    val position: Int = 0,
+    val count: Int = 0,
 ) {
-    enum class Kind { CREATED, SAVED, COMPLETED, DROPPED, REACTIVATED, DELETED }
+    enum class Kind { CREATED, SAVED, COMPLETED, DROPPED, REACTIVATED, DELETED, TASK_ADDED, MOVED }
 }
+
+/**
+ * A task the detail's "Add task" created in [projectId] from the text [title]: the field clears when it still holds that
+ * text. [seq] tells apart two tasks added with the same title.
+ */
+data class AddedTask(
+    val projectId: UUID,
+    val title: String,
+    val seq: Long,
+)
 
 data class ProjectDetailState(
     val project: GtdProject,
@@ -110,6 +125,8 @@ data class ProjectDetailState(
     val error: LoadError? = null,
     val loaded: Boolean = false,
     val prompt: NextStepPrompt? = null,
+    /** The task "Add task" created last in this project, so the field can clear. */
+    val added: AddedTask? = null,
 ) {
     /** The open task that is the project's next step, if any. */
     val nextStep: GtdTask? get() = tasks.firstOrNull { it.id == project.nextTaskId }
@@ -184,6 +201,11 @@ class ProjectsViewModel internal constructor(
     private val form = MutableStateFlow<ProjectFormState?>(null)
     private val confirm = MutableStateFlow<ProjectConfirm?>(null)
     private val projectMessage = MutableStateFlow<ProjectMessage?>(null)
+    private val added = MutableStateFlow<AddedTask?>(null)
+    private var addedSeq = 0L
+
+    /** The order the user gave the project's tasks, shown until the server has it (or refused it). */
+    private val pendingOrder = MutableStateFlow<PendingOrder?>(null)
 
     /** Counts the forms opened and closed: a save only applies its result to the form it was started from. */
     private var formSession = 0L
@@ -195,7 +217,12 @@ class ProjectsViewModel internal constructor(
     private val projectTasks: Flow<Live<List<GtdTask>>?> =
         selected
             .flatMapLatest { id -> if (id == null) flowOf(null) else lists.observeProject(id, reloads) }
-            .onEach { live -> if (live?.error == null) live?.data?.let(::forgetCompleted) }
+            .onEach { live ->
+                val loaded = live?.data?.takeIf { live.error == null } ?: return@onEach
+                forgetCompleted(loaded)
+                // A load after the order was saved holds it: the server's order is shown from now on.
+                pendingOrder.update { if (it?.saved == true) null else it }
+            }
 
     private val view =
         combine(projects.observe(), work.observeAreas(reloads), contexts.observe(), showFinished, selected) { p, a, c, finished, id ->
@@ -219,7 +246,8 @@ class ProjectsViewModel internal constructor(
             form,
             confirm,
             projectMessage,
-        ) { l, f, c, m -> l.copy(form = f, confirm = c, projectMessage = m) }
+            combine(added, pendingOrder, ::Pair),
+        ) { l, f, c, m, (a, o) -> l.copy(form = f, confirm = c, projectMessage = m, added = a, order = o) }
 
     val uiState: StateFlow<ProjectsUiState> =
         combine(view, projectTasks, local) { v, tasks, l ->
@@ -237,11 +265,17 @@ class ProjectsViewModel internal constructor(
                         ProjectDetailState(
                             project = it,
                             area = v.areas?.firstOrNull { area -> area.id == it.areaId },
-                            tasks = tasks?.data.orEmpty().filterNot { task -> task.id in l.completed },
+                            tasks =
+                                tasks
+                                    ?.data
+                                    .orEmpty()
+                                    .filterNot { task -> task.id in l.completed }
+                                    .inOrder(l.order?.takeIf { o -> o.projectId == it.id }?.taskIds),
                             loading = tasks?.loading ?: true,
                             error = tasks?.error,
                             loaded = tasks?.data != null,
                             prompt = l.prompt?.takeIf { p -> p.projectId == it.id },
+                            added = l.added?.takeIf { a -> a.projectId == it.id },
                         )
                     },
                 contexts = v.contexts,
@@ -498,6 +532,73 @@ class ProjectsViewModel internal constructor(
         }
     }
 
+    /**
+     * "Add task": adds a next action titled [title] at the end of the open project; it becomes the next step when
+     * [makeNext], or when the project has none (like on web). Once the task exists the field clears
+     * ([ProjectDetailState.added]), also when making it the next step failed, so submitting again does not add it twice.
+     */
+    fun addTask(
+        title: String,
+        makeNext: Boolean,
+    ) {
+        val project = uiState.value.detail?.project ?: return
+        val trimmed = title.trim()
+        if (trimmed.isEmpty()) return
+        run(project.id) {
+            val result = work.addTask(project, trimmed, makeNext)
+            if (result.taskId != null) added.value = AddedTask(project.id, trimmed, ++addedSeq)
+            projectMessage.value = ProjectMessage(ProjectMessage.Kind.TASK_ADDED, trimmed, result.outcome)
+        }
+    }
+
+    /** Saves [taskIds] (the open project's open tasks, dragged into a new order) as its order. */
+    fun reorder(taskIds: List<UUID>) = saveOrder(taskIds, moved = null)
+
+    /** Moves [task] [by] places (-1: up, 1: down) in the open project's order (the accessibility actions), and says where to. */
+    fun move(
+        task: GtdTask,
+        by: Int,
+    ) {
+        val ids =
+            uiState.value.detail
+                ?.tasks
+                ?.map { it.id } ?: return
+        val from = ids.indexOf(task.id)
+        val to = from + by
+        if (from < 0 || to !in ids.indices) return
+        saveOrder(ids.toMutableList().apply { add(to, removeAt(from)) }, moved = task)
+    }
+
+    /**
+     * Shows [taskIds] as the order at once and saves it; a refused order goes back to the server's. With [moved] the
+     * message says where that task went; after a drag, which shows where it went, only a failure is told.
+     */
+    private fun saveOrder(
+        taskIds: List<UUID>,
+        moved: GtdTask?,
+    ) {
+        val detail = uiState.value.detail ?: return
+        if (uiState.value.readOnly || taskIds == detail.tasks.map { it.id }) return
+        val pending = PendingOrder(detail.project.id, taskIds)
+        pendingOrder.value = pending
+        viewModelScope.launch {
+            val outcome = work.reorder(pending.projectId, taskIds)
+            pendingOrder.update { current ->
+                when {
+                    current == null || current !== pending -> current
+                    outcome == ActionOutcome.DONE -> current.copy(saved = true)
+                    else -> null
+                }
+            }
+            if (moved != null || outcome != ActionOutcome.DONE) {
+                val title = moved?.title ?: detail.project.title
+                val position = moved?.let { taskIds.indexOf(it.id) + 1 } ?: 0
+                projectMessage.value = ProjectMessage(ProjectMessage.Kind.MOVED, title, outcome, position, taskIds.size)
+            }
+            reloads.tryEmit(Unit)
+        }
+    }
+
     fun choose() {
         val id = selected.value ?: return
         prompt.value = NextStepPrompt(id)
@@ -554,11 +655,27 @@ class ProjectsViewModel internal constructor(
         val form: ProjectFormState? = null,
         val confirm: ProjectConfirm? = null,
         val projectMessage: ProjectMessage? = null,
+        val added: AddedTask? = null,
+        val order: PendingOrder? = null,
+    )
+
+    /** An order of [projectId]'s open tasks being saved; [saved]: the server has it, shown until the next load. */
+    private data class PendingOrder(
+        val projectId: UUID,
+        val taskIds: List<UUID>,
+        val saved: Boolean = false,
     )
 
     private companion object {
         const val STOP_TIMEOUT_MS = 5_000L
     }
+}
+
+/** The tasks in [order] (task ids), tasks not in it last; unchanged without one. */
+private fun List<GtdTask>.inOrder(order: List<UUID>?): List<GtdTask> {
+    if (order == null) return this
+    val rank = order.withIndex().associate { (index, id) -> id to index }
+    return sortedBy { rank[it.id] ?: order.size }
 }
 
 /** Whether a project is finished: the list hides these unless asked to show them. */

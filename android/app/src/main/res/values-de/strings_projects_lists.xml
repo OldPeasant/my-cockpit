@@ -110,6 +110,14 @@
     <string name="projects_reactivated">%1$s ist wieder aktiv</string>
     <string name="projects_deleted">%1$s in den Papierkorb verschoben</string>
     <string name="projects_message_conflict">%1$s wurde anderswo geändert und neu geladen. Versuche es erneut.</string>
+    <string name="projects_add_task">Neue Aufgabe</string>
+    <string name="projects_add_task_placeholder">Aufgabe hinzufügen…</string>
+    <string name="projects_add_task_button">Aufgabe hinzufügen</string>
+    <string name="projects_add_task_make_next">Zum nächsten Schritt machen</string>
+    <string name="projects_task_added">%1$s hinzugefügt</string>
+    <string name="projects_task_move_up">Nach oben verschieben</string>
+    <string name="projects_task_move_down">Nach unten verschieben</string>
+    <string name="projects_task_moved">„%1$s“ an Position %2$d von %3$d verschoben.</string>
 
     <!-- Logbuch: erledigte Aufgaben -->
     <string name="nav_logbook">Logbuch</string>

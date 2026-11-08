@@ -61,12 +61,10 @@ import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.gtd.data.GtdProject
 import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.data.ProjectStatus
-import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.gtd.lists.ActionSnackbar
 import ch.sonensei.cockpit.gtd.lists.ActionSnackbarEffect
 import ch.sonensei.cockpit.gtd.lists.Centered
 import ch.sonensei.cockpit.gtd.lists.LiveListTags
-import ch.sonensei.cockpit.gtd.lists.LiveTaskRow
 import ch.sonensei.cockpit.gtd.lists.LoadError
 import ch.sonensei.cockpit.gtd.lists.StaleBanner
 import ch.sonensei.cockpit.gtd.next.OfflineBanner
@@ -121,6 +119,12 @@ data class ProjectsCallbacks(
     val confirm: () -> Unit = {},
     val cancelConfirm: () -> Unit = {},
     val dismissProjectMessage: (ProjectMessage) -> Unit = {},
+    /** "Add task" on the detail: the title, and whether to make it the next step. */
+    val addTask: (String, Boolean) -> Unit = { _, _ -> },
+    /** The open tasks, dragged into a new order. */
+    val reorder: (List<UUID>) -> Unit = {},
+    /** Moves a task one place up (-1) or down (1). */
+    val move: (GtdTask, Int) -> Unit = { _, _ -> },
 ) {
     companion object {
         fun of(vm: ProjectsViewModel) =
@@ -146,6 +150,9 @@ data class ProjectsCallbacks(
                 confirm = vm::confirm,
                 cancelConfirm = vm::cancelConfirm,
                 dismissProjectMessage = vm::dismissProjectMessage,
+                addTask = vm::addTask,
+                reorder = vm::reorder,
+                move = vm::move,
             )
     }
 }
@@ -399,17 +406,9 @@ private fun ProjectDetail(
         if (detail.loaded && detail.error != null && (detail.error == LoadError.FAILED || !state.offline)) {
             StaleBanner(detail.error, callbacks.retry)
         }
+        AddTaskField(state, detail, callbacks)
         when {
-            detail.tasks.isNotEmpty() ->
-                LazyColumn(
-                    Modifier.fillMaxSize().testTag(LiveListTags.LIST),
-                    contentPadding = PaddingValues(bottom = LocalFabClearance.current),
-                ) {
-                    items(detail.tasks, key = { it.id }) { task ->
-                        ProjectTaskRow(state, detail, task, callbacks)
-                        HorizontalDivider()
-                    }
-                }
+            detail.tasks.isNotEmpty() -> ProjectTaskList(state, detail, callbacks)
             detail.loading -> Centered(stringResource(R.string.tasks_loading), LiveListTags.LOADING)
             detail.error != null && !detail.loaded ->
                 Column(
@@ -474,62 +473,6 @@ private fun NextStepLine(
         }
     }
 }
-
-@Composable
-private fun ProjectTaskRow(
-    state: ProjectsUiState,
-    detail: ProjectDetailState,
-    task: GtdTask,
-    callbacks: ProjectsCallbacks,
-) {
-    val isNext = task.id == detail.project.nextTaskId
-    val busy = task.id in state.busy
-    LiveTaskRow(
-        task = task,
-        readOnly = state.readOnly,
-        busy = busy,
-        onComplete = callbacks.complete,
-        overline =
-            if (isNext) {
-                {
-                    Text(
-                        stringResource(R.string.projects_next_step),
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.testTag(ProjectsTags.nextStepMarker(task.id)),
-                    )
-                }
-            } else {
-                null
-            },
-        supporting = listLabel(task.list)?.let { label -> { Text(label) } },
-        action =
-            if (isNext) {
-                null
-            } else {
-                {
-                    val label = stringResource(R.string.projects_make_next_step_label, task.title)
-                    IconButton(
-                        onClick = { callbacks.makeNextStep(task) },
-                        enabled = !state.readOnly && !busy,
-                        modifier = Modifier.testTag(ProjectsTags.makeNext(task.id)).semantics { contentDescription = label },
-                    ) {
-                        Icon(Icons.Outlined.Flag, contentDescription = null)
-                    }
-                }
-            },
-    )
-}
-
-/** Which list a project task is on, when it is not a plain next action. */
-@Composable
-private fun listLabel(list: TaskList): String? =
-    when (list) {
-        TaskList.NEXT -> null
-        TaskList.INBOX -> stringResource(R.string.projects_list_inbox)
-        TaskList.WAITING -> stringResource(R.string.nav_waiting)
-        TaskList.SOMEDAY -> stringResource(R.string.nav_someday)
-        TaskList.SCHEDULED -> stringResource(R.string.projects_list_scheduled)
-    }
 
 /** "Choose next step" (SPEC.md §5.2): pick an open task of the project, add a new one, or skip (stays stalled). */
 @Composable

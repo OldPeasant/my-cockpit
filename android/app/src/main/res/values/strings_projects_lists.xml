@@ -110,6 +110,14 @@
     <string name="projects_reactivated">%1$s is active again</string>
     <string name="projects_deleted">Moved %1$s to the Trash</string>
     <string name="projects_message_conflict">%1$s was changed elsewhere and has been reloaded. Try again.</string>
+    <string name="projects_add_task">New task</string>
+    <string name="projects_add_task_placeholder">Add a task…</string>
+    <string name="projects_add_task_button">Add task</string>
+    <string name="projects_add_task_make_next">Make it the next step</string>
+    <string name="projects_task_added">Added %1$s</string>
+    <string name="projects_task_move_up">Move up</string>
+    <string name="projects_task_move_down">Move down</string>
+    <string name="projects_task_moved">Moved “%1$s” to position %2$d of %3$d.</string>
 
     <!-- Logbook: done tasks -->
     <string name="nav_logbook">Logbook</string>

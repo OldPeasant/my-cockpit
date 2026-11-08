@@ -437,8 +437,8 @@ internal fun ProjectMessageEffect(
         if (message == null) return@LaunchedEffect
         val text =
             when (message.outcome) {
-                ActionOutcome.DONE ->
-                    resources.getString(
+                ActionOutcome.DONE -> {
+                    val done =
                         when (message.kind) {
                             ProjectMessage.Kind.CREATED -> R.string.projects_created
                             ProjectMessage.Kind.SAVED -> R.string.projects_saved
@@ -446,9 +446,11 @@ internal fun ProjectMessageEffect(
                             ProjectMessage.Kind.DROPPED -> R.string.projects_dropped
                             ProjectMessage.Kind.REACTIVATED -> R.string.projects_reactivated
                             ProjectMessage.Kind.DELETED -> R.string.projects_deleted
-                        },
-                        message.title,
-                    )
+                            ProjectMessage.Kind.TASK_ADDED -> R.string.projects_task_added
+                            ProjectMessage.Kind.MOVED -> R.string.projects_task_moved
+                        }
+                    resources.getString(done, message.title, message.position, message.count)
+                }
                 ActionOutcome.OFFLINE -> resources.getString(R.string.tasks_message_offline)
                 ActionOutcome.CONFLICT -> resources.getString(R.string.projects_message_conflict, message.title)
                 ActionOutcome.FAILED -> resources.getString(R.string.tasks_message_failed)

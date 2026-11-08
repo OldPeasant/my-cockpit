@@ -5,6 +5,7 @@ import ch.sonensei.cockpit.core.network.generated.apis.TasksApi
 import ch.sonensei.cockpit.core.network.generated.models.CreateProjectRequest
 import ch.sonensei.cockpit.core.network.generated.models.CreateTaskRequest
 import ch.sonensei.cockpit.core.network.generated.models.NextStepRequest
+import ch.sonensei.cockpit.core.network.generated.models.OrderTasksRequest
 import ch.sonensei.cockpit.gtd.data.ChangeTypes
 import ch.sonensei.cockpit.gtd.data.GtdConnectivity
 import ch.sonensei.cockpit.gtd.data.GtdProject
@@ -124,6 +125,42 @@ class ProjectWorkRepository
                 }
             return NextStepAdded(outcome, taskId)
         }
+
+        /**
+         * Adds a next action titled [title] at the end of [project]. It becomes the next step when [makeNext], and when the
+         * project (at its current version, after the task was added) is stalled: an active project without a next step gets
+         * it, like on web. [NextStepAdded.taskId] is set once the task exists, also when setting it as next step failed.
+         */
+        suspend fun addTask(
+            project: GtdProject,
+            title: String,
+            makeNext: Boolean,
+        ): NextStepAdded {
+            var taskId: UUID? = null
+            val outcome =
+                change(withTasks = true) {
+                    val id =
+                        body(
+                            tasksApi.createTask(
+                                CreateTaskRequest(title = title, list = CreateTaskRequest.List.NEXT, projectId = project.id),
+                            ),
+                        ).id.also { taskId = it }
+                    val current = body(projectsApi.getProject(project.id))
+                    if (makeNext || current.stalled) {
+                        body(projectsApi.setProjectNextStep(project.id, NextStepRequest(id), etag(current.version)))
+                    }
+                }
+            return NextStepAdded(outcome, taskId)
+        }
+
+        /**
+         * Saves [taskIds] (the project's open tasks) as the order of [projectId]'s tasks; the server puts its other tasks
+         * after them in their previous order.
+         */
+        suspend fun reorder(
+            projectId: UUID,
+            taskIds: List<UUID>,
+        ): ActionOutcome = change(withTasks = false) { body(projectsApi.orderProjectTasks(projectId, OrderTasksRequest(taskIds))) }
 
         /** Creates a project from [draft]. */
         suspend fun create(draft: ProjectDraft): ProjectCreated {
