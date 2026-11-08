@@ -22,7 +22,8 @@ fetcher uses a 1 s timeout in the test; find out whether cancelling at the limit
 - [x] `cd server && ./gradlew test --tests '*PageFetcherSizeLimitTests*'` passes 10 runs in a row
   - verified (2026-11-08 23:45+0100 by dell26/agent-1): sh .tmp/loop.sh (cd server; 10x ./gradlew test --tests '*PageFetcherSizeLimitTests*' --rerun -q, REPEATS=200) at 85d491a81 -> passed 10/10
   - verified (2026-11-08 23:51+0100 by dell26/agent-1): sh .tmp/loop.sh (cd server; 10x ./gradlew test --tests '*PageFetcherSizeLimitTests*' --rerun -q) at final code aa1cb2417 -> passed 10/10; mutation (.version(HTTP_1_1) commented out) -> protocol test fails ['HTTP/2.0','HTTP/2.0']
-- [ ] `sh scripts/check.sh` passes
+- [x] `sh scripts/check.sh` passes
+  - verified (2026-11-08 23:56+0100 by dell26/agent-1): sh scripts/check.sh at final code (aa1cb2417 + reports) -> all checks passed, exit 0
 
 ## Notes
 - ASSUMPTION (2026-11-08 23:45+0100 by dell26/agent-1): PageFetcher now forces HTTP/1.1: with HTTP/2 the per-fetch stream cancel on the shared connection made ~1 in 500 fetches fail (EOF reproduced at REPEATS=1000; TIMEOUT seen under load). Exact JDK-vs-Jetty mechanism not pinned down; HTTP/1.1 costs a new connection per truncated page, irrelevant for bookmark metadata
