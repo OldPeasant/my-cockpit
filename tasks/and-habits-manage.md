@@ -6,6 +6,7 @@ deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/habits,android/app/src/test/java/ch/sonensei/cockpit/habits,android/app/src/main/res/values/strings_habits.xml,android/app/src/main/res/values-de/strings_habits.xml]
 prio: 2
 lease_until: 2026-11-08T19:36:52Z
+extended: dell26/agent-3
 ---
 ## Goal
 Android can only check habits, and checks all-or-nothing (count = target) while web increments by one up to the
@@ -24,3 +25,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 19:23+0100 by dell26/agent-3): Edit/Archive live in a per-row overflow menu (both views); archived habits are shown without a check circle and cannot be checked; edits send all editable fields (like web requestOf), archive sends only {archived}. Writes use a hand-written JsonObject Retrofit API because the generated client sends unset fields as null, which the server's PATCH would apply.
 - ASSUMPTION (2026-11-08 19:23+0100 by dell26/agent-3): On a 404/409/412 for a save or archive the list is reloaded and the form stays open with a 'changed elsewhere' message; saving again overwrites with the reloaded version (same as web).
 - ASSUMPTION (2026-11-08 19:23+0100 by dell26/agent-3): Weekday chips are shown Monday-first rather than following the user's week-start setting (no Android week-start setting is available in the habits module yet).
+- extended by dell26/agent-3: Implementation of all 5 criteria is committed (68cf40b33). Left: (1) fixer for second review's CR-1 (P2: quiet conflict reload must not ++loadSeq, like web reloadQuietly; add VM test view-switch+conflict+second change) and CR-3 (Locale.getDefault in ReminderField); decide CR-2 (fix or record web-parity disposition); (2) re-run test-writer to finish and write reviews/and-habits-manage/tests.md with coverage (missing); (3) re-run code-reviewer on final code; (4) tasks.py verify 1-5 with gradle ktlintCheck testDebugUnitTest lintDebug + scripts/check.sh (check was still running at 10 min this session, machine was slow); (5) quality.json, commit, done.
