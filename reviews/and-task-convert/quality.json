@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "task": "and-task-convert",
+  "reviewed_revision": "c24989938df096a9436bd22fbb1701c427a00aca",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-task-convert/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-task-convert/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-task-convert/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (round 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "To calendar used the device zone instead of the synced user time zone"},
+    {"id": "CR-2 (round 1)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "older calendar-list answer could overwrite a newer one in the To calendar dialog"},
+    {"id": "CR-3 (round 1)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "task detail To reference converted without the confirmation the web asks for"},
+    {"id": "CR-4 (round 1)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "convert calls duplicated between TaskConverter and TaskDetailRepository"},
+    {"id": "CR-1 (round 2)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "Inbox: an older conversion answering last replaced the newer one's where-it-went snackbar"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
