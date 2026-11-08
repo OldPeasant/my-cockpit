@@ -312,4 +312,30 @@ class BookmarksAddReaderScreenTest {
         composeRule.onNodeWithTag(ReaderTags.ORIGINAL).assertTextContains("Original öffnen (example.org)")
         composeRule.onNodeWithContentDescription("Zurück zu den Lesezeichen").assertExists()
     }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `the row menu, the add button and the Inbox confirmations are translated to German`() {
+        var state by mutableStateOf(
+            BookmarksUiState(
+                bookmarks = listOf(article, notLater),
+                view = BookmarkView.ALL,
+                loaded = true,
+                snackbar = BookmarksSnackbar.AddedToInbox(linked = true, id = 1),
+            ),
+        )
+        composeRule.setContent { CockpitTheme { BookmarksContent(state, callbacks) } }
+
+        composeRule.onNodeWithContentDescription("Lesezeichen hinzufügen").assertExists()
+        composeRule.onNodeWithText("Zum Eingang hinzugefügt").assertExists()
+        composeRule.onNodeWithTag(BookmarksTags.menu(article.id)).performClick()
+        composeRule.onNodeWithTag(BookmarksTags.ACTION_READ_LATER).assertTextContains("Aus „Später lesen“ entfernen")
+        composeRule.onNodeWithTag(BookmarksTags.ACTION_OPEN_READER).assertTextContains("Gespeicherte Kopie lesen")
+        composeRule.onNodeWithTag(BookmarksTags.ACTION_INBOX).assertTextContains("Als Aufgabe in den Eingang").performClick()
+        composeRule.onNodeWithTag(BookmarksTags.menu(notLater.id)).performClick()
+        composeRule.onNodeWithTag(BookmarksTags.ACTION_READ_LATER).assertTextContains("Später lesen")
+
+        state = state.copy(snackbar = BookmarksSnackbar.AddedToInbox(linked = false, id = 2))
+        composeRule.onNodeWithText("Zum Eingang hinzugefügt, aber nicht mit dem Lesezeichen verknüpft").assertExists()
+    }
 }

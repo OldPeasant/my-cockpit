@@ -275,6 +275,51 @@ class BookmarksAddReaderViewModelTest {
             assertNull(vm.uiState.value.adding)
         }
 
+    @Test
+    fun `a saved bookmark joins a tag-filtered list only when it has the tag, regardless of case`() =
+        runTest(dispatcher) {
+            val cooking = bookmark(2, readLater = false).copy(tags = listOf("cooking"))
+            val reading =
+                bookmark(3, readLater = false, createdAt = Instant.parse("2026-10-02T09:00:00Z")).copy(tags = listOf("READING"))
+            coEvery { repo.list(BookmarkView.ALL, null) } returns BookmarksResult.Ok(emptyList())
+            coEvery { repo.list(BookmarkView.ALL, "reading") } returns BookmarksResult.Ok(listOf(bookmark(1)))
+            coEvery { repo.create(NewBookmark("https://example.org/2")) } returns BookmarksResult.Ok(cooking)
+            coEvery { repo.create(NewBookmark("https://example.org/3")) } returns BookmarksResult.Ok(reading)
+            val vm = viewModel()
+            vm.selectView(BookmarkView.ALL)
+            advanceUntilIdle()
+            vm.selectTag("reading")
+            advanceUntilIdle()
+
+            vm.startAdd()
+            vm.add(NewBookmark("https://example.org/2"))
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.adding)
+            assertEquals(listOf(id(1)), ids(vm))
+
+            vm.startAdd()
+            vm.add(NewBookmark("https://example.org/3"))
+            advanceUntilIdle()
+            assertEquals(listOf(id(3), id(1)), ids(vm))
+        }
+
+    @Test
+    fun `a saved bookmark the list already shows is replaced, not shown twice`() =
+        runTest(dispatcher) {
+            val again = bookmark(1, version = 2).copy(title = "Page 1 again", displayTitle = "Page 1 again")
+            coEvery { repo.list(BookmarkView.QUEUE, null) } returns BookmarksResult.Ok(listOf(bookmark(1)))
+            coEvery { repo.create(any()) } returns BookmarksResult.Ok(again)
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.startAdd()
+            vm.add(NewBookmark("https://example.org/1", readLater = true))
+            advanceUntilIdle()
+
+            assertEquals(listOf(again), vm.uiState.value.bookmarks)
+        }
+
     // --- Read later ---
 
     @Test
@@ -617,6 +662,47 @@ class BookmarksAddReaderViewModelTest {
             assertEquals(ReaderState(saved, snapshot = copy), vm.uiState.value.reading)
             assertEquals(listOf(saved), vm.uiState.value.bookmarks)
             coVerify(exactly = 1) { repo.saveSnapshot(any()) }
+        }
+
+    @Test
+    fun `a copy saved after the reader was left does not reopen it or change the reader of another bookmark`() =
+        runTest(dispatcher) {
+            val answer = CompletableDeferred<BookmarksResult<Bookmark?>>()
+            coEvery { repo.get(id(1)) } returns BookmarksResult.Ok(bookmark(1))
+            coEvery { repo.get(id(2)) } returns BookmarksResult.Ok(bookmark(2))
+            coEvery { repo.saveSnapshot(bookmark(1)) } coAnswers { answer.await() }
+            val vm = viewModel()
+            vm.openReader(bookmark(1))
+            advanceUntilIdle()
+
+            vm.saveSnapshot()
+            runCurrent()
+            vm.closeReader()
+            answer.complete(BookmarksResult.Ok(bookmark(1, version = 2, snapshotFileId = id(90))))
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.reading)
+
+            vm.openReader(bookmark(2))
+            advanceUntilIdle()
+            assertEquals(ReaderState(bookmark(2)), vm.uiState.value.reading)
+            coVerify(exactly = 0) { repo.snapshot(any()) }
+        }
+
+    @Test
+    fun `a new copy that cannot be loaded after saving says why and keeps the saved bookmark`() =
+        runTest(dispatcher) {
+            val saved = bookmark(1, version = 2, snapshotFileId = id(90))
+            coEvery { repo.get(id(1)) } returns BookmarksResult.Ok(bookmark(1))
+            coEvery { repo.saveSnapshot(bookmark(1)) } returns BookmarksResult.Ok(saved)
+            coEvery { repo.snapshot(id(90)) } returns BookmarksResult.Offline
+            val vm = viewModel()
+            vm.openReader(bookmark(1))
+            advanceUntilIdle()
+
+            vm.saveSnapshot()
+            advanceUntilIdle()
+
+            assertEquals(ReaderState(saved, failure = ReaderFailure.OFFLINE), vm.uiState.value.reading)
         }
 
     @Test
