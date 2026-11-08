@@ -180,4 +180,30 @@ class EventFormExtrasTest {
         assertTrue(zonesMatching("zurich").all { it.contains("zurich", ignoreCase = true) })
         assertEquals(emptyList<String>(), zonesMatching("Atlantis/Nowhere"))
     }
+
+    @Test
+    fun `the invitation prompt sends only over a loaded account, with someone to tell, and not twice`() {
+        val account = MailAccount(UUID.fromString("00000000-0000-7000-8000-000000000070"), "Work mail", "me@example.org")
+        val ready =
+            InvitationUiState(
+                eventId = id,
+                title = "Planning",
+                recipients = listOf("ada@example.org"),
+                removed = emptyList(),
+                afterSave = true,
+                accounts = listOf(account),
+                accountId = account.id,
+            )
+        assertTrue(ready.canSend)
+        // No account picked, accounts still loading, or the picked one is not among them.
+        assertFalse(ready.copy(accountId = null).canSend)
+        assertFalse(ready.copy(accounts = null).canSend)
+        assertFalse(ready.copy(accountId = id).canSend)
+        assertFalse(ready.copy(sending = true).canSend)
+        // Only removed guests: sent when they are to be told, nothing to send otherwise.
+        val onlyRemoved = ready.copy(recipients = emptyList(), removed = listOf("bob@example.org"))
+        assertTrue(onlyRemoved.canSend)
+        assertFalse(onlyRemoved.copy(tellRemoved = false).canSend)
+        assertFalse(ready.copy(recipients = emptyList()).canSend)
+    }
 }

@@ -424,6 +424,19 @@ class EventEditorExtrasScreenTest {
     }
 
     @Test
+    fun `a links reload keeps the shown items, and nothing is created while the event saves`() {
+        val item = LinkedItem(id(60), LinkedType.NOTE, id(61), "Minutes", null)
+        val update = show(editable.copy(links = LinksUiState(loading = true, items = listOf(item))))
+        assertInside(EventEditorTags.link(id(60).toString()), "Minutes")
+        composeRule.onNodeWithText("Loading linked items…").assertDoesNotExist()
+        composeRule.onNodeWithTag(EventEditorTags.CREATE_TASK).performScrollTo().assertIsEnabled()
+
+        update(editable.copy(saving = true, links = LinksUiState(items = listOf(item))))
+        composeRule.onNodeWithTag(EventEditorTags.CREATE_TASK).performScrollTo().assertIsNotEnabled()
+        composeRule.onNodeWithTag(EventEditorTags.CREATE_NOTE).assertIsNotEnabled()
+    }
+
+    @Test
     fun `a new event has no links panel`() {
         show(editable.copy(creating = true))
         composeRule.onNodeWithTag(EventEditorTags.LINKS).assertDoesNotExist()
