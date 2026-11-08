@@ -197,6 +197,50 @@ class MailReadNavigationInAppTest {
     }
 
     @Test
+    fun `moving a mail to spam shows the next one`() {
+        coEvery { reader.act(id(2), MailListAction.SPAM) } returns MailResult.Ok(MailActionOutcome(true))
+        openMail()
+        read(2)
+
+        composeRule.onNodeWithTag(MailReadTags.action(MailListAction.SPAM)).performClick()
+        waitForSubject(3)
+        composeRule.onNodeWithTag(MailReadTags.POSITION).assertTextEquals("2 of 2")
+
+        systemBack()
+        waitFor(MailListTags.row(id(3)))
+        composeRule.onNodeWithTag(MailListTags.row(id(2))).assertDoesNotExist()
+    }
+
+    @Test
+    fun `deleting the last mail of the mailbox returns to the list`() {
+        coEvery { reader.act(id(3), MailListAction.DELETE) } returns MailResult.Ok(MailActionOutcome(true))
+        openMail()
+        read(3)
+        composeRule.onNodeWithTag(MailReadTags.NEXT).assertIsNotEnabled()
+
+        composeRule.onNodeWithTag(MailReadTags.action(MailListAction.DELETE)).performClick()
+        waitFor(MailListTags.LIST)
+        composeRule.onNodeWithTag(MailReadTags.SUBJECT).assertDoesNotExist()
+        composeRule.onNodeWithTag(MailListTags.row(id(3))).assertDoesNotExist()
+        composeRule.onNodeWithTag(MailListTags.row(id(2))).assertExists()
+    }
+
+    @Test
+    fun `deleting the last search result returns to the same search`() {
+        coEvery { reader.act(id(6), MailListAction.DELETE) } returns MailResult.Ok(MailActionOutcome(true))
+        openMail()
+        searchInvoice()
+        read(6)
+
+        composeRule.onNodeWithTag(MailReadTags.action(MailListAction.DELETE)).performClick()
+        waitFor(MailListTags.SEARCH_RESULTS)
+        composeRule.onNodeWithTag(MailReadTags.SUBJECT).assertDoesNotExist()
+        composeRule.onNodeWithTag(MailListTags.SEARCH_FIELD).assertTextContains("invoice")
+        composeRule.onNodeWithTag(MailListTags.row(id(5))).assertExists()
+        composeRule.onNodeWithTag(MailListTags.row(id(6))).assertDoesNotExist()
+    }
+
+    @Test
     fun `archiving a search result shows the next result`() {
         coEvery { reader.act(id(5), MailListAction.ARCHIVE) } returns MailResult.Ok(MailActionOutcome(true))
         openMail()
