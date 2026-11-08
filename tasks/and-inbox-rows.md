@@ -19,3 +19,4 @@ read-only sheet (`NewScreen.kt:488-536`) although SPEC.md §5.3 says it opens th
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 10:17+0100 by dell26/agent-2): Inbox row checkbox reuses the shared Next/Today strings (tasks_complete, tasks_completed, tasks_undo) and the shared TaskCompleter, so no new inbox strings were needed; the New view's now-unused new_task_created_at/new_task_hint strings were removed in en+de.
