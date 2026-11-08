@@ -20,7 +20,8 @@ capture can send a URL to Read later, and web never offers the Android app downl
   - verified (2026-11-08 17:31+0100 by dell26/agent-1): android-app-download.spec + general-settings.spec: GET /download/android/version shows 'Version 1.4.0', size/date and <a download href=/download/android>; 404 -> no link; errors -> Try again -> pass in npm --prefix web run check. Dev proxy now forwards /download (not exercised against a live server)
 - [x] New UI strings are in `web/src/locale` (English + German)
   - verified (2026-11-08 17:31+0100 by dell26/agent-1): 15 new units added to web/src/locale/messages.xlf + messages.de.xlf (German targets); messages-de.spec.ts (incl. test-writer check of the task's units and placeholders) passes in npm --prefix web run check; ng build ok
-- [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+- [x] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 17:31+0100 by dell26/agent-1): npm --prefix web run check -> exit 0 (lint clean, 193 files/4520 tests, build ok); sh scripts/check.sh -> 'all checks passed' exit 0 on f3e36cde7; task-scoped coverage 85/85 changed lines (reviews/web-small-gaps/tests.md)
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
