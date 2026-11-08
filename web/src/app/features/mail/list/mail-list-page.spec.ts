@@ -1225,6 +1225,26 @@ describe('MailListPage', () => {
         expect(leave()).toMatchObject({ nextCursor: 'cur-5', cursorId });
       });
 
+      it('does not refetch a saved folder list one item longer than a server page', async () => {
+        const items = Array.from({ length: MAIL_MAX_PAGE_SIZE + 1 }, (_, i) => summary(`m${i}`));
+        await create('inbox-1', {
+          firstPage: 'pending',
+          before: () =>
+            TestBed.inject(MailListSession).save({
+              url: '/mail/folders/inbox-1',
+              scrollTop: 0,
+              scope: { folderId: 'inbox-1', threaded: false },
+              items,
+              nextCursor: null,
+              cursorId: `m${MAIL_MAX_PAGE_SIZE}`,
+              searchResult: null,
+            }),
+        });
+        expect(mail.lists).toEqual([]);
+        expect(rows()).toHaveLength(MAIL_MAX_PAGE_SIZE + 1);
+        expect(listStore().cursorId()).toBe(`m${MAIL_MAX_PAGE_SIZE}`);
+      });
+
       it('still refetches a saved folder list of exactly one server page', async () => {
         const items = Array.from({ length: MAIL_MAX_PAGE_SIZE }, (_, i) => summary(`m${i}`));
         await create('inbox-1', {
@@ -1397,6 +1417,28 @@ describe('MailListPage', () => {
           expect(rows()).toEqual([]);
           expect(document.body.scrollTop).toBe(40);
           expect(scrollIntoView).not.toHaveBeenCalled();
+        });
+
+        it('tracks the window scroll when no ancestor scrolls but the document does', async () => {
+          const root = document.documentElement;
+          document.body.style.overflowY = '';
+          Object.defineProperty(document, 'scrollingElement', { value: root, configurable: true });
+          Object.defineProperty(root, 'scrollTop', {
+            value: 0,
+            writable: true,
+            configurable: true,
+          });
+          try {
+            await create('inbox-1');
+            fixture.detectChanges();
+            await fixture.whenStable();
+            root.scrollTop = 180;
+            window.dispatchEvent(new Event('scroll'));
+            expect(leave()?.scrollTop).toBe(180);
+          } finally {
+            delete (document as { scrollingElement?: unknown }).scrollingElement;
+            delete (root as { scrollTop?: number }).scrollTop;
+          }
         });
 
         it('does not scroll a list that was loaded anew', async () => {

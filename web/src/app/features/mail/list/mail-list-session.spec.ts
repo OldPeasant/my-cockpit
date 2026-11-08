@@ -266,6 +266,40 @@ describe('MailListSession', () => {
     expect(session.saved()?.nextCursor).toBe('cur-5');
   });
 
+  it('loads no next page when removing the last search result, even with a cursor', async () => {
+    session.save(saved({ nextCursor: 'cur-1' }));
+    expect(await session.remove('c')).toBe('b');
+    expect(mail.lists).toHaveLength(0);
+    expect(session.saved()?.items.map((item) => item.id)).toEqual(['a', 'b']);
+  });
+
+  it('loads the next page when the only loaded message of a folder list is removed', async () => {
+    session.save(
+      saved({
+        scope: { folderId: null, threaded: false },
+        items: [summary('a')],
+        nextCursor: 'cur-1',
+        cursorId: 'a',
+      }),
+    );
+    const removed = session.remove('a');
+    await flush();
+    mail.lists[0].resolve({ items: [summary('b')], nextCursor: null });
+    expect(await removed).toBe('b');
+    expect(session.saved()?.items.map((item) => item.id)).toEqual(['b']);
+    expect(session.saved()?.cursorId).toBe('b');
+  });
+
+  it('names no message when the list is no longer behind the message once the page loaded', async () => {
+    session.save(saved({ scope: { folderId: null, threaded: false }, nextCursor: 'cur-1' }));
+    const removed = session.remove('c');
+    await flush();
+    previous.set({ url: '/new' });
+    mail.lists[0].resolve({ items: [summary('d')], nextCursor: null });
+    expect(await removed).toBeNull();
+    expect(session.saved()?.items.map((item) => item.id)).toEqual(['a', 'b', 'd']);
+  });
+
   it('removes a message from the saved list also when it was not opened from it', async () => {
     session.save(saved({ cursorId: 'a' }));
     previous.set({ url: '/new' });
