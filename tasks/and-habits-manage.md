@@ -5,7 +5,7 @@ owner: dell26/agent-3
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/habits,android/app/src/test/java/ch/sonensei/cockpit/habits,android/app/src/main/res/values/strings_habits.xml,android/app/src/main/res/values-de/strings_habits.xml]
 prio: 2
-lease_until: 2026-11-08T18:35:12Z
+lease_until: 2026-11-08T18:36:14Z
 ---
 ## Goal
 Android can only check habits, and checks all-or-nothing (count = target) while web increments by one up to the
