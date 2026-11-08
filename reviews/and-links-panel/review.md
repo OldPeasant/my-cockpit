@@ -4,21 +4,29 @@ Date: 2026-11-08
 
 Task: and-links-panel - Android: shared linked-items panel with add, remove, create linked
 
-Scope: `git diff 79e60ee80 94276d088 -- android` (task commits df137aae4..94276d088). Tests that the test-writer is adding in parallel under `android/app/src/test/java/ch/sonensei/cockpit/core/links` are out of scope.
+Scope: re-review of the final revision ae6701993. Full task diff `git diff 79e60ee80 ae6701993 -- android`, with focus on the fix commit ae6701993 (fixes for CR-1..CR-3 of the first review, plus the new tests under `android/app/src/test/java/ch/sonensei/cockpit/core/links`).
 
 Requirements:
 - tasks/and-links-panel.md acceptance criteria and recorded assumptions
 - SPEC.md §4.3 (links), docs/PARITY.md
-- Web reference `web/src/app/shared/links` (linked-items.ts)
+- Web reference `web/src/app/shared/links`
 - AGENTS.md project conventions (lint is part of the contract, no secret logging, feature folders)
+- Previous review (CR-1..CR-3), reviews/and-links-panel/fixes.md, reviews/and-links-panel/tests.md
 
 Git range:
-- Branch: main (task commits merged from origin/wip/and-links-panel at e52751d6f; android sources identical to 94276d088)
-- HEAD: 94276d088 (reviewed revision)
+- Branch: main
+- HEAD: 7ace6f535 (adds only the test report on top of ae6701993; no android changes after ae6701993)
+- Reviewed revision: ae6701993
 - Base/start: 79e60ee80
-- Commits reviewed: 6 (df137aae4, ea1825596, 5474f9f66, a9d03acc2, 54168a1ca, 94276d088)
+- Commits reviewed: 7 (df137aae4, ea1825596, 5474f9f66, a9d03acc2, 54168a1ca, 94276d088, ae6701993)
 
-Summary: 0 P0, 1 P1, 2 P2, 0 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
+
+## Status of prior findings
+
+- **CR-1 (P1) Contact detail from search / linked item / birthday lost links and had dead rows: Resolved.** `SearchContact` (`search/SearchItemScreen.kt:66`) and `BirthdayContact` (`calendar/edit/BirthdayContact.kt:21`) now render `ContactDetailRoute`, so they get the links panel and openable related rows. `ContactDetailRoute` takes an optional `viewModel` (BirthdayContact passes its own, so `BirthdayContactTest` keeps its fake) and skips the links view model without Hilt. `ContactDetailCallbacks.openRelated` is nullable and `RelatedRow` only adds `clickable` when a handler is supplied (`contacts/ContactsScreen.kt:211`, `:597`); covered by the new test `without a way to open them the related rows are not tappable`. The call-site edits outside `touches` are recorded as an assumption in the task file.
+- **CR-2 (P2) Stale link search result with a stuck progress bar: Resolved.** `searchJob?.cancel()` now runs before the early return (`core/links/LinkedItemsViewModel.kt:142`), so a newer in-flight search can no longer overwrite the results when the text is typed back. Regression tests cover both the debounce-window and the in-flight case in `LinkedItemsViewModelTest`.
+- **CR-3 (P2) Superseded link loading and unused strings: Resolved.** `TaskWriteApi.listTaskLinks`, `TaskLink`, `TaskDetail.links`, `ContactLinksApi`, `RelatedLink` and `ContactRelated.links` are gone, so each detail open makes one links request (the panel's); repository tests assert no `/api/v1/links` request for tasks and exactly one request for contact related items. `git grep` at ae6701993 finds no remaining reference to the removed types or strings. The unreferenced strings were removed in EN and DE; `links_searching` is now the progress bar's content description; DE `links_close` is spelled "Schließen". The fixer reports `./gradlew ktlintCheck lintDebug` passing.
 
 ## P0 Critical
 
@@ -26,35 +34,23 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | Contact detail opened from search, from a linked item or from a birthday lost its links and has dead "tappable" rows**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/search/SearchItemScreen.kt:92`, `android/app/src/main/java/ch/sonensei/cockpit/calendar/edit/BirthdayContact.kt:40` (caused by `android/app/src/main/java/ch/sonensei/cockpit/contacts/ContactsScreen.kt:392` and the removed `related.links` rendering in `related()`)
-    - Category: Correctness
-    - Problem: The task removed the read-only links list from the shared `ContactDetailContent`/`related()` and moved links into the new `linksPanel` slot, and made the related rows clickable via `ContactDetailCallbacks.openRelated`. Only `ContactDetailRoute` passes `linksPanel` and `openRelated`. The two other callers of `ContactDetailContent`, `SearchContact` (global search, and every CONTACT opened in place via `SearchItemScreen`, including a contact tapped in a links panel or from `ContactDetailRoute` itself) and `BirthdayContact` (calendar), pass neither. On those paths the contact now shows no links at all (before this task it showed them read-only), and the waiting-for, mail and event rows show a click ripple but do nothing (default `openRelated = { _, _ -> }`).
-    - Why it matters: Criterion 2 ("used in ... contact detail; contact related rows become tappable") is only met for the Contacts tab; the other contact-detail entry points regressed (links disappeared) and present controls that silently do nothing.
-    - Suggested fix: Make `SearchContact` and `BirthdayContact` render `ContactDetailRoute(id, onClose = ...)` (it already handles in-place opening and the panel), or at minimum pass `linksPanel` and `openRelated`. `search/` and `calendar/edit/` are outside the task's `touches`, so if that is not acceptable, keep the read-only links in `related()` for callers without a panel and only render the clickable modifier when a real `openRelated` is supplied, and record the follow-up with `tasks.py assume`/a new task.
+None.
 
 ## P2 Medium
 
-- [ ] **CR-2 | Link search can show results of a stale query with a stuck progress bar**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/core/links/LinkedItemsViewModel.kt:141`
-    - Category: Correctness
-    - Problem: `search()` returns early when the trimmed query equals `resultsQuery` (and there is no search error) before cancelling `searchJob`. Sequence: results are shown for "ab"; the user types "abc" (a job for "abc" starts its debounce/request); the user deletes back to "ab" before it finishes. The early return keeps the "abc" job alive; when it completes it sets `resultsQuery = "abc"` and the "abc" hits while the field shows "ab". `searching` (`query.trim() != resultsQuery`) then stays true, so the progress bar keeps spinning and no new search starts until the user types again.
-    - Why it matters: An older request overwrites the result for the newer input (out-of-order async result), leaving wrong hits that can be linked by mistake and a loading indicator that never ends.
-    - Suggested fix: Cancel `searchJob` before the early return (or only short-circuit when no job is active), and add a view-model test for type-then-revert within the debounce window.
-
-- [ ] **CR-3 | Superseded link loading and strings left behind (duplicate requests, lint risk)**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/task/TaskDetailRepository.kt:271`, `android/app/src/main/java/ch/sonensei/cockpit/contacts/ContactsRepository.kt:84`, `android/app/src/main/res/values/strings_task_detail.xml:13`, `android/app/src/main/res/values/strings_task_detail.xml:61`, `android/app/src/main/res/values/strings_contacts.xml:28`, `android/app/src/main/res/values/strings_links.xml:14`
-    - Category: Quality
-    - Problem: The task replaced the old link lists, but `TaskDetailRepository` still fetches `GET /api/v1/links?type=TASK` and `ContactsRepository` still fetches `GET /api/v1/links?type=CONTACT` on every detail load; nothing renders `TaskDetail.links` (outside tests) and, apart from CR-1's lost callers, `ContactRelated.links` is no longer rendered either. The panel issues its own list call, so every task or contact detail open now requests the links twice. In addition these strings have no references left in `android/` (EN and DE): `task_detail_no_browser`, `task_detail_links`, `task_detail_link_open`, `task_detail_link_untitled`, `task_detail_link_unavailable`, `contacts_links`, `contacts_link_deleted`, `contacts_untitled`, and the new `links_searching` is never used.
-    - Why it matters: Wasted network calls and dead code paths that can drift. Lint's default-enabled `UnusedResources` check runs under `warningsAsErrors = true` (`android/app/build.gradle.kts:80`); the only lint report in the clone predates these commits, so criterion 4 (`lintDebug` passes) must be confirmed on the final revision.
-    - Suggested fix: Drop the TaskLink/RelatedLink loading (and their tests) or, if CR-1 is fixed by keeping read-only links for some callers, keep only what is still rendered; remove the unreferenced strings from both locales; run `./gradlew lintDebug` on the final code.
+None.
 
 ## P3 Low
 
-None.
+- [ ] **CR-4 | Nested contact details share one unkeyed ContactDetailViewModel**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/contacts/ContactsScreen.kt:126`
+    - Category: Quality
+    - Problem: `ContactDetailRoute` obtains `ContactDetailViewModel` with an unkeyed `hiltViewModel()`. Since the fix, a contact opened from a contact (a CONTACT link in the panel opens `SearchItemScreen`, whose `SearchContact` renders another `ContactDetailRoute`) gets the same view model instance as the outer contact, in the same store owner (Contacts tab, calendar birthday, search). Viewing contact B replaces A's state; on back, A's route recomposes for one frame with B's state until `LaunchedEffect(id)` calls `open(A)`, which clears and reloads A. The links view model does not have this problem because it is keyed per item (`linksViewModelKey`).
+    - Why it matters: Brief flash of the wrong contact and a full reload (scroll position lost) when returning from a linked contact. Correct state is restored, so the impact is cosmetic.
+    - Suggested fix: Key the default, e.g. `hiltViewModel(key = "contact-detail-$id")`, as the links panel already does; or accept as is.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
 
-Notes (verified, no finding): the panel lists links in both directions, opens tasks in-app and other in-app types through the screens' `open` handler, opens web targets in the browser with a fallback toast, adds via the global search API, removes only manual links (404 counts as removed), and creates a linked task/note through a title dialog (recorded assumption). Stale results after an item change are guarded by `itemSeq`. EN and DE strings match one-to-one. No logging was added, so no secrets or contents are logged. Task detail does not disable the panel for read-only tasks, which matches the web panel.
+Notes (verified, no finding): the panel and view model behavior noted in the first review is unchanged apart from the CR-2 fix. The new core/links tests (LinkedItemsViewModelTest, LinkedItemsPanelTest, LinksRepositoryTest) cover listing, opening in-app vs. web targets, add via global search, remove (manual only, 404 counts as removed, double tap), create linked task/note, item-change races, stale search answers and error paths, and they assert behavior through a fake source and MockWebServer rather than internals. Removed tests only covered the deleted link loading. No logging was added. Test and lint runs were not repeated by this reviewer (sub-agents cannot run Gradle here); the parent's recorded runs are the evidence for criterion 4.
