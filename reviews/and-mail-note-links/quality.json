@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "and-mail-note-links",
+  "reviewed_revision": "d383d191f4305843162346fe3cfcbb9414098842",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-mail-note-links/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-mail-note-links/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-mail-note-links/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "missing screen/view-model tests: test-writer added MailReadNoteLinksTest, MailReadNoteGermanTest, MailReadNoteViewModelTest; fixer verified coverage; re-review: resolved"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "7-icon toolbar clipped More at 320dp: Create note moved into the More menu, 320dp toolbar test added; re-review: resolved"},
+    {"id": "RR-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "Hilt-only route paths (real links panel, reload after create, open linked item and back) have no unit test; same pattern as ContactsScreen, needs a Hilt/instrumented harness"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
