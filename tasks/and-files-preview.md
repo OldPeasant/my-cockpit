@@ -18,3 +18,4 @@ SPEC.md §8.2 asks for an in-app preview (PDF via Android `PdfRenderer`); Androi
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 15:09+0100 by felix/agent-1): Tapping a file now opens the in-app preview for every file type (unsupported types show an 'Open with' card) so previous/next walks all files of the folder; opening in another app moved to the row menu and the preview's top bar ('Open with…').
