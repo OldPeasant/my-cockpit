@@ -400,6 +400,23 @@ class BookmarksRepositoryTest {
         }
 
     @Test
+    fun `to Inbox links the task the server answered with`() =
+        runBlocking {
+            // The server is the source of truth for the task it made; the link names that task.
+            server.enqueue(json("""{"id":"${id(60)}","title":"Page 1"}""", code = 200))
+            server.enqueue(json("""{"id":"${id(61)}"}""", code = 201))
+
+            assertEquals(BookmarksResult.Ok(true), repo.toInbox(bookmark(1), id(50)))
+
+            val create = server.takeRequest().body?.utf8()
+            assertEquals(true, create?.contains("\"id\":\"${id(50)}\""))
+            assertEquals(
+                """{"source":{"type":"TASK","id":"${id(60)}"},"target":{"type":"BOOKMARK","id":"${id(1)}"},"label":"origin"}""",
+                server.takeRequest().body?.utf8(),
+            )
+        }
+
+    @Test
     fun `a task title longer than the server allows is cut to 500 characters`() =
         runBlocking {
             server.enqueue(json("""{"id":"${id(50)}"}""", code = 201))

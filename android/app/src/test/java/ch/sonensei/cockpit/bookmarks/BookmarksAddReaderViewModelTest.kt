@@ -1008,6 +1008,93 @@ class BookmarksAddReaderViewModelTest {
         }
 
     @Test
+    fun `a reader reopened while its copy is saved shows the new copy, not the older version its own load answers late`() =
+        runTest(dispatcher) {
+            val saving = CompletableDeferred<BookmarksResult<Bookmark?>>()
+            val reopened = CompletableDeferred<BookmarksResult<Bookmark>>()
+            val saved = bookmark(1, version = 2, snapshotFileId = id(90))
+            var gets = 0
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1)))
+            // The first open loads at once; the reopened reader's load answers only after the save.
+            coEvery { repo.get(id(1)) } coAnswers { if (++gets == 1) BookmarksResult.Ok(bookmark(1)) else reopened.await() }
+            coEvery { repo.saveSnapshot(any()) } coAnswers { saving.await() }
+            coEvery { repo.snapshot(id(90)) } returns BookmarksResult.Ok(copy)
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+            vm.openReader(bookmark(1))
+            advanceUntilIdle()
+
+            vm.saveSnapshot()
+            runCurrent()
+            vm.closeReader()
+            vm.openReader(bookmark(1))
+            runCurrent()
+            assertEquals(ReaderState(bookmark(1), loading = true, saving = true), vm.uiState.value.reading)
+
+            saving.complete(BookmarksResult.Ok(saved))
+            advanceUntilIdle()
+            assertEquals(ReaderState(saved, snapshot = copy), vm.uiState.value.reading)
+
+            // The older version answered late does not replace the saved one, in the reader or the list.
+            reopened.complete(BookmarksResult.Ok(bookmark(1)))
+            advanceUntilIdle()
+            assertEquals(ReaderState(saved, snapshot = copy), vm.uiState.value.reading)
+            assertEquals(listOf(saved), vm.uiState.value.bookmarks)
+            assertTrue(
+                vm.uiState.value.busy
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `a reader reopened while its copy is saved retries its failed load only after the save ended`() =
+        runTest(dispatcher) {
+            val saving = CompletableDeferred<BookmarksResult<Bookmark?>>()
+            var gets = 0
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1)))
+            // The first open loads; the reopened reader is offline; its retry loads again.
+            coEvery { repo.get(id(1)) } coAnswers {
+                if (++gets == 2) BookmarksResult.Offline else BookmarksResult.Ok(bookmark(1))
+            }
+            coEvery { repo.saveSnapshot(any()) } coAnswers { saving.await() }
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+            vm.openReader(bookmark(1))
+            advanceUntilIdle()
+
+            vm.saveSnapshot()
+            runCurrent()
+            vm.closeReader()
+            vm.openReader(bookmark(1))
+            advanceUntilIdle()
+            assertEquals(
+                ReaderState(bookmark(1), saving = true, failure = ReaderFailure.OFFLINE),
+                vm.uiState.value.reading,
+            )
+
+            // While the save runs, a retry asks nothing.
+            vm.retryReader()
+            advanceUntilIdle()
+            assertEquals(2, gets)
+
+            saving.complete(BookmarksResult.Offline)
+            advanceUntilIdle()
+            assertEquals(BookmarkFailure.OFFLINE, failure(vm))
+            assertEquals(ReaderState(bookmark(1), failure = ReaderFailure.OFFLINE), vm.uiState.value.reading)
+            assertTrue(
+                vm.uiState.value.busy
+                    .isEmpty(),
+            )
+
+            vm.retryReader()
+            advanceUntilIdle()
+            assertEquals(3, gets)
+            assertEquals(ReaderState(bookmark(1)), vm.uiState.value.reading)
+        }
+
+    @Test
     fun `a save that fails after the reader was left does not close a reader opened on another bookmark`() =
         runTest(dispatcher) {
             val saving = CompletableDeferred<BookmarksResult<Bookmark?>>()
