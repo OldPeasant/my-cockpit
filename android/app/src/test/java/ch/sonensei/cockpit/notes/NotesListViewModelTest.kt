@@ -385,6 +385,31 @@ class NotesListViewModelTest {
         }
 
     @Test
+    fun `a reload whose search fails before the list answers keeps the search's message`() =
+        runTest(dispatcher) {
+            coEvery { repo.search("milk") } returns NotesResult.Ok(listOf(id(1)))
+            val vm = loadedWith(note(1), note(2))
+            vm.setQuery("milk")
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.message)
+
+            val list = CompletableDeferred<NotesResult<List<Note>>>()
+            coEvery { repo.list(null, false) } coAnswers { list.await() }
+            coEvery { repo.search("milk") } returns NotesResult.Failed(500)
+            vm.refresh()
+            advanceUntilIdle()
+            // The search answered first, the list did not yet.
+            assertEquals(NotesListMessage.FAILED, vm.uiState.value.message)
+            assertTrue(vm.uiState.value.loading)
+
+            list.complete(NotesResult.Ok(listOf(note(1), note(2))))
+            advanceUntilIdle()
+            assertEquals(NotesListMessage.FAILED, vm.uiState.value.message)
+            assertEquals(false, vm.uiState.value.loading)
+            assertEquals(listOf(note(1), note(2)), vm.uiState.value.notes)
+        }
+
+    @Test
     fun `clearing a failed search takes its message away`() =
         runTest(dispatcher) {
             coEvery { repo.search("milk") } returns NotesResult.Offline

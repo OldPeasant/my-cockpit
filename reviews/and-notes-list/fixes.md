@@ -178,3 +178,59 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed. Android validation passed (ktlintCheck, testDebugUnitTest, lintDebug). `.taskcheck` could not pass here because the server tests need Docker, and this change does not touch the server.
+
+---
+
+# Fix Report: third review
+
+Date: 2026-11-08
+
+Task: and-notes-list - Android notes list: search, pin, archive, delete
+
+Scope: current task. The single P3 finding CR-1 of the third review in `reviews/and-notes-list/review.md` (HEAD ff66edb6, base 85e8706445f51b80f5260d234fd74a34dfa2ac06), called "Third-review CR-1" here. Changes stay inside the Android notes package (main and test).
+
+## Fixed findings
+
+### Third-review CR-1 - A finished list load clears a search failure that answered first in the same reload
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/notes/NotesListViewModel.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/notes/NotesListViewModelTest.kt`
+
+Problem:
+Confirmed in the current code. When the list load finished, `refresh()` set `searchMessage = null`, against the field's own comment. `refresh()` starts the list load and `search(0)` together, so a failed search that answered before the list lost its message when the list answered. With no hits yet the screen showed neither a banner nor Retry.
+
+Fix:
+Removed `searchMessage = null` from the list load's completion. Now only `search()` (with its result) and `setQuery` with a blank text change `searchMessage`. A reload with a search text always runs the search again, which sets `searchMessage` itself, so nothing stale stays behind. A reload without a search text cannot have a `searchMessage`, because clearing the text already removes it.
+
+New test `a reload whose search fails before the list answers keeps the search's message`: the list is loaded and a search for "milk" succeeds; then `repo.list` is held on a `CompletableDeferred` and the search fails with 500. After `refresh()` the search has answered (`FAILED` shown, still loading). Then the list answers, and the message is still `FAILED`, loading has ended and the notes are shown. With the old line the last message check fails (the message would be null).
+
+Existing tests checked for the old behavior: no test relies on a list load clearing the search's message. The tests that check search messages after a reload (`a failed search says why, and a reload searches again at once`, `a successful search takes away the message of a failed one, but not a failed load's`, `clearing or redoing a search that failed like the list load keeps the load's message and its Retry`) get the message cleared by the reload's successful search or by clearing the text, not by the list load. `NotesScreenInAppTest` and `NotesRouteInAppTest` have no failing-search case.
+
+Validation:
+- Not run by the fixer: Gradle cannot run in the fixer's sandbox. The parent worker runs `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests ch.sonensei.cockpit.notes.NotesListViewModelTest` and the full Android check.
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- Not run by the fixer (no Gradle in this sandbox); to be run by the parent worker.
+
+Full test suite:
+- Not run by the fixer; to be run by the parent worker (`cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug`).
+
+Lint/type-check/build:
+- Not run by the fixer; ktlintCheck and lintDebug are part of the parent's command above.
+
+`.taskcheck`:
+- Not run by the fixer.
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed. Validation was not run by the fixer and is pending with the parent worker.

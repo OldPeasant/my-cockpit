@@ -123,7 +123,6 @@ class NotesListViewModel
                     val tagList = tags.await()
                     listLoading = false
                     listMessage = message(list)
-                    searchMessage = null
                     state.update {
                         it.copy(
                             notes = (list as? NotesResult.Ok)?.value ?: it.notes,
