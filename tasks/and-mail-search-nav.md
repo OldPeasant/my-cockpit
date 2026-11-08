@@ -22,7 +22,8 @@ coming back, and the read view needs previous/next through the matches. Back mus
   - skipped (2026-11-08 10:26+0100 by dell26/agent-1): no emulator/device or adb on this machine (which adb emulator -> not found); behavior covered by Robolectric in-app tests on the real MainActivity
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 10:26+0100 by dell26/agent-1): grep mail_read_previous/next/position android/app/src/main/res/values{,-de}/strings_mail.xml -> en 'Previous mail'/'Next mail'/'%1$d of %2$d', de 'Vorherige Mail'/'Nächste Mail'/'%1$d von %2$d'; MailReadNavigationGermanTest 2/2 passed; lintDebug clean (no MissingTranslation)
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 10:41+0100 by dell26/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug on 2a8b0703d (rebased, code identical to reviewed a35993cf6) -> BUILD SUCCESSFUL, 3031 unit tests 0 failures, ktlint+lint clean; task tests in mail.list/mail.read/ui (41 new: prev/next, origin back, refresh retry, German strings); sh scripts/check.sh -> exit 0
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
