@@ -12,7 +12,8 @@ Web read view can create a note from a mail and shows the linked-items panel (`m
 Android only has To task / Waiting.
 
 ## Acceptance criteria
-- [ ] "Create note" action from the read view (same server call as web)
+- [x] "Create note" action from the read view (same server call as web)
+  - verified (2026-11-08 21:23+0100 by dell26/agent-1): MailReadRepositoryTest 'create note posts to to-note' (POST /api/v1/mail/messages/{id}/to-note, same mailToNote endpoint as web) + MailReadNoteLinksTest/MailReadNoteViewModelTest (More menu > Create note calls gtd(NOTE), notices) via ./gradlew testDebugUnitTest at f2c4f9e82 -> pass
 - [ ] The read view shows `LinkedItemsPanel` (from and-links-panel) for the mail
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
