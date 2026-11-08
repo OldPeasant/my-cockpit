@@ -13,10 +13,17 @@ import {
  * The Content Security Policy of a mail body: no scripts, no frames, no forms, no connections;
  * images and fonts only from the app itself (the image proxy, `cid:` downloads) or `data:`.
  * Remote images are blocked or proxied by the server already; this is the second line.
+ *
+ * The app's origin is named next to `'self'`: Firefox does not match `'self'` in an `about:srcdoc`
+ * document against the embedding page's origin, so it would block every image of the mail.
  */
-export const MAIL_FRAME_CSP =
-  "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; font-src 'self' data:; " +
-  "script-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'";
+export function mailFrameCsp(origin: string = location.origin): string {
+  return (
+    `default-src 'none'; img-src 'self' ${origin} data:; style-src 'unsafe-inline'; ` +
+    `font-src 'self' ${origin} data:; script-src 'none'; frame-src 'none'; form-action 'none'; ` +
+    "base-uri 'none'"
+  );
+}
 
 /**
  * The tokens of the frame's `sandbox`: no `allow-scripts`, so nothing in the mail runs. Same origin
@@ -26,10 +33,10 @@ export const MAIL_FRAME_CSP =
 export const MAIL_FRAME_SANDBOX = 'allow-same-origin allow-popups allow-popups-to-escape-sandbox';
 
 /** The document of the frame around the server-sanitized body HTML. */
-export function mailDocument(html: string): string {
+export function mailDocument(html: string, origin: string = location.origin): string {
   return (
     '<!doctype html><html><head><meta charset="utf-8">' +
-    `<meta http-equiv="Content-Security-Policy" content="${MAIL_FRAME_CSP}">` +
+    `<meta http-equiv="Content-Security-Policy" content="${mailFrameCsp(origin)}">` +
     '<meta name="referrer" content="no-referrer"><base target="_blank">' +
     '<style>html{color-scheme:light}body{margin:0;padding:16px 20px;background:#fff;color:#1c1b1f;' +
     'font:15px/1.55 system-ui,sans-serif;overflow-wrap:anywhere}img{max-width:100%;height:auto}' +

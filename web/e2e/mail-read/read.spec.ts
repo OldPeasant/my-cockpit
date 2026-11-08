@@ -11,9 +11,10 @@ const REMOTE_IMAGE = 'https://images.example.test/newsletter/header.png';
 
 /**
  * SPEC.md §4.1/§7.3 mail read view against GreenMail: an HTML mail with a script, an inline event
- * handler, a remote image and a text attachment. Opened from the list, its body renders in the
- * sandboxed frame without running anything; the remote image is not requested until "Load images",
- * then it loads through the server's image proxy. The attachment previews, and "→ Inbox task"
+ * handler, an inline `cid:` image, a remote image and a text attachment. Opened from the list, its
+ * body renders in the sandboxed frame without running anything; the inline image loads right away,
+ * the remote image is not requested until "Load images", then it loads through the server's image
+ * proxy. Runs in Chromium and Firefox (the frame's srcdoc CSP differs there). The attachment previews, and "→ Inbox task"
  * creates a task that shows in the linked items.
  */
 test.describe('Mail read view', () => {
@@ -73,6 +74,9 @@ test.describe('Mail read view', () => {
     expect(await page.title()).not.toContain('pwned');
     expect(dialogs).toEqual([]);
 
+    // The inline image loads from the message's own part (allowed by the frame CSP in every browser).
+    await expect.poll(() => inlineImages(page)).toEqual([{ loaded: true }]);
+
     // Remote images are blocked: none in the frame, none requested.
     await expect(page.getByText('Remote images are hidden')).toBeVisible();
     expect(await frameImages(page)).toEqual([]);
@@ -82,6 +86,7 @@ test.describe('Mail read view', () => {
     await expect(page.getByText('Remote images are hidden')).toBeHidden();
     await expect.poll(() => frameImages(page)).toEqual([{ proxied: true, loaded: true }]);
     expect(proxied).toEqual([REMOTE_IMAGE]);
+    await expect.poll(() => inlineImages(page)).toEqual([{ loaded: true }]);
     // Still nothing ran after the reload.
     expect(await frameFlags(page)).toEqual({ ran: false, handler: false });
     expect(dialogs).toEqual([]);
@@ -104,6 +109,7 @@ test.describe('Mail read view', () => {
 
 function htmlMail(to: string, subject: string): string {
   const boundary = `b-${Date.now()}`;
+  const related = `r-${Date.now()}`;
   return [
     'From: Newsletter Team <news@example.test>',
     `To: ${to}`,
@@ -114,14 +120,28 @@ function htmlMail(to: string, subject: string): string {
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
     '',
     `--${boundary}`,
+    `Content-Type: multipart/related; boundary="${related}"`,
+    '',
+    `--${related}`,
     'Content-Type: text/html; charset=utf-8',
     '',
     '<html><body>',
     '<p>Hello reader, here is the news.</p>',
+    '<img src="cid:logo@cockpit.test" alt="Logo" width="1" height="1">',
     '<script>window.__mailScriptRan = true; parent.document.title = "pwned"; alert("pwned");</script>',
     `<img src="${REMOTE_IMAGE}" alt="Header" width="1" height="1">`,
     '<img src="x" onerror="window.__mailHandlerRan = true; parent.document.title = \'pwned\'">',
     '</body></html>',
+    '',
+    `--${related}`,
+    'Content-Type: image/png; name="logo.png"',
+    'Content-Transfer-Encoding: base64',
+    'Content-ID: <logo@cockpit.test>',
+    'Content-Disposition: inline; filename="logo.png"',
+    '',
+    PIXEL.toString('base64'),
+    '',
+    `--${related}--`,
     '',
     `--${boundary}`,
     'Content-Type: text/plain; charset=utf-8; name="agenda.txt"',
@@ -162,6 +182,16 @@ function frameImages(page: Page): Promise<{ proxied: boolean; loaded: boolean }[
         proxied: (img.getAttribute('src') ?? '').includes('/api/v1/mail/image-proxy'),
         loaded: img.complete && img.naturalWidth > 0,
       }));
+  });
+}
+
+/** The inline (`cid:`) images in the frame, resolved by the server to the message's own parts. */
+function inlineImages(page: Page): Promise<{ loaded: boolean }[]> {
+  return page.evaluate(() => {
+    const doc = document.querySelector<HTMLIFrameElement>('app-mail-frame iframe')?.contentDocument;
+    return [...(doc?.querySelectorAll('img') ?? [])]
+      .filter((img) => /\/attachments\/.+[?&]inline=true/.test(img.getAttribute('src') ?? ''))
+      .map((img) => ({ loaded: img.complete && img.naturalWidth > 0 }));
   });
 }
 

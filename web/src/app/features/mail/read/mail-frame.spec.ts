@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MAIL_FRAME_CSP, MAIL_FRAME_SANDBOX, MailFrame, mailDocument } from './mail-frame';
+import { MAIL_FRAME_SANDBOX, MailFrame, mailDocument, mailFrameCsp } from './mail-frame';
 
 describe('MailFrame', () => {
   let fixture: ComponentFixture<MailFrame>;
@@ -24,8 +24,44 @@ describe('MailFrame', () => {
   it('puts the body into a document with the CSP', () => {
     expect(frame().srcdoc).toBe(mailDocument('<p>Hi</p>'));
     expect(frame().srcdoc).toContain(
-      `<meta http-equiv="Content-Security-Policy" content="${MAIL_FRAME_CSP}">`,
+      `<meta http-equiv="Content-Security-Policy" content="${mailFrameCsp(location.origin)}">`,
     );
+  });
+
+  describe('the CSP', () => {
+    /** The directives of a CSP by name, each with its source list. */
+    const directives = (csp: string) =>
+      new Map(
+        csp.split(';').map((part) => {
+          const [name, ...sources] = part.trim().split(/\s+/);
+          return [name, sources] as const;
+        }),
+      );
+    const csp = directives(mailFrameCsp('https://cockpit.example.test'));
+
+    it('names the app origin next to self for images and fonts (Firefox srcdoc)', () => {
+      expect(csp.get('img-src')).toEqual(["'self'", 'https://cockpit.example.test', 'data:']);
+      expect(csp.get('font-src')).toEqual(["'self'", 'https://cockpit.example.test', 'data:']);
+    });
+
+    it('allows no foreign host, no scripts and nothing by default', () => {
+      expect(csp.get('default-src')).toEqual(["'none'"]);
+      expect(csp.get('script-src')).toEqual(["'none'"]);
+      expect(csp.get('frame-src')).toEqual(["'none'"]);
+      expect(csp.get('form-action')).toEqual(["'none'"]);
+      expect(csp.get('base-uri')).toEqual(["'none'"]);
+      expect(csp.get('style-src')).toEqual(["'unsafe-inline'"]);
+      const hosts = [...csp.values()]
+        .flat()
+        .filter((source) => /^[a-z][a-z0-9+.-]*:\/\/|^\*/.test(source));
+      expect(hosts).toEqual(['https://cockpit.example.test', 'https://cockpit.example.test']);
+      expect([...csp.keys()]).not.toContain('connect-src');
+    });
+
+    it('uses the page origin by default', () => {
+      expect(mailFrameCsp()).toBe(mailFrameCsp(location.origin));
+      expect(directives(mailFrameCsp()).get('img-src')).toContain(location.origin);
+    });
   });
 
   it('follows a changed body', () => {
@@ -126,14 +162,5 @@ describe('MailFrame', () => {
       frame().dispatchEvent(new Event('load'));
       expect(frame().style.height).toBe('300px');
     });
-  });
-});
-
-describe('MAIL_FRAME_CSP', () => {
-  it('forbids scripts and loads images only from the app or data URLs', () => {
-    expect(MAIL_FRAME_CSP).toContain("default-src 'none'");
-    expect(MAIL_FRAME_CSP).toContain("script-src 'none'");
-    expect(MAIL_FRAME_CSP).toContain("img-src 'self' data:");
-    expect(MAIL_FRAME_CSP).not.toContain('http');
   });
 });
