@@ -20,7 +20,8 @@ Decided behavior (owner, 2026-11-08): remote images blocked by default, same as 
   - verified (2026-11-08 10:02+0100 by dell26/agent-1): MailReadScreenTest + MailReadImagesViewModelTest (gradle mail.read.*) -> pass: banner shows count with Load images (reloads with proxyImages=true / remoteImages=PROXY, MailReadRepositoryTest checks query) and Always for this sender (PATCH mailImageAllowedSenders + sender)
 - [x] `mailImagePolicy = allow` or an allowed sender loads remote images through the proxy without asking
   - verified (2026-11-08 10:02+0100 by dell26/agent-1): MailReadImagesViewModelTest (gradle mail.read.*) -> pass: policy allow loads PROXY directly; allowed sender (case-insensitive) re-fetches with PROXY without user action
-- [ ] The CSP of the mail document allows images only from the server origin and `data:`; a test asserts a request to another host is blocked
+- [x] The CSP of the mail document allows images only from the server origin and `data:`; a test asserts a request to another host is blocked
+  - verified (2026-11-08 10:02+0100 by dell26/agent-1): MailWebViewTest (gradle mail.read.*) -> pass: CSP img-src is exactly https://server.invalid data:; shouldInterceptRequest for https://evil.example/x returns 403 with strict OkHttp mock (no network call)
 - [~] Manually verified on an emulator or device against a running server with a mail containing a `cid:` image and a remote image (record what you ran); if no emulator is available, skip with reason
   - skipped (2026-11-08 09:47+0100 by dell26/agent-1): No emulator/device or adb available to this agent (no adb/emulator on PATH, Android SDK dir outside the sandbox); WebView image loading through shouldInterceptRequest verified only by Robolectric unit tests
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
