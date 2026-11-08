@@ -14,7 +14,8 @@ capture can send a URL to Read later, and web never offers the Android app downl
 ## Acceptance criteria
 - [x] Ctrl+K search can filter by type (chips or `type:` prefix)
   - verified (2026-11-08 17:31+0100 by dell26/agent-1): npm --prefix web run test:ci --include search/** (search-query.spec 'type:' prefix parsing incl. German labels, search-palette.provider.spec sends types=TASK&types=NOTE for 'type:note,Tasks passport') -> 69 passed; full npm --prefix web run check -> 4520 passed
-- [ ] Capture of a single URL offers "Inbox" or "Read later" (bookmark)
+- [x] Capture of a single URL offers "Inbox" or "Read later" (bookmark)
+  - verified (2026-11-08 17:31+0100 by dell26/agent-1): capture-dialog.spec 'read later' describe: single URL shows Inbox/Read later radiogroup, Read later POSTs /api/v1/bookmarks {url, readLater:true, description}; not offered for non-URL or with attachments; capture.service.spec readLater -> all pass in npm --prefix web run check (4520 passed)
 - [ ] Settings shows the Android app version with a download link (`/download/android`)
 - [ ] New UI strings are in `web/src/locale` (English + German)
 - [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
