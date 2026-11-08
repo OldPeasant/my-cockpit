@@ -16,7 +16,8 @@ On Android a task can only be added to a project as "next step" inside the choos
   - verified (2026-11-08 13:15+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests '*gtd.projects*' (HEAD e14b996c3) -> 228 tests, 0 failures; ProjectTaskListTest 'the add field adds a task with the button and with the keyboard, and stays open', 'a project without a next step does not offer the choice...', ProjectsViewModelTest add/next-step tests, ProjectWorkRepositoryTest create-in-project tests pass
 - [x] Tasks can be reordered with long-press drag (with accessibility actions "move up/down"); the order is saved like on web
   - verified (2026-11-08 13:15+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests '*gtd.projects*' (HEAD e14b996c3) -> 228 tests, 0 failures; ProjectTaskListTest long-press drag tests (drag saves on drop only; cancelled/interrupted drags not saved), 'the move actions are offered where a task can move' (customActions on the focused clickable row node), ProjectsViewModelTest serialized order saves via orderProjectTasks like web. TalkBack on a device not checked (no device)
-- [ ] A task row opens task detail; tasks of other lists (Waiting/Someday/Scheduled) keep their list label
+- [x] A task row opens task detail; tasks of other lists (Waiting/Someday/Scheduled) keep their list label
+  - verified (2026-11-08 13:15+0100 by dell26/agent-1): same run -> ProjectTaskListTest 'a task row opens task detail, and tasks of other lists keep their list label', ProjectsScreenTest 'project tasks on other lists say which list they are on' pass
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
