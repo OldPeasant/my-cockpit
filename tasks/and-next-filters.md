@@ -20,3 +20,4 @@ Web Next has filters by due and area/project and saved presets synced via the `n
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 - ASSUMPTION (2026-11-08 15:48+0100 by dell26/agent-1): Edited core/settings/UserSettings.kt (outside touches, small): UserSettings.nextActionPresets (raw JSON texts) and UserSettingsChange.nextActionPresets, because presets are stored through the shared UserSettingsRepository (PATCH with If-Match).
+- ASSUMPTION (2026-11-08 15:48+0100 by dell26/agent-1): Due 'this week' means today plus the next 6 days (label 'Next 7 days'), same as the server's due=week and the web Next filter, for parity; 'any' is an explicit chip that turns the due filter off.
