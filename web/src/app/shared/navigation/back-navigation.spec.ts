@@ -2,7 +2,13 @@ import { Location } from '@angular/common';
 import { provideLocationMocks } from '@angular/common/testing';
 import { Component, ErrorHandler, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { NavigationEnd, provideRouter, Router } from '@angular/router';
+import {
+  NavigationCancel,
+  NavigationCancellationCode,
+  NavigationEnd,
+  provideRouter,
+  Router,
+} from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { BackNavigation } from './back-navigation';
 import { BackButton } from './back-button';
@@ -476,12 +482,15 @@ describe('BackNavigation when a Back does not reach its page', () => {
   let failing: boolean;
   let redirecting: boolean;
   let mayLeave: boolean;
+  /** While set, the guard of `/waiting` waits for it (e.g. a slow check or a lazy chunk). */
+  let gate: Promise<boolean> | null;
 
   beforeEach(async () => {
     errors = [];
     failing = false;
     redirecting = false;
     mayLeave = true;
+    gate = null;
     TestBed.configureTestingModule({
       // A failed popstate navigation is reported to the ErrorHandler; keep it there.
       rethrowApplicationErrors: false,
@@ -509,6 +518,12 @@ describe('BackNavigation when a Back does not reach its page', () => {
             component: StubPage,
             // E.g. the session expired meanwhile: the page sends the user to the login.
             canActivate: [() => (redirecting ? inject(Router).parseUrl('/login') : true)],
+          },
+          {
+            path: 'waiting',
+            title: 'Waiting',
+            component: StubPage,
+            canActivate: [() => gate ?? true],
           },
           {
             path: 'editing',
@@ -611,6 +626,69 @@ describe('BackNavigation when a Back does not reach its page', () => {
     await settle();
     expect(router.url).toBe('/login');
     expect(navigation.canGoBack()).toBe(false);
+  });
+
+  it('counts the page a guard redirected a link to as the page opened', async () => {
+    await go('/today');
+    await go('/new');
+    redirecting = true;
+    await go('/guarded');
+    expect(router.url).toBe('/login');
+    expect(navigation.previous()).toEqual(expect.objectContaining({ url: '/new', label: 'New' }));
+    await navigation.back('/mail');
+    expect(router.url).toBe('/new');
+    expect(navigation.previous()?.url).toBe('/today');
+  });
+
+  it('leads to the page its back button names after a Forward a guard redirected', async () => {
+    await go('/today');
+    await go('/guarded');
+    await go('/new');
+    await navigation.back('/mail');
+    await navigation.back('/mail');
+    expect(router.url).toBe('/today');
+    redirecting = true;
+    location.forward();
+    await settle();
+    // The router replaced the entry of /guarded with /login: behind it lies Today.
+    expect(router.url).toBe('/login');
+    expect(navigation.previous()).toEqual(
+      expect.objectContaining({ url: '/today', label: 'Today' }),
+    );
+    await navigation.back('/mail');
+    expect(router.url).toBe('/today');
+  });
+
+  it('leads to the page its back button names after a Back another navigation took over', async () => {
+    await go('/today');
+    await go('/waiting');
+    await go('/mail/messages/m1');
+    let open!: (value: boolean) => void;
+    gate = new Promise((resolve) => (open = resolve));
+    const cancels: (NavigationCancellationCode | undefined)[] = [];
+    const subscription = router.events.subscribe((event) => {
+      if (event instanceof NavigationCancel) cancels.push(event.code);
+    });
+    try {
+      const back = navigation.back('/today');
+      await settle();
+      // The Back to /waiting still runs; the user opens Mail meanwhile.
+      expect(router.url).toBe('/mail/messages/m1');
+      const opened = router.navigateByUrl('/mail');
+      open(true);
+      await opened;
+      await back;
+      expect(cancels).toEqual([NavigationCancellationCode.SupersededByNewNavigation]);
+    } finally {
+      subscription.unsubscribe();
+    }
+    expect(router.url).toBe('/mail');
+    gate = null;
+    // The browser went back to /waiting and pushed /mail there: /waiting lies behind.
+    expect(navigation.previous()?.url).toBe('/waiting');
+    await navigation.back('/today');
+    await settle();
+    expect(router.url).toBe('/waiting');
   });
 
   it('goes back only once when back() is called again while the Back runs', async () => {
