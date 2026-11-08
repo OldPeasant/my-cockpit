@@ -12,7 +12,8 @@ After a passphrase-less restore the server forces TOTP re-enrollment; web has a 
 (`features/auth/totp-enrollment`), Android has none, so an Android user would be stuck at login.
 
 ## Acceptance criteria
-- [ ] When login reports that re-enrollment is required, Android shows the enrollment (QR/secret to copy, code confirmation, new recovery codes) or, if that is not feasible, a clear message with a button opening the web enrollment page; record the choice with `tasks.py assume`
+- [x] When login reports that re-enrollment is required, Android shows the enrollment (QR/secret to copy, code confirmation, new recovery codes) or, if that is not feasible, a clear message with a button opening the web enrollment page; record the choice with `tasks.py assume`
+  - verified (2026-11-08 23:17+0100 by dell26/agent-1): Chose web enrollment button (assumption recorded: server refuses device tokens with 403 until re-enrolled). cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.*' -> 219 passed, incl. AuthRepositoryTest 403->TotpResetRequired + enroll-totp URL (sub-path kept), LoginViewModelTest/PasskeyViewModelsTest URL set on re-enroll result, LoginScreenTest button opens URL via LocalUriHandler and survives no browser
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
