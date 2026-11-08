@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "fix-flaky-pagefetcher-size-test",
+  "reviewed_revision": "aa1cb2417043a4ee897cc6a59c49b90cd9dee706",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/fix-flaky-pagefetcher-size-test/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/fix-flaky-pagefetcher-size-test/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/fix-flaky-pagefetcher-size-test/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "Protocol test now checks two fetches (aa1cb2417); mutation without .version(HTTP_1_1) fails it; fixer verified, re-review confirms resolved"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "KDoc on the protocol test over-explains how WireMock records the h2c upgrade; comment only, assertion is correct and mutation-tested; left to avoid another review round"}
+  ],
+  "validation": [
+    {"command": "cd server && sh ../.tmp/loop.sh (10x ./gradlew test --tests '*PageFetcherSizeLimitTests*' --rerun)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
