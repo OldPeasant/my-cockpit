@@ -24,3 +24,4 @@ Decided behavior (owner, 2026-11-08): remote images blocked by default, same as 
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 09:44+0100 by dell26/agent-1): The mail page is loaded on the placeholder origin https://server.invalid (Retrofit's stand-in for the configured server); the CSP allows img-src only from it and data:, and shouldInterceptRequest maps it to the configured server via the authenticated OkHttp client. The WebView never sees the real host or the token; anything not intercepted cannot resolve (.invalid).
