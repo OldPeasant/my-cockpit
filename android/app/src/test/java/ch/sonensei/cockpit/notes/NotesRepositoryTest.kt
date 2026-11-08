@@ -322,7 +322,8 @@ class NotesRepositoryTest {
             assertEquals(NotesResult.Failed(413), notes.uploadImage(id(1), NotePhoto(byteArrayOf(1), "image/png", "p.png")))
         }
 
-    private val base = Note(id(1), "Trip", "Trip", "Body", pinned = false, tags = listOf("home"), updatedAt = java.time.Instant.EPOCH, version = 3)
+    private val base =
+        Note(id(1), "Trip", "Trip", "Body", pinned = false, tags = listOf("home"), updatedAt = java.time.Instant.EPOCH, version = 3)
 
     private fun searchJson(vararg hits: Pair<String, Int>) =
         """{"groups":[${hits.groupBy({ it.first }, { it.second }).entries.joinToString(",") { (type, ns) ->
@@ -374,7 +375,14 @@ class NotesRepositoryTest {
 
             server.enqueue(json("""{"groups":[]}"""))
             assertEquals(NotesResult.Ok(emptyList<UUID>()), notes.search("x".repeat(250)))
-            assertEquals(200, server.takeRequest().url.queryParameter("q")!!.length)
+            assertEquals(
+                200,
+                server
+                    .takeRequest()
+                    .url
+                    .queryParameter("q")!!
+                    .length,
+            )
         }
 
     @Test

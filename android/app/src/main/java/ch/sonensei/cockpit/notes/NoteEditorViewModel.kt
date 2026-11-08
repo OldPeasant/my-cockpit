@@ -33,6 +33,9 @@ enum class NoteEditorMessage {
 
     /** A pin, archive or delete was refused. */
     CHANGE_FAILED,
+
+    /** A pin or archive was refused because the note changed elsewhere: its latest version is shown instead. */
+    CHANGE_CONFLICT,
 }
 
 /**
@@ -359,7 +362,8 @@ class NoteEditorViewModel
 
         /**
          * Runs a pin or archive change once the text is saved (it goes over the saved version). A refusal because the
-         * note changed elsewhere is a conflict, as for a save.
+         * note changed elsewhere shows the server's version when nothing typed here would be lost (the user can pin or
+         * archive it again); otherwise, or when the note was deleted elsewhere, it is a conflict, as for a save.
          */
         private fun changeFlags(action: suspend (Note) -> SaveResult) {
             if (!state.value.editable || state.value.note == null || state.value.changing) return
@@ -373,8 +377,19 @@ class NoteEditorViewModel
                             state.update {
                                 when (result) {
                                     is SaveResult.Saved -> it.copy(note = result.note)
-                                    is SaveResult.Conflict ->
-                                        it.copy(conflict = NoteConflict(result.current), status = SaveStatus.UNSAVED, editing = false)
+                                    is SaveResult.Conflict -> {
+                                        val current = result.current
+                                        if (current != null && it.isSaved()) {
+                                            it.copy(
+                                                note = current,
+                                                title = current.title.orEmpty(),
+                                                body = current.bodyMd,
+                                                message = NoteEditorMessage.CHANGE_CONFLICT,
+                                            )
+                                        } else {
+                                            it.copy(conflict = NoteConflict(current), status = SaveStatus.UNSAVED, editing = false)
+                                        }
+                                    }
                                     SaveResult.Offline -> it.copy(message = NoteEditorMessage.CHANGE_OFFLINE)
                                     is SaveResult.Failed -> it.copy(message = NoteEditorMessage.CHANGE_FAILED)
                                 }

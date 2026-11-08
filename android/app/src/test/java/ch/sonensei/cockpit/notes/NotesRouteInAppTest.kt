@@ -224,7 +224,9 @@ class NotesRouteInAppTest {
         composeRule.onNodeWithTag(NoteEditorTags.MENU).performClick()
         composeRule.onNodeWithTag(NoteEditorTags.DELETE).performClick()
 
-        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithText("Moved “Shopping” to the Trash").fetchSemanticsNodes().isNotEmpty() }
+        composeRule.waitUntil(
+            WAIT_MS,
+        ) { composeRule.onAllNodesWithText("Moved “Shopping” to the Trash").fetchSemanticsNodes().isNotEmpty() }
         composeRule.onNodeWithTag(NotesTags.note(id)).assertDoesNotExist()
 
         composeRule.onNodeWithText("Undo").performClick()

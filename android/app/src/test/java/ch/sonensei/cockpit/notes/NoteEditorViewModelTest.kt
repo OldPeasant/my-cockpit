@@ -862,14 +862,18 @@ class NoteEditorViewModelTest {
             vm.toggleArchived()
             advanceUntilIdle()
 
-            assertEquals(false, vm.uiState.value.note!!.archived)
+            assertEquals(
+                false,
+                vm.uiState.value.note!!
+                    .archived,
+            )
             coVerify(exactly = 0) { repo.save(any(), any()) }
         }
 
     @Test
-    fun `a pin refused because the note changed elsewhere opens the conflict`() =
+    fun `a pin refused because the note changed elsewhere shows the other version and says so, without a conflict`() =
         test { vm ->
-            val theirs = loaded.copy(bodyMd = "Theirs", version = 7)
+            val theirs = loaded.copy(title = "Groceries", bodyMd = "Theirs", version = 7)
             coEvery { repo.setFlags(loaded, pinned = true, archived = null) } returns SaveResult.Conflict(theirs)
             vm.open(id)
             runCurrent()
@@ -878,10 +882,65 @@ class NoteEditorViewModelTest {
             vm.togglePin()
             advanceUntilIdle()
 
-            assertEquals(NoteConflict(theirs), vm.uiState.value.conflict)
+            // Nothing typed here would be lost: there is no Keep mine that could write the older text over theirs.
+            val state = vm.uiState.value
+            assertNull(state.conflict)
+            assertEquals(theirs, state.note)
+            assertEquals("Groceries", state.title)
+            assertEquals("Theirs", state.body)
+            assertEquals(SaveStatus.SAVED, state.status)
+            assertEquals(NoteEditorMessage.CHANGE_CONFLICT, state.message)
+            assertEquals(true, state.editable)
+            assertEquals(false, state.changing)
+            coVerify(exactly = 0) { repo.save(any(), any()) }
+
+            // Pinning again goes over the other version.
+            coEvery { repo.setFlags(theirs, pinned = true, archived = null) } returns
+                SaveResult.Saved(theirs.copy(pinned = true, version = 8))
+            vm.togglePin()
+            advanceUntilIdle()
+            assertEquals(
+                true,
+                vm.uiState.value.note!!
+                    .pinned,
+            )
+            assertNull(vm.uiState.value.message)
+        }
+
+    @Test
+    fun `an archive refused because the note was deleted elsewhere opens the conflict`() =
+        test { vm ->
+            coEvery { repo.setFlags(loaded, pinned = null, archived = true) } returns SaveResult.Conflict(null)
+            vm.open(id)
+            runCurrent()
+            vm.setEditing(true)
+
+            vm.toggleArchived()
+            advanceUntilIdle()
+
+            assertEquals(NoteConflict(null), vm.uiState.value.conflict)
             assertEquals(false, vm.uiState.value.editing)
             assertEquals(false, vm.uiState.value.editable)
             assertEquals(false, vm.uiState.value.changing)
+        }
+
+    @Test
+    fun `a pin refused while text typed during it waits opens the conflict, so that text is not lost`() =
+        test { vm ->
+            val theirs = loaded.copy(bodyMd = "Theirs", version = 7)
+            val answer = CompletableDeferred<SaveResult>()
+            coEvery { repo.setFlags(loaded, pinned = true, archived = null) } coAnswers { answer.await() }
+            vm.open(id)
+            runCurrent()
+
+            vm.togglePin()
+            runCurrent()
+            vm.setBody("Mine")
+            answer.complete(SaveResult.Conflict(theirs))
+            runCurrent()
+
+            assertEquals(NoteConflict(theirs), vm.uiState.value.conflict)
+            assertEquals("Mine", vm.uiState.value.body)
         }
 
     @Test
@@ -943,7 +1002,7 @@ class NoteEditorViewModelTest {
             other.togglePin()
             other.toggleArchived()
             other.delete()
-            answer.complete(SaveResult.Conflict(loaded.copy(version = 9)))
+            answer.complete(SaveResult.Conflict(null))
             advanceUntilIdle()
             coVerify(exactly = 1) { repo.setFlags(any(), any(), any()) }
 

@@ -47,7 +47,7 @@
     <string name="notes_actions">Aktionen für die Notiz</string>
     <string name="notes_actions_for">Aktionen für %1$s</string>
     <string name="notes_pin">Anheften</string>
-    <string name="notes_unpin">Loslösen</string>
+    <string name="notes_unpin">Lösen</string>
     <string name="notes_archive">Archivieren</string>
     <string name="notes_unarchive">Aus dem Archiv holen</string>
     <string name="notes_delete">In den Papierkorb</string>
@@ -58,4 +58,5 @@
     <string name="notes_change_offline">Nicht geändert: keine Verbindung.</string>
     <string name="notes_change_conflict">Diese Notiz wurde anderswo geändert. Die Liste wurde neu geladen.</string>
     <string name="notes_change_failed">Nicht geändert: Der Server hat die Änderung abgelehnt.</string>
+    <string name="notes_change_conflict_editor">Nicht geändert: Diese Notiz wurde anderswo geändert. Die neueste Version wird angezeigt.</string>
 </resources>

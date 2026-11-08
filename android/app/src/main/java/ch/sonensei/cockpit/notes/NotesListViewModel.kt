@@ -94,22 +94,34 @@ class NotesListViewModel
         private var searchJob: Job? = null
         private var snackbars = 0L
 
+        /** A list load is running ([loadJob]); [NotesListUiState.loading] is true while it or [searchRunning] is. */
+        private var listLoading = false
+
+        /** A search request is running ([searchJob], after its delay). */
+        private var searchRunning = false
+
+        /** The message a failed search set, so a later successful search (or clearing it) takes that message away again. */
+        private var searchMessage: NotesListMessage? = null
+
         /** Loads the list for the current filter (and searches again); a load for an earlier filter is dropped. */
         fun refresh() {
             loadJob?.cancel()
             val tag = state.value.tag
             val archived = state.value.archived
+            listLoading = true
             state.update { it.copy(loading = true) }
             loadJob =
                 viewModelScope.launch {
                     val tags = async { notes.tags() }
                     val list = notes.list(tag, archived)
                     val tagList = tags.await()
+                    listLoading = false
+                    searchMessage = null
                     state.update {
                         it.copy(
                             notes = (list as? NotesResult.Ok)?.value ?: it.notes,
                             tags = (tagList as? NotesResult.Ok)?.value ?: it.tags,
-                            loading = false,
+                            loading = searchRunning,
                             loaded = it.loaded || list is NotesResult.Ok,
                             message = message(list),
                         )
@@ -134,34 +146,53 @@ class NotesListViewModel
             refresh()
         }
 
-        /** Searches the notes for [query] on the server, once the typing paused. */
+        /**
+         * Searches the notes for [query] on the server, once the typing paused. The hits of the previous text are
+         * dropped at once: they do not belong to the new one.
+         */
         fun setQuery(query: String) {
             val before = state.value.query
             state.update { it.copy(query = query) }
             if (query.trim() == before.trim()) return
+            state.update { it.copy(hits = null) }
             if (query.isBlank()) {
-                searchJob?.cancel()
-                state.update { it.copy(hits = null) }
+                cancelSearch()
+                // The message of a failed search is about a search that is gone.
+                state.update { it.copy(message = it.message.takeUnless { m -> m == searchMessage }) }
+                searchMessage = null
             } else {
                 search(SEARCH_DELAY_MS)
             }
         }
 
-        private fun search(delayMs: Long) {
+        /** Stops a running search; its loading ends with it. */
+        private fun cancelSearch() {
             searchJob?.cancel()
+            searchJob = null
+            searchRunning = false
+            state.update { it.copy(loading = listLoading) }
+        }
+
+        private fun search(delayMs: Long) {
+            cancelSearch()
             searchJob =
                 viewModelScope.launch {
                     delay(delayMs)
                     val query = state.value.query
+                    searchRunning = true
                     state.update { it.copy(loading = true) }
                     val result = notes.search(query)
+                    searchRunning = false
+                    val failure = message(result)
                     state.update {
                         it.copy(
+                            // A failed search for the same text (e.g. on a reload) keeps the hits it found before.
                             hits = (result as? NotesResult.Ok)?.value?.toSet() ?: it.hits,
-                            loading = loadJob?.isActive == true,
-                            message = message(result) ?: it.message,
+                            loading = listLoading,
+                            message = failure ?: it.message.takeUnless { m -> m == searchMessage },
                         )
                     }
+                    searchMessage = failure
                 }
         }
 
@@ -234,10 +265,23 @@ class NotesListViewModel
             }
         }
 
-        private fun replace(note: Note) =
+        private fun replace(note: Note) {
             state.update { s -> s.copy(notes = (s.notes.filter { it.id != note.id } + note).sortedWith(noteOrder)) }
+            reloadIfLoading()
+        }
 
-        private fun remove(id: UUID) = state.update { s -> s.copy(notes = s.notes.filter { it.id != id }) }
+        private fun remove(id: UUID) {
+            state.update { s -> s.copy(notes = s.notes.filter { it.id != id }) }
+            reloadIfLoading()
+        }
+
+        /**
+         * A load that started before a change would bring back the old note (or its old pin) when it answers after
+         * the change: it is started again, so the list it shows includes the change.
+         */
+        private fun reloadIfLoading() {
+            if (loadJob?.isActive == true) refresh()
+        }
 
         /** A refused change: the note changed elsewhere (the list is loaded again), or the change did not get through. */
         private fun failed(result: SaveResult) {

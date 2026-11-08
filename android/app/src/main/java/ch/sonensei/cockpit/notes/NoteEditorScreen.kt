@@ -414,6 +414,7 @@ private fun MessageBanner(
             NoteEditorMessage.PHOTO_FAILED -> R.string.notes_photo_failed
             NoteEditorMessage.CHANGE_OFFLINE -> R.string.notes_change_offline
             NoteEditorMessage.CHANGE_FAILED -> R.string.notes_change_failed
+            NoteEditorMessage.CHANGE_CONFLICT -> R.string.notes_change_conflict_editor
         }
     val load = message == NoteEditorMessage.LOAD_OFFLINE || message == NoteEditorMessage.LOAD_FAILED
     Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth().testTag(NoteEditorTags.MESSAGE)) {

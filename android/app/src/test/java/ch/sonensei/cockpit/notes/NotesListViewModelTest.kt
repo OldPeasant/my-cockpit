@@ -273,6 +273,113 @@ class NotesListViewModelTest {
 
             assertEquals(listOf(note(1), note(2)), vm.uiState.value.shown)
             assertEquals(false, vm.uiState.value.loading)
+            assertNull(vm.uiState.value.hits)
+
+            // The cancelled search answers late: nothing changes.
+            answer.complete(NotesResult.Ok(listOf(id(1))))
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.hits)
+            assertEquals(false, vm.uiState.value.loading)
+        }
+
+    @Test
+    fun `a reload with a search text keeps loading until both the list and the search answered`() =
+        runTest(dispatcher) {
+            coEvery { repo.search("milk") } returns NotesResult.Ok(listOf(id(1)))
+            val vm = loadedWith(note(1), note(2))
+            vm.setQuery("milk")
+            advanceUntilIdle()
+
+            val answer = CompletableDeferred<NotesResult<List<UUID>>>()
+            coEvery { repo.search("milk") } coAnswers { answer.await() }
+            vm.refresh()
+            advanceUntilIdle()
+            // The list answered, the search did not yet.
+            assertTrue(vm.uiState.value.loading)
+
+            answer.complete(NotesResult.Ok(listOf(id(2))))
+            advanceUntilIdle()
+            assertEquals(false, vm.uiState.value.loading)
+            assertEquals(listOf(note(2)), vm.uiState.value.shown)
+        }
+
+    @Test
+    fun `a new search text drops the hits of the previous one at once, also when its search fails`() =
+        runTest(dispatcher) {
+            coEvery { repo.search("milk") } returns NotesResult.Ok(listOf(id(1)))
+            coEvery { repo.search("bread") } returns NotesResult.Offline
+            val vm = loadedWith(note(1), note(2))
+            vm.setQuery("milk")
+            advanceUntilIdle()
+            assertEquals(listOf(note(1)), vm.uiState.value.shown)
+
+            vm.setQuery("bread")
+            assertNull(vm.uiState.value.hits)
+            assertEquals(emptyList<Note>(), vm.uiState.value.shown)
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.hits)
+            assertEquals(emptyList<Note>(), vm.uiState.value.shown)
+            assertEquals(NotesListMessage.OFFLINE, vm.uiState.value.message)
+        }
+
+    @Test
+    fun `a successful search takes away the message of a failed one, but not a failed load's`() =
+        runTest(dispatcher) {
+            coEvery { repo.search("milk") } returns NotesResult.Offline andThen NotesResult.Ok(listOf(id(1)))
+            val vm = loadedWith(note(1), note(2))
+            vm.setQuery("milk")
+            advanceUntilIdle()
+            assertEquals(NotesListMessage.OFFLINE, vm.uiState.value.message)
+
+            vm.setQuery("milk again")
+            coEvery { repo.search("milk again") } returns NotesResult.Ok(listOf(id(1)))
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.message)
+            assertEquals(listOf(note(1)), vm.uiState.value.shown)
+
+            // A failed load's message stays through a successful search.
+            coEvery { repo.list(null, false) } returns NotesResult.Failed(500)
+            vm.refresh()
+            advanceUntilIdle()
+            assertEquals(NotesListMessage.FAILED, vm.uiState.value.message)
+            vm.setQuery("bread")
+            coEvery { repo.search("bread") } returns NotesResult.Ok(emptyList())
+            advanceUntilIdle()
+            assertEquals(NotesListMessage.FAILED, vm.uiState.value.message)
+        }
+
+    @Test
+    fun `clearing a failed search takes its message away`() =
+        runTest(dispatcher) {
+            coEvery { repo.search("milk") } returns NotesResult.Offline
+            val vm = loadedWith(note(1), note(2))
+            vm.setQuery("milk")
+            advanceUntilIdle()
+            assertEquals(NotesListMessage.OFFLINE, vm.uiState.value.message)
+
+            vm.setQuery("")
+            assertNull(vm.uiState.value.message)
+        }
+
+    @Test
+    fun `a load that started before an archive does not bring the archived note back`() =
+        runTest(dispatcher) {
+            val vm = loadedWith(note(1), note(2))
+            val stale = CompletableDeferred<NotesResult<List<Note>>>()
+            coEvery { repo.list(null, false) } coAnswers { stale.await() } andThen NotesResult.Ok(listOf(note(2)))
+            coEvery { repo.setFlags(note(1), pinned = null, archived = true) } returns
+                SaveResult.Saved(note(1).copy(archived = true, version = 2))
+            vm.refresh()
+            runCurrent()
+
+            vm.toggleArchived(note(1))
+            advanceUntilIdle()
+            // The load from before the archive answers last, with the note still in it.
+            stale.complete(NotesResult.Ok(listOf(note(1), note(2))))
+            advanceUntilIdle()
+
+            assertEquals(listOf(note(2)), vm.uiState.value.notes)
+            assertEquals(false, vm.uiState.value.loading)
         }
 
     @Test
