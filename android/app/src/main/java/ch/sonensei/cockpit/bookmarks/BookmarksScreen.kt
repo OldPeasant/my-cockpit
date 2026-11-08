@@ -684,6 +684,8 @@ private fun BookmarksSnackbarEffect(
                             ),
                         duration = SnackbarDuration.Short,
                     )
+                is BookmarksSnackbar.InboxOffline ->
+                    host.showSnackbar(message = resources.getString(R.string.bookmarks_to_inbox_offline), duration = SnackbarDuration.Long)
                 BookmarksSnackbar.NoBrowser ->
                     host.showSnackbar(message = resources.getString(R.string.bookmarks_no_browser), duration = SnackbarDuration.Short)
             }

@@ -114,6 +114,65 @@ Lint/type-check/build:
 Remaining unresolved findings:
 0
 
+## Second round (second review, base e08b952e, task commits up to 00f1c5d4)
+
+Scope: P3 findings CR-1 and CR-2 of the second `reviews/and-bookmarks-plus/review.md`.
+
+### Fixed findings
+
+#### CR-1 (second review) — Leaving the reader while a copy is saved keeps an outdated version in the list
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/bookmarks/BookmarksViewModel.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/bookmarks/BookmarksAddReaderViewModelTest.kt`
+
+Problem:
+`closeReader()` cancelled `readerJob`, which was also the running `saveSnapshot` job. If the server had already saved the copy, the bookmark's version went up but the list kept the old one, and `busy` was released at once. The next change from the list then got a 412 and a "changed elsewhere" message.
+
+Fix:
+The save now runs in its own job that `closeReader()` and `loadReader()` do not cancel. The bookmark stays in `busy` until the server answers (released in `finally`, as before), so no other change goes out with the old version. The answer is always `put()` into the list. Reader updates still go only to a reader open on the same bookmark (`updateReader` by id). The new copy is loaded only when that reader is still open, as a new `readerJob`, so leaving the reader stops that load. A save that finds the bookmark gone closes the reader only when it still shows that bookmark.
+
+Validation:
+- `./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.bookmarks.*'` — Pass. The test `leaving the reader while a copy is saved lets the save finish and puts the new version into the list` replaces the old `... frees the bookmark for other changes` test, whose expectation (the bookmark freed at once on close) was the cause of the bug. It checks that the bookmark stays busy and a toggle is ignored while the save runs, that the saved version (2) is in the list afterwards, that no copy is loaded for the closed reader, and that the next toggle sends the saved version with no conflict note. The new test `a save that fails after the reader was left does not close a reader opened on another bookmark` covers the gone case.
+
+#### CR-2 (second review) — "Nothing was changed" is shown for creates whose outcome is unknown
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/bookmarks/BookmarkAdder.kt`
+- `android/app/src/main/java/ch/sonensei/cockpit/bookmarks/BookmarksViewModel.kt`
+- `android/app/src/main/java/ch/sonensei/cockpit/bookmarks/BookmarksScreen.kt`
+- `android/app/src/main/res/values/strings_bookmarks.xml`, `android/app/src/main/res/values-de/strings_bookmarks.xml`
+- tests: `BookmarksAddReaderViewModelTest.kt`, `BookmarksAddReaderScreenTest.kt`, `BookmarksStringsTest.kt`
+
+Problem:
+`Offline` also covers lost answers and 5xx after the request was sent. The add dialog and "To Inbox task" showed `bookmarks_change_offline` ("Nothing was changed"), which is wrong in that case. For add it encouraged a retry that could make a duplicate bookmark.
+
+Fix:
+- Add dialog: new string `bookmarks_add_offline`, "Can't reach the server. The bookmark may have been saved; check the list before trying again." (DE: "Der Server ist nicht erreichbar. Das Lesezeichen wurde vielleicht schon gespeichert; prüfe die Liste, bevor du es noch einmal versuchst."). After an offline add, the view model also reloads a list that was loaded before, so a bookmark the server did save shows up.
+- To Inbox: new snackbar `BookmarksSnackbar.InboxOffline` with the new string `bookmarks_to_inbox_offline`, "Can't reach the server. The task may have been added already; trying again won't add it twice." (DE: "Der Server ist nicht erreichbar. Die Aufgabe wurde vielleicht schon angelegt; ein erneuter Versuch legt sie nicht doppelt an."). This is accurate because a retry sends the kept task id.
+- `bookmarks_change_offline` is unchanged for the other list changes (read, read later, edit, delete, save copy). These send `If-Match`, so a repeat after a lost answer cannot apply twice.
+
+Validation:
+- `./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.bookmarks.*'` — Pass. The screen test asserts the exact new add text and the new To Inbox snackbar text. The view-model test `a failed to Inbox says why` now expects `InboxOffline` for an offline result. The new test `an add without an answer loads the list again, so a bookmark the server saved shows up` checks the reload. `BookmarksStringsTest` lists both new keys, and its existing check confirms that EN and DE have the same keys.
+
+### Not fixed
+
+None.
+
+### Validation summary (second round)
+
+Focused tests, lint and build:
+- `cd android && ./gradlew ktlintFormat ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.bookmarks.*' lintDebug` — BUILD SUCCESSFUL. 151 bookmarks tests in 8 classes, 0 failures, 0 skipped.
+
+Full test suite:
+- Not run in this round. Only bookmarks files changed.
+
+`.taskcheck`:
+- Not run in this round. The parent worker runs it before `done`. The `web` part could not run in this environment in round one (Node.js version, see above).
+
+Remaining unresolved findings:
+0
+
 ## Final status
 
-All validated findings fixed and validation passed. The exception is the full `.taskcheck`, which stops at the unrelated `web` part because of the Node.js version in this environment.
+All validated findings fixed and validation passed (both rounds: CR-1 to CR-5 of the first review, CR-1 and CR-2 of the second review). The focused Android validation passes. The full `.taskcheck` was not rerun after the second round. In round one it stopped at the unrelated `web` part because of the Node.js version in this environment.

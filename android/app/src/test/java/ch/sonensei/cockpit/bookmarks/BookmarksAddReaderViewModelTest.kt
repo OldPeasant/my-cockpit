@@ -316,6 +316,28 @@ class BookmarksAddReaderViewModelTest {
         }
 
     @Test
+    fun `an add without an answer loads the list again, so a bookmark the server saved shows up`() =
+        runTest(dispatcher) {
+            val typed = NewBookmark("https://example.org/9")
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(emptyList()) andThen BookmarksResult.Ok(listOf(bookmark(9)))
+            coEvery { repo.create(typed) } returns BookmarksResult.Offline
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+            vm.startAdd()
+
+            vm.add(typed)
+            advanceUntilIdle()
+            assertEquals(
+                AddFailure.OFFLINE,
+                vm.uiState.value.adding
+                    ?.failure,
+            )
+            assertEquals(listOf(bookmark(9)), vm.uiState.value.bookmarks)
+            coVerify(exactly = 2) { repo.list(any(), any()) }
+        }
+
+    @Test
     fun `a retry after a failed save clears the old reason while it saves`() =
         runTest(dispatcher) {
             val typed = NewBookmark("https://example.org/x")
@@ -558,7 +580,8 @@ class BookmarksAddReaderViewModelTest {
 
             vm.toInbox(bookmark(1))
             advanceUntilIdle()
-            assertEquals(BookmarkFailure.OFFLINE, failure(vm))
+            // No answer: the task may exist, so the note does not claim that nothing was changed.
+            assertTrue(vm.uiState.value.snackbar is BookmarksSnackbar.InboxOffline)
             vm.toInbox(bookmark(1))
             advanceUntilIdle()
             assertEquals(BookmarkFailure.FAILED, failure(vm))
@@ -832,13 +855,14 @@ class BookmarksAddReaderViewModelTest {
         }
 
     @Test
-    fun `leaving the reader while a copy is saved frees the bookmark for other changes`() =
+    fun `leaving the reader while a copy is saved lets the save finish and puts the new version into the list`() =
         runTest(dispatcher) {
             val saving = CompletableDeferred<BookmarksResult<Bookmark?>>()
+            val saved = bookmark(1, version = 2, snapshotFileId = id(90))
             coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1)))
             coEvery { repo.get(id(1)) } returns BookmarksResult.Ok(bookmark(1))
             coEvery { repo.saveSnapshot(any()) } coAnswers { saving.await() }
-            coEvery { repo.setReadLater(any(), any()) } returns BookmarksResult.Ok(bookmark(1, readLater = false, version = 2))
+            coEvery { repo.setReadLater(any(), any()) } returns BookmarksResult.Ok(bookmark(1, readLater = false, version = 3))
             val vm = viewModel()
             vm.refresh()
             advanceUntilIdle()
@@ -850,14 +874,56 @@ class BookmarksAddReaderViewModelTest {
             assertTrue(id(1) in vm.uiState.value.busy)
             vm.closeReader()
             advanceUntilIdle()
+            assertNull(vm.uiState.value.reading)
 
+            // The save still runs: the bookmark stays busy, so no change goes out with the old version.
+            assertTrue(id(1) in vm.uiState.value.busy)
+            vm.toggleReadLater(bookmark(1))
+            advanceUntilIdle()
+            coVerify(exactly = 0) { repo.setReadLater(any(), any()) }
+
+            saving.complete(BookmarksResult.Ok(saved))
+            advanceUntilIdle()
+            assertEquals(listOf(saved), vm.uiState.value.bookmarks)
             assertTrue(
                 vm.uiState.value.busy
                     .isEmpty(),
             )
+            assertNull(vm.uiState.value.reading)
+            coVerify(exactly = 0) { repo.snapshot(any()) }
+
+            // The next change from the list sends the saved version, not the one from before the save.
             vm.toggleReadLater(bookmark(1))
             advanceUntilIdle()
-            coVerify(exactly = 1) { repo.setReadLater(any(), false) }
+            coVerify(exactly = 1) { repo.setReadLater(saved, false) }
+            assertNull(vm.uiState.value.snackbar)
+        }
+
+    @Test
+    fun `a save that fails after the reader was left does not close a reader opened on another bookmark`() =
+        runTest(dispatcher) {
+            val saving = CompletableDeferred<BookmarksResult<Bookmark?>>()
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1), bookmark(2)))
+            coEvery { repo.get(id(1)) } returns BookmarksResult.Ok(bookmark(1))
+            coEvery { repo.get(id(2)) } returns BookmarksResult.Ok(bookmark(2))
+            coEvery { repo.saveSnapshot(bookmark(1)) } coAnswers { saving.await() }
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+            vm.openReader(bookmark(1))
+            advanceUntilIdle()
+
+            vm.saveSnapshot()
+            runCurrent()
+            vm.closeReader()
+            vm.openReader(bookmark(2))
+            advanceUntilIdle()
+            // Bookmark 1 is gone meanwhile.
+            saving.complete(BookmarksResult.Failed(BookmarksRepository.NOT_FOUND))
+            advanceUntilIdle()
+
+            assertEquals(ReaderState(bookmark(2)), vm.uiState.value.reading)
+            assertEquals(listOf(bookmark(2)), vm.uiState.value.bookmarks)
         }
 
     @Test

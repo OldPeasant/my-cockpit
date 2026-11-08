@@ -49,6 +49,11 @@ sealed interface BookmarksSnackbar {
         override val id: Long = 0,
     ) : BookmarksSnackbar
 
+    /** "To Inbox task" got no answer: the task may have been made, and trying again does not make it twice. */
+    data class InboxOffline(
+        override val id: Long = 0,
+    ) : BookmarksSnackbar
+
     /** No app on the device opens web addresses. */
     data object NoBrowser : BookmarksSnackbar {
         override val id: Long get() = 0
@@ -265,6 +270,8 @@ class BookmarksViewModel internal constructor(
                             else -> AddFailure.FAILED
                         }
                     state.update { it.copy(adding = AddBookmarkState(bookmark, failure = failure)) }
+                    // The answer may be lost after the server saved it: a fresh list shows whether it is there.
+                    if (failure == AddFailure.OFFLINE && state.value.loaded) refresh()
                 }
             }
         }
@@ -281,6 +288,8 @@ class BookmarksViewModel internal constructor(
             if (result != BookmarksResult.Offline) inboxTaskIds.remove(current.id)
             when (result) {
                 is BookmarksResult.Ok -> show(BookmarksSnackbar.AddedToInbox(result.value, nextSnackbar()))
+                // The task may exist already; trying again sends the same id, so it is never made twice.
+                BookmarksResult.Offline -> show(BookmarksSnackbar.InboxOffline(nextSnackbar()))
                 else -> show(BookmarksSnackbar.Failed(failure(result), nextSnackbar()))
             }
         }
@@ -306,7 +315,8 @@ class BookmarksViewModel internal constructor(
 
     /**
      * Asks the server to fetch the page of the open reader again and save a new readable copy. Like the other changes
-     * of a bookmark it is one at a time, so two writes never go out with the same version.
+     * of a bookmark it is one at a time, so two writes never go out with the same version. Leaving the reader does not
+     * stop it: the server may have saved the copy already, so its answer still updates the list (with the new version).
      */
     fun saveSnapshot() {
         val reading = state.value.reading ?: return
@@ -314,14 +324,13 @@ class BookmarksViewModel internal constructor(
         val id = reading.bookmark.id
         if (id in state.value.busy) return
         state.update { it.copy(reading = reading.copy(saving = true, failure = null), busy = it.busy + id) }
-        readerJob =
-            viewModelScope.launch {
-                try {
-                    saveSnapshot(reading.bookmark)
-                } finally {
-                    state.update { it.copy(busy = it.busy - id) }
-                }
+        viewModelScope.launch {
+            try {
+                saveSnapshot(reading.bookmark)
+            } finally {
+                state.update { it.copy(busy = it.busy - id) }
             }
+        }
     }
 
     private suspend fun saveSnapshot(bookmark: Bookmark) {
@@ -333,14 +342,17 @@ class BookmarksViewModel internal constructor(
                     updateReader(id) { it.copy(saving = false, failure = ReaderFailure.UNREADABLE) }
                 } else {
                     put(saved)
+                    // The new copy is loaded only into a reader still open on the bookmark; leaving it stops the load.
+                    if (state.value.reading.let { it == null || it.bookmark.id != id }) return
                     updateReader(id) { it.copy(saving = false, loading = true) }
-                    loadSnapshot(saved)
+                    readerJob?.cancel()
+                    readerJob = viewModelScope.launch { loadSnapshot(saved) }
                 }
             }
             else -> {
                 val latest = failed(bookmark, result)
                 if (latest == null) {
-                    closeReader()
+                    state.update { s -> if (s.reading?.bookmark?.id == id) s.copy(reading = null) else s }
                 } else {
                     updateReader(id) { it.copy(bookmark = latest, saving = false) }
                 }

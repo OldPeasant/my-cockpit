@@ -101,7 +101,7 @@ internal fun BookmarkAdder(
                             when (it) {
                                 AddFailure.INVALID_URL -> R.string.bookmarks_add_invalid_url
                                 AddFailure.INVALID_TAGS -> R.string.bookmarks_add_invalid_tags
-                                AddFailure.OFFLINE -> R.string.bookmarks_change_offline
+                                AddFailure.OFFLINE -> R.string.bookmarks_add_offline
                                 AddFailure.FAILED -> R.string.bookmarks_add_failed
                             },
                         ),

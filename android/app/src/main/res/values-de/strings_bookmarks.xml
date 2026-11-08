@@ -39,11 +39,13 @@
     <string name="bookmarks_add_invalid_url">Gib eine vollständige Webadresse ein, die mit http:// oder https:// beginnt.</string>
     <string name="bookmarks_add_invalid_tags">Verwende höchstens 50 Tags mit je höchstens 50 Zeichen.</string>
     <string name="bookmarks_add_failed">Das Lesezeichen konnte nicht gespeichert werden.</string>
+    <string name="bookmarks_add_offline">Der Server ist nicht erreichbar. Das Lesezeichen wurde vielleicht schon gespeichert; prüfe die Liste, bevor du es noch einmal versuchst.</string>
     <string name="bookmarks_read_later_add">Später lesen</string>
     <string name="bookmarks_read_later_remove">Aus „Später lesen“ entfernen</string>
     <string name="bookmarks_to_inbox">Als Aufgabe in den Eingang</string>
     <string name="bookmarks_added_to_inbox">Zum Eingang hinzugefügt</string>
     <string name="bookmarks_added_to_inbox_unlinked">Zum Eingang hinzugefügt, aber nicht mit dem Lesezeichen verknüpft</string>
+    <string name="bookmarks_to_inbox_offline">Der Server ist nicht erreichbar. Die Aufgabe wurde vielleicht schon angelegt; ein erneuter Versuch legt sie nicht doppelt an.</string>
     <string name="bookmarks_open_reader">Gespeicherte Kopie lesen</string>
     <string name="bookmarks_reader_back">Zurück zu den Lesezeichen</string>
     <string name="bookmarks_reader_original">Original öffnen (%1$s)</string>

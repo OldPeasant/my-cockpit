@@ -134,7 +134,10 @@ class BookmarksAddReaderScreenTest {
         state = state.copy(adding = state.adding!!.copy(failure = AddFailure.INVALID_TAGS))
         composeRule.onNodeWithTag(AdderTags.ERROR).assertTextContains("Use at most 50 tags, each at most 50 characters long.")
         state = state.copy(adding = state.adding!!.copy(failure = AddFailure.OFFLINE))
-        composeRule.onNodeWithTag(AdderTags.ERROR).assertTextContains("Can't reach the server", substring = true)
+        // The answer may be lost after the server saved it: the text must not claim that nothing was changed.
+        composeRule
+            .onNodeWithTag(AdderTags.ERROR)
+            .assertTextContains("Can't reach the server. The bookmark may have been saved; check the list before trying again.")
         state = state.copy(adding = state.adding!!.copy(failure = AddFailure.FAILED))
         composeRule.onNodeWithTag(AdderTags.ERROR).assertTextContains("The bookmark could not be saved.")
 
@@ -202,6 +205,10 @@ class BookmarksAddReaderScreenTest {
         composeRule.onNodeWithText("Added to the Inbox").assertExists()
         state = state.copy(snackbar = BookmarksSnackbar.AddedToInbox(linked = false, id = 2))
         composeRule.onNodeWithText("Added to the Inbox, but it could not be linked to the bookmark").assertExists()
+        state = state.copy(snackbar = BookmarksSnackbar.InboxOffline(id = 3))
+        composeRule
+            .onNodeWithText("Can't reach the server. The task may have been added already; trying again won't add it twice.")
+            .assertExists()
     }
 
     // --- Reader ---

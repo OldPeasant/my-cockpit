@@ -39,11 +39,13 @@
     <string name="bookmarks_add_invalid_url">Enter a full web address starting with http:// or https://.</string>
     <string name="bookmarks_add_invalid_tags">Use at most 50 tags, each at most 50 characters long.</string>
     <string name="bookmarks_add_failed">The bookmark could not be saved.</string>
+    <string name="bookmarks_add_offline">Can\'t reach the server. The bookmark may have been saved; check the list before trying again.</string>
     <string name="bookmarks_read_later_add">Read later</string>
     <string name="bookmarks_read_later_remove">Remove from read later</string>
     <string name="bookmarks_to_inbox">To Inbox task</string>
     <string name="bookmarks_added_to_inbox">Added to the Inbox</string>
     <string name="bookmarks_added_to_inbox_unlinked">Added to the Inbox, but it could not be linked to the bookmark</string>
+    <string name="bookmarks_to_inbox_offline">Can\'t reach the server. The task may have been added already; trying again won\'t add it twice.</string>
     <string name="bookmarks_open_reader">Read saved copy</string>
     <string name="bookmarks_reader_back">Back to the bookmarks</string>
     <string name="bookmarks_reader_original">Open original (%1$s)</string>
