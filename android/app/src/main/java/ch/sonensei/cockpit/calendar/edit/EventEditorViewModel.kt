@@ -45,7 +45,10 @@ enum class EditorMessage {
     /** The event changed elsewhere (or at its provider) since it was opened: reload before changing it. */
     CONFLICT,
 
-    /** An answer to an invitation was refused by the server (e.g. the user organizes the event or is not invited). */
+    /**
+     * An answer to an invitation was refused by the server (not invited, organizer, changed at the provider,
+     * not synced yet, or read-only); a reload and another try may help.
+     */
     RESPOND_FAILED,
 
     /** The edited occurrence no longer exists (its series changed or it was removed elsewhere): no reload can show it. */
@@ -750,7 +753,10 @@ class EventEditorViewModel internal constructor(
         /** Changed concurrently or at the provider (409), or a stale `If-Match` (412). */
         val CONFLICTS = setOf(409, 412)
 
-        /** A stale `If-Match` (412); a 409 to an answer means the user can't answer (not invited, or organizer). */
+        /**
+         * A stale `If-Match` (412). A 409 to an answer is a refusal instead (not invited, organizer, changed at
+         * the provider, not synced yet, or read-only); a reload and another try may help.
+         */
         const val STALE = 412
 
         /** The event or the occurrence no longer exists (or the event is in the Trash). */
