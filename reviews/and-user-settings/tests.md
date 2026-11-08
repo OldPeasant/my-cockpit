@@ -4,151 +4,117 @@ Date: 2026-11-08
 
 Task: and-user-settings: Android reads and writes the synced user settings
 
-Scope: base 80c9f39e15daef3e3c6c57536749ae4e264ebac7 (given by the parent) up to HEAD e97612486; task commits 215fcbda5, 57a4e8017, e97612486, as named by the parent. The test-writer could not run git: Bash was denied in this sub-agent session. The scope comes from the parent's prompt and the task's `touches` list, and the production files were read directly.
+Scope: second round, on the final code. Base a32b1930c26fc97f61c159db611ff19b2a731a3e (given by the parent) up to HEAD c317d934eb53ed1860057b5244d8907b04bd7451. Task commits (confirmed with `git log a32b1930c..HEAD`): fe6fd3c36, decac4add, 03a170513, 84c4cf231, c317d934e. c317d934e holds the CR-1/CR-2 fix (sequence tickets in `UserSettingsRepository`), made after the first test report. The working tree was clean when this round started. The only uncommitted change is the test file this round edited (see below).
 
 Requirements:
 - tasks/and-user-settings.md (acceptance criteria and the ASSUMPTION notes from 2026-11-08)
-- Class documentation of `UserSettingsRepository` ("an older answer never overwrites a newer one")
-- Existing test conventions (JUnit4, MockK, kotlinx-coroutines-test, Robolectric Compose tests with `createComposeRule`/`createAndroidComposeRule`)
+- reviews/and-user-settings/review.md (CR-1, CR-2) and fixes.md (the guarantee the sequence tickets give)
+- KDoc of `UserSettingsRepository` (`lock`, `sequence`, `appliedSequence`, `refresh`)
+- docs/ARCHITECTURE.md "Coverage"; existing test conventions (JUnit4, MockK, kotlinx-coroutines-test with `UnconfinedTestDispatcher`, Robolectric Compose tests)
 
 ## Test files changed
 
-- `android/app/src/test/java/ch/sonensei/cockpit/core/settings/UserSettingsRepositoryEdgeCasesTest.kt` (new)
-- `android/app/src/test/java/ch/sonensei/cockpit/core/settings/DataStoreUserSettingsStoreTest.kt` (new)
-- `android/app/src/test/java/ch/sonensei/cockpit/calendar/edit/EventEditorViewModelSettingsTest.kt` (new)
-- `android/app/src/test/java/ch/sonensei/cockpit/gtd/inbox/InboxUserLabelsTest.kt` (new)
-- `android/app/src/test/java/ch/sonensei/cockpit/gtd/task/TaskDetailUserLabelsTest.kt` (new)
+- `android/app/src/test/java/ch/sonensei/cockpit/core/settings/UserSettingsRepositoryEdgeCasesTest.kt` (2 tests added in this round; uncommitted)
 
-The test-writer did not touch the existing tests the parent already wrote (UserSettingsRepositoryTest, UserSettingsTest, CalendarViewModelSettingsTest, AppearanceViewModelTest, AppearanceSectionTest, CockpitSettingsThemeTest).
+All task test files at HEAD: UserSettingsRepositoryTest, UserSettingsRepositoryEdgeCasesTest, DataStoreUserSettingsStoreTest, UserSettingsTest (core/settings); CalendarViewModelSettingsTest; EventEditorViewModelSettingsTest; InboxUserLabelsTest; TaskDetailUserLabelsTest; AppearanceViewModelTest, AppearanceSectionTest (settings); CockpitSettingsThemeTest (ui/theme). None of them was changed or weakened in this round apart from the 2 additions.
 
 ## Tests added or updated
 
-Count: 23 new tests (7 + 5 + 5 + 4 + 2)
+Count: 2 added in this round
+
+- `UserSettingsRepositoryEdgeCasesTest.a refresh started while an update is in flight is taken after the update`. A refresh that waits for the lock while a PATCH is pending must get a later ticket than the update. Its answer, sent after the PATCH, is taken (theme SYSTEM, ETag "3" in memory and in the cache). This protects against over-dropping: if a ticket were taken outside the lock or before the update's, this refresh would be dropped wrongly.
+- `UserSettingsRepositoryEdgeCasesTest.a later refresh that fails does not make an earlier answer be dropped`. Two refreshes overlap. The later one gets 503 (OFFLINE), and the earlier one still answers LOADED and is applied. This pins the fixer's statement that non-2xx answers do not move `appliedSequence`.
+
+Why only these two: the first-round tests together with the fixer's tests already cover a GET pending during logout, a stale GET after a PATCH, and overlapping refreshes answered in both orders. The two cases above were the remaining ordering cases that the ticket design must not drop by mistake. They were not covered.
 
 ## Requirement coverage
 
-The test-writer could not run any of the new tests in this session, because Bash (and so Gradle) was denied. The parent must run them, using the command in "Focused test execution".
+The test-writer cannot run Gradle in this sub-agent session (a Gradle call was denied: "Permission to use Bash has been denied"). The "Pass" results below come from the parent's runs on HEAD c317d934e, as reported to the test-writer. Those runs did not include the 2 tests added in this round.
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1 repository: a load that started before a logout is not applied (generation guard) | UserSettingsRepositoryEdgeCasesTest `a load answered after a logout does not bring the old user's settings back` | focused command below | Not run: Gradle unavailable to the sub-agent |
-| AC1 repository: an older GET answer must not overwrite a newer PATCH answer | UserSettingsRepositoryEdgeCasesTest `a refresh answered after an update does not overwrite the update's newer answer` | focused command below | Not run; expected to FAIL against the current code (TW-1) |
-| AC1 repository: 409/428 count as conflicts, reload once, and do not retry the write | UserSettingsRepositoryEdgeCasesTest `409 and 428 also reload the settings and report a conflict without retrying the write` | focused command below | Not run |
-| AC1 repository: cache read/write/clear failures do not break loading, applying or logout | UserSettingsRepositoryEdgeCasesTest `a broken cache does not stop the settings from loading, applying or clearing` | focused command below | Not run |
-| AC1 repository: a 200 without a body and an unreadable answer are not taken | UserSettingsRepositoryEdgeCasesTest `a success without a body is not taken`, `an unreadable server answer fails the load and rejects the update` | focused command below | Not run |
-| AC1 repository: an empty change sends nothing | UserSettingsRepositoryEdgeCasesTest `an empty change is not sent` | focused command below | Not run |
-| AC1 offline cache: DataStore round trip, ETag removal, clear, corrupt or non-object JSON counts as no cache | DataStoreUserSettingsStoreTest (5 tests) | focused command below | Not run |
-| AC3 time zone from settings: new events in the synced zone, device zone as fallback, settings loaded later apply, an event's own zone wins | EventEditorViewModelSettingsTest (5 tests) | focused command below | Not run |
-| AC4 labels in inbox processing: renamed labels shown, others translated, chips still set the level, live update and logout, German translation of the server's English defaults | InboxUserLabelsTest (4 tests) | focused command below | Not run |
-| AC4 labels in task detail: properties and edit-form chips | TaskDetailUserLabelsTest (2 tests) | focused command below | Not run |
-| AC2 theme, AC5 strings | Covered by the parent's CockpitSettingsThemeTest / AppearanceSectionTest (German qualifier); the test-writer added nothing here | n/a | Not re-run by the test-writer |
-| AC6 ktlintCheck testDebugUnitTest lintDebug, scripts/check.sh | n/a | `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug`; `sh scripts/check.sh` | Not run: Bash denied |
+| AC1 repository loads GET, exposes StateFlow, caches for offline start | UserSettingsRepositoryTest `refresh loads, parses and caches the settings`, `the cached settings are shown at start and stay when the server cannot be reached`, `a server error keeps the last settings`; DataStoreUserSettingsStoreTest (5) | parent: `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.core.settings.*' ktlintCheck` | Pass (parent, HEAD c317d934e) |
+| AC1 typed update with PATCH + If-Match, 412 reloads; 409/428 the same, no retry; offline/rejected/server error mapping; empty change; not loaded | UserSettingsRepositoryTest `update sends only the changed key with If-Match and takes the answer`, `a 412 reloads the settings and reports a conflict`, `update without loaded settings sends nothing`, `update maps offline, rejected and server errors`; EdgeCases `409 and 428 also reload...`, `an empty change is not sent`, `a success without a body is not taken`, `an unreadable server answer...` | same | Pass (parent) |
+| AC1 ordering (CR-1/CR-2): older answer never overwrites a newer one; logout drops a pending GET | EdgeCases `a load answered after a logout...`, `a refresh answered after an update...`, `of two overlapping refreshes the later one wins...`, `of two overlapping refreshes answered in order...` | same | Pass (parent) |
+| AC1 ordering: a newer answer is not dropped by mistake | EdgeCases `a refresh started while an update is in flight is taken after the update`, `a later refresh that fails does not make an earlier answer be dropped` (new) | focused command below | Not run: added in this round, Gradle denied to the sub-agent; the parent must run it |
+| AC1 storage failures, logout clears, refresh at sign-in | EdgeCases `a broken cache...`; UserSettingsRepositoryTest `clear forgets the settings and the cache`, `start refreshes at each new sign-in but not for the state at start` | parent command above | Pass (parent) |
+| AC2 theme app-wide, dynamic color for system | CockpitSettingsThemeTest; AppearanceViewModelTest; AppearanceSectionTest | parent: `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -q` | Pass (parent, 2940 tests, 0 failures) |
+| AC3 week start and time zone from settings, locale fallback | CalendarViewModelSettingsTest; EventEditorViewModelSettingsTest (5) | same | Pass (parent) |
+| AC4 labels in inbox processing and task detail | InboxUserLabelsTest (4); TaskDetailUserLabelsTest (2); UserSettingsTest (label parsing/defaults) | same | Pass (parent) |
+| AC5 strings in English and German | AppearanceSectionTest (German qualifier); both `strings_settings.xml` files changed in the diff; lintDebug (MissingTranslation) | same | Pass (parent) |
+| AC6 ktlintCheck testDebugUnitTest lintDebug; `sh scripts/check.sh` | full suite | parent: android command above; `sh scripts/check.sh` | android: Pass (parent). check.sh: Not run by the test-writer (Bash denied); the parent runs it |
 
 ## Focused test execution
 
-Command (for the parent to run):
+Command (for the parent, covers the 2 new tests and the whole settings package):
 
-`cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.core.settings.UserSettingsRepositoryEdgeCasesTest' --tests 'ch.sonensei.cockpit.core.settings.DataStoreUserSettingsStoreTest' --tests 'ch.sonensei.cockpit.calendar.edit.EventEditorViewModelSettingsTest' --tests 'ch.sonensei.cockpit.gtd.inbox.InboxUserLabelsTest' --tests 'ch.sonensei.cockpit.gtd.task.TaskDetailUserLabelsTest'`
+`cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.core.settings.UserSettingsRepositoryEdgeCasesTest' ktlintCheck`
 
 Result:
 
-Not run. Every Bash call in the test-writer session was denied ("Permission to use Bash has been denied"), so the tests were written without being compiled or run. Expected outcome: all tests pass except the TW-1 regression test, which should fail. The new files have not been checked by ktlint either: run `./gradlew ktlintCheck` (or ktlintFormat).
+Not run by the test-writer (Gradle denied in this sub-agent session). The new tests were written but not compiled here. Both are expected to pass on HEAD c317d934e: the expectation comes from tracing `refresh`, `update` and `apply` by hand with `UnconfinedTestDispatcher` and the FIFO `Mutex`. Earlier parent run on HEAD c317d934e (without the 2 new tests): `./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.core.settings.*' ktlintCheck` -> passed.
 
 ## Full test execution
 
 Command:
 
-`cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug`
+`cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -q`
 
 Result:
 
-Not run (Bash denied).
+Pass, run by the parent on HEAD c317d934e: exit 0, 2940 test cases, 0 failures. It does not yet include the 2 tests added in this round.
 
 ## .taskcheck
 
 Result:
 
-Not run (Bash denied). `.taskcheck` is `sh scripts/check.sh`.
+Not run by the test-writer (Bash/Gradle denied). `.taskcheck` is `sh scripts/check.sh`; the parent runs it.
 
 ## Bugs found
 
-### A refresh answered after an update reverts the newly saved settings and ETag
-
-Finding ID:
-
-`TW-1`
-
-Test:
-
-`UserSettingsRepositoryEdgeCasesTest.a refresh answered after an update does not overwrite the update's newer answer`
-
-Production source:
-
-`android/app/src/main/java/ch/sonensei/cockpit/core/settings/UserSettingsRepository.kt:134-151` (`refresh`). The GET runs outside `lock`. After it, the code only compares `generation`, which changes on `clear()` only, then calls `accept(response)`.
-
-Requirement:
-
-AC1 (cached StateFlow, update with ETag/If-Match), plus the class's own contract on `lock`: "Serializes loads, writes and clearing, so an older answer never overwrites a newer one."
-
-Expected behavior:
-
-A GET is sent (for example from `MainActivity.onStart`) and the server answers it with the state before a PATCH. If that answer arrives after the PATCH answer was applied, it is dropped. The settings stay at the PATCH result (theme LIGHT), and the ETag in memory and in the cache stays "2".
-
-Actual behavior (from reading the code; the test has not been run):
-
-`refresh` applies the stale answer, so the theme goes back to DARK and the ETag back to "1", in memory and in the DataStore cache. The user sees the theme they just picked jump back. The next theme change then gets 412, reloads and returns Conflict. The state heals on the next refresh. Possible fixes include treating any applied update as a newer generation (bump a counter in `accept` from `update`), or holding the lock across the GET. The parent or fixer chooses the fix.
-
-Severity:
-
-Medium. User-visible but self-healing. It happens when the user changes the theme while a start or sign-in refresh is still in flight on a slow network.
-
-Fix required:
-
-`Yes — production code must be fixed by the parent worker / fixer.`
+None in this round. TW-1 from the first round (a stale refresh answer overwriting a newer update) is the same problem as CR-1. It is fixed in c317d934e. Its regression test `a refresh answered after an update does not overwrite the update's newer answer` is in the parent's passing run on HEAD c317d934e.
 
 ## Coverage
 
-Status: unavailable. Bash is denied in this sub-agent session, so the test-writer could not run Gradle, Kover/JaCoCo or git.
+Status: unavailable. The Android coverage command (`cd android && ./gradlew createDebugUnitTestCoverageReport`, JaCoCo via AGP, docs/ARCHITECTURE.md "Coverage") could not be run: every Gradle call in this sub-agent session is denied ("Permission to use Bash has been denied"). No coverage report exists in the workspace: `android/app/build/reports/coverage/test/debug/` is not there. So there is no fresh or stale report to read, and no numbers are given.
 
 Metric: whole-file coverage of task-changed production files.
 Changed-line coverage: not measured.
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: and-user-settings; base 80c9f39e15daef3e3c6c57536749ae4e264ebac7; HEAD e97612486 (abbreviated, as supplied by the parent; the test-writer could not resolve it); commits 215fcbda5, 57a4e8017, e97612486, from the parent's prompt.
-- Source/test snapshot identifier (including uncommitted inputs): not available; no hashing without a shell. The uncommitted inputs are the 5 new test files listed above.
-- Exact included files; renamed/deleted/excluded files and reasons: scope as described by the parent: `core/settings/` (UserSettings.kt, UserSettingsRepository.kt, LocalUserSettings.kt), `ui/theme/Theme.kt`, `settings/AppearanceViewModel.kt`, `settings/SettingsScreen.kt`, `calendar/agenda/CalendarViewModel.kt`, `calendar/edit/EventEditorViewModel.kt`, `gtd/inbox/InboxScreen.kt`, `gtd/task/TaskDetailScreen.kt`, the Next screen chips, and the MainActivity/CockpitApp/Share/Capture activity wiring. None of them was measured.
-- Provider/version, command, working directory, and test selection: none run. The ARCHITECTURE.md "Coverage" command for android should be run by the parent.
-- Run start/completion time and exit status: none.
-- Generated report paths and report hashes/run identifier: none.
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: and-user-settings; base a32b1930c26fc97f61c159db611ff19b2a731a3e (from the parent); HEAD c317d934eb53ed1860057b5244d8907b04bd7451; commits fe6fd3c36, decac4add, 03a170513, 84c4cf231, c317d934e. The parent named them, and `git log a32b1930c..HEAD` lists exactly these 5.
+- Source/test snapshot identifier (including uncommitted inputs): HEAD c317d934e, plus the uncommitted `UserSettingsRepositoryEdgeCasesTest.kt`, sha256 fb1bf5989e51a09a8e2f12bc443f2c097f270dfac693e84cde05726497d2c40d.
+- Exact included files (from `git diff --name-status a32b1930c..HEAD -- android/app/src/main`): added `core/settings/LocalUserSettings.kt`, `core/settings/UserSettings.kt`, `core/settings/UserSettingsRepository.kt`, `settings/AppearanceViewModel.kt`; modified `CockpitApp.kt`, `MainActivity.kt`, `calendar/agenda/CalendarViewModel.kt`, `calendar/edit/EventEditorViewModel.kt`, `capture/entry/CaptureActivity.kt`, `capture/share/ShareActivity.kt`, `gtd/inbox/InboxScreen.kt`, `gtd/next/NextScreen.kt`, `gtd/task/TaskDetailScreen.kt`, `settings/SettingsScreen.kt`, `ui/theme/Theme.kt` (all under `android/app/src/main/java/ch/sonensei/cockpit/`). Excluded: `res/values/strings_settings.xml` and `res/values-de/strings_settings.xml`, which are resources with no executable code. No renamed or deleted files.
+- Provider/version, command, working directory, and test selection: not run (JaCoCo via AGP `enableUnitTestCoverage`; `cd android && ./gradlew createDebugUnitTestCoverageReport`; all debug unit tests).
+- Run start/completion time and exit status: none (no run).
+- Generated report paths and report hashes/run identifier: none. The expected path is `android/app/build/reports/coverage/test/debug/report.xml`, which does not exist.
 - Evidence outputs are fresh and inputs stayed unchanged: not applicable, no run.
-- Final run after latest test additions and production fixes: no; no coverage run was possible.
+- Final run after latest test additions and production fixes: no. Gradle is denied to the sub-agent. To get numbers, the parent can run the coverage command above and read the per-file `sourcefile` counters for the files listed.
 
 | Changed file | Statements | Branches | Functions | Lines |
 |---|---:|---:|---:|---:|
-| all task-changed production files | N/A (not measured) | N/A | N/A | N/A |
+| all 15 task-changed production files listed above | N/A (not measured) | N/A | N/A | N/A |
 
-Uncovered-behavior review, done by reading the code because no coverage report exists:
+Uncovered-behavior review. No coverage report exists, so this review was done by reading the final code:
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `UserSettingsRepository.kt` refresh generation check (line 148) | A logout during a load | UserSettingsRepositoryEdgeCasesTest generation test |
-| `UserSettingsRepository.kt` stale GET vs PATCH ordering | An older answer overwrites a newer one | Regression test added, TW-1 |
-| `UserSettingsRepository.kt` store read/write/clear catch blocks, null body, SerializationException, 409/428, empty change | Error paths of AC1 | UserSettingsRepositoryEdgeCasesTest |
-| `UserSettingsRepository.kt` `DataStoreUserSettingsStore` | Offline cache for the start | DataStoreUserSettingsStoreTest |
-| `UserSettingsRepository.kt` `UserSettingsModule` (Hilt provider, ReplaceFileCorruptionHandler, SessionCache binding) | Logout clears the settings | Not unit tested: Hilt glue. The behavior of `clear()` is covered by the parent's test |
-| `UserSettingsRepository.kt` cacheRead branch "server answer arrived first" (`state.value == null`) | Cache must not overwrite a newer answer | Unreachable today: refresh/update/clear all join `cacheRead` first. Defensive code, no test |
-| `EventEditorViewModel.kt` `zone` getter | AC3 for new and edited events | EventEditorViewModelSettingsTest |
-| `InboxScreen.kt` / `TaskDetailScreen.kt` label call sites | AC4 | InboxUserLabelsTest, TaskDetailUserLabelsTest |
-| Next screen filter chips using the labels | The assumption extends AC4 to Next | Not tested by the test-writer (outside AC4's wording); low risk, same helper |
-| `MainActivity` onStart refresh, CockpitApp `start(signedIn())`, Share/Capture providing LocalUserSettings | Refresh triggers, theme in every activity | Not unit tested: activity wiring. `start()` is covered by the parent's test |
+| `UserSettingsRepository.kt:151-165` refresh ticket and `ticket < appliedSequence` drop | AC1, CR-1: older answer dropped after update, later refresh, or logout | Covered by EdgeCases logout / update / overlapping-refresh tests (parent run: pass) |
+| `UserSettingsRepository.kt:151,187` ticket order when a refresh waits behind a pending PATCH | A newer answer must not be dropped | New test `a refresh started while an update is in flight is taken after the update` (not run yet) |
+| `UserSettingsRepository.kt:224-225` non-2xx does not call `apply` and so does not move `appliedSequence` | A failed later refresh must not discard an earlier good answer | New test `a later refresh that fails does not make an earlier answer be dropped` (not run yet) |
+| `UserSettingsRepository.kt:131` cache read applies only when `state.value == null` | Cache must not replace a server answer | Not reachable: `refresh`, `update` and `clear` all `join()` the cache read first (the code comment says this too). Defensive, no test |
+| `UserSettingsRepository.kt:198` post-conflict refresh | AC1 412 reloads | UserSettingsRepositoryTest `a 412 reloads...`, EdgeCases 409/428 |
+| `UserSettingsRepository.kt:295-313` `UserSettingsModule` (DataStore factory with `ReplaceFileCorruptionHandler`, SessionCache binding) | Logout clears settings; corrupt file replaced | Hilt glue, not unit tested. `clear()` is covered; corrupt JSON inside a valid file is covered by DataStoreUserSettingsStoreTest |
+| `MainActivity.kt` onStart refresh, `CockpitApp.kt` `start(signedIn())`, `CaptureActivity.kt` / `ShareActivity.kt` providing the theme | Refresh triggers, theme in every activity | Activity wiring, not unit tested; `start()` is covered by UserSettingsRepositoryTest |
+| `NextScreen.kt` filter chips using the labels | Assumption extends AC4 to Next | Not tested (outside AC4's wording); same label helper as Inbox/TaskDetail, which are tested |
 
 ## Unable to test
 
-- No test was compiled or run: Bash and Gradle were denied to this sub-agent. The parent has to run the focused command above, then ktlintCheck, testDebugUnitTest, lintDebug and `sh scripts/check.sh`.
-- Coverage was not measured, for the same reason.
-- Activity wiring (MainActivity onStart refresh, Share/Capture activities applying the theme) and the Hilt module were not tested. Follow-up is optional; a Robolectric activity test would be needed.
-- The DataStore file corruption handler (`ReplaceFileCorruptionHandler`) was not tested: it lives in the Hilt provider. Corrupt JSON inside a valid file is tested.
+- The 2 new tests were not compiled or run, and neither was ktlint on the edited file: Gradle is denied to this sub-agent. The parent must run the focused command above (which includes ktlintCheck).
+- Task-scoped coverage was not measured, for the same reason; no report exists in the workspace.
+- Activity wiring (MainActivity onStart, Capture/Share theme), the Hilt module and the DataStore file corruption handler are not unit tested. Follow-up is optional: it would need Robolectric activity tests.
+- CR-3 (a possible one-frame system theme at cold start) is out of scope by the parent's decision and is not testable in a unit test.
 
 ## Summary
 
-Tests added; production defects were discovered and must be passed to the `fixer` before task completion. TW-1 (a stale refresh answer overwrites a newer update) is expected to fail its regression test. None of the new tests could be run in this sub-agent session (Bash denied), so they and task-scoped coverage still need a run by the parent.
+No production defects found in this round. The 2 tests added are not run yet, so this round has not passed validation. The CR-1/TW-1 fix holds under the existing ordering tests, according to the parent's run on HEAD c317d934e. The 2 new ordering tests, which check that a newer answer is not dropped by mistake, still need a run by the parent. Task-scoped coverage could not be measured because Gradle is denied to the sub-agent.

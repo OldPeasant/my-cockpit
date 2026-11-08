@@ -135,6 +135,52 @@ class UserSettingsRepositoryEdgeCasesTest {
         }
 
     @Test
+    fun `a refresh started while an update is in flight is taken after the update`() =
+        runTest(UnconfinedTestDispatcher()) {
+            coEvery { api.getSettings() } returns ok(settingsJson(), "\"1\"")
+            val repository = repository()
+            repository.refresh()
+
+            val patchGate = CompletableDeferred<Unit>()
+            coEvery { api.updateSettings(any(), "\"1\"") } coAnswers {
+                patchGate.await()
+                ok(settingsJson(theme = "light"), "\"2\"")
+            }
+            // Sent after the PATCH, so the server answers it with an even newer state (e.g. a change made on the web).
+            coEvery { api.getSettings() } returns ok(settingsJson(theme = "system"), "\"3\"")
+
+            val update = async { repository.update(UserSettingsChange(theme = ThemeSetting.LIGHT)) }
+            val refresh = async { repository.refresh() }
+            patchGate.complete(Unit)
+
+            assertEquals(SettingsUpdateResult.Updated, update.await())
+            assertEquals(SettingsLoadResult.LOADED, refresh.await())
+            assertEquals(ThemeSetting.SYSTEM, repository.settings.value?.theme)
+            assertEquals("\"3\"", store.cached?.etag)
+        }
+
+    @Test
+    fun `a later refresh that fails does not make an earlier answer be dropped`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val first = CompletableDeferred<Response<JsonObject>>()
+            val second = CompletableDeferred<Response<JsonObject>>()
+            val answers = ArrayDeque(listOf(first, second))
+            coEvery { api.getSettings() } coAnswers { answers.removeFirst().await() }
+            val repository = repository()
+
+            val older = async { repository.refresh() }
+            val newer = async { repository.refresh() }
+            second.complete(error(503))
+            assertEquals(SettingsLoadResult.OFFLINE, newer.await())
+            first.complete(ok(settingsJson(theme = "light"), "\"1\""))
+
+            // A failed answer sets no state, so the earlier answer is still the newest one and is taken.
+            assertEquals(SettingsLoadResult.LOADED, older.await())
+            assertEquals(ThemeSetting.LIGHT, repository.settings.value?.theme)
+            assertEquals("\"1\"", store.cached?.etag)
+        }
+
+    @Test
     fun `409 and 428 also reload the settings and report a conflict without retrying the write`() =
         runTest(UnconfinedTestDispatcher()) {
             coEvery { api.getSettings() } returns ok(settingsJson(), "\"1\"")
