@@ -54,6 +54,10 @@ object BackupSecrets {
 	/** RFC 9106's second recommended option with one lane: 64 MiB, 3 passes. */
 	val DEFAULT_KDF = Kdf(memoryKiB = 64 * 1024, iterations = 3, parallelism = 1)
 
+	/** The parameters [encrypt] uses by default: [DEFAULT_KDF]. Spring tests lower them to keep the suite fast. */
+	@Volatile
+	internal var encryptionKdf: Kdf = DEFAULT_KDF
+
 	// Bounds for a backup's own parameters, so a crafted file cannot make a restore allocate gigabytes or run for hours.
 	private const val MAX_MEMORY_KIB = 1024 * 1024
 	private const val MAX_ITERATIONS = 20
@@ -75,7 +79,7 @@ object BackupSecrets {
 	fun encrypt(
 		plaintext: ByteArray,
 		passphrase: String,
-		kdf: Kdf = DEFAULT_KDF,
+		kdf: Kdf = encryptionKdf,
 	): SecretsEnvelope {
 		val salt = ByteArray(SALT_BYTES).also(random::nextBytes)
 		val nonce = ByteArray(NONCE_BYTES).also(random::nextBytes)

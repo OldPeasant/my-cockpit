@@ -67,7 +67,15 @@ class BackupSecretsCryptoTests {
 	fun `the default KDF is 64 MiB, 3 passes, one lane and is what encrypt uses`() {
 		BackupSecrets.DEFAULT_KDF shouldBe BackupSecrets.Kdf(memoryKiB = 65536, iterations = 3, parallelism = 1)
 
-		val envelope = BackupSecrets.encrypt(plaintext, PASSPHRASE)
+		// Spring test contexts lower the default in this JVM (support/FastTestCrypto.kt); production never changes it.
+		val testDefault = BackupSecrets.encryptionKdf
+		BackupSecrets.encryptionKdf = BackupSecrets.DEFAULT_KDF
+		val envelope =
+			try {
+				BackupSecrets.encrypt(plaintext, PASSPHRASE)
+			} finally {
+				BackupSecrets.encryptionKdf = testDefault
+			}
 
 		envelope.kdf.memoryKiB shouldBe 65536
 		envelope.kdf.iterations shouldBe 3
