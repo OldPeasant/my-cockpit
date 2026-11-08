@@ -307,13 +307,13 @@ class ProjectsViewModel internal constructor(
             return
         }
         val id = f.projectId ?: return create(f)
+        // Only asked while this project is open (the confirmation shows on its detail); a project that left the cache is
+        // saved at once, and the server's conflict closes the form and tells the user.
+        val detail = uiState.value.detail?.takeIf { it.project.id == id }
         // `null` while the project's tasks are not loaded: whether any remain open is not known, so it is asked too.
-        val open =
-            uiState.value.detail
-                ?.takeIf { it.project.id == id && it.loaded }
-                ?.tasks
-                ?.size
-        if (!confirmed && f.draft.status != f.initial.status && finishes(f.draft.status) && (open == null || open > 0)) {
+        val open = detail?.tasks?.size?.takeIf { detail.loaded }
+        val finishing = f.draft.status != f.initial.status && finishes(f.draft.status)
+        if (!confirmed && detail != null && finishing && (open == null || open > 0)) {
             confirm.value = ProjectConfirm.Finish(id, f.draft.status, open, viaForm = true)
             return
         }
@@ -326,12 +326,15 @@ class ProjectsViewModel internal constructor(
         val session = formSession
         viewModelScope.launch {
             val outcome = work.update(id, f.version, patch)
+            // Changed (or trashed) elsewhere: the projects were reloaded. Read before the session check, so no suspension
+            // lies between the check and applying the result.
+            val current = if (outcome == ActionOutcome.CONFLICT) currentProject(id) else null
             // The form was cancelled (and maybe another one opened) meanwhile: only the message is shown.
             if (session == formSession) {
                 when (outcome) {
                     ActionOutcome.DONE -> replaceForm(null)
-                    // Changed (or trashed) elsewhere: the projects were reloaded; show the current one with the user's edits.
-                    ActionOutcome.CONFLICT -> replaceForm(currentProject(id)?.let { f.rebase(it).copy(conflict = true) })
+                    // Show the current project with the user's edits.
+                    ActionOutcome.CONFLICT -> replaceForm(current?.let { f.rebase(it).copy(conflict = true) })
                     else -> form.update { it?.copy(saving = false) }
                 }
             }

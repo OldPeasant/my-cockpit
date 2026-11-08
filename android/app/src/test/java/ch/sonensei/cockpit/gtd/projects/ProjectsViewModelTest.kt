@@ -21,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -735,6 +736,40 @@ class ProjectsViewModelTest {
                 false,
                 vm.uiState.value.form!!
                     .conflict,
+            )
+        }
+
+    @Test
+    fun `a conflict whose project reload finishes after its form was cancelled does not replace the next form`() =
+        test { vm ->
+            val current = holiday.copy(version = 3)
+            val reloaded = CompletableDeferred<Unit>()
+            coEvery { work0.update(any(), any(), any()) } coAnswers {
+                projectFlow.value = projectFlow.value.copy(data = listOf(current, garden, report, move))
+                ActionOutcome.CONFLICT
+            }
+            vm.open(holiday)
+            vm.editProject()
+            vm.editForm { it.copy(title = "Plan the holiday") }
+            // The save's read of the reloaded project is slow (a database query): it waits until released.
+            val slowRead =
+                flow {
+                    reloaded.await()
+                    emit(projectFlow.value)
+                }
+            every { projects.observe() } returns slowRead
+            vm.saveForm()
+            vm.cancelForm()
+            vm.editProject()
+            vm.editForm { it.copy(title = "Plan the summer holiday") }
+            reloaded.complete(Unit)
+            val form = vm.uiState.value.form!!
+            assertEquals("Plan the summer holiday", form.draft.title)
+            assertEquals(false, form.conflict)
+            assertEquals(false, form.saving)
+            assertEquals(
+                ProjectMessage(ProjectMessage.Kind.SAVED, "Plan the holiday", ActionOutcome.CONFLICT),
+                vm.uiState.value.projectMessage,
             )
         }
 

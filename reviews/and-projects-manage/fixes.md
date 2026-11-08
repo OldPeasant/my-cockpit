@@ -98,3 +98,76 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+# Round 2
+
+Date: 2026-11-08
+
+Task: and-projects-manage - Android: create, edit, complete and drop projects
+
+Scope: current task. The three P3 findings CR-1, CR-2 and CR-3 of the final review in `reviews/and-projects-manage/review.md` (revision 2f5e046f5), checked against the current working tree. The round-1 text above is left as it was.
+
+## Fixed findings
+
+### CR-1 (P3) - The CONFLICT path checks the session before a suspending read
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/ProjectsViewModel.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/gtd/projects/ProjectsViewModelTest.kt`
+
+Problem:
+In `saveForm`, `session == formSession` was checked first. Then `currentProject(id)` ran, which suspends on the Room-backed `projects.observe().first()`. A form the user opened while that read was running was then replaced by a rebase of the old draft.
+
+Fix:
+For a CONFLICT the coroutine now reads `currentProject(id)` right after `work.update` and before the session check. Other outcomes skip the read. The session check and `replaceForm` then run without a suspension in between.
+
+Validation:
+- New test: `a conflict whose project reload finishes after its form was cancelled does not replace the next form`. After the ViewModel is built, `projects.observe()` is re-stubbed with a flow that waits on a `CompletableDeferred`, so the save's project read hangs. The test then cancels the form, opens a new edit and releases the read. It asserts that the new form keeps its title with `conflict = false` and `saving = false`, and that the CONFLICT message is still shown. With the old code the session check passed before the read hung, so the old draft replaced the new form. The test was written to fail on that code. It has not been run yet.
+- To be run by the parent: `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug`.
+
+### CR-2 (P3) - Saving a finishing status does nothing when the edited project has left the cache
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/ProjectsViewModel.kt`
+
+Problem:
+`open` was `null` both when the tasks were not loaded and when the detail was missing or belonged to another project. In the second case `saveForm` set a `Finish` confirmation that the screen never shows and `confirm()` drops, so Save did nothing.
+
+Fix:
+`saveForm` now asks only when the open detail is this project (`uiState.value.detail?.project?.id == id`) and its tasks are not loaded (`openTasks = null`) or not empty. If there is no detail or it is another project, no confirmation is set and the PATCH goes out. The existing CONFLICT handling then closes the form (the project is gone from the cache) and shows the message. Nothing else changed: the confirmation for the open project, the unknown count while loading, and the confirmed path all work as before.
+
+Validation:
+- The committed test `finishing in the form after the project disappeared does not leave the save doing nothing` failed before this fix. With the fix it should pass, because the PATCH is sent (`sent > 0`). It has not been run yet.
+- I checked that the existing tests still expect the same behaviour: `finishing while the project's tasks are still loading asks first, without a count`, `completing in the form with open tasks asks first, confirming saves`, `cancelling the form also drops its pending confirmation`, `finishing in the form without open tasks saves at once`. In all of them the detail is the edited project.
+- To be run by the parent: `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug`.
+
+## Not fixed
+
+### CR-3 (P3) - The round-1 fix report still contains an unfilled placeholder
+
+Status:
+Out of scope for a code change. Handled as evidence.
+
+Reason:
+AGENTS.md says not to edit an existing helper report by hand, so the round-1 text, including the `.taskcheck` line, stays as it was. This fixer cannot run Gradle or `sh scripts/check.sh` here, so it cannot write the real result either. The parent worker will record the actual `sh scripts/check.sh` (`.taskcheck`) result for the final code in `reviews/and-projects-manage/quality.json`, and note there that round 1 of fixes.md left that line open.
+
+## Validation summary
+
+Focused tests:
+- Not run by the fixer: Gradle does not work for sub-agents in this environment. To be run by the parent: `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug`. That includes ProjectsViewModelTest with the new CR-1 test and the committed CR-2 test.
+
+Full test suite:
+- To be run by the parent (`sh scripts/check.sh`).
+
+Lint/type-check/build:
+- To be run by the parent (ktlintCheck and lintDebug in the command above). I checked the style by hand: ktlint_official, 4-space indent, trailing commas, no line over 140 characters, a multiline expression wrapped after `=`.
+
+`.taskcheck`:
+- Not run by the fixer. The parent records the result in `quality.json`.
+
+Remaining unresolved findings:
+0 code findings. CR-3 is left to the evidence in `quality.json`.
+
+## Final status
+
+Fixes completed. Validation is still to be run by the parent worker.
