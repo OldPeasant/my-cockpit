@@ -7,8 +7,8 @@ touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src
 prio: 2
 lease_until: 
 extended: 
-releases: 3
-hold: given back 3 times; last: Complete except done: all 5 criteria verified/skipped, reviews + quality.json committed (reviewed_revision 55879cb7, code unchanged since review). Android ktlint/test/lint an
+releases: 0
+hold: 
 ---
 ## Goal
 Web converts a task to a note (reference) or an event from task detail and inbox processing (`gtd-convert-note`,
