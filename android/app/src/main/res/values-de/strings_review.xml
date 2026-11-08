@@ -10,7 +10,7 @@
         <item quantity="other">Letzter Wochenrückblick: vor %1$d Tagen</item>
     </plurals>
     <string name="review_in_progress">Rückblick läuft: Schritt %1$d von %2$d</string>
-    <string name="review_none_open">Kein Rückblick in Arbeit. Starte einen im Web.</string>
+    <string name="review_none_open">Kein Rückblick in Arbeit.</string>
     <string name="review_steps">Schritte</string>
     <string name="review_step_done">erledigt</string>
     <string name="review_step_current">aktueller Schritt</string>
@@ -25,4 +25,54 @@
     <string name="review_stalled">Stockende Projekte</string>
     <string name="review_no_stalled">Jedes aktive Projekt hat einen nächsten Schritt.</string>
     <string name="review_stalled_hint">Kein nächster Schritt</string>
+    <string name="review_start">Rückblick starten</string>
+    <string name="review_continue">Rückblick fortsetzen</string>
+    <string name="review_completed">Wochenrückblick abgeschlossen.</string>
+    <string name="review_save_offline">Nicht gespeichert: Der Server ist nicht erreichbar. Versuche es wieder, wenn du online bist.</string>
+    <string name="review_save_failed">Der Server hat die Änderung abgelehnt. Lade den Rückblick neu und versuche es nochmals.</string>
+    <string name="review_conflict">Der Rückblick wurde auf einem anderen Gerät geändert. Das ist sein aktueller Stand.</string>
+    <string name="review_reflection_failed">Die Reflexion konnte nicht im Journal gespeichert werden, darum ist der Rückblick noch offen.</string>
+    <string name="review_capture_failed">Dieser Text kann nicht in die Inbox. Kürze ihn und versuche es nochmals.</string>
+    <string name="review_dismiss">Schliessen</string>
+    <string name="review_step_of">Schritt %1$d von %2$d</string>
+    <string name="review_jump">Zu einem Schritt springen</string>
+    <string name="review_close">Zurück zur Übersicht</string>
+    <string name="review_previous">Zurück</string>
+    <string name="review_next">Nächster Schritt</string>
+    <string name="review_finish">Rückblick abschliessen</string>
+    <string name="review_hint_get_clear">Leere die Inbox und sammle lose Notizen ein, etwa markierte E-Mails.</string>
+    <string name="review_hint_past_calendar">Schau auf die letzten 7 Tage zurück. Noch etwas zu tun? Erfasse es.</string>
+    <string name="review_hint_upcoming_calendar">Schau auf die nächsten 14 Tage. Etwas vorzubereiten? Erfasse es.</string>
+    <string name="review_hint_waiting_for">Für jeden Eintrag: weiter warten, nachfassen oder erledigt.</string>
+    <string name="review_hint_projects">Hat jedes aktive Projekt einen nächsten Schritt? Stockende stehen zuoberst.</string>
+    <string name="review_hint_next_actions">Nächste Aktionen, die seit über 30 Tagen unberührt sind: behalten, auf irgendwann verschieben oder löschen.</string>
+    <string name="review_hint_someday">Aktiviere, was bereit ist, behalte den Rest und lösche, was nicht mehr wichtig ist.</string>
+    <string name="review_hint_reflection">Schau dir deine Gewohnheiten an und notiere, was dir auffällt. Es kommt ins heutige Journal.</string>
+    <string name="review_mail_hint">Markierte E-Mails, die auf eine Aktion warten? Mach in E-Mail Aufgaben daraus und komm dann zurück.</string>
+    <string name="review_open_mail">E-Mail öffnen</string>
+    <string name="review_open_list">%1$s öffnen</string>
+    <string name="review_list_hint">Geh die Liste durch und komm dann für den nächsten Schritt zurück.</string>
+    <string name="review_capture_label">Noch etwas zu tun? Erfasse es</string>
+    <string name="review_capture_add">In die Inbox</string>
+    <string name="review_captured">„%1$s“ zur Inbox hinzugefügt.</string>
+    <string name="review_past_empty">Keine Termine in den letzten 7 Tagen.</string>
+    <string name="review_upcoming_empty">Keine Termine in den nächsten 14 Tagen.</string>
+    <string name="review_all_day">Ganztägig</string>
+    <string name="review_step_failed">Dieser Schritt konnte nicht geladen werden.</string>
+    <string name="review_habits">Gewohnheiten</string>
+    <string name="review_no_habits">Noch keine Gewohnheiten.</string>
+    <string name="review_habits_failed">Die Gewohnheiten konnten nicht geladen werden.</string>
+    <string name="review_habit_rate">%1$d %% in 30 Tagen</string>
+    <plurals name="review_habit_streak_days">
+        <item quantity="one">Serie %1$d Tag</item>
+        <item quantity="other">Serie %1$d Tage</item>
+    </plurals>
+    <plurals name="review_habit_streak_weeks">
+        <item quantity="one">Serie %1$d Woche</item>
+        <item quantity="other">Serie %1$d Wochen</item>
+    </plurals>
+    <string name="review_reflection_label">Reflexion (optional)</string>
+    <string name="review_reflection_placeholder">Was lief diese Woche gut? Was änderst du?</string>
+    <string name="review_reflection_journal">Wird im heutigen Journaleintrag gespeichert, wenn du den Rückblick abschliesst.</string>
+    <string name="review_journal_heading">Wochenrückblick</string>
 </resources>

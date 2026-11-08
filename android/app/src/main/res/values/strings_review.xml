@@ -10,7 +10,7 @@
         <item quantity="other">Last weekly review: %1$d days ago</item>
     </plurals>
     <string name="review_in_progress">Review in progress: step %1$d of %2$d</string>
-    <string name="review_none_open">No review in progress. Start one on the web.</string>
+    <string name="review_none_open">No review in progress.</string>
     <string name="review_steps">Steps</string>
     <string name="review_step_done">done</string>
     <string name="review_step_current">current step</string>
@@ -25,4 +25,54 @@
     <string name="review_stalled">Stalled projects</string>
     <string name="review_no_stalled">Every active project has a next step.</string>
     <string name="review_stalled_hint">No next step</string>
+    <string name="review_start">Start review</string>
+    <string name="review_continue">Continue review</string>
+    <string name="review_completed">Weekly review completed.</string>
+    <string name="review_save_offline">Not saved: can\'t reach the server. Try again when you\'re online.</string>
+    <string name="review_save_failed">The server refused the change. Load the review again and retry.</string>
+    <string name="review_conflict">The review was changed on another device. This is its current state.</string>
+    <string name="review_reflection_failed">The reflection could not be saved in the journal, so the review is still open.</string>
+    <string name="review_capture_failed">That text can\'t be added to the inbox. Shorten it and try again.</string>
+    <string name="review_dismiss">Dismiss</string>
+    <string name="review_step_of">Step %1$d of %2$d</string>
+    <string name="review_jump">Jump to a step</string>
+    <string name="review_close">Back to the overview</string>
+    <string name="review_previous">Previous</string>
+    <string name="review_next">Next step</string>
+    <string name="review_finish">Complete review</string>
+    <string name="review_hint_get_clear">Process the inbox to zero and pick up loose captures, like flagged mails.</string>
+    <string name="review_hint_past_calendar">Look back at the last 7 days. Anything left to do? Capture it.</string>
+    <string name="review_hint_upcoming_calendar">Look ahead at the next 14 days. Anything to prepare? Capture it.</string>
+    <string name="review_hint_waiting_for">For each item: still waiting, follow up, or done.</string>
+    <string name="review_hint_projects">Does each active project have a next step? Stalled ones come first.</string>
+    <string name="review_hint_next_actions">Next actions untouched for more than 30 days: keep, move to someday, or delete.</string>
+    <string name="review_hint_someday">Activate what is ready, keep the rest, delete what no longer matters.</string>
+    <string name="review_hint_reflection">Look at your habits and write down what you noticed. It goes into today\'s journal.</string>
+    <string name="review_mail_hint">Flagged mails waiting for an action? Turn them into tasks in Mail, then come back.</string>
+    <string name="review_open_mail">Open Mail</string>
+    <string name="review_open_list">Open %1$s</string>
+    <string name="review_list_hint">Go through the list, then come back for the next step.</string>
+    <string name="review_capture_label">Anything to do? Capture it</string>
+    <string name="review_capture_add">Add to inbox</string>
+    <string name="review_captured">Added “%1$s” to the inbox.</string>
+    <string name="review_past_empty">No events in the last 7 days.</string>
+    <string name="review_upcoming_empty">No events in the next 14 days.</string>
+    <string name="review_all_day">All day</string>
+    <string name="review_step_failed">This step could not be loaded.</string>
+    <string name="review_habits">Habits</string>
+    <string name="review_no_habits">No habits yet.</string>
+    <string name="review_habits_failed">The habits could not be loaded.</string>
+    <string name="review_habit_rate">%1$d%% in 30 days</string>
+    <plurals name="review_habit_streak_days">
+        <item quantity="one">streak %1$d day</item>
+        <item quantity="other">streak %1$d days</item>
+    </plurals>
+    <plurals name="review_habit_streak_weeks">
+        <item quantity="one">streak %1$d week</item>
+        <item quantity="other">streak %1$d weeks</item>
+    </plurals>
+    <string name="review_reflection_label">Reflection (optional)</string>
+    <string name="review_reflection_placeholder">What went well this week? What will you change?</string>
+    <string name="review_reflection_journal">Saved in today\'s journal entry when you complete the review.</string>
+    <string name="review_journal_heading">Weekly review</string>
 </resources>

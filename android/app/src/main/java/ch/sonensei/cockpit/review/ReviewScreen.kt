@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.review
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,7 +19,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.EventRepeat
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.PauseCircle
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -42,38 +46,89 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.gtd.inbox.InboxRoute
 import ch.sonensei.cockpit.ui.PlaceholderScreen
+import ch.sonensei.cockpit.ui.navigation.CockpitDestination
 import dagger.hilt.internal.GeneratedComponentManagerHolder
+import java.util.UUID
 
 /**
  * The weekly review screen. Its view model comes from Hilt, so outside a Hilt activity (the shell's navigation tests,
- * previews) it shows the placeholder instead of failing.
+ * previews) it shows the placeholder instead of failing. [onOpen] opens another screen (Mail, the GTD lists).
  */
 @Composable
-fun ReviewScreen(modifier: Modifier = Modifier) {
+fun ReviewScreen(
+    onOpen: (CockpitDestination) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     if (LocalActivity.current is GeneratedComponentManagerHolder) {
-        ReviewRoute(modifier)
+        ReviewRoute(onOpen, modifier)
     } else {
         PlaceholderScreen(R.string.nav_review, Icons.Outlined.EventRepeat, modifier)
     }
 }
 
 @Composable
-fun ReviewRoute(modifier: Modifier = Modifier) {
+fun ReviewRoute(
+    onOpen: (CockpitDestination) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val viewModel: ReviewViewModel = hiltViewModel()
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     // Reloaded each time the screen is shown, so progress made on the web meanwhile shows up.
     LaunchedEffect(Unit) { viewModel.refresh() }
-    ReviewContent(state, onRetry = viewModel::refresh, modifier = modifier)
+    // Back in the wizard returns to the overview; the review stays open on the server.
+    BackHandler(enabled = state.wizardReview != null, onBack = viewModel::closeWizard)
+    ReviewContent(state, ReviewCallbacks.of(viewModel, onOpen), modifier = modifier, inbox = { InboxRoute(it) })
+}
+
+/** What the review screen can ask for; one function per user action, so it can be tested without a view model. */
+data class ReviewCallbacks(
+    val retry: () -> Unit = {},
+    val start: () -> Unit = {},
+    val close: () -> Unit = {},
+    val goTo: (ReviewStep) -> Unit = {},
+    val next: () -> Unit = {},
+    val previous: () -> Unit = {},
+    val complete: () -> Unit = {},
+    val loadStep: (ReviewStep) -> Unit = {},
+    val setCaptureText: (String) -> Unit = {},
+    val capture: () -> Unit = {},
+    val setReflection: (String) -> Unit = {},
+    val dismissMessage: () -> Unit = {},
+    val open: (CockpitDestination) -> Unit = {},
+) {
+    companion object {
+        fun of(
+            vm: ReviewViewModel,
+            onOpen: (CockpitDestination) -> Unit,
+        ) = ReviewCallbacks(
+            retry = vm::refresh,
+            start = vm::start,
+            close = vm::closeWizard,
+            goTo = vm::goTo,
+            next = vm::next,
+            previous = vm::previous,
+            complete = vm::complete,
+            loadStep = vm::loadStep,
+            setCaptureText = vm::setCaptureText,
+            capture = vm::capture,
+            setReflection = vm::setReflection,
+            dismissMessage = vm::dismissMessage,
+            open = onOpen,
+        )
+    }
 }
 
 /** Where a step stands in the open review. */
 enum class StepState { DONE, CURRENT, AHEAD }
 
-internal fun ReviewStep.stateIn(current: OpenReview?): StepState =
+internal fun ReviewStep.stateIn(current: OpenReview?): StepState = current?.let { stateAt(it.step) } ?: StepState.AHEAD
+
+internal fun ReviewStep.stateAt(current: ReviewStep): StepState =
     when {
-        current == null || this > current.step -> StepState.AHEAD
-        this == current.step -> StepState.CURRENT
+        this > current -> StepState.AHEAD
+        this == current -> StepState.CURRENT
         else -> StepState.DONE
     }
 
@@ -81,16 +136,46 @@ internal object ReviewTags {
     const val CONTENT = "review-content"
     const val MESSAGE = "review-message"
     const val RETRY = "review-retry"
+    const val DISMISS = "review-dismiss"
     const val LAST = "review-last"
     const val PROGRESS = "review-progress"
     const val NO_STALLED = "review-no-stalled"
+    const val START = "review-start"
+    const val COMPLETED = "review-completed"
+    const val WIZARD = "review-wizard"
+    const val STEP_TITLE = "review-step-title"
+    const val JUMP = "review-jump"
+    const val CLOSE = "review-close"
+    const val PREVIOUS = "review-previous"
+    const val NEXT = "review-next"
+    const val FINISH = "review-finish"
+    const val INBOX = "review-inbox"
+    const val OPEN_MAIL = "review-open-mail"
+    const val OPEN_LIST = "review-open-list"
+    const val CAPTURE_FIELD = "review-capture-field"
+    const val CAPTURE_ADD = "review-capture-add"
+    const val CAPTURED = "review-captured"
+    const val EVENTS_EMPTY = "review-events-empty"
+    const val STEP_FAILED = "review-step-failed"
+    const val STEP_RETRY = "review-step-retry"
+    const val HABITS_FAILED = "review-habits-failed"
+    const val NO_HABITS = "review-no-habits"
+    const val REFLECTION = "review-reflection"
 
     fun step(step: ReviewStep) = "review-step:${step.name}"
 
+    fun segment(step: ReviewStep) = "review-segment:${step.name}"
+
+    fun jumpTo(step: ReviewStep) = "review-jump:${step.name}"
+
     fun project(project: ReviewProject) = "review-project:${project.id}"
+
+    fun event(event: ReviewEvent) = "review-event:${event.key}"
+
+    fun habit(id: UUID) = "review-habit:$id"
 }
 
-private val ReviewStep.label: Int
+internal val ReviewStep.label: Int
     get() =
         when (this) {
             ReviewStep.GET_CLEAR -> R.string.review_step_get_clear
@@ -103,19 +188,29 @@ private val ReviewStep.label: Int
             ReviewStep.REFLECTION -> R.string.review_step_reflection
         }
 
-/** The review's progress and stalled projects; nothing here changes the review. */
+/**
+ * The review: the wizard while the user is in an open review, else the overview with the progress, the stalled
+ * projects and the button that starts or continues the review. [inbox] is the embedded inbox of the first step.
+ */
 @Composable
 fun ReviewContent(
     state: ReviewUiState,
-    onRetry: () -> Unit,
+    callbacks: ReviewCallbacks,
     modifier: Modifier = Modifier,
+    inbox: @Composable (Modifier) -> Unit = {},
 ) {
     Column(modifier.fillMaxSize()) {
-        state.message?.let { Banner(it, state.loading, onRetry) }
+        state.message?.let { Banner(it, state.loading, callbacks) }
         if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth()) else Spacer(Modifier.padding(top = 4.dp))
+        val review = state.wizardReview
+        if (review != null) {
+            ReviewWizard(state, review, callbacks, inbox, Modifier.weight(1f))
+            return@Column
+        }
         val overview = state.overview ?: return@Column
         LazyColumn(Modifier.fillMaxSize().testTag(ReviewTags.CONTENT), contentPadding = PaddingValues(bottom = 24.dp)) {
-            item { Summary(overview) }
+            item { Summary(overview, state.completed) }
+            item { StartButton(open = overview.current != null, saving = state.saving, onStart = callbacks.start) }
             item { SectionTitle(R.string.review_steps) }
             items(ReviewStep.entries, key = { it.name }) { StepRow(it, it.stateIn(overview.current)) }
             item { SectionTitle(R.string.review_stalled) }
@@ -137,8 +232,19 @@ fun ReviewContent(
 }
 
 @Composable
-private fun Summary(overview: ReviewOverview) {
+private fun Summary(
+    overview: ReviewOverview,
+    completed: Boolean,
+) {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (completed) {
+            Text(
+                stringResource(R.string.review_completed),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.testTag(ReviewTags.COMPLETED),
+            )
+        }
         val days = overview.daysSinceLastReview
         Text(
             when {
@@ -156,6 +262,22 @@ private fun Summary(overview: ReviewOverview) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.testTag(ReviewTags.PROGRESS),
         )
+    }
+}
+
+@Composable
+private fun StartButton(
+    open: Boolean,
+    saving: Boolean,
+    onStart: () -> Unit,
+) {
+    Button(
+        onClick = onStart,
+        enabled = !saving,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag(ReviewTags.START),
+    ) {
+        Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+        Text(stringResource(if (open) R.string.review_continue else R.string.review_start), Modifier.padding(start = 8.dp))
     }
 }
 
@@ -250,27 +372,47 @@ private fun ProjectRow(project: ReviewProject) {
     }
 }
 
+/** Load failures offer a retry; a refused or conflicting change, or a failed capture, can be dismissed. */
 @Composable
 private fun Banner(
     message: ReviewMessage,
     loading: Boolean,
-    onRetry: () -> Unit,
+    callbacks: ReviewCallbacks,
 ) {
-    val (text, color) =
+    val loadFailure = message == ReviewMessage.OFFLINE || message == ReviewMessage.FAILED
+    val text =
         when (message) {
-            ReviewMessage.OFFLINE -> R.string.review_offline to MaterialTheme.colorScheme.secondaryContainer
-            ReviewMessage.FAILED -> R.string.review_failed to MaterialTheme.colorScheme.errorContainer
+            ReviewMessage.OFFLINE -> R.string.review_offline
+            ReviewMessage.FAILED -> R.string.review_failed
+            ReviewMessage.SAVE_OFFLINE -> R.string.review_save_offline
+            ReviewMessage.SAVE_FAILED -> R.string.review_save_failed
+            ReviewMessage.CONFLICT -> R.string.review_conflict
+            ReviewMessage.REFLECTION_FAILED -> R.string.review_reflection_failed
+            ReviewMessage.CAPTURE_FAILED -> R.string.review_capture_failed
+        }
+    val offline = message == ReviewMessage.OFFLINE || message == ReviewMessage.SAVE_OFFLINE
+    val color =
+        if (offline || message == ReviewMessage.CONFLICT) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.errorContainer
         }
     Surface(color = color, modifier = Modifier.fillMaxWidth().testTag(ReviewTags.MESSAGE)) {
         Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.CloudOff, contentDescription = null)
+            Icon(if (offline) Icons.Outlined.CloudOff else Icons.Outlined.Info, contentDescription = null)
             Text(
                 stringResource(text),
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f).padding(start = 12.dp, top = 10.dp, bottom = 10.dp),
             )
-            TextButton(onClick = onRetry, enabled = !loading, modifier = Modifier.testTag(ReviewTags.RETRY)) {
-                Text(stringResource(R.string.review_retry))
+            if (loadFailure) {
+                TextButton(onClick = callbacks.retry, enabled = !loading, modifier = Modifier.testTag(ReviewTags.RETRY)) {
+                    Text(stringResource(R.string.review_retry))
+                }
+            } else {
+                TextButton(onClick = callbacks.dismissMessage, modifier = Modifier.testTag(ReviewTags.DISMISS)) {
+                    Text(stringResource(R.string.review_dismiss))
+                }
             }
         }
     }

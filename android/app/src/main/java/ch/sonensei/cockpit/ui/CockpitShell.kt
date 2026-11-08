@@ -309,7 +309,7 @@ private fun DestinationContent(
         CockpitDestination.Bookmarks -> BookmarksScreen(modifier)
         CockpitDestination.Journal -> JournalScreen(modifier)
         CockpitDestination.Habits -> HabitsScreen(modifier)
-        CockpitDestination.Review -> ReviewScreen(modifier)
+        CockpitDestination.Review -> ReviewScreen(onOpen, modifier)
         CockpitDestination.Trash -> TrashScreen(modifier)
         CockpitDestination.Settings -> SettingsScreen(modifier)
     }
