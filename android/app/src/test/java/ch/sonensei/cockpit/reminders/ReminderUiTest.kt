@@ -22,6 +22,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.core.network.generated.models.ReminderItemResponse
+import ch.sonensei.cockpit.gtd.task.TaskRoutes
 import ch.sonensei.cockpit.ui.CockpitShell
 import ch.sonensei.cockpit.ui.navigation.CockpitDestination
 import ch.sonensei.cockpit.ui.screenTag
@@ -358,12 +359,38 @@ class ReminderUiTest {
         }
         composeRule.onNodeWithTag(screenTag(CockpitDestination.Dashboard)).assertIsDisplayed()
 
+        val reminder = reminder(1, minutes = 0, type = ReminderItemResponse.Type.PROJECT).toScheduled()!!
+        assertTrue(ReminderOpenRequests.offer(openItemIntent(context, reminder)))
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.Projects)).assertIsDisplayed()
+        assertNull("taken once", ReminderOpenRequests.requests.value)
+    }
+
+    @Test
+    fun `a tapped task notification opens the task's detail on top of Next`() {
+        lateinit var navController: NavHostController
+        composeRule.setContent {
+            navController = rememberNavController()
+            CockpitTheme { CockpitShell(navController) }
+        }
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.Dashboard)).assertIsDisplayed()
+
         val reminder = reminder(1, minutes = 0, type = ReminderItemResponse.Type.TASK).toScheduled()!!
         assertTrue(ReminderOpenRequests.offer(openItemIntent(context, reminder)))
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithTag(screenTag(CockpitDestination.Next)).assertIsDisplayed()
+        assertEquals(TaskRoutes.DETAIL, composeRule.runOnUiThread { navController.currentDestination?.route })
+        assertEquals(
+            itemId(1).toString(),
+            composeRule.runOnUiThread { navController.currentBackStackEntry?.arguments?.getString(TaskRoutes.ARG_ID) },
+        )
         assertNull("taken once", ReminderOpenRequests.requests.value)
+
+        composeRule.runOnIdle { navController.popBackStack() }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.Next)).assertIsDisplayed()
     }
 
     @Test
@@ -388,11 +415,13 @@ class ReminderUiTest {
         }
         composeRule.onNodeWithTag(screenTag(CockpitDestination.Dashboard)).assertIsDisplayed()
 
-        ReminderOpenRequests.offer(openItemIntent(context, reminder(1, minutes = 0).toScheduled()!!))
+        // Projects: a screen without a detail on top (a task notification opens its detail on top of Next).
+        val project = ReminderItemResponse.Type.PROJECT
+        ReminderOpenRequests.offer(openItemIntent(context, reminder(1, minutes = 0, type = project).toScheduled()!!))
         composeRule.waitForIdle()
-        ReminderOpenRequests.offer(openItemIntent(context, reminder(2, minutes = 0).toScheduled()!!))
+        ReminderOpenRequests.offer(openItemIntent(context, reminder(2, minutes = 0, type = project).toScheduled()!!))
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag(screenTag(CockpitDestination.Next)).assertIsDisplayed()
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.Projects)).assertIsDisplayed()
 
         composeRule.runOnIdle { navController.popBackStack() }
         composeRule.waitForIdle()
