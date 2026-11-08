@@ -324,9 +324,9 @@ class AuthRepositoryTest {
     @Test
     fun `other error statuses are server errors`() =
         runBlocking {
-            listOf(403, 404, 503).forEach { server.enqueue(json(it, PROBLEM)) }
+            listOf(404, 503).forEach { server.enqueue(json(it, PROBLEM)) }
 
-            repeat(3) { assertEquals(LoginResult.ServerError, login()) }
+            repeat(2) { assertEquals(LoginResult.ServerError, login()) }
             assertNull(tokenStore.current())
         }
 

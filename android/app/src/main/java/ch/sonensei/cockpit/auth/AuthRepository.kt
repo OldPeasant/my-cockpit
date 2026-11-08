@@ -165,7 +165,11 @@ class AuthRepository internal constructor(
      * The web page of the configured server that sets up TOTP again after a restore (it asks for the web login first);
      * null without a server.
      */
-    suspend fun totpEnrollmentUrl(): String? = serverUrls.serverUrl.first()?.resolve(TOTP_ENROLLMENT_PAGE)?.toString()
+    suspend fun totpEnrollmentUrl(): String? =
+        serverUrls.serverUrl
+            .first()
+            ?.resolve(TOTP_ENROLLMENT_PAGE)
+            ?.toString()
 
     suspend fun login(
         serverUrl: String,
