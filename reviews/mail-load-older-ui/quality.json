@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "task": "mail-load-older-ui",
+  "reviewed_revision": "ad5189a178d8bee5288c36479a87af82c7b5f7f2",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/mail-load-older-ui/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-load-older-ui/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/mail-load-older-ui/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "load()/restore() reset loadingOlder via resetOlder(); regression tests added"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "showUpTo() waits for running actions and re-reads on mutationSeq change, like refresh()"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "nothing older shown as neutral olderNote without error prefix"},
+    {"id": "TW-1", "source": "test-writer", "severity": "High", "disposition": "fixed",
+     "note": "same defect as CR-1"},
+    {"id": "TW-2", "source": "test-writer", "severity": "High", "disposition": "fixed",
+     "note": "16 calendar.invite.* German units added, capture.save source updated in messages.de.xlf"}
+  ],
+  "validation": [
+    {"command": "npm --prefix web run coverage", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}

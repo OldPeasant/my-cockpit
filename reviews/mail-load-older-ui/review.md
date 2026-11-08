@@ -4,7 +4,14 @@ Date: 2026-11-08
 
 Task: mail-load-older-ui - Load mail older than the sync window (web + Android)
 
-Scope: final task code, `git diff 73a3b3fc4 4e4ff409e -- web android`. It covers commits 81823764b (web), 1b49efa14 (Android), 711fe21f3 (tests), and f430e277e + 4e4ff409e (fixes for CR-1..3 and TW-1/TW-2). This is a re-review. It confirms that the earlier findings are resolved and checks the fix for new issues.
+Scope: final task code, `git diff 73a3b3fc4 ad5189a17 -- web android`. It covers these commits:
+- 81823764b (web);
+- 1b49efa14 (Android);
+- 711fe21f3 (tests);
+- f430e277e and 4e4ff409e (fixes for CR-1..3 and TW-1/TW-2);
+- ad5189a17 (3 extra store tests from the re-test; no production code).
+
+This is a re-review. It confirms that the earlier findings are resolved and checks the fix and the added tests for new issues.
 
 Requirements:
 - `tasks/mail-load-older-ui.md`: the acceptance criteria and both ASSUMPTION notes (the button at the end of every folder list; TW-2's German catalog fix is in scope).
@@ -15,9 +22,9 @@ Requirements:
 
 Git range:
 - Branch: main
-- HEAD: 4e4ff409e
+- HEAD: ad5189a178d8bee5288c36479a87af82c7b5f7f2
 - Base/start: 73a3b3fc43a909befd381f915314015c509dcef7
-- Commits reviewed: 6 (3 code commits, the earlier review report, and 2 fix commits)
+- Commits reviewed: 7 (3 code commits, the earlier review report, 2 fix commits, and the re-test commit ad5189a17)
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
@@ -58,6 +65,16 @@ None.
   - `messages.de.xlf` now has the 16 `calendar.invite.*` units and the current `capture.save` source.
   - The new ids `mail.loadOlderFromServer`, `mail.loadingOlder`, `mail.olderFailed` (with the `INTERPOLATION` placeholder kept) and `mail.list.nothingOlder` have German targets (`messages.de.xlf:9023-9050`).
 
+## Tests added in ad5189a17
+
+Commit ad5189a17 changes only `web/src/app/features/mail/list/mail-list-store.spec.ts` (plus the test report). It adds 3 tests to "load older from server":
+
+- **"drops the list it read when the list is reloaded while it reads it":** the list that `showUpTo` re-reads answers after a `reload()`. The test checks that the reloaded list stays and that the progress, error and note are cleared. This covers the `seq !== this.loadSeq` guard after `fetchUpTo`.
+- **"puts the cursor on the first message when its message is gone after loading older":** covers the cursor fallback in `showUpTo`.
+- **"puts the cursor on the first newly cached message of an empty folder":** checks that the re-read is sized `0 + loaded` (`limit: 2`) and that the cursor is set.
+
+The tests assert observable store state through the existing `FakeMail` doubles. No test was weakened or removed. They raise no findings.
+
 ## Acceptance criteria check (from the code)
 
 - AC1:
@@ -69,7 +86,7 @@ None.
 
 ## Notes (not findings)
 
-- `python tasks.py verify mail-load-older-ui` shows all four criteria as unverified. The parent worker still has to record evidence, including a `sh scripts/check.sh` run on the final code, before `done`.
+- `python tasks.py verify mail-load-older-ui` showed all four criteria as unverified at review time. The parent worker still has to record evidence, including a `sh scripts/check.sh` run on the final code, before `done`.
 - `refresh()` still caps its re-read at 200 items (`MAIL_MAX_PAGE_SIZE`). So after loading older beyond 200 items, the next folder event shrinks the list to 200 and sets a cursor, and the end then shows infinite scroll instead of the button. The same happens after `loadMore()` today, so this was not introduced by this task. It is not a defect of this task.
 
 ## Review conclusion
