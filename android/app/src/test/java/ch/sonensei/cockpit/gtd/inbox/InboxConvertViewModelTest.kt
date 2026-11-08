@@ -365,6 +365,43 @@ class InboxConvertViewModelTest {
         }
 
     @Test
+    fun `a conversion answering after a newer plain action started is not shown, as on the web`() =
+        test { vm ->
+            val older = CompletableDeferred<ProcessResult>()
+            coEvery { inbox.process(first, any(), any()) } coAnswers { older.await() }
+            vm.startProcessing()
+            vm.choose(first.id, InboxActionKind.REFERENCE)
+            vm.choose(second.id, InboxActionKind.NEXT)
+            assertEquals(1, vm.uiState.value.processed)
+
+            older.complete(ProcessResult.Converted(note))
+
+            // "Where it went" describes only the latest action; both items still count as processed.
+            assertNull(vm.uiState.value.converted)
+            assertEquals(2, vm.uiState.value.processed)
+        }
+
+    @Test
+    fun `an older conversion answering after the newer one was refused shows nothing and keeps the refusal`() =
+        test { vm ->
+            val older = CompletableDeferred<ProcessResult>()
+            val newer = CompletableDeferred<ProcessResult>()
+            coEvery { inbox.process(first, any(), any()) } coAnswers { older.await() }
+            coEvery { inbox.process(second, any(), any()) } coAnswers { newer.await() }
+            vm.startProcessing()
+            vm.choose(first.id, InboxActionKind.REFERENCE)
+            vm.choose(second.id, InboxActionKind.REFERENCE)
+
+            newer.complete(ProcessResult.Conflict)
+            older.complete(ProcessResult.Converted(note))
+
+            val state = vm.uiState.value
+            assertNull(state.converted)
+            assertEquals(InboxMessage.CONFLICT, state.message)
+            assertEquals(1, state.processed)
+        }
+
+    @Test
     fun `a later plain action keeps the converted item until it was shown`() =
         test { vm ->
             coEvery { inbox.process(first, any(), any()) } returns ProcessResult.Converted(note)
