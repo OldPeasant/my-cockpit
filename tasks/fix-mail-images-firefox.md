@@ -26,7 +26,8 @@ the `cid:` image.
 - [ ] The mail frame CSP allows images and fonts from the app's own origin explicitly (in addition to `'self'`), still `default-src 'none'`, no scripts, no other hosts; `mail-frame.spec.ts` asserts the origin is in `img-src`/`font-src` and that no foreign host is
 - [x] Playwright has a Firefox project that runs `e2e/mail-read/*` (install: `npx playwright install firefox`; document it in docs/ARCHITECTURE.md "Install"/E2E)
   - verified (2026-11-08 09:12+0100 by felix/agent-1): web/playwright.config.ts project 'firefox' (Desktop Firefox, testMatch mail-read/*.spec.ts, deps phase-demos); docs/ARCHITECTURE.md Install/E2E name 'npx playwright install --with-deps chromium firefox'; cd web && npm run e2e -- e2e/mail-read -> [firefox] mail-read/read.spec.ts passed
-- [ ] `e2e/mail-read/read.spec.ts` also asserts that the inline `cid:` image loads, and it passes in Chromium and Firefox: `cd web && npm run e2e -- e2e/mail-read` -> pass for both projects
+- [x] `e2e/mail-read/read.spec.ts` also asserts that the inline `cid:` image loads, and it passes in Chromium and Firefox: `cd web && npm run e2e -- e2e/mail-read` -> pass for both projects
+  - verified (2026-11-08 09:12+0100 by felix/agent-1): cd web && npm run e2e -- e2e/mail-read (docker compose e2e stack, GreenMail, real server for cid: attachment) -> 37 passed incl. [chromium] and [firefox] read.spec.ts with inline cid: image loaded assertion
 - [ ] `cd web && npm run check` and `sh scripts/check.sh` pass
 
 ## Notes
