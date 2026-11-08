@@ -36,7 +36,7 @@ export default defineConfig({
     },
     {
       name: 'chromium',
-      testIgnore: [/phase\d+\//, /gtd-inbox\//, /review\//, /a11y\//],
+      testIgnore: [/phase\d+\//, /gtd-inbox\//, /review\//, /a11y\//, /mail-images\//],
       dependencies: ['phase-demos'],
       use: { ...devices['Desktop Chrome'] },
     },
@@ -49,10 +49,11 @@ export default defineConfig({
     },
     // Inbox processing (also in the weekly review) counts every item of the shared inbox, which the other specs fill
     // while they run (chromium and firefox): it runs after both projects, one spec at a time. The accessibility audit
-    // (a11y) processes the inbox and sets the shared account's theme, so it runs there too.
+    // (a11y) processes the inbox and sets the shared account's theme, so it runs there too, and so does mail-images,
+    // which switches the shared account's mail image policy.
     {
       name: 'inbox-exclusive',
-      testMatch: /(gtd-inbox|review|a11y)\/.*\.spec\.ts$/,
+      testMatch: /(gtd-inbox|review|a11y|mail-images)\/.*\.spec\.ts$/,
       dependencies: ['chromium', 'firefox'],
       workers: 1,
       use: { ...devices['Desktop Chrome'] },
