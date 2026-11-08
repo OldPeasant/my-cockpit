@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "task": "and-cal-overlay-month",
+  "reviewed_revision": "6816f515bf6380048e9c98eacb0623ec7cfd63cc",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-cal-overlay-month/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-cal-overlay-month/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-cal-overlay-month/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: task scheduled for today missing after tickler release; released-today tasks shown as scheduled marks"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: toolbar too narrow on 360dp; toggles moved to overflow menu"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: loadMore appended before range state update"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 2: event FAB covered bottom-right month cells; space kept free"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 2: '+n' line clipped in 5-6 week months"},
+    {"id": "R2-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 2: tasks error line stayed after range change, no retry"},
+    {"id": "R3-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 3: remembered task marks ignored today; today added as remember key"}
+  ],
+  "validation": [
+    {"command": "sh scripts/check.sh tfp android", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"}
+  ]
+}
