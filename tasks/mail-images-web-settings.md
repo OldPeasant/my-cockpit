@@ -14,7 +14,8 @@ The server already stores `mailImagePolicy` (`block`|`allow`, default `block`) a
 The owner reports that missing images make some mails unusable; the decided default stays "block, load on request".
 
 ## Acceptance criteria
-- [ ] The read view requests `remoteImages=PROXY` without asking when `mailImagePolicy` is `allow`, or when the sender is in `mailImageAllowedSenders`; otherwise it shows the existing "Load images" banner
+- [x] The read view requests `remoteImages=PROXY` without asking when `mailImagePolicy` is `allow`, or when the sender is in `mailImageAllowedSenders`; otherwise it shows the existing "Load images" banner
+  - verified (2026-11-08 12:53+0100 by dell26/agent-2): mail-read-page.spec.ts (remote images: policy allow -> single PROXY get, no banner; listed address/domain sender -> BLOCK then PROXY without asking; other senders -> banner) + mail.routes.spec.ts -> pass; e2e mail-images/image-settings.spec.ts against bootRun + ng serve -> 1 passed (allow -> both images at once; Ask -> banner; listed sender -> loads at once after reload)
 - [ ] "Always load images from this sender" adds the sender to `mailImageAllowedSenders` via `PATCH /api/v1/settings` (no longer `localStorage`); entries found in the old `localStorage` key are merged into the setting once and the key is removed
 - [x] Settings (General, or a Mail section in it) has a control "Remote images in mail: ask / always load" and a list of allowed senders with remove buttons
   - verified (2026-11-08 12:36+0100 by dell26/agent-2): Settings > General rows 'Remote images in mail' (Ask / Always load toggle, saves mailImagePolicy) and 'Always load images from' (list + Remove per sender): general-settings.spec.ts 'remote images in mail' (4 tests pass) and e2e mail-images/image-settings.spec.ts against bootRun+ng serve (toggle saved, sender listed and removed) -> passed; screenshot reviews/mail-images-web-settings/5-senders.png
