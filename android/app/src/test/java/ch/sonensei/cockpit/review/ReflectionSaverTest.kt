@@ -71,6 +71,32 @@ class ReflectionSaverTest {
         }
 
     @Test
+    fun `a refused load of today's entry fails without saving`() =
+        runTest {
+            coEvery { journal.get(today) } returns JournalResult.Failed(403)
+            assertEquals(ReflectionOutcome.FAILED, saver.save("Notes"))
+            coVerify(exactly = 0) { journal.save(any(), any(), any()) }
+        }
+
+    @Test
+    fun `a save that loses the connection is reported offline`() =
+        runTest {
+            coEvery { journal.get(today) } returns JournalResult.Ok(null)
+            coEvery { journal.save(today, null, any()) } returns JournalSaveResult.Offline
+            assertEquals(ReflectionOutcome.OFFLINE, saver.save("Notes"))
+        }
+
+    @Test
+    fun `a whitespace-only existing entry is treated as empty`() =
+        runTest {
+            val blank = entry("  \n\n ")
+            coEvery { journal.get(today) } returns JournalResult.Ok(blank)
+            coEvery { journal.save(today, blank, any()) } returns JournalSaveResult.Saved(blank)
+            assertEquals(ReflectionOutcome.SAVED, saver.save("  Notes  "))
+            coVerify { journal.save(today, blank, "## Weekly review\n\nNotes\n") }
+        }
+
+    @Test
     fun `repeated conflicts give up instead of looping`() =
         runTest {
             coEvery { journal.get(today) } returns JournalResult.Ok(null)

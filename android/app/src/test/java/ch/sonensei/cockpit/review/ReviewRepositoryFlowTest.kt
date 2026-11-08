@@ -125,6 +125,42 @@ class ReviewRepositoryFlowTest {
             )
         }
 
+    private fun occurrences(item: String) =
+        json(
+            """{"from":"2026-11-01T00:00:00Z","to":"2026-11-08T00:00:00Z","items":[{"eventId":"00000000-0000-7000-8000-000000000001",""" +
+                """"calendarId":"00000000-0000-7000-8000-000000000002","title":"Fictitious","status":"CONFIRMED",""" +
+                """"transparency":"OPAQUE","version":1,$item}]}""",
+        )
+
+    @Test
+    fun `a timed occurrence with only a start date falls back to that date`() =
+        runBlocking {
+            server.enqueue(occurrences(""""allDay":false,"startDate":"2026-11-04""""))
+            val events = (reviews.events(upcoming = false) as ReviewResult.Ok).value
+            assertEquals(listOf(ReviewEvent("00000000-0000-7000-8000-000000000001", "Fictitious", LocalDate.of(2026, 11, 4), null)), events)
+        }
+
+    @Test
+    fun `an occurrence without any start is an unreadable answer, not a crash`() =
+        runBlocking {
+            server.enqueue(occurrences(""""allDay":true"""))
+            assertEquals(ReviewResult.Failed(null), reviews.events(upcoming = false))
+        }
+
+    @Test
+    fun `completing a review completed elsewhere is reported as a conflict status`() =
+        runBlocking {
+            server.enqueue(status(409))
+            assertEquals(ReviewResult.Failed(409), reviews.complete(OpenReview(id, ReviewStep.REFLECTION, Instant.EPOCH, 2)))
+        }
+
+    @Test
+    fun `starting without a connection is offline`() =
+        runBlocking {
+            server.close()
+            assertEquals(ReviewResult.Offline, reviews.start())
+        }
+
     @Test
     fun `past events come from their own endpoint, offline when the server is down`() =
         runBlocking {
