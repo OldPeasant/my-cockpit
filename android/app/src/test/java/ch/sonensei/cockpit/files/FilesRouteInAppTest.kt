@@ -16,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -500,6 +501,71 @@ class FilesRouteInAppTest {
 
         assertEquals("Moved Steuern 2025.pdf", ShadowToast.getTextOfLatestToast())
         coVerify(exactly = 1) { repo.move(pdf, docs.id) }
+    }
+
+    @Test
+    fun `a file is renamed from its menu, and the new name is confirmed`() {
+        coEvery { repo.rename(pdf, "Steuern 2026.pdf") } returns FilesResult.Ok(Unit)
+        openFiles()
+
+        composeRule.onNodeWithTag(FilesTags.more(pdf.id)).performClick()
+        composeRule.onNodeWithTag(FilesTags.RENAME).performClick()
+        waitForTag(FilesTags.NAME_FIELD)
+        composeRule.onNodeWithTag(FilesTags.NAME_FIELD).performTextReplacement("Steuern 2026.pdf")
+        composeRule.onNodeWithTag(FilesTags.NAME_SAVE).performClick()
+        composeRule.waitUntil(WAIT_MS) { ShadowToast.getTextOfLatestToast() != null }
+
+        assertEquals("Renamed to Steuern 2026.pdf", ShadowToast.getTextOfLatestToast())
+        composeRule.onNodeWithTag(FilesTags.NAME_DIALOG).assertDoesNotExist()
+        coVerify(exactly = 1) { repo.rename(pdf, "Steuern 2026.pdf") }
+    }
+
+    @Test
+    fun `a folder and a file picked by long presses go to the Trash together, and the selection ends`() {
+        coEvery { repo.delete(any()) } returns FilesResult.Ok(Unit)
+        openFiles()
+
+        composeRule.onNodeWithTag(FilesTags.entry(docs.id)).performTouchInput { longClick() }
+        waitForTag(FilesTags.SELECTION_BAR)
+        // While selecting, a tap picks instead of opening.
+        composeRule.onNodeWithTag(FilesTags.entry(pdf.id)).performClick()
+        composeRule.onNodeWithTag(FilesTags.SELECTION_COUNT).assertTextEquals("2 selected")
+        coEvery { repo.list(null) } returns FilesResult.Ok(emptyList())
+
+        composeRule.onNodeWithTag(FilesTags.SELECTION_DELETE).performClick()
+        composeRule.waitUntil(WAIT_MS) { ShadowToast.getTextOfLatestToast() != null }
+
+        assertEquals("Moved 2 items to the Trash", ShadowToast.getTextOfLatestToast())
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithTag(FilesTags.SELECTION_BAR).fetchSemanticsNodes().isEmpty() }
+        coVerify(exactly = 1) { repo.delete(docs) }
+        coVerify(exactly = 1) { repo.delete(pdf) }
+        coVerify(exactly = 0) { repo.list(docs.id) }
+    }
+
+    @Test
+    fun `a long-press selection is moved into a folder picked in the move picker`() {
+        val archive = DriveEntry.Folder(id(9), "Archiv", null)
+        val notes = DriveEntry.File(id(10), "Notizen.txt", "text/plain", 5, Instant.parse("2026-09-01T09:00:00Z"))
+        coEvery { repo.list(null) } returns FilesResult.Ok(listOf(archive, pdf, notes))
+        coEvery { repo.list(archive.id) } returns FilesResult.Ok(emptyList())
+        coEvery { repo.move(any(), archive.id) } returns FilesResult.Ok(Unit)
+        openFiles()
+
+        composeRule.onNodeWithTag(FilesTags.entry(pdf.id)).performTouchInput { longClick() }
+        waitForTag(FilesTags.SELECTION_BAR)
+        composeRule.onNodeWithTag(FilesTags.entry(notes.id)).performClick()
+        composeRule.onNodeWithTag(FilesTags.SELECTION_MOVE).performClick()
+        waitForTag(FilesTags.pickerFolder(archive.id))
+        composeRule.onNodeWithText("Move 2 items").assertExists()
+        composeRule.onNodeWithTag(FilesTags.pickerFolder(archive.id)).performClick()
+        waitForTag(FilesTags.PICKER_EMPTY)
+        composeRule.onNodeWithTag(FilesTags.PICKER_MOVE).performClick()
+        composeRule.waitUntil(WAIT_MS) { ShadowToast.getTextOfLatestToast() != null }
+
+        assertEquals("Moved 2 items", ShadowToast.getTextOfLatestToast())
+        composeRule.onNodeWithTag(FilesTags.PICKER).assertDoesNotExist()
+        coVerify(exactly = 1) { repo.move(pdf, archive.id) }
+        coVerify(exactly = 1) { repo.move(notes, archive.id) }
     }
 
     private companion object {

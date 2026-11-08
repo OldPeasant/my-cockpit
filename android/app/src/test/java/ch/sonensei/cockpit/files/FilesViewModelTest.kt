@@ -969,6 +969,90 @@ class FilesViewModelTest {
         }
 
     @Test
+    fun `a taken name on create keeps the new folder dialog open with the reason`() =
+        runTest(dispatcher) {
+            coEvery { repo.createFolder(null, "Documents") } returns FilesResult.Failed(409)
+            val vm = atRoot(docs)
+            vm.startNewFolder()
+            vm.saveName("Documents")
+            advanceUntilIdle()
+            assertEquals(NameDialog(null, saving = false, message = ActionMessage.NAME_TAKEN), vm.uiState.value.nameDialog)
+            assertNull(withTimeoutOrNull(1) { vm.events.first() })
+            coVerify(exactly = 1) { repo.list(null) }
+        }
+
+    @Test
+    fun `a picker folder that answers after the user went elsewhere does not replace what is shown`() =
+        runTest(dispatcher) {
+            val slow = CompletableDeferred<FilesResult<List<DriveEntry>>>()
+            val vm = atRoot(docs, tax, pdf)
+            coEvery { repo.list(docs.id) } coAnswers { slow.await() }
+            vm.startMove(pdf)
+            advanceUntilIdle()
+            vm.pickerOpen(docs)
+            advanceUntilIdle()
+            // Back to the drive root before Documents answered.
+            vm.pickerGoTo(0)
+            advanceUntilIdle()
+            slow.complete(FilesResult.Ok(listOf(DriveEntry.Folder(id(8), "inside Documents", null))))
+            advanceUntilIdle()
+
+            val picker = vm.uiState.value.movePicker!!
+            assertEquals(emptyList<FolderCrumb>(), picker.path)
+            assertEquals(listOf(docs, tax), picker.folders)
+            assertFalse(picker.loading)
+        }
+
+    @Test
+    fun `a closed picker is not reopened by a folder that answers late`() =
+        runTest(dispatcher) {
+            val slow = CompletableDeferred<FilesResult<List<DriveEntry>>>()
+            val vm = atRoot(docs, pdf)
+            coEvery { repo.list(docs.id) } coAnswers { slow.await() }
+            vm.startMove(pdf)
+            advanceUntilIdle()
+            vm.pickerOpen(docs)
+            vm.cancelMove()
+            slow.complete(FilesResult.Ok(emptyList()))
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.movePicker)
+        }
+
+    @Test
+    fun `deleting an entry that is already gone shows no error and no confirmation, and reloads`() =
+        runTest(dispatcher) {
+            coEvery { repo.delete(pdf) } returns FilesResult.Failed(404)
+            val vm = atRoot(pdf)
+            vm.delete(pdf)
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.actionMessage)
+            assertFalse(vm.uiState.value.working)
+            assertNull(withTimeoutOrNull(1) { vm.events.first() })
+            coVerify(exactly = 2) { repo.list(null) }
+        }
+
+    @Test
+    fun `a failed move keeps the selection, so it can be tried again`() =
+        runTest(dispatcher) {
+            coEvery { repo.list(docs.id) } returns FilesResult.Ok(emptyList())
+            coEvery { repo.move(pdf, docs.id) } returns FilesResult.Offline
+            val vm = atRoot(docs, pdf)
+            vm.toggleSelected(pdf)
+            vm.startMoveSelected()
+            advanceUntilIdle()
+            vm.pickerOpen(docs)
+            advanceUntilIdle()
+            vm.confirmMove()
+            advanceUntilIdle()
+            assertEquals(setOf(pdf.id), vm.uiState.value.selected)
+            assertEquals(
+                ActionMessage.OFFLINE,
+                vm.uiState.value.movePicker!!
+                    .moveMessage,
+            )
+        }
+
+    @Test
     fun `a delete while another runs is ignored`() =
         runTest(dispatcher) {
             val gate = CompletableDeferred<FilesResult<Unit>>()
