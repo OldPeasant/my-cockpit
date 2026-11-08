@@ -27,6 +27,31 @@
             Edit
           </button>
         }
+        <button
+          type="button"
+          class="icon more"
+          [matMenuTriggerFor]="projectMenu"
+          [disabled]="busy().has('delete')"
+          i18n-aria-label="@@gtd.project.actions"
+          aria-label="More project actions"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path
+              d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"
+            />
+          </svg>
+        </button>
+        <mat-menu #projectMenu="matMenu">
+          <button
+            mat-menu-item
+            type="button"
+            class="delete"
+            (click)="remove()"
+            i18n="@@gtd.project.delete"
+          >
+            Delete project
+          </button>
+        </mat-menu>
       </div>
     </header>
     <p class="visually-hidden" role="status">{{ announcement() }}</p>
@@ -150,6 +175,9 @@
                 (toggleDone)="complete($event)"
                 (open)="open($event)"
               />
+              @if (listLabel(task.list); as label) {
+                <span class="list-label">{{ label }}</span>
+              }
               <span class="marker">
                 @if (isNext(task)) {
                   <span class="next-label" i18n="@@gtd.project.nextStep">Next step</span>

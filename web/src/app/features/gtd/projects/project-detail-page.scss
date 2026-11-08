@@ -100,7 +100,7 @@
 
 .task {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   border-inline-start: 3px solid transparent;
   background: var(--app-bg);
@@ -109,6 +109,17 @@
     border-inline-start-color: var(--app-accent);
     background: color-mix(in srgb, var(--app-accent) 6%, var(--app-bg));
   }
+}
+
+.list-label {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  padding-inline: var(--app-space-2);
+  border-bottom: 1px solid var(--app-border);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-label-medium);
+  white-space: nowrap;
 }
 
 .handle {

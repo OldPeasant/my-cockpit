@@ -18,13 +18,17 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { MatDialog } from '@angular/material/dialog';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { map } from 'rxjs';
-import { ProjectResponse, TaskResponse } from '../../../api/generated';
+import { firstValueFrom, map } from 'rxjs';
+import { Api, ProjectResponse, restoreTrashItem, TaskResponse } from '../../../api/generated';
 import { BackButton, BackNavigation } from '../../../shared/navigation';
 import { ContextStore, localDate, ProjectStore } from '../data';
-import { TaskRow, TaskUndo } from '../ui';
+import { TaskRow, TaskUndo, UNDO_DURATION_MS } from '../ui';
 import { AreaStore } from './area-store';
+import { DeleteProjectData, DeleteProjectDialog } from './delete-project-dialog';
 import { renderMarkdown } from './markdown';
 import { MAX_PROJECT_TITLE, ProjectForm } from './project-form';
 import { statusLabel } from './project-groups';
@@ -34,7 +38,8 @@ import { ProjectTaskStore } from './project-task-store';
  * `/projects/:id` (SPEC.md §5.3): a project's open tasks in their order (drag or arrow keys on the
  * handle reorder them), its next step marked, its Markdown description with a preview, and adding
  * tasks. Completing the next step of an active project asks for the new one ("Choose next step");
- * skipping leaves the project stalled.
+ * skipping leaves the project stalled. Tasks outside Next (Waiting, Someday, Scheduled, Inbox) show
+ * their list. The menu moves the project to the Trash after a confirmation.
  */
 @Component({
   selector: 'app-project-detail-page',
@@ -45,6 +50,7 @@ import { ProjectTaskStore } from './project-task-store';
     CdkDragHandle,
     CdkDropList,
     DatePipe,
+    MatMenuModule,
     ProjectForm,
     RouterLink,
     TaskRow,
@@ -66,6 +72,9 @@ export class ProjectDetailPage {
   private readonly undo = inject(TaskUndo);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly dialog = inject(MatDialog);
+  private readonly snackBar = inject(MatSnackBar);
+  private readonly api = inject(Api);
 
   /** The back button's destination when the project was not opened from a page of the app. */
   protected readonly projectsLabel = $localize`:@@nav.projects:Projects`;
@@ -252,6 +261,59 @@ export class ProjectDetailPage {
       () => this.announcement.set(this.movedAnnouncement(title, to + 1, ids.length)),
       () => undefined,
     );
+  }
+
+  /**
+   * The list of a task outside Next, shown on its row (SPEC.md §5.1: a project's tasks can be in
+   * any list); `undefined` for Next.
+   */
+  protected listLabel(list: TaskResponse['list']): string | undefined {
+    switch (list) {
+      case 'WAITING':
+        return $localize`:@@gtd.project.list.waiting:Waiting`;
+      case 'SOMEDAY':
+        return $localize`:@@gtd.project.list.someday:Someday`;
+      case 'SCHEDULED':
+        return $localize`:@@gtd.project.list.scheduled:Scheduled`;
+      case 'INBOX':
+        return $localize`:@@gtd.project.list.inbox:Inbox`;
+      default:
+        return undefined;
+    }
+  }
+
+  /**
+   * Asks, then moves the project to the Trash (its tasks keep the project, the server's rule) and
+   * goes to the projects list with an "Undo" snackbar that restores it.
+   */
+  protected async remove(): Promise<void> {
+    const project = this.project();
+    if (!project || this.busy().has('delete')) return;
+    const data: DeleteProjectData = { title: project.title, openTasks: this.openTasks().length };
+    const ref = this.dialog.open<DeleteProjectDialog, DeleteProjectData, boolean>(
+      DeleteProjectDialog,
+      { data, autoFocus: 'dialog' },
+    );
+    if (!(await firstValueFrom(ref.afterClosed()))) return;
+    const deleted = await this.run('delete', () => this.projects.remove(project));
+    if (!deleted) return;
+    void this.router.navigate(['/projects']);
+    const undo = this.snackBar.open(
+      $localize`:@@gtd.project.deleted:Moved “${project.title}:title:” to the Trash`,
+      $localize`:@@gtd.undo.action:Undo`,
+      { duration: UNDO_DURATION_MS },
+    );
+    undo.onAction().subscribe(() => void this.restore(project));
+  }
+
+  /** The snackbar's "Undo" after deleting: restores the project from the Trash. */
+  private async restore(project: ProjectResponse): Promise<void> {
+    try {
+      await this.api.invoke(restoreTrashItem, { type: 'PROJECT', id: project.id });
+      await this.projects.refresh();
+    } catch {
+      // The HTTP layer shows the error.
+    }
   }
 
   protected startDescription(): void {

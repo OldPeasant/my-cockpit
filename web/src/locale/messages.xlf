@@ -4689,6 +4689,20 @@
           <context context-type="linenumber">31</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="gtd.project.delete.title" datatype="html">
+        <source>Delete “<x id="INTERPOLATION" equiv-text="{{ data.title }}"/>”?</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/projects/delete-project-dialog.ts</context>
+          <context context-type="linenumber">20,21</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="gtd.project.delete.text" datatype="html">
+        <source> The project moves to the Trash, where you can restore it. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/projects/delete-project-dialog.ts</context>
+          <context context-type="linenumber">23,25</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="gtd.project.back" datatype="html">
         <source>All projects</source>
         <context-group purpose="location">
@@ -4734,6 +4748,20 @@
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.html</context>
           <context context-type="linenumber">27,28</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="gtd.project.actions" datatype="html">
+        <source>More project actions</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.html</context>
+          <context context-type="linenumber">36,38</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="gtd.project.delete" datatype="html">
+        <source> Delete project </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.html</context>
+          <context context-type="linenumber">52,54</context>
         </context-group>
       </trans-unit>
       <trans-unit id="gtd.project.prompt.title" datatype="html">
@@ -4906,6 +4934,27 @@
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-form.html</context>
           <context context-type="linenumber">69,73</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="gtd.project.delete.confirm" datatype="html">
+        <source> Delete project </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/projects/delete-project-dialog.ts</context>
+          <context context-type="linenumber">44,46</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="gtd.project.delete.oneTask" datatype="html">
+        <source>Its open task stays open and keeps the project.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/projects/delete-project-dialog.ts</context>
+          <context context-type="linenumber">71</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="gtd.project.delete.tasks" datatype="html">
+        <source>Its <x id="count" equiv-text="count"/> open tasks stay open and keep the project.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/projects/delete-project-dialog.ts</context>
+          <context context-type="linenumber">73</context>
         </context-group>
       </trans-unit>
       <trans-unit id="gtd.project.noDescription" datatype="html">
@@ -5145,6 +5194,41 @@
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/nav-sections.ts</context>
           <context context-type="linenumber">32</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="gtd.project.list.waiting" datatype="html">
+        <source>Waiting</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.ts</context>
+          <context context-type="linenumber">273</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="gtd.project.list.someday" datatype="html">
+        <source>Someday</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.ts</context>
+          <context context-type="linenumber">275</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="gtd.project.list.scheduled" datatype="html">
+        <source>Scheduled</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.ts</context>
+          <context context-type="linenumber">277</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="gtd.project.list.inbox" datatype="html">
+        <source>Inbox</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.ts</context>
+          <context context-type="linenumber">279</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="gtd.project.deleted" datatype="html">
+        <source>Moved “<x id="title" equiv-text="project.title"/>” to the Trash</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.ts</context>
+          <context context-type="linenumber">302</context>
         </context-group>
       </trans-unit>
       <trans-unit id="nav.project" datatype="html">
