@@ -93,7 +93,7 @@ fun ContactEditContent(
             }
         }
         if (state.saving) LinearProgressIndicator(Modifier.fillMaxWidth())
-        state.error?.let { ErrorBanner(saveErrorText(it, state.base), ContactEditTags.ERROR) }
+        state.error?.let { ErrorBanner(saveErrorText(it, state.base, state.errorDetail), ContactEditTags.ERROR) }
         state.problem?.let {
             ErrorBanner(
                 stringResource(
@@ -183,10 +183,14 @@ fun ContactEditContent(
 internal fun saveErrorText(
     error: ContactSaveError,
     base: Contact?,
+    detail: String? = null,
 ): String =
     when (error) {
         ContactSaveError.OFFLINE -> stringResource(R.string.contacts_save_offline)
         ContactSaveError.FAILED -> stringResource(R.string.contacts_save_failed)
+        ContactSaveError.INVALID ->
+            detail?.let { stringResource(R.string.contacts_save_invalid_detail, it) }
+                ?: stringResource(R.string.contacts_save_invalid)
         ContactSaveError.CONFLICT -> stringResource(R.string.contacts_save_conflict)
         ContactSaveError.NOT_ALLOWED -> stringResource(R.string.contacts_not_allowed, sourceName(base?.source ?: "LOCAL"))
     }

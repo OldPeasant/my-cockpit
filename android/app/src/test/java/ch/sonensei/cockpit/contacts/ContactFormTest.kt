@@ -124,7 +124,8 @@ class ContactFormTest {
             request.addresses,
         )
         assertNull(request.birthday)
-        assertEquals("Prefers mail", request.notesMd)
+        // Notes lose only trailing whitespace: leading indentation is Markdown (like the web's trimEnd).
+        assertEquals("  Prefers mail", request.notesMd)
         assertNull(request.photoFileId)
     }
 

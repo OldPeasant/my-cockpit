@@ -8,6 +8,11 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import retrofit2.Response
 import retrofit2.Retrofit
 import java.io.IOException
@@ -32,9 +37,13 @@ sealed interface ContactsResult<out T> {
     /** No connection (or the server is down). */
     data object Offline : ContactsResult<Nothing>
 
-    /** The server refused it; [status] is `null` for an unreadable answer. */
+    /**
+     * The server refused it; [status] is `null` for an unreadable answer. [detail] is what a refused request (400)
+     * says is wrong: the field errors of its Problem Details, else its detail.
+     */
     data class Failed(
         val status: Int?,
+        val detail: String? = null,
     ) : ContactsResult<Nothing>
 }
 
@@ -88,7 +97,7 @@ class ContactsRepository
             } catch (_: IOException) {
                 ContactsResult.Offline
             } catch (e: ContactsHttpFailure) {
-                if (e.status >= SERVER_ERROR) ContactsResult.Offline else ContactsResult.Failed(e.status)
+                if (e.status >= SERVER_ERROR) ContactsResult.Offline else ContactsResult.Failed(e.status, e.detail)
             } catch (_: SerializationException) {
                 ContactsResult.Failed(null)
             } catch (_: IllegalArgumentException) {
@@ -107,12 +116,35 @@ class ContactsRepository
 /** A non-2xx answer; its message carries only the status, never the body. */
 private class ContactsHttpFailure(
     val status: Int,
+    val detail: String? = null,
 ) : Exception("HTTP $status")
 
 private fun etag(version: Long) = "\"$version\""
 
 private fun <T> body(response: Response<T>): T {
     val body = response.body()
-    if (!response.isSuccessful || body == null) throw ContactsHttpFailure(response.code())
+    if (!response.isSuccessful || body == null) {
+        val detail = if (response.code() == BAD_REQUEST) problemDetail(response.errorBody()?.string()) else null
+        throw ContactsHttpFailure(response.code(), detail)
+    }
     return body
 }
+
+private const val BAD_REQUEST = 400
+
+private val problemJson = Json { ignoreUnknownKeys = true }
+
+/** The field errors (`emails[0].address is not an email address`) of a Problem Details body, else its detail. */
+internal fun problemDetail(body: String?): String? =
+    runCatching {
+        val root = problemJson.parseToJsonElement(body ?: return null).jsonObject
+        val fields =
+            (root["errors"]?.jsonArray ?: emptyList()).mapNotNull { error ->
+                val obj = error.jsonObject
+                listOfNotNull(obj["field"]?.jsonPrimitive?.contentOrNull, obj["message"]?.jsonPrimitive?.contentOrNull)
+                    .joinToString(" ")
+                    .takeIf { it.isNotBlank() }
+            }
+        val detail = root["detail"]?.jsonPrimitive?.contentOrNull
+        fields.joinToString("; ").takeIf { it.isNotEmpty() } ?: detail?.takeIf { it.isNotBlank() }
+    }.getOrNull()

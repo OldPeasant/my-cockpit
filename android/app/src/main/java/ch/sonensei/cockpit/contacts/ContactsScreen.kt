@@ -100,7 +100,7 @@ fun ContactsRoute(modifier: Modifier = Modifier) {
     var open by rememberSaveable { mutableStateOf<String?>(null) }
     val listViewModel: ContactsListViewModel = hiltViewModel()
     if (open == NEW) {
-        val editViewModel: ContactEditViewModel = hiltViewModel()
+        val editViewModel: ContactEditViewModel = hiltViewModel(key = editViewModelKey(null))
         ContactEditRoute(null, editViewModel, onDone = { saved -> open = saved?.id?.toString() }, modifier = modifier)
         return
     }
@@ -127,6 +127,9 @@ fun ContactsRoute(modifier: Modifier = Modifier) {
 
 private const val NEW = "new"
 
+/** One edit view model per contact (and one for new contacts), so a save or delete outcome never shows on another. */
+private fun editViewModelKey(id: UUID?) = "contact-edit:${id ?: NEW}"
+
 /**
  * The form for [contact] (`null`: a new one); [onDone] gets the saved contact, or `null` when cancelled. Back cancels.
  */
@@ -137,19 +140,26 @@ fun ContactEditRoute(
     onDone: (Contact?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LaunchedEffect(contact?.id) { viewModel.start(contact) }
+    // Kept across configuration changes: a recreated screen continues the same form instead of starting it again.
+    val session = rememberSaveable(contact?.id) { UUID.randomUUID().toString() }
+    LaunchedEffect(session) { viewModel.start(contact, session) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val saved = state.saved
+    // Only this form's save closes it: a value left over from an earlier form arrives before start() clears it.
+    val saved = state.saved?.takeIf { state.session == session }
     LaunchedEffect(saved) {
         if (saved != null) {
             viewModel.finished()
             onDone(saved)
         }
     }
-    BackHandler(enabled = !state.saving) { onDone(null) }
+    val cancel = {
+        viewModel.cancel()
+        onDone(null)
+    }
+    BackHandler(enabled = !state.saving, onBack = cancel)
     ContactEditContent(
         state = state,
-        callbacks = ContactEditCallbacks(change = viewModel::change, save = viewModel::save, cancel = { onDone(null) }),
+        callbacks = ContactEditCallbacks(change = viewModel::change, save = viewModel::save, cancel = cancel),
         modifier = modifier,
     )
 }
@@ -164,16 +174,19 @@ fun ContactDetailRoute(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ContactDetailViewModel = hiltViewModel(),
-    editViewModel: ContactEditViewModel = hiltViewModel(),
+    /** Without one, and outside a Hilt activity (screen tests with a fake contact view model), there is no Edit or Delete. */
+    editViewModel: ContactEditViewModel? = null,
 ) {
     var opened by rememberSaveable(id) { mutableStateOf<String?>(null) }
     var editing by rememberSaveable(id) { mutableStateOf(false) }
     var confirmDelete by rememberSaveable(id) { mutableStateOf(false) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val editState by editViewModel.uiState.collectAsStateWithLifecycle()
+    val hilt = LocalActivity.current is GeneratedComponentManagerHolder
+    val editor = editViewModel ?: if (hilt) hiltViewModel<ContactEditViewModel>(key = editViewModelKey(id)) else null
+    val editState = editor?.uiState?.collectAsStateWithLifecycle()?.value ?: ContactEditUiState()
     val shown = state.contact
-    if (editing && shown != null) {
-        ContactEditRoute(shown, editViewModel, onDone = { saved ->
+    if (editing && shown != null && editor != null) {
+        ContactEditRoute(shown, editor, onDone = { saved ->
             editing = false
             if (saved != null) viewModel.refresh()
         }, modifier = modifier)
@@ -183,10 +196,14 @@ fun ContactDetailRoute(
     val trashed = shown?.let { stringResource(R.string.contacts_trashed, it.displayName) }
     LaunchedEffect(editState.deleted) {
         if (editState.deleted) {
-            editViewModel.finished()
+            editor?.finished()
             trashed?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
             onClose()
         }
+    }
+    // The contact was changed elsewhere: reload it, so the next Delete goes against its current version.
+    LaunchedEffect(editState.error) {
+        if (editState.error == ContactSaveError.CONFLICT) viewModel.refresh()
     }
     val item = opened?.split(':')?.let { (type, itemId) -> type to UUID.fromString(itemId) }
     if (item != null) {
@@ -196,7 +213,7 @@ fun ContactDetailRoute(
     }
     // Without Hilt (screen tests with a fake contact view model) there is no links panel; events then open without a server.
     val links: LinkedItemsViewModel? =
-        if (LocalActivity.current is GeneratedComponentManagerHolder) {
+        if (hilt) {
             hiltViewModel(key = linksViewModelKey(ItemRef("CONTACT", id)))
         } else {
             null
@@ -234,18 +251,18 @@ fun ContactDetailRoute(
                 mail = { launch(ContactIntents.mail(it)) },
                 retry = viewModel::refresh,
                 openRelated = { type, itemId -> openTarget(relatedTarget(type, itemId, server)) },
-                edit = { editing = true },
-                delete = { confirmDelete = true },
+                edit = editor?.let { { editing = true } },
+                delete = editor?.let { { confirmDelete = true } },
             ),
         busy = editState.saving,
         actionError = editState.error,
         modifier = modifier,
         linksPanel = { links?.let { LinkedItemsSection(ItemRef("CONTACT", id), open = openTarget, viewModel = it) } },
     )
-    if (confirmDelete && shown != null) {
+    if (confirmDelete && shown != null && editor != null) {
         DeleteDialog(shown.displayName, onConfirm = {
             confirmDelete = false
-            editViewModel.delete(shown)
+            editor.delete(shown)
         }, onDismiss = { confirmDelete = false })
     }
 }
@@ -760,6 +777,7 @@ private fun deleteErrorText(
 ): String =
     when (error) {
         ContactSaveError.FAILED -> stringResource(R.string.contacts_delete_failed)
+        ContactSaveError.CONFLICT -> stringResource(R.string.contacts_delete_conflict)
         else -> saveErrorText(error, contact)
     }
 

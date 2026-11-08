@@ -58,10 +58,13 @@
     <string name="contacts_save_offline">Can\'t reach the server. Nothing was saved.</string>
     <string name="contacts_save_failed">The contact could not be saved.</string>
     <string name="contacts_save_conflict">It was changed elsewhere in the meantime. Your changes are kept: save again to replace that version.</string>
+    <string name="contacts_save_invalid">The server did not accept the contact. Check its fields.</string>
+    <string name="contacts_save_invalid_detail">The server did not accept the contact: %1$s</string>
     <string name="contacts_not_allowed">This contact comes from %1$s, which does not accept changes from the cockpit. Change it there.</string>
     <string name="contacts_delete_title">Delete contact?</string>
     <string name="contacts_delete_text">\"%1$s\" is moved to the Trash.</string>
     <string name="contacts_trashed">Moved \"%1$s\" to the Trash</string>
+    <string name="contacts_delete_conflict">It was changed elsewhere in the meantime. The contact was reloaded: check it and delete again.</string>
     <string name="contacts_delete_failed">The contact could not be deleted.</string>
     <string name="contacts_source_local">Kept in the cockpit only</string>
     <string name="contacts_source_synced">Synced with %1$s</string>

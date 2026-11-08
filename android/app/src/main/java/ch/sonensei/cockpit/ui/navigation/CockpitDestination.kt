@@ -68,8 +68,8 @@ enum class CockpitDestination(
         val bottomBar: List<CockpitDestination> = entries.filter { it.section == NavSection.BottomBar }
         val moreItems: List<CockpitDestination> = entries.filter { it.section == NavSection.More }
 
-        /** Screens with their own FAB (create a note, upload a file, compose, new event): capture goes to the app bar. */
-        val withOwnFab: Set<CockpitDestination> = setOf(Calendar, Mail, Notes, Files)
+        /** Screens with their own FAB (create a note, upload a file, compose, new event, new contact): capture goes to the app bar. */
+        val withOwnFab: Set<CockpitDestination> = setOf(Calendar, Mail, Notes, Files, Contacts)
 
         fun fromRoute(route: String?): CockpitDestination? = entries.firstOrNull { it.route == route }
 

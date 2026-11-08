@@ -86,7 +86,8 @@ data class ContactForm(
                     )
                 },
             birthday = birthdayDate(),
-            notesMd = notes.trimToNull(),
+            // Only trailing whitespace: leading indentation is Markdown (an indented code block), as on the web.
+            notesMd = notes.trimEnd().takeIf { it.isNotEmpty() },
             photoFileId = photoFileId,
         )
 
@@ -99,12 +100,7 @@ data class ContactForm(
             ContactForm(
                 givenName = contact.givenName.orEmpty(),
                 familyName = contact.familyName.orEmpty(),
-                displayName =
-                    contact.displayName
-                        .takeIf {
-                            val derived = listOfNotNull(contact.givenName, contact.familyName).joinToString(" ")
-                            derived.isEmpty() || it != derived
-                        }.orEmpty(),
+                displayName = contact.displayName.takeIf { it != derivedName(contact) }.orEmpty(),
                 organization = contact.organization.orEmpty(),
                 title = contact.title.orEmpty(),
                 emails = contact.emails.map { LabeledField(it.value, it.label.orEmpty()) },
@@ -126,6 +122,18 @@ data class ContactForm(
             )
     }
 }
+
+/**
+ * The display name the server derives for a contact without one (`ContactService.derivedName`, the web's
+ * `derivedName`): given and family name, else the organization, else the first email address.
+ */
+internal fun derivedName(contact: Contact): String? =
+    listOfNotNull(contact.givenName, contact.familyName).joinToString(" ").trimToNull()
+        ?: contact.organization?.trimToNull()
+        ?: contact.emails
+            .firstOrNull()
+            ?.value
+            ?.trimToNull()
 
 enum class ContactFormProblem { NAME_REQUIRED, INVALID_BIRTHDAY }
 

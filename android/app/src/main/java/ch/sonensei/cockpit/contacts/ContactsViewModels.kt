@@ -136,8 +136,8 @@ private fun ContactsResult<*>.message() =
         is ContactsResult.Failed -> ContactsMessage.FAILED
     }
 
-/** Why saving or deleting did not work. */
-enum class ContactSaveError { OFFLINE, FAILED, CONFLICT, NOT_ALLOWED }
+/** Why saving or deleting did not work; [INVALID]: the server refused the form's values (400). */
+enum class ContactSaveError { OFFLINE, FAILED, CONFLICT, NOT_ALLOWED, INVALID }
 
 data class ContactEditUiState(
     val form: ContactForm = ContactForm.empty(),
@@ -147,9 +147,13 @@ data class ContactEditUiState(
     /** Shown only after a save was tried, so an empty new form starts without errors. */
     val problem: ContactFormProblem? = null,
     val error: ContactSaveError? = null,
+    /** What the server said is wrong with an [ContactSaveError.INVALID] form. */
+    val errorDetail: String? = null,
     /** The saved (or, for a delete, the trashed) contact: the screen then closes the form. */
     val saved: Contact? = null,
     val deleted: Boolean = false,
+    /** The form session this state belongs to (see [ContactEditViewModel.start]); `null` outside a form. */
+    val session: String? = null,
 )
 
 /** Creates, edits and deletes (to the Trash) contacts, like the web's contact form. */
@@ -162,10 +166,27 @@ class ContactEditViewModel
         private val state = MutableStateFlow(ContactEditUiState())
         val uiState: StateFlow<ContactEditUiState> = state.asStateFlow()
 
-        /** Starts editing [contact] (`null`: a new one), dropping any earlier form. */
-        fun start(contact: Contact?) {
-            state.value = ContactEditUiState(form = contact?.let(ContactForm::of) ?: ContactForm.empty(), base = contact)
+        /**
+         * Starts editing [contact] (`null`: a new one), dropping any earlier form. Called again for the same [session]
+         * (the screen was recreated, for example by a rotation) it keeps the form as typed, and a running save.
+         */
+        fun start(
+            contact: Contact?,
+            session: String? = null,
+        ) {
+            val current = state.value
+            if (session != null && session == current.session) return
+            if (current.saving) {
+                // Never restart while a save runs: the form it closes when done is the one shown now.
+                state.update { it.copy(session = session) }
+                return
+            }
+            state.value =
+                ContactEditUiState(form = contact?.let(ContactForm::of) ?: ContactForm.empty(), base = contact, session = session)
         }
+
+        /** The form was cancelled: its problem and error are dropped, so they do not show anywhere else. */
+        fun cancel() = state.update { it.copy(problem = null, error = null, errorDetail = null, session = null) }
 
         fun change(form: ContactForm) {
             state.update { it.copy(form = form, problem = if (it.problem != null) form.problem() else null) }
@@ -179,7 +200,7 @@ class ContactEditViewModel
                 state.update { it.copy(problem = problem) }
                 return
             }
-            state.update { it.copy(saving = true, problem = null, error = null) }
+            state.update { it.copy(saving = true, problem = null, error = null, errorDetail = null) }
             viewModelScope.launch {
                 val request = current.form.toRequest()
                 val result = current.base?.let { contacts.update(it, request) } ?: contacts.create(request)
@@ -191,7 +212,12 @@ class ContactEditViewModel
                 // After a conflict the next Save goes against the current version; the form keeps the user's edits.
                 val reloaded = if (error == ContactSaveError.CONFLICT) current.base?.let { contacts.get(it.id) } else null
                 state.update {
-                    it.copy(saving = false, error = error, base = (reloaded as? ContactsResult.Ok)?.value ?: it.base)
+                    it.copy(
+                        saving = false,
+                        error = error,
+                        errorDetail = (result as? ContactsResult.Failed)?.detail?.takeIf { error == ContactSaveError.INVALID },
+                        base = (reloaded as? ContactsResult.Ok)?.value ?: it.base,
+                    )
                 }
             }
         }
@@ -199,24 +225,25 @@ class ContactEditViewModel
         /** Moves [contact] to the Trash (the screen asks first). */
         fun delete(contact: Contact) {
             if (state.value.saving) return
-            state.update { it.copy(base = contact, saving = true, error = null) }
+            state.update { it.copy(base = contact, saving = true, error = null, errorDetail = null) }
             viewModelScope.launch {
                 val result = contacts.delete(contact)
                 state.update {
                     it.copy(
                         saving = false,
                         deleted = result is ContactsResult.Ok,
-                        error = if (result is ContactsResult.Ok) null else result.saveError(),
+                        // A delete sends no form, so a refused one (400) is not about the form's values.
+                        error = if (result is ContactsResult.Ok) null else result.saveError(invalid = ContactSaveError.FAILED),
                     )
                 }
             }
         }
 
         /** The screen handled [ContactEditUiState.saved] or [ContactEditUiState.deleted]; the next screen starts clean. */
-        fun finished() = state.update { it.copy(saved = null, deleted = false, error = null) }
+        fun finished() = state.update { it.copy(saved = null, deleted = false, error = null, errorDetail = null, session = null) }
     }
 
-private fun ContactsResult<*>.saveError() =
+private fun ContactsResult<*>.saveError(invalid: ContactSaveError = ContactSaveError.INVALID) =
     when (this) {
         is ContactsResult.Ok -> null
         ContactsResult.Offline -> ContactSaveError.OFFLINE
@@ -224,10 +251,12 @@ private fun ContactsResult<*>.saveError() =
             when (status) {
                 CONFLICT, PRECONDITION_FAILED -> ContactSaveError.CONFLICT
                 FORBIDDEN, METHOD_NOT_ALLOWED -> ContactSaveError.NOT_ALLOWED
+                BAD_REQUEST -> invalid
                 else -> ContactSaveError.FAILED
             }
     }
 
+private const val BAD_REQUEST = 400
 private const val FORBIDDEN = 403
 private const val METHOD_NOT_ALLOWED = 405
 private const val CONFLICT = 409

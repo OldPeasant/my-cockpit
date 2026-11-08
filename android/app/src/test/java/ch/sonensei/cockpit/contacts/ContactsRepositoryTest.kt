@@ -215,6 +215,29 @@ class ContactsRepositoryTest {
         }
 
     @Test
+    fun `a refused save says which fields the server found wrong`() =
+        runBlocking {
+            val problem =
+                """{"status":400,"detail":"Request validation failed","errors":[{"field":"emails[0].address",
+                |"message":"is not an email address"},{"field":"phones[0].number","message":"must not be blank"}]}
+                """.trimMargin().replace("\n", "")
+            server.enqueue(
+                MockResponse
+                    .Builder()
+                    .code(400)
+                    .addHeader("Content-Type", "application/problem+json")
+                    .body(problem)
+                    .build(),
+            )
+            assertEquals(
+                ContactsResult.Failed(400, "emails[0].address is not an email address; phones[0].number must not be blank"),
+                contacts.create(ContactForm(givenName = "Carla").toRequest()),
+            )
+            assertEquals("Request validation failed", problemDetail("""{"detail":"Request validation failed"}"""))
+            assertEquals(null, problemDetail("not json"))
+        }
+
+    @Test
     fun `delete moves the contact to the Trash with its version as If-Match`() =
         runBlocking {
             server.enqueue(status(204))

@@ -192,6 +192,13 @@ class CaptureButtonTest {
     }
 
     private companion object {
-        val OWN_FAB = setOf(CockpitDestination.Notes, CockpitDestination.Files, CockpitDestination.Mail, CockpitDestination.Calendar)
+        val OWN_FAB =
+            setOf(
+                CockpitDestination.Notes,
+                CockpitDestination.Files,
+                CockpitDestination.Mail,
+                CockpitDestination.Calendar,
+                CockpitDestination.Contacts,
+            )
     }
 }

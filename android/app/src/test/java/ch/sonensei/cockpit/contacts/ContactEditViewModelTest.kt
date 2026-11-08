@@ -201,7 +201,8 @@ class ContactEditViewModelTest {
                 listOf(
                     ContactsResult.Failed(403) to ContactSaveError.NOT_ALLOWED,
                     ContactsResult.Failed(405) to ContactSaveError.NOT_ALLOWED,
-                    ContactsResult.Failed(400) to ContactSaveError.FAILED,
+                    ContactsResult.Failed(400) to ContactSaveError.INVALID,
+                    ContactsResult.Failed(404) to ContactSaveError.FAILED,
                     ContactsResult.Failed(null) to ContactSaveError.FAILED,
                     ContactsResult.Offline to ContactSaveError.OFFLINE,
                 )
@@ -218,6 +219,34 @@ class ContactEditViewModelTest {
                 coVerify(exactly = 0) { repo.get(any()) }
             }
         }
+
+    @Test
+    fun `a save refused as invalid keeps what the server said is wrong`() =
+        runTest(dispatcher) {
+            val detail = "emails[0].address is not an email address"
+            coEvery { repo.create(any()) } returns ContactsResult.Failed(400, detail)
+            val vm = ContactEditViewModel(repo)
+            vm.start(null)
+            vm.change(ContactForm(emails = listOf(LabeledField("anna.example.org"))))
+            vm.save()
+            advanceUntilIdle()
+            assertEquals(ContactSaveError.INVALID, vm.uiState.value.error)
+            assertEquals(detail, vm.uiState.value.errorDetail)
+            vm.cancel()
+            assertNull(vm.uiState.value.error)
+            assertNull(vm.uiState.value.errorDetail)
+        }
+
+    @Test
+    fun `starting the same form session again keeps what was typed, a new session starts over`() {
+        val vm = ContactEditViewModel(repo)
+        vm.start(anna, "s1")
+        vm.change(ContactForm.of(anna).copy(givenName = "Annette"))
+        vm.start(anna, "s1")
+        assertEquals("Annette", vm.uiState.value.form.givenName)
+        vm.start(anna, "s2")
+        assertEquals(ContactForm.of(anna), vm.uiState.value.form)
+    }
 
     @Test
     fun `a failed save is cleared from the banner when Save is tried again`() =

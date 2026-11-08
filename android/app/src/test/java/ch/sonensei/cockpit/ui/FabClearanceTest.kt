@@ -278,6 +278,13 @@ class FabClearanceTest {
         const val TIMEOUT = 5_000L
         const val EPSILON_PX = 1f
         val REFRESHED: Instant = Instant.parse("2026-11-01T08:00:00Z")
-        val OWN_FAB = setOf(CockpitDestination.Notes, CockpitDestination.Files, CockpitDestination.Mail, CockpitDestination.Calendar)
+        val OWN_FAB =
+            setOf(
+                CockpitDestination.Notes,
+                CockpitDestination.Files,
+                CockpitDestination.Mail,
+                CockpitDestination.Calendar,
+                CockpitDestination.Contacts,
+            )
     }
 }
