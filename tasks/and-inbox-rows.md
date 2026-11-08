@@ -17,7 +17,8 @@ read-only sheet (`NewScreen.kt:488-536`) although SPEC.md §5.3 says it opens th
   - verified (2026-11-08 11:06+0100 by dell26/agent-2): InboxScreenTest/InboxRouteTest/InboxViewModelTest (Robolectric Compose) via ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.inbox.*' -> pass: checkbox completes via shared TaskCompleter with Next's undo snackbar, row tap opens task detail
 - [x] A task row in the New view opens task detail (back returns to New with its filter and scroll position); the read-only `NewTaskView` is removed
   - verified (2026-11-08 11:06+0100 by dell26/agent-2): NewRouteTest in CockpitShellFrame via ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.newitems.*' -> pass: task row opens detail route, Back returns with filter and scroll kept; NewTaskView/NewOpen.Task removed (grep finds none)
-- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [x] New strings are in English and German (`res/values/` + `res/values-de/`)
+  - verified (2026-11-08 11:06+0100 by dell26/agent-2): No new strings; reused tasks_complete/tasks_undo/task_detail_open exist in res/values and res/values-de; unused new_task_* removed from both; lintDebug -> pass (no MissingTranslation)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
