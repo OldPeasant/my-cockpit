@@ -1,10 +1,11 @@
 ---
 title: Reminders on tasks (web)
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [and-task-detail-dates, web-task-actions, and-links-panel]
 prio: 2
 parent: task-reminders
+lease_until: 2026-11-08T23:54:44Z
 ---
 ## Goal
 Part of `task-reminders` (Reminders on tasks (web + Android)), which was split.
