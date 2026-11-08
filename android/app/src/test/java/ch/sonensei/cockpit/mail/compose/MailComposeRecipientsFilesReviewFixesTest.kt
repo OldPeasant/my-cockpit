@@ -155,6 +155,49 @@ class MailComposeRecipientsFilesReviewFixesTest {
         }
 
     @Test
+    fun `a fragment left out by an autosave is stored once it is finished as a chip`() =
+        runTest(dispatcher) {
+            val vm = newCompose()
+            vm.setTo("ben@example.org, an")
+            advanceTimeBy(MailComposeViewModel.AUTOSAVE_MILLIS + 1)
+            runCurrent()
+            assertEquals(DraftState.UNSAVED, vm.uiState.value.draft)
+
+            vm.setTo(chooseSuggestion(vm.uiState.value.to, ann))
+            advanceTimeBy(MailComposeViewModel.AUTOSAVE_MILLIS + 1)
+            runCurrent()
+
+            coVerify(exactly = 1) {
+                repository.update(
+                    id(1),
+                    "\"1\"",
+                    match { it.to == listOf(Recipient("ben@example.org"), Recipient("ann@example.org", "Ann Example")) },
+                )
+            }
+            assertEquals(DraftState.SAVED, vm.uiState.value.draft)
+            assertNull(vm.uiState.value.problem)
+        }
+
+    @Test
+    fun `a field marked invalid by an explicit save stays checked by the autosave until it is edited`() =
+        runTest(dispatcher) {
+            val vm = newCompose()
+            vm.setTo("ben@example.org, an")
+            vm.save()
+            advanceUntilIdle()
+            assertEquals(setOf(RecipientField.TO), vm.uiState.value.invalid)
+
+            // An edit of another field schedules an autosave; it must not silently drop the marked fragment.
+            vm.setSubject("Plan")
+            advanceTimeBy(MailComposeViewModel.AUTOSAVE_MILLIS + 1)
+            runCurrent()
+
+            assertEquals(ComposeProblem.INVALID_ADDRESS, vm.uiState.value.problem)
+            assertEquals(setOf(RecipientField.TO), vm.uiState.value.invalid)
+            coVerify(exactly = 0) { repository.create(any(), any()) }
+        }
+
+    @Test
     fun `picking a file of Files during a recipient search adds it`() =
         runTest(dispatcher) {
             coEvery { repository.update(id(1), "\"1\"", any()) } returns
