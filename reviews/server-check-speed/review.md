@@ -4,21 +4,35 @@ Date: 2026-11-08
 
 Task: server-check-speed - Server check: make .taskcheck's server tests fast again
 
-Scope: `git diff 8af08396d..HEAD` (commits d0d4eae74, 802620357, 76d08ab22), committed changes only
+Scope: `git diff bb487db91..HEAD -- . ':!reviews'` (re-review of the final code), committed changes only
 
 Requirements:
 - tasks/server-check-speed.md acceptance criteria
 - SPEC.md §10.2 (backup secrets: Argon2id-derived key), docs/ARCHITECTURE.md "Testing"/"Coverage"
 - AGENTS.md project notes (lint, test conventions, CI must still run every server test)
-- Parent agent focus: production safety of `BackupSecrets.encryptionKdf`, fork isolation, heap per fork, docs accuracy, BackupJobService/RestoreService changes
+- Parent focus: production never uses the cheap test KDF/hashing, per-fork isolation, CI still runs every server
+  test, status of the earlier finding CR-1
+- Context: previous review (reviewed 76d08ab22 before the rebase) and reviews/server-check-speed/tests.md
 
 Git range:
 - Branch: main
-- HEAD: 76d08ab22
-- Base/start: 8af08396db17f257978bbc5c770ba893ebd363cc
-- Commits reviewed: 3
+- HEAD: d55caf13069c0053a795cdbcd2d7ddff0105f4e3 (reviewed revision; code last changed in 568abb8b0, d55caf130 only adds reports)
+- Base/start: bb487db914cd59cc0dcd661523f992d6f3ef6ca4
+- Commits reviewed: 5 (e68803c9d, d33ce2f2f, 7e608c1ea, 568abb8b0 code; d55caf130 reports only)
 
-Summary: 0 P0, 0 P1, 1 P2, 0 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
+
+## Status of the previous finding
+
+- CR-1 (P2, production default of the backup secrets KDF not covered): **resolved**. The new test
+  `a freshly loaded BackupSecrets encrypts with the default KDF, so production is not lowered like Spring tests`
+  (`server/src/test/kotlin/ch/sonensei/cockpit/backup/BackupSecretsCryptoTests.kt:88`) loads a separate copy of
+  `BackupSecrets` in an isolated `URLClassLoader` (main classes, Kotlin stdlib, Bouncy Castle, platform loader as
+  parent), checks that the class really came from that loader, and asserts that both `DEFAULT_KDF` and the initial
+  `encryptionKdf` are 64 MiB / 3 passes / 1 lane. Changing the initializer at `BackupSecrets.kt:59` to a weak value now
+  fails this test, whatever the test order or fork. The class's static initializer only needs `Kdf` (same output dir),
+  `SecureRandom` and the inlined `BackupFormat.DATA_DIR` constant, so the reduced classpath is enough. The parent
+  still has to run it (sub-agents cannot run Gradle).
 
 ## P0 Critical
 
@@ -30,77 +44,68 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | The production default of the backup secrets KDF is no longer covered by any test**
-    - File: `server/src/test/kotlin/ch/sonensei/cockpit/backup/BackupSecretsCryptoTests.kt:71`
-      (production value: `server/src/main/kotlin/ch/sonensei/cockpit/backup/domain/BackupSecrets.kt:59`)
-    - Category: Tests
-    - Problem: `encrypt`'s default changed from the constant `DEFAULT_KDF` to the mutable `encryptionKdf`, whose
-      initializer is `DEFAULT_KDF`. The test `the default KDF is 64 MiB, 3 passes, one lane and is what encrypt uses`
-      now sets `BackupSecrets.encryptionKdf = BackupSecrets.DEFAULT_KDF` itself before calling `encrypt`, so it only
-      proves that `encrypt` honours `encryptionKdf` and that the `DEFAULT_KDF` constant has the right values. It no
-      longer checks what production actually uses: if the initializer at `BackupSecrets.kt:59` were changed to a weak
-      value (for example `Kdf(8, 1, 1)`, the same as `FAST_KDF`), every test would still pass. Spring tests set
-      `FAST_KDF` anyway, and `FastTestCryptoTests` passes the KDF explicitly. Before this change the old test covered
-      this (`encrypt(plaintext, PASSPHRASE)` with the compile-time default `DEFAULT_KDF`).
-    - Why it matters: `ZipBackupWriter.kt:135` calls `BackupSecrets.encrypt(...)` without a KDF, so this initializer
-      sets how strongly every real backup's secrets (IMAP/SMTP/CalDAV passwords) are protected against brute-forcing
-      the passphrase offline (SPEC.md §10.2). I checked the current code and production is safe: no code under
-      `src/main` assigns `encryptionKdf`, and the only writer is `FastTestCrypto`, which is registered in
-      `src/test/resources/META-INF/spring.factories` and is not part of the boot jar. What is missing is the
-      regression guard for this security parameter, and the change itself took it away.
-    - Suggested fix: assert the production initial value in a way that does not depend on test order. For example,
-      have `FastTestCrypto` keep the value it replaces on its first write (a `productionKdf` captured before
-      `encryptionKdf = FAST_KDF`; the current value if no Spring context ran yet in this fork) and assert that equals
-      `DEFAULT_KDF`. Another option is to make the default a constructor/bean parameter of the writer instead of a
-      mutable global, so tests override a bean and the production default stays a constant that the old test
-      covers. Keep the existing round-trip with `DEFAULT_KDF`.
+None.
 
 ## P3 Low
 
-None.
+- [ ] **CR-2 | Per-fork test data dirs are never cleared, and get a new name on most runs**
+    - File: `server/src/test/resources/config/application.properties:9` (cleanup only for the temp dir:
+      `server/build.gradle.kts:141`)
+    - Category: Quality
+    - Problem: `cockpit.data-dir=build/test-data/fork-${org.gradle.test.worker:0}` uses Gradle's worker id. That id
+      is not a fork index from 1 to N: it keeps counting across runs in the same Gradle daemon. So most runs write a new
+      set of `fork-*` folders, and nothing deletes the old ones. `doFirst` clears only `build/tmp/test-jvm/{task}`.
+      The clone under review already has `fork-5`..`fork-8`, `fork-17`..`fork-20`, `fork-34`, `fork-36`, up to 77 MB
+      each. This leak existed before in a milder form: the old single `build/test-data` (its `blobs` folder is 13 GB
+      here) was reused, not cleared. The change adds a new folder set on each run on top of that.
+    - Why it matters: agent machines run the check on every `tasks.py done`. Disk use in `server/build` grows by about
+      100 to 200 MB per run until someone runs `clean`. This is the same kind of build-dir/tmp exhaustion that has held
+      tasks before.
+    - Suggested fix: clear `build/test-data` in the `tasks.test` `doFirst` (as is done for the temp dir), before the
+      forks start. This also deletes the old shared folders. Optionally update the "Testing" note in
+      docs/ARCHITECTURE.md, which calls the folders `fork-{n}` as if `n` were a fork index.
 
 ## Notes (checked, no finding)
 
-- `BackupSecrets.encryptionKdf` in production: `internal` plus `@Volatile`, assigned only in
-  `support/FastTestCrypto.kt` (test source set) and restored in a try/finally in `BackupSecretsCryptoTests`. Nothing
-  in `src/main` writes it. `ContextCustomizerFactory` only runs in the Spring TestContext framework, so `bootRun` or a
-  jar cannot get the weak KDF. Restores read the KDF from the envelope, and `FastTestCryptoTests` covers that the 8 KiB
-  / 1 pass parameters pass `decrypt`'s lower bounds.
-- Password encoder swap: `SecurityConfiguration.passwordEncoder()` returns `PasswordEncoder` backed by
-  `Argon2PasswordEncoder`. The BeanPostProcessor that `customizeContext` adds before refresh replaces it with an
-  equally typed `Argon2PasswordEncoder`. The production parameters (`m=16384,t=2,p=1`) and the production
-  encoder's ability to verify the fast hashes are covered by `FastTestCryptoTests`. The customizer is one singleton
-  object (identity equality), so it adds the same entry to every context cache key and does not split the cache.
-- Fork isolation: no `junit-platform.properties` exists, so classes run one after another inside each fork. Each
-  fork gets its own Postgres container (`PostgresTestBase` companion, one per JVM), its own Spring context cache,
-  and its own data dir (`cockpit.data-dir=build/test-data/fork-${org.gradle.test.worker:0}`; Gradle sets that system
-  property in each test worker JVM). The shared `java.io.tmpdir` (`build/tmp/test-jvm/test`, emptied in `doFirst`
-  before any fork starts) is listed only by `BackupWorkDirCleanupTests`, which now uses its own `@TempDir` through
-  `tempRoot`. All other `createTempDirectory`/`createTempFile` calls in tests use unique random names. Other
-  `listDirectoryEntries` checks (thumbnails tmp, mail tmp, pre-restore) are inside the per-fork data dir or a
-  per-class dir.
-- Order-dependence fixes: `HabitEdgeCaseTests.reset()` also runs from `@BeforeEach`, so deleting every reminder
-  protects the `fireDue` counts from leftovers of earlier classes. `GoogleContactsSyncTests` now also cleans up in
-  `@AfterEach`. Both changes are sound.
-- `BackupJobService`/`RestoreService` `tempRoot`: production never sets it (null means the old
-  `Files.createTempDirectory(prefix)`). Behaviour is unchanged, and `destroy()` still deletes only the lazily created
-  work dir.
-- Fork count and heap: `availableProcessors / 4` capped at 4 (an override clamped to at least 1), with 2 GB heap per
-  fork. Docs and the build comment match the code. GitHub's 4-core runners get 1 fork, so CI behaves as before and
-  still runs every test. The fork count does not take available memory into account: on a 16-core machine with 3
-  agents running the check at once, up to 12 test JVMs with 2 GB heap each plus 12 Postgres containers can run. Not
-  reported as a finding because nothing shows it failed, but the parent should watch for OOM or swap during the
-  3-run validation.
-- Jacoco: the Gradle jacoco agent appends to one exec file and supports parallel forks, so the
-  `jacocoTestReport` coverage instructions in ARCHITECTURE.md still apply.
+- Production never uses the cheap crypto. `BackupSecrets.encryptionKdf` is `internal @Volatile`, its initializer is
+  `DEFAULT_KDF`, and nothing under `server/src/main` assigns it (grep: the only writers are `support/FastTestCrypto.kt`
+  and the save/restore in `BackupSecretsCryptoTests`). `FastTestCrypto` and `META-INF/spring.factories` are in
+  the test source set, and a `ContextCustomizerFactory` runs only in the Spring TestContext framework, so `bootRun` and
+  the boot jar keep `DEFAULT_KDF` and the `m=16384,t=2,p=1` password encoder. `FastTestCryptoTests` covers the
+  production encoder's parameters, and tests that the fast hashes and fast-KDF envelopes still pass production
+  verification and `decrypt`'s lower bounds (8 KiB, 1 pass).
+- Per-fork isolation. No `junit-platform.properties` exists, so test classes run one after another in each fork. Each
+  fork JVM has its own `PostgresTestBase` container (static companion), its own Spring context cache and its own
+  default data dir. Classes that need their own data dir (`RestoreTestSupport`, `BackupRoundTripTest`, the
+  `*BackupContributorTests`) use `Files.createTempDirectory(...)`, which gives each one a unique name in the shared JVM
+  temp dir. `BackupWorkDirCleanupTests` was the only test that listed the shared temp dir. It now uses its own `@TempDir`
+  through `tempRoot`. The two new production-path tests (`tempRoot` null) find their own work dir by its unique zip,
+  so other forks that create or delete `cockpit-*` folders at the same time cannot affect them. `destroy()` is
+  idempotent, so calling it twice in those tests is safe. Fixed output paths written by `test` (for example
+  `PerfBaselineTests`' report) have one writer each.
+- `tempRoot` in `BackupJobService`/`RestoreService`: null in production, which keeps the old
+  `Files.createTempDirectory(prefix)` behaviour. Both branches now have tests with assertions.
+- Order-independence fixes (`HabitEdgeCaseTests` deletes all reminders, `GoogleContactsSyncTests` also resets in
+  `@AfterEach`) are correct, and each class's `@BeforeEach` keeps it independent of earlier classes.
+- CI: the `check-server` job in `.github/workflows/ci.yml` still runs `sh scripts/check.sh server`, that is
+  `./gradlew check` with every non-external server test. The `integrationTest` job runs the `external` ones. No test
+  was moved out of `test`, and docs/ARCHITECTURE.md says so. The default fork count is `availableProcessors / 4` capped
+  at 1..4, so CI's 4-core runners get 1 fork (the old serial behaviour). The override `-PtestForks`/`COCKPIT_TEST_FORKS`
+  is clamped to at least 1.
+- Heap: 2 GB per fork, unchanged per JVM. As the previous review noted, the fork count does not take memory into
+  account (up to 4 JVMs plus 4 Postgres containers per check). Not a finding without an observed failure.
+- Not reviewable from code (parent evidence): criterion 1 (20 slowest classes and their times), criterion 3 (baseline
+  and new wall time on the same load), criterion 4 (3 green runs in a row), and `sh scripts/check.sh` passing. The new
+  tests from 568abb8b0 have not been compiled or run by any helper yet. The parent must run them before recording
+  evidence.
 
 ## Commands for the parent to run (sub-agents cannot run Gradle)
 
 - `cd server && ./gradlew test --tests '*BackupSecretsCryptoTests' --tests '*FastTestCryptoTests' --tests '*BackupWorkDirCleanupTests'`
-- `cd server && ./gradlew check -PtestForks=1` (the serial path still passes after the order-dependence fixes)
-- `cd server && ./gradlew check` (default forks; the 3-run flakiness criterion)
+- `cd server && ./gradlew check -PtestForks=1` (baseline / serial path)
+- `cd server && ./gradlew check` three times (default forks)
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 is P2: production is safe today, but the change
-removed the test that guards the backup KDF default.
+No material issues found. CR-1 is resolved. CR-2 (P3) is optional cleanup of the test data dirs and does not block
+completion.
