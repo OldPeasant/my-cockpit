@@ -14,7 +14,8 @@ Part of `cal-invitation-respond` (Accept, decline or tentatively accept invitati
 Goal: the Android event view/editor calls `POST /api/v1/calendar/events/{id}/respond` (SPEC §6.2), same rules as the web subtask (see the assumptions on cal-invitation-respond). Touches android/.../calendar/edit, its tests and strings_calendar_edit.xml (values, values-de) only.
 
 ## Acceptance criteria
-- [ ] Android event view/editor: Accept / Maybe / Decline with the current status; sending updates the status
+- [x] Android event view/editor: Accept / Maybe / Decline with the current status; sending updates the status
+  - verified (2026-11-09 00:15+0100 by felix/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.edit.*' -> pass (Accept/Maybe/Decline with current status selected; answering updates status/version)
 - [x] New strings in English and German (`res/values{,-de}/strings_calendar_edit.xml`)
   - verified (2026-11-08 23:23+0100 by felix/agent-1): git diff 0cec3b4ba HEAD -- android/app/src/main/res/ -> 7 new calendar_edit_respond_* strings in values/ and values-de/strings_calendar_edit.xml (same keys, German uses du); lintDebug (MissingTranslation) passes in the helper run
 - [ ] Unit tests cover the new behavior; `sh scripts/check.sh` passes
