@@ -1207,6 +1207,201 @@ describe('MailListStore', () => {
       expect(mail.applies[0].ids).toEqual(['a']);
     });
   });
+
+  describe('load older from server (SPEC.md §7.2)', () => {
+    const folder: MailScope = { folderId: INBOX, threaded: false };
+
+    it('is offered at the end of a fully loaded folder only', async () => {
+      expect(store.canLoadOlder()).toBe(false);
+      await loaded([summary('a')], folder);
+      expect(store.canLoadOlder()).toBe(true);
+
+      // More cached pages follow: infinite scroll comes first.
+      await loaded([summary('a')], folder, 'c1');
+      expect(store.canLoadOlder()).toBe(false);
+
+      // The unified Inbox has no single folder to load into.
+      await loaded([summary('a')], { folderId: null, threaded: false });
+      expect(store.canLoadOlder()).toBe(false);
+    });
+
+    it('is offered for an empty folder', async () => {
+      await loaded([], folder);
+      expect(store.canLoadOlder()).toBe(true);
+    });
+
+    it('is not offered for search results, while loading, or after a failed load', async () => {
+      const search = store.load({ ...folder, search: { query: 'invoice', server: false } });
+      mail.searches[0].resolve({ items: [summary('a')], hasMore: false, failedAccountIds: [] });
+      await search;
+      expect(store.canLoadOlder()).toBe(false);
+
+      void store.load(folder);
+      expect(store.canLoadOlder()).toBe(false);
+      mail.lists.at(-1)!.reject(new ApiError(502, 'Bad gateway', 'Mail server down'));
+      await flush();
+      expect(store.loadError()).toBe('Mail server down');
+      expect(store.canLoadOlder()).toBe(false);
+    });
+
+    it('calls load-older for the shown folder, then shows the newly cached messages at the end', async () => {
+      await loaded([summary('a'), summary('b')], folder);
+      store.setCursor('b');
+      store.toggleSelected('b');
+      const done = store.loadOlder();
+      expect(store.loadingOlder()).toBe(true);
+      expect(mail.loadOlders.map((call) => call.folderId)).toEqual([INBOX]);
+
+      mail.loadOlders[0].resolve({ loaded: 2, hasMore: true });
+      await flush();
+      expect(store.loadingOlder()).toBe(true);
+      // The list up to the old end plus the newly cached messages, from the start.
+      expect(mail.lists.at(-1)).toMatchObject({ scope: folder, cursor: undefined, limit: 4 });
+      mail.lists.at(-1)!.resolve({
+        items: [summary('a'), summary('b'), summary('c'), summary('d')],
+        nextCursor: null,
+      });
+      await done;
+
+      expect(ids()).toEqual(['a', 'b', 'c', 'd']);
+      expect(store.loadingOlder()).toBe(false);
+      expect(store.olderError()).toBeNull();
+      // The cursor and the selection stay where they were.
+      expect(store.cursorId()).toBe('b');
+      expect([...store.selectedIds()]).toEqual(['b']);
+      expect(store.canLoadOlder()).toBe(true);
+    });
+
+    it('reads more than one page when more messages were cached than one page holds', async () => {
+      const first = Array.from({ length: MAIL_MAX_PAGE_SIZE }, (_, i) => summary(`m${i}`));
+      await loaded(first.slice(0, 150), folder);
+      const done = store.loadOlder();
+      mail.loadOlders[0].resolve({ loaded: 100, hasMore: false });
+      await flush();
+
+      expect(mail.lists.at(-1)!.limit).toBe(MAIL_MAX_PAGE_SIZE);
+      mail.lists.at(-1)!.resolve({ items: first, nextCursor: 'p2' });
+      await flush();
+      expect(mail.lists.at(-1)).toMatchObject({ cursor: 'p2', limit: 50 });
+      const rest = Array.from({ length: 50 }, (_, i) => summary(`n${i}`));
+      // A duplicate of the first page (the list moved meanwhile) is shown once.
+      mail.lists.at(-1)!.resolve({ items: [first[199], ...rest], nextCursor: null });
+      await done;
+
+      expect(ids()).toHaveLength(250);
+      expect(new Set(ids()).size).toBe(250);
+      expect(store.nextCursor()).toBeNull();
+    });
+
+    it('keeps infinite scroll going when the server has more cached mail than was asked for', async () => {
+      await loaded([summary('a')], folder);
+      const done = store.loadOlder();
+      mail.loadOlders[0].resolve({ loaded: 1, hasMore: true });
+      await flush();
+      mail.lists.at(-1)!.resolve({ items: [summary('a'), summary('b')], nextCursor: 'more' });
+      await done;
+      expect(ids()).toEqual(['a', 'b']);
+      expect(store.nextCursor()).toBe('more');
+      expect(store.canLoadOlder()).toBe(false);
+    });
+
+    it('says so when the server has nothing older, without reloading the list', async () => {
+      await loaded([summary('a')], folder);
+      const lists = mail.lists.length;
+      const done = store.loadOlder();
+      mail.loadOlders[0].resolve({ loaded: 0, hasMore: false });
+      await done;
+
+      expect(store.olderError()).toBe('There are no older messages on the server.');
+      expect(store.loadingOlder()).toBe(false);
+      expect(mail.lists).toHaveLength(lists);
+      expect(ids()).toEqual(['a']);
+      expect(errors).toEqual([]);
+    });
+
+    it('shows a failed load-older without a toast and keeps the list; a retry clears it', async () => {
+      await loaded([summary('a')], folder);
+      const failed = store.loadOlder();
+      mail.loadOlders[0].reject(new ApiError(503, 'Unavailable', 'Mail server unreachable'));
+      await failed;
+      expect(store.olderError()).toBe('Mail server unreachable');
+      expect(store.loadingOlder()).toBe(false);
+      expect(ids()).toEqual(['a']);
+      expect(errors).toEqual([]);
+
+      const retry = store.loadOlder();
+      expect(store.olderError()).toBeNull();
+      mail.loadOlders[1].resolve({ loaded: 0, hasMore: false });
+      await retry;
+    });
+
+    it('shows a generic message when the connection fails', async () => {
+      await loaded([summary('a')], folder);
+      const done = store.loadOlder();
+      mail.loadOlders[0].reject(new TypeError('Failed to fetch'));
+      await done;
+      expect(store.olderError()).toBe('Something went wrong.');
+    });
+
+    it('shows a failure of reading the list afterwards and keeps the list', async () => {
+      await loaded([summary('a')], folder);
+      const done = store.loadOlder();
+      mail.loadOlders[0].resolve({ loaded: 3, hasMore: false });
+      await flush();
+      mail.lists.at(-1)!.reject(new ApiError(500, 'Server error', 'Try later'));
+      await done;
+      expect(store.olderError()).toBe('Try later');
+      expect(store.loadingOlder()).toBe(false);
+      expect(ids()).toEqual(['a']);
+    });
+
+    it('starts one request at a time', async () => {
+      await loaded([summary('a')], folder);
+      void store.loadOlder();
+      void store.loadOlder();
+      expect(mail.loadOlders).toHaveLength(1);
+    });
+
+    it('does nothing where it is not offered', async () => {
+      await loaded([summary('a')], { folderId: null, threaded: false });
+      await store.loadOlder();
+      expect(mail.loadOlders).toEqual([]);
+      expect(store.loadingOlder()).toBe(false);
+    });
+
+    it('drops the answer when another folder was opened meanwhile', async () => {
+      await loaded([summary('a')], folder);
+      const done = store.loadOlder();
+      await loaded([summary('x', { folderId: OTHER })], { folderId: OTHER, threaded: false });
+      mail.loadOlders[0].resolve({ loaded: 5, hasMore: false });
+      await done;
+      expect(ids()).toEqual(['x']);
+      expect(store.olderError()).toBeNull();
+    });
+
+    it('can load older in the next folder after leaving one while it loaded older', async () => {
+      await loaded([summary('a')], folder);
+      const done = store.loadOlder();
+      await loaded([summary('x', { folderId: OTHER })], { folderId: OTHER, threaded: false });
+      mail.loadOlders[0].reject(new ApiError(503, 'Unavailable', 'Mail server unreachable'));
+      await done;
+
+      // The progress of the left folder must not stick to the new one.
+      expect(store.loadingOlder()).toBe(false);
+      void store.loadOlder();
+      expect(mail.loadOlders.map((call) => call.folderId)).toEqual([INBOX, OTHER]);
+    });
+
+    it('clears the message when the folder is loaded again', async () => {
+      await loaded([summary('a')], folder);
+      const done = store.loadOlder();
+      mail.loadOlders[0].resolve({ loaded: 0, hasMore: false });
+      await done;
+      expect(store.olderError()).not.toBeNull();
+      await loaded([summary('a')], folder);
+      expect(store.olderError()).toBeNull();
+    });
+  });
 });
 
 describe('withAction', () => {

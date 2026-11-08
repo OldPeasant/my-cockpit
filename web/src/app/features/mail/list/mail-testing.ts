@@ -43,6 +43,15 @@ export class FakeMail {
     reject: (e: unknown) => void;
   }[] = [];
   threads = new Map<string, MailSummary[]>();
+  loadOlders: {
+    folderId: string;
+    resolve: (result: { loaded: number; hasMore: boolean }) => void;
+    reject: (e: unknown) => void;
+  }[] = [];
+
+  loadOlder(folderId: string): Promise<{ loaded: number; hasMore: boolean }> {
+    return new Promise((resolve, reject) => this.loadOlders.push({ folderId, resolve, reject }));
+  }
   searches: {
     query: string;
     folderId: string | null;

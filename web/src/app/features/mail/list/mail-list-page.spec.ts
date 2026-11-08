@@ -1640,6 +1640,116 @@ describe('MailListPage', () => {
     });
   });
 
+  describe('load older from server', () => {
+    const older = () => el().querySelector<HTMLElement>('.more.older');
+    const olderButton = () => older()?.querySelector<HTMLButtonElement>('button') ?? null;
+
+    it('offers it at the end of a folder, shows the progress, then the newly cached messages', async () => {
+      await create();
+      expect(olderButton()?.textContent?.trim()).toBe('Load older from server');
+      expect(olderButton()?.disabled).toBe(false);
+
+      olderButton()!.click();
+      fixture.detectChanges();
+      expect(mail.loadOlders.map((call) => call.folderId)).toEqual(['inbox-1']);
+      expect(olderButton()?.disabled).toBe(true);
+      expect(older()?.querySelector('[role="status"]')?.textContent?.trim()).toBe(
+        'Loading older messages from the server…',
+      );
+
+      mail.loadOlders[0].resolve({ loaded: 1, hasMore: false });
+      await flush();
+      mail.lists.at(-1)!.resolve({
+        items: [
+          summary('a', { subject: 'Report', folderId: 'inbox-1' }),
+          summary('b', { subject: 'Lunch', folderId: 'inbox-1' }),
+          summary('c', { subject: 'Invoice', folderId: 'inbox-1' }),
+          summary('d', { subject: 'Old newsletter', folderId: 'inbox-1' }),
+        ],
+        nextCursor: null,
+      });
+      await flush();
+      fixture.detectChanges();
+
+      expect(rows().map((row) => row.querySelector('.subject')?.textContent)).toEqual([
+        'Report',
+        'Lunch',
+        'Invoice',
+        'Old newsletter',
+      ]);
+      expect(olderButton()?.disabled).toBe(false);
+      expect(older()?.querySelector('[role="status"]')).toBeNull();
+    });
+
+    it('says non-blocking that nothing older exists, and keeps the list and the button', async () => {
+      await create();
+      olderButton()!.click();
+      mail.loadOlders[0].resolve({ loaded: 0, hasMore: false });
+      await flush();
+      fixture.detectChanges();
+
+      expect(older()?.querySelector('.error')?.getAttribute('role')).toBe('status');
+      expect(older()?.querySelector('.error')?.textContent).toContain(
+        'There are no older messages on the server.',
+      );
+      expect(rows()).toHaveLength(3);
+      expect(olderButton()?.disabled).toBe(false);
+      expect(errors).toEqual([]);
+    });
+
+    it('shows a connection error at the end of the list without a toast', async () => {
+      await create();
+      olderButton()!.click();
+      mail.loadOlders[0].reject(new ApiError(503, 'Unavailable', 'Mail server unreachable'));
+      await flush();
+      fixture.detectChanges();
+
+      expect(older()?.querySelector('.error')?.textContent).toContain('Mail server unreachable');
+      expect(rows()).toHaveLength(3);
+      expect(errors).toEqual([]);
+    });
+
+    it('is offered under an empty folder', async () => {
+      await create('inbox-1', { firstPage: { items: [], nextCursor: null } });
+      expect(el().querySelector('.empty')?.textContent).toContain('No messages here.');
+      expect(olderButton()).not.toBeNull();
+    });
+
+    it('is not offered in the unified Inbox', async () => {
+      await create(null);
+      expect(older()).toBeNull();
+    });
+
+    it('is not offered while more cached pages follow', async () => {
+      await create('inbox-1', {
+        firstPage: { items: [summary('a', { folderId: 'inbox-1' })], nextCursor: 'next' },
+      });
+      expect(older()).toBeNull();
+    });
+
+    it('is not offered for search results', async () => {
+      await create();
+      expect(older()).not.toBeNull();
+      const field = el().querySelector<HTMLInputElement>(
+        'form[role="search"] input[type="search"]',
+      )!;
+      field.value = 'invoice';
+      field.dispatchEvent(new Event('input'));
+      field.form!.dispatchEvent(new Event('submit', { cancelable: true }));
+      await flush();
+      mail.searches.at(-1)!.resolve({
+        items: [summary('a', { folderId: 'inbox-1' })],
+        hasMore: false,
+        failedAccountIds: [],
+      });
+      await flush();
+      fixture.detectChanges();
+      expect(mail.searches).toHaveLength(1);
+      expect(rows()).toHaveLength(1);
+      expect(older()).toBeNull();
+    });
+  });
+
   describe('infinite scroll', () => {
     let observers: {
       callback: (entries: { isIntersecting: boolean }[]) => void;

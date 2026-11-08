@@ -183,6 +183,22 @@ describe('German translations (messages.de.xlf)', () => {
     ]);
   });
 
+  it('has the load-older-from-server messages in English and German (mail-load-older-ui)', () => {
+    const expected: Record<string, string> = {
+      'mail.loadOlderFromServer': 'Ältere vom Server laden',
+      'mail.loadingOlder': 'Ältere Nachrichten werden vom Server geladen…',
+      'mail.olderFailed': 'Nichts Älteres geladen: <INTERPOLATION>',
+      'mail.list.nothingOlder': 'Auf dem Server gibt es keine älteren Nachrichten.',
+    };
+    const ids = Object.keys(expected);
+    expect(ids.filter((id) => !english.has(id))).toEqual([]);
+    expect(Object.fromEntries(ids.map((id) => [id, german.get(id)?.target?.trim()]))).toEqual(
+      expected,
+    );
+    // The failure names its reason in both languages.
+    expect(english.get('mail.olderFailed')?.placeholders).toEqual(['INTERPOLATION']);
+  });
+
   it('keeps the quick-capture due keywords the parser accepts (SPEC.md: !today, !tomorrow)', () => {
     // The parser (server CaptureParser) only understands the English keywords, so a hint that
     // shows a translated keyword teaches syntax that silently does nothing.

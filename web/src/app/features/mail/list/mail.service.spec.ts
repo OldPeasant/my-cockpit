@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { ApiError, NotificationService, provideHttp, SILENT_ERRORS } from '../../../core/http';
 import { summary } from './mail-testing';
-import { MAIL_PAGE_SIZE, MailService } from './mail.service';
+import { MAIL_LOAD_OLDER_LIMIT, MAIL_PAGE_SIZE, MailService } from './mail.service';
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve));
 
@@ -249,6 +249,39 @@ describe('MailService', () => {
         expect(notifications.error).not.toHaveBeenCalled();
       },
     );
+  });
+
+  describe('load older from server', () => {
+    it('posts to the folder with the default limit, silently, and reads the counts', async () => {
+      const result = service.loadOlder('f-1');
+      const req = await request('/api/v1/mail/folders/f-1/load-older');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.params.get('limit')).toBe(String(MAIL_LOAD_OLDER_LIMIT));
+      expect(req.request.context.get(SILENT_ERRORS)).toBe(true);
+      req.flush({ loaded: 42, hasMore: true });
+      expect(await result).toEqual({ loaded: 42, hasMore: true });
+    });
+
+    it('passes a given limit and reads missing counts as nothing loaded', async () => {
+      const result = service.loadOlder('f-2', 7);
+      const req = await request('/api/v1/mail/folders/f-2/load-older');
+      expect(req.request.params.get('limit')).toBe('7');
+      req.flush({});
+      expect(await result).toEqual({ loaded: 0, hasMore: false });
+    });
+
+    it('rejects a failure with the ApiError, without a toast', async () => {
+      const result = service.loadOlder('f-1');
+      const req = await request('/api/v1/mail/folders/f-1/load-older');
+      req.flush(
+        { status: 503, title: 'Service Unavailable', detail: 'Mail server unreachable' },
+        { status: 503, statusText: 'Service Unavailable' },
+      );
+      const error = await result.catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(ApiError);
+      expect((error as ApiError).userMessage).toBe('Mail server unreachable');
+      expect(notifications.error).not.toHaveBeenCalled();
+    });
   });
 
   it('rejects with an ApiError and does not toast', async () => {
