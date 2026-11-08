@@ -31,8 +31,42 @@
     (keydown)="onTextKeydown($event)"
   />
 
+  @if (readLaterOffered()) {
+    <div
+      class="destination"
+      role="radiogroup"
+      i18n-aria-label="@@capture.destinationLabel"
+      aria-label="Save to"
+    >
+      <label [class.chosen]="!toReadLater()">
+        <input
+          type="radio"
+          name="capture-destination"
+          value="inbox"
+          [checked]="!toReadLater()"
+          (change)="destination.set('inbox')"
+        />
+        <ng-container i18n="@@capture.destinationInbox">Inbox</ng-container>
+      </label>
+      <label [class.chosen]="toReadLater()">
+        <input
+          type="radio"
+          name="capture-destination"
+          value="readLater"
+          [checked]="toReadLater()"
+          (change)="destination.set('readLater')"
+        />
+        <ng-container i18n="@@capture.destinationReadLater">Read later</ng-container>
+      </label>
+    </div>
+  }
+
   <div id="capture-preview" class="preview" aria-live="polite">
-    @if (preview(); as p) {
+    @if (toReadLater()) {
+      <p class="hint" i18n="@@capture.readLaterHint">
+        Saved as a bookmark in Read later; the title comes from the page.
+      </p>
+    } @else if (preview(); as p) {
       <p class="preview-title">
         @if (p.title) {
           {{ p.title }}
@@ -161,9 +195,12 @@
         [disabled]="saving() || uploading() || failedFiles() || !text().trim()"
         [attr.aria-describedby]="failedFiles() ? 'capture-files-failed' : null"
         (click)="submit()"
-        i18n="@@capture.save"
       >
-        Save to Inbox
+        @if (toReadLater()) {
+          <ng-container i18n="@@capture.saveReadLater">Save to Read later</ng-container>
+        } @else {
+          <ng-container i18n="@@capture.save">Save to Inbox</ng-container>
+        }
       </button>
     </div>
   </footer>

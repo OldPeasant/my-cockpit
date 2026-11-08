@@ -1,0 +1,45 @@
+// Inbox or Read later for a single URL: a small segmented switch right under the text line, so the
+// choice reads as part of what is being typed, not as another form field.
+
+.destination {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 2px;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  font: var(--mat-sys-label-large);
+
+  label {
+    position: relative;
+    padding: var(--app-space-1) var(--app-space-3);
+    border-radius: 999px;
+    color: var(--app-fg-muted);
+    cursor: pointer;
+    transition:
+      background-color 120ms ease,
+      color 120ms ease;
+
+    &:hover {
+      color: var(--app-fg);
+    }
+
+    &.chosen {
+      background: var(--mat-sys-secondary-container);
+      color: var(--mat-sys-on-secondary-container);
+    }
+
+    &:has(input:focus-visible) {
+      outline: 2px solid var(--app-accent);
+      outline-offset: 1px;
+    }
+  }
+
+  input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+}

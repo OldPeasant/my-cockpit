@@ -39,12 +39,14 @@ export class SearchPaletteProvider implements PaletteProvider {
     // Errors are not toasted: the palette keeps its other rows (e.g. the commands) instead.
     const context = new HttpContext().set(SILENT_ERRORS, true);
     return timer(SEARCH_DEBOUNCE_MS).pipe(
-      switchMap(() => search(
+      switchMap(() =>
+        search(
           this.http,
           this.api.rootUrl,
           { q, limit: SEARCH_LIMIT, ...(types.length ? { types: [...types] } : {}) },
           context,
-        ),),
+        ),
+      ),
       map((response) => response.body.groups.flatMap((group) => this.rows(group))),
     );
   }
