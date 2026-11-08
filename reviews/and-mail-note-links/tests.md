@@ -4,80 +4,59 @@ Date: 2026-11-08
 
 Task: and-mail-note-links - Android mail: create note and linked items
 
-Scope: task commit 2fac1622b0e1740ef4abe61610219c9dbf207c69 on base 49b1d117ae2928436695d299aa85451676ed42f4 (`git diff 49b1d117a..2fac1622b`), supplied by the parent worker. HEAD = 2fac1622b0e1740ef4abe61610219c9dbf207c69 on branch main. Uncommitted inputs: only the three new test files listed below (and this report); no production change in the working tree.
+Scope: final revision of the task, `git diff 49b1d117ae2928436695d299aa85451676ed42f4..f2c4f9e82fac5e53e74d5891d092872225f167e5 -- android` (base and final commit supplied by the parent worker; HEAD on branch main is f2c4f9e82fac5e53e74d5891d092872225f167e5, read from `.git/refs/heads/main`). This is a re-run after the fix of review finding CR-2 ("Create note" moved from the toolbar into the More menu, see `reviews/and-mail-note-links/fixes.md`). The helper had no shell access in this run (Bash was denied), so the file scope below comes from the parent's description, the first run's `git diff --name-status` and `fixes.md`, checked against the current file contents with the Read tool. Uncommitted inputs: none from this helper except this report; no test file was added or changed in this run.
 
 Requirements:
-- `tasks/and-mail-note-links.md` acceptance criteria and recorded assumptions (Create note is a toolbar icon next to To task / To Waiting; links panel below the body)
-- Parent worker's instructions (scope, test locations, no Gradle for the helper)
-- Existing conventions in `android/app/src/test/java/ch/sonensei/cockpit/mail/read/` (`MailReadScreenTest`, `MailReadViewModelTest`, `MailReadSpamGermanTest`, `MailReadTestSupport`)
+- `tasks/and-mail-note-links.md` acceptance criteria and recorded assumptions, in particular the latest one: "Create note" is the first item of the read view's More menu (supersedes the toolbar-icon assumption); the links panel sits below the body, capped at 240dp
+- `reviews/and-mail-note-links/fixes.md` (CR-1, CR-2) and the parent worker's instructions
+- Existing conventions in `android/app/src/test/java/ch/sonensei/cockpit/mail/read/`
 
 Changed production files in scope:
-- `android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailReadScreen.kt` (NOTE toolbar button, NOTE notices, `linksPanel` slot with tag `MailReadTags.LINKS`, route wiring of `LinkedItemsSection` and reload after a Created notice)
+- `android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailReadScreen.kt` (MoreMenu with "Create note" as first item, tag `MailReadTags.gtd(MailGtdAction.NOTE)`; `MenuItem` takes a String tag; NOTE created/failed notices; `linksPanel` slot under tag `MailReadTags.LINKS`; route wiring of `LinkedItemsSection`, `mailLinks`, reload after a Created notice, linked-item overlay)
 - `android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailReadRepository.kt` (`MailGtdAction.NOTE` mapped to `MailApi.toNote`)
-- `android/app/src/main/java/ch/sonensei/cockpit/mail/list/MailApi.kt` (Retrofit interface method `toNote`, POST `api/v1/mail/messages/{id}/to-note`; declarative, no executable lines of its own)
-- `android/app/src/main/res/values/strings_mail.xml`, `android/app/src/main/res/values-de/strings_mail.xml` (resources, not instrumented; checked through the Compose tests)
+- `android/app/src/main/java/ch/sonensei/cockpit/mail/list/MailApi.kt` (Retrofit method `toNote`, POST `api/v1/mail/messages/{id}/to-note`; declarative)
+- `android/app/src/main/res/values/strings_mail.xml`, `android/app/src/main/res/values-de/strings_mail.xml` (resources)
 
 ## Test files changed
 
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/read/MailReadNoteLinksTest.kt` (new)
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/read/MailReadNoteGermanTest.kt` (new)
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/read/MailReadNoteViewModelTest.kt` (new)
+No test file was changed by the helper in this run. The task's test files at the final revision (written in the first run, adapted by the fixer for CR-2) are:
 
-No existing test was edited. The task commit itself already added `MailReadRepositoryTest` "create note posts to to-note and returns the note's title".
+- `android/app/src/test/java/ch/sonensei/cockpit/mail/read/MailReadNoteLinksTest.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/mail/read/MailReadNoteGermanTest.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/mail/read/MailReadNoteViewModelTest.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/mail/read/MailReadRepositoryTest.kt` (task commit added "create note posts to to-note and returns the note's title")
 
 ## Tests added or updated
 
-Count: 23
+Count: 0 in this run (no important gap found that unit/Compose tests can close without Hilt test infrastructure).
 
-`MailReadNoteLinksTest` (Robolectric + Compose, English):
-- the create note button asks for a note
-- the create note button has an English TalkBack label
-- the create note button sits after the GTD actions and before archive
-- the create note button waits while an action runs
-- without a mail the create note button is disabled
-- after a failed load the create note button is disabled
-- a created note is announced with its title
-- a failed note is reported
-- the linked items panel is shown below a mail
-- the linked items panel is shown below a text-only mail and while an action runs
-- without a mail there is no linked items panel
-- a failed load shows no linked items panel
-- the route creates a note from the mail and announces it, the mail stays open
-- the route reports a note the server could not create
-- the route shows the links area for a loaded mail
-
-`MailReadNoteGermanTest` (Robolectric, `@Config(qualifiers = "de")`):
-- the create note button has a German TalkBack label
-- a created note is announced in German
-- a failed note is reported in German
-
-`MailReadNoteViewModelTest` (JVM, coroutines test dispatcher):
-- a created note is reported with its title and the mail stays open
-- a note the server refused or could not be reached for is reported as failed
-- a second tap on create note while one runs creates only one note
-- no note is created before the mail is shown
-- a note answer for a closed mail is not shown on the next one
+Review of the final tests against the final code:
+- `MailReadNoteLinksTest` now opens the menu (`MailReadTags.MORE`) before using the note item. This matches `MoreMenu`: the item is the first `MenuItem`, calls `callbacks.gtd(MailGtdAction.NOTE)` through `pick` (which closes the menu), and the menu only expands when `open && enabled` (mail loaded, no action running). The tests check the click (and that the menu closes), the English label, that the note tag is absent from the toolbar and sits above "Mark unread" in the menu, that More is disabled and the item absent while busy, without a mail and after a failed load, the NOTE notices, the links slot (below HTML and text-only bodies, while busy, absent without a mail and for all three load errors), and the route's create/failure flows.
+- New regression test "on a 320dp wide window the menu button is shown at full size" (`@Config(qualifiers = "w320dp-h470dp")`): every toolbar button (back, task, waiting, archive, delete, more) is displayed, at least 40dp wide (M3 IconButton bounds; the 48dp touch target is not part of the bounds) and its unclipped right edge lies inside the root. With the old 7-icon toolbar the More button was squeezed to roughly 24dp, so this test protects CR-2.
+- `MailReadNoteGermanTest` opens the menu and finds "Notiz erstellen" as item text; the German notices are unchanged.
+- `MailReadNoteViewModelTest` and `MailReadRepositoryTest` are unaffected by CR-2 (no view model or repository change).
 
 ## Requirement coverage
 
-The helper could not run Gradle in this environment (sub-agents are not permitted to). Every result below is "Not run" until the parent worker runs the command and records the outcome.
+All results below were run by the parent worker at f2c4f9e82 (the helper cannot run Gradle).
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| 1. "Create note" action from the read view, same server call as web (POST /api/v1/mail/messages/{id}/to-note) | `MailReadRepositoryTest` create note posts to to-note (task commit); `MailReadNoteLinksTest` the create note button asks for a note, the route creates a note from the mail and announces it, the route reports a note the server could not create, button disabled tests, position test; `MailReadNoteViewModelTest` all 5 | `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.read.*'` | Not run: the helper cannot run Gradle; the parent must run it |
-| 2. The read view shows the linked items panel for the mail | `MailReadNoteLinksTest` the linked items panel is shown below a mail, shown below a text-only mail and while an action runs, without a mail there is no linked items panel, a failed load shows no linked items panel, the route shows the links area for a loaded mail | same command | Not run: the helper cannot run Gradle. Partial: the route's `LinkedItemsSection` with a real `LinkedItemsViewModel` is not exercised (see Unable to test) |
-| 3. New strings in English and German | `MailReadNoteLinksTest` English label/notice tests; `MailReadNoteGermanTest` all 3 | same command | Not run: the helper cannot run Gradle |
-| 4. Unit/Compose tests cover the new behavior; `./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass | all of the above | `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug`; `sh scripts/check.sh` | Not run: the helper cannot run Gradle; the parent must run both |
+| 1. "Create note" action from the read view, same server call as web (POST /api/v1/mail/messages/{id}/to-note) | `MailReadRepositoryTest` create note posts to to-note; `MailReadNoteLinksTest` create note in the menu asks for a note and closes the menu, create note is not in the toolbar but the first item of the menu, create note waits while an action runs, without a mail / after a failed load create note cannot be reached, the route creates a note from the mail and announces it, the route reports a note the server could not create; `MailReadNoteViewModelTest` (5 tests) | `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` (parent) | Pass |
+| CR-2 regression: toolbar fits a 320dp-wide window | `MailReadNoteLinksTest` on a 320dp wide window the menu button is shown at full size | same command (parent) | Pass |
+| 2. The read view shows the linked items panel for the mail | `MailReadNoteLinksTest` the linked items panel is shown below a mail, shown below a text-only mail and while an action runs, without a mail there is no linked items panel, a failed load shows no linked items panel, the route shows the links area for a loaded mail | same command (parent) | Pass (partial: the Hilt-provided `LinkedItemsSection` inside the route is not exercised, see Unable to test) |
+| 3. New strings in English and German | `MailReadNoteLinksTest` create note has an English label, notice tests; `MailReadNoteGermanTest` (3 tests) | same command (parent) | Pass |
+| 4. Unit/Compose tests cover the new behavior; `./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass | all of the above | `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` (parent); `sh scripts/check.sh` | Gradle command: Pass (parent). `sh scripts/check.sh`: Not run by the helper (needs Gradle); the parent must run it |
 
 ## Focused test execution
 
 Command:
 
-`cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.read.MailReadNoteLinksTest' --tests 'ch.sonensei.cockpit.mail.read.MailReadNoteGermanTest' --tests 'ch.sonensei.cockpit.mail.read.MailReadNoteViewModelTest' --tests 'ch.sonensei.cockpit.mail.read.MailReadRepositoryTest'`
+`cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` (run by the parent at f2c4f9e82; it includes the mail.read package: 305 tests, among them MailReadNoteLinksTest, MailReadNoteGermanTest, MailReadNoteViewModelTest, MailReadRepositoryTest)
 
 Result:
 
-Not run (sub-agents cannot run Gradle here). The tests were written against the current production code by reading it; the parent worker runs them.
+Pass (BUILD SUCCESSFUL, all unit tests pass, as reported by the parent worker)
 
 ## Full test execution
 
@@ -87,17 +66,17 @@ Command:
 
 Result:
 
-Not run (helper has no Gradle access); delegated to the parent worker.
+Pass (run by the parent worker at f2c4f9e82, BUILD SUCCESSFUL). Server and web suites were not part of this run; the task changes only `android/`.
 
 ## .taskcheck
 
 Result:
 
-Not run (`sh scripts/check.sh` uses Gradle); delegated to the parent worker.
+Not run by the helper (`sh scripts/check.sh` needs Gradle); the parent worker runs it before `done`.
 
 ## Bugs found
 
-None found by reading the code against the acceptance criteria. Test results are pending the parent's run; if any of the new tests fail, the parent must determine whether the test or the production code is wrong.
+None. The final tests match the final production code (menu placement, enabled rules, tags, strings), and the parent's run passed.
 
 ## Coverage
 
@@ -107,14 +86,14 @@ Metric: whole-file coverage of task-changed production files.
 Changed-line coverage: not measured.
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: and-mail-note-links; base 49b1d117ae2928436695d299aa85451676ed42f4; HEAD 2fac1622b0e1740ef4abe61610219c9dbf207c69; task-owned commit 2fac1622b supplied by the parent and confirmed by `git diff --name-status 49b1d117a..2fac1622b`.
-- Source/test snapshot identifier (including uncommitted inputs): HEAD 2fac1622b plus the three new untracked test files listed above; no measurement was taken, so no hash was recorded.
-- Exact included files; renamed/deleted/excluded files and reasons: in scope `mail/read/MailReadScreen.kt`, `mail/read/MailReadRepository.kt`, `mail/list/MailApi.kt` (interface only, JaCoCo will show no executable lines for the new method). Excluded: the two `strings_mail.xml` files (resources, not instrumented). No renames or deletions.
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: and-mail-note-links; base 49b1d117ae2928436695d299aa85451676ed42f4; final commit f2c4f9e82fac5e53e74d5891d092872225f167e5; scope supplied by the parent (`git diff 49b1d117a..f2c4f9e82 -- android`) and `fixes.md`; not re-listed with git in this run (no shell).
+- Source/test snapshot identifier (including uncommitted inputs): commit f2c4f9e82fac5e53e74d5891d092872225f167e5, clean apart from this report; no measurement taken.
+- Exact included files; renamed/deleted/excluded files and reasons: `mail/read/MailReadScreen.kt`, `mail/read/MailReadRepository.kt`, `mail/list/MailApi.kt` (interface, no executable lines of its own). Excluded: both `strings_mail.xml` files (resources, not instrumented). No renames or deletions known.
 - Provider/version, command, working directory, and test selection: JaCoCo via AGP; `./gradlew createDebugUnitTestCoverageReport` in `android/`; not run.
 - Run start/completion time and exit status: not run.
 - Generated report paths and report hashes/run identifier: none.
 - Evidence outputs are fresh and inputs stayed unchanged: not applicable, no run.
-- Final run after latest test additions and production fixes: no - the helper cannot run Gradle.
+- Final run after latest test additions and production fixes: no coverage run (helper cannot run Gradle); the parent's test run is on the final revision f2c4f9e82.
 
 | Changed file | Statements | Branches | Functions | Lines |
 |---|---:|---:|---:|---:|
@@ -122,23 +101,23 @@ Evidence:
 | `android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailReadRepository.kt` | not measured | not measured | not measured | not measured |
 | `android/app/src/main/java/ch/sonensei/cockpit/mail/list/MailApi.kt` | not measured | not measured | not measured | not measured |
 
-Expected gaps from reading the code (to be confirmed by a real run):
+Known gaps from reading the code (expected uncovered in unit tests):
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `MailReadScreen.kt` `mailLinks` (Hilt branch returning `hiltViewModel(key = linksViewModelKey(...))`) | Criterion 2: the panel's view model for the shown mail | Not reachable in Robolectric screen tests: it requires an activity that is a `GeneratedComponentManagerHolder` (Hilt). Gap; would need a Hilt test activity or an instrumented/e2e test |
-| `MailReadScreen.kt` `MailReadRoute` `linksPanel` lambda body calling `LinkedItemsSection(ItemRef("EMAIL", id), ...)` and its `open` handler (InApp target sets `linked`, which shows `SearchItemScreen`) | Criterion 2: panel content for the mail and opening a linked item over the mail | Same reason (links view model is null without Hilt). The slot itself is covered by `MailReadNoteLinksTest` with a fake panel; `LinkedItemsSection` has its own tests from and-links-panel |
-| `MailReadScreen.kt` `LaunchedEffect(state.notice)` calling `links?.reload()` after a Created notice | Panel refreshes after a note/task was created | Effect runs in the route tests but `links` is null, so the reload call itself is not verified. Gap, same reason |
-| `MailReadScreen.kt` linked-item overlay branch (`item != null`, `BackHandler`, `SearchItemScreen`) | Back from a linked item returns to the mail | Not reachable without the Hilt panel; gap |
+| `MailReadScreen.kt:188-193` `mailLinks`, Hilt branch `hiltViewModel(key = linksViewModelKey(...))` | Criterion 2: the panel's view model for the shown mail | Not reachable in Robolectric screen tests: needs an activity that is a `GeneratedComponentManagerHolder` (Hilt). Justified gap; needs a Hilt test activity, an instrumented test or e2e |
+| `MailReadScreen.kt:170-179` route `linksPanel` lambda calling `LinkedItemsSection(ItemRef("EMAIL", id), ...)` and its `open` handler | Criterion 2: panel content for the mail; opening an in-app linked item over the mail | Same reason (links view model is null without Hilt). The slot is covered with a fake panel; `LinkedItemsSection` has its own tests from and-links-panel |
+| `MailReadScreen.kt:126` `links?.reload()` after a Created notice | Panel refreshes after a note or task was created | The effect runs in the route tests but `links` is null, so the reload itself is not verified. Justified gap, same reason |
+| `MailReadScreen.kt:114-120` linked-item overlay (`item != null`, `BackHandler`, `SearchItemScreen`) | Back from a linked item returns to the mail | Not reachable without the Hilt panel. Justified gap, same reason |
 
-Follow-up for the parent: run `cd android && ./gradlew createDebugUnitTestCoverageReport` and read the `MailReadScreen.kt` and `MailReadRepository.kt` counters (INSTRUCTION, BRANCH, LINE, METHOD) from `android/app/build/reports/coverage/test/debug/report.xml` if task-scoped numbers are required.
+Follow-up for the parent if task-scoped numbers are wanted: run `cd android && ./gradlew createDebugUnitTestCoverageReport` and read the `MailReadScreen.kt` and `MailReadRepository.kt` counters (INSTRUCTION, BRANCH, LINE, METHOD) from `android/app/build/reports/coverage/test/debug/report.xml`.
 
 ## Unable to test
 
-- Running any test, lint or coverage: the helper cannot run Gradle here; the parent must run the commands listed above.
-- The real `LinkedItemsSection` inside `MailReadRoute` (Hilt-provided `LinkedItemsViewModel`, `ItemRef("EMAIL", {messageId})`, reload after Created, opening an in-app linked item over the mail and back): needs a Hilt-enabled activity; not covered by unit tests. Follow-up: an instrumented test or e2e flow, or accept the gap since the panel component is tested in and-links-panel.
+- Running any test, lint, `.taskcheck` or coverage: the helper cannot run Gradle here; the test and lint results above are the parent's run.
+- The Hilt-only route paths: the real `LinkedItemsSection` inside `MailReadRoute` (Hilt-provided `LinkedItemsViewModel` for `ItemRef("EMAIL", {messageId})`), its reload after a Created notice, and opening an in-app linked item over the mail and returning with back. They need a Hilt-enabled activity; follow-up is an instrumented or e2e test, or accepting the gap since the panel component is tested in and-links-panel and the wiring follows ContactDetailRoute.
 - The end-to-end server call against a running backend: covered at the HTTP level by `MailReadRepositoryTest` with MockWebServer only.
 
 ## Summary
 
-Tests added (23 across three new files); they have not been run because the helper cannot run Gradle. The parent worker must run `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` and record the results. No production defects were found by reading the code. Task-scoped coverage was not measured, and the Hilt-only route wiring of the links panel remains untested by unit tests.
+Tests and task-scoped behavior coverage are sufficient for the final revision; no production defects found and no further tests were necessary. The CR-2 adaptations match the final code (Create note is the first More menu item, unreachable while busy, without a mail or after a failed load) and the new 320dp test protects the toolbar width. The parent's run at f2c4f9e82 (`cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug`) passed; `sh scripts/check.sh` is still for the parent to run. Coverage was not measured (no Gradle for the helper), and the Hilt-only route paths of the links panel remain untested by unit tests.
