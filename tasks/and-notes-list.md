@@ -21,7 +21,8 @@ Android notes have no search, pin, archive or archived view (web: `notes-page.ht
   - verified (2026-11-08 17:57+0100 by dell26/agent-1): notes tests for delete to Trash + Undo via POST /api/v1/trash/NOTE/{id}/restore (list and editor) on a4af5022 -> pass
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 17:57+0100 by dell26/agent-1): strings_notes.xml en+de: all 22 new strings present in both (code-reviewer check); lintDebug (MissingTranslation) -> pass; German-locale screen tests pass
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 17:57+0100 by dell26/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug -> pass (createDebugUnitTestCoverageReport full unit suite pass, task-scoped lines 99.0%, branches 92.9%); sh scripts/check.sh on a4af5022 -> all checks passed
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
