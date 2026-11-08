@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "and-mail-attachments",
-  "reviewed_revision": "6569b8ae1ef596c27a214f18092cd0368f5ea5a1",
+  "reviewed_revision": "732533c168dd80bd12ee7d7e0635bf74823492aa",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/and-mail-attachments/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/and-mail-attachments/review.md"},
