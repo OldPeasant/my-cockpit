@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-links-panel]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/contacts,android/app/src/test/java/ch/sonensei/cockpit/contacts,android/app/src/main/res/values/strings_contacts.xml,android/app/src/main/res/values-de/strings_contacts.xml]
 prio: 2
-lease_until: 2026-11-08T21:18:25Z
+lease_until: 2026-11-08T21:23:26Z
 releases: 1
 extended: 
 ---
