@@ -1035,6 +1035,111 @@ describe('EventDialog', () => {
       expect(el().querySelector('.respond')).toBeNull();
       expect(events.ownAddresses).not.toHaveBeenCalled();
     });
+
+    it('reads no mail accounts for a read-only calendar and offers no answer for a new event', async () => {
+      const readOnly = fakeCalendar('ro', { sourceType: 'MICROSOFT', readOnly: true });
+      await invited({}, readOnly);
+      expect(events.ownAddresses).not.toHaveBeenCalled();
+      TestBed.resetTestingModule();
+
+      await open({
+        mode: 'create',
+        draft: { allDay: false, start: '2026-03-23T08:00:00Z', end: '2026-03-23T09:00:00Z' },
+        calendars: [...CALENDARS, google],
+        timeZone: 'Europe/Zurich',
+      });
+      expect(el().querySelector('.respond')).toBeNull();
+      expect(events.ownAddresses).not.toHaveBeenCalled();
+    });
+
+    it('highlights no answer when no guest has a mail account address', async () => {
+      events.ownAddresses.mockResolvedValue(['someone.else@example.test']);
+      await invited();
+      expect(choice('Accept')).toBeDefined();
+      expect(pressed()).toEqual([]);
+    });
+
+    it('blocks saving, deleting and closing while the answer is sent', async () => {
+      const pending = deferred<EventResponse>();
+      events.respond.mockReturnValue(pending.promise);
+      await invited();
+      choice('Accept')!.click();
+      await stable();
+      expect(el().querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(true);
+      expect(button('Delete')!.disabled).toBe(true);
+      expect(button('Cancel')!.disabled).toBe(true);
+      type('title', 'Planning Q3');
+      await save();
+      expect(events.update).not.toHaveBeenCalled();
+      pending.resolve(fakeEvent('g1', { calendarId: 'google', version: 5, attendees: guests }));
+      await stable();
+      expect(button('Cancel')!.disabled).toBe(false);
+    });
+
+    it('disables the choices while a change is saved', async () => {
+      const pending = deferred<EventResponse>();
+      events.update.mockReturnValue(pending.promise);
+      await invited();
+      type('title', 'Planning Q3');
+      await save();
+      expect(choice('Accept')!.disabled).toBe(true);
+      choice('Accept')!.click();
+      expect(events.respond).not.toHaveBeenCalled();
+      pending.resolve(fakeEvent('g1'));
+      await stable();
+    });
+
+    it("shows the server's message when a refusal has no detail", async () => {
+      events.respond.mockRejectedValue(new ApiError(404, 'Event not found'));
+      await invited();
+      choice('Accept')!.click();
+      await stable();
+      expect(alerts()).toContain('Event not found');
+      expect(alerts().join(' ')).not.toContain('changed elsewhere');
+    });
+
+    it('closes as unchanged when the answer failed', async () => {
+      events.respond.mockRejectedValue(new ApiError(409, 'Conflict', 'You are not invited.'));
+      await invited();
+      choice('Accept')!.click();
+      await stable();
+      button('Cancel')!.click();
+      await stable();
+      expect(ref.close).toHaveBeenCalledWith(undefined);
+    });
+
+    it('hides the choices when the answered event comes back without guests', async () => {
+      events.respond.mockResolvedValue(
+        fakeEvent('g1', { calendarId: 'google', version: 5, attendees: undefined }),
+      );
+      await invited();
+      choice('Decline')!.click();
+      await stable();
+      expect(el().querySelector('.respond')).toBeNull();
+      expect(notifications.info).toHaveBeenCalledWith('Your answer was sent.');
+    });
+
+    it('answers with the reloaded version after a 412 and Reload', async () => {
+      events.respond.mockRejectedValueOnce(new ApiError(412, 'Precondition Failed'));
+      await invited();
+      choice('Accept')!.click();
+      await stable();
+      expect(choice('Accept')!.disabled).toBe(true);
+
+      stored.set(
+        'g1',
+        fakeEvent('g1', { title: 'Planning', calendarId: 'google', version: 7, attendees: guests }),
+      );
+      button('Reload')!.click();
+      await stable();
+      expect(choice('Accept')!.disabled).toBe(false);
+      choice('Accept')!.click();
+      await stable();
+      expect(events.respond).toHaveBeenLastCalledWith(
+        expect.objectContaining({ eventId: 'g1', version: 7 }),
+        'ACCEPTED',
+      );
+    });
   });
 
   describe('read-only and synced calendars', () => {
