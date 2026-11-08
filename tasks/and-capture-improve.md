@@ -1,10 +1,11 @@
 ---
 title: Android capture: syntax preview, save and add another, attachments
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-3
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/capture/share,android/app/src/test/java/ch/sonensei/cockpit/capture/share,android/app/src/main/res/values/strings_share.xml,android/app/src/main/res/values-de/strings_share.xml]
 prio: 2
+lease_until: 2026-11-08T17:03:17Z
 ---
 ## Goal
 Web capture shows a live preview of `#project @context !due ^waiting` and offers "save and add another";
