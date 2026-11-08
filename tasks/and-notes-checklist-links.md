@@ -19,3 +19,4 @@ Goal: Tapping a checklist item in the preview toggles it and saves like an edit;
 
 ## Notes
 - Work done on `and-notes-editor` before the split is on `origin/wip/and-notes-editor` (if it exists): merge it first if your part builds on it.
+- ASSUMPTION (2026-11-08 22:26+0100 by felix/agent-1): Android [[ autocomplete searches all item types via global search (250 ms debounce), shows up to 6 hits above the body field, inserts [[<lowercase type>:<id>]] like web/server; checklist tap in preview only when the note is editable (no conflict/loading).
