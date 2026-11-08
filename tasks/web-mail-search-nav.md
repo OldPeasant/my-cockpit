@@ -16,7 +16,8 @@ loses the search term and results. While reading a match the owner wants to step
   - verified (2026-11-08 14:03+0100 by dell26/agent-2): cd web && npx ng test --watch=false --include 'src/app/features/mail/**/*.spec.ts' -> 20 files, 732 passed; mail-list-page/mail-list-store specs cover q/server in URL on /mail and /mail/folders/<id>, Back restores field+results from MailListSession without a second server search
 - [x] The read view shows previous/next buttons (and `k`/`j` shortcuts in the read view) when it was opened from a list: they step through the search results in list order; at the ends the button is disabled
   - verified (2026-11-08 14:03+0100 by dell26/agent-2): same mail spec run -> 732 passed; mail-read-page.spec 'previous/next through the list it was opened from' covers buttons, j/k, search order, disabled at ends
-- [ ] The same previous/next also works when opened from a normal folder list (unified inbox or folder) in its order
+- [x] The same previous/next also works when opened from a normal folder list (unified inbox or folder) in its order
+  - verified (2026-11-08 14:03+0100 by dell26/agent-2): same mail spec run -> 732 passed; mail-list-session/read-page specs step through unified inbox and folder lists incl. loading the next page
 - [ ] Archiving/deleting a message from the read view moves to the next match (or back to the list when none is left)
 - [ ] The scroll position / cursor row of the list is kept when returning
 - [ ] New UI strings are in `web/src/locale` (English + German)
