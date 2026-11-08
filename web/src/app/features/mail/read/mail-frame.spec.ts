@@ -62,6 +62,22 @@ describe('MailFrame', () => {
       expect(mailFrameCsp()).toBe(mailFrameCsp(location.origin));
       expect(directives(mailFrameCsp()).get('img-src')).toContain(location.origin);
     });
+
+    it('names the page origin in the CSP of the rendered frame', () => {
+      const meta = new DOMParser()
+        .parseFromString(frame().srcdoc, 'text/html')
+        .querySelector('meta[http-equiv="Content-Security-Policy"]');
+      const rendered = directives(meta?.getAttribute('content') ?? '');
+      expect(rendered.get('img-src')).toEqual(["'self'", location.origin, 'data:']);
+      expect(rendered.get('font-src')).toEqual(["'self'", location.origin, 'data:']);
+      expect(rendered.get('default-src')).toEqual(["'none'"]);
+    });
+
+    it('builds the document with a given origin', () => {
+      const doc = mailDocument('<p>Hi</p>', 'https://other.example.test');
+      expect(doc).toContain(`content="${mailFrameCsp('https://other.example.test')}"`);
+      expect(doc).not.toContain(location.origin);
+    });
   });
 
   it('follows a changed body', () => {
