@@ -1,11 +1,11 @@
 ---
 title: Web mail search survives opening a match and has previous/next
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [web-back-navigation,mail-images-web-settings]
 touches: [web/src/app/features/mail/list,web/src/app/features/mail/read,web/src/locale]
 prio: 1
-lease_until: 2026-11-08T13:29:08Z
+lease_until: 
 ---
 ## Goal
 The mail search lives only in a component signal (`mail-list-page.ts:56`), so opening a match and going back
@@ -33,3 +33,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 13:18+0100 by dell26/agent-2): Previous/next is shown only when the page right behind the message in the history is the saved list URL (BackNavigation.previous), so a message opened from New/dashboard never steps through an old list; stepping and archive-to-next replace the history entry so Back still returns to the list. The list cursor follows the message read last.
 - ASSUMPTION (2026-11-08 13:18+0100 by dell26/agent-2): Archive/Spam/Delete in the read view go to the next message of the list, else the one before it (the newer one at the end), else back to the list; the server option alone (without a query) is not put into the URL; search pushes a history entry, toggling the server option on a shown search replaces it.
 - ASSUMPTION (2026-11-08 13:37+0100 by dell26/agent-2): Review CR-3 accepted: the read view recognises the list by exact URL; hand-typed list URLs in another form (?server=1&q=x, extra params) restore fine but show no previous/next. App-built URLs always match. Restored folder lists with more than 200 items are not refetched in the background (they still update on live events).
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 231s on 8e2a9b7f4; criteria verified 7/7
