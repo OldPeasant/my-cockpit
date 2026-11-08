@@ -1,11 +1,11 @@
 ---
 title: Flaky test: PageFetcherSizeLimitTests HTTP/2 reuse case gets TIMEOUT for some of 50 fetches
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/bookmarks,server/src/main/kotlin/ch/sonensei/cockpit/bookmarks]
 prio: 2
-lease_until: 
+lease_until: 2026-11-08T23:09:44Z
 releases: 1
 extended: 
 ---
