@@ -135,6 +135,23 @@ class JournalDaysScreenStatesTest {
     }
 
     @Test
+    fun `while the earlier years load, on this day shows progress instead of claiming there are none`() {
+        show(loaded().copy(onThisDayLoading = true))
+
+        composeRule.onNodeWithTag(JournalTags.ON_THIS_DAY_LOADING).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Loading earlier years…").assertIsDisplayed()
+        composeRule.onNodeWithText("No entries from this day in earlier years", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `earlier years still loading after a failed answer show progress, not the failure`() {
+        show(loaded().copy(onThisDayLoading = true, onThisDayFailed = true))
+
+        composeRule.onNodeWithTag(JournalTags.ON_THIS_DAY_LOADING).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Earlier years could not be loaded.").assertDoesNotExist()
+    }
+
+    @Test
     fun `an earlier entry without text or mood shows only its year`() {
         val bare = entry.copy(date = today.minusYears(2), bodyMd = "![](cockpit-file:x)", mood = null)
         show(loaded().copy(onThisDay = listOf(bare)))

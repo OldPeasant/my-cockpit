@@ -50,6 +50,7 @@
     <string name="journal_tags_hint">travel, family</string>
     <string name="journal_on_this_day">On this day</string>
     <string name="journal_on_this_day_none">No entries from this day in earlier years. What you write today shows up here next year.</string>
+    <string name="journal_on_this_day_loading">Loading earlier years…</string>
     <string name="journal_on_this_day_failed">Earlier years could not be loaded.</string>
     <plurals name="journal_years_ago">
         <item quantity="one">%1$s, a year ago</item>

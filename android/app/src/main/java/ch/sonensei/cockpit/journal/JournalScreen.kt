@@ -148,6 +148,7 @@ internal object JournalTags {
     const val CALENDAR_RETRY = "journal-calendar-retry"
     const val TAGS = "journal-tags"
     const val ON_THIS_DAY = "journal-on-this-day"
+    const val ON_THIS_DAY_LOADING = "journal-on-this-day-loading"
 
     fun day(date: LocalDate) = "journal-day-$date"
 
@@ -181,9 +182,14 @@ fun JournalRoute(
     var insertAt by rememberSaveable { mutableStateOf(0) }
     var cameraUri by rememberSaveable { mutableStateOf<String?>(null) }
 
+    // The day the camera or gallery was opened for (ISO date). Saved like cameraUri: after process death the view
+    // model starts again on today, and the photo must not land there.
+    var photoDay by rememberSaveable { mutableStateOf<String?>(null) }
+
     fun upload(uri: Uri) {
-        // The day the photo was picked for: reading the file takes a moment, and another day may open meanwhile.
-        val date = viewModel.uiState.value.date
+        // Captured now, not after reading the file: that takes a moment, and another day may open meanwhile.
+        val date = photoDay?.let(LocalDate::parse) ?: viewModel.uiState.value.date
+        photoDay = null
         scope.launch { viewModel.addPhoto(NotePhotoFiles.read(context, uri), insertAt, date) }
     }
     val camera =
@@ -206,6 +212,9 @@ fun JournalRoute(
                 setBody = viewModel::setBody,
                 addPhoto = { source, at ->
                     insertAt = at
+                    photoDay =
+                        viewModel.uiState.value.date
+                            .toString()
                     when (source) {
                         PhotoSource.CAMERA -> {
                             NotePhotoFiles.clear(context)
@@ -638,6 +647,15 @@ private fun OnThisDay(
         )
         val muted = MaterialTheme.colorScheme.onSurfaceVariant
         when {
+            state.onThisDayLoading -> {
+                val loading = stringResource(R.string.journal_on_this_day_loading)
+                CircularProgressIndicator(
+                    Modifier
+                        .size(24.dp)
+                        .semantics { contentDescription = loading }
+                        .testTag(JournalTags.ON_THIS_DAY_LOADING),
+                )
+            }
             state.onThisDayFailed ->
                 Text(stringResource(R.string.journal_on_this_day_failed), style = MaterialTheme.typography.bodyMedium, color = muted)
             state.onThisDay.isEmpty() ->

@@ -107,6 +107,82 @@ Lint/type-check/build:
 Remaining unresolved findings:
 0
 
+# Fix Report - round 2
+
+Date: 2026-11-08
+
+Task: and-journal-full - Android journal: other days, mood, tags, month calendar, on this day
+
+Scope: P3 findings CR-1 and CR-2 of the re-review in `reviews/and-journal-full/review.md` (HEAD 6d24e961), applied to the code at 74856fac. Changes stay inside `android/app/src/{main,test}/java/ch/sonensei/cockpit/journal` and the journal string files.
+
+## Fixed findings (round 2)
+
+### CR-1 - A camera photo returned after process death is added to today, not to the day it was taken for
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/journal/JournalScreen.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/journal/JournalPhotoAfterRestoreRouteTest.kt` (new)
+
+Problem:
+Confirmed in the code: `cameraUri` and `insertAt` survive process death in `rememberSaveable`, but `JournalRoute.upload` read the day from the view model when the result arrived. A recreated view model starts on today, so the photo was accepted for today.
+
+Fix:
+`JournalRoute` remembers the day the camera or gallery was opened for in a new `rememberSaveable` `photoDay` (ISO date string), set when the photo source is launched. `upload` passes that day (falling back to the shown day) to `addPhoto`, which already refuses with `PHOTO_DAY_CHANGED` when the shown day differs. The view model was not changed for this finding.
+
+Regression tests (`JournalPhotoAfterRestoreRouteTest`, Robolectric, a stand-in `ActivityResultRegistry` answers the camera, `StateRestorationTester.emulateSavedInstanceStateRestore()` plus a new view model stand in for the process death):
+- a photo taken for yesterday is not uploaded or saved after the screen is recreated on today, and `PHOTO_DAY_CHANGED` is shown; checked to fail with the old line (`val date = viewModel.uiState.value.date`) and pass with the fix;
+- a photo taken for yesterday while yesterday is still shown is uploaded and inserted there.
+
+Validation:
+- `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.journal.JournalPhotoAfterRestoreRouteTest'` with the fix temporarily removed - Fail (1 of 2, as expected)
+- `cd android && ./gradlew ktlintFormat testDebugUnitTest --tests 'ch.sonensei.cockpit.journal.*'` - Pass
+
+### CR-2 - "No entries from this day in earlier years" shows while the earlier years are still loading
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/journal/JournalViewModel.kt`
+- `android/app/src/main/java/ch/sonensei/cockpit/journal/JournalScreen.kt`
+- `android/app/src/main/res/values/strings_journal.xml`
+- `android/app/src/main/res/values-de/strings_journal.xml`
+- `android/app/src/test/java/ch/sonensei/cockpit/journal/JournalLateAnswersViewModelTest.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/journal/JournalDaysScreenStatesTest.kt`
+
+Problem:
+Confirmed: `JournalUiState` had no loading flag for the earlier years, so the "none" text showed as soon as the entry loaded, before `onThisDay` answered.
+
+Fix:
+New `JournalUiState.onThisDayLoading` (default `false`, so existing states are unchanged). `load()` sets it for the day it asks for; `loadOnThisDay` clears it on success and on failure, only when the answer is for the shown day (stale requests are cancelled through `onThisDayJob` and guarded by the date). While it is set, `OnThisDay` shows a small `CircularProgressIndicator` (tag `journal-on-this-day-loading`, content description from the new string `journal_on_this_day_loading`: "Loading earlier years…" / "Frühere Jahre werden geladen…") instead of the "none" or failure text.
+
+Regression tests:
+- view model: loading stays set after the entry loaded until the earlier years answer; a failed answer clears it and marks failure; a late answer of a day left does not clear the loading of the day opened after it;
+- screen: while loading, progress is shown and neither the "none" nor the failure text.
+
+Validation:
+- `cd android && ./gradlew ktlintFormat testDebugUnitTest --tests 'ch.sonensei.cockpit.journal.*'` - Pass
+
+## Not fixed (round 2)
+
+None.
+
+## Validation summary (round 2)
+
+Focused tests:
+- `cd android && ./gradlew ktlintFormat testDebugUnitTest --tests 'ch.sonensei.cockpit.journal.*'` - Pass
+
+Full test suite:
+- `cd android && ./gradlew ktlintFormat ktlintCheck testDebugUnitTest lintDebug` - BUILD SUCCESSFUL; 4582 unit tests, 0 failures, 0 skipped
+
+Lint/type-check/build:
+- ktlintCheck and lintDebug are part of the command above - Pass
+
+`.taskcheck`:
+- Not run in this round: the parent asked not to run the server check (no Docker here). The Android part of the check passes (above).
+
+Remaining unresolved findings:
+0
+
 ## Final status
 
 All validated findings fixed and validation passed. The Android check passes. `.taskcheck` fails here only because Docker is unavailable for the server's Testcontainers tests.
+
+Round 2: the P3 findings CR-1 and CR-2 of the re-review are fixed with regression tests, and `cd android && ./gradlew ktlintFormat ktlintCheck testDebugUnitTest lintDebug` passes. The code changed after the re-review, so test-writer and code-reviewer need to run again on the final code.

@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Clock
@@ -120,6 +121,55 @@ class JournalLateAnswersViewModelTest {
 
             assertEquals(yesterday, vm.uiState.value.date)
             assertFalse(vm.uiState.value.onThisDayFailed)
+        }
+    }
+
+    @Test
+    fun `the earlier years count as loading until their answer arrives, also after the entry loaded`() {
+        val todaysEarlier = CompletableDeferred<JournalResult<List<JournalEntry>>>()
+        test(stub = { coEvery { repo.onThisDay(today) } coAnswers { todaysEarlier.await() } }) { vm ->
+            advanceUntilIdle()
+            assertFalse(vm.uiState.value.loading)
+            assertTrue(vm.uiState.value.onThisDayLoading)
+
+            todaysEarlier.complete(JournalResult.Ok(emptyList()))
+            advanceUntilIdle()
+
+            assertFalse(vm.uiState.value.onThisDayLoading)
+            assertEquals(emptyList<JournalEntry>(), vm.uiState.value.onThisDay)
+        }
+    }
+
+    @Test
+    fun `a failed earlier-years answer ends their loading and marks them failed`() {
+        test(stub = { coEvery { repo.onThisDay(today) } returns JournalResult.Offline }) { vm ->
+            advanceUntilIdle()
+
+            assertFalse(vm.uiState.value.onThisDayLoading)
+            assertTrue(vm.uiState.value.onThisDayFailed)
+        }
+    }
+
+    @Test
+    fun `a late earlier-years answer of a day left does not end the loading of the day opened after it`() {
+        val todaysEarlier = CompletableDeferred<JournalResult<List<JournalEntry>>>()
+        val yesterdaysEarlier = CompletableDeferred<JournalResult<List<JournalEntry>>>()
+        test(stub = {
+            coEvery { repo.onThisDay(today) } coAnswers { todaysEarlier.await() }
+            coEvery { repo.onThisDay(yesterday) } coAnswers { yesterdaysEarlier.await() }
+        }) { vm ->
+            vm.previousDay()
+            advanceUntilIdle()
+            assertEquals(yesterday, vm.uiState.value.date)
+            assertTrue(vm.uiState.value.onThisDayLoading)
+
+            todaysEarlier.complete(JournalResult.Ok(listOf(entry(today.minusYears(1), "Market a year ago"))))
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.onThisDayLoading)
+
+            yesterdaysEarlier.complete(JournalResult.Ok(emptyList()))
+            advanceUntilIdle()
+            assertFalse(vm.uiState.value.onThisDayLoading)
         }
     }
 

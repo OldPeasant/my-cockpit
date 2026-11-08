@@ -84,6 +84,8 @@ data class JournalUiState(
     val monthFailed: Boolean = false,
     /** The entries of this day in earlier years, newest first. */
     val onThisDay: List<JournalEntry> = emptyList(),
+    /** The earlier years of the shown day are being asked for: [onThisDay] does not tell yet whether there are any. */
+    val onThisDayLoading: Boolean = false,
     val onThisDayFailed: Boolean = false,
 ) {
     /** Writing is possible: the entry is loaded and no conflict waits for a decision. */
@@ -162,6 +164,7 @@ class JournalViewModel internal constructor(
         val date = state.value.date
         // Only the newest request counts: the same day asked for again must not get an older, late answer.
         onThisDayJob?.cancel()
+        state.update { if (it.date == date) it.copy(onThisDayLoading = true) else it }
         onThisDayJob = viewModelScope.launch { loadOnThisDay(date) }
         val result = journal.get(date)
         state.update {
@@ -192,8 +195,8 @@ class JournalViewModel internal constructor(
         state.update {
             when {
                 it.date != date -> it
-                result is JournalResult.Ok -> it.copy(onThisDay = result.value, onThisDayFailed = false)
-                else -> it.copy(onThisDay = emptyList(), onThisDayFailed = true)
+                result is JournalResult.Ok -> it.copy(onThisDay = result.value, onThisDayLoading = false, onThisDayFailed = false)
+                else -> it.copy(onThisDay = emptyList(), onThisDayLoading = false, onThisDayFailed = true)
             }
         }
     }
