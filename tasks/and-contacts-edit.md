@@ -13,7 +13,8 @@ extended:
 Android contacts are view-only (SPEC.md §9.2; owner decided on 2026-11-08 to add editing). Web: `contact-form.html`.
 
 ## Acceptance criteria
-- [ ] Create and edit contacts (names, emails, phones, addresses, organization, birthday, notes), with repeatable fields
+- [x] Create and edit contacts (names, emails, phones, addresses, organization, birthday, notes), with repeatable fields
+  - verified (2026-11-08 22:30+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest (HEAD 6e40c2dd5) -> 4783 tests 0 failures; contacts ContactEditViewModelTest/ContactEditScreenTest/ContactsRepositoryTest/ContactsRouteInAppTest cover create+edit of names, emails, phones, addresses, organization, birthday, notes with repeatable add/remove rows (Robolectric Compose)
 - [ ] Delete with confirmation (to Trash)
 - [ ] Contacts synced from a read-only source show why they cannot be edited (same rule as web)
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
