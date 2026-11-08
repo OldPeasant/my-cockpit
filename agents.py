@@ -45,6 +45,9 @@ history is not touched.
 Hung sessions: a session that printed its final successful result but doesn't exit (seen after background
 sub-agents) is ended once it has printed nothing for --result-grace s (default 60), as a normal exit.
 Never while a tool call or a background task (not yet reported by a task notification) is still open.
+Background sub-agents may run until --timeout: `claude -p` stops them 10 min after the agent's last turn
+by default, which killed slow test-writer runs mid-way, so the runner sets CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0
+(an explicit value in the environment wins).
 
 Runs on Linux, macOS and Windows (on Windows: Git for Windows and Claude Code's native claude.exe).
 
@@ -78,6 +81,9 @@ PROMPT = """You are {name}, one of several AI agents building this project in pa
 at the same time in their own clones; git (origin) is the shared source of truth.
 Read AGENTS.md and follow the task protocol exactly (python tasks.py ...).
 {job}
+This session ends after {mins} min; a helper or check still running then is lost, and the next session
+resumes from your commits. Start helpers that don't depend on each other (test-writer, code-reviewer) in
+parallel, commit before you wait for them, and wait for their result rather than redoing their work.
 Commit often: your commits are backed up so another agent can continue if this machine dies. Never
 `git push` yourself (done does it). Run `git pull --rebase` every few commits so conflicts stay small; on a conflict follow AGENTS.md
 "Merge conflicts". If a tasks.py command prints LOST, or REFUSED because the task is not yours, stop
@@ -798,7 +804,7 @@ def cmd_run(a):
         job = JOB_RESUME.format(id=mine[0]["id"]) if mine else JOB_NEW
         if mine and tasks.merge_state():
             job += JOB_CONFLICT.format(op=tasks.merge_state(), files=" ".join(tasks.conflicted()) or "-")
-        prompt = PROMPT.format(name=a.name, job=job)
+        prompt = PROMPT.format(name=a.name, job=job, mins=a.timeout // 60)
         review = None  # over budget: this session must decide extend / split / release / hold instead of coding
         if mine:
             tid = mine[0]["id"]
@@ -836,7 +842,9 @@ def cmd_run(a):
             publish()
 
         with open(out, "w", encoding="utf-8") as f, open(out, encoding="utf-8", errors="replace") as reader:
-            env = {**os.environ, "TASK_AVOID": ",".join(sorted(avoid))}  # claim without id skips these
+            # BG_WAIT_CEILING 0: background sub-agents may run until --timeout instead of claude's 10 min cap
+            env = {"CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS": "0", **os.environ,
+                   "TASK_AVOID": ",".join(sorted(avoid))}  # claim without id skips these
             child[0] = p = subprocess.Popen(agent_argv(a.cmd, prompt), cwd=clone, stdout=f, env=env,
                                             stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, **detached())
             why = quiet = None

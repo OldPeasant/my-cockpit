@@ -5,7 +5,8 @@ back-off, its final result in the log line, the next task is claimed), any outpu
 period, and a session without a final result or with a tool still running is left to --timeout.
 Runs tasks.py and agents.py (with a scripted fake agent) against a local bare remote in a temp dir.
 Run: python3 tests/test_hung_session.py"""
-import contextlib, io, json, re, sys, time, unittest
+import contextlib, io, json, os, re, sys, time, unittest
+from unittest import mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -144,6 +145,9 @@ if mode == "bg":  # a background sub-agent whose completion notification never c
                                             "content": "Async agent launched successfully. agentId: fake-1"}]})
 elif mode == "junk":  # JSON lines a custom --cmd (or a future stream-json event) may print
     emit(type="system", message="retrying the request")
+elif mode == "env":  # what the runner hands the agent: background wait ceiling and the prompt
+    with open(os.path.join("..", "env-marker"), "w") as f:
+        json.dump({"ceiling": os.environ.get("CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS"), "prompt": prompt}, f)
 if mode != "nodone" and tid:
     tp("done", tid, "--force")
 result(f"first session {tid}")
@@ -197,6 +201,33 @@ class UnusualJsonLineDoesNotCrashRunner(Hung2):
         self.assertNotIn("Traceback", log)
         self.assertEqual([r for _, r in self.ended()], ["first session a"], log)
         self.assertIn("all tasks done", log)
+
+
+class BackgroundWaitCeiling(Hung2):
+    """`claude -p` stops background sub-agents 10 min after the last turn unless
+    CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS says otherwise: the runner sets it to 0 (wait until --timeout) and
+    tells the agent how long its session is."""
+    mode = "env"
+
+    def read_env(self):
+        self.proc.wait(timeout=2 * TIMEOUT)
+        return json.loads((self.clone.parent / "env-marker").read_text())
+
+    def test_runner_lifts_ceiling_and_names_session_length(self):
+        got = self.read_env()
+        self.assertEqual(got["ceiling"], "0")
+        self.assertIn(f"This session ends after {TIMEOUT // 60} min", got["prompt"])
+
+
+class BackgroundWaitCeilingOverride(BackgroundWaitCeiling):
+    def setUp(self):
+        patcher = mock.patch.dict(os.environ, CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS="1234")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        super().setUp()
+
+    def test_runner_lifts_ceiling_and_names_session_length(self):
+        self.assertEqual(self.read_env()["ceiling"], "1234")
 
 
 class Options(unittest.TestCase):
