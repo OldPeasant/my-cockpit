@@ -54,4 +54,14 @@
     <string name="settings_about_title">About</string>
     <string name="settings_about_version">Version %1$s (%2$d)</string>
     <string name="settings_about_download">Download the latest app</string>
+    <!-- Appearance (the synced theme setting) -->
+    <string name="settings_appearance_title">Appearance</string>
+    <string name="settings_appearance_light">Light</string>
+    <string name="settings_appearance_dark">Dark</string>
+    <string name="settings_appearance_system">Same as the system</string>
+    <string name="settings_appearance_synced">Applies to the web app too.</string>
+    <string name="settings_appearance_unknown">Your settings could not be loaded yet.</string>
+    <string name="settings_appearance_conflict">The settings were changed elsewhere and have been reloaded. Choose again.</string>
+    <string name="settings_appearance_offline">The server cannot be reached. The theme was not changed.</string>
+    <string name="settings_appearance_failed">The theme could not be changed.</string>
 </resources>

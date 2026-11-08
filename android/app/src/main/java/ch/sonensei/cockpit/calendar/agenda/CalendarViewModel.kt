@@ -2,6 +2,8 @@ package ch.sonensei.cockpit.calendar.agenda
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ch.sonensei.cockpit.core.settings.UserSettings
+import ch.sonensei.cockpit.core.settings.UserSettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -81,19 +83,25 @@ class CalendarViewModel internal constructor(
     private val clock: Clock,
     locale: Locale,
     private val cache: AgendaCache = AgendaCache.None,
+    settings: StateFlow<UserSettings?> = MutableStateFlow(null),
 ) : ViewModel() {
     @Inject
-    constructor(repository: CalendarRepository, cache: AgendaCache) :
-        this(repository, Clock.systemDefaultZone(), Locale.getDefault(), cache)
+    constructor(repository: CalendarRepository, cache: AgendaCache, settings: UserSettingsRepository) :
+        this(repository, Clock.systemDefaultZone(), Locale.getDefault(), cache, settings.settings)
+
+    /** The week start of the device locale, for as long as the synced settings are not known. */
+    private val localeWeekStart = WeekFields.of(locale).firstDayOfWeek
 
     private val state =
         MutableStateFlow(
-            LocalDate.now(clock).let { today ->
+            settings.value.let { initial ->
+                val zone = initial?.timeZone ?: clock.zone
+                val today = LocalDate.now(clock.withZone(zone))
                 CalendarUiState(
                     today = today,
                     anchor = today,
-                    firstDayOfWeek = WeekFields.of(locale).firstDayOfWeek,
-                    zone = clock.zone,
+                    firstDayOfWeek = initial?.weekStart ?: localeWeekStart,
+                    zone = zone,
                 )
             },
         )
@@ -104,9 +112,27 @@ class CalendarViewModel internal constructor(
     /** For each calendar with a pending visibility change: the newest state known from the server. */
     private val serverCalendars = mutableMapOf<UUID, CalendarInfo>()
 
+    init {
+        viewModelScope.launch { settings.collect(::applySettings) }
+    }
+
+    /** The synced week start or time zone changed (e.g. loaded at start): the shown range is computed and loaded again. */
+    private fun applySettings(settings: UserSettings?) {
+        val current = state.value
+        val weekStart = settings?.weekStart ?: localeWeekStart
+        val zone = settings?.timeZone ?: clock.zone
+        if (weekStart == current.firstDayOfWeek && zone == current.zone) return
+        val today = LocalDate.now(clock.withZone(zone))
+        state.update { it.copy(firstDayOfWeek = weekStart, zone = zone, today = today) }
+        // Nothing loaded or requested yet: the first refresh() uses the new values.
+        if (current.to <= current.from) return
+        val anchor = if (current.view == CalendarView.AGENDA) today else current.anchor
+        show(current.view, anchor, force = true)
+    }
+
     /** Loads the calendars and the current view's range again (the agenda: everything scrolled to so far). */
     fun refresh() {
-        val today = LocalDate.now(clock)
+        val today = LocalDate.now(clock.withZone(state.value.zone))
         state.update { current ->
             val next = current.copy(today = today)
             // Nothing loaded yet, or the day changed since the agenda was opened: it starts at the new today.

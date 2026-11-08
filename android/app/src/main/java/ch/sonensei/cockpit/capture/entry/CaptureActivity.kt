@@ -12,8 +12,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.capture.share.CaptureSheet
 import ch.sonensei.cockpit.capture.share.ShareViewModel
-import ch.sonensei.cockpit.ui.theme.CockpitTheme
+import ch.sonensei.cockpit.core.settings.UserSettingsRepository
+import ch.sonensei.cockpit.ui.theme.CockpitSettingsTheme
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 /**
  * The empty capture sheet behind the widget, the quick-settings tile and the app shortcut (SPEC.md §4.5). It is the
@@ -23,11 +25,13 @@ import dagger.hilt.android.AndroidEntryPoint
 class CaptureActivity : ComponentActivity() {
     private val viewModel: ShareViewModel by viewModels()
 
+    @Inject lateinit var userSettings: UserSettingsRepository
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            CockpitTheme {
+            CockpitSettingsTheme(userSettings.settings) {
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
                 LaunchedEffect(state.saved) {
                     if (state.saved) {

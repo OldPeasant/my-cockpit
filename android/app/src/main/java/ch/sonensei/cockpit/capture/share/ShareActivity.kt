@@ -10,8 +10,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
-import ch.sonensei.cockpit.ui.theme.CockpitTheme
+import ch.sonensei.cockpit.core.settings.UserSettingsRepository
+import ch.sonensei.cockpit.ui.theme.CockpitSettingsTheme
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 /**
  * Share target (SPEC.md §4.5): a compact capture sheet over the sending app. It closes only after the capture is
@@ -20,6 +22,8 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class ShareActivity : ComponentActivity() {
     private val viewModel: ShareViewModel by viewModels()
+
+    @Inject lateinit var userSettings: UserSettingsRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,7 +36,7 @@ class ShareActivity : ComponentActivity() {
         viewModel.load(content)
         enableEdgeToEdge()
         setContent {
-            CockpitTheme {
+            CockpitSettingsTheme(userSettings.settings) {
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
                 LaunchedEffect(state.saved) {
                     if (state.saved) {

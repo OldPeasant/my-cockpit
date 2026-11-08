@@ -6,6 +6,8 @@ import ch.sonensei.cockpit.calendar.agenda.CalendarInfo
 import ch.sonensei.cockpit.calendar.agenda.CalendarResult
 import ch.sonensei.cockpit.calendar.agenda.Occurrence
 import ch.sonensei.cockpit.capture.queue.UuidV7
+import ch.sonensei.cockpit.core.settings.UserSettings
+import ch.sonensei.cockpit.core.settings.UserSettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -110,9 +112,14 @@ data class EventEditorUiState(
 class EventEditorViewModel internal constructor(
     private val repository: EventEditRepository,
     private val clock: Clock,
+    private val settings: StateFlow<UserSettings?> = MutableStateFlow(null),
 ) : ViewModel() {
     @Inject
-    constructor(repository: EventEditRepository) : this(repository, Clock.systemDefaultZone())
+    constructor(repository: EventEditRepository, settings: UserSettingsRepository) :
+        this(repository, Clock.systemDefaultZone(), settings.settings)
+
+    /** The zone of new and edited events: the synced time zone, the device's while it is not known. */
+    private val zone: ZoneId get() = settings.value?.timeZone ?: clock.zone
 
     private val state = MutableStateFlow(EventEditorUiState())
     val uiState: StateFlow<EventEditorUiState> = state.asStateFlow()
@@ -143,7 +150,7 @@ class EventEditorViewModel internal constructor(
         occurrence = null
         newId = UuidV7.generate(clock.millis())
         val calendarId = calendars.firstOrNull { !it.readOnly && it.visible }?.id ?: calendars.firstOrNull { !it.readOnly }?.id
-        val form = newForm(date, ZonedDateTime.now(clock), calendarId)
+        val form = newForm(date, ZonedDateTime.now(clock.withZone(zone)), calendarId)
         initial = form
         state.value = EventEditorUiState(open = true, creating = true, form = form, calendars = calendars)
     }
@@ -350,7 +357,7 @@ class EventEditorViewModel internal constructor(
                     state.update { it.copy(loading = false, message = loadFailure(failure)) }
                     return@launch
                 }
-                val form = editForm(edited, event.value, (master as? CalendarResult.Ok)?.value, clock.zone)
+                val form = editForm(edited, event.value, (master as? CalendarResult.Ok)?.value, zone)
                 version = event.value.version
                 initial = form
                 state.update { it.copy(loading = false, form = form) }

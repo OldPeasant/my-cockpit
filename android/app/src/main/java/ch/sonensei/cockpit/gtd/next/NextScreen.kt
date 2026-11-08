@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.core.settings.userCreativityLabel
+import ch.sonensei.cockpit.core.settings.userEnergyLabel
 import ch.sonensei.cockpit.gtd.data.Creativity
 import ch.sonensei.cockpit.gtd.data.Energy
 import ch.sonensei.cockpit.gtd.data.GtdTask
@@ -192,7 +194,7 @@ private fun Filters(
                 FilterChip(
                     selected = filter.energy == energy,
                     onClick = { callbacks.toggleEnergy(energy) },
-                    label = { Text(stringResource(energyLabel(energy))) },
+                    label = { Text(userEnergyLabel(energy.name, energyLabel(energy))) },
                     modifier = Modifier.testTag(NextTags.energy(energy)),
                 )
             }
@@ -202,7 +204,7 @@ private fun Filters(
                 FilterChip(
                     selected = filter.creativity == creativity,
                     onClick = { callbacks.toggleCreativity(creativity) },
-                    label = { Text(stringResource(creativityLabel(creativity))) },
+                    label = { Text(userCreativityLabel(creativity.name, creativityLabel(creativity))) },
                     modifier = Modifier.testTag(NextTags.creativity(creativity)),
                 )
             }

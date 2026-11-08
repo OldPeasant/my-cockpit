@@ -55,6 +55,7 @@ import ch.sonensei.cockpit.auth.LocalPasskeySettingsEnabled
 import ch.sonensei.cockpit.auth.LogoutButton
 import ch.sonensei.cockpit.auth.PasskeySettings
 import ch.sonensei.cockpit.core.network.ServerUrlValidation
+import ch.sonensei.cockpit.core.settings.ThemeSetting
 
 /** Test tags of the settings sections. */
 object SettingsTags {
@@ -78,6 +79,10 @@ object SettingsTags {
     const val ABOUT = "settings:about"
     const val ABOUT_VERSION = "settings:about:version"
     const val ABOUT_DOWNLOAD = "settings:about:download"
+    const val APPEARANCE = "settings:appearance"
+    const val APPEARANCE_MESSAGE = "settings:appearance:message"
+
+    fun theme(theme: ThemeSetting) = "settings:appearance:${theme.wire}"
 }
 
 /** Where to find a UnifiedPush distributor when none is installed. */
@@ -99,8 +104,12 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun DeviceSettingsRoute(viewModel: SettingsViewModel = hiltViewModel()) {
+private fun DeviceSettingsRoute(
+    viewModel: SettingsViewModel = hiltViewModel(),
+    appearanceViewModel: AppearanceViewModel = hiltViewModel(),
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val appearance by appearanceViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     LifecycleResumeEffect(viewModel) {
         viewModel.refresh()
@@ -134,6 +143,7 @@ private fun DeviceSettingsRoute(viewModel: SettingsViewModel = hiltViewModel()) 
                 onSyncNow = viewModel::syncNow,
                 onDownload = { url -> context.open(Intent(Intent.ACTION_VIEW, url.toUri())) },
             ),
+        appearance = { AppearanceSection(appearance, appearanceViewModel::choose) },
     )
 }
 
@@ -162,13 +172,15 @@ data class SettingsActions(
     val onDownload: (String) -> Unit = {},
 )
 
-/** Server, notifications, capture and about. Stateless. */
+/** Server, appearance (when given), notifications, capture and about. Stateless. */
 @Composable
 fun DeviceSettingsSections(
     state: SettingsUiState,
     actions: SettingsActions,
+    appearance: (@Composable () -> Unit)? = null,
 ) {
     ServerSection(state, actions)
+    appearance?.invoke()
     NotificationsSection(state, actions)
     CaptureSection(state, actions)
     AboutSection(state, actions)
@@ -261,6 +273,58 @@ private fun ServerSection(
         Text(stringResource(R.string.settings_server_change))
     }
 }
+
+/** The synced theme: light, dark or the system's. Stateless. */
+@Composable
+fun AppearanceSection(
+    state: AppearanceUiState,
+    onChoose: (ThemeSetting) -> Unit,
+) = SettingsCard(R.string.settings_appearance_title, SettingsTags.APPEARANCE) {
+    Column(Modifier.selectableGroup()) {
+        ThemeSetting.entries.forEach { theme ->
+            val chosen = state.shown == theme
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .selectable(selected = chosen, enabled = state.enabled, role = Role.RadioButton) { onChoose(theme) }
+                        .padding(vertical = 4.dp)
+                        .testTag(SettingsTags.theme(theme)),
+            ) {
+                RadioButton(selected = chosen, onClick = null, enabled = state.enabled)
+                Text(stringResource(theme.label()), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 12.dp))
+            }
+        }
+    }
+    when {
+        state.theme == null ->
+            Muted(
+                stringResource(R.string.settings_appearance_unknown),
+                Modifier.testTag(SettingsTags.APPEARANCE_MESSAGE),
+            )
+        state.message != null ->
+            Muted(
+                stringResource(state.message.text()),
+                Modifier.testTag(SettingsTags.APPEARANCE_MESSAGE).semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        else -> Muted(stringResource(R.string.settings_appearance_synced))
+    }
+}
+
+private fun ThemeSetting.label() =
+    when (this) {
+        ThemeSetting.LIGHT -> R.string.settings_appearance_light
+        ThemeSetting.DARK -> R.string.settings_appearance_dark
+        ThemeSetting.SYSTEM -> R.string.settings_appearance_system
+    }
+
+private fun AppearanceMessage.text() =
+    when (this) {
+        AppearanceMessage.CONFLICT -> R.string.settings_appearance_conflict
+        AppearanceMessage.OFFLINE -> R.string.settings_appearance_offline
+        AppearanceMessage.FAILED -> R.string.settings_appearance_failed
+    }
 
 @Composable
 private fun NotificationsSection(

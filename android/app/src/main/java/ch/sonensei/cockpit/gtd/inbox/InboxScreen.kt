@@ -51,6 +51,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.core.settings.userCreativityLabel
+import ch.sonensei.cockpit.core.settings.userEnergyLabel
 import ch.sonensei.cockpit.gtd.data.Creativity
 import ch.sonensei.cockpit.gtd.data.Energy
 import ch.sonensei.cockpit.gtd.data.GtdTask
@@ -317,7 +319,7 @@ private fun ClarificationPanel(
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         ChipRow(stringResource(R.string.inbox_energy)) {
             Energy.entries.forEach { energy ->
-                Chip(stringResource(energy.label()), c.energy == energy, enabled) {
+                Chip(userEnergyLabel(energy.name, energy.label()), c.energy == energy, enabled) {
                     callbacks.setEnergy(
                         if (c.energy ==
                             energy
@@ -332,7 +334,7 @@ private fun ClarificationPanel(
         }
         ChipRow(stringResource(R.string.inbox_creativity)) {
             Creativity.entries.forEach { creativity ->
-                Chip(stringResource(creativity.label()), c.creativity == creativity, enabled) {
+                Chip(userCreativityLabel(creativity.name, creativity.label()), c.creativity == creativity, enabled) {
                     callbacks.setCreativity(if (c.creativity == creativity) null else creativity)
                 }
             }

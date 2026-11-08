@@ -77,6 +77,8 @@ import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.core.settings.userCreativityLabel
+import ch.sonensei.cockpit.core.settings.userEnergyLabel
 import ch.sonensei.cockpit.gtd.data.Creativity
 import ch.sonensei.cockpit.gtd.data.Energy
 import ch.sonensei.cockpit.gtd.data.GtdTask
@@ -557,11 +559,15 @@ private fun Properties(
             stringResource(R.string.task_detail_estimate),
             task.timeEstimateMin?.let { stringResource(R.string.task_detail_minutes, it) } ?: none,
         )
-        Property("energy", stringResource(R.string.task_detail_energy), task.energy?.let { stringResource(energyLabel(it)) } ?: none)
+        Property(
+            "energy",
+            stringResource(R.string.task_detail_energy),
+            task.energy?.let { userEnergyLabel(it.name, energyLabel(it)) } ?: none,
+        )
         Property(
             "creativity",
             stringResource(R.string.task_detail_creativity),
-            task.creativity?.let { stringResource(creativityLabel(it)) } ?: none,
+            task.creativity?.let { userCreativityLabel(it.name, creativityLabel(it)) } ?: none,
         )
         if (task.list == TaskList.WAITING) {
             val since = task.waitingSince?.let { stringResource(R.string.task_detail_waiting_since, it.format(dates)) }
@@ -857,7 +863,11 @@ private fun EditFields(
                 FilterChip(
                     selected = draft.energy == energy,
                     onClick = { callbacks.edit { it.copy(energy = energy) } },
-                    label = { Text(energy?.let { stringResource(energyLabel(it)) } ?: stringResource(R.string.task_detail_none)) },
+                    label = {
+                        Text(
+                            energy?.let { userEnergyLabel(it.name, energyLabel(it)) } ?: stringResource(R.string.task_detail_none),
+                        )
+                    },
                     enabled = enabled,
                     modifier = Modifier.testTag(TaskDetailTags.energy(energy)),
                 )
@@ -871,7 +881,12 @@ private fun EditFields(
                 FilterChip(
                     selected = draft.creativity == creativity,
                     onClick = { callbacks.edit { it.copy(creativity = creativity) } },
-                    label = { Text(creativity?.let { stringResource(creativityLabel(it)) } ?: stringResource(R.string.task_detail_none)) },
+                    label = {
+                        Text(
+                            creativity?.let { userCreativityLabel(it.name, creativityLabel(it)) }
+                                ?: stringResource(R.string.task_detail_none),
+                        )
+                    },
                     enabled = enabled,
                     modifier = Modifier.testTag(TaskDetailTags.creativity(creativity)),
                 )
