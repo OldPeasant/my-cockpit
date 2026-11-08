@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [and-files-manage]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/files,android/app/src/test/java/ch/sonensei/cockpit/files,android/app/src/main/res/values/strings_files.xml,android/app/src/main/res/values-de/strings_files.xml]
 prio: 2
-lease_until: 2026-11-08T14:28:21Z
+lease_until: 2026-11-08T14:33:23Z
 ---
 ## Goal
 SPEC.md §8.2 asks for an in-app preview (PDF via Android `PdfRenderer`); Android only opens files in other apps.
