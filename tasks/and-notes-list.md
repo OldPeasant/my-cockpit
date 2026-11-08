@@ -5,7 +5,7 @@ owner: rudi/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/notes,android/app/src/test/java/ch/sonensei/cockpit/notes,android/app/src/main/res/values/strings_notes.xml,android/app/src/main/res/values-de/strings_notes.xml]
 prio: 2
-lease_until: 2026-11-08T15:53:03Z
+lease_until: 2026-11-08T15:58:07Z
 ---
 ## Goal
 Android notes have no search, pin, archive or archived view (web: `notes-page.html:6-50`, `note-card.ts`).
