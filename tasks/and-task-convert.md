@@ -1,7 +1,7 @@
 ---
 title: Android: convert tasks to notes and events
-status: todo
-owner: 
+status: in_progress
+owner: Peter Gürtler
 deps: [and-task-detail-dates,and-inbox-rows]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/test/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/java/ch/sonensei/cockpit/gtd/inbox,android/app/src/test/java/ch/sonensei/cockpit/gtd/inbox,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml,android/app/src/main/res/values/strings_inbox.xml,android/app/src/main/res/values-de/strings_inbox.xml]
 prio: 2
