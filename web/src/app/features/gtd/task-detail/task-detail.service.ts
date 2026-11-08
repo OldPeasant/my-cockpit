@@ -57,11 +57,7 @@ export class TaskDetailService {
 
   /** Marks the task done; the answer tells whether its project needs a new next step. */
   complete(task: TaskResponse): Promise<CompletedTaskResponse> {
-    return this.api.invoke(
-      completeTask,
-      { id: task.id, 'If-Match': etag(task.version) },
-      silent(),
-    );
+    return this.api.invoke(completeTask, { id: task.id, 'If-Match': etag(task.version) }, silent());
   }
 
   /**

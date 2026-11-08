@@ -17,16 +17,14 @@ export class TaskUndo {
 
   /** Offers to reopen `task`, which was just completed; `reopen` does it. */
   completed(task: Pick<TaskResponse, 'title'>, reopen: () => Promise<unknown>): Promise<boolean> {
-    return this.offer(
-      $localize`:@@gtd.undo.completed:Completed “${task.title}:title:”`,
-      reopen,
-    );
+    return this.offer($localize`:@@gtd.undo.completed:Completed “${task.title}:title:”`, reopen);
   }
 
   /** Offers to restore `task`, which was just moved to the Trash. */
   deleted(task: Pick<TaskResponse, 'id' | 'title'>): Promise<boolean> {
-    return this.offer($localize`:@@gtd.undo.deleted:Moved “${task.title}:title:” to the Trash`, () =>
-      this.api.invoke(restoreTrashItem, { type: 'TASK', id: task.id }),
+    return this.offer(
+      $localize`:@@gtd.undo.deleted:Moved “${task.title}:title:” to the Trash`,
+      () => this.api.invoke(restoreTrashItem, { type: 'TASK', id: task.id }),
     );
   }
 

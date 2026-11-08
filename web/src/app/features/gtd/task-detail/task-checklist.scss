@@ -52,11 +52,11 @@
   }
 
   &.done .rename {
-  min-width: 0;
-  font: var(--mat-sys-body-medium);
-}
+    min-width: 0;
+    font: var(--mat-sys-body-medium);
+  }
 
-.step-text {
+  .step-text {
     color: var(--app-fg-muted);
     text-decoration: line-through;
   }

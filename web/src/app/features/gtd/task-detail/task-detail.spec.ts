@@ -170,6 +170,11 @@ describe('TaskDetail', () => {
       }),
     );
     expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Call the plumber');
+    // Notes show rendered; Edit switches to the Markdown source.
+    expect(element.querySelector('#td-notes-view h3')?.textContent).toBe('Notes');
+    expect(element.querySelector('#td-notes')).toBeNull();
+    field<HTMLButtonElement>('button.edit-notes').click();
+    await refresh();
     expect(field<HTMLTextAreaElement>('#td-notes').value).toBe('# Notes');
     expect(field<HTMLSelectElement>('#td-list').value).toBe('NEXT');
     expect(field<HTMLSelectElement>('#td-project').value).toBe('p1');
@@ -1013,6 +1018,8 @@ describe('TaskDetail', () => {
       });
     };
     saveButton().click();
+    await refresh();
+    field<HTMLButtonElement>('button.edit-notes').click();
     await refresh();
     await type('#td-notes', 'Typed while saving');
     release();

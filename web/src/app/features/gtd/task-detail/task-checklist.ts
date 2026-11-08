@@ -46,9 +46,7 @@ export class TaskChecklist {
   protected readonly newItem = signal('');
   protected readonly busy = signal(false);
   /** The step being renamed and its text so far, if any. */
-  protected readonly renaming = signal<{ readonly id: string; readonly text: string } | null>(
-    null,
-  );
+  protected readonly renaming = signal<{ readonly id: string; readonly text: string } | null>(null);
   protected readonly doneCount = computed(() => this.items().filter((item) => item.done).length);
 
   constructor() {

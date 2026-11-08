@@ -279,16 +279,19 @@ export class TaskDetail {
   /** Switches the notes to their Markdown source and focuses it. */
   protected editNotes(): void {
     this.editingNotes.set(true);
-    afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('#td-notes')?.focus(), {
-      injector: this.injector,
-    });
+    afterNextRender(
+      () => this.host.nativeElement.querySelector<HTMLElement>('#td-notes')?.focus(),
+      {
+        injector: this.injector,
+      },
+    );
   }
 
   /**
-   * A click on the rendered notes edits them, except on a link (which opens) or while text is
-   * being selected.
+   * A click (or Enter) on the rendered notes edits them, except on a link (which opens) or while
+   * text is being selected.
    */
-  protected notesClicked(event: MouseEvent): void {
+  protected notesClicked(event: Event): void {
     if ((event.target as HTMLElement).closest('a')) return;
     if (window.getSelection()?.toString()) return;
     this.editNotes();

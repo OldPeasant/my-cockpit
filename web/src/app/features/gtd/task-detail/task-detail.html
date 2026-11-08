@@ -85,12 +85,7 @@
               <ng-container i18n="@@taskDetail.calendar">To calendar (event)</ng-container>
             }
           </button>
-          <button
-            type="button"
-            class="quiet reference"
-            [disabled]="busy()"
-            (click)="toReference()"
-          >
+          <button type="button" class="quiet reference" [disabled]="busy()" (click)="toReference()">
             @if (converting() === 'note') {
               <ng-container i18n="@@taskDetail.referencing">Moving to reference…</ng-container>
             } @else {
@@ -138,28 +133,30 @@
                 }
               </div>
               @if (!showSource) {
-                <!-- Clicking the rendered notes edits them; the Edit button is the keyboard way. -->
+                <!-- A click (or Enter) on the rendered notes edits them, except on a link. -->
                 <div
                   id="td-notes-view"
                   class="markdown notes-view"
+                  tabindex="0"
                   [innerHTML]="notesHtml()"
                   (click)="notesClicked($event)"
+                  (keydown.enter)="notesClicked($event)"
                 ></div>
               } @else {
-              <textarea
-                id="td-notes"
-                class="notes"
-                rows="8"
-                [value]="d.notesMd"
-                [attr.aria-invalid]="!!error('notesMd')"
-                [attr.aria-describedby]="error('notesMd') ? 'td-notes-error' : null"
-                (input)="edit({ notesMd: text($event) })"
-                i18n-placeholder="@@taskDetail.notesPlaceholder"
-                placeholder="Details, links, **anything** that helps"
-              ></textarea>
-              @if (error('notesMd'); as message) {
-                <p id="td-notes-error" class="field-error">{{ message }}</p>
-              }
+                <textarea
+                  id="td-notes"
+                  class="notes"
+                  rows="8"
+                  [value]="d.notesMd"
+                  [attr.aria-invalid]="!!error('notesMd')"
+                  [attr.aria-describedby]="error('notesMd') ? 'td-notes-error' : null"
+                  (input)="editingNotes.set(true); edit({ notesMd: text($event) })"
+                  i18n-placeholder="@@taskDetail.notesPlaceholder"
+                  placeholder="Details, links, **anything** that helps"
+                ></textarea>
+                @if (error('notesMd'); as message) {
+                  <p id="td-notes-error" class="field-error">{{ message }}</p>
+                }
               }
             </div>
 
