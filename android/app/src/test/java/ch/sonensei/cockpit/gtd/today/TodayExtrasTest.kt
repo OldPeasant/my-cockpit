@@ -293,6 +293,21 @@ class TodayExtrasTest {
     }
 
     @Test
+    fun `a habit list requested before a failed check keeps the failed check message`() {
+        val vm = TodayExtrasViewModel(calendar, habits, clock)
+        vm.load()
+        val pendingList = CompletableDeferred<HabitsResult<List<Habit>>>()
+        coEvery { habits.list() } coAnswers { pendingList.await() }
+        coEvery { habits.check(water) } returns HabitsResult.Offline
+        vm.load()
+        vm.check(water)
+        assertTrue(vm.uiState.value.checkFailed)
+        pendingList.complete(HabitsResult.Ok(listOf(water)))
+        assertTrue(vm.uiState.value.checkFailed)
+        assertEquals(listOf(water), vm.uiState.value.habits)
+    }
+
+    @Test
     fun `all-day events of other days are left out`() {
         val tomorrow = holiday.copy(eventId = id(13), title = "Tomorrow", startDate = today.plusDays(1), endDate = today.plusDays(2))
         val endedYesterday = holiday.copy(eventId = id(14), title = "Ended", startDate = today.minusDays(2), endDate = today)
