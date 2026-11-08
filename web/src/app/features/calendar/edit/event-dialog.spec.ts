@@ -42,6 +42,8 @@ describe('EventDialog', () => {
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
+    respond: ReturnType<typeof vi.fn>;
+    ownAddresses: ReturnType<typeof vi.fn>;
   };
   let scopes: { ask: ReturnType<typeof vi.fn> };
   let invitations: { open: ReturnType<typeof vi.fn> };
@@ -68,6 +70,8 @@ describe('EventDialog', () => {
       create: vi.fn(() => Promise.resolve(fakeEvent('new'))),
       update: vi.fn(() => Promise.resolve(fakeEvent('e1'))),
       delete: vi.fn(() => Promise.resolve()),
+      respond: vi.fn(() => Promise.resolve(fakeEvent('g1'))),
+      ownAddresses: vi.fn(() => Promise.resolve(['mia@example.test'])),
     };
     scopes = { ask: vi.fn(() => Promise.resolve('THIS')) };
     invitations = { open: vi.fn(() => Promise.resolve(undefined)) };
@@ -862,6 +866,174 @@ describe('EventDialog', () => {
         'ALL',
         { title: 'Swim (pool C)' },
       );
+    });
+  });
+
+  describe('answering invitations', () => {
+    const google = fakeCalendar('google', { name: 'Google', sourceType: 'GOOGLE' });
+    const microsoft = fakeCalendar('ms', { name: 'Outlook', sourceType: 'MICROSOFT' });
+    const guests = [
+      { email: 'ben@example.test', name: 'Ben', status: 'ACCEPTED' as const },
+      { email: 'Mia@Example.test', name: 'Mia', status: 'NEEDS_ACTION' as const },
+    ];
+    const choice = (label: string) =>
+      [...el().querySelectorAll<HTMLButtonElement>('.respond-choice')].find((b) =>
+        b.textContent!.trim().endsWith(label),
+      );
+    const pressed = () =>
+      [...el().querySelectorAll<HTMLButtonElement>('.respond-choice[aria-pressed="true"]')].map(
+        (b) => b.textContent!.trim(),
+      );
+
+    function invited(fields: Partial<EventResponse> = {}, calendar = google): Promise<void> {
+      stored.set(
+        'g1',
+        fakeEvent('g1', {
+          title: 'Planning',
+          calendarId: calendar.id,
+          version: 4,
+          attendees: guests,
+          ...fields,
+        }),
+      );
+      return edit(
+        fakeOccurrence('Planning', { eventId: 'g1', calendarId: calendar.id, version: 4 }),
+        [...CALENDARS, calendar],
+      );
+    }
+
+    it('offers Accept, Maybe and Decline with no answer highlighted yet', async () => {
+      await invited();
+      expect(el().textContent).toContain('Your answer');
+      expect(choice('Accept')).toBeDefined();
+      expect(choice('Maybe')).toBeDefined();
+      expect(choice('Decline')).toBeDefined();
+      expect(pressed()).toEqual([]);
+      expect(events.ownAddresses).toHaveBeenCalledOnce();
+    });
+
+    it('highlights the current answer of the guest with a mail account address', async () => {
+      await invited(
+        {
+          attendees: [guests[0], { ...guests[1], status: 'TENTATIVE' }],
+        },
+        microsoft,
+      );
+      expect(pressed()).toHaveLength(1);
+      expect(pressed()[0]).toContain('Maybe');
+    });
+
+    it('sends the answer, shows the new status and uses the new version', async () => {
+      events.respond.mockResolvedValue(
+        fakeEvent('g1', {
+          calendarId: 'google',
+          version: 5,
+          attendees: [guests[0], { ...guests[1], status: 'ACCEPTED' }],
+        }),
+      );
+      await invited();
+      choice('Accept')!.click();
+      await stable();
+      expect(events.respond).toHaveBeenCalledWith(
+        expect.objectContaining({ eventId: 'g1', version: 4 }),
+        'ACCEPTED',
+      );
+      expect(pressed()[0]).toContain('Accept');
+      expect(notifications.info).toHaveBeenCalledWith('Your answer was sent.');
+      expect(ref.close).not.toHaveBeenCalled();
+
+      // The next change goes out with the version the answer returned.
+      type('title', 'Planning Q2');
+      await save();
+      expect(events.update).toHaveBeenCalledWith(
+        expect.objectContaining({ version: 5 }),
+        undefined,
+        { title: 'Planning Q2' },
+      );
+    });
+
+    it('keeps unsaved edits of the form after answering', async () => {
+      await invited();
+      type('title', 'Planning (draft)');
+      choice('Decline')!.click();
+      await stable();
+      expect(events.respond).toHaveBeenCalledWith(expect.anything(), 'DECLINED');
+      expect(input('title').value).toBe('Planning (draft)');
+    });
+
+    it('tells the view the event changed when closed after an answer', async () => {
+      await invited();
+      choice('Maybe')!.click();
+      await stable();
+      button('Cancel')!.click();
+      await stable();
+      expect(ref.close).toHaveBeenCalledWith('saved');
+    });
+
+    it('disables the choices while the answer is sent', async () => {
+      const pending = deferred<EventResponse>();
+      events.respond.mockReturnValue(pending.promise);
+      await invited();
+      choice('Accept')!.click();
+      await stable();
+      expect(choice('Decline')!.disabled).toBe(true);
+      expect(ref.disableClose).toBe(true);
+      choice('Decline')!.click();
+      expect(events.respond).toHaveBeenCalledOnce();
+      pending.resolve(fakeEvent('g1', { calendarId: 'google', attendees: guests }));
+      await stable();
+      expect(choice('Decline')!.disabled).toBe(false);
+      expect(ref.disableClose).toBe(false);
+    });
+
+    it('offers a reload when the event changed since it was opened (412)', async () => {
+      events.respond.mockRejectedValue(new ApiError(412, 'Precondition Failed'));
+      await invited();
+      choice('Accept')!.click();
+      await stable();
+      expect(alerts().join(' ')).toContain('This event was changed elsewhere');
+      expect(choice('Accept')!.disabled).toBe(true);
+    });
+
+    it("shows the server's reason when it refuses the answer (409)", async () => {
+      events.respond.mockRejectedValue(new ApiError(409, 'Conflict', 'You organize this event.'));
+      await invited();
+      choice('Decline')!.click();
+      await stable();
+      expect(alerts()).toContain('You organize this event.');
+      expect(choice('Decline')!.disabled).toBe(false);
+    });
+
+    it('says so when the answer could not be sent for another reason', async () => {
+      events.respond.mockRejectedValue(new Error('offline'));
+      await invited();
+      choice('Accept')!.click();
+      await stable();
+      expect(alerts()).toContain('Your answer could not be sent.');
+    });
+
+    it('still offers the choices when the mail accounts cannot be read', async () => {
+      events.ownAddresses.mockRejectedValue(new ApiError(500, 'Server Error'));
+      await invited();
+      expect(choice('Accept')).toBeDefined();
+      expect(pressed()).toEqual([]);
+    });
+
+    it('offers no answer without guests, in local or read-only calendars', async () => {
+      await invited({ attendees: [] });
+      expect(el().querySelector('.respond')).toBeNull();
+      TestBed.resetTestingModule();
+
+      const readOnly = fakeCalendar('ro', { sourceType: 'GOOGLE', readOnly: true });
+      await invited({}, readOnly);
+      expect(el().querySelector('.respond')).toBeNull();
+      TestBed.resetTestingModule();
+
+      events.ownAddresses.mockClear();
+      stored.set('l1', fakeEvent('l1', { calendarId: 'work', attendees: guests }));
+      await edit(fakeOccurrence('Local', { eventId: 'l1', calendarId: 'work' }));
+      expect(el().querySelector('.respond')).toBeNull();
+      expect(events.ownAddresses).not.toHaveBeenCalled();
     });
   });
 

@@ -84,6 +84,40 @@ describe('EventEditService', () => {
     await expect(result).resolves.toMatchObject({ id: 'e1' });
   });
 
+  it('answers an invitation on the event holding the occurrence, with its version as If-Match', async () => {
+    const result = service.respond(override(), 'TENTATIVE');
+    await tick();
+    const req = http.expectOne(
+      (r) => r.method === 'POST' && r.url === '/api/v1/calendar/events/o1/respond',
+    );
+    expect(req.request.headers.get('If-Match')).toBe('"2"');
+    expect(req.request.body).toEqual({ response: 'TENTATIVE' });
+    expect(req.request.context.get(SILENT_ERRORS)).toBe(true);
+    req.flush(fakeEvent('o1', { version: 3 }));
+    await expect(result).resolves.toMatchObject({ version: 3 });
+  });
+
+  it('answers a generated occurrence through its series master', async () => {
+    void service.respond(generated(), 'ACCEPTED');
+    await tick();
+    const req = http.expectOne(
+      (r) => r.method === 'POST' && r.url === '/api/v1/calendar/events/m1/respond',
+    );
+    expect(req.request.headers.get('If-Match')).toBe('"5"');
+    expect(req.request.params.keys()).toEqual([]);
+    req.flush(fakeEvent('m1'));
+  });
+
+  it('lists the addresses of the mail accounts in lower case', async () => {
+    const result = service.ownAddresses();
+    const req = http.expectOne((r) => r.method === 'GET' && r.url === '/api/v1/mail/accounts');
+    expect(req.request.context.get(SILENT_ERRORS)).toBe(true);
+    req.flush({
+      items: [{ emailAddress: 'Mia@Example.test' }, { emailAddress: 'mia.work@example.test' }],
+    });
+    await expect(result).resolves.toEqual(['mia@example.test', 'mia.work@example.test']);
+  });
+
   it('changes a single event directly, with its version as If-Match', async () => {
     const result = service.update(single(), undefined, { title: 'Dentist (moved)' });
     await tick();
