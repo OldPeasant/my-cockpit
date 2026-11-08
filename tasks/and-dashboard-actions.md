@@ -14,7 +14,8 @@ On Android only task items in dashboard widgets are tappable; the review widget 
 the layout cannot be edited (web: `dashboard-page.html`).
 
 ## Acceptance criteria
-- [ ] Items of every widget open their item (events, projects, bookmarks, notes, mails)
+- [x] Items of every widget open their item (events, projects, bookmarks, notes, mails)
+  - verified (2026-11-08 20:28+0100 by felix/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug --continue -> 4468 tests, all dashboard tests pass incl. DashboardRouteInAppTest (project/bookmark/event editor/birthday contact/note editor) and DashboardActionsScreenTest item openers + Inbox mail/tasks lines; only failure auth/AppStartRoutingTest, which also fails on origin/main with the task files reverted
 - [ ] The weekly review widget has Start/Continue review (opens the review flow from and-review-flow, or the review screen until then)
 - [ ] "Customize": show/hide widgets and reorder (long-press drag + accessibility actions), reset; saved in the same setting the web uses
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
