@@ -15,7 +15,8 @@ and "on this day" (`journal-page.html`).
 ## Acceptance criteria
 - [x] Previous/next day, Today, and a date picker to open any day (entries of other days editable)
   - verified (2026-11-08 21:12+0100 by rudi/agent-1): cd android && ./gradlew testDebugUnitTest (Robolectric Compose + VM tests, JVM; no device here): JournalDaysScreenTest(10), JournalDaysViewModelTest(15), JournalDatePickerScreenTest(2: pick Oct 12 opens it, future days disabled), JournalDaysRaceViewModelTest(22) -> all pass; prev/next/Today/picker open and edit other days
-- [ ] Mood selector and tags editing
+- [x] Mood selector and tags editing
+  - verified (2026-11-08 21:12+0100 by rudi/agent-1): cd android && ./gradlew testDebugUnitTest (Robolectric Compose + VM tests, JVM; no device here): JournalDaysViewModelTest + JournalDaysScreenTest mood/tags cases, JournalRepositoryTest(17) -> all pass; mood set/clear and tags edit saved via PUT
 - [ ] A month calendar marking days with entries (tap opens the day)
 - [ ] "On this day" in earlier years
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
