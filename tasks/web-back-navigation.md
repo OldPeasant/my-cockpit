@@ -14,7 +14,8 @@ Detail pages have hardcoded back links, e.g. the mail read view's "Mail" button 
 mail list instead of where the user was. The owner wants a real "back".
 
 ## Acceptance criteria
-- [ ] A shared helper (e.g. `BackNavigation` service + `app-back-button` component in `web/src/app/shared/navigation`) goes back in browser history when the previous entry is inside the app, and to the page's parent route otherwise (deep link, new tab)
+- [x] A shared helper (e.g. `BackNavigation` service + `app-back-button` component in `web/src/app/shared/navigation`) goes back in browser history when the previous entry is inside the app, and to the page's parent route otherwise (deep link, new tab)
+  - verified (2026-11-08 12:15+0100 by dell26/agent-1): cd web && npx ng test --watch=false --include src/app/shared/navigation/back-navigation.spec.ts -> 57 passed (BackNavigation goes back in history when previous entry is an app page, to the parent route on deep link/new tab/unknown entry; back-button spec in npm run check)
 - [ ] The back button's label names the destination where known (e.g. "New", "Mail", "Today", the project name) or reads just "Back"
 - [ ] Used by the mail read view, task detail, project detail, note editor and contact detail (and any other detail page with a hardcoded back link found by grep)
 - [ ] Mail read actions that leave the message (archive, delete, spam) return to the origin the same way instead of `/mail`
