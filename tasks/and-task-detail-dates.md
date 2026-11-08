@@ -21,3 +21,4 @@ move to Next/Someday/Waiting. Web edits all of them (`task-detail.html:124-330`)
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 10:27+0100 by rudi/agent-1): Scheduled date and SCHEDULED list are coupled in the Android form: picking a scheduled date puts the task on Scheduled, clearing it moves a scheduled task to Next, choosing another list drops the date (server only allows scheduledDate on SCHEDULED)
