@@ -6,6 +6,7 @@ deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/test/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml]
 prio: 2
 lease_until: 2026-11-08T10:40:27Z
+extended: rudi/agent-1
 ---
 ## Goal
 Android task detail shows scheduled/tickler/recurrence read-only (`TaskDetailScreen.kt:553,554,574`) and can only
@@ -25,3 +26,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 10:27+0100 by rudi/agent-1): Android form saves like web: one /move (list + tickler, always resending the tickler since an omitted one clears it) then a PATCH of the remaining fields; moving to Waiting in the form requires a person (as the existing Waiting dialog); waiting-since is only editable for a task already on Waiting
 - ASSUMPTION (2026-11-08 10:27+0100 by rudi/agent-1): Recurrence presets on Android: none/daily/weekdays/weekly/monthly/yearly/custom with an interval (INTERVAL=n); any other rule (extra parts, other BYDAY) is kept as a custom rule shown as editable text; custom rules get only a FREQ presence check client-side, the server validates the rest
 - ASSUMPTION (2026-11-08 10:27+0100 by rudi/agent-1): Checklist reorder on Android: long-press anywhere on a row and drag (by whole rows), plus Move up/Move down accessibility custom actions; positions saved as 0..n like the web
+- extended by rudi/agent-1: Implementation complete (commits 30c56122, d9c8549e, 71d5388b, e2a3ceaa); android ktlintCheck testDebugUnitTest lintDebug passes. Left: fix review P3s CR-1 (add checklist size to pointerInput keys, TaskDetailScreen.kt drag) and CR-2 (remove @Suppress LongParameterList on TaskDraft); run test-writer (tests.md missing) and code-reviewer on final code (review.md is stale, reviewed 801e378d); record verify for all 6 criteria; run scripts/check.sh; write quality.json; done.
