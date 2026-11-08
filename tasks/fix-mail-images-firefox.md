@@ -24,7 +24,8 @@ Verified fix (tried, then reverted): name the app origin explicitly next to `'se
 the `cid:` image.
 
 ## Acceptance criteria
-- [ ] The mail frame CSP allows images and fonts from the app's own origin explicitly (in addition to `'self'`), still `default-src 'none'`, no scripts, no other hosts; `mail-frame.spec.ts` asserts the origin is in `img-src`/`font-src` and that no foreign host is
+- [x] The mail frame CSP allows images and fonts from the app's own origin explicitly (in addition to `'self'`), still `default-src 'none'`, no scripts, no other hosts; `mail-frame.spec.ts` asserts the origin is in `img-src`/`font-src` and that no foreign host is
+  - verified (2026-11-08 10:32+0100 by felix/agent-1): cd web && npx ng test --watch=false --include src/app/features/mail/read/mail-frame.spec.ts -> 16 passed (asserts location.origin in img-src/font-src next to 'self', default-src 'none', script-src 'none', exact source list per directive, no foreign host)
 - [x] Playwright has a Firefox project that runs `e2e/mail-read/*` (install: `npx playwright install firefox`; document it in docs/ARCHITECTURE.md "Install"/E2E)
   - verified (2026-11-08 09:12+0100 by felix/agent-1): web/playwright.config.ts project 'firefox' (Desktop Firefox, testMatch mail-read/*.spec.ts, deps phase-demos); docs/ARCHITECTURE.md Install/E2E name 'npx playwright install --with-deps chromium firefox'; cd web && npm run e2e -- e2e/mail-read -> [firefox] mail-read/read.spec.ts passed
 - [x] `e2e/mail-read/read.spec.ts` also asserts that the inline `cid:` image loads, and it passes in Chromium and Firefox: `cd web && npm run e2e -- e2e/mail-read` -> pass for both projects
