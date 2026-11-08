@@ -453,6 +453,26 @@ describe('Projects views', () => {
         expect(element.querySelector('[role=dialog]')).not.toBeNull();
       });
 
+      it('does not close the prompt of another completed task with the same title', async () => {
+        tasks = [task('t1', { title: 'Call Bob' }), task('t2', { title: 'Call Bob' })];
+        await render(ProjectDetailPage);
+        needsNextStep = false;
+        await click(element.querySelectorAll<HTMLElement>('.task input[type=checkbox]')[1]);
+        const first = snackbar!;
+        needsNextStep = true;
+        await click(element.querySelector<HTMLElement>('.task.next input[type=checkbox]')!);
+        expect(element.querySelector('[role=dialog]')?.textContent).toContain(
+          '“Call Bob” is done.',
+        );
+
+        // Undoing t2 leaves the prompt of t1 (same title) alone.
+        await first.reopen();
+        first.end(true);
+        await refresh();
+
+        expect(element.querySelector('[role=dialog]')).not.toBeNull();
+      });
+
       it('offers Undo also for a task that was not the next step, without a prompt', async () => {
         await render(ProjectDetailPage);
         await click(element.querySelectorAll<HTMLElement>('.task input[type=checkbox]')[1]);

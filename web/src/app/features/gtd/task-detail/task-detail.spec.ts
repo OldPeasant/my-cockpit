@@ -2296,6 +2296,115 @@ describe('TaskDetail', () => {
       expect(callsOf(uncompleteTask)).toHaveLength(1);
       expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Typed after completing');
       expect(text()).toContain('Unsaved changes');
+      // The reopened version is the saved one now: the edits are compared with it.
+      expect(label(completeButton())).toBe('Complete');
+      await save();
+      expect(callsOf(updateTask)[0].params).toMatchObject({
+        'If-Match': '"3"',
+        body: { title: 'Typed after completing' },
+      });
+    });
+
+    it('Undo keeps edits typed while it runs and shows the task reopened', async () => {
+      let release!: () => void;
+      hold.uncomplete = () =>
+        new Promise((resolve) => {
+          release = () => {
+            server = { ...server, completedAt: undefined, version: server.version + 1 };
+            resolve(server);
+          };
+        });
+      await render();
+      await click(completeButton());
+
+      const undone = undoCompletion();
+      await type('#td-title', 'Typed while undoing');
+      release();
+      await undone;
+      await refresh();
+
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Typed while undoing');
+      expect(text()).toContain('Unsaved changes');
+      expect(label(completeButton())).toBe('Complete');
+    });
+
+    it('keeps edits typed while completing runs, compared with the completed version', async () => {
+      let release!: () => void;
+      hold.complete = () =>
+        new Promise((resolve) => {
+          release = () => {
+            server = { ...server, completedAt: DONE_AT, version: server.version + 1 };
+            resolve({ ...server, needsNextStep: false });
+          };
+        });
+      await render();
+      await click(completeButton());
+      await type('#td-notes', 'Typed while completing');
+
+      release();
+      await refresh();
+
+      expect(field<HTMLTextAreaElement>('#td-notes').value).toBe('Typed while completing');
+      expect(text()).toContain('Unsaved changes');
+      expect(label(completeButton())).toBe('Reopen');
+      expect(undo.completed).toHaveBeenCalledTimes(1);
+      await save();
+      expect(callsOf(updateTask)[0].params).toMatchObject({
+        'If-Match': '"2"',
+        body: { notesMd: 'Typed while completing' },
+      });
+    });
+
+    it('keeps edits typed while reopening runs', async () => {
+      let release!: () => void;
+      hold.uncomplete = () =>
+        new Promise((resolve) => {
+          release = () => {
+            server = { ...server, completedAt: undefined, version: server.version + 1 };
+            resolve(server);
+          };
+        });
+      await render(task({ completedAt: DONE_AT, version: 5 }));
+      await click(completeButton());
+      await type('#td-title', 'Typed while reopening');
+
+      release();
+      await refresh();
+
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Typed while reopening');
+      expect(text()).toContain('Unsaved changes');
+      expect(label(completeButton())).toBe('Complete');
+    });
+
+    it('offers Undo for a completion that answers after switching to another task', async () => {
+      let release!: () => void;
+      answer = ((previous) => (fn: unknown, params: Record<string, unknown>) => {
+        if (fn === getTask && params['id'] === 't2') {
+          return Promise.resolve(task({ id: 't2', title: 'Water the plants', version: 7 }));
+        }
+        if (fn === completeTask) {
+          return new Promise((resolve) => {
+            release = () =>
+              resolve({ ...task({ completedAt: DONE_AT, version: 2 }), needsNextStep: false });
+          });
+        }
+        return previous?.(fn, params);
+      })(answer);
+      await render();
+      await click(completeButton());
+      host.id.set('t2');
+      await refresh();
+
+      release();
+      await refresh();
+
+      expect(undo.completed).toHaveBeenCalledTimes(1);
+      expect(undo.completed.mock.calls[0][0]).toMatchObject({ id: 't1' });
+      await undoCompletion();
+      await refresh();
+      expect(callsOf(uncompleteTask)[0].params).toEqual({ id: 't1', 'If-Match': '"2"' });
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Water the plants');
+      expect(label(completeButton())).toBe('Complete');
     });
 
     it('Undo after switching to another task reopens the old one without touching the new one', async () => {
@@ -2618,6 +2727,31 @@ describe('TaskDetail', () => {
       release();
       await refresh();
       expect(host.closed).toBe(1);
+    });
+
+    it('does not show "moved to the Trash" for its own deletion event arriving after the answer', async () => {
+      await render();
+
+      await click(deleteButton());
+      expect(host.closed).toBe(1);
+      // The page has not navigated away yet when the event arrives.
+      events.next({ type: 'TASK', id: 't1', op: 'DELETED' } as ChangeEvent);
+      await refresh();
+
+      expect(text()).not.toContain('This task was moved to the Trash.');
+      expect(field<HTMLTextAreaElement>('#td-title')).not.toBeNull();
+    });
+
+    it('shows "moved to the Trash" when someone else deletes it after its own delete failed', async () => {
+      hold.remove = () => Promise.reject(new ApiError(503, 'Service Unavailable'));
+      await render();
+      await click(deleteButton());
+      expect(host.closed).toBe(0);
+
+      events.next({ type: 'TASK', id: 't1', op: 'DELETED' } as ChangeEvent);
+      await refresh();
+
+      expect(text()).toContain('This task was moved to the Trash.');
     });
 
     it('still shows "moved to the Trash" when someone else deletes it during a completion', async () => {

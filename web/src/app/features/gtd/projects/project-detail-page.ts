@@ -95,8 +95,8 @@ export class ProjectDetailPage {
   protected readonly previewHtml = computed(() => renderMarkdown(this.description() ?? ''));
   protected readonly savingDescription = signal(false);
 
-  /** The "Choose next step" prompt: open, and the title of the step just completed (if any). */
-  protected readonly prompt = signal<{ readonly done?: string } | null>(null);
+  /** The "Choose next step" prompt: open, and the step just completed (if any). */
+  protected readonly prompt = signal<NextStepPrompt | null>(null);
   protected readonly newTask = signal('');
   protected readonly nextTask = signal('');
   /** Ids of the tasks whose action is running. */
@@ -152,14 +152,14 @@ export class ProjectDetailPage {
       done = completed;
       if (completed.needsNextStep) {
         this.nextTask.set('');
-        this.openPrompt({ done: task.title });
+        this.openPrompt({ done: task.title, doneId: task.id });
         await this.projects.refresh();
       }
     });
     if (!done) return;
     const reopened = done;
     const undone = await this.undo.completed(task, () => this.tasks.uncomplete(reopened));
-    if (undone && this.prompt()?.done === task.title) this.prompt.set(null);
+    if (undone && this.prompt()?.doneId === task.id) this.prompt.set(null);
   }
 
   /** Makes `task` the project's next step (from a row or the prompt). */
@@ -174,7 +174,7 @@ export class ProjectDetailPage {
   }
 
   /** Opens the "Choose next step" prompt and moves the focus into it. */
-  protected openPrompt(prompt: { readonly done?: string }): void {
+  protected openPrompt(prompt: NextStepPrompt): void {
     this.prompt.set(prompt);
     afterNextRender(
       () =>
@@ -316,4 +316,10 @@ export class ProjectDetailPage {
       });
     }
   }
+}
+
+/** The "Choose next step" prompt: the title (shown) and id of the step just completed, if any. */
+interface NextStepPrompt {
+  readonly done?: string;
+  readonly doneId?: string;
 }

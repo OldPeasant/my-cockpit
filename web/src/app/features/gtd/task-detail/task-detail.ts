@@ -184,6 +184,8 @@ export class TaskDetail {
   /** Counts loads: only the newest may apply its answer. */
   private loadSeq = 0;
   private savedTimer?: ReturnType<typeof setTimeout>;
+  /** The task this editor moved to the Trash: its deletion event is ours, not someone else's. */
+  private deletedId: string | null = null;
 
   constructor() {
     void this.contexts.ensureLoaded();
@@ -192,6 +194,7 @@ export class TaskDetail {
       const id = this.taskId();
       untracked(() => {
         this.editingNotes.set(false);
+        if (id !== this.deletedId) this.deletedId = null;
         void this.load(id, 'initial');
       });
     });
@@ -203,9 +206,9 @@ export class TaskDetail {
         takeUntilDestroyed(),
       )
       .subscribe((event) => {
-        // Our own Delete navigates back; the event must not replace the page meanwhile.
+        // Our own Delete navigates back; its event must not replace the page until then.
         if (event.op === 'DELETED') {
-          if (this.acting() !== 'delete') this.state.set('deleted');
+          if (event.id !== this.deletedId) this.state.set('deleted');
         }
         // Someone else changed it: show the new version unless the user is editing or the task
         // is turning into a note or an event.
@@ -310,16 +313,20 @@ export class TaskDetail {
     const task = this.task();
     if (!task) return;
     const kind: TaskAction = task.completedAt ? 'reopen' : 'complete';
+    const draft = this.draft();
     await this.act(task, kind, async () => {
       const result =
         kind === 'complete'
           ? await this.service.complete(task)
           : await this.service.uncomplete(task);
-      if (task.id !== this.taskId()) return;
-      this.showSaved(result);
+      // Undo is offered also when the editor switched to another task meanwhile.
       if (kind === 'complete') {
         void this.undo.completed(task, () => this.reopenFromUndo(result));
       }
+      if (task.id !== this.taskId()) return;
+      this.task.set(result);
+      // Edits made while the action ran stay: they are compared with the new version now.
+      if (this.draft() === draft) this.draft.set(draftOf(result));
     });
   }
 
@@ -331,8 +338,16 @@ export class TaskDetail {
     const task = this.task();
     if (!task || this.busy()) return;
     if (this.dirty() && !confirm(DELETE_DIRTY_CONFIRM)) return;
+    // Set before the request: the deletion event may arrive before its answer, or after it but
+    // before the page has navigated away.
+    this.deletedId = task.id;
     await this.act(task, 'delete', async () => {
-      await this.service.remove(task);
+      try {
+        await this.service.remove(task);
+      } catch (error) {
+        if (this.deletedId === task.id) this.deletedId = null;
+        throw error;
+      }
       void this.undo.deleted(task);
       if (task.id === this.taskId()) this.closed.emit();
     });
@@ -342,9 +357,13 @@ export class TaskDetail {
   private async reopenFromUndo(done: TaskResponse): Promise<void> {
     const shown = this.task();
     const latest = shown?.id === done.id && shown.version > done.version ? shown : done;
+    // Unsaved edits (made before or while the undo runs) stay.
+    const draft = this.dirty() ? null : this.draft();
     const reopened = await this.service.uncomplete(latest, true);
-    // Show it, unless the editor moved on or the user started editing meanwhile.
-    if (reopened.id === this.taskId() && !this.dirty() && !this.busy()) this.showSaved(reopened);
+    // Show it, unless the editor moved on or a save or another action runs.
+    if (reopened.id !== this.taskId() || this.busy()) return;
+    this.task.set(reopened);
+    if (this.draft() === draft) this.draft.set(draftOf(reopened));
   }
 
   /** Runs Complete, Reopen or Delete of `task`; errors show like save errors. */
@@ -361,12 +380,6 @@ export class TaskDetail {
     } finally {
       if (this.action()?.id === task.id) this.action.set(null);
     }
-  }
-
-  /** Shows `task` as the saved version (form included). */
-  private showSaved(task: TaskResponse): void {
-    this.task.set(task);
-    this.draft.set(draftOf(task));
   }
 
   /** Puts the form back to the saved task. */

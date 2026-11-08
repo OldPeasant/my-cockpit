@@ -157,6 +157,16 @@ describe('TaskChecklist', () => {
     expect(count()).toBe('1/3');
   });
 
+  it('strikes through only the done steps', async () => {
+    await render();
+    const steps = [...element.querySelectorAll('.step')];
+    expect(steps.map((step) => step.classList.contains('done'))).toEqual([false, true, false]);
+    const decorations = [...element.querySelectorAll('.step-text')].map(
+      (label) => getComputedStyle(label).textDecoration,
+    );
+    expect(decorations).toEqual(['', 'line-through', '']);
+  });
+
   it('shows no count for an empty checklist', async () => {
     stored['t1'] = [];
     await render();
@@ -511,6 +521,12 @@ describe('TaskChecklist', () => {
       expect(document.activeElement).toBe(renameInput());
       // The other steps keep their labels.
       expect(texts()).toEqual(['Step a', 'Step c']);
+    });
+
+    it('styles the rename input of an open step too', async () => {
+      await render();
+      await startRename(0);
+      expect(getComputedStyle(renameInput()!).minWidth).toMatch(/^0(px)?$/);
     });
 
     it('saves the trimmed text with Enter, with the item version', async () => {
