@@ -16,7 +16,8 @@ Goal: Tapping a checklist item in the preview toggles it and saves like an edit;
 ## Acceptance criteria
 - [x] Tapping a checklist item in preview toggles it (saved like an edit)
   - verified (2026-11-08 22:52+0100 by felix/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*' (Robolectric) -> pass; NoteEditorChecklistLinksViewModelTest toggle tests (body toggled, unsaved, autosave like edit; no toggle while loading/conflict) and NoteEditorChecklistLinksScreenTest 'tapping a checklist item in the view toggles it by its line' pass (VM 9/9, Screen 4/4, MarkdownChecklistLinksTest 12/12)
-- [ ] Typing `[[` offers search-as-you-type and inserts `[[type:id]]`
+- [x] Typing `[[` offers search-as-you-type and inserts `[[type:id]]`
+  - verified (2026-11-08 22:52+0100 by felix/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*' -> pass; VM tests: 250 ms debounced global search with trimmed query, offline/failed, stale results ignored; Screen test 'typing a link reports its query, and picking a hit inserts the link' inserts [[note:<id>]], max 6 hits; Markdown linkQuery/insertLink tests 12/12. No emulator: on-device IME not run
 - [x] New strings are in English and German (`res/values/strings_notes.xml` + `res/values-de/strings_notes.xml`)
   - verified (2026-11-08 22:28+0100 by felix/agent-1): git diff 1f9b236ce..HEAD -- android/app/src/main/res -> 5 new notes_link_* strings (hint, searching, none, offline, failed), each in values/strings_notes.xml and values-de/strings_notes.xml; lintDebug (MissingTranslation) run with criterion 4
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
