@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-links-panel]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/contacts,android/app/src/test/java/ch/sonensei/cockpit/contacts,android/app/src/main/res/values/strings_contacts.xml,android/app/src/main/res/values-de/strings_contacts.xml]
 prio: 2
-lease_until: 2026-11-08T20:58:15Z
+lease_until: 2026-11-08T21:03:19Z
 ---
 ## Goal
 Android contacts are view-only (SPEC.md §9.2; owner decided on 2026-11-08 to add editing). Web: `contact-form.html`.
