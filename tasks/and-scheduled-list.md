@@ -1,10 +1,11 @@
 ---
 title: Android: Scheduled list screen
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [and-project-tasks,and-mail-search-nav]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/lists,android/app/src/test/java/ch/sonensei/cockpit/gtd/lists,android/app/src/main/java/ch/sonensei/cockpit/ui/navigation,android/app/src/test/java/ch/sonensei/cockpit/ui/navigation,android/app/src/main/res/values/strings_projects_lists.xml,android/app/src/main/res/values-de/strings_projects_lists.xml]
 prio: 2
+lease_until: 2026-11-08T12:44:06Z
 ---
 ## Goal
 Web has a Scheduled list (`lists/scheduled-page.html`); Android has no destination for it.
