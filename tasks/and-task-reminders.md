@@ -13,7 +13,8 @@ Goal: Android task detail offers the same as the web: add/remove reminders on a 
 
 ## Acceptance criteria
 - [ ] Android task detail: add/remove reminders, existing reminders listed; local alarms scheduled through the existing reminder sync
-- [ ] A reminder fires as a notification and opens the task (manually verified or skipped with reason)
+- [~] A reminder fires as a notification and opens the task (manually verified or skipped with reason)
+  - skipped (2026-11-09 00:03+0100 by dell26/agent-1): No emulator/device in this environment to fire a real notification; the tap path (OpenItemRequest.taskId -> TaskRoutes.detail in CockpitShell) is covered by unit tests only
 - [ ] New strings in English and German (`res/values{,-de}/strings_task_detail.xml`)
 - [ ] Unit tests cover the new behavior; `sh scripts/check.sh` passes
 
