@@ -1,11 +1,11 @@
 ---
 title: Android handles forced TOTP re-enrollment
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/auth,android/app/src/test/java/ch/sonensei/cockpit/auth,android/app/src/main/res/values/strings_auth.xml,android/app/src/main/res/values-de/strings_auth.xml]
 prio: 2
-lease_until: 2026-11-08T22:39:10Z
+lease_until: 
 ---
 ## Goal
 After a passphrase-less restore the server forces TOTP re-enrollment; web has a flow for it
@@ -22,3 +22,4 @@ After a passphrase-less restore the server forces TOTP re-enrollment; web has a 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 - ASSUMPTION (2026-11-08 23:05+0100 by dell26/agent-1): Android opens the web enrollment page (<server>/enroll-totp, which asks for the web login first) instead of enrolling natively: the server refuses device tokens with 403 until TOTP is re-enrolled and the enrollment endpoints need a web session cookie, so a native flow would need server changes outside this task's touches
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 70s on 592076490; criteria verified 3/3
