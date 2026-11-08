@@ -61,6 +61,7 @@ import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.core.links.ItemRef
 import ch.sonensei.cockpit.core.links.LinkedItemsSection
 import ch.sonensei.cockpit.core.links.LinkedItemsViewModel
+import ch.sonensei.cockpit.core.links.linksViewModelKey
 import ch.sonensei.cockpit.search.SearchHit
 import ch.sonensei.cockpit.search.SearchItemScreen
 import ch.sonensei.cockpit.search.SearchTarget
@@ -131,7 +132,7 @@ fun ContactDetailRoute(
         return
     }
     val viewModel: ContactDetailViewModel = hiltViewModel()
-    val links: LinkedItemsViewModel = hiltViewModel(key = "links:CONTACT:$id")
+    val links: LinkedItemsViewModel = hiltViewModel(key = linksViewModelKey(ItemRef("CONTACT", id)))
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val linkState by links.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(id) { viewModel.open(id) }

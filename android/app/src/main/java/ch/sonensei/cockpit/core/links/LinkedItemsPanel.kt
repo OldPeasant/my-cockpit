@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.core.links
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -53,6 +54,7 @@ import ch.sonensei.cockpit.search.SearchHit
 import ch.sonensei.cockpit.search.SearchTarget
 import ch.sonensei.cockpit.search.searchTarget
 import ch.sonensei.cockpit.search.searchTypeStyle
+import dagger.hilt.internal.GeneratedComponentManagerHolder
 import okhttp3.HttpUrl
 
 /** Test tags of the panel. */
@@ -127,7 +129,22 @@ fun LinkedItemsSection(
     item: ItemRef,
     open: (SearchTarget) -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: LinkedItemsViewModel = hiltViewModel(key = "links:${item.type}:${item.id}"),
+    viewModel: LinkedItemsViewModel? = null,
+) {
+    // Without Hilt (screen tests with fake view models) there is no view model to show the panel with.
+    if (viewModel == null && LocalActivity.current !is GeneratedComponentManagerHolder) return
+    LinkedItemsSectionContent(item, open, modifier, viewModel ?: hiltViewModel(key = linksViewModelKey(item)))
+}
+
+/** The key of [item]'s panel view model, so a screen can share it (e.g. for [LinkedItemsUiState.server]). */
+fun linksViewModelKey(item: ItemRef) = "links:${item.type}:${item.id}"
+
+@Composable
+private fun LinkedItemsSectionContent(
+    item: ItemRef,
+    open: (SearchTarget) -> Unit,
+    modifier: Modifier,
+    viewModel: LinkedItemsViewModel,
 ) {
     LaunchedEffect(item) { viewModel.open(item) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()

@@ -1,5 +1,8 @@
 package ch.sonensei.cockpit.contacts
 
+import androidx.compose.material3.Text
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
@@ -11,7 +14,9 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import ch.sonensei.cockpit.search.SearchTarget
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -64,7 +69,9 @@ class ContactsScreensTest {
                         call = { calls += "call $it" },
                         mail = { calls += "mail $it" },
                         retry = { calls += "retry" },
+                        openRelated = { type, itemId -> calls += "open $type $itemId" },
                     ),
+                    linksPanel = { Text("Linked items slot", Modifier.testTag("links-slot")) },
                 )
             }
         }
@@ -130,7 +137,7 @@ class ContactsScreensTest {
     }
 
     @Test
-    fun `the detail shows waiting for items, mails, events and links`() {
+    fun `the detail shows waiting for items, mails, events and the links panel, and the rows open their items`() {
         val related =
             ContactRelated(
                 waitingFor = listOf(RelatedWaiting(id(10), "Send the offer", LocalDate.of(2026, 10, 1))),
@@ -148,9 +155,23 @@ class ContactsScreensTest {
         composeRule.onNodeWithTag(ContactsTags.related(id(11))).assertTextContains("From them", substring = true)
         detail.performScrollToNode(hasTestTag(ContactsTags.related(id(12))))
         composeRule.onNodeWithTag(ContactsTags.related(id(12))).assertTextContains("Lunch", substring = true)
-        detail.performScrollToNode(hasTestTag(ContactsTags.related(id(14))))
-        composeRule.onNodeWithTag(ContactsTags.related(id(13))).assertTextContains("Note", substring = true)
-        composeRule.onNodeWithTag(ContactsTags.related(id(14))).assertTextContains("Deleted", substring = true)
+        composeRule.onNodeWithTag(ContactsTags.related(id(12))).performClick()
+        detail.performScrollToNode(hasTestTag(ContactsTags.related(id(11))))
+        composeRule.onNodeWithTag(ContactsTags.related(id(11))).performClick()
+        detail.performScrollToNode(hasTestTag(ContactsTags.related(id(10))))
+        composeRule.onNodeWithTag(ContactsTags.related(id(10))).performClick()
+        assertEquals(listOf("open EVENT ${id(12)}", "open EMAIL ${id(11)}", "open TASK ${id(10)}"), calls)
+        // The old read-only link rows are gone: the shared panel shows the links instead.
+        composeRule.onNodeWithTag(ContactsTags.related(id(13))).assertDoesNotExist()
+        detail.performScrollToNode(hasTestTag("links-slot"))
+    }
+
+    @Test
+    fun `related events open in the web app, tasks and mails in-app`() {
+        val server = "https://cockpit.example.org/".toHttpUrl()
+        assertEquals(SearchTarget.Web("https://cockpit.example.org/calendar/events/${id(12)}"), relatedTarget("EVENT", id(12), server))
+        assertEquals(SearchTarget.InApp("TASK", id(10)), relatedTarget("TASK", id(10), server))
+        assertEquals(SearchTarget.InApp("EMAIL", id(11)), relatedTarget("EMAIL", id(11), null))
     }
 
     @Test
