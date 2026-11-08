@@ -40,7 +40,13 @@
     <p class="empty" i18n="@@taskDetail.reminder.none">No reminders.</p>
   }
   @if (loadState() === 'failed') {
-    <button type="button" class="quiet retry" (click)="retry()" i18n="@@taskDetail.reminder.retry">
+    <button
+      type="button"
+      class="quiet retry"
+      [disabled]="locked()"
+      (click)="retry()"
+      i18n="@@taskDetail.reminder.retry"
+    >
       Retry
     </button>
   }

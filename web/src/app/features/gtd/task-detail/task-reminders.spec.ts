@@ -579,6 +579,7 @@ describe('TaskReminders', () => {
     buttons('.chip')[0].click();
     await refresh();
     // A retry while the add is pending would load a list without it, so it waits.
+    expect(buttons('.retry')[0].disabled).toBe(true);
     buttons('.retry')[0].click();
     await refresh();
     expect(loads).toEqual(['t1']);
@@ -586,6 +587,7 @@ describe('TaskReminders', () => {
     await refresh();
     expect(rows().length).toBe(1);
     expect(buttons('.retry').length).toBe(1);
+    expect(buttons('.retry')[0].disabled).toBe(false);
   });
 
   it('drops the retry when switching to a task whose list loads', async () => {

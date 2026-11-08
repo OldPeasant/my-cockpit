@@ -121,6 +121,7 @@ export class TaskReminders {
   protected readonly locked = computed(() => this.busy() || this.loadState() === 'loading');
   /** The exact time typed so far (`yyyy-MM-ddTHH:mm`, local). */
   protected readonly exact = signal('');
+  private loadSeq = 0;
 
   protected readonly presets = computed(() => {
     const anchors = this.anchors();
@@ -233,14 +234,16 @@ export class TaskReminders {
   }
 
   private async load(taskId: string): Promise<void> {
+    // Only the latest load counts, also against an earlier visit of the same task.
+    const seq = ++this.loadSeq;
     this.loadState.set('loading');
     try {
       const reminders = await this.service.reminders(taskId);
-      if (taskId !== this.taskId()) return;
+      if (seq !== this.loadSeq) return;
       this.reminders.set(sortByTime(reminders));
       this.loadState.set('loaded');
     } catch (error) {
-      if (taskId !== this.taskId()) return;
+      if (seq !== this.loadSeq) return;
       this.error.set(messageOf(error));
       this.loadState.set('failed');
     }

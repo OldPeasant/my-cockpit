@@ -85,3 +85,73 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+---
+
+# Fix Report (round 2)
+
+Date: 2026-11-09
+
+Task: web-task-reminders - Reminders on tasks (web)
+
+Scope: current task; findings TW-1 from `reviews/web-task-reminders/tests.md` and CR-1, CR-2 (P3) from the re-review in `reviews/web-task-reminders/review.md` (base f1b60527da71148ded53116921e7f7423e613727, HEAD 428d572f0 plus the uncommitted fixes below)
+
+## Fixed findings
+
+### TW-1 / CR-1 — A load of an earlier visit of the same task can settle the state and overwrite the list
+
+Files changed:
+- `web/src/app/features/gtd/task-detail/task-reminders.ts`
+- `web/src/locale/messages.xlf` (line-number moves only, from `npm run i18n:extract`)
+
+Problem:
+`load()` accepted a result when its task id matched the current one. After t1 -> t2 -> t1 with the first t1 GET still pending, two loads for t1 ran: the first to answer unlocked the controls, and the late one then replaced the list (dropping a reminder added meanwhile) or showed its failure. The two test-writer specs "ignores a late answer from an earlier visit of the same task" and "ignores a late load failure from an earlier visit of the same task" failed.
+
+Fix:
+A private `loadSeq` counter, incremented at the start of every `load()` (task switch or retry), as `TaskDetail.load` does. A success or failure is applied, and `loadState` settled (which unlocks the controls), only when its sequence number is still the latest. The two specs are unchanged.
+
+Validation:
+- `npm --prefix web run test:ci -- --include='src/app/features/gtd/task-detail/**/*.spec.ts' --include='src/locale/**/*.spec.ts'` — Pass (both TW-1 specs now pass)
+
+### CR-2 — Retry button looks enabled while a change is running but ignores clicks
+
+Files changed:
+- `web/src/app/features/gtd/task-detail/task-reminders.html`
+- `web/src/app/features/gtd/task-detail/task-reminders.spec.ts`
+
+Problem:
+`retry()` returns early while `locked()` is true, but the Retry button had no `[disabled]` binding, so a click during a pending add was silently dropped.
+
+Fix:
+Added `[disabled]="locked()"` to the Retry button, like the chips and the other buttons. The spec "does not reload while an add after a failed load is pending" now also asserts that Retry is disabled while the add is pending and enabled again after it finished.
+
+Validation:
+- `npm --prefix web run test:ci -- --include='src/app/features/gtd/task-detail/**/*.spec.ts' --include='src/locale/**/*.spec.ts'` — Pass
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `npm --prefix web run test:ci -- --include='src/app/features/gtd/task-detail/**/*.spec.ts' --include='src/locale/**/*.spec.ts'` — 9 files, 380 tests passed (run again after the i18n extract, same result)
+
+Full test suite:
+- Not run (the parent runs the full web suite and `.taskcheck`)
+
+Lint/type-check/build:
+- `npm --prefix web run lint` — All files pass linting
+- `npm --prefix web exec -- prettier --check` on the three edited component files — All matched files use Prettier code style
+- `npm --prefix web run i18n:extract` — only line-number moves for `task-reminders.ts` / `task-reminders.html` in `messages.xlf`; no new or changed units, `messages.de.xlf` untouched
+- Type-check runs as part of the vitest build above — Pass
+
+`.taskcheck`:
+- Not run (it includes Gradle, which the parent told this helper not to run)
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed.
