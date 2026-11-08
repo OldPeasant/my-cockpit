@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "task": "cal-invitation-respond-web",
+  "reviewed_revision": "c41803aed3d2151ef98172d496396677410f3b53",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/cal-invitation-respond-web/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/cal-invitation-respond-web/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/cal-invitation-respond-web/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "Escape/backdrop close after an answer now returns 'saved'; re-reviewed at c41803aed with no findings"}
+  ],
+  "validation": [
+    {"command": "npm --prefix web exec -- ng test --include src/app/features/calendar/edit --watch=false", "result": "pass"},
+    {"command": "npm --prefix web run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
