@@ -174,7 +174,7 @@ class HabitsManageScreenTest {
 
         composeRule
             .onNodeWithTag(HabitsTags.habit(water.id))
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "1 of 3 today"))
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Today: 1 of 3"))
             .assertTextContains("today 1/3", substring = true)
     }
 

@@ -36,6 +36,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -210,7 +211,7 @@ private fun WeekdayChoice(
     saving: Boolean,
     update: (HabitDraft) -> Unit,
 ) {
-    val locale = Locale.getDefault()
+    val locale = LocalConfiguration.current.locales[0]
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         DayOfWeek.entries.forEach { day ->
             val selected = day in draft.weekdays

@@ -223,12 +223,23 @@ class HabitsViewModelManageTest {
             vm.updateDraft(HabitDraft(name = "Read"))
             vm.save()
             advanceUntilIdle()
-            assertEquals(HabitEditorError.OFFLINE, vm.uiState.value.editor!!.error)
+            assertEquals(
+                HabitEditorError.OFFLINE,
+                vm.uiState.value.editor!!
+                    .error,
+            )
 
             vm.updateDraft(HabitDraft(name = "Read more"))
 
-            assertEquals("Read more", vm.uiState.value.editor!!.draft.name)
-            assertNull(vm.uiState.value.editor!!.error)
+            assertEquals(
+                "Read more",
+                vm.uiState.value.editor!!
+                    .draft.name,
+            )
+            assertNull(
+                vm.uiState.value.editor!!
+                    .error,
+            )
         }
 
     @Test
@@ -251,7 +262,10 @@ class HabitsViewModelManageTest {
             val vm = newViewModel()
             runCurrent()
             vm.startCreate()
-            assertFalse(vm.uiState.value.editor!!.tried)
+            assertFalse(
+                vm.uiState.value.editor!!
+                    .tried,
+            )
 
             vm.save()
             advanceUntilIdle()
@@ -276,11 +290,18 @@ class HabitsViewModelManageTest {
             vm.updateDraft(draft)
 
             vm.save()
-            assertTrue(vm.uiState.value.editor!!.saving)
+            assertTrue(
+                vm.uiState.value.editor!!
+                    .saving,
+            )
             advanceUntilIdle()
 
             assertNull(vm.uiState.value.editor)
-            assertEquals(listOf("Drink water", "meditate", "Stretch"), vm.uiState.value.habits.map { it.name })
+            assertEquals(
+                listOf("Drink water", "meditate", "Stretch"),
+                vm.uiState.value.habits
+                    .map { it.name },
+            )
             coVerify(exactly = 1) { repo.create(draft) }
         }
 
@@ -341,12 +362,23 @@ class HabitsViewModelManageTest {
 
             vm.save()
             advanceUntilIdle()
-            assertEquals(HabitEditorError.OFFLINE, vm.uiState.value.editor!!.error)
-            assertFalse(vm.uiState.value.editor!!.saving)
+            assertEquals(
+                HabitEditorError.OFFLINE,
+                vm.uiState.value.editor!!
+                    .error,
+            )
+            assertFalse(
+                vm.uiState.value.editor!!
+                    .saving,
+            )
 
             vm.save()
             advanceUntilIdle()
-            assertEquals(HabitEditorError.FAILED, vm.uiState.value.editor!!.error)
+            assertEquals(
+                HabitEditorError.FAILED,
+                vm.uiState.value.editor!!
+                    .error,
+            )
             assertEquals(listOf(water, stretch), vm.uiState.value.habits)
         }
 
@@ -362,7 +394,11 @@ class HabitsViewModelManageTest {
             vm.save()
             advanceUntilIdle()
 
-            assertEquals(HabitEditorError.FAILED, vm.uiState.value.editor!!.error)
+            assertEquals(
+                HabitEditorError.FAILED,
+                vm.uiState.value.editor!!
+                    .error,
+            )
             coVerify(exactly = 1) { repo.list(false) }
         }
 
@@ -370,7 +406,8 @@ class HabitsViewModelManageTest {
     fun `an edit in conflict reloads the list, keeps the form, and saving again uses the reloaded version`() =
         runTest(dispatcher) {
             val newer = water.copy(name = "Drink more water", version = 5)
-            coEvery { repo.list(false) } returnsMany listOf(HabitsResult.Ok(listOf(water, stretch)), HabitsResult.Ok(listOf(newer, stretch)))
+            coEvery { repo.list(false) } returnsMany
+                listOf(HabitsResult.Ok(listOf(water, stretch)), HabitsResult.Ok(listOf(newer, stretch)))
             val draft = HabitDraft.of(water).copy(targetCount = 2)
             coEvery { repo.update(water, draft) } returns HabitsResult.Failed(412)
             coEvery { repo.update(newer, draft) } returns HabitsResult.Ok(newer.copy(targetCount = 2, version = 6))
@@ -393,7 +430,11 @@ class HabitsViewModelManageTest {
             advanceUntilIdle()
             coVerify(exactly = 1) { repo.update(newer, draft) }
             assertNull(vm.uiState.value.editor)
-            assertEquals(6L, vm.uiState.value.habits[0].version)
+            assertEquals(
+                6L,
+                vm.uiState.value.habits[0]
+                    .version,
+            )
         }
 
     @Test
@@ -406,13 +447,21 @@ class HabitsViewModelManageTest {
             vm.startEdit(water.id)
             vm.save()
             advanceUntilIdle()
-            assertEquals(HabitEditorError.CONFLICT, vm.uiState.value.editor!!.error)
+            assertEquals(
+                HabitEditorError.CONFLICT,
+                vm.uiState.value.editor!!
+                    .error,
+            )
             assertEquals(listOf(stretch), vm.uiState.value.habits)
 
             vm.save()
             advanceUntilIdle()
 
-            assertEquals(HabitEditorError.CONFLICT, vm.uiState.value.editor!!.error)
+            assertEquals(
+                HabitEditorError.CONFLICT,
+                vm.uiState.value.editor!!
+                    .error,
+            )
             coVerify(exactly = 1) { repo.update(any(), any()) }
         }
 
@@ -449,7 +498,10 @@ class HabitsViewModelManageTest {
             advanceUntilIdle()
 
             assertEquals(listOf(stretch), vm.uiState.value.habits)
-            assertTrue(vm.uiState.value.checking.isEmpty())
+            assertTrue(
+                vm.uiState.value.checking
+                    .isEmpty(),
+            )
             assertNull(vm.uiState.value.message)
         }
 
@@ -512,14 +564,18 @@ class HabitsViewModelManageTest {
             vm.toggleArchived(water.id)
             advanceUntilIdle()
             assertEquals(HabitsMessage.ARCHIVE_FAILED, vm.uiState.value.message)
-            assertTrue(vm.uiState.value.checking.isEmpty())
+            assertTrue(
+                vm.uiState.value.checking
+                    .isEmpty(),
+            )
         }
 
     @Test
     fun `an archive in conflict says so and loads the list again`() =
         runTest(dispatcher) {
             val newer = water.copy(version = 4)
-            coEvery { repo.list(false) } returnsMany listOf(HabitsResult.Ok(listOf(water, stretch)), HabitsResult.Ok(listOf(newer, stretch)))
+            coEvery { repo.list(false) } returnsMany
+                listOf(HabitsResult.Ok(listOf(water, stretch)), HabitsResult.Ok(listOf(newer, stretch)))
             coEvery { repo.setArchived(water, true) } returns HabitsResult.Failed(409)
             val vm = newViewModel()
             runCurrent()
@@ -545,6 +601,87 @@ class HabitsViewModelManageTest {
 
             assertEquals(HabitsMessage.CONFLICT, vm.uiState.value.message)
             coVerify(exactly = 2) { repo.list(false) }
+        }
+
+    @Test
+    fun `a conflict reload read before a later archive finished does not bring the archived habit back`() =
+        runTest(dispatcher) {
+            val reload = CompletableDeferred<HabitsResult<List<Habit>>>()
+            var lists = 0
+            coEvery { repo.list(false) } coAnswers {
+                if (lists++ == 0) HabitsResult.Ok(listOf(water, stretch)) else reload.await()
+            }
+            coEvery { repo.setArchived(water, true) } returns HabitsResult.Failed(412)
+            coEvery { repo.setArchived(stretch, true) } returns HabitsResult.Ok(stretch.copy(archived = true, version = 2))
+            val vm = newViewModel()
+            runCurrent()
+
+            vm.toggleArchived(water.id)
+            runCurrent()
+            assertTrue(vm.uiState.value.loading)
+            vm.toggleArchived(stretch.id)
+            runCurrent()
+            assertEquals(listOf(water), vm.uiState.value.habits)
+            reload.complete(HabitsResult.Ok(listOf(water.copy(version = 3), stretch)))
+            advanceUntilIdle()
+
+            assertEquals(listOf(water), vm.uiState.value.habits)
+            assertFalse(vm.uiState.value.loading)
+            coVerify(exactly = 2) { repo.list(false) }
+        }
+
+    @Test
+    fun `a conflict reload read before a later check-off finished does not undo the check-off`() =
+        runTest(dispatcher) {
+            val reload = CompletableDeferred<HabitsResult<List<Habit>>>()
+            var lists = 0
+            coEvery { repo.list(false) } coAnswers {
+                if (lists++ == 0) HabitsResult.Ok(listOf(water, stretch)) else reload.await()
+            }
+            val checked = stretch.copy(todayCount = 1, version = 2)
+            coEvery { repo.check(water) } returns HabitsResult.Failed(409)
+            coEvery { repo.check(stretch) } returns HabitsResult.Ok(checked)
+            val vm = newViewModel()
+            runCurrent()
+
+            vm.toggle(water.id)
+            runCurrent()
+            vm.toggle(stretch.id)
+            runCurrent()
+            reload.complete(HabitsResult.Ok(listOf(water.copy(version = 3), stretch)))
+            advanceUntilIdle()
+
+            assertEquals(listOf(water, checked), vm.uiState.value.habits)
+            assertFalse(vm.uiState.value.loading)
+        }
+
+    @Test
+    fun `a conflict reload answer is dropped while a later change is still on its way`() =
+        runTest(dispatcher) {
+            val reload = CompletableDeferred<HabitsResult<List<Habit>>>()
+            val check = CompletableDeferred<HabitsResult<Habit>>()
+            var lists = 0
+            coEvery { repo.list(false) } coAnswers {
+                if (lists++ == 0) HabitsResult.Ok(listOf(water, stretch)) else reload.await()
+            }
+            val checked = stretch.copy(todayCount = 1, version = 2)
+            coEvery { repo.check(water) } returns HabitsResult.Failed(412)
+            coEvery { repo.check(stretch) } coAnswers { check.await() }
+            val vm = newViewModel()
+            runCurrent()
+
+            vm.toggle(water.id)
+            runCurrent()
+            vm.toggle(stretch.id)
+            runCurrent()
+            reload.complete(HabitsResult.Ok(listOf(water.copy(version = 3), stretch)))
+            runCurrent()
+            assertEquals(listOf(water, stretch), vm.uiState.value.habits)
+            assertFalse(vm.uiState.value.loading)
+
+            check.complete(HabitsResult.Ok(checked))
+            advanceUntilIdle()
+            assertEquals(listOf(water, checked), vm.uiState.value.habits)
         }
 
     @Test

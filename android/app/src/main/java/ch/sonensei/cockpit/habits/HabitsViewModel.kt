@@ -71,6 +71,12 @@ class HabitsViewModel
         /** Counts the loads, so an answer for a view that is no longer shown is dropped. */
         private var loadSeq = 0
 
+        /**
+         * Counts the starts and ends of local changes (check, archive, save), so a conflict reload that may have read
+         * the list before such a change does not undo it on screen.
+         */
+        private var changeSeq = 0
+
         init {
             startLoad()
         }
@@ -91,12 +97,21 @@ class HabitsViewModel
             startLoad()
         }
 
-        private fun startLoad() {
+        /**
+         * Loads the list; the answer is dropped when another load started meanwhile, and (when [quiet]) also when a
+         * local change started or finished meanwhile: the list may have been read before it and would undo it.
+         */
+        private fun startLoad(quiet: Boolean = false) {
             val seq = ++loadSeq
+            val changes = changeSeq
             val archived = state.value.archived
             viewModelScope.launch {
                 val result = habits.list(archived)
                 if (seq != loadSeq) return@launch
+                if (quiet && changes != changeSeq) {
+                    state.update { it.copy(loading = false) }
+                    return@launch
+                }
                 state.update {
                     when (result) {
                         is HabitsResult.Ok -> it.copy(habits = result.value, loading = false, loaded = true)
@@ -110,7 +125,7 @@ class HabitsViewModel
         /** Loads the list again after a conflict, keeping what is on screen meanwhile. */
         private fun reloadAfterConflict() {
             state.update { it.copy(loading = true) }
-            startLoad()
+            startLoad(quiet = true)
         }
 
         /** One more check for today on habit [id] until its target is reached, then back to none. */
@@ -138,28 +153,18 @@ class HabitsViewModel
             send: suspend () -> HabitsResult<Habit>,
         ) {
             state.update { it.copy(checking = it.checking + id, message = null) }
+            changeSeq++
             viewModelScope.launch {
                 val result = send()
+                // Counted before the conflict reload starts, so the failed change does not drop its own reload.
+                changeSeq++
                 val conflict = result is HabitsResult.Failed && result.status in HabitsRepository.CONFLICTS
                 state.update { s ->
                     val checking = s.checking - id
                     when {
                         result is HabitsResult.Ok ->
                             s.copy(
-                                habits =
-                                    if (removes) {
-                                        s.habits.filterNot { it.id == id }
-                                    } else {
-                                        s.habits.map {
-                                            if (it.id ==
-                                                id
-                                            ) {
-                                                result.value
-                                            } else {
-                                                it
-                                            }
-                                        }
-                                    },
+                                habits = if (removes) s.habits.filterNot { it.id == id } else s.habits.replacing(result.value),
                                 checking = checking,
                                 editor = if (removes && s.editor?.habitId == id) null else s.editor,
                             )
@@ -208,8 +213,11 @@ class HabitsViewModel
                 return
             }
             state.update { it.copy(editor = editor.copy(saving = true, tried = true, error = null)) }
+            changeSeq++
             viewModelScope.launch {
                 val result = if (habit == null) habits.create(editor.draft) else habits.update(habit, editor.draft)
+                // Counted before the conflict reload starts, so the failed save does not drop its own reload.
+                changeSeq++
                 val conflict = habit != null && result is HabitsResult.Failed && result.status in HabitsRepository.CONFLICTS
                 state.update { s ->
                     val current = s.editor ?: return@update s
@@ -236,10 +244,13 @@ class HabitsViewModel
             habit: Habit,
         ): List<Habit> =
             when {
-                s.habits.any { it.id == habit.id } -> s.habits.map { if (it.id == habit.id) habit else it }
+                s.habits.any { it.id == habit.id } -> s.habits.replacing(habit)
                 habit.archived != s.archived -> s.habits
                 else -> (s.habits + habit).sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
             }
 
         fun dismissMessage() = state.update { it.copy(message = null) }
     }
+
+/** The list with [habit] in place of the habit with the same id. */
+private fun List<Habit>.replacing(habit: Habit): List<Habit> = map { if (it.id == habit.id) habit else it }

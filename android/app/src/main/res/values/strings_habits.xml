@@ -25,7 +25,7 @@
     </plurals>
     <string name="habits_completion">%1$d%% of the last 30 days</string>
     <string name="habits_progress">today %1$d/%2$d</string>
-    <string name="habits_progress_state">%1$d of %2$d today</string>
+    <string name="habits_progress_state">Today: %1$d of %2$d</string>
     <string name="habits_load_offline">Can\'t reach the server, so your habits could not be loaded.</string>
     <string name="habits_load_failed">Your habits could not be loaded.</string>
     <string name="habits_check_offline">Not checked off: no connection.</string>
