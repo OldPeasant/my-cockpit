@@ -5,7 +5,7 @@ owner: rudi/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/files,android/app/src/test/java/ch/sonensei/cockpit/files,android/app/src/main/res/values/strings_files.xml,android/app/src/main/res/values-de/strings_files.xml]
 prio: 2
-lease_until: 2026-11-08T12:57:12Z
+lease_until: 2026-11-08T13:01:37Z
 extended: 
 releases: 1
 ---
