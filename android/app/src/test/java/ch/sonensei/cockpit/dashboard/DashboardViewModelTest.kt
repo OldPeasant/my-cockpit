@@ -43,7 +43,7 @@ class DashboardViewModelTest {
     @Test
     fun `the stored layout decides which widgets load and in which order`() =
         runTest(dispatcher) {
-            coEvery { repo.layout() } returns DashboardResult.Ok(listOf(WidgetId.WEEKLY_REVIEW, WidgetId.INBOX))
+            coEvery { repo.layout() } returns DashboardResult.Ok(layoutOf(WidgetId.WEEKLY_REVIEW, WidgetId.INBOX))
             coEvery { repo.load(WidgetId.WEEKLY_REVIEW) } returns DashboardResult.Ok(review)
             coEvery { repo.load(WidgetId.INBOX) } returns DashboardResult.Ok(inbox)
             val vm = DashboardViewModel(repo)
@@ -76,7 +76,7 @@ class DashboardViewModelTest {
     @Test
     fun `one failing widget shows its error while the others show their data`() =
         runTest(dispatcher) {
-            coEvery { repo.layout() } returns DashboardResult.Ok(listOf(WidgetId.INBOX, WidgetId.WEEKLY_REVIEW, WidgetId.TODAY))
+            coEvery { repo.layout() } returns DashboardResult.Ok(layoutOf(WidgetId.INBOX, WidgetId.WEEKLY_REVIEW, WidgetId.TODAY))
             coEvery { repo.load(WidgetId.INBOX) } returns DashboardResult.Failed
             coEvery { repo.load(WidgetId.WEEKLY_REVIEW) } returns DashboardResult.Ok(review)
             coEvery { repo.load(WidgetId.TODAY) } returns DashboardResult.Offline
@@ -94,7 +94,7 @@ class DashboardViewModelTest {
     @Test
     fun `pull to refresh reloads every widget, keeps data on a failure and clears an error on success`() =
         runTest(dispatcher) {
-            coEvery { repo.layout() } returns DashboardResult.Ok(listOf(WidgetId.INBOX, WidgetId.WEEKLY_REVIEW))
+            coEvery { repo.layout() } returns DashboardResult.Ok(layoutOf(WidgetId.INBOX, WidgetId.WEEKLY_REVIEW))
             coEvery { repo.load(WidgetId.INBOX) } returnsMany listOf(DashboardResult.Ok(inbox), DashboardResult.Offline)
             coEvery { repo.load(WidgetId.WEEKLY_REVIEW) } returnsMany listOf(DashboardResult.Failed, DashboardResult.Ok(review))
             val vm = DashboardViewModel(repo)
@@ -117,7 +117,7 @@ class DashboardViewModelTest {
     fun `a slow widget does not hold back the others`() =
         runTest(dispatcher) {
             val slow = CompletableDeferred<DashboardResult<WidgetData>>()
-            coEvery { repo.layout() } returns DashboardResult.Ok(listOf(WidgetId.INBOX, WidgetId.WEEKLY_REVIEW))
+            coEvery { repo.layout() } returns DashboardResult.Ok(layoutOf(WidgetId.INBOX, WidgetId.WEEKLY_REVIEW))
             coEvery { repo.load(WidgetId.INBOX) } coAnswers { slow.await() }
             coEvery { repo.load(WidgetId.WEEKLY_REVIEW) } returns DashboardResult.Ok(review)
             val vm = DashboardViewModel(repo)
@@ -157,7 +157,7 @@ class DashboardViewModelTest {
     @Test
     fun `a layout that cannot be reloaded keeps the one shown`() =
         runTest(dispatcher) {
-            coEvery { repo.layout() } returnsMany listOf(DashboardResult.Ok(listOf(WidgetId.INBOX)), DashboardResult.Failed)
+            coEvery { repo.layout() } returnsMany listOf(DashboardResult.Ok(layoutOf(WidgetId.INBOX)), DashboardResult.Failed)
             coEvery { repo.load(WidgetId.INBOX) } returns DashboardResult.Ok(inbox)
             val vm = DashboardViewModel(repo)
             vm.refresh()
@@ -176,7 +176,7 @@ class DashboardViewModelTest {
         runTest(dispatcher) {
             val stale = CompletableDeferred<DashboardResult<WidgetData>>()
             val fresh = WidgetData.Inbox(Count(7, more = false), Count(0, more = false))
-            coEvery { repo.layout() } returns DashboardResult.Ok(listOf(WidgetId.INBOX))
+            coEvery { repo.layout() } returns DashboardResult.Ok(layoutOf(WidgetId.INBOX))
             coEvery { repo.load(WidgetId.INBOX) } coAnswers { stale.await() } coAndThen { DashboardResult.Ok(fresh) }
             val vm = DashboardViewModel(repo)
             vm.refresh()
@@ -195,7 +195,7 @@ class DashboardViewModelTest {
     fun `only a pull shows the refresh indicator`() =
         runTest(dispatcher) {
             val slow = CompletableDeferred<DashboardResult<WidgetData>>()
-            coEvery { repo.layout() } returns DashboardResult.Ok(listOf(WidgetId.INBOX))
+            coEvery { repo.layout() } returns DashboardResult.Ok(layoutOf(WidgetId.INBOX))
             coEvery { repo.load(WidgetId.INBOX) } coAnswers { slow.await() }
             val vm = DashboardViewModel(repo)
 

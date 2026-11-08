@@ -73,7 +73,7 @@ class DashboardInAppTest {
         WorkManagerTestInitHelper.initializeTestWorkManager(ApplicationProvider.getApplicationContext())
         tokenStore.login(AuthTokens("access-fictitious", "refresh-fictitious"), null)
         // The user's layout starts with Inbox, unlike the default order (Today first) shown before it loads.
-        coEvery { repo.layout() } returns DashboardResult.Ok(listOf(WidgetId.INBOX, WidgetId.TODAY, WidgetId.WEEKLY_REVIEW))
+        coEvery { repo.layout() } returns DashboardResult.Ok(layoutOf(WidgetId.INBOX, WidgetId.TODAY, WidgetId.WEEKLY_REVIEW))
         coEvery { repo.load(WidgetId.INBOX) } returns DashboardResult.Ok(inbox)
         coEvery { repo.load(WidgetId.TODAY) } returns DashboardResult.Ok(today)
         coEvery { repo.load(WidgetId.WEEKLY_REVIEW) } returns DashboardResult.Failed

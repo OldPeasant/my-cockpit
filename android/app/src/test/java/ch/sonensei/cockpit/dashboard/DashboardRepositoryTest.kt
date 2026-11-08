@@ -149,7 +149,7 @@ class DashboardRepositoryTest {
         runBlocking {
             answer("/api/v1/settings", json("""{"theme":"dark","dashboardWidgets":["inbox","today:hidden","pinnedNotes"]}"""))
 
-            val layout = (dashboard.layout() as DashboardResult.Ok).value
+            val layout = (dashboard.layout() as DashboardResult.Ok).value.shown()
 
             assertEquals(
                 listOf(WidgetId.INBOX, WidgetId.PINNED_NOTES) +
@@ -162,7 +162,7 @@ class DashboardRepositoryTest {
     fun `settings without a layout give every widget, and an unreachable server is offline`() =
         runBlocking {
             answer("/api/v1/settings", json("""{"theme":"dark"}"""))
-            assertEquals(DashboardResult.Ok(WidgetId.entries), dashboard.layout())
+            assertEquals(DashboardResult.Ok(DEFAULT_LAYOUT), dashboard.layout())
 
             answer("/api/v1/settings", status(503))
             assertEquals(DashboardResult.Offline, dashboard.layout())
@@ -279,7 +279,10 @@ class DashboardRepositoryTest {
 
         assertEquals(listOf("Reply from the landlord"), (ok(WidgetId.WAITING_OVERDUE) as WidgetData.WaitingOverdue).tasks.map { it.title })
         assertEquals(WidgetData.StalledProjects(listOf(DashboardItem(id(2), "Move flat"))), ok(WidgetId.STALLED_PROJECTS))
-        assertEquals(WidgetData.ReadLater(listOf(DashboardItem(id(3), "Page 3")), more = true), ok(WidgetId.READ_LATER))
+        assertEquals(
+            WidgetData.ReadLater(listOf(DashboardItem(id(3), "Page 3", "https://www.example.org/3")), more = true),
+            ok(WidgetId.READ_LATER),
+        )
         assertEquals(WidgetData.PinnedNotes(listOf(DashboardItem(id(4), "Packing list")), more = false), ok(WidgetId.PINNED_NOTES))
     }
 
@@ -336,7 +339,10 @@ class DashboardRepositoryTest {
 
         val events = (ok(WidgetId.UPCOMING) as WidgetData.Upcoming).events
 
-        assertEquals(DashboardEvent("${id(4)}:2026-10-24", "Holiday", LocalDate.parse("2026-10-24"), null), events[0])
+        assertEquals(
+            DashboardEvent("${id(4)}:2026-10-24", "Holiday", LocalDate.parse("2026-10-24"), null),
+            events[0].copy(occurrence = null),
+        )
         assertEquals(LocalDate.parse("2026-10-23"), events[1].date)
         assertEquals(Instant.parse("2026-10-22T23:30:00Z"), events[1].start)
         assertEquals("${id(5)}:2026-10-23", events[1].key)

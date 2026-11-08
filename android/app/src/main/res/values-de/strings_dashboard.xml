@@ -37,4 +37,18 @@
     <string name="dashboard_read_later_empty">Nichts zum späteren Lesen.</string>
     <string name="dashboard_pinned_empty">Keine angehefteten Notizen.</string>
     <string name="dashboard_more">und weitere</string>
+    <string name="dashboard_open">Öffnen</string>
+    <string name="dashboard_review_start">Wochenrückblick starten</string>
+    <string name="dashboard_review_continue">Offenen Rückblick fortsetzen</string>
+    <string name="dashboard_customize">Anpassen</string>
+    <string name="dashboard_customize_done">Fertig</string>
+    <string name="dashboard_customize_title">Widgets</string>
+    <string name="dashboard_customize_hint">Wähle, welche Widgets angezeigt werden. Zum Ändern der Reihenfolge ein Widget lange drücken und ziehen. Jedes Gerät zeigt dieselbe Übersicht.</string>
+    <string name="dashboard_customize_reset">Auf Standard zurücksetzen</string>
+    <string name="dashboard_move_up">Nach oben</string>
+    <string name="dashboard_move_down">Nach unten</string>
+    <string name="dashboard_layout_offline">Der Server ist nicht erreichbar: Die Änderung wurde nicht gespeichert.</string>
+    <string name="dashboard_layout_failed">Die Änderung konnte nicht gespeichert werden.</string>
+    <string name="dashboard_all_hidden">Alle Widgets sind ausgeblendet.</string>
+    <string name="dashboard_choose_widgets">Widgets auswählen</string>
 </resources>

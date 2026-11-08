@@ -44,32 +44,7 @@ fun CalendarWithEditor(
         return
     }
     if (editorState.open) {
-        EventEditorContent(
-            state = editorState,
-            callbacks =
-                EventEditorCallbacks(
-                    update = editor::update,
-                    save = editor::save,
-                    close = editor::close,
-                    chooseScope = editor::chooseScope,
-                    dismissScope = editor::dismissScope,
-                    reload = editor::reload,
-                    delete = editor::delete,
-                    confirmDelete = editor::confirmDelete,
-                    dismissDelete = editor::dismissDelete,
-                    setGuestQuery = editor::setGuestQuery,
-                    addGuest = editor::addGuest,
-                    removeGuest = editor::removeGuest,
-                    invite = editor::invite,
-                    updateInvitation = editor::updateInvitation,
-                    sendInvitation = editor::sendInvitation,
-                    dismissInvitation = editor::dismissInvitation,
-                    retryAccounts = editor::loadAccounts,
-                    createLinked = editor::createLinked,
-                    reloadLinks = editor::loadLinks,
-                ),
-            modifier = modifier,
-        )
+        EventEditorContent(state = editorState, callbacks = EventEditorCallbacks.of(editor), modifier = modifier)
         return
     }
     Box(modifier.fillMaxSize()) {

@@ -1,5 +1,9 @@
 package ch.sonensei.cockpit.dashboard
 
+import ch.sonensei.cockpit.calendar.agenda.CalendarInfo
+import ch.sonensei.cockpit.calendar.agenda.Occurrence
+import ch.sonensei.cockpit.calendar.agenda.toCalendar
+import ch.sonensei.cockpit.calendar.agenda.toOccurrence
 import ch.sonensei.cockpit.core.network.generated.apis.BookmarksApi
 import ch.sonensei.cockpit.core.network.generated.apis.CalendarsApi
 import ch.sonensei.cockpit.core.network.generated.apis.HabitsApi
@@ -18,6 +22,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import retrofit2.Response
@@ -49,24 +54,61 @@ enum class WidgetId(
 const val LAYOUT_SETTING = "dashboardWidgets"
 private const val HIDDEN = ":hidden"
 
+/** One widget's place on the dashboard: its position is its index in the layout. */
+data class WidgetSlot(
+    val id: WidgetId,
+    val visible: Boolean,
+)
+
+/** The default layout: every widget, shown, in [WidgetId] order. */
+val DEFAULT_LAYOUT: List<WidgetSlot> = WidgetId.entries.map { WidgetSlot(it, visible = true) }
+
 /**
- * The shown widgets in their order, read from the stored layout like the web does: the listed widgets in their order
- * (unknown or repeated ids skipped, `<id>:hidden` hidden), then the widgets missing from it (added later), shown.
- * No layout (or an unreadable one) is the default: every widget in [WidgetId] order.
+ * Every widget in its place, read from the stored layout like the web does: the listed widgets in their order (unknown
+ * or repeated ids skipped, `<id>:hidden` hidden), then the widgets missing from it (added later), shown. No layout (or
+ * an unreadable one) is [DEFAULT_LAYOUT].
  */
-fun parseLayout(stored: JsonElement?): List<WidgetId> {
+fun parseSlots(stored: JsonElement?): List<WidgetSlot> {
     val byKey = WidgetId.entries.associateBy { it.key }
     val seen = mutableSetOf<WidgetId>()
-    val shown = mutableListOf<WidgetId>()
+    val slots = mutableListOf<WidgetSlot>()
     for (entry in stored as? JsonArray ?: emptyList()) {
         val text = (entry as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull ?: continue
         val hidden = text.endsWith(HIDDEN)
         val widget = byKey[text.removeSuffix(HIDDEN)] ?: continue
         if (!seen.add(widget)) continue
-        if (!hidden) shown += widget
+        slots += WidgetSlot(widget, visible = !hidden)
     }
-    return shown + WidgetId.entries.filter { it !in seen }
+    return slots + WidgetId.entries.filter { it !in seen }.map { WidgetSlot(it, visible = true) }
 }
+
+/** The shown widgets in their order (see [parseSlots]). */
+fun parseLayout(stored: JsonElement?): List<WidgetId> = parseSlots(stored).shown()
+
+/** The setting value of this layout, as the web writes it. */
+fun List<WidgetSlot>.toSetting(): JsonArray = JsonArray(map { JsonPrimitive(if (it.visible) it.id.key else it.id.key + HIDDEN) })
+
+/** The ids of the shown widgets, in order. */
+fun List<WidgetSlot>.shown(): List<WidgetId> = filter { it.visible }.map { it.id }
+
+/** This layout with [widget] moved to [index] (clamped to the ends). */
+fun List<WidgetSlot>.moved(
+    widget: WidgetId,
+    index: Int,
+): List<WidgetSlot> {
+    val from = indexOfFirst { it.id == widget }
+    if (from < 0) return this
+    val result = toMutableList()
+    val slot = result.removeAt(from)
+    result.add(index.coerceIn(0, result.size), slot)
+    return result
+}
+
+/** This layout with [widget] shown or hidden. */
+fun List<WidgetSlot>.withVisible(
+    widget: WidgetId,
+    visible: Boolean,
+): List<WidgetSlot> = map { if (it.id == widget) it.copy(visible = visible) else it }
 
 /** A number cut at a page size: [more] means there are more than [count]. */
 data class Count(
@@ -74,10 +116,11 @@ data class Count(
     val more: Boolean,
 )
 
-/** An item a widget lists. */
+/** An item a widget lists; [url] is a bookmark's address, which a tap opens. */
 data class DashboardItem(
     val id: UUID,
     val title: String,
+    val url: String? = null,
 )
 
 /** A task of a widget, with its due date. */
@@ -87,12 +130,16 @@ data class DashboardTask(
     val dueDate: LocalDate?,
 )
 
-/** An event occurrence; [start] is `null` for an all-day one, [date] its (first) day. */
+/**
+ * An event occurrence; [start] is `null` for an all-day one, [date] its (first) day. [occurrence] is what a tap opens in
+ * the event editor (`null` in tests that do not open it: the tap then opens the calendar).
+ */
 data class DashboardEvent(
     val key: String,
     val title: String,
     val date: LocalDate,
     val start: Instant?,
+    val occurrence: Occurrence? = null,
 )
 
 /** What each widget shows. */
@@ -185,8 +232,39 @@ class DashboardRepository(
         notes: NotesApi,
     ) : this(settings, tasks, projects, calendars, mail, habits, reviews, bookmarks, notes, Clock.systemDefaultZone())
 
-    /** The shown widgets in their order, from the user settings the web dashboard writes. */
-    suspend fun layout(): DashboardResult<List<WidgetId>> = call { parseLayout(body(settings.getSettings())[LAYOUT_SETTING]) }
+    /** The ETag of the settings last read or written, for If-Match. */
+    @Volatile private var settingsEtag: String? = null
+
+    /** Every widget in its place, from the user settings the web dashboard writes too. */
+    suspend fun layout(): DashboardResult<List<WidgetSlot>> = call { readSettings() }
+
+    /**
+     * Stores [layout] in the setting the web uses and returns the stored layout. Only this key is sent, so on a stale
+     * ETag (settings changed elsewhere meanwhile) they are read again and the layout is sent once more: the user's latest
+     * layout wins.
+     */
+    suspend fun saveLayout(layout: List<WidgetSlot>): DashboardResult<List<WidgetSlot>> =
+        call {
+            val change = JsonObject(mapOf(LAYOUT_SETTING to layout.toSetting()))
+            var response = settings.updateSettings(change, settingsEtag)
+            if (response.code() in CONFLICTS) {
+                readSettings()
+                response = settings.updateSettings(change, settingsEtag)
+            }
+            val stored = body(response)[LAYOUT_SETTING]
+            settingsEtag = response.headers()["ETag"] ?: settingsEtag
+            parseSlots(stored)
+        }
+
+    /** Every calendar, for the event editor a tapped event opens. */
+    suspend fun calendars(): DashboardResult<List<CalendarInfo>> = call { body(calendars.listCalendars()).items.map { it.toCalendar() } }
+
+    private suspend fun readSettings(): List<WidgetSlot> {
+        val response = settings.getSettings()
+        val stored = body(response)[LAYOUT_SETTING]
+        settingsEtag = response.headers()["ETag"]
+        return parseSlots(stored)
+    }
 
     suspend fun load(widget: WidgetId): DashboardResult<WidgetData> =
         call {
@@ -211,7 +289,7 @@ class DashboardRepository(
                     }
                 WidgetId.READ_LATER ->
                     body(bookmarks.listBookmarks(readLater = true, read = false, limit = PAGE)).let { page ->
-                        WidgetData.ReadLater(page.items.map { DashboardItem(it.id, it.displayTitle) }, page.nextCursor != null)
+                        WidgetData.ReadLater(page.items.map { DashboardItem(it.id, it.displayTitle, it.url) }, page.nextCursor != null)
                     }
                 WidgetId.PINNED_NOTES ->
                     body(notes.listNotes(pinned = true, limit = PAGE)).let { page ->
@@ -288,6 +366,7 @@ class DashboardRepository(
             title = title,
             date = date,
             start = if (allDay) null else start?.toInstant(),
+            occurrence = toOccurrence(),
         )
     }
 
@@ -299,6 +378,9 @@ class DashboardRepository(
         const val UPCOMING_DAYS = 7L
 
         private const val SERVER_ERROR = 500
+
+        /** 409 changed concurrently, 412 stale ETag, 428 no ETag: the settings are read again first. */
+        private val CONFLICTS = setOf(409, 412, 428)
     }
 }
 

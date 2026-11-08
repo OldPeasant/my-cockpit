@@ -3,10 +3,12 @@ package ch.sonensei.cockpit.dashboard
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.ui.navigation.CockpitDestination
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
@@ -34,7 +36,14 @@ class DashboardInboxCardTest {
             }
         }
 
-    private fun tapInbox() = composeRule.onNodeWithTag(DashboardTags.card(WidgetId.INBOX)).performClick()
+    /** Taps the card itself (its top edge): its two lines open the GTD Inbox and Mail on their own. */
+    private fun tapInbox() =
+        composeRule.onNodeWithTag(DashboardTags.card(WidgetId.INBOX)).performTouchInput { click(Offset(centerX, CARD_EDGE_PX)) }
+
+    private companion object {
+        /** Inside the card's top padding, above its title. */
+        const val CARD_EDGE_PX = 4f
+    }
 
     @Test
     fun `an empty Inbox with unread mail opens Mail`() {

@@ -37,4 +37,18 @@
     <string name="dashboard_read_later_empty">Nothing to read later.</string>
     <string name="dashboard_pinned_empty">No pinned notes.</string>
     <string name="dashboard_more">and more</string>
+    <string name="dashboard_open">Open</string>
+    <string name="dashboard_review_start">Start a weekly review</string>
+    <string name="dashboard_review_continue">Continue the open review</string>
+    <string name="dashboard_customize">Customize</string>
+    <string name="dashboard_customize_done">Done</string>
+    <string name="dashboard_customize_title">Widgets</string>
+    <string name="dashboard_customize_hint">Choose which widgets show. Long-press a widget and drag it to change the order. Every device gets the same dashboard.</string>
+    <string name="dashboard_customize_reset">Reset to default</string>
+    <string name="dashboard_move_up">Move up</string>
+    <string name="dashboard_move_down">Move down</string>
+    <string name="dashboard_layout_offline">The server is not reachable: the change was not saved.</string>
+    <string name="dashboard_layout_failed">The change could not be saved.</string>
+    <string name="dashboard_all_hidden">All widgets are hidden.</string>
+    <string name="dashboard_choose_widgets">Choose widgets</string>
 </resources>
