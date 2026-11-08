@@ -13,7 +13,8 @@ Goal: web task detail lets the user add/remove reminders on a task via `POST/DEL
 
 ## Acceptance criteria
 - [ ] Web task detail: add/remove reminders (presets relative to due/scheduled date, e.g. at time / 1 h / 1 day before, or an exact date/time); existing reminders listed
-- [ ] A reminder fires as a browser notification and opens the task (manually verified or skipped with reason)
+- [~] A reminder fires as a browser notification and opens the task (manually verified or skipped with reason)
+  - skipped (2026-11-09 00:39+0100 by dell26/agent-1): No interactive browser in this agent session to grant notification permission and wait for a server-fired reminder; firing/opening is the unchanged core/notifications (ReminderNotificationsService opens item.deepLink /tasks/{id}, covered by its unit tests); this task only creates TASK reminders via POST /api/v1/reminders
 - [ ] New strings in English and German (`web/src/locale`)
 - [ ] Unit tests cover the new behavior; `sh scripts/check.sh` passes
 
