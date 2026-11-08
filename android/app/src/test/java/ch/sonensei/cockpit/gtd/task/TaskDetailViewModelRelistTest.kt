@@ -356,6 +356,74 @@ class TaskDetailViewModelRelistTest {
             )
         }
 
+    @Test
+    fun `the missing scheduled date problem clears when another list is chosen`() =
+        runTest {
+            val vm = editing { it.onList(TaskList.SCHEDULED) }
+            vm.save()
+            assertEquals(mapOf(TaskField.SCHEDULED to FieldProblem.Required), vm.uiState.value.problems)
+            vm.edit { it.onList(TaskList.SOMEDAY) }
+            assertTrue(
+                vm.uiState.value.problems
+                    .isEmpty(),
+            )
+            vm.save()
+            assertEquals(TaskMove(TaskList.SOMEDAY), source.relists.single().second)
+        }
+
+    @Test
+    fun `the missing person problem clears when the task is no longer moved to Waiting`() =
+        runTest {
+            val vm = editing { it.onList(TaskList.WAITING) }
+            vm.save()
+            assertEquals(mapOf(TaskField.WAITING_FOR to FieldProblem.Required), vm.uiState.value.problems)
+            // Changing an unrelated field keeps the problem.
+            vm.edit { it.copy(title = "Buy seeds soon") }
+            assertEquals(setOf(TaskField.WAITING_FOR), vm.uiState.value.problems.keys)
+            vm.edit { it.onList(TaskList.INBOX) }
+            assertTrue(
+                vm.uiState.value.problems
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `saving again while the move is still being sent sends nothing more`() =
+        runTest {
+            val fake = FakeTaskDetailSource(detail)
+            val gate = CompletableDeferred<Unit>()
+            val slow =
+                object : TaskDetailSource by fake {
+                    override suspend fun relist(
+                        task: GtdTask,
+                        move: TaskMove,
+                    ): TaskResult<GtdTask> {
+                        gate.await()
+                        return fake.relist(task, move)
+                    }
+                }
+            val vm = TaskDetailViewModel(slow, flowOf(emptyList()), flowOf(emptyList()), flowOf(null))
+            vm.open(task.id)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
+            vm.startEditing()
+            vm.edit { it.onList(TaskList.SOMEDAY).copy(title = "Buy seeds in spring") }
+
+            vm.save()
+            assertTrue(vm.uiState.value.busy)
+            vm.save()
+
+            gate.complete(Unit)
+            advanceUntilIdle()
+            assertEquals(1, fake.relists.size)
+            // One PATCH, on the version the single move answered with.
+            val (patched, _) = fake.updates.single()
+            assertEquals(4L, patched.version)
+            val state = vm.uiState.value
+            assertFalse(state.busy)
+            assertNull(state.draft)
+            assertEquals(DetailMessage.Saved, state.message)
+        }
+
     // --- moveChecklistItem ---
 
     @Test

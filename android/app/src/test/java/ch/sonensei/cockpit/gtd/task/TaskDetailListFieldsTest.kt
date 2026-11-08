@@ -147,6 +147,18 @@ class TaskDetailListFieldsTest {
         composeRule.onNodeWithText("OK").assertDoesNotExist()
     }
 
+    @Test
+    fun `a waiting task without a waiting-since day can get one, the picker opening on today`() {
+        editing(TaskDetail(seeds.copy(list = TaskList.WAITING, waitingForText = "Anna Example")))
+        tag(TaskDetailListTags.WAITING_SINCE).assert(hasText("Pick a day"))
+        tag(TaskDetailListTags.WAITING_SINCE).performClick()
+        composeRule.onNodeWithText("OK").performClick()
+        assertEquals(today, draft().waitingSince)
+        save()
+        assertTrue(source.relists.isEmpty())
+        assertEquals(JsonObject(mapOf("waitingSince" to JsonPrimitive(today.toString()))), source.updates.single().second)
+    }
+
     // --- scheduled date ---
 
     @Test
