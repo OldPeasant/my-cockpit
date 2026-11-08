@@ -79,6 +79,7 @@ class EventEditorExtrasScreenTest {
                             retryAccounts = { calls += "retry" },
                             createLinked = { calls += "create:$it" },
                             reloadLinks = { calls += "reload-links" },
+                            respond = { calls += "respond:$it" },
                         ),
                 )
             }
@@ -440,5 +441,74 @@ class EventEditorExtrasScreenTest {
     fun `a new event has no links panel`() {
         show(editable.copy(creating = true))
         composeRule.onNodeWithTag(EventEditorTags.LINKS).assertDoesNotExist()
+    }
+
+    // --- The answer to an invitation
+
+    private val me = Attendee("me@example.org", "Me", AttendeeStatus.NEEDS_ACTION)
+    private val invited =
+        editable.copy(
+            form = form.copy(attendees = listOf(ada, me)),
+            localCalendars = emptySet(),
+            invitationCalendars = setOf(work.id),
+            ownAddresses = setOf(me.email),
+        )
+
+    @Test
+    fun `an unanswered invitation offers accept, maybe and decline and sends the tapped one`() {
+        show(invited)
+        assertInside(EventEditorTags.RESPONSE, "Your answer")
+        assertInside(EventEditorTags.RESPONSE, "You have not answered yet.")
+        INVITATION_RESPONSES.forEach {
+            composeRule
+                .onNodeWithTag(EventEditorTags.respond(it))
+                .performScrollTo()
+                .assertIsEnabled()
+                .assertIsNotSelected()
+        }
+        composeRule.onNodeWithTag(EventEditorTags.respond(AttendeeStatus.ACCEPTED)).assertTextContains("Accept")
+        composeRule.onNodeWithTag(EventEditorTags.respond(AttendeeStatus.TENTATIVE)).assertTextContains("Maybe")
+        composeRule.onNodeWithTag(EventEditorTags.respond(AttendeeStatus.DECLINED)).assertTextContains("Decline").performClick()
+        composeRule.onNodeWithTag(EventEditorTags.respond(AttendeeStatus.TENTATIVE)).performClick()
+        assertEquals(listOf("respond:DECLINED", "respond:TENTATIVE"), calls)
+    }
+
+    @Test
+    fun `the current answer is named and selected`() {
+        show(invited.copy(form = form.copy(attendees = listOf(ada, me.copy(status = AttendeeStatus.TENTATIVE)))))
+        assertInside(EventEditorTags.RESPONSE, "You answered: Maybe")
+        composeRule.onNodeWithTag(EventEditorTags.respond(AttendeeStatus.TENTATIVE)).performScrollTo().assertIsSelected()
+        composeRule.onNodeWithTag(EventEditorTags.respond(AttendeeStatus.ACCEPTED)).assertIsNotSelected()
+        composeRule.onNodeWithTag(EventEditorTags.respond(AttendeeStatus.DECLINED)).assertIsNotSelected()
+    }
+
+    @Test
+    fun `while an answer is sent or after a conflict the answers are disabled`() {
+        val update = show(invited.copy(responding = AttendeeStatus.ACCEPTED))
+        INVITATION_RESPONSES.forEach {
+            composeRule.onNodeWithTag(EventEditorTags.respond(it)).performScrollTo().assertIsNotEnabled()
+        }
+        update(invited.copy(message = EditorMessage.CONFLICT))
+        composeRule.onNodeWithTag(EventEditorTags.respond(AttendeeStatus.ACCEPTED)).performScrollTo().assertIsNotEnabled()
+        assertEquals(emptyList<String>(), calls)
+    }
+
+    @Test
+    fun `a refused answer is explained`() {
+        show(invited.copy(message = EditorMessage.RESPOND_FAILED))
+        composeRule
+            .onNodeWithText("The answer could not be sent: you are not invited to this event, or you organize it.")
+            .assertIsDisplayed()
+        composeRule.onNodeWithTag(EventEditorTags.respond(AttendeeStatus.ACCEPTED)).performScrollTo().assertIsEnabled()
+    }
+
+    @Test
+    fun `no answers are offered for a local calendar, a new event or one without guests`() {
+        val update = show(invited.copy(invitationCalendars = emptySet()))
+        composeRule.onNodeWithTag(EventEditorTags.RESPONSE).assertDoesNotExist()
+        update(invited.copy(creating = true))
+        composeRule.onNodeWithTag(EventEditorTags.RESPONSE).assertDoesNotExist()
+        update(invited.copy(form = form))
+        composeRule.onNodeWithTag(EventEditorTags.RESPONSE).assertDoesNotExist()
     }
 }

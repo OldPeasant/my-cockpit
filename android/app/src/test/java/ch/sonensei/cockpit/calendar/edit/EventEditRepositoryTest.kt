@@ -101,6 +101,51 @@ class EventEditRepositoryTest {
         }
 
     @Test
+    fun `an answer is posted to the event with its version as If-Match and returns the event with the new status`() =
+        runBlocking {
+            server.enqueue(
+                json(
+                    eventJson(1)
+                        .replace(
+                            "\"attendees\":[]",
+                            "\"attendees\":[{\"email\":\"me@example.org\",\"status\":\"TENTATIVE\"}]",
+                        ).replace("\"version\":6", "\"version\":7"),
+                ),
+            )
+            val result = repository.respond(id(1), 6, AttendeeStatus.TENTATIVE) as CalendarResult.Ok
+            assertEquals(7L, result.value.version)
+            assertEquals(listOf(Attendee("me@example.org", null, AttendeeStatus.TENTATIVE)), result.value.attendees)
+            val request = server.takeRequest()
+            assertEquals("POST", request.method)
+            assertEquals("/api/v1/calendar/events/${id(1)}/respond", request.url.encodedPath)
+            assertEquals("\"6\"", request.headers["If-Match"])
+            assertEquals(
+                JsonObject(mapOf("response" to JsonPrimitive("TENTATIVE"))),
+                Json.parseToJsonElement(request.body!!.utf8()).jsonObject,
+            )
+
+            server.enqueue(json(eventJson(1)))
+            repository.respond(id(1), 7, AttendeeStatus.ACCEPTED)
+            assertEquals(JsonPrimitive("ACCEPTED"), Json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject["response"])
+            server.enqueue(json(eventJson(1)))
+            repository.respond(id(1), 7, AttendeeStatus.DECLINED)
+            assertEquals(JsonPrimitive("DECLINED"), Json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject["response"])
+        }
+
+    @Test
+    fun `a refused answer keeps its status, a server error counts as offline`() =
+        runBlocking {
+            server.enqueue(status(412))
+            assertEquals(CalendarResult.Failed(412), repository.respond(id(1), 6, AttendeeStatus.ACCEPTED))
+            server.enqueue(status(409))
+            assertEquals(CalendarResult.Failed(409), repository.respond(id(1), 6, AttendeeStatus.ACCEPTED))
+            server.enqueue(status(404))
+            assertEquals(CalendarResult.Failed(404), repository.respond(id(1), 6, AttendeeStatus.DECLINED))
+            server.enqueue(status(503))
+            assertEquals(CalendarResult.Offline, repository.respond(id(1), 6, AttendeeStatus.DECLINED))
+        }
+
+    @Test
     fun `a create posts the body as built`() =
         runBlocking {
             server.enqueue(json(eventJson(1), 201))
