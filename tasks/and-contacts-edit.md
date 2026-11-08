@@ -20,3 +20,4 @@ Android contacts are view-only (SPEC.md §9.2; owner decided on 2026-11-08 to ad
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 vCard import/export and CardDAV account setup stay web-only.
+- ASSUMPTION (2026-11-08 21:38+0100 by dell26/agent-1): Read-only rule: the web offers Edit/Delete for every contact source (synced ones write back) and shows the sync source; Android does the same (source line 'Kept in the cockpit only'/'Synced with X') and, if the server refuses a change with 403/405, says the contact comes from X and must be changed there.
