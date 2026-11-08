@@ -1,10 +1,11 @@
 ---
 title: Android: add tasks directly to a project and reorder them
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [and-projects-manage]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/projects,android/app/src/test/java/ch/sonensei/cockpit/gtd/projects,android/app/src/main/res/values/strings_projects_lists.xml,android/app/src/main/res/values-de/strings_projects_lists.xml]
 prio: 1
+lease_until: 2026-11-08T11:58:35Z
 ---
 ## Goal
 On Android a task can only be added to a project as "next step" inside the choose-next-step prompt; web has an
