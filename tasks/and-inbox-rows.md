@@ -19,7 +19,8 @@ read-only sheet (`NewScreen.kt:488-536`) although SPEC.md §5.3 says it opens th
   - verified (2026-11-08 11:06+0100 by dell26/agent-2): NewRouteTest in CockpitShellFrame via ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.newitems.*' -> pass: task row opens detail route, Back returns with filter and scroll kept; NewTaskView/NewOpen.Task removed (grep finds none)
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 11:06+0100 by dell26/agent-2): No new strings; reused tasks_complete/tasks_undo/task_detail_open exist in res/values and res/values-de; unused new_task_* removed from both; lintDebug -> pass (no MissingTranslation)
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 11:06+0100 by dell26/agent-2): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD OK; sh scripts/check.sh -> all checks passed (HEAD 0215c218d)
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
