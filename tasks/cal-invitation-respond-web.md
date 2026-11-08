@@ -16,7 +16,8 @@ Goal: the web event dialog calls `POST /api/v1/calendar/events/{id}/respond` (SP
   - verified (2026-11-08 23:33+0100 by dell26/agent-1): npm --prefix web exec -- ng test --include src/app/features/calendar/edit --watch=false -> 195 passed (event-dialog.spec 'answering invitations': Accept/Maybe/Decline shown for writable GOOGLE/MICROSOFT events with guests, own status highlighted via mail account address, respond sends If-Match of occurrence version, new statuses + version used for next save, 412 conflict, 409 message)
 - [x] New strings in English and German (`web/src/locale`)
   - verified (2026-11-08 23:33+0100 by dell26/agent-1): npm --prefix web run i18n:extract -> 6 new calendar.respond.* units in messages.xlf; German targets added in messages.de.xlf; npm --prefix web run check (incl. de build + messages-de.spec) -> pass
-- [ ] Unit tests cover the new behavior; `sh scripts/check.sh` passes
+- [x] Unit tests cover the new behavior; `sh scripts/check.sh` passes
+  - verified (2026-11-08 23:39+0100 by dell26/agent-1): event-dialog.spec + event-edit.service.spec cover answering (198 tests in calendar/edit pass); sh scripts/check.sh at c41803aed -> all checks passed
 
 ## Notes
 - Work done on `cal-invitation-respond` before the split is on `origin/wip/cal-invitation-respond` (if it exists): merge it first if your part builds on it.
