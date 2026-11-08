@@ -14,6 +14,7 @@ import {
 } from '../../api/generated';
 import { ChangeEventsService } from '../../core/events';
 import { NotificationService, provideHttp } from '../../core/http';
+import { BackNavigation } from '../../shared/navigation';
 import routes from './contacts.routes';
 import { connection, contact, noRelated } from './testing';
 
@@ -635,6 +636,34 @@ describe('ContactDetail', () => {
     http.expectOne('/api/v1/oauth/connections').flush([]);
     http.expectOne(CARDDAV).flush({ items: [] });
     http.expectOne((r) => r.url === '/api/v1/contacts').flush({ items: [] });
+  });
+
+  it('leads back to the contacts list, keeping its search, when opened by a deep link', async () => {
+    await open(contact(ID), noRelated(ID), [], `/contacts/${ID}?q=ada`);
+    const back = root.querySelector<HTMLAnchorElement>('app-back-button a')!;
+    expect(back.textContent?.trim()).toBe('Contacts');
+    expect(back.getAttribute('aria-label')).toBe('Back to Contacts');
+    back.click();
+    await settle();
+    expect(TestBed.inject(Router).url).toBe('/contacts?q=ada');
+    http.expectOne('/api/v1/oauth/connections').flush([]);
+    http.expectOne(CARDDAV).flush({ items: [] });
+    http.expectOne((r) => r.url === '/api/v1/contacts').flush({ items: [] });
+  });
+
+  it('names the contact on the back button of a page opened from it', async () => {
+    await open(contact(ID, { displayName: 'Grace Fictional' }));
+    expect(TestBed.inject(BackNavigation).canGoBack()).toBe(false);
+    await harness.navigateByUrl('/contacts/new');
+    http.expectOne(CARDDAV).flush({ items: [] });
+    await settle();
+    expect(TestBed.inject(BackNavigation).previous()).toEqual(
+      expect.objectContaining({ url: `/contacts/${ID}`, label: 'Grace Fictional' }),
+    );
+    const back = root.querySelector<HTMLAnchorElement>('app-back-button a')!;
+    expect(back.textContent?.trim()).toBe('Grace Fictional');
+    expect(back.getAttribute('aria-label')).toBe('Back to Grace Fictional');
+    expect(back.getAttribute('href')).toBe(`/contacts/${ID}`);
   });
 
   it('shows changes made elsewhere and when the contact is gone', async () => {

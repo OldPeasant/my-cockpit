@@ -20,6 +20,7 @@ import {
   updateProject,
 } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
+import { BackNavigation } from '../../../shared/navigation';
 import { ProjectDetailPage } from './project-detail-page';
 import { ProjectsPage } from './projects-page';
 
@@ -284,6 +285,20 @@ describe('Projects views', () => {
       expect(element.querySelector('.markdown')?.innerHTML).toBe(
         '<p><strong>File</strong> by May</p>',
       );
+    });
+
+    it('leads back to all projects when opened by a deep link', async () => {
+      await render(ProjectDetailPage);
+      const back = element.querySelector<HTMLAnchorElement>('app-back-button a')!;
+      expect(back.textContent?.trim()).toBe('Projects');
+      expect(back.getAttribute('aria-label')).toBe('Back to Projects');
+      expect(back.getAttribute('href')).toBe('/projects');
+    });
+
+    it('names the project for the back buttons of the pages opened from it', async () => {
+      const setLabel = vi.spyOn(TestBed.inject(BackNavigation), 'setLabel');
+      await render(ProjectDetailPage);
+      expect(setLabel).toHaveBeenCalledWith('/projects/p1', 'Tax return');
     });
 
     it('makes another task the next step', async () => {

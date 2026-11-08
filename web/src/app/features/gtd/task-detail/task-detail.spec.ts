@@ -57,10 +57,15 @@ const settle = () => new Promise((resolve) => setTimeout(resolve));
 
 @Component({
   imports: [TaskDetail],
-  template: `<app-task-detail [taskId]="id()" (closed)="closed = closed + 1" />`,
+  template: `<app-task-detail
+    [taskId]="id()"
+    [backLabel]="backLabel()"
+    (closed)="closed = closed + 1"
+  />`,
 })
 class Host {
   readonly id = signal('t1');
+  readonly backLabel = signal<string | null>(null);
   closed = 0;
 }
 
@@ -376,6 +381,41 @@ describe('TaskDetail', () => {
       closeButton().click();
       expect(host.closed).toBe(1);
       expect(callsOf(updateTask)).toHaveLength(0);
+    });
+
+    it('names where closing leads on the close button', async () => {
+      await render();
+      host.backLabel.set('Today');
+      await refresh();
+      const back = field<HTMLButtonElement>('header.top button');
+      expect(back.getAttribute('aria-label')).toBe('Back to Today');
+      expect(back.querySelector('.back-label')?.textContent?.trim()).toBe('Today');
+      expect(back.classList).toContain('back');
+      expect(back.classList).not.toContain('icon');
+      back.click();
+      expect(host.closed).toBe(1);
+    });
+
+    it('is an icon button reading Close without a destination name', async () => {
+      await render();
+      const button = field<HTMLButtonElement>('header.top button');
+      expect(button).toBe(closeButton());
+      expect(button.querySelector('.back-label')).toBeNull();
+      expect(button.classList).toContain('icon');
+      expect(button.classList).not.toContain('back');
+    });
+
+    it('goes back to the Close icon when the destination name is dropped', async () => {
+      await render();
+      host.backLabel.set('Launch the website');
+      await refresh();
+      expect(field('header.top button').getAttribute('aria-label')).toBe(
+        'Back to Launch the website',
+      );
+      host.backLabel.set(null);
+      await refresh();
+      expect(field('header.top button').getAttribute('aria-label')).toBe('Close');
+      expect(element.querySelector('.back-label')).toBeNull();
     });
 
     it('goes back from a missing task', async () => {

@@ -12,6 +12,7 @@ import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { LinkResponse, NoteResponse } from '../../../api/generated';
 import { ApiError, NotificationService, provideHttp } from '../../../core/http';
+import { BackNavigation } from '../../../shared/navigation';
 import { MarkdownEditor } from './markdown-editor';
 import NoteEditorPage, { AUTOSAVE_DEBOUNCE_MS, NOTE_EDITOR_MODE_KEY } from './note-editor-page';
 
@@ -130,6 +131,30 @@ describe('NoteEditorPage', () => {
     expect(editor().value()).toBe('- [ ] Passport\n- [ ] Charger');
     expect(root.querySelectorAll('app-note-markdown-view input[type=checkbox]')).toHaveLength(2);
     expect(state()).toBe('Saved');
+  });
+
+  it('leads back to the notes list when opened by a deep link', async () => {
+    await open();
+    const back = root.querySelector<HTMLAnchorElement>('app-back-button a')!;
+    expect(back.textContent?.trim()).toBe('Notes');
+    expect(back.getAttribute('aria-label')).toBe('Back to Notes');
+    expect(back.getAttribute('href')).toBe('/notes');
+  });
+
+  it('names the note on the back button of a page opened from it', async () => {
+    await open(note({ title: 'Fictional packing list' }));
+    await harness.navigateByUrl('/elsewhere');
+    expect(TestBed.inject(BackNavigation).previous()).toEqual(
+      expect.objectContaining({ url: `/notes/${ID}`, label: 'Fictional packing list' }),
+    );
+  });
+
+  it('does not name an untitled note', async () => {
+    await open(note({ title: '', displayTitle: 'Untitled' }));
+    await harness.navigateByUrl('/elsewhere');
+    expect(TestBed.inject(BackNavigation).previous()).toEqual(
+      expect.objectContaining({ url: `/notes/${ID}`, label: null }),
+    );
   });
 
   it('autosaves once after the debounce, with the version as If-Match', async () => {

@@ -38,6 +38,15 @@ describe('BackNavigation', () => {
           { path: 'mail', title: 'Mail', component: StubPage },
           { path: 'projects/:id', title: 'Project', component: StubPage },
           { path: 'mail/messages/:id', title: 'Message', component: StubDetail },
+          {
+            path: 'settings',
+            title: 'Settings',
+            children: [
+              { path: 'general', component: StubPage },
+              { path: 'accounts', title: 'Accounts', component: StubPage },
+            ],
+          },
+          { path: 'locked', component: StubPage, canActivate: [() => false] },
         ]),
         provideLocationMocks(),
         provideBackNavigation(),
@@ -159,6 +168,17 @@ describe('BackNavigation', () => {
     expect(navigation.canGoBack()).toBe(false);
   });
 
+  it('starts afresh on a history entry without router state', async () => {
+    await go('/today');
+    await go('/new');
+    // E.g. an entry the browser added for a link outside the router.
+    location.go('/mail');
+    location.go('/today', '', { navigationId: 998 });
+    await popBack();
+    expect(router.url).toBe('/mail');
+    expect(navigation.canGoBack()).toBe(false);
+  });
+
   it('uses the name a page set for itself, by path', async () => {
     await go('/projects/p1?tab=tasks');
     navigation.setLabel('/projects/p1', 'Launch the website');
@@ -179,6 +199,118 @@ describe('BackNavigation', () => {
     await go('/projects/p1');
     await go('/mail/messages/m1');
     expect(navigation.previous()?.label).toBe('Project');
+  });
+
+  it('takes the title of the deepest route that has one', async () => {
+    await go('/settings/general');
+    await go('/settings/accounts');
+    await go('/mail/messages/m1');
+    expect(navigation.previous()?.label).toBe('Accounts');
+    await popBack();
+    expect(navigation.previous()?.label).toBe('Settings');
+  });
+
+  it('does not count a navigation a guard cancelled', async () => {
+    await go('/today');
+    await go('/new');
+    await router.navigateByUrl('/locked');
+    expect(router.url).toBe('/new');
+    expect(navigation.previous()?.url).toBe('/today');
+    await go('/mail/messages/m1');
+    expect(navigation.previous()?.url).toBe('/new');
+  });
+
+  it('renames the previous page when it sets its name later', async () => {
+    await go('/projects/p1');
+    await go('/mail/messages/m1');
+    expect(navigation.previous()?.label).toBe('Project');
+    navigation.setLabel('/projects/p1#notes', 'Launch the website');
+    expect(navigation.previous()?.label).toBe('Launch the website');
+    navigation.setLabel('/projects/p1', 'Relaunch the website');
+    expect(navigation.previous()?.label).toBe('Relaunch the website');
+  });
+
+  it('keeps a renamed page among the most recent names', async () => {
+    navigation.setLabel('/projects/p1', 'First');
+    for (let i = 0; i < 50; i++) navigation.setLabel(`/projects/x${i}`, `Project ${i}`);
+    navigation.setLabel('/projects/p1', 'First, renamed');
+    for (let i = 50; i < 99; i++) navigation.setLabel(`/projects/x${i}`, `Project ${i}`);
+    await go('/projects/p1');
+    await go('/mail/messages/m1');
+    expect(navigation.previous()?.label).toBe('First, renamed');
+  });
+
+  it('keeps exactly 100 names', async () => {
+    navigation.setLabel('/projects/p1', 'First');
+    for (let i = 0; i < 99; i++) navigation.setLabel(`/projects/x${i}`, `Project ${i}`);
+    await go('/projects/p1');
+    await go('/mail/messages/m1');
+    expect(navigation.previous()?.label).toBe('First');
+  });
+
+  it('knows the whole way back through several pages', async () => {
+    await go('/today');
+    await go('/new?filter=mail');
+    await go('/mail/messages/m1');
+    await navigation.back('/mail');
+    await settle();
+    expect(router.url).toBe('/new?filter=mail');
+    await navigation.back('/mail');
+    await settle();
+    expect(router.url).toBe('/today');
+    // Nothing of the app behind the first page: the parent route.
+    await navigation.back('/mail');
+    expect(router.url).toBe('/mail');
+  });
+
+  describe('back button names and clicks', () => {
+    it('updates its name when the previous page sets its name', async () => {
+      await go('/projects/p1');
+      await go('/mail/messages/m1');
+      harness.detectChanges();
+      expect(backLink().textContent?.trim()).toBe('Project');
+      navigation.setLabel('/projects/p1', 'Launch the website');
+      harness.detectChanges();
+      expect(backLink().textContent?.trim()).toBe('Launch the website');
+      expect(backLink().getAttribute('aria-label')).toBe('Back to Launch the website');
+      expect(backLink().getAttribute('href')).toBe('/projects/p1');
+    });
+
+    it('names the parent route again after going back to the first page and forward', async () => {
+      await go('/new');
+      await go('/mail/messages/m1');
+      await popBack();
+      location.forward();
+      await settle();
+      harness.detectChanges();
+      expect(backLink().textContent?.trim()).toBe('New');
+    });
+
+    it.each([
+      ['meta', { metaKey: true }],
+      ['shift', { shiftKey: true }],
+      ['alt', { altKey: true }],
+      ['middle button', { button: 1 }],
+    ])('leaves a %s click to the browser', async (_, init) => {
+      await go('/new');
+      await go('/mail/messages/m1');
+      harness.detectChanges();
+      const event = new MouseEvent('click', { bubbles: true, cancelable: true, ...init });
+      backLink().dispatchEvent(event);
+      await settle();
+      expect(event.defaultPrevented).toBe(false);
+      expect(router.url).toBe('/mail/messages/m1');
+    });
+
+    it('takes over a plain click', async () => {
+      await go('/mail/messages/m1');
+      harness.detectChanges();
+      const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+      backLink().dispatchEvent(event);
+      await settle();
+      expect(event.defaultPrevented).toBe(true);
+      expect(router.url).toBe('/mail');
+    });
   });
 
   describe('back button', () => {

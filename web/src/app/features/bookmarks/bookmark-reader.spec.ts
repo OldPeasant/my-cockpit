@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { NotificationService, provideHttp } from '../../core/http';
+import { BackNavigation } from '../../shared/navigation';
 import routes from './bookmarks.routes';
 import { bookmark } from './testing';
 
@@ -110,6 +111,46 @@ describe('BookmarkReader', () => {
     http.expectOne(`/api/v1/bookmarks/${ID}`).flush(bookmark(ID));
     await settle();
     expect(root.querySelector('.back')?.getAttribute('href')).toBe('/bookmarks');
+  });
+
+  it('names the bookmarks list on its back button when opened by a deep link', async () => {
+    await open('?view=all');
+    http.expectOne(`/api/v1/bookmarks/${ID}`).flush(bookmark(ID));
+    await settle();
+    const back = root.querySelector<HTMLAnchorElement>('app-back-button a')!;
+    expect(text(back)).toBe('Bookmarks');
+    expect(back.getAttribute('aria-label')).toBe('Back to Bookmarks');
+  });
+
+  it('names the bookmark on the back button of a page opened from it', async () => {
+    const other = '0192f0c4-0000-7000-8000-000000000002';
+    await open();
+    http
+      .expectOne(`/api/v1/bookmarks/${ID}`)
+      .flush(bookmark(ID, { displayTitle: 'On fictional software' }));
+    await settle();
+    await harness.navigateByUrl(`/bookmarks/${other}`);
+    http.expectOne(`/api/v1/bookmarks/${other}`).flush(bookmark(other));
+    await settle();
+    expect(TestBed.inject(BackNavigation).previous()).toEqual(
+      expect.objectContaining({ url: `/bookmarks/${ID}`, label: 'On fictional software' }),
+    );
+    const back = root.querySelector<HTMLAnchorElement>('app-back-button a')!;
+    expect(text(back)).toBe('On fictional software');
+    expect(back.getAttribute('href')).toBe(`/bookmarks/${ID}`);
+  });
+
+  it('keeps the route title for a bookmark without a title', async () => {
+    const other = '0192f0c4-0000-7000-8000-000000000002';
+    await open();
+    http.expectOne(`/api/v1/bookmarks/${ID}`).flush(bookmark(ID, { displayTitle: '' }));
+    await settle();
+    await harness.navigateByUrl(`/bookmarks/${other}`);
+    http.expectOne(`/api/v1/bookmarks/${other}`).flush(bookmark(other));
+    await settle();
+    expect(TestBed.inject(BackNavigation).previous()).toEqual(
+      expect.objectContaining({ url: `/bookmarks/${ID}`, label: 'Bookmarks' }),
+    );
   });
 
   it('shows an error when the bookmark cannot be loaded', async () => {
