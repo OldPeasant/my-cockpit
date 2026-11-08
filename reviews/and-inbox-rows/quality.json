@@ -15,7 +15,7 @@
      "note": "offline check reads the shared completer snackbar; only wrong with two overlapping requests plus a network drop, and the next refresh heals it; no code change"}
   ],
   "validation": [
-    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.inbox.*' --tests 'ch.sonensei.cockpit.newitems.*' createDebugUnitTestCoverageReport --rerun-tasks", "result": "pass (test-writer; 68/68 changed executable lines covered)"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.inbox.*' --tests 'ch.sonensei.cockpit.newitems.*' createDebugUnitTestCoverageReport --rerun-tasks", "result": "pass"},
     {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
     {"command": "sh scripts/check.sh", "result": "pass"}
   ]
