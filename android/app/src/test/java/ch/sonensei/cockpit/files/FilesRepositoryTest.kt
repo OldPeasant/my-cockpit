@@ -2,6 +2,9 @@ package ch.sonensei.cockpit.files
 
 import ch.sonensei.cockpit.core.network.generated.apis.FilesApi
 import ch.sonensei.cockpit.core.network.generated.infrastructure.Serializer
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
@@ -173,6 +176,43 @@ class FilesRepositoryTest {
             assertEquals(FilesResult.Ok(11L), files.download(id(4)) { out })
             assertEquals("hello drive", out.toString(Charsets.UTF_8))
             assertEquals("/api/v1/files/${id(4)}/content", server.takeRequest().url.encodedPath)
+        }
+
+    @Test
+    fun `a cancelled download stops copying at the next buffer`() =
+        runBlocking {
+            val size = 4 * 1024 * 1024
+            server.enqueue(
+                MockResponse
+                    .Builder()
+                    .code(200)
+                    .body("x".repeat(size))
+                    .build(),
+            )
+            var writes = 0
+            var written = 0L
+            lateinit var job: Job
+            // The first buffer cancels the caller, as closing the preview does while a PDF downloads.
+            val out =
+                object : OutputStream() {
+                    override fun write(b: Int) = write(byteArrayOf(b.toByte()), 0, 1)
+
+                    override fun write(
+                        b: ByteArray,
+                        off: Int,
+                        len: Int,
+                    ) {
+                        writes++
+                        written += len
+                        job.cancel()
+                    }
+                }
+            job = launch(start = CoroutineStart.LAZY) { files.download(id(4)) { out } }
+            job.join()
+
+            assertTrue(job.isCancelled)
+            assertEquals("copied on after the cancel", 1, writes)
+            assertTrue(written < size)
         }
 
     @Test

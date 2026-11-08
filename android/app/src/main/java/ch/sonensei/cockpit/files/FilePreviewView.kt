@@ -102,12 +102,14 @@ internal object PreviewTags {
 /**
  * A file shown in the app, over the list (SPEC.md §8.2): images with pinch and double-tap zoom, PDFs page by page,
  * the start of text files; other types offer to open them in another app. The bar at the bottom names the files before
- * and after it in the folder.
+ * and after it in the folder. [downloading]: this file is being downloaded (a spinner replaces Save and "Open with");
+ * [busy]: any file is, so Save and "Open with" are disabled, as in the list (one download at a time).
  */
 @Composable
 internal fun FilePreviewView(
     preview: FilePreview,
     downloading: Boolean,
+    busy: Boolean,
     downloadMessage: FilesMessage?,
     callbacks: FilesCallbacks,
     imageLoader: ImageLoader?,
@@ -116,7 +118,7 @@ internal fun FilePreviewView(
     val file = preview.file
     Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxSize().testTag(PreviewTags.PREVIEW)) {
         Column(Modifier.fillMaxSize()) {
-            PreviewTopBar(preview, downloading, callbacks)
+            PreviewTopBar(preview, downloading, busy, callbacks)
             downloadMessage?.let {
                 Text(
                     stringResource(if (it == FilesMessage.OFFLINE) R.string.files_download_offline else R.string.files_download_failed),
@@ -139,29 +141,21 @@ internal fun FilePreviewView(
                         PreviewContent.Loading ->
                             CircularProgressIndicator(Modifier.testTag(PreviewTags.LOADING))
                         PreviewContent.Image -> ImagePreview(file, imageLoader, callbacks)
-                        is PreviewContent.Pdf -> PdfPreview(content.file, pdfOpener, callbacks, file)
+                        is PreviewContent.Pdf -> PdfPreview(content.file, pdfOpener, busy, callbacks, file)
                         is PreviewContent.Text -> TextPreview(content)
                         PreviewContent.Unsupported ->
                             Notice(file, R.string.files_preview_unsupported, PreviewTags.UNSUPPORTED, error = false) {
-                                OpenWithButton(file, downloading, callbacks)
+                                OpenWithButton(file, busy, callbacks)
                             }
-                        is PreviewContent.Problem ->
-                            Notice(
-                                file,
-                                if (content.message ==
-                                    FilesMessage.OFFLINE
-                                ) {
-                                    R.string.files_preview_offline
-                                } else {
-                                    R.string.files_preview_failed
-                                },
-                                PreviewTags.PROBLEM,
-                                error = true,
-                            ) {
+                        is PreviewContent.Problem -> {
+                            val offline = content.message == FilesMessage.OFFLINE
+                            val text = if (offline) R.string.files_preview_offline else R.string.files_preview_failed
+                            Notice(file, text, PreviewTags.PROBLEM, error = true) {
                                 FilledTonalButton(onClick = callbacks.retryPreview, modifier = Modifier.testTag(PreviewTags.RETRY)) {
                                     Text(stringResource(R.string.files_retry))
                                 }
                             }
+                        }
                     }
                 }
             }
@@ -175,6 +169,7 @@ internal fun FilePreviewView(
 private fun PreviewTopBar(
     preview: FilePreview,
     downloading: Boolean,
+    busy: Boolean,
     callbacks: FilesCallbacks,
 ) {
     val file = preview.file
@@ -200,10 +195,11 @@ private fun PreviewTopBar(
         if (downloading) {
             CircularProgressIndicator(Modifier.padding(12.dp).size(24.dp).testTag(PreviewTags.DOWNLOADING), strokeWidth = 2.dp)
         } else {
-            IconButton(onClick = { callbacks.saveFile(file) }, modifier = Modifier.testTag(PreviewTags.SAVE)) {
+            // Another file is downloading: a save would be dropped after the "save as" picker created its document.
+            IconButton(onClick = { callbacks.saveFile(file) }, enabled = !busy, modifier = Modifier.testTag(PreviewTags.SAVE)) {
                 Icon(Icons.Outlined.Download, contentDescription = stringResource(R.string.files_save))
             }
-            IconButton(onClick = { callbacks.openFile(file) }, modifier = Modifier.testTag(PreviewTags.OPEN_WITH)) {
+            IconButton(onClick = { callbacks.openFile(file) }, enabled = !busy, modifier = Modifier.testTag(PreviewTags.OPEN_WITH)) {
                 Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = stringResource(R.string.files_open))
             }
         }
@@ -252,9 +248,9 @@ private fun NeighbourBar(
 @Composable
 private fun OpenWithButton(
     file: DriveEntry.File,
-    downloading: Boolean,
+    busy: Boolean,
     callbacks: FilesCallbacks,
-) = FilledTonalButton(onClick = { callbacks.openFile(file) }, enabled = !downloading) {
+) = FilledTonalButton(onClick = { callbacks.openFile(file) }, enabled = !busy) {
     Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
     Text(stringResource(R.string.files_open), modifier = Modifier.padding(start = 8.dp))
 }
@@ -369,6 +365,7 @@ private sealed interface PdfState {
 private fun PdfPreview(
     pdf: File,
     opener: (File) -> PdfPages?,
+    busy: Boolean,
     callbacks: FilesCallbacks,
     file: DriveEntry.File,
 ) {
@@ -386,7 +383,7 @@ private fun PdfPreview(
         PdfState.Opening -> CircularProgressIndicator(Modifier.testTag(PreviewTags.LOADING))
         PdfState.Failed ->
             Notice(file, R.string.files_preview_pdf_failed, PreviewTags.PDF_FAILED, error = true) {
-                OpenWithButton(file, downloading = false, callbacks = callbacks)
+                OpenWithButton(file, busy, callbacks)
             }
         is PdfState.Open -> PdfPagesView(s.pages)
     }

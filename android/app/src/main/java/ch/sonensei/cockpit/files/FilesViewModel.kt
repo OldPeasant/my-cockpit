@@ -9,6 +9,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -548,12 +550,9 @@ class FilesViewModel internal constructor(
             is FilesResult.Ok -> PreviewContent.Text(result.value.text, result.value.truncated)
             // The server previews fewer types than its mime type suggests: offered to open in another app instead.
             is FilesResult.Failed ->
-                if (result.status ==
-                    UNSUPPORTED
-                ) {
-                    PreviewContent.Unsupported
-                } else {
-                    PreviewContent.Problem(FilesMessage.FAILED)
+                when (result.status) {
+                    UNSUPPORTED -> PreviewContent.Unsupported
+                    else -> PreviewContent.Problem(FilesMessage.FAILED)
                 }
             FilesResult.Offline -> PreviewContent.Problem(FilesMessage.OFFLINE)
         }
@@ -565,10 +564,13 @@ class FilesViewModel internal constructor(
         try {
             cache = withContext(io) { target(file) }
             val result = files.download(file.id) { cache?.let(::openCache) }
+            // Cancelled meanwhile (closed, or the same PDF opened again): this load ends here, whatever the download said.
+            currentCoroutineContext().ensureActive()
             ok = result is FilesResult.Ok
             return if (ok) PreviewContent.Pdf(checkNotNull(cache)) else PreviewContent.Problem(result.message() ?: FilesMessage.FAILED)
         } finally {
-            // Failed or cancelled (another file shown meanwhile): a cut-off PDF must not stay.
+            // Failed or cancelled (another file shown meanwhile): a cut-off PDF must not stay. Only this load's own file
+            // goes: a newer load of the same PDF was given a file of its own.
             if (!ok) withContext(NonCancellable + io) { runCatching { cache?.delete() } }
         }
     }

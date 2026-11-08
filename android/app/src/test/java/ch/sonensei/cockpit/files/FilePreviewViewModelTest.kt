@@ -6,12 +6,14 @@ import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -381,6 +383,39 @@ class FilePreviewViewModelTest {
 
             assertEquals(PreviewContent.Image, vm.content())
             assertFalse("the cut-off PDF stayed in the cache", cache.exists())
+        }
+
+    @Test
+    fun `opening the same PDF again while its first download still runs keeps the new file`() =
+        runTest(dispatcher) {
+            val gate = CompletableDeferred<Unit>()
+            var downloads = 0
+            coEvery { repo.download(pdf.id, any()) } coAnswers {
+                val first = ++downloads == 1
+                val content = if (first) "%PDF-old" else "%PDF-new"
+                secondArg<() -> OutputStream?>()()!!.use { it.write(content.toByteArray()) }
+                // The first transfer only ends after the preview was opened again, and does not stop when cancelled.
+                if (first) withContext(NonCancellable) { gate.await() }
+                FilesResult.Ok(content.length.toLong())
+            }
+            var loads = 0
+            val target = { file: DriveEntry.File -> File(temp.root, "${file.id}-${++loads}.pdf") }
+            val vm = listed(pdf)
+
+            vm.preview(pdf, target)
+            advanceUntilIdle()
+            vm.closePreview()
+            vm.preview(pdf, target)
+            advanceUntilIdle()
+            val second = File(temp.root, "${pdf.id}-2.pdf")
+            assertEquals(PreviewContent.Pdf(second), vm.content())
+
+            gate.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals("the stale load replaced the new one", PreviewContent.Pdf(second), vm.content())
+            assertEquals("%PDF-new", second.readText())
+            assertFalse("the stale load kept its file", File(temp.root, "${pdf.id}-1.pdf").exists())
         }
 
     @Test

@@ -199,6 +199,24 @@ class FilePreviewScreenTest {
     }
 
     @Test
+    fun `while another file downloads, Save and Open with are disabled, and only that file shows the spinner`() {
+        // Started on the PDF, then the preview stepped on: one download at a time, as in the list.
+        val state = show(preview(2, PreviewContent.Text("Milch", truncated = false)).copy(downloading = pdf.id))
+        composeRule.onNodeWithTag(PreviewTags.DOWNLOADING).assertDoesNotExist()
+        composeRule.onNodeWithTag(PreviewTags.SAVE).assertIsNotEnabled().performClick()
+        composeRule.onNodeWithTag(PreviewTags.OPEN_WITH).assertIsNotEnabled().performClick()
+
+        state.value = preview(3, PreviewContent.Unsupported).copy(downloading = pdf.id)
+        composeRule.onNode(hasText("Open with…") and hasParentTag(PreviewTags.UNSUPPORTED)).assertIsNotEnabled().performClick()
+        assertEquals(emptyList<String>(), calls)
+
+        state.value = state.value.copy(downloading = null)
+        composeRule.onNodeWithTag(PreviewTags.SAVE).assertIsEnabled()
+        composeRule.onNodeWithTag(PreviewTags.OPEN_WITH).assertIsEnabled()
+        composeRule.onNode(hasText("Open with…") and hasParentTag(PreviewTags.UNSUPPORTED)).assertIsEnabled()
+    }
+
+    @Test
     fun `a text file shows its text, and a notice only when it is cut`() {
         val state = show(preview(2, PreviewContent.Text("Milch\nBrot", truncated = false)))
         composeRule.onNodeWithTag(PreviewTags.TEXT).assertTextEquals("Milch\nBrot")

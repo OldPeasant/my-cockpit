@@ -412,6 +412,7 @@ fun FilesContent(
         FilePreviewView(
             preview = it,
             downloading = state.downloading == it.file.id,
+            busy = state.downloading != null,
             downloadMessage = state.downloadMessage,
             callbacks = callbacks,
             imageLoader = imageLoader,

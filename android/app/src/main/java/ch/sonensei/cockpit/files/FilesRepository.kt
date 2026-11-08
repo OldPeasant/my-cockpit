@@ -8,6 +8,8 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonNull
@@ -132,7 +134,7 @@ class FilesRepository
 
         /**
          * Streams the contents of file [id] into what [target] opens; `Failed(null)` when it opens nothing or writing
-         * fails. Returns the bytes written.
+         * fails. Returns the bytes written. Cancelling the caller stops the transfer at the next buffer.
          */
         suspend fun download(
             id: UUID,
@@ -270,8 +272,11 @@ private fun <T> body(response: Response<T>): T {
     return body
 }
 
-/** Copies [input] to [out]; a failed write (a full disk, say) calls [writeFailed] first, so it is not taken for a lost connection. */
-private fun copy(
+/**
+ * Copies [input] to [out]; a failed write (a full disk, say) calls [writeFailed] first, so it is not taken for a lost
+ * connection. Stops with a `CancellationException` before each buffer once the caller is cancelled.
+ */
+private suspend fun copy(
     input: InputStream,
     out: OutputStream,
     writeFailed: () -> Unit,
@@ -279,6 +284,7 @@ private fun copy(
     val buffer = ByteArray(BUFFER_SIZE)
     var total = 0L
     while (true) {
+        currentCoroutineContext().ensureActive()
         val read = input.read(buffer)
         if (read < 0) return total
         try {

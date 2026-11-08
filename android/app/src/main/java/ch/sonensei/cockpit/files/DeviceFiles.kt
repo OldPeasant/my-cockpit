@@ -13,6 +13,7 @@ import java.io.FileNotFoundException
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 
 /** A file picked with the system picker; read only while it is uploaded. */
 internal class PickedUpload(
@@ -81,19 +82,24 @@ internal fun discardDocument(
 
 /**
  * PDFs downloaded for the in-app preview: a cache folder of their own (opening a file in another app clears its own
- * folder, not this one). Only the PDF previewed last is kept.
+ * folder, not this one). Only the PDF of the latest load is kept.
  */
 object PreviewFiles {
-    /** The cache file for [id]; the ones previewed earlier are deleted. */
+    /**
+     * A new cache file for a load of [id]; the files of earlier loads are deleted. Every load gets its own file, so a
+     * cancelled load of the same PDF that cleans up late can never delete the file a newer load writes or shows.
+     */
+    @Synchronized
     fun target(
         context: Context,
         id: UUID,
     ): File {
         val root = File(context.cacheDir, DIR).apply { mkdirs() }
-        root.listFiles()?.filter { it.name != "$id.pdf" }?.forEach { it.deleteRecursively() }
-        return File(root, "$id.pdf")
+        root.listFiles()?.forEach { it.deleteRecursively() }
+        return File(root, "$id-${loads.incrementAndGet()}.pdf")
     }
 
+    private val loads = AtomicLong()
     private const val DIR = "files-preview"
 }
 
