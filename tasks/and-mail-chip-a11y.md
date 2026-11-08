@@ -1,11 +1,13 @@
 ---
 title: Android compose: 48dp remove target and accessibility action for recipient chips
-status: in_progress
-owner: felix/agent-1
+status: todo
+owner: 
 deps: [and-mail-compose-plus]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/compose,android/app/src/test/java/ch/sonensei/cockpit/mail/compose]
 prio: 2
-lease_until: 2026-11-08T20:42:22Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 Follow-up of the and-mail-compose-plus review (P3, `reviews/and-mail-compose-plus/review.md` CR-1): the recipient
@@ -22,3 +24,4 @@ the chip itself is announced to TalkBack as a clickable control that does nothin
 
 ## Notes
 - ASSUMPTION (2026-11-08 21:05+0100 by felix/agent-1): Replaced Material InputChip with a custom Surface+Row chip for recipients: InputChip always exposes an OnClick action, so a non-clickable body requires a custom chip (same colors: surface + outlineVariant border, errorContainer for invalid).
+- release by felix/agent-1: Implementation, tests, review (0 findings after CR-1 fix), fixer, verify 1-3 and quality.json all committed. Only blocker: auth.AppStartRoutingTest 'logging out from settings clears the cached files' fails reproducibly on clean origin/main too, so the testDebugUnitTest/check.sh validation cannot be 'pass' (new task and-auth-logout-cache-test). Once fixed: rerun ./gradlew ktlintCheck testDebugUnitTest lintDebug and sh scripts/check.sh, set both validation results in reviews/and-mail-chip-a11y/quality.json to pass, commit, tasks.py done.
