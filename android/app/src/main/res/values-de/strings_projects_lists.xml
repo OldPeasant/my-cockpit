@@ -28,6 +28,14 @@
     <string name="someday_activate_label">%1$s aktivieren</string>
     <string name="someday_activated">%1$s zu Nächste verschoben</string>
 
+    <!-- Geplant -->
+    <string name="nav_scheduled">Geplant</string>
+    <string name="scheduled_empty">Nichts geplant. Plane einen Eingangseintrag ein, damit er an diesem Datum unter „Nächste“ erscheint.</string>
+    <string name="scheduled_today">Heute</string>
+    <string name="scheduled_tomorrow">Morgen</string>
+    <string name="scheduled_yesterday">Gestern</string>
+    <string name="scheduled_no_date">Kein Datum</string>
+
     <!-- Projekte -->
     <plurals name="projects_stalled_count">
         <item quantity="one">%d Projekt hat keinen nächsten Schritt</item>

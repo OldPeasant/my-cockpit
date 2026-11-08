@@ -40,6 +40,7 @@ import ch.sonensei.cockpit.dashboard.DashboardScreen
 import ch.sonensei.cockpit.files.FilesScreen
 import ch.sonensei.cockpit.gtd.inbox.InboxScreen
 import ch.sonensei.cockpit.gtd.lists.LogbookScreen
+import ch.sonensei.cockpit.gtd.lists.ScheduledScreen
 import ch.sonensei.cockpit.gtd.lists.SomedayScreen
 import ch.sonensei.cockpit.gtd.lists.WaitingScreen
 import ch.sonensei.cockpit.gtd.next.NextScreen
@@ -300,6 +301,7 @@ private fun DestinationContent(
         CockpitDestination.Projects -> ProjectsScreen(modifier)
         CockpitDestination.Waiting -> WaitingScreen(modifier)
         CockpitDestination.Someday -> SomedayScreen(modifier)
+        CockpitDestination.Scheduled -> ScheduledScreen(modifier)
         CockpitDestination.Logbook -> LogbookScreen(modifier)
         CockpitDestination.Notes -> NotesScreen(modifier)
         CockpitDestination.Files -> FilesScreen(modifier)

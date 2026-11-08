@@ -31,6 +31,7 @@ class CockpitDestinationTest {
                 CockpitDestination.Projects,
                 CockpitDestination.Waiting,
                 CockpitDestination.Someday,
+                CockpitDestination.Scheduled,
                 CockpitDestination.Logbook,
                 CockpitDestination.Notes,
                 CockpitDestination.Files,

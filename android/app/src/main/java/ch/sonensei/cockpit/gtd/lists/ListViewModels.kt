@@ -183,3 +183,23 @@ const val LONG_WAIT_DAYS = 7
 /** Waiting For order: longest waiting first, by `waitingSince`; tasks without a date last, ties in list order. */
 internal fun byWaitingSince(tasks: List<GtdTask>): List<GtdTask> =
     tasks.sortedWith(compareBy<GtdTask, LocalDate?>(nullsLast()) { it.waitingSince }.thenBy { it.position })
+
+/** Scheduled (SPEC.md §5.1): tasks that become next actions on their date, earliest date first. */
+@HiltViewModel
+class ScheduledViewModel internal constructor(
+    repository: TaskListsRepository,
+    contexts: ContextRepository,
+    completion: TaskCompletionRepository,
+    clock: Clock,
+) : LiveTaskListViewModel(TaskList.SCHEDULED, repository, contexts, completion, clock, ::byScheduledDate) {
+    @Inject
+    constructor(
+        repository: TaskListsRepository,
+        contexts: ContextRepository,
+        completion: TaskCompletionRepository,
+    ) : this(repository, contexts, completion, Clock.systemDefaultZone())
+}
+
+/** Scheduled order (like the web): earliest `scheduledDate` first, tasks without a date last, ties in list order. */
+internal fun byScheduledDate(tasks: List<GtdTask>): List<GtdTask> =
+    tasks.sortedWith(compareBy<GtdTask, LocalDate?>(nullsLast()) { it.scheduledDate }.thenBy { it.position })

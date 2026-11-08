@@ -28,6 +28,14 @@
     <string name="someday_activate_label">Activate %1$s</string>
     <string name="someday_activated">Moved %1$s to Next</string>
 
+    <!-- Scheduled: tasks that become next actions on their date -->
+    <string name="nav_scheduled">Scheduled</string>
+    <string name="scheduled_empty">Nothing scheduled. Schedule an inbox item to have it show up in Next on its date.</string>
+    <string name="scheduled_today">Today</string>
+    <string name="scheduled_tomorrow">Tomorrow</string>
+    <string name="scheduled_yesterday">Yesterday</string>
+    <string name="scheduled_no_date">No date</string>
+
     <!-- Projects -->
     <plurals name="projects_stalled_count">
         <item quantity="one">%d project has no next step</item>

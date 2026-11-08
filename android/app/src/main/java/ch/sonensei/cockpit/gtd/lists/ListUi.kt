@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -77,6 +78,7 @@ fun LiveTaskListContent(
     empty: String,
     modifier: Modifier = Modifier,
     header: @Composable () -> Unit = {},
+    section: ListSection? = null,
     row: @Composable (GtdTask) -> Unit,
 ) {
     val snackbarHost = remember { SnackbarHostState() }
@@ -92,9 +94,19 @@ fun LiveTaskListContent(
                         Modifier.fillMaxSize().testTag(LiveListTags.LIST),
                         contentPadding = PaddingValues(bottom = LocalFabClearance.current),
                     ) {
-                        items(state.tasks, key = { it.id }) { task ->
-                            row(task)
-                            HorizontalDivider()
+                        if (section == null) {
+                            items(state.tasks, key = { it.id }) { task ->
+                                row(task)
+                                HorizontalDivider()
+                            }
+                        } else {
+                            state.tasks.groupConsecutiveBy(section.key).forEach { (key, tasks) ->
+                                item(key = "section-$key") { section.header(key) }
+                                items(tasks, key = { it.id }) { task ->
+                                    row(task)
+                                    HorizontalDivider()
+                                }
+                            }
                         }
                     }
                 state.loading -> Centered(stringResource(R.string.tasks_loading), LiveListTags.LOADING)
@@ -103,6 +115,46 @@ fun LiveTaskListContent(
             }
         }
         SnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter).padding(bottom = LocalFabClearance.current))
+    }
+}
+
+/**
+ * Splits a live list into sections: a new section starts with each task whose [key] differs from the task before it
+ * (the screen's order already keeps a section's tasks together), and each section shows its [header] above its rows.
+ */
+class ListSection(
+    val key: (GtdTask) -> Any?,
+    val header: @Composable (Any?) -> Unit,
+)
+
+/** Runs of consecutive tasks with the same [key], in order. */
+internal fun List<GtdTask>.groupConsecutiveBy(key: (GtdTask) -> Any?): List<Pair<Any?, List<GtdTask>>> {
+    val groups = mutableListOf<Pair<Any?, MutableList<GtdTask>>>()
+    forEach { task ->
+        val k = key(task)
+        val last = groups.lastOrNull()
+        if (last != null && last.first == k) last.second += task else groups += k to mutableListOf(task)
+    }
+    return groups
+}
+
+/** The header of a day section: [label] as a heading, tagged [tag]. */
+@Composable
+internal fun DayHeader(
+    label: String,
+    tag: String,
+) {
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
+        Text(
+            label,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier =
+                Modifier
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .testTag(tag)
+                    .semantics { heading() },
+        )
     }
 }
 
