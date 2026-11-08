@@ -1,10 +1,11 @@
 ---
 title: Reminders on tasks (web + Android)
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [and-task-detail-dates,web-task-actions,and-links-panel]
 touches: [web/src/app/features/gtd/task-detail,android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/test/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml,web/src/locale]
 prio: 2
+lease_until: 2026-11-08T23:18:36Z
 ---
 ## Goal
 SPEC.md §4.6 and the phase 3 demo (step 5) expect reminders on tasks/ticklers; `POST /api/v1/reminders` exists
