@@ -24,3 +24,4 @@ The owner reports that missing images make some mails unusable; the decided defa
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 Out of scope: Android (task and-mail-images). If "Load images" turns out not to work for real mails (proxy errors, CSP), fix it here and record what was broken.
+- ASSUMPTION (2026-11-08 12:30+0100 by dell26/agent-2): mailImageAllowedSenders entries match a sender by exact address (case-insensitive) or, when the entry has no local part (example.test or @example.test), by exact domain (no subdomains), as the API describes 'addresses or domains'. 'Stop' in the read view removes every entry that allows that sender (address and domain), so images are asked for again.
