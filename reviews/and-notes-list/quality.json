@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "task": "and-notes-list",
+  "reviewed_revision": "a4af5022f91cc50a455396c7c794455d4a1b8d9d",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-notes-list/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-notes-list/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-notes-list/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: clearing the search during a running search left loading forever; list/search loading tracked separately"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: older search hits shown under a new text; hits cleared on text change"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: list load started before pin/archive/delete could bring back the old note; reload when changed during a load"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: Keep mine after pin/archive conflict could overwrite another device's edit; shows server version when no local edits"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: German Unpin label differed from web"},
+    {"id": "RR-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "re-review: search message matched by value could remove a failed list load's banner; list and search messages kept apart"},
+    {"id": "RR2-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "second re-review: list load completion cleared a search failure; line removed, regression test added"}
+  ],
+  "validation": [
+    {"command": "android/gradlew -p android ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*'", "result": "pass"},
+    {"command": "android/gradlew -p android lintDebug", "result": "pass"},
+    {"command": "android/gradlew -p android createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
