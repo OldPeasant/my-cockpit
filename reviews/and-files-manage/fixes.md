@@ -103,3 +103,61 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed. The Android gate passes. `.taskcheck` fails only in the unrelated server test PageFetcherSizeLimitTests, which the parent worker should re-run before `done`.
+
+## Second review (4e45f4c65) findings
+
+Scope: the two P3 findings of the second review (`git show 4e45f4c65:reviews/and-files-manage/review.md`, reviewed HEAD 8c57f7a9). The previous parent worker fixed both itself in commit c700dfcff. The fixer did not change any production or test code in this round. It read the diff of c700dfcff, the code at HEAD 4294509ec and the tests, and confirmed that each fix resolves its finding. The third review (reviews/and-files-manage/review.md) also confirms both as resolved. The two new P3s of the third review are outside this report: the parent worker accepted them without a fix.
+
+### Fixed findings
+
+#### Review 2 CR-1 - A rename or move refused with 404 says "try again", but every retry gets 404 again
+
+Fixed by: the parent worker in c700dfcff. Verified by the fixer.
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/files/FilesViewModel.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/files/FilesViewModelTest.kt` (c700dfcff, plus test-writer tests in 4294509ec)
+
+Problem:
+A 404 maps to CHANGED and triggers `reloadStale()`. Two cases stayed stuck. In the rename dialog, `withVersionsOf` kept the old entry when the reload no longer contained it (`byId[it.id] ?: it`), so every retry got 404 again. In the move picker, a 404 can also mean the target folder was trashed. The entries were still in the origin folder and the picker's folder list was not reloaded, so "Move here" kept targeting the trashed folder.
+
+Fix:
+- Rename dialog: `FilesUiState.withVersionsOf` now closes the dialog and sets `actionMessage = CHANGED` when the dialog's entry is missing from the reloaded folder. The check runs only when the dialog is not `saving`, so a reload cannot close a dialog whose save is still in progress. A create dialog (no entry) is unaffected. This matches how the picker already handled gone entries.
+- Move picker: `confirmMove` computes `targetGone`, which is true when any failure is `FilesResult.Failed` with status 404. In that case the picker keeps the entries that failed, its `path` goes back to `picker.origin`, and `loadPicker()` reloads that folder, so a trashed target is no longer offered. Back at the origin, `canMove` is false, so the user has to pick another folder instead of retrying the dead target. If the 404 actually means the entry itself is gone, the stale reload that follows (`reloadStale()`, the picker no longer `moving`, origin equals the reloaded folder) drops that entry from the picker. When no entry is left, it closes the picker with the move message, as before.
+
+Verification by the fixer (read-only):
+- `saveName` sets `saving = false` before it calls `reloadStale()`, so the `gone` check applies to the reload that follows a 404. The `saving` guard stops an unrelated reload from closing a dialog while a save is running.
+- `loadPicker()` reads the updated `movePicker.path` (origin) from state after the `state.update`, so the reload lists the origin folder, not the trashed target.
+- The CHANGED path and the `adoptVersions` behavior from the first round (CR-1, CR-2) are unchanged.
+
+Tests:
+- c700dfcff: `a rename of something gone elsewhere closes the dialog once the reload no longer has it`, `a move into a folder gone elsewhere sends the picker back to where the entries are`
+- 4294509ec (test-writer): `a move into a folder gone elsewhere sends the picker back to a subfolder the entry is in`, `a partly moved selection whose other entry is gone elsewhere closes the picker after the reload`, `a rename dialog is not closed by a reload while its save is still running`
+
+Validation (run by the parent worker at HEAD 4294509ec, with no other Gradle process running. The fixer did not run Gradle because the parent was running scripts/check.sh at the same time):
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.files.FilesViewModelTest'` (test-writer, focused) - Pass, 61/61
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport` - Pass, BUILD SUCCESSFUL, 3430 tests, 0 failures, 0 skipped
+
+#### Review 2 CR-2 - The formatter split simple expressions in the move picker across several lines
+
+Fixed by: the parent worker in c700dfcff. Verified by the fixer.
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/files/FilesScreen.kt` (`MovePickerDialog`, picker row)
+
+Problem:
+The `KindTile` kind and the name color in the picker row took up 22 lines, and `picker.canOpen(folder)` was evaluated three times per row.
+
+Fix:
+The row now computes `openable = picker.canOpen(folder)`, `kind` (SPECIAL_FOLDER or FOLDER) and `nameColor` once, before the `Row`, and passes them in. Behavior is unchanged: the row is still clickable only when `openable && !picker.moving`, the tile is dimmed when not openable, and the name is drawn in `outline` when not openable. Test tags are unchanged.
+
+Validation:
+- No new test is needed for a behavior-preserving refactor. The existing FilesScreenTest and FilesRouteInAppTest picker tests and ktlintCheck pass in the parent's run above (3430 tests, 0 failures, BUILD SUCCESSFUL).
+
+### Not fixed
+
+None.
+
+### Second-round summary
+
+Remaining unresolved findings of the second review: 0. Both fixes in c700dfcff are correct and covered by tests. The fixer made no code changes in this round.
