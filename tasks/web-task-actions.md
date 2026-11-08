@@ -20,7 +20,8 @@ and cannot complete/reopen it from task detail. Android has both, with undo.
   - verified (2026-11-08 15:35+0100 by dell26/agent-1): npx ng test --include task-detail/task-checklist.spec.ts -> 44 passed ('rename': Enter/blur save, Escape cancels, empty/unchanged ignored, 412/error rollback); part of npm run check -> 4429 passed
 - [x] Task notes are shown rendered as Markdown when not editing (click/Edit switches to the textarea)
   - verified (2026-11-08 15:35+0100 by dell26/agent-1): npx ng test --include task-detail.spec.ts 'rendered notes' -> pass (Markdown rendered when not editing, HTML escaped, Edit/click/Enter switch to textarea, link click keeps view, renders again after save/discard); part of npm run check -> 4429 passed
-- [ ] New UI strings are in `web/src/locale` (English + German)
+- [x] New UI strings are in `web/src/locale` (English + German)
+  - verified (2026-11-08 15:35+0100 by dell26/agent-1): npx ng test --include src/locale/messages-de.spec.ts -> pass ('has the task actions, undo and notes messages in English and German'); all 13 new ids in messages.xlf and messages.de.xlf (code review); npm run check (build incl. locales) -> pass
 - [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
 
 ## Notes
