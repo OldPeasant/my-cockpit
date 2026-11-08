@@ -107,6 +107,8 @@ class EventEditorViewModelExtrasTest {
         Dispatchers.setMain(dispatcher)
         coEvery { extras.localCalendars() } returns CalendarResult.Ok(setOf(work.id))
         coEvery { extras.links(any()) } returns CalendarResult.Ok(emptyList())
+        coEvery { extras.invitationCalendars() } returns CalendarResult.Ok(emptySet())
+        coEvery { extras.ownAddresses() } returns CalendarResult.Ok(emptySet())
         coEvery { extras.mailAccounts() } returns CalendarResult.Ok(listOf(account, other))
         coEvery { repo.event(local.eventId) } returns CalendarResult.Ok(details(local, listOf(ada, bob), listOf(60, 10)))
         coEvery { repo.event(synced.eventId) } returns CalendarResult.Ok(details(synced, listOf(ada)))

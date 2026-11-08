@@ -67,6 +67,7 @@ fun CalendarWithEditor(
                     retryAccounts = editor::loadAccounts,
                     createLinked = editor::createLinked,
                     reloadLinks = editor::loadLinks,
+                    respond = editor::respond,
                 ),
             modifier = modifier,
         )

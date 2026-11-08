@@ -78,6 +78,8 @@ data class EventEditorCallbacks(
     val retryAccounts: () -> Unit = {},
     val createLinked: (LinkedKind) -> Unit = {},
     val reloadLinks: () -> Unit = {},
+    /** Answers the invitation: ACCEPTED, TENTATIVE or DECLINED. */
+    val respond: (AttendeeStatus) -> Unit = {},
 )
 
 internal object EventEditorTags {
@@ -111,6 +113,7 @@ internal object EventEditorTags {
     const val REMINDER_CUSTOM_MINUTES = "event-editor-reminder-custom-minutes"
     const val REMINDER_CUSTOM_OK = "event-editor-reminder-custom-ok"
     const val GUESTS = "event-editor-guests"
+    const val RESPONSE = "event-editor-response"
     const val GUEST_INPUT = "event-editor-guest-input"
     const val GUEST_ADD = "event-editor-guest-add"
     const val INVITE = "event-editor-invite"
@@ -137,6 +140,8 @@ internal object EventEditorTags {
     fun reminderRemove(minutes: Int) = "event-editor-reminder-remove:$minutes"
 
     fun reminderPreset(minutes: Int) = "event-editor-reminder-preset:$minutes"
+
+    fun respond(answer: AttendeeStatus) = "event-editor-respond:$answer"
 
     fun guest(email: String) = "event-editor-guest:$email"
 
@@ -195,7 +200,7 @@ fun EventEditorContent(
                     modifier = Modifier.padding(end = 8.dp).testTag(EventEditorTags.SAVE),
                 ) { Text(stringResource(R.string.calendar_edit_save)) }
             }
-            if (state.loading || state.saving) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (state.loading || state.saving || state.responding != null) LinearProgressIndicator(Modifier.fillMaxWidth())
             state.message?.let { Message(it, callbacks.reload) }
             state.form?.let { Form(state, it, callbacks) }
         }
@@ -238,6 +243,7 @@ private fun Message(
             EditorMessage.DELETE_FAILED -> R.string.calendar_edit_delete_failed
             EditorMessage.CONFLICT -> R.string.calendar_edit_conflict
             EditorMessage.GONE -> R.string.calendar_edit_gone
+            EditorMessage.RESPOND_FAILED -> R.string.calendar_edit_respond_failed
         }
     val action =
         when (message) {
@@ -331,6 +337,7 @@ private fun Form(
             modifier = Modifier.fillMaxWidth().testTag(EventEditorTags.DESCRIPTION),
         )
         ReminderSection(form, enabled, update)
+        if (state.respondable) ResponseSection(state, callbacks.respond)
         GuestSection(state, form, callbacks)
         state.links?.let { LinksSection(it, canCreate = !state.loading && !state.saving, callbacks = callbacks) }
     }
