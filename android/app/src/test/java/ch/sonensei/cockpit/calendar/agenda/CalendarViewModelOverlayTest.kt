@@ -351,6 +351,63 @@ class CalendarViewModelOverlayTest {
         }
 
     @Test
+    fun `the month view loads the overlay's tasks of its whole weeks, and each moved month its own`() =
+        runTest(dispatcher) {
+            val september30 = LocalDate.parse("2026-09-30")
+            val november1 = LocalDate.parse("2026-11-01")
+            val november20 = LocalDate.parse("2026-11-20")
+            tasks.all = listOf(task(1, september30), task(2, november1), task(3, november20))
+            val vm = viewModel(TaskOverlaySetting.InMemory(enabled = true))
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.select(CalendarView.MONTH)
+            advanceUntilIdle()
+            val october = LocalDate.parse("2026-09-28") to LocalDate.parse("2026-11-02")
+            assertEquals(october, tasks.calls.last())
+            // The days of September and November shown in October's grid get their marks too.
+            assertEquals(
+                listOf(september30, november1),
+                vm.uiState.value.taskMarks.keys
+                    .toList(),
+            )
+
+            vm.move(1)
+            advanceUntilIdle()
+            assertEquals(LocalDate.parse("2026-10-26") to LocalDate.parse("2026-12-07"), tasks.calls.last())
+            assertEquals(
+                listOf(november1, november20),
+                vm.uiState.value.taskMarks.keys
+                    .toList(),
+            )
+
+            vm.openDay(november20)
+            advanceUntilIdle()
+            assertEquals(november20 to november20.plusDays(1), tasks.calls.last())
+            val shown = vm.uiState.value.tasks
+            assertEquals(listOf(id(3)), shown.map { it.id })
+        }
+
+    @Test
+    fun `switching the overlay on in the agenda after loading more covers all loaded days`() =
+        runTest(dispatcher) {
+            tasks.all = listOf(task(1, today.plusDays(2)), task(2, today.plusDays(45)))
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+            vm.loadMore()
+            advanceUntilIdle()
+            assertTrue(tasks.calls.isEmpty())
+
+            vm.setOverlay(true)
+            advanceUntilIdle()
+
+            assertEquals(listOf(today to today.plusDays(60)), tasks.calls)
+            val shown = vm.uiState.value.tasks
+            assertEquals(listOf(id(1), id(2)), shown.map { it.id })
+        }
+
+    @Test
     fun `a failed agenda page loads no tasks for it`() =
         runTest(dispatcher) {
             val vm = viewModel(TaskOverlaySetting.InMemory(enabled = true))

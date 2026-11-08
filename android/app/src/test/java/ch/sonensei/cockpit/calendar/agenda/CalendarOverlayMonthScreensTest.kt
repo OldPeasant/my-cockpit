@@ -278,6 +278,59 @@ class CalendarOverlayMonthScreensTest {
     }
 
     @Test
+    fun `an agenda with only tasks is not reported as empty`() {
+        show(state(tasks = listOf(dentist)))
+
+        composeRule.onNodeWithTag(CalendarTags.day(today.plusDays(1))).assertExists()
+        composeRule.onNodeWithTag(tag(dentist, TaskMarkKind.SCHEDULED, today.plusDays(1))).assertExists()
+        composeRule.onNodeWithTag(CalendarTags.EMPTY).assertDoesNotExist()
+    }
+
+    @Test
+    fun `an agenda without events and with the overlay off says nothing is planned`() {
+        show(state(overlay = false, tasks = listOf(dentist)))
+
+        composeRule.onNodeWithTag(CalendarTags.EMPTY).assertExists()
+        composeRule.onNodeWithTag(CalendarTags.day(today.plusDays(1))).assertDoesNotExist()
+    }
+
+    @Test
+    fun `the week view shows compact task chips without the kind and time label`() {
+        show(state(view = CalendarView.WEEK))
+
+        val chip = composeRule.onNodeWithTag(tag(report, TaskMarkKind.DUE, today))
+        chip.assertTextContains("Send the quarterly report", substring = true)
+        // The day view's "Due 2:30 PM" label is left out for lack of room.
+        composeRule.onNodeWithText("Due", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    @Config(qualifiers = "de-rDE")
+    fun `the month view and the overlay are shown in German`() {
+        show(state(view = CalendarView.MONTH))
+
+        composeRule.onNodeWithText("Oktober 2026").assertExists()
+        composeRule.onNodeWithContentDescription("Vorheriger Monat").assertExists()
+        composeRule.onNodeWithContentDescription("Nächster Monat").assertExists()
+        composeRule.onNodeWithContentDescription("Aufgaben anzeigen").assertIsOn()
+        composeRule.onNodeWithTag(CalendarTags.view(CalendarView.MONTH)).assertTextContains("Monat")
+        // Today has the due task and the tickler.
+        composeRule.onNodeWithContentDescription("Mittwoch, 21. Oktober 2026, 2 Einträge").assertExists()
+    }
+
+    @Test
+    @Config(qualifiers = "de-rDE")
+    fun `the day view labels a task's kind and time in German`() {
+        show(state(view = CalendarView.DAY, tasksFailed = true))
+
+        composeRule.onNodeWithTag(tag(report, TaskMarkKind.DUE, today)).assertTextContains("Fällig 14:30", substring = true)
+        composeRule
+            .onNodeWithTag(tag(renewal, TaskMarkKind.TICKLER, today))
+            .assertTextContains("Zurück aus Wiedervorlage", substring = true)
+        composeRule.onNodeWithTag(CalendarTags.TASKS_FAILED).assertTextContains("Die Aufgaben konnten nicht geladen werden.")
+    }
+
+    @Test
     fun `the new strings exist in English and German`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val english = localized(context, Locale.ENGLISH)
