@@ -4,6 +4,7 @@ import { provideRouter, Route, UrlSegment, UrlSegmentGroup } from '@angular/rout
 import { RouterTestingHarness } from '@angular/router/testing';
 import { ChangeEventsService } from '../../core/events';
 import { NotificationService, provideHttp } from '../../core/http';
+import { fakeSettings } from '../settings/testing';
 import { FakeEvents } from './list/mail-testing';
 import mailRoutes, { mailListMatcher } from './mail.routes';
 
@@ -71,6 +72,9 @@ describe('mail routes', () => {
     const http = TestBed.inject(HttpTestingController);
     expect(harness.routeNativeElement?.tagName.toLowerCase()).toBe('app-mail-read-page');
     expect(document.title).toBe('Message');
+    // The image settings decide how the message is requested (the default blocks).
+    http.expectOne('/api/v1/settings').flush(fakeSettings());
+    await new Promise((resolve) => setTimeout(resolve));
     const gets = http.match((req) => req.url === `/api/v1/mail/messages/${MESSAGE}`);
     expect(gets).toHaveLength(1);
     expect(gets[0].request.method).toBe('GET');
