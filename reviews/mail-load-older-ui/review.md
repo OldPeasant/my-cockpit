@@ -4,27 +4,22 @@ Date: 2026-11-08
 
 Task: mail-load-older-ui - Load mail older than the sync window (web + Android)
 
-Scope: task commits aff8220c4 (web) and 1094d9ff0 (Android) on top of base ff797183e (`git diff ff797183e 1094d9ff0 -- web android`). The shell tool was denied in this review session, so the diff could not be printed. Instead, the reviewer read the current versions of the files the task touches in full:
-- web: `mail-list-store.ts`, `mail-list-page.ts`, `mail-list-page.html`, `mail.service.ts`;
-- Android: `MailListViewModel.kt`, `MailRepository.kt`, `MailApi.kt`, `MailScreen.kt` (list part, lines 1-720);
-- `strings_mail.xml` (en and de).
-
-The regenerated `web/src/locale/messages.xlf` was treated as expected churn and not reviewed.
+Scope: final task code, `git diff 73a3b3fc4 4e4ff409e -- web android`. It covers commits 81823764b (web), 1b49efa14 (Android), 711fe21f3 (tests), and f430e277e + 4e4ff409e (fixes for CR-1..3 and TW-1/TW-2). This is a re-review. It confirms that the earlier findings are resolved and checks the fix for new issues.
 
 Requirements:
-- `tasks/mail-load-older-ui.md`: the acceptance criteria and the ASSUMPTION about offering the button at the end of every folder list and re-reading the folder's first (shown + loaded) messages.
-- SPEC.md §7.2 (sync window, load-older endpoint), as summarised in the task goal.
-- `api/openapi.yaml` `POST /api/v1/mail/folders/{id}/load-older`, as consumed by the generated `loadOlderMail` (web) and the hand-written `MailApi.loadOlder` / `MailLoadOlderDto(loaded, hasMore)` (Android).
-- `AGENTS.md` project notes: i18n in en and de, feature folders and `touches`, lint.
-- The `MailListStore` class contract (a refetch must not overwrite a running action's optimistic state).
+- `tasks/mail-load-older-ui.md`: the acceptance criteria and both ASSUMPTION notes (the button at the end of every folder list; TW-2's German catalog fix is in scope).
+- SPEC.md §7.2, as summarised in the task goal.
+- AGENTS.md project notes (i18n en+de, touches, lint).
+- `reviews/mail-load-older-ui/fixes.md`.
+- The documented `MailListStore` contract (a refetch must not overwrite a running action's optimistic state).
 
 Git range:
 - Branch: main
-- HEAD: 1094d9ff0
-- Base/start: ff797183e61538afeb87cb4dd3f827e744ecca01
-- Commits reviewed: 2 (aff8220c4, 1094d9ff0)
+- HEAD: 4e4ff409e
+- Base/start: 73a3b3fc43a909befd381f915314015c509dcef7
+- Commits reviewed: 6 (3 code commits, the earlier review report, and 2 fix commits)
 
-Summary: 0 P0, 1 P1, 1 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## P0 Critical
 
@@ -32,54 +27,51 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | Web: "loading older" never ends when the list is replaced while the request runs**
-    - File: `web/src/app/features/mail/list/mail-list-store.ts:268` and `:288-289`, together with `load()` at `:146-162` and `restore()` at `:228-242`
-    - Category: Correctness
-    - Problem: `loadOlder()` sets `loadingOlder` to true. It resets it only `if (seq === this.loadSeq)`, in the `finally` block. Several actions increment `loadSeq` while the request runs:
-        - switching to another folder (the page is kept across folders through `mailListMatcher`);
-        - toggling Messages/Conversations;
-        - starting a search;
-        - "Try again".
-
-      In each case `load()` runs, increments `loadSeq` and resets `loadError`, `moreError` and `olderError`, but it never resets `loadingOlder`. The flag therefore stays `true` for good. In the newly shown folder, `mail-list-page.html:291-300` keeps showing "Loading older messages from the server…" with the button disabled. `loadOlder()` returns early on `this.loadingOlder()`, so the feature is dead until the page is left. (`loadMore()` avoids this problem: it resets `loadingMore` unconditionally.)
-    - Why it matters: This breaks AC1 ("shows the progress, then the newly cached messages") and AC2 (errors non-blocking, retry possible). A load-older request goes to IMAP and can be slow, so switching folders while it runs is a normal action. The result is a stuck progress state with no way to recover.
-    - Suggested fix: Reset `loadingOlder` to false in `load()` and `restore()`, as the Android `load()` does. Alternatively, reset it unconditionally in `finally`, but only if no newer `loadOlder` call has started (use a dedicated sequence number). Add a store test: start `loadOlder`, call `load()` for another folder, then resolve or reject the pending request, and check that `loadingOlder()` is false and that `loadOlder()` works again.
+None.
 
 ## P2 Medium
 
-- [ ] **CR-2 | Web: loadOlder replaces the list without the action/refetch guards the store promises**
-    - File: `web/src/app/features/mail/list/mail-list-store.ts:275-283`
-    - Category: Correctness
-    - Problem: After the POST, `loadOlder()` re-reads the folder (`fetchUpTo`) and calls `this.items.set(page.items)`. It does not check `this.running` or whether `mutationSeq` changed while the read was in flight. `refresh()` does both (`:343-357`). The class documentation says: "A refetch that would overwrite a running action's optimistic state waits until the action is done." Suppose an archive, delete, move or flag action starts while load-older runs. Its optimistic change is then overwritten by a server read that may come from before the action was committed: an archived mail reappears, or a star flips back. Nothing reapplies the change, because `apply()` only rolls back on failure and queues a refresh only on failure. The display is corrected only later, if a `MAIL_FOLDER` event triggers a refresh. The Android view model does not have this problem: `perform()` reapplies `changed(done, action)` on top of whatever list is current.
-    - Why it matters: Rows the user just acted on come back for a while, and the store's own documented consistency rule is broken.
-    - Suggested fix: Do as `refresh()` does. Record `mutationSeq` before `fetchUpTo`. If an action is running or the sequence changed, either re-run the fetch once the actions settle, or apply the page and then set `refreshQueued = true` and call `runQueuedRefresh()`. Add a test for an archive started while `loadOlder` is pending.
+None.
 
 ## P3 Low
 
-- [ ] **CR-3 | Web: "nothing older" is shown as an error with a redundant prefix**
-    - File: `web/src/app/features/mail/list/mail-list-page.html:286-289` and `mail-list-store.ts:270-272`
-    - Category: Quality
-    - Problem: The "nothing older" case is stored in `olderError` and rendered as `<p class="error">Nothing older loaded: There are no older messages on the server.</p>`. This reads as a failure and repeats itself. Android shows the same case as a neutral message (`onSurfaceVariant`) and colours only real failures as errors.
-    - Why it matters: A normal outcome looks like a failure, and the two clients behave differently on the same event.
-    - Suggested fix: Keep "nothing older" separate from failures, for example with an `olderNotice` signal or a kind field. Render it without the error class and without the "Nothing older loaded:" prefix.
+None.
+
+## Earlier findings: verification
+
+- **CR-1 / TW-1 (loadingOlder stuck after load/restore): resolved.**
+  - `load()` (`mail-list-store.ts:159`) and `restore()` (`:243`) both call `resetOlder()` (`:249-253`). It clears `loadingOlder`, `olderError` and `olderNote`.
+  - The stale `loadOlder()` drops its answer on the `seq !== this.loadSeq` checks, so it cannot clear the progress of a newer call.
+  - Regression tests: "ends the progress when the list is reloaded or restored while it loads older" and "can load older in the next folder after leaving one while it loaded older".
+- **CR-2 (loadOlder overwrote optimistic action state): resolved.** `showUpTo()` (`:301-321`) follows the `refresh()` pattern:
+  - It waits on `actionsSettled()` while `running > 0`.
+  - It records `mutationSeq` before `fetchUpTo`, and reads again if an action started or changed the list meanwhile.
+  - It bumps `mutationSeq` itself, so an in-flight `refresh()` sized for the shorter list requeues instead of shrinking the list.
+  - The waiters are released in `apply()` (`:479-483`) after `running--`, which sits in a `finally`. `apply()` is the only place that increments `running` (`:452`), so a waiter cannot hang longer than the action that blocks it.
+  - A `load()` while it waits returns without a read.
+  - Tests cover all three paths.
+- **CR-3 ("nothing older" shown as an error): resolved.**
+  - The new `olderNote` signal is rendered as a neutral `<p class="note" role="status">` (`mail-list-page.html:291-293`), without the "Nothing older loaded:" prefix.
+  - Real failures keep `.error` with the prefix.
+  - This now matches Android, which shows NOTHING_OLDER neutrally.
+- **TW-2 (German catalog): resolved.**
+  - `messages.de.xlf` now has the 16 `calendar.invite.*` units and the current `capture.save` source.
+  - The new ids `mail.loadOlderFromServer`, `mail.loadingOlder`, `mail.olderFailed` (with the `INTERPOLATION` placeholder kept) and `mail.list.nothingOlder` have German targets (`messages.de.xlf:9023-9050`).
+
+## Acceptance criteria check (from the code)
+
+- AC1:
+  - Web: `canLoadOlder` requires a folder, no search, a loaded list, no load error and no cursor. `loadOlder()` sends POST `load-older?limit=100` through the generated `loadOlderMail` with silent errors, shows `mail.loadingOlder`, then re-reads `shown + loaded` items in pages capped at 200.
+  - Android: `MailListViewModel.loadOlder()` does the same, and `load()` and `select()` reset the progress. Android is unchanged since the first review.
+- AC2: offline, failure and nothing-older are shown inline at the end of the list, with no toast and the list kept. The button stays enabled for a retry on both clients.
+- AC3: the 5 Android strings are in `values/` and `values-de/`. The 4 web units are in `messages.xlf` and `messages.de.xlf`.
+- AC4: there are unit tests for the web store, page and service and for Android (repository, view model, screen). `fixes.md` reports `npm --prefix web run check` passing (4550 tests). This review did not run the suites.
 
 ## Notes (not findings)
 
-- Android (`MailListViewModel.loadOlder`):
-    - `load()` cancels `loadJob` and resets `loadingOlder` and `olderMessage`, so a refresh, a folder switch or a reload after undo ends the progress.
-    - A mailbox change while the coroutine runs is also guarded (`s.mailbox != folder`).
-    - Failures map to OFFLINE, FAILED or NOTHING_OLDER, shown inline without blocking, and the button stays available for a retry.
-    - The selection is pruned to the re-read list.
-    - `canLoadOlder` requires a folder, no search, a loaded list, no cursor and no failed page load, which matches the ASSUMPTION. The button is also offered for an empty folder.
-- Contract:
-    - Both clients send `POST /api/v1/mail/folders/{id}/load-older?limit=100` and read `loaded` (with `hasMore` defaulting to false).
-    - Both re-read `shown + loaded` messages, in pages capped at 200 (`MAIL_MAX_PAGE_SIZE` / `MAX_PAGE_SIZE`).
-    - Calls are silent on the web (`SILENT_ERRORS`), and errors are shown through `ApiError.userMessage`.
-- Strings:
-    - Android: the five new strings exist in both `values/` and `values-de/`.
-    - Web: the new ids are `mail.loadOlderFromServer`, `mail.loadingOlder`, `mail.olderFailed` and `mail.list.nothingOlder`. Their German targets in `web/src/locale/messages.de.xlf` could not be confirmed, because the file could not be searched without the shell. The parent should confirm this with the project's i18n check (`npm run check`).
-- Limitations: the shell was denied in this session. The reviewer could not run `git diff`/`git log`, the tests, `sh scripts/check.sh` or `python tasks.py verify mail-load-older-ui`. The findings above come from reading the current code. Test coverage for the new behaviour, and the evidence for AC4, are left to the concurrent test-writer and the parent worker. CR-1 needs a regression test.
+- `python tasks.py verify mail-load-older-ui` shows all four criteria as unverified. The parent worker still has to record evidence, including a `sh scripts/check.sh` run on the final code, before `done`.
+- `refresh()` still caps its re-read at 200 items (`MAIL_MAX_PAGE_SIZE`). So after loading older beyond 200 items, the next folder event shrinks the list to 200 and sets a cursor, and the end then shows infinite scroll instead of the button. The same happens after `loadMore()` today, so this was not introduced by this task. It is not a defect of this task.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
