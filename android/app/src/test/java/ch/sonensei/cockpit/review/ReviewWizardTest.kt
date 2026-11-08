@@ -21,7 +21,6 @@ import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.habits.Habit
 import ch.sonensei.cockpit.habits.HabitSchedule
-import ch.sonensei.cockpit.ui.navigation.CockpitDestination
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -141,13 +140,6 @@ class ReviewWizardTest {
         composeRule.onNodeWithTag(ReviewTags.STEP_FAILED).assertIsDisplayed()
         composeRule.onNodeWithTag(ReviewTags.STEP_RETRY).performClick()
         assertEquals(listOf("load:UPCOMING_CALENDAR", "load:UPCOMING_CALENDAR"), calls)
-    }
-
-    @Test
-    fun `steps 4 to 7 open their list`() {
-        show(wizard(ReviewStep.WAITING_FOR))
-        composeRule.onNodeWithTag(ReviewTags.OPEN_LIST).assertTextEquals("Open Waiting").performClick()
-        assertEquals("open:${CockpitDestination.Waiting.name}", calls.last())
     }
 
     @Test

@@ -335,13 +335,18 @@ class ReviewViewModel
         }
 
         /** Waiting for: still waiting (nothing changes on the server). */
-        fun keepWaiting(task: ReviewTask) = decide(ReviewStep.WAITING_FOR, task.id, ReviewDecision(ReviewDecision.Kind.STILL_WAITING, task.title), null)
+        fun keepWaiting(task: ReviewTask) =
+            decide(ReviewStep.WAITING_FOR, task.id, ReviewDecision(ReviewDecision.Kind.STILL_WAITING, task.title), null)
 
         /** Waiting for: adds a next action titled [title] to chase it; the waiting task itself stays as it is. */
         fun followUp(
             task: ReviewTask,
             title: String,
-        ) = decide(ReviewStep.WAITING_FOR, task.id, ReviewDecision(ReviewDecision.Kind.FOLLOWED_UP, title)) { actions.followUp(task, title) }
+        ) = decide(
+            ReviewStep.WAITING_FOR,
+            task.id,
+            ReviewDecision(ReviewDecision.Kind.FOLLOWED_UP, title),
+        ) { actions.followUp(task, title) }
 
         /** Waiting for: it arrived, the task is completed. */
         fun completeWaiting(task: ReviewTask) =
@@ -369,9 +374,10 @@ class ReviewViewModel
 
         /** Projects: the typed next step becomes a next action of the project and its next step; the project stays listed. */
         fun addNextStep(project: ReviewProject) {
-            val title = state.value.nextStepDrafts[project.id]
-                ?.trim()
-                .orEmpty()
+            val title =
+                state.value.nextStepDrafts[project.id]
+                    ?.trim()
+                    .orEmpty()
             if (title.isEmpty() || project.id in state.value.busy) return
             setBusy(project.id, true)
             viewModelScope.launch {
@@ -397,7 +403,8 @@ class ReviewViewModel
         }
 
         /** Next actions: keep it as it is. */
-        fun keepNextAction(task: ReviewTask) = decide(ReviewStep.NEXT_ACTIONS, task.id, ReviewDecision(ReviewDecision.Kind.KEPT, task.title), null)
+        fun keepNextAction(task: ReviewTask) =
+            decide(ReviewStep.NEXT_ACTIONS, task.id, ReviewDecision(ReviewDecision.Kind.KEPT, task.title), null)
 
         fun moveToSomeday(task: ReviewTask) =
             decide(ReviewStep.NEXT_ACTIONS, task.id, ReviewDecision(ReviewDecision.Kind.MOVED_TO_SOMEDAY, task.title)) {

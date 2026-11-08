@@ -16,7 +16,6 @@ import androidx.compose.ui.test.performImeAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.habits.Habit
 import ch.sonensei.cockpit.habits.HabitSchedule
-import ch.sonensei.cockpit.ui.navigation.CockpitDestination
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -77,27 +76,6 @@ class ReviewWizardEdgeCasesTest {
         weeks,
         rate,
     )
-
-    @Test
-    fun `steps 4 to 7 each open their own list`() {
-        var step by mutableStateOf(ReviewStep.WAITING_FOR)
-        composeRule.setContent { CockpitTheme { ReviewContent(wizard(step), callbacks) } }
-        val expected =
-            mapOf(
-                ReviewStep.WAITING_FOR to CockpitDestination.Waiting,
-                ReviewStep.PROJECTS to CockpitDestination.Projects,
-                ReviewStep.NEXT_ACTIONS to CockpitDestination.Next,
-                ReviewStep.SOMEDAY to CockpitDestination.Someday,
-            )
-        expected.forEach { (target, list) ->
-            step = target
-            composeRule.waitForIdle()
-            composeRule.onNodeWithTag(ReviewTags.OPEN_MAIL).assertDoesNotExist()
-            composeRule.onNodeWithTag(ReviewTags.OPEN_LIST).performClick()
-            assertEquals("open:${list.name}", calls.last())
-        }
-        composeRule.onNodeWithTag(ReviewTags.OPEN_LIST).assertTextEquals("Open Someday")
-    }
 
     @Test
     fun `an empty past calendar says so`() {

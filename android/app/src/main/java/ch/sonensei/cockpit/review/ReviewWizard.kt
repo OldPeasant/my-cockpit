@@ -91,10 +91,10 @@ internal fun ReviewWizard(
                 ReviewStep.GET_CLEAR -> GetClearStep(inbox, callbacks.open)
                 ReviewStep.PAST_CALENDAR -> CalendarStep(state.pastEvents, upcoming = false, state, callbacks)
                 ReviewStep.UPCOMING_CALENDAR -> CalendarStep(state.upcomingEvents, upcoming = true, state, callbacks)
-                ReviewStep.WAITING_FOR -> ListStep(CockpitDestination.Waiting, callbacks.open)
-                ReviewStep.PROJECTS -> ListStep(CockpitDestination.Projects, callbacks.open)
-                ReviewStep.NEXT_ACTIONS -> ListStep(CockpitDestination.Next, callbacks.open)
-                ReviewStep.SOMEDAY -> ListStep(CockpitDestination.Someday, callbacks.open)
+                ReviewStep.WAITING_FOR -> WaitingStep(state, callbacks)
+                ReviewStep.PROJECTS -> ProjectsStep(state, callbacks)
+                ReviewStep.NEXT_ACTIONS -> NextActionsStep(state, callbacks)
+                ReviewStep.SOMEDAY -> SomedayStep(state, callbacks)
                 ReviewStep.REFLECTION -> ReflectionStep(state, callbacks)
             }
         }
@@ -372,7 +372,7 @@ private fun CaptureField(
 }
 
 @Composable
-private fun StepFailed(
+internal fun StepFailed(
     callbacks: ReviewCallbacks,
     step: ReviewStep,
 ) {
@@ -385,21 +385,6 @@ private fun StepFailed(
         )
         TextButton(onClick = { callbacks.loadStep(step) }, modifier = Modifier.testTag(ReviewTags.STEP_RETRY)) {
             Text(stringResource(R.string.review_retry))
-        }
-    }
-}
-
-/** Steps 4 to 7: reviewed in their list for now (their in-wizard actions come with and-review-steps). */
-@Composable
-private fun ListStep(
-    list: CockpitDestination,
-    onOpen: (CockpitDestination) -> Unit,
-) {
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.review_list_hint), style = MaterialTheme.typography.bodyMedium)
-        OutlinedButton(onClick = { onOpen(list) }, modifier = Modifier.testTag(ReviewTags.OPEN_LIST)) {
-            Icon(list.icon, contentDescription = null, modifier = Modifier.size(18.dp))
-            Text(stringResource(R.string.review_open_list, stringResource(list.labelRes)), Modifier.padding(start = 8.dp))
         }
     }
 }

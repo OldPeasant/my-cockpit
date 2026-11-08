@@ -93,9 +93,15 @@ class ReviewActions
             project: ReviewProject,
             title: String,
         ): NextStepOutcome {
-            val created = load { body(tasks.createTask(CreateTaskRequest(title, list = CreateTaskRequest.List.NEXT, projectId = project.id))) }
-            if (created !is ReviewResult.Ok) return NextStepOutcome(created, taskCreated = false)
-            val updated = load { body(projects.setProjectNextStep(project.id, NextStepRequest(created.value.id))).toProject() }
+            val created =
+                load { body(tasks.createTask(CreateTaskRequest(title, list = CreateTaskRequest.List.NEXT, projectId = project.id))) }
+            val task =
+                when (created) {
+                    is ReviewResult.Ok -> created.value
+                    ReviewResult.Offline -> return NextStepOutcome(ReviewResult.Offline, taskCreated = false)
+                    is ReviewResult.Failed -> return NextStepOutcome(created, taskCreated = false)
+                }
+            val updated = load { body(projects.setProjectNextStep(project.id, NextStepRequest(task.id))).toProject() }
             return NextStepOutcome(updated, taskCreated = true)
         }
 
@@ -134,7 +140,13 @@ class ReviewActions
             status: ProjectStatus,
         ): ReviewResult<Unit> =
             load {
-                body(projects.updateProject(id, ProjectPatchRequest(status = ProjectPatchRequest.Status.valueOf(status.name)), etag(version)))
+                body(
+                    projects.updateProject(
+                        id,
+                        ProjectPatchRequest(status = ProjectPatchRequest.Status.valueOf(status.name)),
+                        etag(version),
+                    ),
+                )
                 Unit
             }
 

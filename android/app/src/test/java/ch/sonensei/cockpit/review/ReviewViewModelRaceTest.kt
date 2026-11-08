@@ -56,7 +56,7 @@ class ReviewViewModelRaceTest {
         drafts: ReviewDrafts = ReviewDrafts(),
     ): ReviewViewModel {
         coEvery { repo.overview() } returns ReviewResult.Ok(overview(current))
-        val vm = ReviewViewModel(repo, captures, habits, reflections, drafts)
+        val vm = ReviewViewModel(repo, captures, habits, reflections, mockk(), drafts)
         vm.refresh()
         advanceUntilIdle()
         vm.start()
@@ -109,7 +109,7 @@ class ReviewViewModelRaceTest {
     fun `an overview load answering after a new review was started keeps the wizard open`() =
         runTest(dispatcher) {
             coEvery { repo.overview() } returns ReviewResult.Ok(overview(null))
-            val vm = ReviewViewModel(repo, captures, habits, reflections)
+            val vm = ReviewViewModel(repo, captures, habits, reflections, mockk())
             vm.refresh()
             advanceUntilIdle()
             val stale = CompletableDeferred<ReviewResult<ReviewOverview>>()
@@ -146,7 +146,7 @@ class ReviewViewModelRaceTest {
             first.setReflection("Fictitious draft")
 
             // A tab switch drops the review's back-stack entry; coming back creates a new view model.
-            val second = ReviewViewModel(repo, captures, habits, reflections, drafts)
+            val second = ReviewViewModel(repo, captures, habits, reflections, mockk(), drafts)
             second.refresh()
             advanceUntilIdle()
             assertEquals(open(ReviewStep.REFLECTION), second.uiState.value.wizardReview)
@@ -161,7 +161,7 @@ class ReviewViewModelRaceTest {
             first.setReflection("Fictitious draft")
             first.closeWizard()
 
-            val second = ReviewViewModel(repo, captures, habits, reflections, drafts)
+            val second = ReviewViewModel(repo, captures, habits, reflections, mockk(), drafts)
             second.refresh()
             advanceUntilIdle()
             assertNull(second.uiState.value.wizardReview)
@@ -183,7 +183,7 @@ class ReviewViewModelRaceTest {
             assertNull(drafts.wizardFor)
 
             coEvery { repo.overview() } returns ReviewResult.Ok(overview(null))
-            val second = ReviewViewModel(repo, captures, habits, reflections, drafts)
+            val second = ReviewViewModel(repo, captures, habits, reflections, mockk(), drafts)
             second.refresh()
             advanceUntilIdle()
             assertNull(second.uiState.value.wizardReview)

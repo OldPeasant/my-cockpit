@@ -46,7 +46,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.gtd.data.ProjectStatus
 import ch.sonensei.cockpit.gtd.inbox.InboxRoute
+import ch.sonensei.cockpit.gtd.projects.ProjectOpenRequests
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import ch.sonensei.cockpit.ui.navigation.CockpitDestination
 import dagger.hilt.internal.GeneratedComponentManagerHolder
@@ -97,6 +99,20 @@ data class ReviewCallbacks(
     val setReflection: (String) -> Unit = {},
     val dismissMessage: () -> Unit = {},
     val open: (CockpitDestination) -> Unit = {},
+    val keepWaiting: (ReviewTask) -> Unit = {},
+    val followUp: (ReviewTask, String) -> Unit = { _, _ -> },
+    val completeWaiting: (ReviewTask) -> Unit = {},
+    val openProject: (ReviewProject) -> Unit = {},
+    val keepProject: (ReviewProject) -> Unit = {},
+    val setProjectStatus: (ReviewProject, ProjectStatus) -> Unit = { _, _ -> },
+    val setNextStepDraft: (ReviewProject, String) -> Unit = { _, _ -> },
+    val addNextStep: (ReviewProject) -> Unit = {},
+    val keepNextAction: (ReviewTask) -> Unit = {},
+    val moveToSomeday: (ReviewTask) -> Unit = {},
+    val deleteNextAction: (ReviewTask) -> Unit = {},
+    val activate: (SomedayItem) -> Unit = {},
+    val keepSomeday: (SomedayItem) -> Unit = {},
+    val deleteSomeday: (SomedayItem) -> Unit = {},
 ) {
     companion object {
         fun of(
@@ -116,6 +132,23 @@ data class ReviewCallbacks(
             setReflection = vm::setReflection,
             dismissMessage = vm::dismissMessage,
             open = onOpen,
+            keepWaiting = vm::keepWaiting,
+            followUp = vm::followUp,
+            completeWaiting = vm::completeWaiting,
+            openProject = {
+                ProjectOpenRequests.request(it.id)
+                onOpen(CockpitDestination.Projects)
+            },
+            keepProject = vm::keepProject,
+            setProjectStatus = vm::setProjectStatus,
+            setNextStepDraft = vm::setNextStepDraft,
+            addNextStep = vm::addNextStep,
+            keepNextAction = vm::keepNextAction,
+            moveToSomeday = vm::moveToSomeday,
+            deleteNextAction = vm::deleteNextAction,
+            activate = vm::activate,
+            keepSomeday = vm::keepSomeday,
+            deleteSomeday = vm::deleteSomeday,
         )
     }
 }
@@ -151,7 +184,6 @@ internal object ReviewTags {
     const val FINISH = "review-finish"
     const val INBOX = "review-inbox"
     const val OPEN_MAIL = "review-open-mail"
-    const val OPEN_LIST = "review-open-list"
     const val CAPTURE_FIELD = "review-capture-field"
     const val CAPTURE_ADD = "review-capture-add"
     const val CAPTURED = "review-captured"
@@ -161,6 +193,18 @@ internal object ReviewTags {
     const val HABITS_FAILED = "review-habits-failed"
     const val NO_HABITS = "review-no-habits"
     const val REFLECTION = "review-reflection"
+    const val DECISION = "review-decision"
+    const val ITEMS_EMPTY = "review-items-empty"
+    const val KEEP = "review-keep"
+    const val FOLLOW_UP = "review-follow-up"
+    const val DONE = "review-done"
+    const val TO_SOMEDAY = "review-to-someday"
+    const val DELETE = "review-delete"
+    const val ACTIVATE = "review-activate"
+    const val OPEN_PROJECT = "review-open-project"
+    const val STATUS = "review-status"
+    const val NEXT_STEP_FIELD = "review-next-step-field"
+    const val NEXT_STEP_ADD = "review-next-step-add"
 
     fun step(step: ReviewStep) = "review-step:${step.name}"
 
@@ -173,6 +217,11 @@ internal object ReviewTags {
     fun event(event: ReviewEvent) = "review-event:${event.key}"
 
     fun habit(id: UUID) = "review-habit:$id"
+
+    /** A row of steps 4 to 7. */
+    fun item(id: UUID) = "review-item:$id"
+
+    fun status(status: ProjectStatus) = "review-status:${status.name}"
 }
 
 internal val ReviewStep.label: Int
@@ -389,10 +438,12 @@ private fun Banner(
             ReviewMessage.CONFLICT -> R.string.review_conflict
             ReviewMessage.REFLECTION_FAILED -> R.string.review_reflection_failed
             ReviewMessage.CAPTURE_FAILED -> R.string.review_capture_failed
+            ReviewMessage.ACTION_FAILED -> R.string.review_action_failed
+            ReviewMessage.ITEM_CHANGED -> R.string.review_item_changed
         }
     val offline = message == ReviewMessage.OFFLINE || message == ReviewMessage.SAVE_OFFLINE
     val color =
-        if (offline || message == ReviewMessage.CONFLICT) {
+        if (offline || message == ReviewMessage.CONFLICT || message == ReviewMessage.ITEM_CHANGED) {
             MaterialTheme.colorScheme.secondaryContainer
         } else {
             MaterialTheme.colorScheme.errorContainer

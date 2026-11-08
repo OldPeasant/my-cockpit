@@ -18,6 +18,7 @@ import ch.sonensei.cockpit.MainActivity
 import ch.sonensei.cockpit.auth.PersistentTokenStore
 import ch.sonensei.cockpit.core.network.AuthTokens
 import ch.sonensei.cockpit.gtd.inbox.InboxRepository
+import ch.sonensei.cockpit.gtd.projects.ProjectOpenRequests
 import ch.sonensei.cockpit.mail.list.MailRepository
 import ch.sonensei.cockpit.ui.navigation.CockpitDestination
 import ch.sonensei.cockpit.ui.screenTag
@@ -42,7 +43,7 @@ import javax.inject.Inject
 
 /**
  * The review wizard in the Hilt activity with a fake repository: start opens the wizard, system back returns to the
- * overview without leaving the screen (the review stays open), and the Mail and list links navigate in the shell.
+ * overview without leaving the screen (the review stays open), and the Mail link and a project of the projects step navigate in the shell.
  */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
@@ -57,6 +58,10 @@ class ReviewWizardRouteInAppTest {
     @BindValue
     @JvmField
     val repo: ReviewRepository = mockk()
+
+    @BindValue
+    @JvmField
+    val actions: ReviewActions = mockk()
 
     @BindValue
     @JvmField
@@ -157,15 +162,19 @@ class ReviewWizardRouteInAppTest {
     }
 
     @Test
-    fun `the list link of the projects step opens the Projects list, and back returns to the wizard`() {
+    fun `a project of the projects step opens its detail in Projects, and back returns to the wizard`() {
+        val project = ReviewProject(UUID.fromString("00000000-0000-7000-8000-000000000040"), "Fictitious garden", stalled = true)
         coEvery { repo.overview() } returns ReviewResult.Ok(ReviewOverview(open(ReviewStep.PROJECTS), 9, emptyList()))
+        coEvery { actions.projects() } returns ReviewResult.Ok(listOf(project))
         openReview()
         composeRule.onNodeWithTag(ReviewTags.START).performClick()
-        waitForTag(ReviewTags.OPEN_LIST)
+        waitForTag(ReviewTags.OPEN_PROJECT)
 
-        composeRule.onNodeWithTag(ReviewTags.OPEN_LIST).performClick()
+        composeRule.onNodeWithTag(ReviewTags.OPEN_PROJECT).assertTextEquals("Fictitious garden").performClick()
         waitForTag(screenTag(CockpitDestination.Projects))
         composeRule.onNodeWithTag(screenTag(CockpitDestination.Review)).assertDoesNotExist()
+        // The Projects screen took the request, so it shows that project's detail.
+        composeRule.waitUntil(WAIT_MS) { ProjectOpenRequests.requests.value == null }
 
         systemBack()
         waitForTag(ReviewTags.WIZARD)

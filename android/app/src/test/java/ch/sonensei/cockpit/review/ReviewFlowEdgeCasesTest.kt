@@ -57,7 +57,7 @@ class ReviewFlowEdgeCasesTest {
 
     private fun TestScope.inWizard(current: OpenReview?): ReviewViewModel {
         coEvery { repo.overview() } returns ReviewResult.Ok(overview(current))
-        val vm = ReviewViewModel(repo, captures, habits, reflections)
+        val vm = ReviewViewModel(repo, captures, habits, reflections, mockk())
         vm.refresh()
         advanceUntilIdle()
         if (current != null) vm.start()
