@@ -27,3 +27,4 @@ Steps 4-7 come in and-review-steps.
 - ASSUMPTION (2026-11-08 14:28+0100 by dell26/agent-2): Steps 4-7 show their hint and a button opening the matching list (Waiting/Projects/Next/Someday) until and-review-steps adds the in-wizard actions.
 - ASSUMPTION (2026-11-08 14:28+0100 by dell26/agent-2): The reflection draft lives in the review view model only (survives tab switches and rotation, not app death); the web keeps it in localStorage. Saved on completion by appending '## Weekly review' to today's (device-local date) journal entry, like the web.
 - ASSUMPTION (2026-11-08 14:28+0100 by dell26/agent-2): ReviewScreen now takes onOpen for the Mail/list links: one-line change in ui/CockpitShell.kt, outside the task's touches.
+- ASSUMPTION (2026-11-08 14:28+0100 by dell26/agent-2): Calendar quick-add goes through the offline capture queue (CaptureQueue), so it works offline, unlike the web's direct createTask.
