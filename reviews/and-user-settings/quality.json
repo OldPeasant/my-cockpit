@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "task": "and-user-settings",
+  "reviewed_revision": "8c228f06e3435a0e081150a65b372d8100ada70c",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-user-settings/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-user-settings/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-user-settings/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "older GET answer could overwrite a newer PATCH/refresh answer; sequence tickets in UserSettingsRepository (c317d934e)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "concurrency guards untested; ordering tests in UserSettingsRepositoryEdgeCasesTest (c317d934e, 8c228f06e)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "possible one-frame system theme at cold start; unreproduced, optional per reviewer, recorded as assumption"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "same defect as CR-1 (stale refresh answer overwrites update); regression test passes"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -q (c317d934e, 2940 tests, 0 failures)", "result": "pass"},
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.core.settings.UserSettingsRepositoryEdgeCasesTest' ktlintCheck -q (8c228f06e, 11 tests, 0 failures)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
