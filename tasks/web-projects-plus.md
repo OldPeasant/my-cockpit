@@ -1,10 +1,11 @@
 ---
 title: Web projects: delete project, all tasks in project detail
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [web-back-navigation]
 touches: [web/src/app/features/gtd/projects,web/src/locale]
 prio: 2
+lease_until: 2026-11-08T16:04:41Z
 ---
 ## Goal
 There is no UI to delete a project (`ProjectStore.remove` unused except in the review), and project detail shows
