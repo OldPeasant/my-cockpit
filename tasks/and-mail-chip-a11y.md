@@ -1,10 +1,11 @@
 ---
 title: Android compose: 48dp remove target and accessibility action for recipient chips
-status: todo
-owner:
+status: in_progress
+owner: felix/agent-1
 deps: [and-mail-compose-plus]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/compose,android/app/src/test/java/ch/sonensei/cockpit/mail/compose]
 prio: 2
+lease_until: 2026-11-08T20:21:38Z
 ---
 ## Goal
 Follow-up of the and-mail-compose-plus review (P3, `reviews/and-mail-compose-plus/review.md` CR-1): the recipient
