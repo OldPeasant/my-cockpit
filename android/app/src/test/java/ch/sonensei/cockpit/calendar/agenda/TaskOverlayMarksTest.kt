@@ -146,4 +146,23 @@ class TaskOverlayMarksTest {
             }
         }
     }
+
+    @Test
+    fun `a task released to Next today is scheduled on today, only when today is shown`() {
+        val today = monday.plusDays(2)
+        val released = OverlayTask(id(1), "Released", releasedOn = today)
+        val releasedEarlier = OverlayTask(id(2), "Earlier", releasedOn = monday)
+        // Still scheduled (not yet released): its scheduled date wins, no second mark.
+        val both = OverlayTask(id(3), "Both", scheduledDate = sunday, releasedOn = today)
+
+        val marks = taskMarks(listOf(released, releasedEarlier, both), monday, nextMonday, today)
+
+        assertEquals(listOf(today, sunday), marks.keys.toList())
+        assertEquals(listOf(id(1)), marks.getValue(today).map { it.task.id })
+        assertEquals(TaskMarkKind.SCHEDULED, marks.getValue(today).single().kind)
+        assertEquals(listOf(id(3)), marks.getValue(sunday).map { it.task.id })
+        // Today outside the range, or not known: no mark.
+        assertTrue(taskMarks(listOf(released), nextMonday, nextMonday.plusDays(7), today).isEmpty())
+        assertTrue(taskMarks(listOf(released), monday, nextMonday).isEmpty())
+    }
 }

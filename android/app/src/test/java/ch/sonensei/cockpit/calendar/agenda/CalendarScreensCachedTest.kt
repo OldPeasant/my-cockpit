@@ -87,6 +87,8 @@ class CalendarScreensCachedTest {
     fun `cached calendars cannot be shown or hidden`() {
         show()
 
+        composeRule.onNodeWithTag(CalendarTags.MENU).performClick()
+
         composeRule.onNodeWithTag(CalendarTags.CALENDARS).performClick()
         composeRule.onNodeWithTag(CalendarTags.calendar(work.id)).assertIsNotEnabled()
     }

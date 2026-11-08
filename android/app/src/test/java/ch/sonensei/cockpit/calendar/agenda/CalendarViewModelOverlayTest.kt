@@ -6,6 +6,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -23,6 +24,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.Executor
 
 /** The month view's ranges, and how the task overlay is switched, remembered, loaded and kept consistent. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -48,17 +50,22 @@ class CalendarViewModelOverlayTest {
     /** Answers with the tasks due in the asked range; a range with a gate waits until the test opens it. */
     private inner class FakeTasks : TaskOverlaySource {
         val calls = mutableListOf<Pair<LocalDate, LocalDate>>()
+        val todays = mutableListOf<LocalDate>()
         var all: List<OverlayTask> = emptyList()
+        var releasedToday: List<OverlayTask> = emptyList()
         var failure: CalendarResult<List<OverlayTask>>? = null
         val gates = mutableMapOf<Pair<LocalDate, LocalDate>, CompletableDeferred<Unit>>()
 
         override suspend fun tasks(
             from: LocalDate,
             to: LocalDate,
+            today: LocalDate,
         ): CalendarResult<List<OverlayTask>> {
             calls += from to to
+            todays += today
             gates[from to to]?.await()
-            return failure ?: CalendarResult.Ok(all.filter { it.dueDate!! >= from && it.dueDate!! < to })
+            val released = if (today >= from && today < to) releasedToday else emptyList()
+            return failure ?: CalendarResult.Ok(all.filter { it.dueDate!! >= from && it.dueDate!! < to } + released)
         }
     }
 
@@ -419,5 +426,49 @@ class CalendarViewModelOverlayTest {
             advanceUntilIdle()
 
             assertEquals(listOf(today to today.plusDays(30)), tasks.calls)
+        }
+
+    @Test
+    fun `a task released from Scheduled to Next today is marked scheduled on today`() =
+        runTest(dispatcher) {
+            // The server's tickler cleared its scheduled date and set releasedOn when the list was read.
+            val released = OverlayTask(id(1), "Call the plumber", releasedOn = today)
+            tasks.releasedToday = listOf(released)
+            val vm = viewModel(TaskOverlaySetting.InMemory(enabled = true))
+            vm.select(CalendarView.WEEK)
+            advanceUntilIdle()
+
+            assertEquals(today, tasks.todays.last())
+            val marks = vm.uiState.value.taskMarks
+            assertEquals(listOf(today), marks.keys.toList())
+            assertEquals(TaskMarkKind.SCHEDULED, marks.getValue(today).single().kind)
+
+            // A week without today has no such mark.
+            vm.move(1)
+            advanceUntilIdle()
+            assertTrue(
+                vm.uiState.value.taskMarks
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `appended tasks are kept when the source answers without suspending`() =
+        runTest(dispatcher) {
+            // Every coroutine runs at once, inside the call that launches it: a task load started by loadMore answers
+            // before loadMore's own state update, as it would on the main thread with a source that does not suspend.
+            Dispatchers.setMain(Executor { it.run() }.asCoroutineDispatcher())
+            tasks.all = listOf(task(1, today.plusDays(2)), task(2, today.plusDays(40)))
+            val vm = viewModel(TaskOverlaySetting.InMemory(enabled = true))
+            vm.refresh()
+
+            vm.loadMore()
+
+            assertEquals(today.plusDays(60), vm.uiState.value.to)
+            assertEquals(
+                listOf(id(1), id(2)),
+                vm.uiState.value.tasks
+                    .map { it.id },
+            )
         }
 }

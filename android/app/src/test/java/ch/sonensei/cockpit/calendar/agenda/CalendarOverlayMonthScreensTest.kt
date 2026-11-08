@@ -130,16 +130,22 @@ class CalendarOverlayMonthScreensTest {
     fun `the toggle shows the overlay state and asks to switch it`() {
         show(state(view = CalendarView.DAY, overlay = false))
 
-        composeRule.onNodeWithContentDescription("Show tasks").assertIsOff()
+        // The toggles are in the overflow menu, so the four view segments keep their width on a phone.
+        composeRule.onNodeWithTag(CalendarTags.OVERLAY).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("More options").performClick()
+        composeRule.onNodeWithTag(CalendarTags.OVERLAY).assertIsOff().assertTextContains("Show tasks")
         composeRule.onNodeWithTag(CalendarTags.OVERLAY).performClick()
 
         assertEquals(listOf("overlay true"), calls)
+        // Choosing an item closes the menu.
+        composeRule.onNodeWithTag(CalendarTags.OVERLAY).assertDoesNotExist()
     }
 
     @Test
     fun `a switched on toggle asks to switch the overlay off`() {
         show(state(view = CalendarView.DAY, overlay = true))
 
+        composeRule.onNodeWithTag(CalendarTags.MENU).performClick()
         composeRule.onNodeWithTag(CalendarTags.OVERLAY).assertIsOn()
         composeRule.onNodeWithTag(CalendarTags.OVERLAY).performClick()
 
@@ -250,7 +256,7 @@ class CalendarOverlayMonthScreensTest {
     @Test
     fun `the route opens a tapped task with its snapshot through the task opener`() {
         val snapshot = GtdTask(report.id, report.title, TaskList.NEXT, 1, 2, dueDate = today)
-        val source = TaskOverlaySource { _, _ -> CalendarResult.Ok(listOf(report.copy(snapshot = snapshot))) }
+        val source = TaskOverlaySource { _, _, _ -> CalendarResult.Ok(listOf(report.copy(snapshot = snapshot))) }
         val repo = mockk<CalendarRepository>()
         coEvery { repo.calendars() } returns CalendarResult.Ok(listOf(work))
         coEvery { repo.occurrences(any(), any(), any()) } returns CalendarResult.Ok(emptyList())
@@ -312,7 +318,9 @@ class CalendarOverlayMonthScreensTest {
         composeRule.onNodeWithText("Oktober 2026").assertExists()
         composeRule.onNodeWithContentDescription("Vorheriger Monat").assertExists()
         composeRule.onNodeWithContentDescription("Nächster Monat").assertExists()
-        composeRule.onNodeWithContentDescription("Aufgaben anzeigen").assertIsOn()
+        composeRule.onNodeWithContentDescription("Weitere Optionen").performClick()
+        composeRule.onNodeWithTag(CalendarTags.OVERLAY).assertIsOn().assertTextContains("Aufgaben anzeigen")
+        composeRule.onNodeWithTag(CalendarTags.CALENDARS).assertIsOff().assertTextContains("Kalender")
         composeRule.onNodeWithTag(CalendarTags.view(CalendarView.MONTH)).assertTextContains("Monat")
         // Today has the due task and the tickler.
         composeRule.onNodeWithContentDescription("Mittwoch, 21. Oktober 2026, 2 Einträge").assertExists()
@@ -345,6 +353,7 @@ class CalendarOverlayMonthScreensTest {
                 R.string.calendar_task_scheduled,
                 R.string.calendar_task_tickler,
                 R.string.calendar_tasks_failed,
+                R.string.calendar_more_options,
             )
         for (name in names) {
             val en = english.getString(name)

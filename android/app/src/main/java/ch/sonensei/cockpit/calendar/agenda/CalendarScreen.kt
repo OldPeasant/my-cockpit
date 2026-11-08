@@ -32,13 +32,17 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material.icons.outlined.Today
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
@@ -61,12 +65,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -173,6 +182,7 @@ internal object CalendarTags {
     const val CALENDARS = "calendar-calendars"
     const val NOW = "calendar-now"
     const val OVERLAY = "calendar-overlay"
+    const val MENU = "calendar-menu"
     const val MONTH = "calendar-month"
     const val TASKS_FAILED = "calendar-tasks-failed"
 
@@ -254,31 +264,67 @@ private fun Toolbar(
                     onClick = { callbacks.select(view) },
                     shape = SegmentedButtonDefaults.itemShape(index, views.size),
                     icon = {},
-                    label = { Text(stringResource(view.label), maxLines = 1) },
+                    label = { Text(stringResource(view.label), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    contentPadding = PaddingValues(horizontal = 4.dp),
                     modifier = Modifier.testTag(CalendarTags.view(view)),
                 )
             }
         }
-        TextButton(onClick = callbacks.today, modifier = Modifier.testTag(CalendarTags.TODAY)) {
-            Text(stringResource(R.string.calendar_today))
+        IconButton(onClick = callbacks.today, modifier = Modifier.testTag(CalendarTags.TODAY)) {
+            Icon(Icons.Outlined.Today, contentDescription = stringResource(R.string.calendar_today))
         }
-        val overlayLabel = stringResource(R.string.calendar_task_overlay)
-        IconToggleButton(
-            checked = state.overlay,
-            onCheckedChange = callbacks.setOverlay,
-            modifier = Modifier.testTag(CalendarTags.OVERLAY).semantics { contentDescription = overlayLabel },
-        ) {
-            Icon(Icons.Outlined.TaskAlt, contentDescription = null)
+        ToolbarMenu(state.overlay, callbacks.setOverlay, showCalendars, onShowCalendars)
+    }
+}
+
+/**
+ * The toolbar's toggles (task overlay, calendar filter) in an overflow menu, so that the four view segments keep their
+ * width on a phone. Each item is a checkbox: its state is shown and announced.
+ */
+@Composable
+private fun ToolbarMenu(
+    overlay: Boolean,
+    onOverlay: (Boolean) -> Unit,
+    showCalendars: Boolean,
+    onShowCalendars: (Boolean) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }, modifier = Modifier.testTag(CalendarTags.MENU)) {
+            Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.calendar_more_options))
         }
-        val label = stringResource(R.string.calendar_calendars)
-        IconToggleButton(
-            checked = showCalendars,
-            onCheckedChange = onShowCalendars,
-            modifier = Modifier.testTag(CalendarTags.CALENDARS).semantics { contentDescription = label },
-        ) {
-            Icon(Icons.Outlined.Tune, contentDescription = null)
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            MenuToggle(R.string.calendar_task_overlay, Icons.Outlined.TaskAlt, overlay, CalendarTags.OVERLAY) {
+                open = false
+                onOverlay(it)
+            }
+            MenuToggle(R.string.calendar_calendars, Icons.Outlined.Tune, showCalendars, CalendarTags.CALENDARS) {
+                open = false
+                onShowCalendars(it)
+            }
         }
     }
+}
+
+@Composable
+private fun MenuToggle(
+    label: Int,
+    icon: ImageVector,
+    checked: Boolean,
+    tag: String,
+    onChange: (Boolean) -> Unit,
+) {
+    DropdownMenuItem(
+        text = { Text(stringResource(label)) },
+        onClick = { onChange(!checked) },
+        leadingIcon = { Icon(icon, contentDescription = null) },
+        trailingIcon = { Checkbox(checked = checked, onCheckedChange = null) },
+        modifier =
+            Modifier.testTag(tag).semantics {
+                role = Role.Checkbox
+                toggleableState = ToggleableState(checked)
+            },
+    )
 }
 
 private val CalendarView.label: Int

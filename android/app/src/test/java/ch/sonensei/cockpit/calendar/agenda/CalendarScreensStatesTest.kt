@@ -132,6 +132,8 @@ class CalendarScreensStatesTest {
     fun `without calendars the filter says where to add one`() {
         show(state(calendars = emptyList()))
 
+        composeRule.onNodeWithTag(CalendarTags.MENU).performClick()
+
         composeRule.onNodeWithTag(CalendarTags.CALENDARS).performClick()
         composeRule.onNodeWithText("No calendars yet. Add one on the web.").assertExists()
     }

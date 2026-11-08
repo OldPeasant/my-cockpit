@@ -77,7 +77,7 @@ data class CalendarUiState(
             }
 
     /** The overlay's marks by day; empty while it is off. */
-    val taskMarks: Map<LocalDate, List<TaskMark>> get() = if (overlay) taskMarks(tasks, from, to) else emptyMap()
+    val taskMarks: Map<LocalDate, List<TaskMark>> get() = if (overlay) taskMarks(tasks, from, to, today) else emptyMap()
 
     fun calendar(id: UUID): CalendarInfo? = calendars.firstOrNull { it.id == id }
 }
@@ -217,7 +217,7 @@ class CalendarViewModel internal constructor(
         if (!append) tasksJob?.cancel()
         val job =
             viewModelScope.launch {
-                val result = taskSource.tasks(from, to)
+                val result = taskSource.tasks(from, to, state.value.today)
                 state.update {
                     // Turned off, or another range shown meanwhile: the answer no longer fits.
                     if (!it.overlay || from < it.from || to > it.to) return@update it
@@ -246,7 +246,6 @@ class CalendarViewModel internal constructor(
                 val session = cache.session()
                 val result = repository.occurrences(from, to, current.zone)
                 if (result is CalendarResult.Ok) cache.append(session, from, to, result.value)
-                if (result is CalendarResult.Ok) loadTasks(from, to, append = true)
                 state.update {
                     when (result) {
                         is CalendarResult.Ok ->
@@ -260,6 +259,8 @@ class CalendarViewModel internal constructor(
                         is CalendarResult.Failed -> it.copy(loadingMore = false, message = CalendarMessage.FAILED)
                     }
                 }
+                // After the range was extended: an answer for the new days is only kept while they are in the range.
+                if (result is CalendarResult.Ok) loadTasks(from, to, append = true)
             }
     }
 

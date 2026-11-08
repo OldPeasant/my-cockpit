@@ -33,6 +33,8 @@ data class OverlayTask(
     val ticklerDate: LocalDate? = null,
     /** The task as the GTD lists know it: shown read-only by the detail screen while the server is unreachable. */
     val snapshot: GtdTask? = null,
+    /** The day the server moved the task from Scheduled to Next on its scheduled date (its [scheduledDate] is then gone). */
+    val releasedOn: LocalDate? = null,
 )
 
 /** Why a task shows on a day: it is due, scheduled (moves to Next), or comes back from a tickler. */
@@ -50,18 +52,24 @@ data class TaskMark(
 
 /**
  * The overlay marks of [tasks] on the days [from, to): due date (at its time, if any), scheduled date and tickler date,
- * as they apply. Per day: timed due marks first by time, then the others by kind and title.
+ * as they apply. A task the server released from Scheduled to Next on [today] was scheduled for today: it is marked
+ * scheduled on today. Per day: timed due marks first by time, then the others by kind and title.
  */
 fun taskMarks(
     tasks: List<OverlayTask>,
     from: LocalDate,
     to: LocalDate,
+    today: LocalDate? = null,
 ): Map<LocalDate, List<TaskMark>> {
     fun inRange(date: LocalDate?) = date != null && date >= from && date < to
     val marks = mutableListOf<TaskMark>()
     for (task in tasks.distinctBy { it.id }) {
         if (inRange(task.dueDate)) marks += TaskMark(task, TaskMarkKind.DUE, task.dueDate!!, parseTime(task.dueTime))
-        if (inRange(task.scheduledDate)) marks += TaskMark(task, TaskMarkKind.SCHEDULED, task.scheduledDate!!)
+        if (inRange(task.scheduledDate)) {
+            marks += TaskMark(task, TaskMarkKind.SCHEDULED, task.scheduledDate!!)
+        } else if (inRange(today) && task.releasedOn == today) {
+            marks += TaskMark(task, TaskMarkKind.SCHEDULED, today!!)
+        }
         if (inRange(task.ticklerDate)) marks += TaskMark(task, TaskMarkKind.TICKLER, task.ticklerDate!!)
     }
     return marks.groupBy { it.date }.mapValues { (_, day) -> day.sortedWith(markOrder) }.toSortedMap()
@@ -79,21 +87,26 @@ private fun parseTime(time: String?): LocalTime? =
 
 /** Where the overlay's tasks come from; [None] for view models that show no overlay (tests). */
 fun interface TaskOverlaySource {
-    /** The open tasks due, scheduled or in a tickler ending on a day of [from, to). */
+    /**
+     * The open tasks due, scheduled or in a tickler ending on a day of [from, to); when [today] is one of those days,
+     * also the tasks released from Scheduled to Next today (scheduled for today).
+     */
     suspend fun tasks(
         from: LocalDate,
         to: LocalDate,
+        today: LocalDate,
     ): CalendarResult<List<OverlayTask>>
 
     companion object {
-        val None = TaskOverlaySource { _, _ -> CalendarResult.Ok(emptyList()) }
+        val None = TaskOverlaySource { _, _, _ -> CalendarResult.Ok(emptyList()) }
     }
 }
 
 /**
  * The overlay's tasks from the server: due or tickler date in the range (the task list's `from`/`to` filter, which
  * also returns tasks still in a tickler), plus the Scheduled list filtered by its scheduled date, which that filter
- * does not cover.
+ * does not cover. Every list read first releases the tasks scheduled for today to Next (clearing their scheduled
+ * date), so when today is in the range those come from the `scheduled=today` filter, by their `releasedOn`.
  */
 @Singleton
 class TaskOverlayRepository
@@ -104,6 +117,7 @@ class TaskOverlayRepository
         override suspend fun tasks(
             from: LocalDate,
             to: LocalDate,
+            today: LocalDate,
         ): CalendarResult<List<OverlayTask>> =
             load {
                 val found = mutableListOf<TaskResponse>()
@@ -118,6 +132,11 @@ class TaskOverlayRepository
                 pages { cursor -> api.listTasks(list = TasksApi.ListListTasks.SCHEDULED, cursor = cursor, limit = PAGE_SIZE) }
                     .filter { task -> task.scheduledDate?.let { it >= from && it < to } == true }
                     .let(found::addAll)
+                if (today >= from && today < to) {
+                    pages { cursor -> api.listTasks(scheduled = TasksApi.ScheduledListTasks.TODAY, cursor = cursor, limit = PAGE_SIZE) }
+                        .filter { it.releasedOn == today }
+                        .let(found::addAll)
+                }
                 found.filter { it.completedAt == null }.distinctBy { it.id }.map { it.toOverlayTask() }
             }
 
@@ -206,6 +225,7 @@ internal fun TaskResponse.toOverlayTask() =
         dueTime = dueTime,
         scheduledDate = scheduledDate,
         ticklerDate = ticklerDate,
+        releasedOn = releasedOn,
         snapshot =
             GtdTask(
                 id = id,

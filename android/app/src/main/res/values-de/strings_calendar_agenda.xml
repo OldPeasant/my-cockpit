@@ -35,4 +35,5 @@
     <string name="calendar_task_scheduled">Geplant</string>
     <string name="calendar_task_tickler">Zurück aus Wiedervorlage</string>
     <string name="calendar_tasks_failed">Die Aufgaben konnten nicht geladen werden.</string>
+    <string name="calendar_more_options">Weitere Optionen</string>
 </resources>

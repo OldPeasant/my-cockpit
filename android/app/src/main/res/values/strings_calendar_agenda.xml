@@ -35,4 +35,5 @@
     <string name="calendar_task_scheduled">Scheduled</string>
     <string name="calendar_task_tickler">Back from tickler</string>
     <string name="calendar_tasks_failed">The tasks could not be loaded.</string>
+    <string name="calendar_more_options">More options</string>
 </resources>

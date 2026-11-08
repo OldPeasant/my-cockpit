@@ -26,6 +26,9 @@ class TaskOverlayRepositoryTest {
     private val from = LocalDate.parse("2026-10-19")
     private val to = LocalDate.parse("2026-10-26")
 
+    /** A today outside every range asked for: no `scheduled=today` call. */
+    private val notShown = LocalDate.parse("2030-01-01")
+
     private fun id(n: Int): UUID = UUID.fromString("00000000-0000-7000-8000-%012d".format(n))
 
     private fun taskJson(
@@ -36,9 +39,11 @@ class TaskOverlayRepositoryTest {
         tickler: String? = null,
         completedAt: String? = null,
         extra: String = "",
+        releasedOn: String? = null,
     ): String {
         val optional =
             listOfNotNull(
+                releasedOn?.let { "\"releasedOn\":\"$it\"" },
                 due?.let { "\"dueDate\":\"$it\"" },
                 scheduled?.let { "\"scheduledDate\":\"$it\"" },
                 tickler?.let { "\"ticklerDate\":\"$it\"" },
@@ -91,7 +96,7 @@ class TaskOverlayRepositoryTest {
                 ),
             )
 
-            val result = repository.tasks(from, to)
+            val result = repository.tasks(from, to, notShown)
 
             val ranged = server.takeRequest().url
             assertEquals("/api/v1/tasks", ranged.encodedPath)
@@ -118,7 +123,7 @@ class TaskOverlayRepositoryTest {
             server.enqueue(page(taskJson(3, list = "SCHEDULED", due = "2026-10-22", scheduled = "2026-10-22"), next = "s2"))
             server.enqueue(page(taskJson(4, list = "SCHEDULED", scheduled = "2026-10-23")))
 
-            val result = repository.tasks(from, to)
+            val result = repository.tasks(from, to, notShown)
 
             val cursors = (1..5).map { server.takeRequest().url.queryParameter("cursor") }
             assertEquals(listOf(null, "c2", "c3", null, "s2"), cursors)
@@ -132,7 +137,7 @@ class TaskOverlayRepositoryTest {
             server.enqueue(page(taskJson(2, due = "2027-03-01")))
             server.enqueue(page())
 
-            val result = repository.tasks(LocalDate.parse("2026-01-01"), LocalDate.parse("2027-06-01"))
+            val result = repository.tasks(LocalDate.parse("2026-01-01"), LocalDate.parse("2027-06-01"), notShown)
 
             val first = server.takeRequest().url
             assertEquals("2026-01-01" to "2027-01-01", first.queryParameter("from") to first.queryParameter("to"))
@@ -147,7 +152,7 @@ class TaskOverlayRepositoryTest {
         runBlocking {
             server.enqueue(page(taskJson(1, list = "SCHEDULED", scheduled = "2026-10-19")))
 
-            val result = repository.tasks(from, from)
+            val result = repository.tasks(from, from, notShown)
 
             assertEquals("SCHEDULED", server.takeRequest().url.queryParameter("list"))
             assertEquals(1, server.requestCount)
@@ -160,7 +165,7 @@ class TaskOverlayRepositoryTest {
             repeat(20) { n -> server.enqueue(page(taskJson(n + 1, due = "2026-10-20"), next = "c${n + 2}")) }
             server.enqueue(page())
 
-            val result = repository.tasks(from, to)
+            val result = repository.tasks(from, to, notShown)
 
             assertEquals(20, (result as CalendarResult.Ok).value.size)
             // 20 pages of the range, then the Scheduled list: the 21st cursor is not followed.
@@ -171,36 +176,36 @@ class TaskOverlayRepositoryTest {
     fun `server errors and an unreachable server are offline, refusals and bad answers failed`() =
         runBlocking {
             server.enqueue(status(503))
-            assertEquals(CalendarResult.Offline, repository.tasks(from, to))
+            assertEquals(CalendarResult.Offline, repository.tasks(from, to, notShown))
 
             server.enqueue(page())
             server.enqueue(status(500))
-            assertEquals(CalendarResult.Offline, repository.tasks(from, to))
+            assertEquals(CalendarResult.Offline, repository.tasks(from, to, notShown))
 
             server.enqueue(status(404))
-            assertEquals(CalendarResult.Failed(404), repository.tasks(from, to))
+            assertEquals(CalendarResult.Failed(404), repository.tasks(from, to, notShown))
 
             server.enqueue(status(401))
-            assertEquals(CalendarResult.Failed(401), repository.tasks(from, to))
+            assertEquals(CalendarResult.Failed(401), repository.tasks(from, to, notShown))
 
             server.enqueue(page("""{"not":"a task"}"""))
-            assertEquals(CalendarResult.Failed(null), repository.tasks(from, to))
+            assertEquals(CalendarResult.Failed(null), repository.tasks(from, to, notShown))
 
             server.enqueue(page(taskJson(1, list = "ARCHIVED", due = "2026-10-20")))
-            assertEquals(CalendarResult.Failed(null), repository.tasks(from, to))
+            assertEquals(CalendarResult.Failed(null), repository.tasks(from, to, notShown))
 
             server.close()
-            assertEquals(CalendarResult.Offline, repository.tasks(from, to))
+            assertEquals(CalendarResult.Offline, repository.tasks(from, to, notShown))
         }
 
     @Test
     fun `an answer without a page or with an impossible date is failed`() =
         runBlocking {
             server.enqueue(status(204))
-            assertEquals(CalendarResult.Failed(204), repository.tasks(from, to))
+            assertEquals(CalendarResult.Failed(204), repository.tasks(from, to, notShown))
 
             server.enqueue(page(taskJson(1, due = "2026-02-30")))
-            assertEquals(CalendarResult.Failed(null), repository.tasks(from, to))
+            assertEquals(CalendarResult.Failed(null), repository.tasks(from, to, notShown))
         }
 
     @Test
@@ -211,7 +216,7 @@ class TaskOverlayRepositoryTest {
             )
             server.enqueue(page())
 
-            val task = (repository.tasks(from, to) as CalendarResult.Ok).value.single()
+            val task = (repository.tasks(from, to, notShown) as CalendarResult.Ok).value.single()
 
             assertEquals("14:30:00", task.dueTime)
             val snapshot = task.snapshot!!
@@ -223,5 +228,35 @@ class TaskOverlayRepositoryTest {
             assertEquals(LocalDate.parse("2026-10-20"), snapshot.dueDate)
             assertEquals(Energy.HIGH, snapshot.energy)
             assertEquals("Fictitious note", snapshot.notesMd)
+        }
+
+    @Test
+    fun `with today in the range the tasks released to Next today come from the scheduled=today filter`() =
+        runBlocking {
+            val today = LocalDate.parse("2026-10-21")
+            server.enqueue(page(taskJson(1, due = "2026-10-20")))
+            server.enqueue(page())
+            server.enqueue(
+                page(
+                    taskJson(2, releasedOn = "2026-10-21"),
+                    // Not released today (still scheduled for an earlier day): not a mark of today.
+                    taskJson(3, list = "SCHEDULED", scheduled = "2026-10-20"),
+                    taskJson(4, releasedOn = "2026-10-21", completedAt = "2026-10-21T09:00:00Z"),
+                ),
+            )
+
+            val result = repository.tasks(from, to, today)
+
+            server.takeRequest()
+            server.takeRequest()
+            val released = server.takeRequest().url
+            // The server reads the filter case-insensitively, like the list names.
+            assertEquals("today", released.queryParameter("scheduled")?.lowercase())
+            assertNull(released.queryParameter("list"))
+            assertNull(released.queryParameter("from"))
+            assertEquals(3, server.requestCount)
+            val tasks = (result as CalendarResult.Ok).value
+            assertEquals(listOf(id(1), id(2)), tasks.map { it.id })
+            assertEquals(today, tasks[1].releasedOn)
         }
 }
