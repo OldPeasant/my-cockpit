@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "task": "and-today-events-habits",
+  "reviewed_revision": "0dca142a0d63bdde9862dc350b52c610edc82d9a",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-today-events-habits/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-today-events-habits/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-today-events-habits/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "out-of-order loads/checks overwrote newer habit/event state; loads numbered, in-flight checks kept"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "all-day events of neighbouring days filtered with Occurrence.isOn (like web isOnDate)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "TodayWithEditorTest covers editor open, birthday contact, reload on close"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "editor callback mapping duplicated from CalendarWithEditor; calendar/edit is outside this task's touches, recorded as an assumption"},
+    {"id": "LINT-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "lintDebug NonObservableLocale error found by parent; now LocalLocale.current.platformLocale"},
+    {"id": "TW-OBS-3", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "eventTime showed 00:00-00:00 for an event spanning all of today; now All day"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.today.*' lintDebug", "result": "pass"},
+    {"command": "cd android && ./gradlew testDebugUnitTest", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}

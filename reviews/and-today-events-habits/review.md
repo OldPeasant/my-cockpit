@@ -4,40 +4,41 @@ Date: 2026-11-08
 
 Task: and-today-events-habits - Android Today shows events and habits
 
-Scope: re-review after fixes of the final `git diff 0f47c5801..HEAD` at HEAD a34f77661bd7476e576ad6fb56e43bcc8dc8fc64 (task commits cb4ec48ec, 1556df62f, 134c5cfa1, a34f77661). This covers the Android `gtd/today` main and test packages, the one-line `openNext` change in `ui/CockpitShell.kt`, and `strings_next_today.xml` (en/de). Committed changes only. The working tree was clean when the review started. The reviewer had no shell or git access, so the files were read in full at HEAD. HEAD was read from `.git/refs/heads/main`, and the commit list comes from the parent's git status.
+Scope: final `git diff 0f47c5801..HEAD` at HEAD 0dca142a0d63bdde9862dc350b52c610edc82d9a (task commits cb4ec48ec, 1556df62f, 134c5cfa1, a34f77661, 0dca142a0). This covers the Android `gtd/today` main and test packages, the one-line `openNext` change in `ui/CockpitShell.kt`, and `strings_next_today.xml` (en/de). Committed changes only, and the working tree was clean. The full fixed code at a34f77661 was reviewed in the previous round, with results below. This round reviews the single change since then: `git diff --stat a34f77661 0dca142a0` shows that outside `reviews/`, only `android/app/src/test/java/ch/sonensei/cockpit/gtd/today/TodayExtrasTest.kt` changed, with 15 added lines (one new test). No production code changed.
 
 Requirements:
 - tasks/and-today-events-habits.md (acceptance criteria and the two recorded assumptions)
 - SPEC.md §5.3 (Today), docs/PARITY.md (row "Today: no events, no habits")
 - AGENTS.md project notes, docs/ARCHITECTURE.md conventions
-- The previous review (CR-1 to CR-4) and reviews/and-today-events-habits/fixes.md
+- The earlier review rounds (CR-1 to CR-4) and reviews/and-today-events-habits/fixes.md
 - Web reference: `web/src/app/features/gtd/today/today-events.ts` (`isOnDate`), `today-habits.ts` (load sequence)
 - Android conventions: `habits/HabitsViewModel.kt`, `calendar/edit/CalendarWithEditor.kt` and its test
 
 Git range:
 - Branch: main
-- HEAD: a34f77661bd7476e576ad6fb56e43bcc8dc8fc64
+- HEAD: 0dca142a0d63bdde9862dc350b52c610edc82d9a
 - Base/start: 0f47c5801e7f1e8b591d3c9cf3418b207dceaa66
-- Commits reviewed: 4
+- Commits reviewed: 5
 
 Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-## Status of the previous findings
+## Round 3: the test added in 0dca142a0
 
-- CR-1 (out-of-order loads and checks): resolved. `TodayExtrasViewModel.load()` (lines 68-101) numbers event loads and habit loads separately (`eventsSeq`, `habitsSeq`) and drops the answer of any load that a newer one replaced. `check()` bumps `changeSeq` when it starts and again when it ends, and stores the value in `lastChange[habit.id]`. A habit list keeps the on-screen habit for every habit whose check started or ended after the list was requested (line 94). The traces I checked all end correct:
-  - a list requested before a check, answering after it: the check is kept;
-  - a list requested during a check, answering after it: kept;
-  - a list requested during a check, answering before it: the check result overwrites the list's habit, and the button stays disabled meanwhile.
-  `checkFailed` is cleared only by a reload during which no check started or ended. Tests: `only the newest load's events show...`, `only the newest load's habits show...`, `a habit list requested before a check finished does not undo the check`, `a habit list requested while a check is on its way keeps the checked habit`, `a later load shows habits checked elsewhere and clears the failed check message`, `a habit list requested before a failed check keeps the failed check message`.
-- CR-2 (all-day events from neighbouring days): resolved. `Occurrence.isOn(day)` (lines 131-136) keeps an all-day occurrence only when `startDate <= day < end`. `end` is `endDate` when it is after `startDate`, otherwise `startDate + 1`, the same rule as web `isOnDate`. Timed occurrences always pass. `load()` applies it at line 79. The test `all-day events of other days are left out` covers tomorrow, an occurrence whose exclusive end is today, a multi-day trip, no end date, and today.
-- CR-3 (TodayWithEditor wiring untested): resolved. `TodayWithEditor` now has a `contact` slot whose default is `BirthdayContact(id, back, modifier)`. That is the same seam `CalendarWithEditor` has, and production behaviour does not change. The new `TodayWithEditorTest` composes the real view models over mocked repositories. It checks that a tap opens "Edit event" with the event title and the calendars, that close reloads both habits and occurrences (call counts go from 1 to 2), and that a birthday opens the contact slot with the right id, does not open the editor and returns to Today on back.
-- CR-4 (duplicated editor callback mapping): not fixed. It stays out of scope by a recorded task assumption, because the fix needs `calendar/edit`, which is outside `touches`. It is carried over below as P3.
+`a habit list requested before a failed check keeps the failed check message` (TodayExtrasTest.kt:295-308) was checked against `TodayExtrasViewModel` (unchanged since a34f77661) under the test's `UnconfinedTestDispatcher`:
+- The second `load()` requests a list that stays pending, with `changes = 0`.
+- `check(water)` sets `changeSeq` to 1. The mocked check returns `Offline` at once, which sets `changeSeq` to 2 and `checkFailed = true`. The first assertion holds.
+- When the list completes, line 97 keeps `checkFailed` because `changes (0) != changeSeq (2)`. Line 94 keeps the on-screen `water` because `lastChange = 2 > 0`.
 
-Other fix-round changes checked:
-- `EventRow` now reads the locale through `LocalLocale.current.platformLocale`, which fixes the NonObservableLocale lint error.
-- `eventTime` now returns null ("All day") for a timed event that covers all of today. Its new assertions match the KDoc and web `eventSpan`.
+The test discriminates: if a reload always cleared `checkFailed`, the second `assertTrue` would fail. It covers the `&& changes != changeSeq` clause, and with `a later load shows habits checked elsewhere and clears the failed check message` it covers both sides of that condition. The last assertion (`habits == listOf(water)`) holds on both paths, because the list and the screen hold the same habit. It adds no discrimination but does no harm, so this is not reported as a finding. The test uses fictitious data, follows the file's naming and mocking style, and the parent reports TodayExtrasTest 21/21 passing and `ktlintCheck` passing on HEAD.
 
-No new issues were found in these changes.
+This round found no new issues.
+
+## Status of the earlier findings
+
+- CR-1 (out-of-order loads and checks): resolved. `TodayExtrasViewModel.load()` (lines 68-101) numbers event loads and habit loads separately (`eventsSeq`, `habitsSeq`) and drops the answer of any load that a newer one replaced. `check()` bumps `changeSeq` when it starts and again when it ends, and stores the value in `lastChange[habit.id]`. A habit list keeps the on-screen habit for every habit whose check started or ended after the list was requested (line 94). `checkFailed` is cleared only by a reload during which no check started or ended (line 97). Tests: `only the newest load's events show...`, `only the newest load's habits show...`, `a habit list requested before a check finished does not undo the check`, `a habit list requested while a check is on its way keeps the checked habit`, `a later load shows habits checked elsewhere and clears the failed check message`, and, new in this round, `a habit list requested before a failed check keeps the failed check message`.
+- CR-2 (all-day events from neighbouring days): resolved. `Occurrence.isOn(day)` (lines 131-136) keeps an all-day occurrence only when `startDate <= day < end`, the same rule as web `isOnDate`. It is applied at line 79 and covered by `all-day events of other days are left out`.
+- CR-3 (TodayWithEditor wiring untested): resolved. `TodayWithEditorTest` composes the real view models over mocked repositories. It covers opening the editor, reloading on close, and the birthday contact slot.
+- CR-4 (duplicated editor callback mapping): not fixed, and kept out of scope by a recorded task assumption (`calendar/edit` is outside `touches`). It is carried over below as P3.
 
 ## P0 Critical
 
@@ -64,12 +65,10 @@ None.
 
 No material issues found.
 
-CR-1, CR-2 and CR-3 are resolved in the code at a34f77661. CR-4 is a P3 that the task assumption keeps out of scope. All four acceptance-criterion behaviours are present:
+At 0dca142a0, CR-1, CR-2 and CR-3 are resolved. CR-4 is a P3 that the task assumption keeps out of scope. The test added in this round is correct and closes the remaining `checkFailed` branch. All acceptance-criterion behaviours are present:
 - events with time, title, calendar colour, and a tap that opens the editor or the birthday contact;
 - due habits with a check that goes through `HabitsRepository.check` (`Habit.nextCount`);
 - the empty-day "Pick a next action", wired to Next through `CockpitShell`;
 - English and German strings, with all 9 new `today_*` keys and matching format arguments in both files.
 
-The reviewer could not run Gradle. The parent reports that on HEAD the Today test suites (67 tests), `ktlintCheck` and `lintDebug` pass. The parent must still record the full `testDebugUnitTest` run and `sh scripts/check.sh` for AC5.
-
-Process note: `reviews/and-today-events-habits/tests.md` describes the code before the fixes (HEAD 1556df62f, and it says TodayWithEditor is untested). Under AGENTS.md step 6, the test-writer has to run again on the final code before `done`.
+The reviewer could not run Gradle. The parent reports TodayExtrasTest 21/21 passing and `ktlintCheck` passing on HEAD. The parent must still record the full `testDebugUnitTest` run and `sh scripts/check.sh` for the check criterion.
