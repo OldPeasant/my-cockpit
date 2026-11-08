@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "task": "and-bookmarks-plus",
+  "reviewed_revision": "9defb91aa4c70ed786168c2e8fa514963cf0919e",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-bookmarks-plus/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-bookmarks-plus/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-bookmarks-plus/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "review 1 CR-1: add dialog rejected web addresses the server accepts"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "review 1 CR-2: every 400 on create shown as invalid web address"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "review 1 CR-3: reader offered no retry after 'page could not be read'"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "review 1 CR-4: saving a copy could overlap other reader writes"},
+    {"id": "R1-CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "review 1 CR-5: 'To Inbox task' could create duplicate tasks"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "review 2 CR-1: leaving the reader during a save left an outdated version in the list"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "review 2 CR-2: 'Nothing was changed' shown for creates with unknown outcome"},
+    {"id": "R3-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "review 3 CR-1: local taskId shadowed parameter in toInbox"},
+    {"id": "R3-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "review 3 CR-2: reader reopened during a running save showed no saving state"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
