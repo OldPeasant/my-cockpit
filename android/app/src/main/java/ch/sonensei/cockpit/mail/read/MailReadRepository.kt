@@ -56,8 +56,8 @@ data class MailActionOutcome(
     val errorCode: String? = null,
 )
 
-/** What the GTD actions created (SPEC.md §7.3 "→ Inbox task", "→ Waiting For"). */
-enum class MailGtdAction { TASK, WAITING }
+/** What the GTD actions created (SPEC.md §7.3 "→ Inbox task", "→ Waiting For", and a note as the web app offers). */
+enum class MailGtdAction { TASK, WAITING, NOTE }
 
 /** One message, its GTD actions and archive/delete/spam on the server. */
 @Singleton
@@ -72,7 +72,7 @@ class MailReadRepository
             proxyImages: Boolean = false,
         ): MailResult<MailMessage> = mailCall { mailBody(api.message(id.toString(), if (proxyImages) "PROXY" else null)).toMessage() }
 
-        /** Creates an Inbox or Waiting For task from [id], linked to it; the result is the task's title. */
+        /** Creates an Inbox task, a Waiting For task or a note from [id], linked to it; the result is the item's title. */
         suspend fun gtd(
             id: UUID,
             action: MailGtdAction,
@@ -82,6 +82,7 @@ class MailReadRepository
                     when (action) {
                         MailGtdAction.TASK -> mailBody(api.toTask(id.toString()))
                         MailGtdAction.WAITING -> mailBody(api.toWaiting(id.toString()))
+                        MailGtdAction.NOTE -> mailBody(api.toNote(id.toString()))
                     }
                 item.title.orEmpty()
             }

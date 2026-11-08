@@ -82,6 +82,11 @@ interface MailApi {
     suspend fun toWaiting(
         @Path("id") id: String,
     ): Response<MailGtdItemDto>
+
+    @POST("api/v1/mail/messages/{id}/to-note")
+    suspend fun toNote(
+        @Path("id") id: String,
+    ): Response<MailGtdItemDto>
 }
 
 @Module

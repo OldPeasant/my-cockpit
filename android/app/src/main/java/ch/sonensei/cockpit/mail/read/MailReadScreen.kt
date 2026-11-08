@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.mail.read
 
 import android.webkit.MimeTypeMap
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -34,6 +36,7 @@ import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.MarkEmailUnread
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.NoteAdd
 import androidx.compose.material.icons.outlined.OutlinedFlag
 import androidx.compose.material.icons.outlined.Report
 import androidx.compose.material3.DropdownMenu
@@ -67,6 +70,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.core.links.ItemRef
+import ch.sonensei.cockpit.core.links.LinkedItemsSection
+import ch.sonensei.cockpit.core.links.LinkedItemsViewModel
+import ch.sonensei.cockpit.core.links.linksViewModelKey
 import ch.sonensei.cockpit.files.OpenedFiles
 import ch.sonensei.cockpit.files.discardDocument
 import ch.sonensei.cockpit.files.openForWriting
@@ -75,6 +82,9 @@ import ch.sonensei.cockpit.mail.list.MailAccountFolders
 import ch.sonensei.cockpit.mail.list.MailFolder
 import ch.sonensei.cockpit.mail.list.MailListAction
 import ch.sonensei.cockpit.mail.list.MoveFolderDialog
+import ch.sonensei.cockpit.search.SearchItemScreen
+import ch.sonensei.cockpit.search.SearchTarget
+import dagger.hilt.internal.GeneratedComponentManagerHolder
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -100,9 +110,20 @@ fun MailReadRoute(
     viewModel: MailReadViewModel = hiltViewModel(),
     attachmentsViewModel: MailAttachmentsViewModel = hiltViewModel(),
 ) {
+    // An item opened from the linked-items panel shows over the mail; back returns to the mail.
+    var linked by rememberSaveable(id) { mutableStateOf<String?>(null) }
+    val item = linked?.split(':')?.let { (type, itemId) -> type to UUID.fromString(itemId) }
+    if (item != null) {
+        BackHandler { linked = null }
+        SearchItemScreen(item.first, item.second, onClose = { linked = null }, modifier = modifier)
+        return
+    }
     // One view model for all mails (cleared with the Mail screen); it drops the mail when the view closes.
     LaunchedEffect(viewModel, id) { viewModel.open(id) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val links = mailLinks(state.message?.id)
+    // A task or note made from the mail is linked to it: show it in the panel.
+    LaunchedEffect(state.notice) { if (state.notice is MailReadNotice.Created) links?.reload() }
     val close = {
         viewModel.close()
         onClose()
@@ -146,8 +167,30 @@ fun MailReadRoute(
         navigation = navigation,
         moveTargets = moveTargets(accounts, state.message),
         body = { html, m -> MailBodyView(html, m, viewModel.images) },
+        linksPanel = {
+            val messageId = state.message?.id
+            if (links != null && messageId != null) {
+                LinkedItemsSection(
+                    ItemRef(MAIL_ITEM_TYPE, messageId),
+                    open = { target -> if (target is SearchTarget.InApp) linked = "${target.type}:${target.id}" },
+                    viewModel = links,
+                )
+            }
+        },
     )
 }
+
+/** The search/links type of a mail. */
+private const val MAIL_ITEM_TYPE = "EMAIL"
+
+/** The links panel's view model of the shown mail; `null` without a mail or without Hilt (screen tests with fake view models). */
+@Composable
+private fun mailLinks(messageId: UUID?): LinkedItemsViewModel? =
+    if (messageId != null && LocalActivity.current is GeneratedComponentManagerHolder) {
+        hiltViewModel(key = linksViewModelKey(ItemRef(MAIL_ITEM_TYPE, messageId)))
+    } else {
+        null
+    }
 
 /**
  * The list a mail was opened from (search results or a mailbox), in its order: the mail at [position] (from 0) of
@@ -224,6 +267,7 @@ internal object MailReadTags {
     const val REPLY_ALL = "mail-read-reply-all"
     const val FORWARD = "mail-read-forward"
     const val MORE = "mail-read-more"
+    const val LINKS = "mail-read-links"
 
     fun gtd(action: MailGtdAction) = "mail-read-gtd:$action"
 
@@ -231,9 +275,9 @@ internal object MailReadTags {
 }
 
 /**
- * The read view: toolbar (back, GTD actions, archive, delete, a menu with unread, flag, move and spam), previous/next through the list it was opened from
+ * The read view: toolbar (back, GTD actions incl. "Create note", archive, delete, a menu with unread, flag, move and spam), previous/next through the list it was opened from
  * ([navigation], when given), headers, then the sanitized HTML in [body] (a locked-down WebView; replaceable in tests)
- * or the plain text of a text-only mail.
+ * or the plain text of a text-only mail, then the mail's linked items ([linksPanel]).
  */
 @Composable
 fun MailReadContent(
@@ -246,6 +290,7 @@ fun MailReadContent(
     navigation: MailReadNavigation? = null,
     moveTargets: List<MailFolder> = emptyList(),
     body: @Composable (String, Modifier) -> Unit = { html, m -> MailBodyView(html, m) },
+    linksPanel: @Composable () -> Unit = {},
 ) {
     Column(modifier.fillMaxSize()) {
         Toolbar(state, callbacks, moveTargets)
@@ -255,7 +300,7 @@ fun MailReadContent(
         val message = state.message
         when {
             message != null ->
-                Message(message, zone, body, callbacks.takeUnless { state.busy }) {
+                Message(message, zone, body, callbacks.takeUnless { state.busy }, linksPanel) {
                     AttachmentList(message.attachments, attachments, attachmentCallbacks, enabled = !state.busy)
                 }
             state.error != null -> Error(state.error, callbacks.retry)
@@ -280,6 +325,9 @@ private fun Toolbar(
         }
         ToolbarButton(Icons.Outlined.HourglassEmpty, R.string.mail_read_to_waiting, MailReadTags.gtd(MailGtdAction.WAITING), enabled) {
             callbacks.gtd(MailGtdAction.WAITING)
+        }
+        ToolbarButton(Icons.Outlined.NoteAdd, R.string.mail_read_to_note, MailReadTags.gtd(MailGtdAction.NOTE), enabled) {
+            callbacks.gtd(MailGtdAction.NOTE)
         }
         ToolbarButton(Icons.Outlined.Archive, R.string.mail_archive, MailReadTags.action(MailListAction.ARCHIVE), enabled) {
             callbacks.act(MailListAction.ARCHIVE)
@@ -404,11 +452,13 @@ private fun Notice(notice: MailReadNotice) {
                 when (notice.action) {
                     MailGtdAction.TASK -> stringResource(R.string.mail_read_task_created, notice.title)
                     MailGtdAction.WAITING -> stringResource(R.string.mail_read_waiting_created, notice.title)
+                    MailGtdAction.NOTE -> stringResource(R.string.mail_read_note_created, notice.title)
                 }
             is MailReadNotice.GtdFailed ->
                 when (notice.action) {
                     MailGtdAction.TASK -> stringResource(R.string.mail_read_task_failed)
                     MailGtdAction.WAITING -> stringResource(R.string.mail_read_waiting_failed)
+                    MailGtdAction.NOTE -> stringResource(R.string.mail_read_note_failed)
                 }
             is MailReadNotice.ActionFailed -> actionFailed(notice)
             MailReadNotice.ImagesFailed -> stringResource(R.string.mail_read_images_failed)
@@ -482,6 +532,7 @@ private fun ColumnScope.Message(
     zone: ZoneId,
     body: @Composable (String, Modifier) -> Unit,
     callbacks: MailReadCallbacks?,
+    linksPanel: @Composable () -> Unit,
     attachments: @Composable () -> Unit,
 ) {
     Column(
@@ -516,6 +567,16 @@ private fun ColumnScope.Message(
                 modifier = Modifier.verticalScroll(rememberScrollState()).padding(16.dp).testTag(MailReadTags.TEXT),
             )
         }
+    }
+    // Below the body (as in the web app), kept short so the mail stays readable.
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(max = 240.dp)
+            .verticalScroll(rememberScrollState())
+            .testTag(MailReadTags.LINKS),
+    ) {
+        linksPanel()
     }
 }
 

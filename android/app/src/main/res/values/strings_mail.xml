@@ -27,6 +27,7 @@
     <string name="mail_read_position">%1$d of %2$d</string>
     <string name="mail_read_to_task">To Inbox task</string>
     <string name="mail_read_to_waiting">To Waiting For</string>
+    <string name="mail_read_to_note">Create note</string>
     <string name="mail_read_from">From %1$s</string>
     <string name="mail_read_to">To %1$s</string>
     <string name="mail_read_cc">Cc %1$s</string>
@@ -71,8 +72,10 @@
     <string name="mail_read_gone">This mail is no longer on the mail server.</string>
     <string name="mail_read_task_created">Added to the Inbox: %1$s</string>
     <string name="mail_read_waiting_created">Added to Waiting For: %1$s</string>
+    <string name="mail_read_note_created">Note created: %1$s</string>
     <string name="mail_read_task_failed">The task could not be created.</string>
     <string name="mail_read_waiting_failed">The Waiting For item could not be created.</string>
+    <string name="mail_read_note_failed">The note could not be created.</string>
     <string name="mail_spam">Move to spam</string>
     <string name="mail_spam_failed">The mail could not be moved to spam.</string>
     <string name="mail_read_no_role_folder">This account has no %1$s folder.</string>

@@ -222,6 +222,23 @@ class MailReadRepositoryTest {
         }
 
     @Test
+    fun `create note posts to to-note and returns the note's title`() =
+        runBlocking {
+            server.enqueue(
+                json(
+                    """{"id":"${id(54)}","linkId":"${id(55)}","messageId":"${id(1)}","title":"Quarterly report","type":"NOTE"}""",
+                    code = 201,
+                ),
+            )
+
+            assertEquals(MailResult.Ok("Quarterly report"), repository.gtd(id(1), MailGtdAction.NOTE))
+
+            val request = server.takeRequest()
+            assertEquals("POST", request.method)
+            assertEquals("/api/v1/mail/messages/${id(1)}/to-note", request.url.encodedPath)
+        }
+
+    @Test
     fun `a refused or unreachable GTD action is reported`() =
         runBlocking {
             server.enqueue(status(409))

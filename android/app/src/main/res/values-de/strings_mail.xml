@@ -27,6 +27,7 @@
     <string name="mail_read_position">%1$d von %2$d</string>
     <string name="mail_read_to_task">Als Aufgabe in den Eingang</string>
     <string name="mail_read_to_waiting">Zu „Warten auf“</string>
+    <string name="mail_read_to_note">Notiz erstellen</string>
     <string name="mail_read_from">Von %1$s</string>
     <string name="mail_read_to">An %1$s</string>
     <string name="mail_read_cc">Cc %1$s</string>
@@ -71,8 +72,10 @@
     <string name="mail_read_gone">Diese E-Mail ist nicht mehr auf dem E-Mail-Server.</string>
     <string name="mail_read_task_created">Zum Eingang hinzugefügt: %1$s</string>
     <string name="mail_read_waiting_created">Zu „Warten auf“ hinzugefügt: %1$s</string>
+    <string name="mail_read_note_created">Notiz erstellt: %1$s</string>
     <string name="mail_read_task_failed">Die Aufgabe konnte nicht erstellt werden.</string>
     <string name="mail_read_waiting_failed">Der Eintrag für „Warten auf“ konnte nicht erstellt werden.</string>
+    <string name="mail_read_note_failed">Die Notiz konnte nicht erstellt werden.</string>
     <string name="mail_spam">Als Spam verschieben</string>
     <string name="mail_spam_failed">Die E-Mail konnte nicht in den Spam verschoben werden.</string>
     <string name="mail_read_no_role_folder">Dieses Konto hat keinen Ordner „%1$s“.</string>
