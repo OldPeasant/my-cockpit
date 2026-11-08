@@ -17,7 +17,8 @@ SPEC.md §8.2 asks for an in-app preview (PDF via Android `PdfRenderer`); Androi
   - verified (2026-11-08 16:42+0100 by dell26/agent-1): cd android && ./gradlew createDebugUnitTestCoverageReport (b521e71c9) -> FilePreviewScreenTest (image zoom pinch/double-tap, PDF pages prev/next via fake PdfPages, text + truncation notice, unsupported -> Open with card), FilePreviewViewModelTest, FilePreviewModelsTest pass, 0 failures; real PdfRenderer (PdfPages.kt RendererPdfPages) not exercised under Robolectric, no device run
 - [x] Previous/next file in the folder; thumbnails in the list (server thumbnails)
   - verified (2026-11-08 16:42+0100 by dell26/agent-1): cd android && ./gradlew createDebugUnitTestCoverageReport (b521e71c9) -> FilePreviewScreenTest/FilePreviewViewModelTest previous/next file tests and FilesScreenTest/FilesRouteInAppTest thumbnail (/thumbnail?size=256 over type icon) tests pass, 0 failures
-- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [x] New strings are in English and German (`res/values/` + `res/values-de/`)
+  - verified (2026-11-08 16:42+0100 by dell26/agent-1): diff of android/app/src/main/res/values{,-de}/strings_files.xml b3359b2e9..HEAD: all new preview strings present in both; ./gradlew lintDebug (MissingTranslation) clean -> pass
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
