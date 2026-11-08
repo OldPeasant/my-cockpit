@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "task": "and-mail-compose-plus",
+  "reviewed_revision": "e79e5586208cf4c9786f63102eca69264a0d13cc",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-mail-compose-plus/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-mail-compose-plus/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-mail-compose-plus/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: suggestions hid only when Subject changed; now hidden on focus leave (fixes.md CR-1, re-checked in final review.md)"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: autosave/attach during a recipient search failed with INVALID_ADDRESS; non-strict store for autosave/attach (fixes.md CR-2)"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: chosen recipients not filtered from suggestions, duplicates possible (fixes.md CR-3)"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: tap anywhere on a chip removed it, broken line wrap (fixes.md CR-4)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "first test pass: display name with one unpaired quote never became a chip (fixes.md TEST-FAIL)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "final review: 18dp close-icon touch target and no-op clickable chip for TalkBack; follow-up task and-mail-chip-a11y"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh android", "result": "pass"},
+    {"command": "sh scripts/check.sh tfp server (steps of the full run before the web step)", "result": "pass"}
+  ]
+}
