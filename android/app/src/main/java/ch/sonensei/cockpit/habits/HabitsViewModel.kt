@@ -77,6 +77,9 @@ class HabitsViewModel
          */
         private var changeSeq = 0
 
+        /** A conflict reload was dropped while a change was on its way; it runs again once no change is in flight. */
+        private var reloadPending = false
+
         init {
             startLoad()
         }
@@ -101,17 +104,24 @@ class HabitsViewModel
          * Loads the list; the answer is dropped when another load started meanwhile. A [quiet] load (like web
          * `reloadQuietly`) does not count as a new load, so it never cancels a user or view load still on its way; its
          * answer is also dropped when a local change started or finished meanwhile (the list may have been read before
-         * it and would undo it), unless the view has no list yet.
+         * it and would undo it), unless the view has no list yet. A dropped quiet load runs again right away when no
+         * change is in flight any more, otherwise once the last change finishes ([reloadIfPending]).
          */
         private fun startLoad(quiet: Boolean = false) {
             val seq = if (quiet) loadSeq else ++loadSeq
+            if (!quiet) reloadPending = false
             val changes = changeSeq
             val archived = state.value.archived
             viewModelScope.launch {
                 val result = habits.list(archived)
                 if (seq != loadSeq) return@launch
                 if (quiet && changes != changeSeq && state.value.loaded) {
-                    state.update { it.copy(loading = false) }
+                    if (changing()) {
+                        reloadPending = true
+                        state.update { it.copy(loading = false) }
+                    } else {
+                        startLoad(quiet = true)
+                    }
                     return@launch
                 }
                 state.update {
@@ -126,8 +136,17 @@ class HabitsViewModel
 
         /** Loads the list again after a conflict, keeping what is on screen meanwhile. */
         private fun reloadAfterConflict() {
+            reloadPending = false
             state.update { it.copy(loading = true) }
             startLoad(quiet = true)
+        }
+
+        /** Whether a check, archive or save is on its way. */
+        private fun changing(): Boolean = state.value.checking.isNotEmpty() || state.value.editor?.saving == true
+
+        /** Runs a dropped conflict reload again once the last change finished. */
+        private fun reloadIfPending() {
+            if (reloadPending && !changing()) reloadAfterConflict()
         }
 
         /** One more check for today on habit [id] until its target is reached, then back to none. */
@@ -175,7 +194,7 @@ class HabitsViewModel
                         else -> s.copy(checking = checking, message = failed)
                     }
                 }
-                if (conflict) reloadAfterConflict()
+                if (conflict) reloadAfterConflict() else reloadIfPending()
             }
         }
 
@@ -236,7 +255,7 @@ class HabitsViewModel
                             )
                     }
                 }
-                if (conflict) reloadAfterConflict()
+                if (conflict) reloadAfterConflict() else reloadIfPending()
             }
         }
 

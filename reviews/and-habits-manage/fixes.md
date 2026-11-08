@@ -85,3 +85,91 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+---
+
+# Fix Report (second review round)
+
+Date: 2026-11-08
+
+Task: and-habits-manage - Android habits manage
+
+Scope: findings CR-1, CR-2, CR-3 of the second code review (`reviews/and-habits-manage/review.md`, reviewed revision 69e81f023). Builds on the partial attempt in commit 91298724b.
+
+## Fixed findings
+
+### CR-1 - A conflict reload can replace the view-switch load and then be dropped, leaving the view blank
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/habits/HabitsViewModel.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/habits/HabitsViewModelManageTest.kt`
+
+Problem:
+`startLoad(quiet = true)` increased `loadSeq`, so a conflict reload cancelled a view load still on its way. The `changeSeq` guard could then drop the reload's own answer, leaving `loaded = false`, `loading = false` and an empty list with no Retry.
+
+Fix:
+Reviewed and kept the attempt from 91298724b: a quiet load reuses the current `loadSeq` instead of increasing it (as web `reloadQuietly` does), so it never cancels a user or view load, and a quiet answer is never dropped while the view has no list yet (`loaded == false`). The CR-2 change below also re-runs a dropped quiet reload, so the view never ends without a list.
+
+Validation:
+- Regression test `a conflict reload after a view switch does not cancel the view load, so the view still gets its list` (from 91298724b): view switch, conflict, second change finishing before the conflict reload answer, view load answering last -> archived view loaded with the view load's list, `loading == false`. Pass.
+- New test `a conflict reload answered after the view load and a later change is dropped, runs again, and the view stays loaded`: the same order but the view load answers first -> view stays loaded and gets the re-run reload's list. Pass.
+
+### CR-2 - A dropped conflict reload is not retried
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/habits/HabitsViewModel.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/habits/HabitsViewModelManageTest.kt`
+
+Problem:
+When the quiet reload's answer was dropped because a change started or finished meanwhile, nothing reloaded afterwards, so the conflicting habit kept its stale version although the messages say the latest version was loaded.
+
+Fix (cheap, chosen over a web-parity disposition):
+When a quiet answer is dropped, the reload runs once more right away if no check, archive or save is in flight; otherwise a `reloadPending` flag is set and the reload runs when the last change or save finishes (`reloadIfPending`). The flag is cleared by any conflict reload or user/view load. It re-runs only when `changeSeq` actually moved, so it cannot loop. This goes beyond web (which does not retry); recorded here as a deliberate small improvement.
+
+Tests adjusted (they asserted the stale state that the finding describes; the protection they check is kept):
+- `a conflict reload read before a later archive finished does not bring the archived habit back, and runs again`: the stale answer still does not bring the archived habit back; a third `list` call now delivers the fresh version.
+- `a conflict reload read before a later check-off finished does not undo the check-off`: the check-off is still kept; the re-run delivers the fresh version of the conflicting habit.
+- `a conflict reload answer is dropped while a later change is still on its way and runs again after it`: no extra `list` call while the check is in flight (2 calls), one more once it finishes (3 calls), ending with the fresh list.
+
+Validation:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` - Pass
+
+### CR-3 - ReminderField uses Locale.getDefault()
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/habits/HabitEditorDialog.kt` (in commit 91298724b)
+
+Problem:
+The reminder time label formatted with `Locale.getDefault()` instead of the observed configuration locale.
+
+Fix:
+Verified the attempt in 91298724b: `ReminderField` reads `LocalConfiguration.current.locales[0]` and passes it to `withLocale(...)`; the unused `java.util.Locale` import is removed. No further change was needed.
+
+Validation:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` - Pass
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `HabitsViewModelManageTest` (part of `testDebugUnitTest`): 36 tests, 0 failures, 0 skipped.
+- The CR-1 regression tests were not re-run against the old code (with `loadSeq` increased for quiet loads) in this round.
+
+Full test suite:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` - BUILD SUCCESSFUL
+
+Lint/type-check/build:
+- Included above (ktlintCheck, lintDebug).
+
+`.taskcheck`:
+- Not run in this round (the parent runs `sh scripts/check.sh`). Only Android files changed.
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed.

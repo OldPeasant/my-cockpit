@@ -604,12 +604,17 @@ class HabitsViewModelManageTest {
         }
 
     @Test
-    fun `a conflict reload read before a later archive finished does not bring the archived habit back`() =
+    fun `a conflict reload read before a later archive finished does not bring the archived habit back, and runs again`() =
         runTest(dispatcher) {
             val reload = CompletableDeferred<HabitsResult<List<Habit>>>()
+            val newer = water.copy(version = 3)
             var lists = 0
             coEvery { repo.list(false) } coAnswers {
-                if (lists++ == 0) HabitsResult.Ok(listOf(water, stretch)) else reload.await()
+                when (lists++) {
+                    0 -> HabitsResult.Ok(listOf(water, stretch))
+                    1 -> reload.await()
+                    else -> HabitsResult.Ok(listOf(newer))
+                }
             }
             coEvery { repo.setArchived(water, true) } returns HabitsResult.Failed(412)
             coEvery { repo.setArchived(stretch, true) } returns HabitsResult.Ok(stretch.copy(archived = true, version = 2))
@@ -625,20 +630,26 @@ class HabitsViewModelManageTest {
             reload.complete(HabitsResult.Ok(listOf(water.copy(version = 3), stretch)))
             advanceUntilIdle()
 
-            assertEquals(listOf(water), vm.uiState.value.habits)
+            // The stale answer is dropped; as no change is on its way any more, the reload runs once more right away.
+            assertEquals(listOf(newer), vm.uiState.value.habits)
             assertFalse(vm.uiState.value.loading)
-            coVerify(exactly = 2) { repo.list(false) }
+            coVerify(exactly = 3) { repo.list(false) }
         }
 
     @Test
     fun `a conflict reload read before a later check-off finished does not undo the check-off`() =
         runTest(dispatcher) {
             val reload = CompletableDeferred<HabitsResult<List<Habit>>>()
+            val checked = stretch.copy(todayCount = 1, version = 2)
+            val newer = water.copy(version = 3)
             var lists = 0
             coEvery { repo.list(false) } coAnswers {
-                if (lists++ == 0) HabitsResult.Ok(listOf(water, stretch)) else reload.await()
+                when (lists++) {
+                    0 -> HabitsResult.Ok(listOf(water, stretch))
+                    1 -> reload.await()
+                    else -> HabitsResult.Ok(listOf(newer, checked))
+                }
             }
-            val checked = stretch.copy(todayCount = 1, version = 2)
             coEvery { repo.check(water) } returns HabitsResult.Failed(409)
             coEvery { repo.check(stretch) } returns HabitsResult.Ok(checked)
             val vm = newViewModel()
@@ -651,20 +662,26 @@ class HabitsViewModelManageTest {
             reload.complete(HabitsResult.Ok(listOf(water.copy(version = 3), stretch)))
             advanceUntilIdle()
 
-            assertEquals(listOf(water, checked), vm.uiState.value.habits)
+            assertEquals(listOf(newer, checked), vm.uiState.value.habits)
             assertFalse(vm.uiState.value.loading)
+            coVerify(exactly = 3) { repo.list(false) }
         }
 
     @Test
-    fun `a conflict reload answer is dropped while a later change is still on its way`() =
+    fun `a conflict reload answer is dropped while a later change is still on its way and runs again after it`() =
         runTest(dispatcher) {
             val reload = CompletableDeferred<HabitsResult<List<Habit>>>()
             val check = CompletableDeferred<HabitsResult<Habit>>()
+            val checked = stretch.copy(todayCount = 1, version = 2)
+            val newer = water.copy(version = 3)
             var lists = 0
             coEvery { repo.list(false) } coAnswers {
-                if (lists++ == 0) HabitsResult.Ok(listOf(water, stretch)) else reload.await()
+                when (lists++) {
+                    0 -> HabitsResult.Ok(listOf(water, stretch))
+                    1 -> reload.await()
+                    else -> HabitsResult.Ok(listOf(newer, checked))
+                }
             }
-            val checked = stretch.copy(todayCount = 1, version = 2)
             coEvery { repo.check(water) } returns HabitsResult.Failed(412)
             coEvery { repo.check(stretch) } coAnswers { check.await() }
             val vm = newViewModel()
@@ -678,10 +695,57 @@ class HabitsViewModelManageTest {
             runCurrent()
             assertEquals(listOf(water, stretch), vm.uiState.value.habits)
             assertFalse(vm.uiState.value.loading)
+            coVerify(exactly = 2) { repo.list(false) }
 
             check.complete(HabitsResult.Ok(checked))
             advanceUntilIdle()
-            assertEquals(listOf(water, checked), vm.uiState.value.habits)
+            assertEquals(listOf(newer, checked), vm.uiState.value.habits)
+            assertFalse(vm.uiState.value.loading)
+            coVerify(exactly = 3) { repo.list(false) }
+        }
+
+    @Test
+    fun `a conflict reload answered after the view load and a later change is dropped, runs again, and the view stays loaded`() =
+        runTest(dispatcher) {
+            val viewLoad = CompletableDeferred<HabitsResult<List<Habit>>>()
+            val reload = CompletableDeferred<HabitsResult<List<Habit>>>()
+            val check = CompletableDeferred<HabitsResult<Habit>>()
+            val conflict = CompletableDeferred<HabitsResult<Habit>>()
+            val newest = piano.copy(version = 3)
+            var archivedLists = 0
+            coEvery { repo.list(true) } coAnswers {
+                when (archivedLists++) {
+                    0 -> viewLoad.await()
+                    1 -> reload.await()
+                    else -> HabitsResult.Ok(listOf(newest))
+                }
+            }
+            coEvery { repo.check(water) } coAnswers { conflict.await() }
+            coEvery { repo.check(stretch) } coAnswers { check.await() }
+            val vm = newViewModel()
+            runCurrent()
+
+            vm.toggle(water.id)
+            vm.toggle(stretch.id)
+            runCurrent()
+            vm.showArchived(true)
+            runCurrent()
+            conflict.complete(HabitsResult.Failed(412))
+            runCurrent()
+            viewLoad.complete(HabitsResult.Ok(listOf(piano)))
+            runCurrent()
+            assertTrue(vm.uiState.value.loaded)
+            assertEquals(listOf(piano), vm.uiState.value.habits)
+            check.complete(HabitsResult.Ok(stretch.copy(todayCount = 1, version = 2)))
+            runCurrent()
+            reload.complete(HabitsResult.Ok(listOf(piano.copy(version = 2))))
+            advanceUntilIdle()
+
+            assertTrue(vm.uiState.value.archived)
+            assertTrue(vm.uiState.value.loaded)
+            assertFalse(vm.uiState.value.loading)
+            assertEquals(listOf(newest), vm.uiState.value.habits)
+            coVerify(exactly = 3) { repo.list(true) }
         }
 
     @Test
