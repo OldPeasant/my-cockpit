@@ -22,3 +22,4 @@ Android cannot create a project (only inside inbox "To project → New") nor edi
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 10:43+0100 by felix/agent-1): Web has no 'confirm when open tasks remain' rule (project-form.ts saves status directly), so Android's rule is: completing/dropping (menu or form status) asks for confirmation when the project detail shows >=1 open task; the server leaves those tasks open and in the project, which the dialog says.
