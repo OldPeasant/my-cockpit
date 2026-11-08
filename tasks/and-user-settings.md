@@ -14,7 +14,8 @@ shared settings repository (cached, refreshed on start and on the settings SSE/p
 the basic ones.
 
 ## Acceptance criteria
-- [ ] A `UserSettingsRepository` (Hilt singleton) loads `GET /api/v1/settings`, caches the last value for offline start, exposes a `StateFlow`, and offers a typed `update(...)` that sends `PATCH` with ETag/If-Match and handles 412 by reloading
+- [x] A `UserSettingsRepository` (Hilt singleton) loads `GET /api/v1/settings`, caches the last value for offline start, exposes a `StateFlow`, and offers a typed `update(...)` that sends `PATCH` with ETag/If-Match and handles 412 by reloading
+  - verified (2026-11-08 09:23+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -q on c317d934e -> exit 0, 2940 tests, 0 failures; UserSettingsRepositoryTest (GET load, DataStore cache offline start, StateFlow, PATCH with If-Match, 412/409/428 reload), UserSettingsRepositoryEdgeCasesTest 11/11 on 8c228f06e (ordering/logout/errors), DataStoreUserSettingsStoreTest pass; Hilt @Singleton compiles in assembleDebug path of lintDebug
 - [ ] The theme setting (light/dark/system) is applied app-wide (dynamic color stays for "system")
 - [ ] The calendar week start and time zone come from the settings instead of the device locale (fallback to the locale when unset)
 - [ ] Energy/creativity labels shown in inbox processing and task detail come from the settings
