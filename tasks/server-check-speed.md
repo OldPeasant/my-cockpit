@@ -27,7 +27,8 @@ Make the server part of the check fast without dropping coverage that matters fo
   - verified (2026-11-08 19:24+0100 by dell26/agent-1): dell26 (16 cores, 3 agents running), back to back: cd server && ./gradlew --quiet cleanTest check (compile warm) on main before the task (worktree at 8af08396d) -> 536 s (load 8.4/11.0/12.2 at start, 10.9/11.9/12.0 at end); same command on task code e68803c9d..d55caf130 (4 forks, cheap test Argon2) -> 242 s (load 3.9/10.4/11.6 at start, 11.6/12.9/12.5 at end), i.e. -55%. 15-min load ~12 in both runs.
 - [x] No flakiness introduced: `cd server && ./gradlew check` passes 3 runs in a row; CI (`.github/workflows/ci.yml`) still runs every server test somewhere
   - verified (2026-11-08 19:37+0100 by dell26/agent-1): 3 consecutive runs of cd server && ./gradlew --quiet cleanTest check on final code (fab402e79, 4 forks) on dell26 under load ~12: rc=0 each, 237/270/256 s, 5211 tests, 0 failures each; build/test-data held only the current run's 4 fork dirs. CI: .github/workflows/ci.yml check-server runs ./gradlew check (all non-external tests, 1 fork on 4-core runners), integrationTest job the external ones; no test moved.
-- [ ] `docs/ARCHITECTURE.md` "Testing"/"Coverage" describe the new split and how to run the moved tests; `sh scripts/check.sh` passes
+- [x] `docs/ARCHITECTURE.md` "Testing"/"Coverage" describe the new split and how to run the moved tests; `sh scripts/check.sh` passes
+  - verified (2026-11-08 19:47+0100 by dell26/agent-1): docs/ARCHITECTURE.md Testing describes parallel forks, -PtestForks/COCKPIT_TEST_FORKS, per-fork data dir cleanup, cheap test crypto, and that no test was moved out of test (so nothing extra to run; integrationTest runs external ones). sh scripts/check.sh on final code (1c9fce8f3 code) -> '== all checks passed', rc=0
 
 ## Notes
 Created 2026-11-08 by the owner after `and-mail-attachments` (check > 900 s) and repeated reports of check.sh
