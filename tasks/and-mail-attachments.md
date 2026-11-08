@@ -7,8 +7,8 @@ touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/read,android/app/sr
 prio: 2
 lease_until: 
 extended: 
-releases: 2
-hold: Task complete (all criteria verified, quality evidence committed, reviewed_revision 732533c1), but done is REFUSED: sh scripts/check.sh exceeds TASK_CHECK_TIMEOUT 900s on felix's machine (load ~2/8 co
+releases: 0
+hold: 
 ---
 ## Goal
 Android only lists attachment names in a header line (`MailReadScreen.kt:290`). Web can download, preview and
