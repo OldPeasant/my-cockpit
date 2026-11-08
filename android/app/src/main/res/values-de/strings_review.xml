@@ -33,13 +33,13 @@
     <string name="review_conflict">Der Rückblick wurde auf einem anderen Gerät geändert. Das ist sein aktueller Stand.</string>
     <string name="review_reflection_failed">Die Reflexion konnte nicht im Journal gespeichert werden, darum ist der Rückblick noch offen.</string>
     <string name="review_capture_failed">Dieser Text kann nicht in die Inbox. Kürze ihn und versuche es nochmals.</string>
-    <string name="review_dismiss">Schliessen</string>
+    <string name="review_dismiss">Schließen</string>
     <string name="review_step_of">Schritt %1$d von %2$d</string>
     <string name="review_jump">Zu einem Schritt springen</string>
     <string name="review_close">Zurück zur Übersicht</string>
     <string name="review_previous">Zurück</string>
     <string name="review_next">Nächster Schritt</string>
-    <string name="review_finish">Rückblick abschliessen</string>
+    <string name="review_finish">Rückblick abschließen</string>
     <string name="review_hint_get_clear">Leere die Inbox und sammle lose Notizen ein, etwa markierte E-Mails.</string>
     <string name="review_hint_past_calendar">Schau auf die letzten 7 Tage zurück. Noch etwas zu tun? Erfasse es.</string>
     <string name="review_hint_upcoming_calendar">Schau auf die nächsten 14 Tage. Etwas vorzubereiten? Erfasse es.</string>
@@ -73,6 +73,6 @@
     </plurals>
     <string name="review_reflection_label">Reflexion (optional)</string>
     <string name="review_reflection_placeholder">Was lief diese Woche gut? Was änderst du?</string>
-    <string name="review_reflection_journal">Wird im heutigen Journaleintrag gespeichert, wenn du den Rückblick abschliesst.</string>
+    <string name="review_reflection_journal">Wird im heutigen Journaleintrag gespeichert, wenn du den Rückblick abschließt.</string>
     <string name="review_journal_heading">Wochenrückblick</string>
 </resources>
