@@ -1,10 +1,11 @@
 ---
 title: Web mail read view: unread, flag, move, shortcuts r/a/f/c
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [web-mail-search-nav]
 touches: [web/src/app/features/mail/read,web/src/app/features/mail/list,web/src/locale]
 prio: 2
+lease_until: 2026-11-08T13:41:40Z
 ---
 ## Goal
 In the web read view mark unread, flag and move are missing (only reachable from list selection), and the SPEC
