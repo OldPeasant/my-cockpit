@@ -98,6 +98,31 @@ h3 {
   }
 }
 
+// The allowed senders of remote mail images: one per line with its remove button.
+.senders {
+  margin: 0;
+  padding: 0;
+  max-width: 32rem;
+  list-style: none;
+
+  li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--app-space-2);
+    padding: var(--app-space-1) 0;
+
+    & + li {
+      border-top: 1px solid var(--app-border);
+    }
+  }
+}
+
+.sender {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 720px) {
   .row {
     grid-template-columns: minmax(0, 1fr);

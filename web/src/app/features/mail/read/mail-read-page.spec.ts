@@ -1,6 +1,6 @@
 import { Location } from '@angular/common';
 import { provideLocationMocks } from '@angular/common/testing';
-import { Component, input } from '@angular/core';
+import { Component, input, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import {
@@ -12,10 +12,12 @@ import {
 } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { BehaviorSubject } from 'rxjs';
-import { ItemRefDto, MailMessageResponse } from '../../../api/generated';
+import { ItemRefDto, MailMessageResponse, Settings, SettingsPatch } from '../../../api/generated';
 import { ApiError, NotificationService } from '../../../core/http';
 import { LinkedItems } from '../../../shared/links';
 import { provideBackNavigation } from '../../../shared/navigation';
+import { SettingsService } from '../../settings/settings.service';
+import { fakeSettings } from '../../settings/testing';
 import { MailAction, MailService } from '../list/mail.service';
 import { IMAGE_ALLOWLIST_KEY } from './image-allowlist';
 import { MAIL_FRAME_SANDBOX } from './mail-frame';
@@ -131,10 +133,33 @@ class FakeMailService {
   }
 }
 
+/** The synced settings as the server holds them: they outlive a page (and a test module). */
+class FakeSettingsService {
+  readonly current = signal<Settings | null>(fakeSettings());
+  readonly settings = this.current.asReadonly();
+  patches: SettingsPatch[] = [];
+  /** When set, saving fails with it (and the change is rolled back). */
+  updateError?: Error;
+
+  load() {
+    return Promise.resolve(this.current()!);
+  }
+  update(patch: SettingsPatch) {
+    this.patches.push(patch);
+    if (this.updateError) return Promise.reject(this.updateError);
+    this.current.update((settings) => ({ ...settings!, ...(patch as Partial<Settings>) }));
+    return Promise.resolve(this.current()!);
+  }
+  allow(senders: string[]) {
+    this.current.update((settings) => ({ ...settings!, mailImageAllowedSenders: senders }));
+  }
+}
+
 describe('MailReadPage', () => {
   let fixture: ComponentFixture<MailReadPage>;
   let service: FakeReadService;
   let mail: FakeMailService;
+  let settings: FakeSettingsService;
   let params: BehaviorSubject<ParamMap>;
   let notifications: { info: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
 
@@ -156,6 +181,7 @@ describe('MailReadPage', () => {
         { provide: MailReadService, useValue: service },
         { provide: MailService, useValue: mail },
         { provide: NotificationService, useValue: notifications },
+        { provide: SettingsService, useValue: settings },
       ],
     });
     TestBed.overrideComponent(MailReadPage, {
@@ -177,6 +203,7 @@ describe('MailReadPage', () => {
 
   beforeEach(() => {
     setup = undefined;
+    settings = new FakeSettingsService();
     localStorage.removeItem(IMAGE_ALLOWLIST_KEY);
   });
   afterEach(() => localStorage.removeItem(IMAGE_ALLOWLIST_KEY));
@@ -244,17 +271,19 @@ describe('MailReadPage', () => {
       expect(service.gets.at(-1)).toEqual({ id: ID, loadImages: true });
       expect(iframe()!.srcdoc).toContain('image-proxy');
       expect(el().querySelector('.images')).toBeNull();
-      expect(localStorage.getItem(IMAGE_ALLOWLIST_KEY)).toBeNull();
+      expect(settings.patches).toEqual([]);
     });
 
-    it('"Always load from this sender" remembers the sender and loads them next time at once', async () => {
+    it('"Always load from this sender" adds the sender to the synced setting and loads them next time at once', async () => {
+      settings.allow(['someone@example.test']);
       await create(blocked(), proxied());
       button('Always load from this sender')!.click();
       await flush();
       fixture.detectChanges();
-      expect(JSON.parse(localStorage.getItem(IMAGE_ALLOWLIST_KEY)!)).toEqual([
-        'max.muster@example.test',
+      expect(settings.patches).toEqual([
+        { mailImageAllowedSenders: ['someone@example.test', 'max.muster@example.test'] },
       ]);
+      expect(localStorage.getItem(IMAGE_ALLOWLIST_KEY)).toBeNull();
       expect(el().querySelector('.images.quiet')?.textContent).toContain('load automatically');
 
       TestBed.resetTestingModule();
@@ -263,7 +292,69 @@ describe('MailReadPage', () => {
       expect(iframe()!.srcdoc).toContain('image-proxy');
 
       button('Stop')!.click();
-      expect(JSON.parse(localStorage.getItem(IMAGE_ALLOWLIST_KEY)!)).toEqual([]);
+      await flush();
+      expect(settings.patches.at(-1)).toEqual({
+        mailImageAllowedSenders: ['someone@example.test'],
+      });
+    });
+
+    it('load through the proxy at once, without a banner, when the policy is "allow"', async () => {
+      settings.current.update((s) => ({ ...s!, mailImagePolicy: 'allow' }));
+      await create(proxied());
+      expect(service.gets).toEqual([{ id: ID, loadImages: true }]);
+      expect(iframe()!.srcdoc).toContain('image-proxy');
+      expect(el().querySelector('.images')).toBeNull();
+    });
+
+    it('load at once for a sender whose domain is allowed', async () => {
+      settings.allow(['EXAMPLE.test']);
+      await create(blocked(), proxied());
+      expect(service.gets.map((g) => g.loadImages)).toEqual([false, true]);
+      expect(iframe()!.srcdoc).toContain('image-proxy');
+    });
+
+    it('stay blocked for other senders', async () => {
+      settings.allow(['other@example.test', 'example.org']);
+      await create(blocked(), proxied());
+      expect(service.gets.map((g) => g.loadImages)).toEqual([false]);
+      expect(button('Load images')).toBeDefined();
+    });
+
+    it('merge the old per-browser list into the setting once and remove it', async () => {
+      settings.allow(['someone@example.test']);
+      localStorage.setItem(
+        IMAGE_ALLOWLIST_KEY,
+        JSON.stringify(['Max.Muster@example.test', 'someone@example.test', 42]),
+      );
+      await create(blocked(), proxied());
+      expect(settings.patches).toEqual([
+        { mailImageAllowedSenders: ['someone@example.test', 'max.muster@example.test'] },
+      ]);
+      expect(localStorage.getItem(IMAGE_ALLOWLIST_KEY)).toBeNull();
+      expect(service.gets.map((g) => g.loadImages)).toEqual([false, true]);
+
+      TestBed.resetTestingModule();
+      await create(blocked(), proxied());
+      expect(settings.patches).toHaveLength(1);
+    });
+
+    it('keep the old per-browser list when merging it fails, and still show the message', async () => {
+      localStorage.setItem(IMAGE_ALLOWLIST_KEY, JSON.stringify(['max.muster@example.test']));
+      settings.updateError = new ApiError(500, 'Server error', 'Not saved');
+      await create(blocked());
+      expect(localStorage.getItem(IMAGE_ALLOWLIST_KEY)).not.toBeNull();
+      expect(el().querySelector('h1')?.textContent?.trim()).toBe('Quarterly report');
+      expect(button('Load images')).toBeDefined();
+    });
+
+    it('still load once when saving the sender fails', async () => {
+      settings.updateError = new ApiError(500, 'Server error', 'Not saved');
+      await create(blocked(), proxied());
+      button('Always load from this sender')!.click();
+      await flush();
+      fixture.detectChanges();
+      expect(iframe()!.srcdoc).toContain('image-proxy');
+      expect(settings.current()!.mailImageAllowedSenders).toEqual([]);
     });
 
     it('offers nothing when the message has no remote images', async () => {
@@ -281,7 +372,7 @@ describe('MailReadPage', () => {
     });
 
     it('shows the blocked copy when the proxied load for an allowed sender fails', async () => {
-      localStorage.setItem(IMAGE_ALLOWLIST_KEY, JSON.stringify(['max.muster@example.test']));
+      settings.allow(['max.muster@example.test']);
       await create(
         blocked(),
         new ApiError(502, 'Bad gateway', 'The mail server failed'),
@@ -572,7 +663,7 @@ describe('MailReadPage', () => {
     });
 
     it('ignores a proxied load for an allowed sender that answers after navigating', async () => {
-      localStorage.setItem(IMAGE_ALLOWLIST_KEY, JSON.stringify(['max.muster@example.test']));
+      settings.allow(['max.muster@example.test']);
       const blocked = message({
         body: { html: '<p>blocked</p>', remoteImageCount: 1, remoteImagesBlocked: true, text: '' },
       });
@@ -598,7 +689,7 @@ describe('MailReadPage', () => {
     });
 
     it('ignores a failed proxied load for an allowed sender that answers after navigating', async () => {
-      localStorage.setItem(IMAGE_ALLOWLIST_KEY, JSON.stringify(['max.muster@example.test']));
+      settings.allow(['max.muster@example.test']);
       const blocked = message({
         body: { html: '<p>blocked</p>', remoteImageCount: 1, remoteImagesBlocked: true, text: '' },
       });
@@ -741,7 +832,7 @@ describe('MailReadPage', () => {
     });
 
     it('ignores a failed proxied load for an allowed sender after the page is gone', async () => {
-      localStorage.setItem(IMAGE_ALLOWLIST_KEY, JSON.stringify(['max.muster@example.test']));
+      settings.allow(['max.muster@example.test']);
       const blocked = message({
         body: { html: '<p>blocked</p>', remoteImageCount: 1, remoteImagesBlocked: true, text: '' },
       });

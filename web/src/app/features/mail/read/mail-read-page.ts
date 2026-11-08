@@ -108,9 +108,7 @@ export default class MailReadPage {
   protected readonly sender = computed<MailAddressResponse | null>(
     () => this.message()?.from?.[0] ?? null,
   );
-  protected readonly senderAllowed = computed(() =>
-    this.allowlist.has(this.sender()?.address ?? undefined),
-  );
+  protected readonly senderAllowed = computed(() => this.allowlist.has(this.sender()?.address));
   protected readonly ref = computed<ItemRefDto>(() => ({
     type: 'EMAIL',
     id: this.message()?.id ?? this.id(),
@@ -153,16 +151,20 @@ export default class MailReadPage {
     }
   }
 
-  /** Remembers the sender and shows the images. */
+  /**
+   * Adds the sender to the synced allowed senders and shows the images. A failed save is toasted
+   * by the HTTP layer and rolled back; the images of this message show anyway.
+   */
   protected async alwaysShowImages(): Promise<void> {
     const address = this.sender()?.address;
-    if (address) this.allowlist.add(address);
+    if (address) this.allowlist.add(address).catch(() => undefined);
     await this.showImages();
   }
 
+  /** Removes the sender from the allowed senders (a failed save is toasted and rolled back). */
   protected forgetSender(): void {
     const address = this.sender()?.address;
-    if (address) this.allowlist.remove(address);
+    if (address) this.allowlist.remove(address).catch(() => undefined);
   }
 
   protected async gtd(action: MailGtdAction): Promise<void> {
@@ -321,10 +323,21 @@ export default class MailReadPage {
     this.loadImages.set(false);
     this.loadingImages.set(false);
     try {
-      let message = await this.service.get(id, false);
+      await this.allowlist.ready();
       if (seq !== this.seq) return;
+      // With the policy "allow" every mail loads its images; an allowed sender is only known from
+      // the message, so its images are requested in a second load.
+      const allowAll = this.allowlist.policy() === 'allow';
+      let message = await this.service.get(id, allowAll);
+      if (seq !== this.seq) return;
+      if (allowAll) this.loadImages.set(true);
       const sender = message.from?.[0]?.address;
-      if (message.body?.remoteImagesBlocked && this.allowlist.has(sender) && message.id) {
+      if (
+        !allowAll &&
+        message.body?.remoteImagesBlocked &&
+        this.allowlist.loadsImagesFrom(sender) &&
+        message.id
+      ) {
         try {
           const proxied = await this.service.get(message.id, true);
           if (seq !== this.seq) return;

@@ -152,6 +152,65 @@
           <ng-container *ngTemplateOutlet="status; context: { $implicit: 'creativityLabels' }" />
         </div>
       </div>
+
+      <div class="row">
+        <div class="describe">
+          <h3 id="mail-images-label" i18n="@@settings.mailImages">Remote images in mail</h3>
+          <p i18n="@@settings.mailImages.hint">
+            Loading them lets senders see when you open a message. Images attached to the message
+            always show.
+          </p>
+        </div>
+        <div class="control">
+          <mat-button-toggle-group
+            formControlName="mailImagePolicy"
+            aria-labelledby="mail-images-label"
+            hideSingleSelectionIndicator
+            (change)="save('mailImagePolicy')"
+          >
+            @for (policy of imagePolicies; track policy) {
+              <mat-button-toggle [value]="policy">{{
+                imagePolicyLabels[policy]
+              }}</mat-button-toggle>
+            }
+          </mat-button-toggle-group>
+          <ng-container *ngTemplateOutlet="status; context: { $implicit: 'mailImagePolicy' }" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="describe">
+          <h3 id="mail-senders-label" i18n="@@settings.mailImageSenders">
+            Always load images from
+          </h3>
+          <p i18n="@@settings.mailImageSenders.hint">
+            Add a sender with "Always load from this sender" when reading a message.
+          </p>
+        </div>
+        <div class="control">
+          @if (allowedSenders().length) {
+            <ul class="senders" aria-labelledby="mail-senders-label">
+              @for (sender of allowedSenders(); track sender) {
+                <li>
+                  <span class="sender">{{ sender }}</span>
+                  <button
+                    mat-button
+                    type="button"
+                    [disabled]="removing().has(sender)"
+                    [attr.aria-label]="removeSenderLabel(sender)"
+                    (click)="removeSender(sender)"
+                    i18n="@@settings.mailImageSenders.remove"
+                  >
+                    Remove
+                  </button>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="note" i18n="@@settings.mailImageSenders.none">No senders yet.</p>
+          }
+        </div>
+      </div>
     </form>
   }
 </section>

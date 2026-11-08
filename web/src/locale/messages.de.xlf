@@ -11936,6 +11936,78 @@
           <context context-type="linenumber">107</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="settings.mailImages" datatype="html">
+        <source>Remote images in mail</source>
+        <target state="translated">Externe Bilder in E-Mails</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
+          <context context-type="linenumber">158,159</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.mailImages.hint" datatype="html">
+        <source> Loading them lets senders see when you open a message. Images attached to the message always show. </source>
+        <target state="translated">Wenn sie geladen werden, sehen Absender, wann du eine Nachricht öffnest. In der Nachricht enthaltene Bilder werden immer angezeigt.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
+          <context context-type="linenumber">160,163</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.mailImages.ask" datatype="html">
+        <source>Ask</source>
+        <target state="translated">Nachfragen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
+          <context context-type="linenumber">115</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.mailImages.allow" datatype="html">
+        <source>Always load</source>
+        <target state="translated">Immer laden</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
+          <context context-type="linenumber">116</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.mailImageSenders" datatype="html">
+        <source> Always load images from </source>
+        <target state="translated">Bilder immer laden von</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
+          <context context-type="linenumber">182,184</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.mailImageSenders.hint" datatype="html">
+        <source> Add a sender with &quot;Always load from this sender&quot; when reading a message. </source>
+        <target state="translated">Füge einen Absender beim Lesen einer Nachricht mit «Immer von diesem Absender laden» hinzu.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
+          <context context-type="linenumber">185,188</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.mailImageSenders.remove" datatype="html">
+        <source> Remove </source>
+        <target state="translated">Entfernen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
+          <context context-type="linenumber">202,203</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.mailImageSenders.removeAria" datatype="html">
+        <source>Remove <x id="sender" equiv-text="sender"/></source>
+        <target state="translated"><x id="sender" equiv-text="sender"/> entfernen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
+          <context context-type="linenumber">230</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.mailImageSenders.none" datatype="html">
+        <source>No senders yet.</source>
+        <target state="translated">Noch keine Absender.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
+          <context context-type="linenumber">208,212</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="gtdSettings.delete.title" datatype="html">
         <source>Delete <x id="INTERPOLATION" equiv-text="{{ data.name }}"/>?</source>
         <target state="translated"><x id="INTERPOLATION" equiv-text="{{ data.name }}"/> löschen?</target>

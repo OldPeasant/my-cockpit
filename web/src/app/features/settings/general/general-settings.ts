@@ -19,6 +19,7 @@ import { Settings, SettingsPatch } from '../../../api/generated';
 import { ApiError } from '../../../core/http';
 import { ReminderNotificationsToggle } from '../../../core/notifications';
 import { THEME_MODES } from '../../../shell/theme.service';
+import { ImageAllowlist } from '../../mail/read/image-allowlist';
 import { SettingsService } from '../settings.service';
 
 export const WEEK_DAYS = [
@@ -38,7 +39,13 @@ export const CREATIVITY_LEVELS = ['ROUTINE', 'MIXED', 'CREATIVE'] as const;
 const LABEL_MAX_LENGTH = 40;
 
 /** The rows of this section; each saves on its own. */
-export type GeneralField = 'timeZone' | 'weekStart' | 'theme' | 'energyLabels' | 'creativityLabels';
+export type GeneralField =
+  'timeZone' | 'weekStart' | 'theme' | 'energyLabels' | 'creativityLabels' | 'mailImagePolicy';
+
+export const MAIL_IMAGE_POLICIES = [
+  'block',
+  'allow',
+] as const satisfies readonly Settings['mailImagePolicy'][];
 
 type SaveState = 'saving' | 'saved' | 'failed';
 
@@ -50,9 +57,10 @@ export function timeZones(): string[] {
 }
 
 /**
- * Settings → General (SPEC.md §4.7): time zone, week start, theme and the energy/creativity labels.
- * Each row saves as soon as it changes (labels and time zone when the field is left); the change
- * shows at once and is undone when the server refuses it.
+ * Settings → General (SPEC.md §4.7): time zone, week start, theme, the energy/creativity labels and
+ * remote images in mail (ask or always load, and the senders whose images always load). Each row
+ * saves as soon as it changes (labels and time zone when the field is left); the change shows at
+ * once and is undone when the server refuses it.
  */
 @Component({
   selector: 'app-general-settings',
@@ -74,12 +82,18 @@ export function timeZones(): string[] {
 export default class GeneralSettings {
   private readonly service = inject(SettingsService);
   private readonly fb = inject(NonNullableFormBuilder);
+  private readonly imageAllowlist = inject(ImageAllowlist);
 
   protected readonly zones = timeZones();
   protected readonly weekDays = WEEK_DAYS;
   protected readonly themeModes = THEME_MODES;
   protected readonly energyLevels = ENERGY_LEVELS;
   protected readonly creativityLevels = CREATIVITY_LEVELS;
+  protected readonly imagePolicies = MAIL_IMAGE_POLICIES;
+  /** The senders whose remote images always load, as stored. */
+  protected readonly allowedSenders = this.imageAllowlist.senders;
+  /** Allowed senders whose removal is being saved. */
+  protected readonly removing = signal<ReadonlySet<string>>(new Set());
 
   protected readonly weekDayLabels: Record<Settings['weekStart'], string> = {
     MONDAY: $localize`:@@settings.weekStart.monday:Monday`,
@@ -94,6 +108,10 @@ export default class GeneralSettings {
     light: $localize`:@@theme.light:Light`,
     dark: $localize`:@@theme.dark:Dark`,
     system: $localize`:@@theme.system:System`,
+  };
+  protected readonly imagePolicyLabels: Record<Settings['mailImagePolicy'], string> = {
+    block: $localize`:@@settings.mailImages.ask:Ask`,
+    allow: $localize`:@@settings.mailImages.allow:Always load`,
   };
 
   protected readonly energyAria: Record<(typeof ENERGY_LEVELS)[number], string> = {
@@ -127,6 +145,7 @@ export default class GeneralSettings {
       MIXED: ['', this.labelValidators],
       CREATIVE: ['', this.labelValidators],
     }),
+    mailImagePolicy: this.fb.control<Settings['mailImagePolicy']>('block'),
   });
 
   protected readonly loading = signal(true);
@@ -203,6 +222,27 @@ export default class GeneralSettings {
       return;
     }
     void this.save('timeZone');
+  }
+
+  protected removeSenderLabel(sender: string): string {
+    return $localize`:@@settings.mailImageSenders.removeAria:Remove ${sender}:sender:`;
+  }
+
+  /** Removes a sender from the allowed senders; a failed save is toasted and rolled back. */
+  protected async removeSender(entry: string): Promise<void> {
+    if (this.removing().has(entry)) return;
+    this.removing.update((entries) => new Set(entries).add(entry));
+    try {
+      await this.imageAllowlist.removeEntry(entry);
+    } catch {
+      // The settings service rolled back; the interceptor showed the error.
+    } finally {
+      this.removing.update((entries) => {
+        const next = new Set(entries);
+        next.delete(entry);
+        return next;
+      });
+    }
   }
 
   protected stateOf(field: GeneralField): SaveState | undefined {

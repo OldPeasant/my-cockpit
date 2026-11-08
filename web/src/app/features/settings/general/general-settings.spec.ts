@@ -2,6 +2,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { Provider } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { Settings } from '../../../api/generated';
 import { NotificationService, provideHttp } from '../../../core/http';
 import {
   BROWSER_NOTIFICATIONS,
@@ -22,7 +23,10 @@ describe('GeneralSettings', () => {
   let http: HttpTestingController;
   let notifications: { error: ReturnType<typeof vi.fn> };
 
-  async function setup(extraProviders: Provider[] = []): Promise<void> {
+  async function setup(
+    extraProviders: Provider[] = [],
+    settings: Settings = fakeSettings(),
+  ): Promise<void> {
     localStorage.clear();
     notifications = { error: vi.fn() };
     TestBed.configureTestingModule({
@@ -37,9 +41,7 @@ describe('GeneralSettings', () => {
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(GeneralSettings);
     root = fixture.nativeElement as HTMLElement;
-    http
-      .expectOne({ method: 'GET', url: PATH })
-      .flush(fakeSettings(), { headers: { ETag: '"1"' } });
+    http.expectOne({ method: 'GET', url: PATH }).flush(settings, { headers: { ETag: '"1"' } });
     await tick();
     await fixture.whenStable();
   }
@@ -511,6 +513,78 @@ describe('GeneralSettings', () => {
     expect(toggle('Light').closest('mat-button-toggle')?.classList).toContain(
       'mat-button-toggle-checked',
     );
+  });
+
+  describe('remote images in mail', () => {
+    const senders = () =>
+      [...root.querySelectorAll('.senders li .sender')].map((el) => el.textContent?.trim());
+    const removeButton = (sender: string) =>
+      root.querySelector<HTMLButtonElement>(`button[aria-label="Remove ${sender}"]`)!;
+
+    it('shows "ask" by default and saves "always load"', async () => {
+      await setup();
+      expect(root.textContent).toContain('Remote images in mail');
+      expect(toggle('Ask').closest('mat-button-toggle')?.classList).toContain(
+        'mat-button-toggle-checked',
+      );
+
+      toggle('Always load').click();
+      await tick();
+      const request = http.expectOne({ method: 'PATCH', url: PATH });
+      expect(request.request.body).toEqual({ mailImagePolicy: 'allow' });
+      expect(request.request.headers.get('If-Match')).toBe('"1"');
+      request.flush(fakeSettings({ mailImagePolicy: 'allow' }), { headers: { ETag: '"2"' } });
+      await tick();
+      await fixture.whenStable();
+      expect(toggle('Always load').closest('mat-button-toggle')?.classList).toContain(
+        'mat-button-toggle-checked',
+      );
+    });
+
+    it('says when no sender is allowed', async () => {
+      await setup();
+      expect(senders()).toEqual([]);
+      expect(root.textContent).toContain('No senders yet.');
+    });
+
+    it('lists the allowed senders and removes one', async () => {
+      await setup(
+        [],
+        fakeSettings({ mailImageAllowedSenders: ['max@example.test', 'example.org'] }),
+      );
+      expect(senders()).toEqual(['max@example.test', 'example.org']);
+
+      removeButton('example.org').click();
+      await tick();
+      fixture.detectChanges();
+      // Shown at once; the server's answer confirms it.
+      expect(senders()).toEqual(['max@example.test']);
+      const request = http.expectOne({ method: 'PATCH', url: PATH });
+      expect(request.request.body).toEqual({ mailImageAllowedSenders: ['max@example.test'] });
+      request.flush(fakeSettings({ mailImageAllowedSenders: ['max@example.test'] }), {
+        headers: { ETag: '"2"' },
+      });
+      await tick();
+      await fixture.whenStable();
+      expect(senders()).toEqual(['max@example.test']);
+    });
+
+    it('brings a sender back when removing it fails', async () => {
+      await setup([], fakeSettings({ mailImageAllowedSenders: ['max@example.test'] }));
+      removeButton('max@example.test').click();
+      await tick();
+      http
+        .expectOne({ method: 'PATCH', url: PATH })
+        .flush(
+          { status: 500, title: 'Internal Server Error', detail: 'Database unavailable.' },
+          { status: 500, statusText: 'Internal Server Error' },
+        );
+      await tick();
+      await fixture.whenStable();
+      expect(senders()).toEqual(['max@example.test']);
+      expect(removeButton('max@example.test').disabled).toBe(false);
+      expect(notifications.error).toHaveBeenCalledWith('Database unavailable.');
+    });
   });
 
   it('offers IANA time zones including UTC', () => {
