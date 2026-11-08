@@ -12,7 +12,8 @@ Web cannot delete a task except during inbox processing and review (conflicts wi
 and cannot complete/reopen it from task detail. Android has both, with undo.
 
 ## Acceptance criteria
-- [ ] Task detail has Complete/Reopen and Delete (to Trash); after deleting it navigates back (shared back helper if web-back-navigation is done)
+- [x] Task detail has Complete/Reopen and Delete (to Trash); after deleting it navigates back (shared back helper if web-back-navigation is done)
+  - verified (2026-11-08 15:35+0100 by dell26/agent-1): cd web && npx ng test --watch=false --include='src/app/features/gtd/task-detail/task-detail.spec.ts' (+ task-detail-page.spec.ts, task-detail.service.spec.ts) at c2b8a9e48 -> 148 task-detail tests passed incl. 'complete, reopen and delete' (complete/reopen with If-Match, delete to Trash, 'goes back through the shared back navigation after deleting'); full npm run check -> 4429 passed
 - [ ] An undo snackbar after completing or deleting, in task detail and in the lists (Next, Today, project detail)
 - [ ] Checklist items can be renamed inline
 - [ ] Task notes are shown rendered as Markdown when not editing (click/Edit switches to the textarea)
