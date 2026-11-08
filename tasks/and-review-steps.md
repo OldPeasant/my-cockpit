@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-review-flow]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/review,android/app/src/test/java/ch/sonensei/cockpit/review,android/app/src/main/res/values/strings_review.xml,android/app/src/main/res/values-de/strings_review.xml]
 prio: 2
-lease_until: 2026-11-08T17:35:25Z
+lease_until: 2026-11-08T17:40:30Z
 releases: 1
 extended: 
 ---
