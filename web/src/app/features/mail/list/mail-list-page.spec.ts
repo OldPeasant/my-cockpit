@@ -1161,7 +1161,11 @@ describe('MailListPage', () => {
             TestBed.inject(MailListSession).save({
               url: '/mail?q=report',
               scrollTop: 0,
-              scope: { folderId: null, threaded: false, search: { query: 'report', server: false } },
+              scope: {
+                folderId: null,
+                threaded: false,
+                search: { query: 'report', server: false },
+              },
               items: found,
               nextCursor: null,
               cursorId: 'o',

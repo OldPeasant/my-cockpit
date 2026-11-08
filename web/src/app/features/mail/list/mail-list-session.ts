@@ -114,8 +114,7 @@ export class MailListSession {
     const following = position ? (position.nextId ?? position.previousId) : null;
     this.update((saved) => {
       if (!saved.items.some((item) => item.id === id)) return saved;
-      const cursorId =
-        saved.cursorId === id ? (following ?? nextAfter(saved, id)) : saved.cursorId;
+      const cursorId = saved.cursorId === id ? (following ?? nextAfter(saved, id)) : saved.cursorId;
       return { ...saved, cursorId, items: saved.items.filter((item) => item.id !== id) };
     });
     return following;

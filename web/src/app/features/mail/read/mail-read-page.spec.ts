@@ -18,7 +18,9 @@ import { LinkedItems } from '../../../shared/links';
 import { provideBackNavigation } from '../../../shared/navigation';
 import { SettingsService } from '../../settings/settings.service';
 import { fakeSettings } from '../../settings/testing';
-import { MailAction, MailService } from '../list/mail.service';
+import { MailListSession, SavedMailList } from '../list/mail-list-session';
+import { summary } from '../list/mail-testing';
+import { MailAction, MailService, MailSummary } from '../list/mail.service';
 import { IMAGE_ALLOWLIST_KEY } from './image-allowlist';
 import { MAIL_FRAME_SANDBOX } from './mail-frame';
 import MailReadPage, { TEXT_PREVIEW_LIMIT } from './mail-read-page';
@@ -1821,5 +1823,182 @@ describe('MailReadPage back button', () => {
     await flush();
     await harness.fixture.whenStable();
     expect(TestBed.inject(Router).url).toBe('/mail');
+  });
+});
+
+describe('MailReadPage previous/next through the list it was opened from', () => {
+  const A = '0192f0c4-0000-7000-8000-0000000000aa';
+  const B = '0192f0c4-0000-7000-8000-0000000000bb';
+  const C = '0192f0c4-0000-7000-8000-0000000000cc';
+  const LIST = '/mail?q=report';
+  let mail: FakeMailService & { list: ReturnType<typeof vi.fn> };
+  let read: FakeReadService;
+
+  const item = (id: string, seen = true): MailSummary => summary(id, { seen });
+
+  /** Shows `from`, saves the list as the list page does when it is left, then opens `id`. */
+  async function openFromList(
+    id: string,
+    saved: Partial<SavedMailList> = {},
+    from: string = LIST,
+  ): Promise<RouterTestingHarness> {
+    mail = Object.assign(new FakeMailService(), { list: vi.fn() });
+    read = new FakeReadService();
+    read.get = (messageId: string, loadImages: boolean) => {
+      read.gets.push({ id: messageId, loadImages });
+      return Promise.resolve(message({ id: messageId }));
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          { path: 'mail', component: StubList },
+          { path: 'new', component: StubList },
+          { path: 'mail/messages/:id', component: MailReadPage },
+        ]),
+        provideLocationMocks(),
+        provideBackNavigation(),
+        { provide: MailReadService, useValue: read },
+        { provide: MailService, useValue: mail },
+        { provide: NotificationService, useValue: { info: vi.fn(), error: vi.fn() } },
+      ],
+    });
+    TestBed.overrideComponent(MailReadPage, {
+      remove: { imports: [LinkedItems] },
+      add: { imports: [StubLinkedItems] },
+    });
+    const harness = await RouterTestingHarness.create();
+    TestBed.inject(Router).setUpLocationChangeListener();
+    await harness.navigateByUrl(from);
+    TestBed.inject(MailListSession).save({
+      url: LIST,
+      scrollTop: 0,
+      scope: { folderId: null, threaded: false, search: { query: 'report', server: false } },
+      items: [item(A), item(B, false), item(C)],
+      nextCursor: null,
+      cursorId: A,
+      searchResult: { hasMore: false, failedAccountIds: [] },
+      ...saved,
+    });
+    await harness.navigateByUrl(`/mail/messages/${id}`);
+    await settle(harness);
+    return harness;
+  }
+
+  async function settle(harness: RouterTestingHarness) {
+    await flush();
+    await harness.fixture.whenStable();
+    await flush();
+    harness.detectChanges();
+  }
+
+  const button = (harness: RouterTestingHarness, selector: string) =>
+    harness.routeNativeElement!.querySelector<HTMLButtonElement>(`.steps ${selector}`);
+  const count = (harness: RouterTestingHarness) =>
+    harness.routeNativeElement!.querySelector('.step-count')?.textContent?.trim();
+  const url = () => TestBed.inject(Router).url;
+  const key = (k: string) =>
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
+
+  it('shows previous/next with the position, disabled at the ends', async () => {
+    const harness = await openFromList(A);
+    expect(count(harness)).toBe('1 of 3');
+    expect(button(harness, '.previous')!.disabled).toBe(true);
+    expect(button(harness, '.next')!.disabled).toBe(false);
+    expect(button(harness, '.next')!.title).toBe('Next message (j)');
+    button(harness, '.next')!.click();
+    await settle(harness);
+    expect(url()).toBe(`/mail/messages/${B}`);
+    expect(count(harness)).toBe('2 of 3');
+    button(harness, '.next')!.click();
+    await settle(harness);
+    expect(url()).toBe(`/mail/messages/${C}`);
+    expect(button(harness, '.next')!.disabled).toBe(true);
+    expect(button(harness, '.previous')!.disabled).toBe(false);
+  });
+
+  it('steps with j and k, replacing the message so Back returns to the list', async () => {
+    const harness = await openFromList(B);
+    key('j');
+    await settle(harness);
+    expect(url()).toBe(`/mail/messages/${C}`);
+    key('k');
+    await settle(harness);
+    key('k');
+    await settle(harness);
+    expect(url()).toBe(`/mail/messages/${A}`);
+    // At the start, k does nothing.
+    key('k');
+    await settle(harness);
+    expect(url()).toBe(`/mail/messages/${A}`);
+    TestBed.inject(Location).back();
+    await settle(harness);
+    expect(url()).toBe(LIST);
+  });
+
+  it('keeps the list cursor on the message read last and shows it as read', async () => {
+    const harness = await openFromList(A);
+    key('j');
+    await settle(harness);
+    const saved = TestBed.inject(MailListSession).saved()!;
+    expect(saved.cursorId).toBe(B);
+    expect(saved.items.find((entry) => entry.id === B)?.seen).toBe(true);
+  });
+
+  it('steps into the next page of a folder list at its end', async () => {
+    const D = '0192f0c4-0000-7000-8000-0000000000dd';
+    const harness = await openFromList(C, {
+      scope: { folderId: null, threaded: false },
+      searchResult: null,
+      nextCursor: 'cur-1',
+    });
+    expect(count(harness)).toBe('3 of 3+');
+    expect(button(harness, '.next')!.disabled).toBe(false);
+    mail.list.mockResolvedValue({ items: [item(D)], nextCursor: null });
+    button(harness, '.next')!.click();
+    await settle(harness);
+    expect(mail.list).toHaveBeenCalledWith({ folderId: null, threaded: false }, 'cur-1');
+    expect(url()).toBe(`/mail/messages/${D}`);
+    expect(count(harness)).toBe('4 of 4');
+  });
+
+  it('shows no previous/next when opened from another page', async () => {
+    const harness = await openFromList(A, {}, '/new');
+    expect(button(harness, '.next')).toBeNull();
+    key('j');
+    await settle(harness);
+    expect(url()).toBe(`/mail/messages/${A}`);
+  });
+
+  for (const [label, action] of [
+    ['Archive', 'ARCHIVE'],
+    ['Delete', 'DELETE'],
+    ['Spam', 'SPAM'],
+  ] as const) {
+    it(`${label} moves on to the next message of the list`, async () => {
+      const harness = await openFromList(B);
+      [...harness.routeNativeElement!.querySelectorAll('button')]
+        .find((b) => b.textContent?.trim() === label)!
+        .click();
+      await settle(harness);
+      expect(mail.applies).toEqual([{ action, ids: [B] }]);
+      expect(url()).toBe(`/mail/messages/${C}`);
+      expect(count(harness)).toBe('2 of 2');
+      expect(
+        TestBed.inject(MailListSession)
+          .saved()!
+          .items.map((entry) => entry.id),
+      ).toEqual([A, C]);
+    });
+  }
+
+  it('moves to the message before after archiving the last one, then back to the list', async () => {
+    const harness = await openFromList(C, { items: [item(B), item(C)] });
+    key('e');
+    await settle(harness);
+    expect(url()).toBe(`/mail/messages/${B}`);
+    key('e');
+    await settle(harness);
+    expect(url()).toBe(LIST);
+    expect(TestBed.inject(MailListSession).saved()!.items).toEqual([]);
   });
 });
