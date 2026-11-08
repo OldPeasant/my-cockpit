@@ -8,11 +8,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.gtd.data.GtdProject
@@ -73,6 +77,17 @@ class ProjectsScreenTest {
                 choose = { calls += "choose" },
                 skip = { calls += "skip" },
                 dismiss = { calls += "dismiss ${it.title}" },
+                newProject = { calls += "new" },
+                editProject = { calls += "edit" },
+                editForm = { change -> calls += "form ${change(state.form!!.draft)}" },
+                togglePreview = { calls += "preview" },
+                cancelForm = { calls += "cancel" },
+                saveForm = { calls += "save" },
+                setStatus = { calls += "status $it" },
+                requestDelete = { calls += "delete" },
+                confirm = { calls += "confirm" },
+                cancelConfirm = { calls += "cancel confirm" },
+                dismissProjectMessage = { calls += "dismiss project ${it.title}" },
             )
         composeRule.setContent { CockpitTheme { ProjectsContent(state, callbacks) } }
     }
@@ -349,6 +364,257 @@ class ProjectsScreenTest {
             .assertIsDisplayed()
         composeRule.onNodeWithTag(LiveListTags.RETRY).performClick()
         assertEquals(listOf("retry"), calls)
+    }
+
+    private fun form(
+        form: ProjectFormState,
+        base: ProjectsUiState = list,
+    ) = base.copy(areas = listOf(home), form = form)
+
+    @Test
+    fun `the list header's plus opens a new project, offline it is disabled`() {
+        show(list)
+        composeRule.onNodeWithContentDescription("New project").assertIsDisplayed()
+        composeRule.onNodeWithTag(ProjectFormTags.NEW).performClick()
+        assertEquals(listOf("new"), calls)
+        state = list.copy(offline = true)
+        composeRule.onNodeWithTag(ProjectFormTags.NEW).assertIsNotEnabled()
+    }
+
+    @Test
+    fun `an active project's menu offers edit, complete, drop and delete`() {
+        show(detail(holiday, listOf(book)))
+        composeRule.onNodeWithTag(ProjectFormTags.MENU).performClick()
+        composeRule.onNodeWithText("Edit").assertIsDisplayed()
+        composeRule.onNodeWithText("Complete project").assertIsDisplayed()
+        composeRule.onNodeWithText("Drop project").assertIsDisplayed()
+        composeRule.onNodeWithText("Delete project").assertIsDisplayed()
+        composeRule.onNodeWithTag(ProjectFormTags.MENU_REACTIVATE).assertDoesNotExist()
+        composeRule.onNodeWithTag(ProjectFormTags.MENU_COMPLETE).performClick()
+        composeRule.onNodeWithTag(ProjectFormTags.MENU).performClick()
+        composeRule.onNodeWithTag(ProjectFormTags.MENU_DROP).performClick()
+        composeRule.onNodeWithTag(ProjectFormTags.MENU).performClick()
+        composeRule.onNodeWithTag(ProjectFormTags.MENU_EDIT).performClick()
+        composeRule.onNodeWithTag(ProjectFormTags.MENU).performClick()
+        composeRule.onNodeWithTag(ProjectFormTags.MENU_DELETE).performClick()
+        assertEquals(listOf("status COMPLETED", "status DROPPED", "edit", "delete"), calls)
+    }
+
+    @Test
+    fun `a completed project's menu offers to make it active again instead of completing it`() {
+        show(detail(holiday.copy(status = ProjectStatus.COMPLETED), emptyList()))
+        composeRule.onNodeWithTag(ProjectFormTags.MENU).performClick()
+        composeRule.onNodeWithTag(ProjectFormTags.MENU_COMPLETE).assertDoesNotExist()
+        composeRule.onNodeWithTag(ProjectFormTags.MENU_DROP).assertIsDisplayed()
+        composeRule.onNodeWithText("Make active again").performClick()
+        assertEquals(listOf("status ACTIVE"), calls)
+    }
+
+    @Test
+    fun `a dropped project's menu cannot drop it again, an on-hold one offers every status change`() {
+        show(detail(holiday.copy(status = ProjectStatus.DROPPED), emptyList()))
+        composeRule.onNodeWithTag(ProjectFormTags.MENU).performClick()
+        composeRule.onNodeWithTag(ProjectFormTags.MENU_DROP).assertDoesNotExist()
+        composeRule.onNodeWithTag(ProjectFormTags.MENU_COMPLETE).assertIsDisplayed()
+        composeRule.onNodeWithTag(ProjectFormTags.MENU_REACTIVATE).assertIsDisplayed()
+        composeRule.onNodeWithTag(ProjectFormTags.MENU_REACTIVATE).performClick()
+        state = detail(taxes, emptyList())
+        composeRule.onNodeWithTag(ProjectFormTags.MENU).performClick()
+        composeRule.onNodeWithTag(ProjectFormTags.MENU_COMPLETE).assertIsDisplayed()
+        composeRule.onNodeWithTag(ProjectFormTags.MENU_DROP).assertIsDisplayed()
+        composeRule.onNodeWithTag(ProjectFormTags.MENU_REACTIVATE).assertIsDisplayed()
+    }
+
+    @Test
+    fun `offline the menu's actions are disabled`() {
+        show(detail(holiday, listOf(book)).copy(offline = true))
+        composeRule.onNodeWithTag(ProjectFormTags.MENU).performClick()
+        composeRule.onNodeWithTag(ProjectFormTags.MENU_EDIT).assertIsNotEnabled()
+        composeRule.onNodeWithTag(ProjectFormTags.MENU_COMPLETE).assertIsNotEnabled()
+        composeRule.onNodeWithTag(ProjectFormTags.MENU_DELETE).assertIsNotEnabled()
+    }
+
+    @Test
+    fun `completing with open tasks asks with the count, and confirming confirms`() {
+        show(detail(holiday, listOf(book, hotel)).copy(confirm = ProjectConfirm.Finish(ProjectStatus.COMPLETED, 2, viaForm = false)))
+        composeRule.onNodeWithTag(ProjectFormTags.CONFIRM).assertIsDisplayed()
+        composeRule.onNodeWithText("Complete “Plan holiday”?").assertIsDisplayed()
+        composeRule.onNodeWithText("2 tasks are still open. They stay open and keep the project.").assertIsDisplayed()
+        composeRule.onNodeWithTag(ProjectFormTags.CONFIRM_OK).assertTextEquals("Complete").performClick()
+        assertEquals(listOf("confirm"), calls)
+    }
+
+    @Test
+    fun `dropping with one open task asks in the singular, cancelling cancels`() {
+        show(detail(holiday, listOf(book)).copy(confirm = ProjectConfirm.Finish(ProjectStatus.DROPPED, 1, viaForm = true)))
+        composeRule.onNodeWithText("Drop “Plan holiday”?").assertIsDisplayed()
+        composeRule.onNodeWithText("1 task is still open. It stays open and keeps the project.").assertIsDisplayed()
+        composeRule.onNodeWithTag(ProjectFormTags.CONFIRM_OK).assertTextEquals("Drop")
+        composeRule.onNodeWithTag(ProjectFormTags.CONFIRM_CANCEL).performClick()
+        assertEquals(listOf("cancel confirm"), calls)
+    }
+
+    @Test
+    fun `deleting asks first, says where the project goes and what happens to its open tasks`() {
+        show(detail(holiday, listOf(book, hotel)).copy(confirm = ProjectConfirm.Delete(2)))
+        composeRule.onNodeWithText("Delete “Plan holiday”?").assertIsDisplayed()
+        composeRule.onNodeWithText("The project moves to the Trash, where you can restore it.").assertIsDisplayed()
+        composeRule.onNodeWithText("Its 2 open tasks stay open and keep the project.").assertIsDisplayed()
+        composeRule.onNodeWithTag(ProjectFormTags.CONFIRM_OK).assertTextEquals("Delete")
+        state = detail(holiday, emptyList()).copy(confirm = ProjectConfirm.Delete(0))
+        composeRule.onNodeWithText("The project moves to the Trash, where you can restore it.").assertIsDisplayed()
+        composeRule.onNodeWithText("keep the project", substring = true).assertDoesNotExist()
+        composeRule.onNodeWithText("keeps the project", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `the new project form has no status, asks for a missing title, and saves or cancels`() {
+        show(form(ProjectFormState(titleMissing = true)))
+        composeRule.onNodeWithTag(ProjectFormTags.FORM).assertIsDisplayed()
+        composeRule.onNodeWithText("New project").assertIsDisplayed()
+        composeRule.onNodeWithTag(ProjectFormTags.STATUS).assertDoesNotExist()
+        composeRule.onNodeWithTag(ProjectFormTags.TITLE_ERROR, useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithText("Give the project a title.", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithTag(ProjectFormTags.TITLE).performTextInput("Learn Italian")
+        composeRule.onNodeWithTag(ProjectFormTags.SAVE).assertTextEquals("Create").performClick()
+        composeRule.onNodeWithTag(ProjectFormTags.CANCEL).performClick()
+        assertEquals(listOf("form ${ProjectDraft(title = "Learn Italian")}", "save", "cancel"), calls)
+    }
+
+    @Test
+    fun `without a missing title there is no title error`() {
+        show(form(ProjectFormState()))
+        composeRule.onNodeWithTag(ProjectFormTags.TITLE_ERROR, useUnmergedTree = true).assertDoesNotExist()
+        composeRule.onNodeWithTag(ProjectFormTags.CONFLICT).assertDoesNotExist()
+    }
+
+    @Test
+    fun `the edit form offers the status, the area and clearing the dates`() {
+        val dated = holiday.copy(dueDate = LocalDate.of(2026, 12, 1), reviewDate = LocalDate.of(2026, 11, 15))
+        val edit = ProjectFormState.edit(dated)
+        show(form(edit, detail(dated, listOf(book))))
+        composeRule.onNodeWithText("Edit project").assertIsDisplayed()
+        composeRule.onNodeWithTag(ProjectFormTags.SAVE).assertTextEquals("Save")
+        composeRule.onNodeWithTag(ProjectFormTags.STATUS).assertTextEquals("Active").performClick()
+        composeRule.onNodeWithTag(ProjectFormTags.status(ProjectStatus.ON_HOLD)).performClick()
+        composeRule.onNodeWithTag(ProjectFormTags.AREA).assertTextEquals("Home").performClick()
+        composeRule.onNodeWithTag(ProjectFormTags.NO_AREA).performClick()
+        composeRule.onNodeWithTag(ProjectFormTags.DUE_CLEAR).performScrollTo().performClick()
+        composeRule.onNodeWithTag(ProjectFormTags.REVIEW_CLEAR).performScrollTo().performClick()
+        assertEquals(
+            listOf(
+                "form ${edit.draft.copy(status = ProjectStatus.ON_HOLD)}",
+                "form ${edit.draft.copy(areaId = null)}",
+                "form ${edit.draft.copy(dueDate = null)}",
+                "form ${edit.draft.copy(reviewDate = null)}",
+            ),
+            calls,
+        )
+    }
+
+    @Test
+    fun `an area can be picked from the known areas`() {
+        show(form(ProjectFormState()))
+        composeRule.onNodeWithTag(ProjectFormTags.AREA).assertTextEquals("No area").performClick()
+        composeRule.onNodeWithTag(ProjectFormTags.area(home.id)).performClick()
+        assertEquals(listOf("form ${ProjectDraft(areaId = home.id)}"), calls)
+    }
+
+    @Test
+    fun `the description is edited as text and previewed as rendered Markdown`() {
+        val draft = ProjectDraft(title = "Plan holiday", description = "Two weeks in **Sicily**")
+        show(form(ProjectFormState(projectId = holiday.id, version = 2, initial = draft)))
+        composeRule.onNodeWithTag(ProjectFormTags.DESCRIPTION).performScrollTo().assertTextContains("Two weeks in **Sicily**")
+        composeRule.onNodeWithTag(ProjectFormTags.PREVIEW).assertDoesNotExist()
+        composeRule.onNodeWithTag(ProjectFormTags.DESCRIPTION_EDIT).performClick()
+        assertEquals(emptyList<String>(), calls)
+        composeRule.onNodeWithTag(ProjectFormTags.DESCRIPTION_PREVIEW).performClick()
+        assertEquals(listOf("preview"), calls)
+
+        state = state.copy(form = state.form!!.copy(preview = true))
+        composeRule.onNodeWithTag(ProjectFormTags.DESCRIPTION).assertDoesNotExist()
+        composeRule.onNodeWithTag(ProjectFormTags.PREVIEW).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Two weeks in Sicily", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithText("**", substring = true, useUnmergedTree = true).assertDoesNotExist()
+        composeRule.onNodeWithTag(ProjectFormTags.DESCRIPTION_EDIT).performClick()
+        assertEquals(listOf("preview", "preview"), calls)
+    }
+
+    @Test
+    fun `an empty description previews a hint`() {
+        show(form(ProjectFormState(preview = true)))
+        composeRule.onNodeWithText("No description yet.", useUnmergedTree = true).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun `a form reloaded after a conflict says so`() {
+        show(form(ProjectFormState.edit(holiday).copy(conflict = true), detail(holiday, listOf(book))))
+        composeRule.onNodeWithTag(ProjectFormTags.CONFLICT).assertIsDisplayed()
+        composeRule
+            .onNodeWithText(
+                "This project was changed elsewhere and has been reloaded. Your edits are kept: check them and save again.",
+            ).assertIsDisplayed()
+    }
+
+    @Test
+    fun `while saving, or offline, the form cannot be saved`() {
+        show(form(ProjectFormState(saving = true)))
+        composeRule.onNodeWithTag(ProjectFormTags.SAVE).assertIsNotEnabled()
+        composeRule.onNodeWithTag(ProjectFormTags.TITLE).assertIsNotEnabled()
+        state = form(ProjectFormState()).copy(offline = true)
+        composeRule.onNodeWithTag(ProjectFormTags.SAVE).assertIsNotEnabled()
+    }
+
+    @Test
+    fun `the form replaces the detail and hides the next-step prompt`() {
+        val withPrompt = detail(garden, listOf(hotel), NextStepPrompt(garden.id))
+        show(form(ProjectFormState.edit(garden), withPrompt))
+        composeRule.onNodeWithTag(ProjectFormTags.FORM).assertIsDisplayed()
+        composeRule.onNodeWithTag(ProjectsTags.DETAIL).assertDoesNotExist()
+        composeRule.onNodeWithTag(ProjectsTags.PROMPT).assertDoesNotExist()
+    }
+
+    @Test
+    fun `the system back gesture in the form cancels it`() {
+        state = form(ProjectFormState())
+        var dispatcher: OnBackPressedDispatcher? = null
+        composeRule.setContent {
+            dispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
+            CockpitTheme { ProjectsContent(state, ProjectsCallbacks(cancelForm = { calls += "cancel" }, close = { calls += "close" })) }
+        }
+        composeRule.runOnIdle { dispatcher!!.onBackPressed() }
+        assertEquals(listOf("cancel"), calls)
+    }
+
+    @Test
+    fun `the detail renders the description as Markdown`() {
+        show(detail(holiday.copy(descriptionMd = "## Plan\n\n- Book **flights**"), listOf(book)))
+        composeRule.onNodeWithTag(ProjectFormTags.DESCRIPTION_VIEW).assertIsDisplayed()
+        composeRule.onNodeWithText("Plan", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithText("Book flights", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithText("**", substring = true, useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a saved project is confirmed in a snackbar, then dismissed`() {
+        show(list.copy(projectMessage = ProjectMessage(ProjectMessage.Kind.SAVED, "Plan holiday", ActionOutcome.DONE)))
+        composeRule.waitUntil(TIMEOUT) { composeRule.onAllNodesWithText("Saved Plan holiday").fetchSemanticsNodes().isNotEmpty() }
+        composeRule.waitUntil(TIMEOUT) { "dismiss project Plan holiday" in calls }
+    }
+
+    @Test
+    fun `a project change refused because it changed elsewhere says it was reloaded`() {
+        show(list.copy(projectMessage = ProjectMessage(ProjectMessage.Kind.COMPLETED, "Plan holiday", ActionOutcome.CONFLICT)))
+        val text = "Plan holiday was changed elsewhere and has been reloaded. Try again."
+        composeRule.waitUntil(TIMEOUT) { composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test
+    fun `a deleted project says it moved to the Trash`() {
+        show(list.copy(projectMessage = ProjectMessage(ProjectMessage.Kind.DELETED, "Plan holiday", ActionOutcome.DONE)))
+        composeRule.waitUntil(TIMEOUT) {
+            composeRule.onAllNodesWithText("Moved Plan holiday to the Trash").fetchSemanticsNodes().isNotEmpty()
+        }
     }
 
     private companion object {

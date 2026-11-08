@@ -25,6 +25,13 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import mockwebserver3.RecordedRequest
 import okhttp3.MediaType.Companion.toMediaType
@@ -36,6 +43,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import java.time.LocalDate
 import java.util.UUID
 
 /** The project detail's changes against a fake server: what is sent, how answers map to outcomes, which caches reload. */
@@ -282,6 +290,139 @@ class ProjectWorkRepositoryTest {
             dispatcher.enqueue("/api/v1/areas", status(500))
             val live = withTimeout(TIMEOUT) { repository.observeAreas(MutableSharedFlow()).first { !it.loading } }
             assertEquals(Live<List<Area>>(error = LoadError.OFFLINE), live)
+        }
+
+    private fun created(body: String): MockResponse =
+        MockResponse
+            .Builder()
+            .code(201)
+            .addHeader("Content-Type", "application/json")
+            .body(body)
+            .build()
+
+    @Test
+    fun `creating a project posts the trimmed draft, returns its id and reloads only the projects`() =
+        runBlocking {
+            // POST and GET share the route: the create answer is taken first, then the reload's.
+            dispatcher.enqueue(PROJECTS, created(projectJson(20, "Learn Italian")))
+            enqueueCacheReloads()
+            val draft =
+                ProjectDraft(
+                    title = "  Learn Italian ",
+                    areaId = UUID.fromString(uuid(90)),
+                    dueDate = LocalDate.of(2027, 3, 1),
+                    reviewDate = LocalDate.of(2026, 12, 1),
+                    description = "Before the **holiday**",
+                )
+            assertEquals(ProjectCreated(ActionOutcome.DONE, UUID.fromString(uuid(20))), repository.create(draft))
+            val body = Json.parseToJsonElement(requests("POST", PROJECTS).single().body!!.utf8()).jsonObject
+            assertEquals("Learn Italian", body["title"]!!.jsonPrimitive.content)
+            assertEquals(uuid(90), body["areaId"]!!.jsonPrimitive.content)
+            assertEquals("2027-03-01", body["dueDate"]!!.jsonPrimitive.content)
+            assertEquals("2026-12-01", body["reviewDate"]!!.jsonPrimitive.content)
+            assertEquals("Before the **holiday**", body["descriptionMd"]!!.jsonPrimitive.content)
+            assertEquals("ACTIVE", body["status"]!!.jsonPrimitive.content)
+            assertEquals(1, requests("GET", PROJECTS).size)
+            assertTrue(requests("GET", TASKS).isEmpty())
+        }
+
+    @Test
+    fun `a new project with a blank description sends none`() =
+        runBlocking {
+            dispatcher.enqueue(PROJECTS, created(projectJson(20, "Learn Italian")))
+            enqueueCacheReloads()
+            repository.create(ProjectDraft(title = "Learn Italian", description = "   "))
+            val body = Json.parseToJsonElement(requests("POST", PROJECTS).single().body!!.utf8()).jsonObject
+            assertTrue(body["descriptionMd"] == null || body["descriptionMd"] == JsonNull)
+            assertTrue(body["areaId"] == null || body["areaId"] == JsonNull)
+        }
+
+    @Test
+    fun `a refused create has no id, and offline nothing reloads`() =
+        runBlocking {
+            dispatcher.enqueue(PROJECTS, status(400))
+            enqueueCacheReloads()
+            assertEquals(ProjectCreated(ActionOutcome.FAILED, null), repository.create(ProjectDraft(title = "Learn Italian")))
+
+            dispatcher.requests.clear()
+            dispatcher.enqueue(PROJECTS, status(503))
+            assertEquals(ProjectCreated(ActionOutcome.OFFLINE, null), repository.create(ProjectDraft(title = "Learn Italian")))
+            assertTrue(requests("GET", PROJECTS).isEmpty())
+        }
+
+    @Test
+    fun `an update patches only the given fields with the version in If-Match and reloads only the projects`() =
+        runBlocking {
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}", json(projectJson(10, "Plan the holiday")))
+            enqueueCacheReloads()
+            val patch = JsonObject(mapOf("title" to JsonPrimitive("Plan the holiday"), "dueDate" to JsonNull))
+            assertEquals(ActionOutcome.DONE, repository.update(project.id, 7, patch))
+            val request = requests("PATCH", "$PROJECTS/${uuid(10)}").single()
+            assertEquals("\"7\"", request.headers["If-Match"])
+            assertEquals(patch, Json.parseToJsonElement(request.body!!.utf8()))
+            assertEquals(1, requests("GET", PROJECTS).size)
+            assertTrue(requests("GET", TASKS).isEmpty())
+        }
+
+    @Test
+    fun `an update refused with 412 is a conflict and the projects reload`() =
+        runBlocking {
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}", status(412))
+            enqueueCacheReloads()
+            assertEquals(ActionOutcome.CONFLICT, repository.update(project.id, 1, JsonObject(mapOf("title" to JsonPrimitive("X")))))
+            assertEquals(1, requests("GET", PROJECTS).size)
+            assertEquals(
+                listOf("Plan holiday"),
+                harness.dao
+                    .projectRows()
+                    .rows
+                    .map { it.title },
+            )
+        }
+
+    @Test
+    fun `an update of a project trashed elsewhere (404) or refused with 409 is a conflict, offline nothing reloads`() =
+        runBlocking {
+            val patch = JsonObject(mapOf("status" to JsonPrimitive("COMPLETED")))
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}", status(404))
+            enqueueCacheReloads()
+            assertEquals(ActionOutcome.CONFLICT, repository.update(project.id, 1, patch))
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}", status(409))
+            enqueueCacheReloads()
+            assertEquals(ActionOutcome.CONFLICT, repository.update(project.id, 1, patch))
+
+            dispatcher.requests.clear()
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}", status(502))
+            assertEquals(ActionOutcome.OFFLINE, repository.update(project.id, 1, patch))
+            assertTrue(requests("GET", PROJECTS).isEmpty())
+        }
+
+    @Test
+    fun `deleting a project sends its version, takes the bodiless 204 as done and reloads projects and task views`() =
+        runBlocking {
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}", status(204))
+            enqueueCacheReloads()
+            assertEquals(ActionOutcome.DONE, repository.delete(project))
+            val request = requests("DELETE", "$PROJECTS/${uuid(10)}").single()
+            assertEquals("\"1\"", request.headers["If-Match"])
+            assertEquals(1, requests("GET", PROJECTS).size)
+            val views = requests("GET", TASKS).map { it.url.queryParameter("list") ?: it.url.queryParameter("due") }
+            assertEquals(setOf("NEXT", "OVERDUE", "TODAY"), views.toSet())
+        }
+
+    @Test
+    fun `a delete refused with 412 is a conflict and still reloads, offline it reloads nothing`() =
+        runBlocking {
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}", status(412))
+            enqueueCacheReloads()
+            assertEquals(ActionOutcome.CONFLICT, repository.delete(project))
+            assertEquals(1, requests("GET", PROJECTS).size)
+
+            dispatcher.requests.clear()
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}", status(503))
+            assertEquals(ActionOutcome.OFFLINE, repository.delete(project))
+            assertTrue(requests("GET", PROJECTS).isEmpty())
+            assertTrue(requests("GET", TASKS).isEmpty())
         }
 
     private companion object {

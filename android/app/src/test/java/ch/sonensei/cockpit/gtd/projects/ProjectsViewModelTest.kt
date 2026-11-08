@@ -27,6 +27,9 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -521,6 +524,397 @@ class ProjectsViewModelTest {
             vm.close()
             vm.choose()
             assertNull(vm.uiState.value.detail)
+        }
+
+    private fun status(s: ProjectStatus) = JsonObject(mapOf("status" to JsonPrimitive(s.name)))
+
+    @Test
+    fun `the form's areas are the known areas in their order`() =
+        test { vm ->
+            assertEquals(listOf(work, home), vm.uiState.value.areas)
+        }
+
+    @Test
+    fun `a new project needs a title, and typing one clears the error`() =
+        test { vm ->
+            vm.newProject()
+            assertEquals(ProjectFormState(), vm.uiState.value.form)
+            vm.editForm { it.copy(title = "   ") }
+            vm.saveForm()
+            assertTrue(
+                vm.uiState.value.form!!
+                    .titleMissing,
+            )
+            coVerify(exactly = 0) { work0.create(any()) }
+            vm.editForm { it.copy(title = "Learn Italian") }
+            assertEquals(
+                false,
+                vm.uiState.value.form!!
+                    .titleMissing,
+            )
+        }
+
+    @Test
+    fun `a created project closes the form and opens the new project`() =
+        test { vm ->
+            coEvery { work0.create(any()) } returns ProjectCreated(ActionOutcome.DONE, garden.id)
+            vm.newProject()
+            vm.editForm { it.copy(title = " Redo the garden ", areaId = home.id) }
+            vm.saveForm()
+            coVerify(exactly = 1) { work0.create(ProjectDraft(title = " Redo the garden ", areaId = home.id)) }
+            val state = vm.uiState.value
+            assertNull(state.form)
+            assertEquals(garden, state.detail!!.project)
+            assertEquals(ProjectMessage(ProjectMessage.Kind.CREATED, "Redo the garden", ActionOutcome.DONE), state.projectMessage)
+            vm.dismissProjectMessage(state.projectMessage!!)
+            assertNull(vm.uiState.value.projectMessage)
+        }
+
+    @Test
+    fun `a create that failed keeps the form to try again and says why`() =
+        test { vm ->
+            coEvery { work0.create(any()) } returns ProjectCreated(ActionOutcome.OFFLINE, null)
+            vm.newProject()
+            vm.editForm { it.copy(title = "Learn Italian") }
+            vm.saveForm()
+            val form = vm.uiState.value.form!!
+            assertEquals("Learn Italian", form.draft.title)
+            assertEquals(false, form.saving)
+            assertNull(vm.uiState.value.detail)
+            assertEquals(
+                ActionOutcome.OFFLINE,
+                vm.uiState.value.projectMessage!!
+                    .outcome,
+            )
+        }
+
+    @Test
+    fun `a save runs once at a time`() =
+        test { vm ->
+            val answer = CompletableDeferred<ProjectCreated>()
+            coEvery { work0.create(any()) } coAnswers { answer.await() }
+            vm.newProject()
+            vm.editForm { it.copy(title = "Learn Italian") }
+            vm.saveForm()
+            assertTrue(
+                vm.uiState.value.form!!
+                    .saving,
+            )
+            vm.saveForm()
+            answer.complete(ProjectCreated(ActionOutcome.DONE, garden.id))
+            coVerify(exactly = 1) { work0.create(any()) }
+        }
+
+    @Test
+    fun `editing sends only the changed fields at the project's version, then closes the form`() =
+        test { vm ->
+            coEvery { work0.update(any(), any(), any()) } returns ActionOutcome.DONE
+            vm.open(holiday)
+            vm.editProject()
+            assertEquals(ProjectFormState.edit(holiday), vm.uiState.value.form)
+            vm.editForm { it.copy(title = "Plan the holiday ", areaId = null) }
+            vm.saveForm()
+            coVerify(exactly = 1) {
+                work0.update(holiday.id, 2, JsonObject(mapOf("title" to JsonPrimitive("Plan the holiday"), "areaId" to JsonNull)))
+            }
+            assertNull(vm.uiState.value.form)
+            assertEquals(ProjectMessage(ProjectMessage.Kind.SAVED, "Plan the holiday", ActionOutcome.DONE), vm.uiState.value.projectMessage)
+        }
+
+    @Test
+    fun `saving an unchanged edit closes the form without a request`() =
+        test { vm ->
+            vm.open(holiday)
+            vm.editProject()
+            vm.saveForm()
+            assertNull(vm.uiState.value.form)
+            coVerify(exactly = 0) { work0.update(any(), any(), any()) }
+        }
+
+    @Test
+    fun `a save refused because the project changed elsewhere keeps the user's edits on the reloaded project`() =
+        test { vm ->
+            val current = holiday.copy(version = 3, areaId = work.id, descriptionMd = "Two weeks in Sicily")
+            coEvery { work0.update(any(), any(), any()) } coAnswers {
+                // The repository reloaded the projects before answering.
+                projectFlow.value = projectFlow.value.copy(data = listOf(current, garden, report, move))
+                ActionOutcome.CONFLICT
+            }
+            vm.open(holiday)
+            vm.editProject()
+            vm.editForm { it.copy(title = "Plan the holiday") }
+            vm.saveForm()
+            val form = vm.uiState.value.form!!
+            assertTrue(form.conflict)
+            assertEquals(false, form.saving)
+            assertEquals(3L, form.version)
+            assertEquals("Plan the holiday", form.draft.title)
+            assertEquals(work.id, form.draft.areaId)
+            assertEquals("Two weeks in Sicily", form.draft.description)
+            assertEquals(
+                ActionOutcome.CONFLICT,
+                vm.uiState.value.projectMessage!!
+                    .outcome,
+            )
+
+            coEvery { work0.update(any(), any(), any()) } returns ActionOutcome.DONE
+            vm.saveForm()
+            coVerify(exactly = 1) { work0.update(holiday.id, 3, JsonObject(mapOf("title" to JsonPrimitive("Plan the holiday")))) }
+            assertNull(vm.uiState.value.form)
+        }
+
+    @Test
+    fun `a save refused because the project was trashed elsewhere closes the form`() =
+        test { vm ->
+            coEvery { work0.update(any(), any(), any()) } coAnswers {
+                projectFlow.value = projectFlow.value.copy(data = listOf(garden, report, move))
+                ActionOutcome.CONFLICT
+            }
+            vm.open(holiday)
+            vm.editProject()
+            vm.editForm { it.copy(title = "Plan the holiday") }
+            vm.saveForm()
+            assertNull(vm.uiState.value.form)
+            assertEquals(
+                ActionOutcome.CONFLICT,
+                vm.uiState.value.projectMessage!!
+                    .outcome,
+            )
+        }
+
+    @Test
+    fun `a save that failed keeps the form as it was`() =
+        test { vm ->
+            coEvery { work0.update(any(), any(), any()) } returns ActionOutcome.FAILED
+            vm.open(holiday)
+            vm.editProject()
+            vm.editForm { it.copy(title = "Plan the holiday") }
+            vm.saveForm()
+            val form = vm.uiState.value.form!!
+            assertEquals(false, form.saving)
+            assertEquals(false, form.conflict)
+            assertEquals("Plan the holiday", form.draft.title)
+        }
+
+    @Test
+    fun `completing in the form with open tasks asks first, confirming saves`() =
+        test { vm ->
+            coEvery { work0.update(any(), any(), any()) } returns ActionOutcome.DONE
+            vm.open(holiday)
+            vm.editProject()
+            vm.editForm { it.copy(status = ProjectStatus.COMPLETED) }
+            vm.saveForm()
+            assertEquals(ProjectConfirm.Finish(ProjectStatus.COMPLETED, 2, viaForm = true), vm.uiState.value.confirm)
+            coVerify(exactly = 0) { work0.update(any(), any(), any()) }
+            vm.confirm()
+            assertNull(vm.uiState.value.confirm)
+            coVerify(exactly = 1) { work0.update(holiday.id, 2, status(ProjectStatus.COMPLETED)) }
+            assertNull(vm.uiState.value.form)
+        }
+
+    @Test
+    fun `cancelling the form also drops its pending confirmation`() =
+        test { vm ->
+            vm.open(holiday)
+            vm.editProject()
+            vm.editForm { it.copy(status = ProjectStatus.DROPPED) }
+            vm.saveForm()
+            assertEquals(ProjectConfirm.Finish(ProjectStatus.DROPPED, 2, viaForm = true), vm.uiState.value.confirm)
+            vm.cancelForm()
+            assertNull(vm.uiState.value.form)
+            assertNull(vm.uiState.value.confirm)
+            coVerify(exactly = 0) { work0.update(any(), any(), any()) }
+        }
+
+    @Test
+    fun `finishing in the form without open tasks saves at once`() =
+        test { vm ->
+            taskFlow.value = Live(emptyList())
+            coEvery { work0.update(any(), any(), any()) } returns ActionOutcome.DONE
+            vm.open(holiday)
+            vm.editProject()
+            vm.editForm { it.copy(status = ProjectStatus.DROPPED) }
+            vm.saveForm()
+            assertNull(vm.uiState.value.confirm)
+            coVerify(exactly = 1) { work0.update(holiday.id, 2, status(ProjectStatus.DROPPED)) }
+        }
+
+    @Test
+    fun `other status changes in the form need no confirmation`() =
+        test { vm ->
+            coEvery { work0.update(any(), any(), any()) } returns ActionOutcome.DONE
+            vm.open(holiday)
+            vm.editProject()
+            vm.editForm { it.copy(status = ProjectStatus.ON_HOLD) }
+            vm.saveForm()
+            assertNull(vm.uiState.value.confirm)
+            coVerify(exactly = 1) { work0.update(holiday.id, 2, status(ProjectStatus.ON_HOLD)) }
+        }
+
+    @Test
+    fun `completing from the menu with open tasks asks first, cancelling changes nothing`() =
+        test { vm ->
+            coEvery { work0.update(any(), any(), any()) } returns ActionOutcome.DONE
+            vm.open(holiday)
+            vm.setStatus(ProjectStatus.COMPLETED)
+            assertEquals(ProjectConfirm.Finish(ProjectStatus.COMPLETED, 2, viaForm = false), vm.uiState.value.confirm)
+            vm.cancelConfirm()
+            assertNull(vm.uiState.value.confirm)
+            coVerify(exactly = 0) { work0.update(any(), any(), any()) }
+
+            vm.setStatus(ProjectStatus.COMPLETED)
+            vm.confirm()
+            coVerify(exactly = 1) { work0.update(holiday.id, 2, status(ProjectStatus.COMPLETED)) }
+            assertEquals(ProjectMessage(ProjectMessage.Kind.COMPLETED, "Plan holiday", ActionOutcome.DONE), vm.uiState.value.projectMessage)
+        }
+
+    @Test
+    fun `dropping from the menu without open tasks needs no confirmation`() =
+        test { vm ->
+            taskFlow.value = Live(emptyList())
+            coEvery { work0.update(any(), any(), any()) } returns ActionOutcome.CONFLICT
+            vm.open(garden)
+            vm.setStatus(ProjectStatus.DROPPED)
+            assertNull(vm.uiState.value.confirm)
+            coVerify(exactly = 1) { work0.update(garden.id, 2, status(ProjectStatus.DROPPED)) }
+            assertEquals(
+                ProjectMessage(ProjectMessage.Kind.DROPPED, "Redo the garden", ActionOutcome.CONFLICT),
+                vm.uiState.value.projectMessage,
+            )
+        }
+
+    @Test
+    fun `reactivating a finished project needs no confirmation, the current status is no change`() =
+        test { vm ->
+            coEvery { work0.update(any(), any(), any()) } returns ActionOutcome.DONE
+            vm.toggleFinished()
+            vm.open(move)
+            vm.setStatus(ProjectStatus.COMPLETED)
+            coVerify(exactly = 0) { work0.update(any(), any(), any()) }
+            vm.setStatus(ProjectStatus.ACTIVE)
+            assertNull(vm.uiState.value.confirm)
+            coVerify(exactly = 1) { work0.update(move.id, 2, status(ProjectStatus.ACTIVE)) }
+            assertEquals(
+                ProjectMessage.Kind.REACTIVATED,
+                vm.uiState.value.projectMessage!!
+                    .kind,
+            )
+        }
+
+    @Test
+    fun `deleting asks first with the open task count, then trashes the project and closes its detail`() =
+        test { vm ->
+            coEvery { work0.delete(holiday) } returns ActionOutcome.DONE
+            vm.open(holiday)
+            vm.requestDelete()
+            assertEquals(ProjectConfirm.Delete(2), vm.uiState.value.confirm)
+            coVerify(exactly = 0) { work0.delete(any()) }
+            vm.confirm()
+            coVerify(exactly = 1) { work0.delete(holiday) }
+            assertNull(vm.uiState.value.detail)
+            assertNull(vm.uiState.value.confirm)
+            assertEquals(ProjectMessage(ProjectMessage.Kind.DELETED, "Plan holiday", ActionOutcome.DONE), vm.uiState.value.projectMessage)
+        }
+
+    @Test
+    fun `a refused delete keeps the detail open and says why`() =
+        test { vm ->
+            coEvery { work0.delete(holiday) } returns ActionOutcome.CONFLICT
+            vm.open(holiday)
+            vm.requestDelete()
+            vm.confirm()
+            assertEquals(
+                holiday,
+                vm.uiState.value.detail!!
+                    .project,
+            )
+            assertEquals(
+                ProjectMessage(ProjectMessage.Kind.DELETED, "Plan holiday", ActionOutcome.CONFLICT),
+                vm.uiState.value.projectMessage,
+            )
+        }
+
+    @Test
+    fun `offline no project can be created, edited, finished or deleted`() =
+        test { vm ->
+            vm.open(holiday)
+            projectFlow.value = projectFlow.value.copy(offline = true)
+            vm.newProject()
+            assertNull(vm.uiState.value.form)
+            vm.editProject()
+            assertNull(vm.uiState.value.form)
+            vm.setStatus(ProjectStatus.DROPPED, confirmed = true)
+            vm.requestDelete()
+            assertNull(vm.uiState.value.confirm)
+            coVerify(exactly = 0) { work0.update(any(), any(), any()) }
+            coVerify(exactly = 0) { work0.delete(any()) }
+        }
+
+    @Test
+    fun `a form opened before going offline cannot be saved offline`() =
+        test { vm ->
+            vm.newProject()
+            vm.editForm { it.copy(title = "Learn Italian") }
+            projectFlow.value = projectFlow.value.copy(offline = true)
+            vm.saveForm()
+            coVerify(exactly = 0) { work0.create(any()) }
+            assertEquals(
+                false,
+                vm.uiState.value.form!!
+                    .saving,
+            )
+        }
+
+    @Test
+    fun `a detail whose tasks could not reload cannot be edited, finished or deleted`() =
+        test { vm ->
+            taskFlow.value = Live(listOf(book, hotel), LoadError.FAILED)
+            vm.open(holiday)
+            vm.editProject()
+            vm.setStatus(ProjectStatus.COMPLETED)
+            vm.requestDelete()
+            assertNull(vm.uiState.value.form)
+            assertNull(vm.uiState.value.confirm)
+            coVerify(exactly = 0) { work0.update(any(), any(), any()) }
+        }
+
+    @Test
+    fun `without an open project the detail's actions do nothing`() =
+        test { vm ->
+            vm.editProject()
+            vm.setStatus(ProjectStatus.COMPLETED)
+            vm.requestDelete()
+            vm.confirm()
+            assertNull(vm.uiState.value.form)
+            assertNull(vm.uiState.value.confirm)
+            coVerify(exactly = 0) { work0.update(any(), any(), any()) }
+        }
+
+    @Test
+    fun `the preview toggles, and going back drops an edit but keeps a new project's form`() =
+        test { vm ->
+            vm.open(holiday)
+            vm.editProject()
+            vm.togglePreview()
+            assertTrue(
+                vm.uiState.value.form!!
+                    .preview,
+            )
+            vm.togglePreview()
+            assertEquals(
+                false,
+                vm.uiState.value.form!!
+                    .preview,
+            )
+            vm.close()
+            assertNull(vm.uiState.value.form)
+
+            vm.newProject()
+            vm.close()
+            assertTrue(
+                vm.uiState.value.form!!
+                    .isNew,
+            )
         }
 
     @Test
