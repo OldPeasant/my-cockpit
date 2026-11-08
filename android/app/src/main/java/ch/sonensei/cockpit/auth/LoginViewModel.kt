@@ -41,6 +41,8 @@ data class LoginUiState(
     val errorAddress: String? = null,
     /** Seconds until the server accepts the next attempt after a 429; 0 when there is no wait. */
     val retryAfterSeconds: Long = 0,
+    /** With [LoginError.TOTP_RESET_REQUIRED]: the web page that sets up TOTP again, for the button that opens it. */
+    val totpEnrollmentUrl: String? = null,
 ) {
     val canSubmit: Boolean
         get() =
@@ -54,7 +56,8 @@ data class LoginUiState(
 
     override fun toString(): String =
         "LoginUiState(serverUrl=$serverUrl, username=$username, useRecoveryCode=$useRecoveryCode, " +
-            "submitting=$submitting, error=$error, errorAddress=$errorAddress, retryAfterSeconds=$retryAfterSeconds)"
+            "submitting=$submitting, error=$error, errorAddress=$errorAddress, retryAfterSeconds=$retryAfterSeconds, " +
+            "totpEnrollmentUrl=$totpEnrollmentUrl)"
 }
 
 /** State of the login form; a successful login stores the tokens, which switches the app to the shell. */
@@ -91,11 +94,12 @@ class LoginViewModel
         fun submit() {
             val form = state.value
             if (!form.canSubmit) return
-            state.update { it.copy(submitting = true, error = null, errorAddress = null) }
+            state.update { it.copy(submitting = true, error = null, errorAddress = null, totpEnrollmentUrl = null) }
             viewModelScope.launch {
                 val factor = if (form.useRecoveryCode) SecondFactor.RecoveryCode(form.code) else SecondFactor.Totp(form.code)
                 val result = repository.login(form.serverUrl, form.username, form.password, factor)
-                state.update { it.after(result) }
+                val enrollmentUrl = if (result == LoginResult.TotpResetRequired) repository.totpEnrollmentUrl() else null
+                state.update { it.after(result).copy(totpEnrollmentUrl = enrollmentUrl) }
                 if (result is LoginResult.TooManyAttempts) startCountdown(result.retryAfterSeconds)
             }
         }
@@ -104,10 +108,11 @@ class LoginViewModel
         fun submitPasskey(credentials: PasskeyCredentials) {
             val form = state.value
             if (!form.canSubmitPasskey) return
-            state.update { it.copy(submitting = true, error = null, errorAddress = null) }
+            state.update { it.copy(submitting = true, error = null, errorAddress = null, totpEnrollmentUrl = null) }
             viewModelScope.launch {
                 val result = passkeys.login(form.serverUrl, credentials)
-                state.update { it.after(result) }
+                val enrollmentUrl = if (result == LoginResult.TotpResetRequired) repository.totpEnrollmentUrl() else null
+                state.update { it.after(result).copy(totpEnrollmentUrl = enrollmentUrl) }
                 if (result is LoginResult.TooManyAttempts) startCountdown(result.retryAfterSeconds)
             }
         }

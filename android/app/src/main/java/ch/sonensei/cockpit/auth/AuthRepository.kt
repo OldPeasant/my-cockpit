@@ -19,6 +19,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -86,7 +87,7 @@ sealed interface LoginResult {
     /** The authenticator failed. */
     data object PasskeyFailed : LoginResult
 
-    /** The passkey is valid, but TOTP must be set up again in the web app first (403 after a restore). */
+    /** The password or passkey is valid, but TOTP must be set up again in the web app first (403 after a restore). */
     data object TotpResetRequired : LoginResult
 }
 
@@ -160,6 +161,12 @@ class AuthRepository internal constructor(
     /** The configured server, to prefill the login form. */
     val serverUrl: Flow<String?> = serverUrls.serverUrl.map { it?.toString() }
 
+    /**
+     * The web page of the configured server that sets up TOTP again after a restore (it asks for the web login first);
+     * null without a server.
+     */
+    suspend fun totpEnrollmentUrl(): String? = serverUrls.serverUrl.first()?.resolve(TOTP_ENROLLMENT_PAGE)?.toString()
+
     suspend fun login(
         serverUrl: String,
         username: String,
@@ -199,6 +206,9 @@ class AuthRepository internal constructor(
             }
             response.code() == 400 -> LoginResult.InvalidRequest
             response.code() == 401 -> LoginResult.WrongCredentials
+            // Credentials are right, but after a restore without the TOTP secret the server refuses device tokens
+            // until TOTP is set up again in the web app (SPEC.md §10.2).
+            response.code() == 403 -> LoginResult.TotpResetRequired
             response.code() == 429 -> LoginResult.TooManyAttempts(retryAfter(response.headers()["Retry-After"]))
             else -> LoginResult.ServerError
         }
@@ -262,6 +272,9 @@ class AuthRepository internal constructor(
         const val REVOKE_TIMEOUT_MS = 5_000L
         const val LOGOUT_HOOK_TIMEOUT_MS = 5_000L
         const val DEVICE_NAME_MAX = 100
+
+        /** Route of the web app's forced TOTP re-enrollment (`web/src/app/app.routes.ts`). */
+        const val TOTP_ENROLLMENT_PAGE = "enroll-totp"
     }
 }
 

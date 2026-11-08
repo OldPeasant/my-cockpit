@@ -26,6 +26,7 @@
     <string name="login_error_too_many_attempts">Too many failed attempts. Sign-in is paused for a moment.</string>
     <string name="login_error_network">The server cannot be reached. Check the address and your connection.</string>
     <string name="login_error_server">The server had a problem signing you in. Try again later.</string>
+    <string name="login_open_totp_enrollment">Open the setup in the browser</string>
 
     <!-- Logout -->
     <string name="logout">Log out</string>

@@ -38,6 +38,7 @@ class PasskeyViewModelsTest {
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         every { auth.serverUrl } returns flowOf("https://cockpit.example.org/")
+        coEvery { auth.totpEnrollmentUrl() } returns "https://cockpit.example.org/enroll-totp"
     }
 
     @After
@@ -98,6 +99,20 @@ class PasskeyViewModelsTest {
                 assertEquals(result.toString(), error, viewModel.uiState.value.error)
                 assertFalse(viewModel.uiState.value.submitting)
             }
+        }
+
+    @Test
+    fun `a passkey login that needs TOTP set up again offers the web enrollment page`() =
+        runTest(dispatcher) {
+            coEvery { passkeys.login(any(), any()) } returns LoginResult.TotpResetRequired
+            val viewModel = LoginViewModel(auth, passkeys)
+            advanceUntilIdle()
+
+            viewModel.submitPasskey(credentials)
+            advanceUntilIdle()
+
+            assertEquals(LoginError.TOTP_RESET_REQUIRED, viewModel.uiState.value.error)
+            assertEquals("https://cockpit.example.org/enroll-totp", viewModel.uiState.value.totpEnrollmentUrl)
         }
 
     @Test

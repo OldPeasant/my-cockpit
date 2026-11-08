@@ -26,6 +26,7 @@
     <string name="login_error_too_many_attempts">Zu viele fehlgeschlagene Versuche. Die Anmeldung ist kurz pausiert.</string>
     <string name="login_error_network">Der Server ist nicht erreichbar. Prüfe die Adresse und deine Verbindung.</string>
     <string name="login_error_server">Beim Anmelden ist auf dem Server ein Problem aufgetreten. Versuche es später erneut.</string>
+    <string name="login_open_totp_enrollment">Einrichtung im Browser öffnen</string>
 
     <!-- Logout -->
     <string name="logout">Abmelden</string>

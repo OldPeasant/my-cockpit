@@ -232,6 +232,30 @@ class LoginViewModelTest {
         }
 
     @Test
+    fun `a login that needs TOTP set up again offers the web enrollment page until the next attempt`() =
+        runTest(dispatcher) {
+            coEvery { repository.totpEnrollmentUrl() } returns "https://cockpit.example.org/enroll-totp"
+            coEvery { repository.login(any(), any(), any(), any()) } returns LoginResult.TotpResetRequired
+            val viewModel = filledIn()
+
+            viewModel.submit()
+            advanceUntilIdle()
+
+            assertEquals(LoginError.TOTP_RESET_REQUIRED, viewModel.uiState.value.error)
+            assertEquals("https://cockpit.example.org/enroll-totp", viewModel.uiState.value.totpEnrollmentUrl)
+            assertFalse(viewModel.uiState.value.submitting)
+
+            coEvery { repository.login(any(), any(), any(), any()) } returns LoginResult.WrongCredentials
+            viewModel.onCodeChange("654321")
+            viewModel.submit()
+            advanceUntilIdle()
+
+            assertEquals(LoginError.WRONG_CREDENTIALS, viewModel.uiState.value.error)
+            assertNull(viewModel.uiState.value.totpEnrollmentUrl)
+            coVerify(exactly = 1) { repository.totpEnrollmentUrl() }
+        }
+
+    @Test
     fun `without a configured server the address field stays empty`() =
         runTest(dispatcher) {
             every { repository.serverUrl } returns flowOf(null)

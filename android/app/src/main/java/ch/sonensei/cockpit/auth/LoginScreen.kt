@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -31,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -68,6 +70,7 @@ object LoginTags {
     const val SUBMIT = "login:submit"
     const val PASSKEY = "login:passkey"
     const val ERROR = "login:error"
+    const val OPEN_TOTP_ENROLLMENT = "login:openTotpEnrollment"
     const val SCREEN = "screen:login"
 }
 
@@ -193,6 +196,7 @@ fun LoginScreen(
                 }
 
                 state.error?.let { ErrorMessage(it, state.errorAddress) }
+                state.totpEnrollmentUrl?.takeIf { state.error == LoginError.TOTP_RESET_REQUIRED }?.let { OpenTotpEnrollmentButton(it) }
 
                 Button(
                     onClick = onSubmit,
@@ -257,6 +261,24 @@ private fun ErrorMessage(
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(12.dp),
         )
+    }
+}
+
+/**
+ * Opens the web app's TOTP re-enrollment page in the browser: the server refuses device tokens until TOTP is set up
+ * again there, so the app cannot enroll itself (SPEC.md §10.2).
+ */
+@Composable
+private fun OpenTotpEnrollmentButton(url: String) {
+    val uriHandler = LocalUriHandler.current
+    OutlinedButton(
+        // Without a browser there is nothing to open; the message above still says what to do.
+        onClick = { runCatching { uriHandler.openUri(url) } },
+        modifier = Modifier.fillMaxWidth().testTag(LoginTags.OPEN_TOTP_ENROLLMENT),
+    ) {
+        Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+        Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+        Text(stringResource(R.string.login_open_totp_enrollment))
     }
 }
 

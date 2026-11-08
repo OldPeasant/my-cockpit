@@ -3,10 +3,13 @@ package ch.sonensei.cockpit.auth
 import android.text.InputType
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -340,6 +343,50 @@ class LoginScreenTest {
             .fetchSemanticsNodes()
             .forEach { assertNotEquals(Role.Image, it.config[SemanticsProperties.Role]) }
         composeRule.onAllNodesWithText("Sign in to your cockpit").assertCountEquals(1)
+    }
+
+    @Test
+    fun `the TOTP re-enrollment error offers a button that opens the web enrollment page`() {
+        val opened = mutableListOf<String>()
+        val uriHandler =
+            object : UriHandler {
+                override fun openUri(uri: String) {
+                    opened += uri
+                }
+            }
+        composeRule.setContent {
+            CompositionLocalProvider(LocalUriHandler provides uriHandler) {
+                LoginScreen(
+                    LoginUiState(error = LoginError.TOTP_RESET_REQUIRED, totpEnrollmentUrl = "https://cockpit.example.org/enroll-totp"),
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                )
+            }
+        }
+
+        composeRule
+            .onNodeWithTag(LoginTags.OPEN_TOTP_ENROLLMENT)
+            .performScrollTo()
+            .assertTextContains("Open the setup in the browser")
+            .performClick()
+
+        assertEquals(listOf("https://cockpit.example.org/enroll-totp"), opened)
+    }
+
+    @Test
+    fun `the web enrollment button is shown only with the TOTP re-enrollment error`() {
+        var state by mutableStateOf(LoginUiState(error = LoginError.TOTP_RESET_REQUIRED))
+        composeRule.setContent { LoginScreen(state, {}, {}, {}, {}, {}, {}) }
+
+        composeRule.onNodeWithTag(LoginTags.OPEN_TOTP_ENROLLMENT).assertDoesNotExist()
+        state = LoginUiState(error = LoginError.NETWORK, totpEnrollmentUrl = "https://cockpit.example.org/enroll-totp")
+        composeRule.onNodeWithTag(LoginTags.OPEN_TOTP_ENROLLMENT).assertDoesNotExist()
+        state = LoginUiState(totpEnrollmentUrl = "https://cockpit.example.org/enroll-totp")
+        composeRule.onNodeWithTag(LoginTags.OPEN_TOTP_ENROLLMENT).assertDoesNotExist()
     }
 
     private fun show(state: LoginUiState) =

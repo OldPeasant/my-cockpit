@@ -144,6 +144,16 @@ class AuthRepositoryTest {
         }
 
     @Test
+    fun `403 means TOTP must be set up again in the web app and stores nothing`() =
+        runBlocking {
+            server.enqueue(json(403, PROBLEM))
+
+            assertEquals(LoginResult.TotpResetRequired, login())
+            assertNull(tokenStore.current())
+            assertEquals(server.url("/enroll-totp").toString(), repository.totpEnrollmentUrl())
+        }
+
+    @Test
     fun `400 is an invalid request`() =
         runBlocking {
             server.enqueue(json(400, PROBLEM))
