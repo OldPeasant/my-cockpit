@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: []
 touches: [web/src/app/features/mail/read/mail-frame.ts,web/src/app/features/mail/read/mail-frame.spec.ts,web/e2e/mail-read,web/playwright.config.ts]
 prio: 1
-lease_until: 2026-11-08T08:04:36Z
+lease_until: 2026-11-08T08:09:39Z
 ---
 ## Goal
 In Firefox no mail image ever shows, neither inline `cid:` images nor remote images after "Load images": the image
