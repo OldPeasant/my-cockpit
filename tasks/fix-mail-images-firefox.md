@@ -31,7 +31,8 @@ the `cid:` image.
   - verified (2026-11-08 09:12+0100 by felix/agent-1): web/playwright.config.ts project 'firefox' (Desktop Firefox, testMatch mail-read/*.spec.ts, deps phase-demos); docs/ARCHITECTURE.md Install/E2E name 'npx playwright install --with-deps chromium firefox'; cd web && npm run e2e -- e2e/mail-read -> [firefox] mail-read/read.spec.ts passed
 - [x] `e2e/mail-read/read.spec.ts` also asserts that the inline `cid:` image loads, and it passes in Chromium and Firefox: `cd web && npm run e2e -- e2e/mail-read` -> pass for both projects
   - verified (2026-11-08 09:12+0100 by felix/agent-1): cd web && npm run e2e -- e2e/mail-read (docker compose e2e stack, GreenMail, real server for cid: attachment) -> 37 passed incl. [chromium] and [firefox] read.spec.ts with inline cid: image loaded assertion
-- [ ] `cd web && npm run check` and `sh scripts/check.sh` pass
+- [x] `cd web && npm run check` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 10:55+0100 by dell26/agent-1): sh scripts/check.sh (includes web eslint + 4063 vitest tests + build, i.e. npm run check; server ktlint+tests; android ktlint+unit+lint) on merged main f72ef89cf -> all checks passed, exit 0
 
 ## Notes
 Planned 2026-11-08. Related: the existing e2e stubs the image proxy, so it never caught this; the "ResizeObserver loop
