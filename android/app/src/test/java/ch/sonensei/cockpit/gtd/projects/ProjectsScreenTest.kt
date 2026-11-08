@@ -238,7 +238,10 @@ class ProjectsScreenTest {
         composeRule.onNodeWithTag(ProjectsTags.LOADING).assertIsDisplayed()
         state = list.copy(groups = emptyList())
         composeRule.onNodeWithTag(ProjectsTags.EMPTY).assertIsDisplayed()
-        composeRule.onNodeWithText("No projects yet. Turn an inbox item into one with “To project”.").assertIsDisplayed()
+        composeRule
+            .onNodeWithText(
+                "No projects yet. Create one with + or turn an inbox item into one with “To project”.",
+            ).assertIsDisplayed()
     }
 
     @Test

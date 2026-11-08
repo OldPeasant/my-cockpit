@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AccountTree
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.AlertDialog
@@ -68,8 +70,10 @@ import ch.sonensei.cockpit.gtd.lists.LiveTaskRow
 import ch.sonensei.cockpit.gtd.lists.LoadError
 import ch.sonensei.cockpit.gtd.lists.StaleBanner
 import ch.sonensei.cockpit.gtd.next.OfflineBanner
+import ch.sonensei.cockpit.notes.MarkdownView
 import ch.sonensei.cockpit.ui.LocalFabClearance
 import ch.sonensei.cockpit.ui.PlaceholderScreen
+import coil3.ImageLoader
 import dagger.hilt.internal.GeneratedComponentManagerHolder
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -91,7 +95,7 @@ fun ProjectsRoute(
     viewModel: ProjectsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    ProjectsContent(state, ProjectsCallbacks.of(viewModel), modifier)
+    ProjectsContent(state, ProjectsCallbacks.of(viewModel), modifier, viewModel.imageLoader)
 }
 
 /** What the Projects screen can ask for, so the screen can be tested without a view model. */
@@ -106,20 +110,42 @@ data class ProjectsCallbacks(
     val choose: () -> Unit = {},
     val skip: () -> Unit = {},
     val dismiss: (ActionSnackbar) -> Unit = {},
+    val newProject: () -> Unit = {},
+    val editProject: () -> Unit = {},
+    val editForm: ((ProjectDraft) -> ProjectDraft) -> Unit = {},
+    val togglePreview: () -> Unit = {},
+    val cancelForm: () -> Unit = {},
+    val saveForm: () -> Unit = {},
+    val setStatus: (ProjectStatus) -> Unit = {},
+    val requestDelete: () -> Unit = {},
+    val confirm: () -> Unit = {},
+    val cancelConfirm: () -> Unit = {},
+    val dismissProjectMessage: (ProjectMessage) -> Unit = {},
 ) {
     companion object {
         fun of(vm: ProjectsViewModel) =
             ProjectsCallbacks(
-                vm::open,
-                vm::close,
-                vm::toggleFinished,
-                vm::retry,
-                vm::complete,
-                vm::makeNextStep,
-                vm::addNextStep,
-                vm::choose,
-                vm::skip,
-                vm::dismiss,
+                open = vm::open,
+                close = vm::close,
+                toggleFinished = vm::toggleFinished,
+                retry = vm::retry,
+                complete = vm::complete,
+                makeNextStep = vm::makeNextStep,
+                addNextStep = vm::addNextStep,
+                choose = vm::choose,
+                skip = vm::skip,
+                dismiss = vm::dismiss,
+                newProject = vm::newProject,
+                editProject = vm::editProject,
+                editForm = vm::editForm,
+                togglePreview = vm::togglePreview,
+                cancelForm = vm::cancelForm,
+                saveForm = { vm.saveForm() },
+                setStatus = { vm.setStatus(it) },
+                requestDelete = vm::requestDelete,
+                confirm = vm::confirm,
+                cancelConfirm = vm::cancelConfirm,
+                dismissProjectMessage = vm::dismissProjectMessage,
             )
     }
 }
@@ -156,23 +182,34 @@ fun ProjectsContent(
     state: ProjectsUiState,
     callbacks: ProjectsCallbacks,
     modifier: Modifier = Modifier,
+    imageLoader: ImageLoader? = null,
 ) {
     val snackbarHost = remember { SnackbarHostState() }
     ActionSnackbarEffect(state.message, snackbarHost, callbacks.dismiss)
+    ProjectMessageEffect(state.projectMessage, snackbarHost, callbacks.dismissProjectMessage)
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             if (state.offline) OfflineBanner(state.refreshedAt)
             val detail = state.detail
-            if (detail != null) {
-                BackHandler(onBack = callbacks.close)
-                ProjectDetail(state, detail, callbacks)
-            } else {
-                ProjectList(state, callbacks)
+            val form = state.form
+            when {
+                form != null -> {
+                    BackHandler(onBack = callbacks.cancelForm)
+                    ProjectFormScreen(state, form, callbacks, imageLoader)
+                }
+                detail != null -> {
+                    BackHandler(onBack = callbacks.close)
+                    ProjectDetail(state, detail, callbacks, imageLoader)
+                }
+                else -> ProjectList(state, callbacks)
             }
         }
         SnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter).padding(bottom = LocalFabClearance.current))
     }
-    state.detail?.prompt?.let { NextStepDialog(state, it, callbacks) }
+    if (state.form == null) state.detail?.prompt?.let { NextStepDialog(state, it, callbacks) }
+    val detail = state.detail
+    val confirm = state.confirm
+    if (detail != null && confirm != null) ProjectConfirmDialog(detail.project.title, confirm, callbacks)
 }
 
 @Composable
@@ -198,6 +235,9 @@ private fun ProjectList(
                 label = { Text(stringResource(R.string.projects_show_finished, state.finished)) },
                 modifier = Modifier.testTag(ProjectsTags.SHOW_FINISHED),
             )
+        }
+        IconButton(onClick = callbacks.newProject, enabled = !state.offline, modifier = Modifier.testTag(ProjectFormTags.NEW)) {
+            Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.projects_new))
         }
     }
     HorizontalDivider()
@@ -317,10 +357,11 @@ private fun ProjectDetail(
     state: ProjectsUiState,
     detail: ProjectDetailState,
     callbacks: ProjectsCallbacks,
+    imageLoader: ImageLoader?,
 ) {
     val project = detail.project
     Column(Modifier.fillMaxSize().testTag(ProjectsTags.DETAIL)) {
-        Row(Modifier.fillMaxWidth().padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = callbacks.close, modifier = Modifier.testTag(ProjectsTags.BACK)) {
                 Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.projects_back))
             }
@@ -335,14 +376,19 @@ private fun ProjectDetail(
                     )
                 }
             }
+            ProjectMenu(state, detail, callbacks)
         }
         project.descriptionMd?.takeIf { it.isNotBlank() }?.let {
-            Text(
+            // Rendered like a note; a long description scrolls on its own, so the tasks stay in view.
+            MarkdownView(
                 it,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = DESCRIPTION_LINES,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                imageLoader,
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = DESCRIPTION_MAX_HEIGHT)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .testTag(ProjectFormTags.DESCRIPTION_VIEW),
             )
         }
         NextStepLine(state, detail, callbacks)
@@ -535,4 +581,4 @@ private fun NextStepDialog(
     )
 }
 
-private const val DESCRIPTION_LINES = 4
+private val DESCRIPTION_MAX_HEIGHT = 160.dp

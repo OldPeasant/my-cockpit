@@ -13,6 +13,8 @@ import ch.sonensei.cockpit.gtd.lists.ActionSnackbar
 import ch.sonensei.cockpit.gtd.lists.Live
 import ch.sonensei.cockpit.gtd.lists.LoadError
 import ch.sonensei.cockpit.gtd.lists.TaskListsRepository
+import ch.sonensei.cockpit.notes.NoteImages
+import coil3.ImageLoader
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.BufferOverflow
@@ -22,12 +24,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -64,6 +69,30 @@ data class CreatedStep(
     val taskId: UUID,
 )
 
+/** A change on a project that is asked about first. */
+sealed interface ProjectConfirm {
+    /** Completing or dropping ([status]) the open project while [openTasks] tasks are still open; [viaForm]: the form's save. */
+    data class Finish(
+        val status: ProjectStatus,
+        val openTasks: Int,
+        val viaForm: Boolean,
+    ) : ProjectConfirm
+
+    /** Moving the open project to the Trash; its [openTasks] open tasks keep the project. */
+    data class Delete(
+        val openTasks: Int,
+    ) : ProjectConfirm
+}
+
+/** How a change on the project titled [title] went. */
+data class ProjectMessage(
+    val kind: Kind,
+    val title: String,
+    val outcome: ActionOutcome,
+) {
+    enum class Kind { CREATED, SAVED, COMPLETED, DROPPED, REACTIVATED, DELETED }
+}
+
 data class ProjectDetailState(
     val project: GtdProject,
     val area: Area? = null,
@@ -97,6 +126,12 @@ data class ProjectsUiState(
     val areasLoading: Boolean = false,
     /** Why the areas could not be loaded, while none are known: the projects are not grouped by area. */
     val areasError: LoadError? = null,
+    /** The known areas in their order, to pick from in the form. */
+    val areas: List<Area> = emptyList(),
+    /** The open project form (new project or edit), `null` when closed. */
+    val form: ProjectFormState? = null,
+    val confirm: ProjectConfirm? = null,
+    val projectMessage: ProjectMessage? = null,
 ) {
     val loading: Boolean get() = groups.isEmpty() && ((refreshedAt == null && !offline) || areasLoading)
 
@@ -106,16 +141,20 @@ data class ProjectsUiState(
 
 /**
  * Projects (SPEC.md §5.3): the cached projects grouped by area with the stalled ones highlighted, and the detail of
- * one project with its open tasks, its next step, completing tasks and the "Choose next step" prompt.
+ * one project with its open tasks, its next step, completing tasks and the "Choose next step" prompt. Projects are
+ * created, edited (with `If-Match`: a 412 reloads the project and keeps the user's edits to save again), completed,
+ * dropped and deleted here; finishing a project with open tasks, and deleting one, are confirmed first.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ProjectsViewModel internal constructor(
-    projects: ProjectRepository,
+    private val projects: ProjectRepository,
     contexts: ContextRepository,
     private val lists: TaskListsRepository,
     private val work: ProjectWorkRepository,
     private val clock: Clock,
+    /** Loads the drive images of the descriptions; `null` (tests) shows placeholders. */
+    val imageLoader: ImageLoader? = null,
 ) : ViewModel() {
     @Inject
     constructor(
@@ -123,7 +162,8 @@ class ProjectsViewModel internal constructor(
         contexts: ContextRepository,
         lists: TaskListsRepository,
         work: ProjectWorkRepository,
-    ) : this(projects, contexts, lists, work, Clock.systemDefaultZone())
+        images: NoteImages,
+    ) : this(projects, contexts, lists, work, Clock.systemDefaultZone(), images.loader)
 
     private val selected = MutableStateFlow<UUID?>(null)
     private val showFinished = MutableStateFlow(false)
@@ -133,6 +173,9 @@ class ProjectsViewModel internal constructor(
     /** Tasks completed here: hidden until the reloaded project tasks no longer hold them. */
     private val completed = MutableStateFlow(emptySet<UUID>())
     private val message = MutableStateFlow<ActionSnackbar?>(null)
+    private val form = MutableStateFlow<ProjectFormState?>(null)
+    private val confirm = MutableStateFlow<ProjectConfirm?>(null)
+    private val projectMessage = MutableStateFlow<ProjectMessage?>(null)
     private val reloads = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
     /** The areas loaded last: kept while a later load fails, and while they load again after the screen came back. */
@@ -159,7 +202,13 @@ class ProjectsViewModel internal constructor(
             )
         }
 
-    private val local = combine(prompt, busy, completed, message) { p, b, c, m -> LocalState(p, b, c, m) }
+    private val local =
+        combine(
+            combine(prompt, busy, completed, message) { p, b, c, m -> LocalState(p, b, c, m) },
+            form,
+            confirm,
+            projectMessage,
+        ) { l, f, c, m -> l.copy(form = f, confirm = c, projectMessage = m) }
 
     val uiState: StateFlow<ProjectsUiState> =
         combine(view, projectTasks, local) { v, tasks, l ->
@@ -190,6 +239,10 @@ class ProjectsViewModel internal constructor(
                 today = LocalDate.now(clock),
                 areasLoading = v.areasLoading,
                 areasError = v.areasError,
+                areas = v.areas.orEmpty().sortedBy { it.position },
+                form = l.form,
+                confirm = l.confirm,
+                projectMessage = l.projectMessage,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), ProjectsUiState(today = LocalDate.now(clock)))
 
@@ -200,8 +253,153 @@ class ProjectsViewModel internal constructor(
 
     fun close() {
         prompt.value = null
+        confirm.value = null
+        form.update { if (it?.isNew == false) null else it }
         selected.value = null
     }
+
+    /** Opens the form for a new project. */
+    fun newProject() {
+        if (uiState.value.offline) return
+        form.value = ProjectFormState()
+    }
+
+    /** Opens the form to edit the open project. */
+    fun editProject() {
+        val project = uiState.value.detail?.project ?: return
+        if (uiState.value.readOnly) return
+        form.value = ProjectFormState.edit(project)
+    }
+
+    fun editForm(change: (ProjectDraft) -> ProjectDraft) =
+        form.update { f ->
+            f?.copy(draft = change(f.draft))?.let { if (it.draft.title.isNotBlank()) it.copy(titleMissing = false) else it }
+        }
+
+    fun togglePreview() = form.update { it?.copy(preview = !it.preview) }
+
+    fun cancelForm() {
+        form.value = null
+        confirm.update { if (it is ProjectConfirm.Finish && it.viaForm) null else it }
+    }
+
+    /**
+     * Saves the form: creates the project and opens it, or sends the changed fields. Finishing a project that still has
+     * open tasks is confirmed first, unless [confirmed].
+     */
+    fun saveForm(confirmed: Boolean = false) {
+        val f = form.value ?: return
+        if (f.saving || uiState.value.offline) return
+        if (f.draft.title.isBlank()) {
+            form.value = f.copy(titleMissing = true)
+            return
+        }
+        val id = f.projectId ?: return create(f)
+        val open =
+            uiState.value.detail
+                ?.takeIf { it.project.id == id }
+                ?.tasks
+                ?.size ?: 0
+        if (!confirmed && f.draft.status != f.initial.status && finishes(f.draft.status) && open > 0) {
+            confirm.value = ProjectConfirm.Finish(f.draft.status, open, viaForm = true)
+            return
+        }
+        val patch = projectPatch(f.initial, f.draft)
+        if (patch.isEmpty()) {
+            form.value = null
+            return
+        }
+        form.value = f.copy(saving = true)
+        viewModelScope.launch {
+            val outcome = work.update(id, f.version, patch)
+            when (outcome) {
+                ActionOutcome.DONE -> form.value = null
+                // Changed (or trashed) elsewhere: the projects were reloaded; show the current one with the user's edits.
+                ActionOutcome.CONFLICT -> form.value = currentProject(id)?.let { f.rebase(it).copy(conflict = true) }
+                else -> form.update { it?.copy(saving = false) }
+            }
+            projectMessage.value = ProjectMessage(ProjectMessage.Kind.SAVED, f.draft.title.trim(), outcome)
+        }
+    }
+
+    /** Completes, drops or reactivates the open project; finishing one with open tasks is confirmed first, unless [confirmed]. */
+    fun setStatus(
+        status: ProjectStatus,
+        confirmed: Boolean = false,
+    ) {
+        val detail = uiState.value.detail ?: return
+        val project = detail.project
+        if (uiState.value.readOnly || project.status == status) return
+        if (!confirmed && finishes(status) && detail.tasks.isNotEmpty()) {
+            confirm.value = ProjectConfirm.Finish(status, detail.tasks.size, viaForm = false)
+            return
+        }
+        val kind =
+            when (status) {
+                ProjectStatus.COMPLETED -> ProjectMessage.Kind.COMPLETED
+                ProjectStatus.DROPPED -> ProjectMessage.Kind.DROPPED
+                else -> ProjectMessage.Kind.REACTIVATED
+            }
+        run(project.id) {
+            val outcome = work.update(project.id, project.version, JsonObject(mapOf("status" to JsonPrimitive(status.name))))
+            projectMessage.value = ProjectMessage(kind, project.title, outcome)
+        }
+    }
+
+    /** Asks before moving the open project to the Trash. */
+    fun requestDelete() {
+        val detail = uiState.value.detail ?: return
+        if (uiState.value.readOnly) return
+        confirm.value = ProjectConfirm.Delete(detail.tasks.size)
+    }
+
+    /** The user confirmed the change [ProjectsUiState.confirm] asked about. */
+    fun confirm() {
+        val asked = confirm.value ?: return
+        confirm.value = null
+        when (asked) {
+            is ProjectConfirm.Finish -> if (asked.viaForm) saveForm(confirmed = true) else setStatus(asked.status, confirmed = true)
+            is ProjectConfirm.Delete -> delete()
+        }
+    }
+
+    fun cancelConfirm() {
+        confirm.value = null
+    }
+
+    fun dismissProjectMessage(shown: ProjectMessage) = projectMessage.update { if (it == shown) null else it }
+
+    private fun create(f: ProjectFormState) {
+        form.value = f.copy(saving = true)
+        viewModelScope.launch {
+            val result = work.create(f.draft)
+            if (result.outcome == ActionOutcome.DONE && result.id != null) {
+                form.value = null
+                prompt.value = null
+                selected.value = result.id
+            } else {
+                form.update { it?.copy(saving = false) }
+            }
+            projectMessage.value = ProjectMessage(ProjectMessage.Kind.CREATED, f.draft.title.trim(), result.outcome)
+        }
+    }
+
+    private fun delete() {
+        val project = uiState.value.detail?.project ?: return
+        run(project.id) {
+            val outcome = work.delete(project)
+            if (outcome == ActionOutcome.DONE && selected.value == project.id) close()
+            projectMessage.value = ProjectMessage(ProjectMessage.Kind.DELETED, project.title, outcome)
+        }
+    }
+
+    /** The cached project [id] as it is now (after a reload), `null` when it is gone. */
+    private suspend fun currentProject(id: UUID): GtdProject? =
+        projects
+            .observe()
+            .first()
+            .data
+            .firstOrNull { it.id == id }
 
     fun toggleFinished() = showFinished.update { !it }
 
@@ -320,6 +518,9 @@ class ProjectsViewModel internal constructor(
         val busy: Set<UUID>,
         val completed: Set<UUID>,
         val message: ActionSnackbar?,
+        val form: ProjectFormState? = null,
+        val confirm: ProjectConfirm? = null,
+        val projectMessage: ProjectMessage? = null,
     )
 
     private companion object {
@@ -328,7 +529,7 @@ class ProjectsViewModel internal constructor(
 }
 
 /** Whether a project is finished: the list hides these unless asked to show them. */
-internal fun finished(project: GtdProject): Boolean = project.status == ProjectStatus.COMPLETED || project.status == ProjectStatus.DROPPED
+internal fun finished(project: GtdProject): Boolean = finishes(project.status)
 
 /**
  * The projects grouped by area (SPEC.md §5.3), areas in their order, then the projects without a known area. Empty

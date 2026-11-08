@@ -63,6 +63,7 @@ class ProjectWorkRepositoryTest {
         repository =
             ProjectWorkRepository(
                 retrofit.create(ProjectsApi::class.java),
+                retrofit.create(ProjectWriteApi::class.java),
                 retrofit.create(TasksApi::class.java),
                 harness.connectivity,
                 harness.triggers,

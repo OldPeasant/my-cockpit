@@ -35,7 +35,7 @@
     </plurals>
     <string name="projects_none_stalled">Every active project has a next step</string>
     <string name="projects_show_finished">Finished (%1$d)</string>
-    <string name="projects_empty">No projects yet. Turn an inbox item into one with “To project”.</string>
+    <string name="projects_empty">No projects yet. Create one with + or turn an inbox item into one with “To project”.</string>
     <string name="projects_no_area">No area</string>
     <string name="projects_area_unloaded">In an area (areas not loaded)</string>
     <string name="projects_areas_failed">The areas could not be loaded, so projects are not grouped by area.</string>
@@ -60,6 +60,56 @@
     <string name="projects_prompt_new">New next step</string>
     <string name="projects_prompt_add">Add as next step</string>
     <string name="projects_prompt_skip">Skip</string>
+    <string name="projects_new">New project</string>
+    <string name="projects_edit">Edit</string>
+    <string name="projects_edit_title">Edit project</string>
+    <string name="projects_menu">Project actions</string>
+    <string name="projects_complete">Complete project</string>
+    <string name="projects_drop">Drop project</string>
+    <string name="projects_reactivate">Make active again</string>
+    <string name="projects_delete">Delete project</string>
+    <string name="projects_status_active">Active</string>
+    <string name="projects_form_title">Project</string>
+    <string name="projects_form_title_placeholder">What does done look like?</string>
+    <string name="projects_form_title_required">Give the project a title.</string>
+    <string name="projects_form_status">Status</string>
+    <string name="projects_form_area">Area</string>
+    <string name="projects_form_due">Due</string>
+    <string name="projects_form_review">Review on</string>
+    <string name="projects_form_date_pick">Pick a date</string>
+    <string name="projects_form_date_clear">Clear</string>
+    <string name="projects_form_description">Description</string>
+    <string name="projects_form_description_edit">Edit</string>
+    <string name="projects_form_description_preview">Preview</string>
+    <string name="projects_form_description_hint">Outcome, notes, links. Markdown works.</string>
+    <string name="projects_form_preview_empty">No description yet.</string>
+    <string name="projects_form_create">Create</string>
+    <string name="projects_form_save">Save</string>
+    <string name="projects_form_cancel">Cancel</string>
+    <string name="projects_form_ok">OK</string>
+    <string name="projects_form_conflict">This project was changed elsewhere and has been reloaded. Your edits are kept: check them and save again.</string>
+    <string name="projects_confirm_complete_title">Complete “%1$s”?</string>
+    <string name="projects_confirm_drop_title">Drop “%1$s”?</string>
+    <string name="projects_confirm_delete_title">Delete “%1$s”?</string>
+    <string name="projects_confirm_delete_text">The project moves to the Trash, where you can restore it.</string>
+    <plurals name="projects_confirm_open_tasks">
+        <item quantity="one">%d task is still open. It stays open and keeps the project.</item>
+        <item quantity="other">%d tasks are still open. They stay open and keep the project.</item>
+    </plurals>
+    <plurals name="projects_confirm_delete_tasks">
+        <item quantity="one">Its %d open task stays open and keeps the project.</item>
+        <item quantity="other">Its %d open tasks stay open and keep the project.</item>
+    </plurals>
+    <string name="projects_confirm_complete">Complete</string>
+    <string name="projects_confirm_drop">Drop</string>
+    <string name="projects_confirm_delete">Delete</string>
+    <string name="projects_created">Created %1$s</string>
+    <string name="projects_saved">Saved %1$s</string>
+    <string name="projects_completed">Completed %1$s</string>
+    <string name="projects_dropped">Dropped %1$s</string>
+    <string name="projects_reactivated">%1$s is active again</string>
+    <string name="projects_deleted">Moved %1$s to the Trash</string>
+    <string name="projects_message_conflict">%1$s was changed elsewhere and has been reloaded. Try again.</string>
 
     <!-- Logbook: done tasks -->
     <string name="nav_logbook">Logbook</string>

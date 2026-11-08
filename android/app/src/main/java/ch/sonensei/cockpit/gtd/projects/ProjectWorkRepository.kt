@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.gtd.projects
 
 import ch.sonensei.cockpit.core.network.generated.apis.ProjectsApi
 import ch.sonensei.cockpit.core.network.generated.apis.TasksApi
+import ch.sonensei.cockpit.core.network.generated.models.CreateProjectRequest
 import ch.sonensei.cockpit.core.network.generated.models.CreateTaskRequest
 import ch.sonensei.cockpit.core.network.generated.models.NextStepRequest
 import ch.sonensei.cockpit.gtd.data.ChangeTypes
@@ -9,6 +10,7 @@ import ch.sonensei.cockpit.gtd.data.GtdConnectivity
 import ch.sonensei.cockpit.gtd.data.GtdProject
 import ch.sonensei.cockpit.gtd.data.GtdRefreshTriggers
 import ch.sonensei.cockpit.gtd.data.GtdTask
+import ch.sonensei.cockpit.gtd.data.HttpFailure
 import ch.sonensei.cockpit.gtd.data.ProjectRepository
 import ch.sonensei.cockpit.gtd.data.RefreshResult
 import ch.sonensei.cockpit.gtd.data.TaskRepository
@@ -19,6 +21,7 @@ import ch.sonensei.cockpit.gtd.lists.Live
 import ch.sonensei.cockpit.gtd.lists.etag
 import ch.sonensei.cockpit.gtd.lists.liveLoad
 import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.json.JsonObject
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -48,12 +51,23 @@ data class NextStepAdded(
     val taskId: UUID?,
 )
 
-/** The areas and the changes made in a project's detail: completing its tasks and choosing its next step. */
+/** How creating a project went; [id] is the new project's, when it was created. */
+data class ProjectCreated(
+    val outcome: ActionOutcome,
+    val id: UUID?,
+)
+
+/**
+ * The areas and the changes made on projects: creating, editing and deleting them, completing their tasks and
+ * choosing their next step. Every change reloads the cached projects, also after a conflict (412: changed elsewhere),
+ * so the screen shows the current version.
+ */
 @Singleton
 class ProjectWorkRepository
     @Inject
     constructor(
         private val projectsApi: ProjectsApi,
+        private val writeApi: ProjectWriteApi,
         private val tasksApi: TasksApi,
         private val connectivity: GtdConnectivity,
         private val triggers: GtdRefreshTriggers,
@@ -110,6 +124,39 @@ class ProjectWorkRepository
                 }
             return NextStepAdded(outcome, taskId)
         }
+
+        /** Creates a project from [draft]. */
+        suspend fun create(draft: ProjectDraft): ProjectCreated {
+            var id: UUID? = null
+            val outcome =
+                change(withTasks = false) {
+                    val request =
+                        CreateProjectRequest(
+                            title = draft.title.trim(),
+                            areaId = draft.areaId,
+                            descriptionMd = draft.description.takeIf { it.isNotBlank() },
+                            dueDate = draft.dueDate,
+                            reviewDate = draft.reviewDate,
+                            status = CreateProjectRequest.Status.valueOf(draft.status.name),
+                        )
+                    id = body(projectsApi.createProject(request)).id
+                }
+            return ProjectCreated(outcome, id)
+        }
+
+        /** Changes the fields in [patch] of the project [id], if it is still at [version]. */
+        suspend fun update(
+            id: UUID,
+            version: Long,
+            patch: JsonObject,
+        ): ActionOutcome = change(withTasks = false) { body(writeApi.patchProject(id, patch, etag(version))) }
+
+        /** Moves [project] to the Trash; its tasks keep their project (the server's rule), so the task views reload. */
+        suspend fun delete(project: GtdProject): ActionOutcome =
+            change(withTasks = true) {
+                val response = projectsApi.deleteProject(project.id, etag(project.version))
+                if (!response.isSuccessful) throw HttpFailure(response.code())
+            }
 
         private suspend fun change(
             withTasks: Boolean,

@@ -35,7 +35,7 @@
     </plurals>
     <string name="projects_none_stalled">Jedes aktive Projekt hat einen nächsten Schritt</string>
     <string name="projects_show_finished">Abgeschlossen (%1$d)</string>
-    <string name="projects_empty">Noch keine Projekte. Mach aus einem Eingangseintrag mit „Zum Projekt“ eines.</string>
+    <string name="projects_empty">Noch keine Projekte. Erstelle eines mit + oder mach aus einem Eingangseintrag mit „Zum Projekt“ eines.</string>
     <string name="projects_no_area">Kein Bereich</string>
     <string name="projects_area_unloaded">In einem Bereich (Bereiche nicht geladen)</string>
     <string name="projects_areas_failed">Die Bereiche konnten nicht geladen werden, daher sind die Projekte nicht nach Bereich gruppiert.</string>
@@ -60,6 +60,56 @@
     <string name="projects_prompt_new">Neuer nächster Schritt</string>
     <string name="projects_prompt_add">Als nächsten Schritt hinzufügen</string>
     <string name="projects_prompt_skip">Überspringen</string>
+    <string name="projects_new">Neues Projekt</string>
+    <string name="projects_edit">Bearbeiten</string>
+    <string name="projects_edit_title">Projekt bearbeiten</string>
+    <string name="projects_menu">Projektaktionen</string>
+    <string name="projects_complete">Projekt abschliessen</string>
+    <string name="projects_drop">Projekt verwerfen</string>
+    <string name="projects_reactivate">Wieder aktivieren</string>
+    <string name="projects_delete">Projekt löschen</string>
+    <string name="projects_status_active">Aktiv</string>
+    <string name="projects_form_title">Projekt</string>
+    <string name="projects_form_title_placeholder">Woran erkennst du, dass es erledigt ist?</string>
+    <string name="projects_form_title_required">Gib dem Projekt einen Titel.</string>
+    <string name="projects_form_status">Status</string>
+    <string name="projects_form_area">Bereich</string>
+    <string name="projects_form_due">Fällig</string>
+    <string name="projects_form_review">Überprüfen am</string>
+    <string name="projects_form_date_pick">Datum wählen</string>
+    <string name="projects_form_date_clear">Entfernen</string>
+    <string name="projects_form_description">Beschreibung</string>
+    <string name="projects_form_description_edit">Bearbeiten</string>
+    <string name="projects_form_description_preview">Vorschau</string>
+    <string name="projects_form_description_hint">Ziel, Notizen, Links. Markdown funktioniert.</string>
+    <string name="projects_form_preview_empty">Noch keine Beschreibung.</string>
+    <string name="projects_form_create">Erstellen</string>
+    <string name="projects_form_save">Speichern</string>
+    <string name="projects_form_cancel">Abbrechen</string>
+    <string name="projects_form_ok">OK</string>
+    <string name="projects_form_conflict">Dieses Projekt wurde anderswo geändert und neu geladen. Deine Änderungen bleiben erhalten: prüfe sie und speichere erneut.</string>
+    <string name="projects_confirm_complete_title">„%1$s“ abschliessen?</string>
+    <string name="projects_confirm_drop_title">„%1$s“ verwerfen?</string>
+    <string name="projects_confirm_delete_title">„%1$s“ löschen?</string>
+    <string name="projects_confirm_delete_text">Das Projekt kommt in den Papierkorb, wo du es wiederherstellen kannst.</string>
+    <plurals name="projects_confirm_open_tasks">
+        <item quantity="one">%d Aufgabe ist noch offen. Sie bleibt offen und behält das Projekt.</item>
+        <item quantity="other">%d Aufgaben sind noch offen. Sie bleiben offen und behalten das Projekt.</item>
+    </plurals>
+    <plurals name="projects_confirm_delete_tasks">
+        <item quantity="one">Seine %d offene Aufgabe bleibt offen und behält das Projekt.</item>
+        <item quantity="other">Seine %d offenen Aufgaben bleiben offen und behalten das Projekt.</item>
+    </plurals>
+    <string name="projects_confirm_complete">Abschliessen</string>
+    <string name="projects_confirm_drop">Verwerfen</string>
+    <string name="projects_confirm_delete">Löschen</string>
+    <string name="projects_created">%1$s erstellt</string>
+    <string name="projects_saved">%1$s gespeichert</string>
+    <string name="projects_completed">%1$s abgeschlossen</string>
+    <string name="projects_dropped">%1$s verworfen</string>
+    <string name="projects_reactivated">%1$s ist wieder aktiv</string>
+    <string name="projects_deleted">%1$s in den Papierkorb verschoben</string>
+    <string name="projects_message_conflict">%1$s wurde anderswo geändert und neu geladen. Versuche es erneut.</string>
 
     <!-- Logbuch: erledigte Aufgaben -->
     <string name="nav_logbook">Logbuch</string>
