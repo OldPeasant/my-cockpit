@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="links_title">Verknüpfte Elemente</string>
+    <string name="links_empty">Noch keine verknüpften Elemente.</string>
+    <string name="links_open">Verknüpftes Element öffnen</string>
+    <string name="links_untitled">Ohne Titel</string>
+    <string name="links_unavailable">nicht verfügbar</string>
+    <string name="links_remove">Verknüpfung mit %1$s entfernen</string>
+    <string name="links_add">Verknüpfen</string>
+    <string name="links_new_task">Neue verknüpfte Aufgabe</string>
+    <string name="links_new_note">Neue verknüpfte Notiz</string>
+    <string name="links_search_label">Elemente zum Verknüpfen suchen</string>
+    <string name="links_searching">Suche läuft…</string>
+    <string name="links_no_results">Nichts gefunden.</string>
+    <string name="links_close">Schliessen</string>
+    <string name="links_create_name">Titel</string>
+    <string name="links_create">Erstellen</string>
+    <string name="links_cancel">Abbrechen</string>
+    <string name="links_retry">Erneut versuchen</string>
+    <string name="links_offline">Keine Verbindung zum Server.</string>
+    <string name="links_failed">Das hat nicht geklappt. Bitte erneut versuchen.</string>
+    <string name="links_load_offline">Verknüpfte Elemente brauchen eine Verbindung zum Server.</string>
+    <string name="links_load_failed">Verknüpfte Elemente konnten nicht geladen werden.</string>
+    <string name="links_no_browser">Keine App kann diesen Link öffnen.</string>
+</resources>

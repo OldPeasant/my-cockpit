@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Linked items panel (SPEC.md §4.3), shared by the detail screens. -->
+    <string name="links_title">Linked items</string>
+    <string name="links_empty">No linked items yet.</string>
+    <string name="links_open">Open linked item</string>
+    <string name="links_untitled">Untitled</string>
+    <string name="links_unavailable">unavailable</string>
+    <string name="links_remove">Remove link to %1$s</string>
+    <string name="links_add">Add link</string>
+    <string name="links_new_task">New linked task</string>
+    <string name="links_new_note">New linked note</string>
+    <string name="links_search_label">Search items to link</string>
+    <string name="links_searching">Searching…</string>
+    <string name="links_no_results">Nothing found.</string>
+    <string name="links_close">Close</string>
+    <string name="links_create_name">Title</string>
+    <string name="links_create">Create</string>
+    <string name="links_cancel">Cancel</string>
+    <string name="links_retry">Retry</string>
+    <string name="links_offline">No connection to the server.</string>
+    <string name="links_failed">That did not work. Please try again.</string>
+    <string name="links_load_offline">Linked items need a connection to the server.</string>
+    <string name="links_load_failed">Linked items could not be loaded.</string>
+    <string name="links_no_browser">No app can open this link.</string>
+</resources>
