@@ -19,3 +19,4 @@ correspondents (`recipient-input.ts`, `GET /api/v1/mail/correspondents`) and att
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 15:37+0100 by rudi/agent-2): Suggestions use GET /api/v1/contacts/autocomplete (contacts + recent correspondents merged server-side), like web recipient-input; /mail/correspondents is not called separately
