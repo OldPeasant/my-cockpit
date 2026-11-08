@@ -24,7 +24,8 @@ Android cannot create a project (only inside inbox "To project → New") nor edi
   - verified (2026-11-08 12:29+0100 by dell26/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.projects.*' at 0a2ecdbf8 -> BUILD SUCCESSFUL; ProjectsScreenTest 'deleting asks first, says where the project goes and what happens to its open tasks', 'a deleted project says it moved to the Trash', ProjectsViewModelTest delete tests (incl. 'a delete runs once at a time...') pass; tasks keep their project as ProjectService.delete does (see assumption)
 - [x] Optimistic locking: 412 reloads and tells the user
   - verified (2026-11-08 12:29+0100 by dell26/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.projects.*' at 0a2ecdbf8 -> BUILD SUCCESSFUL; ProjectEditingTest/ProjectWorkRepository tests map 412/409/404 to CONFLICT with reload, ProjectsViewModelTest conflict-rebase tests (incl. CR-1 race test) and ProjectsScreenTest 'a form reloaded after a conflict says so', 'a project change refused because it changed elsewhere says it was reloaded' pass
-- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [x] New strings are in English and German (`res/values/` + `res/values-de/`)
+  - verified (2026-11-08 12:29+0100 by dell26/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug at 2befbc9c0 (production code identical to final) -> exit 0, lint reports no MissingTranslation; values/ and values-de/strings_projects_lists.xml both have 106 string/plurals entries
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
