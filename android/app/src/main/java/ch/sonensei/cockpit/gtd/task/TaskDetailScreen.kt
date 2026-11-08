@@ -641,7 +641,7 @@ private fun Checklist(
                 .zIndex(if (lifted) 1f else 0f)
                 .graphicsLayer { translationY = if (lifted) dragOffset else 0f }
                 .background(if (lifted) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent)
-                .pointerInput(item.id, index, enabled) {
+                .pointerInput(item.id, index, last, enabled) {
                     if (!enabled) return@pointerInput
                     // Long-press, then drag: the item lands where it is let go, by whole rows.
                     detectDragGesturesAfterLongPress(

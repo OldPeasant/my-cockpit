@@ -83,7 +83,6 @@ sealed interface FieldProblem {
 }
 
 /** The edit form's values. [estimate] is the text typed (minutes). */
-@Suppress("LongParameterList")
 data class TaskDraft(
     val title: String,
     val notes: String,
