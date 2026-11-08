@@ -4,39 +4,49 @@ Date: 2026-11-08
 
 Task: and-habits-manage - Android habits: create, edit, archive, incremental check
 
-Scope: final task revision 69e81f023 against the task base fdaebde62 (`git diff fdaebde62..69e81f023`): commits 9b4790660 (implementation), 029851306 (test-writer tests and first review), 69e81f023 (fixes for CR-1/CR-2 of the first review and lint fixes). This includes production code under `android/app/src/main/java/ch/sonensei/cockpit/habits/`, `android/app/src/main/res/values{,-de}/strings_habits.xml` and the committed habits tests. Uncommitted test files from the parallel test-writer run are not part of this review.
+Scope: final task revision 9194c59d4 against the task base 05a81302e (`git diff 05a81302e..9194c59d4`). Commits: 555ede064 (implementation), 0674f7466 (test-writer tests and first review), 6b378af7b (fixes for the first review), cfe6a2903 (more tests and second review), 91298724b (WIP fixes for the second review's CR-1/CR-3), 9194c59d4 (fixes for the second review: quiet reload, retry, locale). Production code is under `android/app/src/main/java/ch/sonensei/cockpit/habits/` and `android/app/src/main/res/values{,-de}/strings_habits.xml`, plus the committed habits tests. Uncommitted test files from the parallel test-writer are not reviewed.
 
 Requirements:
 - `tasks/and-habits-manage.md` acceptance criteria and recorded assumptions
 - `AGENTS.md` project notes (conventions, lint, strings)
-- `reviews/and-habits-manage/fixes.md` (claimed resolution of the earlier CR-1/CR-2)
-- Web reference `web/src/app/features/habits/habits-page.ts` (`changeSeq`, `reloadQuietly`, `nextCount`)
+- Second review (earlier version of this file) and `reviews/and-habits-manage/fixes.md`
+- Web reference `web/src/app/features/habits/habits-page.ts` (`changeSeq`, `reloadQuietly`)
 
 Git range:
 - Branch: main
-- HEAD: 69e81f023fcffe42d08f1bbe6b23f33d45da0c8d
-- Base/start: fdaebde62e4db57e12a7c8fbb7359687d19d056a
-- Commits reviewed: 3
+- HEAD: 9194c59d4c48ca59febbd8f0e103506896974485
+- Base/start: 05a81302e9745e259183803d9de0c775f11d56d1
+- Commits reviewed: 6
 
-Summary: 0 P0, 0 P1, 1 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 Commands run (read-only):
-- `git merge-base HEAD origin/main`, `git log --oneline -4`, `git status --short` -> base fdaebde62, three task commits, clean tree
-- `git diff --stat fdaebde62..HEAD` -> 16 files; the existing tests (`HabitsRepositoryTest`, `HabitsViewModelTest`, `HabitsScreenTest`, `HabitsRouteInAppTest`) are adapted to the new `check(habit)` signature and the new detail text. No test was deleted or skipped.
-- `grep changeSeq/reloadQuietly web/.../habits-page.ts` -> web compares `changeSeq` without increasing `loadSeq` in `reloadQuietly`
-- The reviewer did not run Gradle. The fixer reports that `./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass. The parent records that evidence.
+- `git log --oneline 05a81302e..9194c59d4`, `git diff --stat 05a81302e..9194c59d4`, `git diff --stat 91298724b..9194c59d4` -> 6 task commits. The last commit changes only `HabitsViewModel.kt`, `HabitsViewModelManageTest.kt` and `fixes.md`.
+- Read in full: `HabitsViewModel.kt`. Read the relevant parts: `HabitEditorDialog.kt` (locale), `HabitsScreen.kt` (message banner, retry), `HabitsViewModelManageTest.kt` (conflict and race tests at lines 607-790), and web `habits-page.ts` `reloadQuietly`.
+- The reviewer did not run Gradle; shell access was restricted partway through the review. `fixes.md` reports that `./gradlew ktlintCheck testDebugUnitTest lintDebug` passes, with `HabitsViewModelManageTest` at 36 tests and 0 failures. `sh scripts/check.sh` has not been run yet. The parent must record both runs with `tasks.py verify`.
 
-Earlier findings:
-- CR-1 (stale conflict reload overwrites local changes): resolved for the case that was reported. `HabitsViewModel.kt:156/160` and `:216/220` increase `changeSeq` when a change or save starts and when it finishes. `startLoad(quiet = true)` (`:111`) drops the answer when `changeSeq` moved. The increment at the finish happens before `reloadAfterConflict`, so a change does not drop its own reload. Three regression tests (`HabitsViewModelManageTest.kt:607`, `:634`, `:659`) cover an archive finishing, a check-off finishing, and a check-off still in flight. The new guard adds a gap of its own, reported as CR-1 below.
-- CR-2 (duplicated replace-in-list): resolved. `List<Habit>.replacing` (`HabitsViewModel.kt:256`) is used in `change()` (`:167`) and `saved()` (`:247`).
+Status of the second review's findings:
+- CR-1 (a conflict reload replaced the view load and was then dropped, which left the view blank with no retry): resolved. `startLoad(quiet = true)` now reads `loadSeq` without increasing it (`HabitsViewModel.kt:111`), so a quiet reload never cancels a user or view load. This matches web `reloadQuietly`. The quiet answer is also no longer dropped while the view has no list (`state.value.loaded` in the guard at `:118`). Regression tests: `HabitsViewModelManageTest.kt:708` (the view load answers first, then a later change finishes, and the conflict reload is dropped, run again and the view stays loaded) and `:752` (the scenario from the review: a view switch, a conflict and a second change, ending loaded and not loading).
+- CR-2 (a dropped conflict reload was not retried): resolved, and the fix goes beyond web. When a quiet answer is dropped, `startLoad` runs it again right away if no change is in flight (`:122-124`). Otherwise it sets `reloadPending` and clears `loading` (`:119-121`), and `reloadIfPending()` (`:148-150`) runs it once the last check, archive or save finishes (`:197`, `:258`). The tests at `:607`, `:640` and `:671` now check the re-run and the fresh version, and the protection against undoing a change is kept.
+- CR-3 (`Locale.getDefault()` in `ReminderField`): resolved. `HabitEditorDialog.kt:271/276` uses `LocalConfiguration.current.locales[0]` with `withLocale(locale)`.
 
-Verified without findings:
-- Criterion 1: the create/edit form (`HabitEditorDialog.kt`) has name, schedule (daily / per week with a 1-7 stepper / weekday chips), times a day (1-1000) and a reminder (TimePicker, can be removed). `HabitDraft.toJson` sends all editable fields and only the chosen schedule's own field, the same as web `requestOf`. Client validation matches the server limits. Edit uses the latest loaded version for `If-Match`.
-- Criterion 2: archive and unarchive go through the row overflow menu in both views, and the PATCH sends only `{"archived": ...}`. The "Archived" view is a segmented switch with its own empty text. An archived row has no check circle and `toggle` refuses archived habits.
-- Criterion 3: `Habit.nextCount` (`HabitsRepository.kt:68`) counts up to the target and then goes back to 0, the same as web. The best streak (`habits_best_days`/`habits_best_weeks` plurals) appears in the row details.
-- Criterion 4: `values/strings_habits.xml` and `values-de/strings_habits.xml` have the same keys, placeholders and plural items.
-- Criterion 5: tests exist for the draft, the repository write calls, view-model create/edit/archive/conflict/race behavior, and Compose screen/form behavior, including German.
-- No secrets. No logging of user content. Write errors carry only the status.
+Checks on the pending-retry logic (no defects found):
+- No loop. A dropped quiet answer runs again only when `changeSeq` moved. Each re-run reads the current `changeSeq`, so it drops again only after a further change by the user.
+- No interleaving. Each finish block (`changeSeq++`, the `state.update` that removes the id from `checking` or clears `saving`, then `reloadIfPending`) runs without suspending on the main dispatcher. So `changing()` sees the finished change correctly, whichever comes first: the quiet answer or the change's finish.
+- A conflict's own reload is not dropped. `changeSeq` increases before `reloadAfterConflict()`, so the reload captures the value that already includes it.
+- The flag is cleared by every non-quiet load (`:112`) and by every conflict reload (`:139`). A view switch or user reload therefore cancels a pending retry, and the in-flight quiet answer is then dropped by `seq != loadSeq` without touching `loading`.
+- Every path ends with `loading` false. The pending path clears it. The immediate re-run keeps it true until its own answer arrives, and the view-load path is unchanged.
+- Two quiet reloads in flight (two conflicts) share a `seq`. The older one is dropped by the `changeSeq` guard because the second conflict increased `changeSeq` before it started its reload. So an older quiet answer cannot overwrite a newer one.
+- `showArchived` closes the editor even while a save is in flight, so `changing()` can return false during that save. In the worst case this causes one extra quiet reload, which corrects itself. A save answered after the form was closed is ignored, as the test at `:843` checks.
+
+Acceptance criteria:
+- Criterion 1 (create/edit with name, schedule daily / N per week / weekdays, target per day, reminder): implemented in `HabitEditorDialog.kt` and `HabitDraft`. Earlier reviews verified this, and the code has not changed since apart from the locale fix.
+- Criterion 2 (archive/unarchive and an "Archived" view): implemented through the row overflow menu and a segmented view switch. An archived habit has no check circle and cannot be checked.
+- Criterion 3 (incremental check up to the target, then reset; best streak shown): `Habit.nextCount` in `HabitsRepository.kt` and the best-streak plurals in the row details. A test (`HabitsViewModelManageTest.kt:792`) covers counting from the last answer up to the target and then resetting.
+- Criterion 4 (strings in English and German): the earlier review confirmed that the English and German string files have the same keys and plurals. Neither file changed after that review.
+- Criterion 5 (tests and gradle/check pass): the tests cover the draft, the repository writes, the view-model create/edit/archive/conflict/race behavior and the Compose screen/form. The reviewer did not run Gradle or `scripts/check.sh` (see above). The parent must run both on the final revision and record the results.
+
+Outside the scope of this review: `HabitsScreen.kt:366` still formats weekday names with `Locale.getDefault()`. That line was there before this task (it is a context line in the diff), so it is not reported.
 
 ## P0 Critical
 
@@ -48,29 +58,12 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | A conflict reload can replace the view-switch load and then be dropped, which leaves the view blank with no way to retry**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/habits/HabitsViewModel.kt:105` (`++loadSeq` also for `quiet`), `:111-113` (drop path), called from `:126-128`
-    - Category: Correctness
-    - Problem: `startLoad(quiet = true)` increases `loadSeq`, so a conflict reload makes any load still in flight obsolete, including the load started by `showArchived`. The new `changeSeq` guard can then drop the conflict reload's own answer too. In that case the code only clears `loading`. Example: the user taps two habits in the active view (both requests in flight) and switches to "Archived". `showArchived` clears the list (`loaded = false`) and starts load N. Habit A returns 412. That increases `changeSeq`, sets the CONFLICT message and starts quiet load N+1, so load N's answer is dropped (`seq != loadSeq`). Habit B then finishes, which increases `changeSeq` again, and load N+1's answer is dropped (`changes != changeSeq`). Final state: `archived = true`, `loaded = false`, `loading = false`, empty list. The screen shows only the CONFLICT banner, which says "the list was loaded again" and offers Dismiss but no Retry. The list and empty text stay hidden until the user switches views twice. The web reference does not have this gap because `reloadQuietly` reads `loadSeq` without increasing it (`habits-page.ts:225-230`), so a user or view load is never replaced by a quiet reload.
-    - Why it matters: The screen gets stuck in a state that does not show the data or offer a retry (the review checklist requires every loading path to end in a recoverable screen). The message also says the list was reloaded when nothing was loaded. Slow networks make this timing realistic.
-    - Suggested fix: Do as web does: a quiet reload should check `seq == loadSeq` without increasing `loadSeq`, so it never cancels a user or view load. Also, or as an alternative, never drop a quiet answer while `loaded == false`. Add a view-model test: a view switch, then a conflict, then a second change finishing before the conflict reload answer arrives, ending in a loaded view.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | A dropped conflict reload is not retried, so the conflicting habit keeps its stale version while the messages say the latest version was loaded**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/habits/HabitsViewModel.kt:111-114`; texts `habits_conflict` / `habits_save_conflict` in `res/values{,-de}/strings_habits.xml:35,66`
-    - Category: Correctness
-    - Problem: When the quiet reload is dropped because another change started or finished, nothing reloads afterwards. The conflicting habit keeps its old `version`, and the regression tests at `HabitsViewModelManageTest.kt:628/654/684` assert this stale state. The edit form's conflict text says "Its latest version is loaded now; save again to overwrite it", but saving again then sends the stale version and gets another 412. Example: a check of habit A is in flight while the user edits habit B and gets a conflict, and A finishes before the reload answer arrives. The next attempt usually succeeds because it triggers a fresh reload, and web behaves the same, so the impact is small.
-    - Why it matters: The user sees a second, unexpected "changed elsewhere" error, and the message promises something that did not happen.
-    - Suggested fix: When a quiet answer is dropped, start one more quiet reload once no change is in flight (`checking` is empty and no save is running), or remember that a reload is pending and run it after the last change finishes. Otherwise, record the web-parity behavior as a deliberate disposition.
-
-- [ ] **CR-3 | The reminder time label uses `Locale.getDefault()` in a composable, unlike the locale fix applied to `WeekdayChoice`**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/habits/HabitEditorDialog.kt:276`
-    - Category: Quality
-    - Problem: The fix for `NonObservableLocale` changed `WeekdayChoice` (`:214`) to `LocalConfiguration.current.locales[0]`, but the new `ReminderField` in the same file still formats the time with `Locale.getDefault()`. Lint does not flag this call, but the time label does not recompose when the locale changes, and the file now mixes two patterns.
-    - Why it matters: The behavior is inconsistent on a locale change, and the pattern the project uses for composables is not followed.
-    - Suggested fix: Read the locale once from `LocalConfiguration.current.locales[0]` and pass it to `withLocale(...)`.
+None.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. The earlier CR-1 and CR-2 are resolved for the cases that were reported, and all acceptance criteria are implemented. The new `changeSeq` guard together with the `loadSeq` increase in the quiet reload adds a path that can leave the archived (or active) view blank with no retry (CR-1, P2). Fix it, or record a deliberate disposition for it. CR-2 and CR-3 are minor.
+No material issues found. The second review's CR-1, CR-2 and CR-3 are resolved, and the new pending-retry logic in `HabitsViewModel` is correct for the orderings examined above. The parent still has to run `./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` on 9194c59d4 and record them with `tasks.py verify`.

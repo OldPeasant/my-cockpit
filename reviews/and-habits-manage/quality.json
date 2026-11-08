@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "task": "and-habits-manage",
+  "reviewed_revision": "9194c59d4c48ca59febbd8f0e103506896974485",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-habits-manage/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-habits-manage/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-habits-manage/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (round 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "stale conflict reload overwrote later local changes; changeSeq guard added"},
+    {"id": "CR-2 (round 1)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "duplicated replace-in-list logic extracted to List<Habit>.replacing"},
+    {"id": "CR-1 (round 2)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "quiet reload no longer increments loadSeq and is not dropped while the view has no list"},
+    {"id": "CR-2 (round 2)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "dropped conflict reload now runs again (immediately or after in-flight changes finish)"},
+    {"id": "CR-3 (round 2)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "ReminderField formats the time with LocalConfiguration locale"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "no test that a user reload/view switch clears a pending conflict reload; worst case one extra list request, final review traced it as correct"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport -q", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
