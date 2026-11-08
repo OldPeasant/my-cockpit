@@ -478,7 +478,7 @@ private fun Agenda(
     callbacks: CalendarCallbacks,
 ) {
     val days = remember(state.occurrences, state.from, state.to, state.zone) { state.agendaDays }
-    val marks = remember(state.overlay, state.tasks, state.from, state.to) { state.taskMarks }
+    val marks = remember(state.overlay, state.tasks, state.from, state.to, state.today) { state.taskMarks }
     val items = remember(days, marks) { agendaItems(days, marks) }
     val listState = rememberLazyListState()
     val loadMore by rememberUpdatedState(callbacks.loadMore)
@@ -732,7 +732,7 @@ private fun TimeGrid(
     val days = state.days
     val entriesByDay =
         remember(state.occurrences, days, state.zone) { days.associateWith { entriesOn(state.occurrences, it, state.zone) } }
-    val marks = remember(state.overlay, state.tasks, state.from, state.to) { state.taskMarks }
+    val marks = remember(state.overlay, state.tasks, state.from, state.to, state.today) { state.taskMarks }
     val week = state.view == CalendarView.WEEK
     val locale = currentLocale()
     Column(Modifier.fillMaxSize().testTag(CalendarTags.TIME_GRID)) {

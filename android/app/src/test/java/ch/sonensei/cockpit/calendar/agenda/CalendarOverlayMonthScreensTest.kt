@@ -3,6 +3,9 @@ package ch.sonensei.cockpit.calendar.agenda
 import android.content.Context
 import android.content.res.Configuration
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
@@ -303,6 +306,34 @@ class CalendarOverlayMonthScreensTest {
         composeRule.onNodeWithTag(CalendarTags.monthDay(today)).assertTextContains("Call the fictitious plumber", substring = true)
         composeRule.onNodeWithContentDescription("Wednesday, October 21, 2026, 1 entry").assertExists()
     }
+
+    /**
+     * The view stays open across midnight: refresh() moves today, while the range and the reloaded tasks stay the same.
+     * The task released yesterday must no longer be marked scheduled on yesterday.
+     */
+    private fun assertReleasedMarkFollowsToday(view: CalendarView) {
+        val plumber = OverlayTask(id(13), "Call the fictitious plumber", releasedOn = today)
+        var current by mutableStateOf(state(view = view, tasks = listOf(plumber)))
+        composeRule.setContent { CockpitTheme { CalendarContent(current, CalendarCallbacks()) } }
+        composeRule.onNodeWithText("Call the fictitious plumber", useUnmergedTree = true).assertExists()
+
+        current = current.copy(today = today.plusDays(1))
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Call the fictitious plumber", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `when today moves on with the same tasks, the agenda drops yesterday's released-today mark`() =
+        assertReleasedMarkFollowsToday(CalendarView.AGENDA)
+
+    @Test
+    fun `when today moves on with the same tasks, the week view drops yesterday's released-today mark`() =
+        assertReleasedMarkFollowsToday(CalendarView.WEEK)
+
+    @Test
+    fun `when today moves on with the same tasks, the month view drops yesterday's released-today mark`() =
+        assertReleasedMarkFollowsToday(CalendarView.MONTH)
 
     @Test
     fun `tapping a task title in the month view opens its day, not the task`() {

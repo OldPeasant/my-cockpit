@@ -206,3 +206,59 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+# Round 3
+
+Date: 2026-11-08
+
+Task: and-cal-overlay-month - Android calendar: task overlay and month view
+
+Scope: the third-round finding CR-1 (P3) in `reviews/and-cal-overlay-month/review.md` (review of 392b2b72). The parent worker left a draft fix in the working tree. The fixer checked the draft against the finding, confirmed that the new tests catch the bug, and made no further code changes. The changes are uncommitted, for the parent worker to commit. All changes stay inside the task's `touches`.
+
+## Fixed findings
+
+### CR-1 — The memoized task marks ignore `today`, so a released-today mark can stay on yesterday after midnight
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarOverlayMonth.kt`
+- `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarScreen.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/CalendarOverlayMonthScreensTest.kt`
+
+Problem:
+The finding is valid. `CalendarUiState.taskMarks` calls `taskMarks(tasks, from, to, today)`, but the three composables that cache it (`MonthGrid`, `Agenda`, `TimeGrid`) used only `overlay`, `tasks`, `from` and `to` as `remember` keys. When `today` changed while the range and the reloaded task list stayed equal, the marks were not computed again.
+
+Fix (draft, checked and kept):
+`state.today` was added to the `remember` keys in `MonthGrid` (`CalendarOverlayMonth.kt`), `Agenda` and `TimeGrid` (`CalendarScreen.kt`). A grep of `android/app/src/main` for `taskMarks` finds only these three cached reads, the property in `CalendarViewModel.kt` and the function in `TaskOverlay.kt`, so no other cache is missing the key. The values that depend on the marks (`agendaItems` and the month `itemsByDay`) are keyed on `marks`, so they follow too.
+
+Tests:
+- `CalendarOverlayMonthScreensTest`, `assertReleasedMarkFollowsToday` for AGENDA, WEEK and MONTH: the screen is shown with a task released today, then the state changes only `today` to the next day (same range, same task list). The task's mark must disappear.
+- Checked that the tests catch the bug: with the three keys temporarily changed back to the old version, `./gradlew testDebugUnitTest --tests '*CalendarOverlayMonthScreensTest*today moves on*'` -> 3 tests completed, 3 failed (`assertDoesNotExist` found the mark still shown). With the fix restored -> BUILD SUCCESSFUL, 3/3 pass.
+
+Validation:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` — Pass
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `./gradlew testDebugUnitTest --tests '*CalendarOverlayMonthScreensTest*today moves on*'`: 3 failed without the fix, 3 passed with it.
+- `CalendarOverlayMonthScreensTest` 27/27 — Pass (from the full run below)
+
+Full test suite:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` — BUILD SUCCESSFUL (4469 unit tests, 0 failures, 0 errors, 0 skipped)
+
+Lint/type-check/build:
+- ktlintCheck: Pass. lintDebug: 0 errors, 0 warnings, 2 hints (`AutoboxingStateCreation` in `journal/JournalScreen.kt` and `notes/NoteEditorScreen.kt`, both from before this task and outside its touches).
+
+`.taskcheck`:
+- Not run by the fixer, for the same reason as in round 2 (the server part needs Docker, which is not available on this host). The Android part of the check passes (see above).
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed.

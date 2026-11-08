@@ -221,7 +221,7 @@ internal fun MonthGrid(
     locale: Locale,
 ) {
     val days = state.days
-    val marks = remember(state.overlay, state.tasks, state.from, state.to) { state.taskMarks }
+    val marks = remember(state.overlay, state.tasks, state.from, state.to, state.today) { state.taskMarks }
     val itemsByDay =
         remember(state.occurrences, days, state.zone, marks) {
             days.associateWith { day ->
