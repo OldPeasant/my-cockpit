@@ -6,6 +6,7 @@ deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/edit,android/app/src/test/java/ch/sonensei/cockpit/calendar/edit,android/app/src/main/res/values/strings_calendar_edit.xml,android/app/src/main/res/values-de/strings_calendar_edit.xml]
 prio: 2
 lease_until: 2026-11-08T14:02:06Z
+extended: rudi/agent-1
 ---
 ## Goal
 The Android event editor lacks reminders, attendees, sending invitations, time zone editing and event links
@@ -25,3 +26,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 13:55+0100 by rudi/agent-1): Invitations: after a save of an event in a local calendar with guests (or removed guests) the editor offers a prompt (REQUEST or CANCEL to guests over a chosen mail account, plus optional CANCEL to removed guests via recipients); dismissing closes the editor. A 'Send invitations' button (like web) also sends for the saved event when there are no unsaved changes.
 - ASSUMPTION (2026-11-08 13:55+0100 by rudi/agent-1): Guests are editable only for calendars of the LOCAL source (fetched via GET /calendar/calendars, since CalendarInfo has no sourceType and calendar/agenda is outside touches); while unknown or on failure guests are shown read-only. Custom reminders allowed 0..40320 min (4 weeks); time zone picker offers region ids + UTC.
 - ASSUMPTION (2026-11-08 13:55+0100 by rudi/agent-1): Kept the existing Material 3 editor look (new sections follow the existing field/label style) instead of a new visual direction via frontend-design: parity task, design must stay consistent.
+- extended by rudi/agent-1: Implementation committed (model + UI, EN/DE strings). Left: fix links-reload race in EventEditorViewModel (older/failed links answer overrides newer one; 2 failing tests in EventEditorViewModelExtrasTest), then test-writer report (reviews/and-cal-event-fields/tests.md), code-reviewer, fixer if needed, quality.json, tasks.py verify for 6 criteria, .taskcheck, done.
