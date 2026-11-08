@@ -15,7 +15,8 @@ Android contacts are view-only (SPEC.md §9.2; owner decided on 2026-11-08 to ad
 ## Acceptance criteria
 - [x] Create and edit contacts (names, emails, phones, addresses, organization, birthday, notes), with repeatable fields
   - verified (2026-11-08 22:30+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest (HEAD 6e40c2dd5) -> 4783 tests 0 failures; contacts ContactEditViewModelTest/ContactEditScreenTest/ContactsRepositoryTest/ContactsRouteInAppTest cover create+edit of names, emails, phones, addresses, organization, birthday, notes with repeatable add/remove rows (Robolectric Compose)
-- [ ] Delete with confirmation (to Trash)
+- [x] Delete with confirmation (to Trash)
+  - verified (2026-11-08 22:30+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest (HEAD 6e40c2dd5) -> 0 failures; ContactsRouteInAppTest/ContactEditScreenTest: Delete opens confirm dialog, confirm sends DELETE with If-Match (server moves to Trash), cancel keeps contact, 412 conflict reloads and retries
 - [ ] Contacts synced from a read-only source show why they cannot be edited (same rule as web)
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
