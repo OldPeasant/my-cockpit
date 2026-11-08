@@ -142,10 +142,13 @@ export class MailFoldersStore {
   /** The selectable folders of an account other than `exceptId`, in tree order. */
   moveTargets(accountId: string, exceptId?: string | null): FolderNode[] {
     const tree = (this.trees() ?? []).find((candidate) => candidate.account.id === accountId);
-    return (tree?.folders ?? []).filter(
-      (node) => node.folder.selectable && node.folder.id !== exceptId,
-    );
+    return moveTargetsOf(tree?.folders ?? [], exceptId);
   }
+}
+
+/** The selectable folders of `nodes` other than `exceptId`, in their order: where mail can move to. */
+export function moveTargetsOf(nodes: FolderNode[], exceptId?: string | null): FolderNode[] {
+  return nodes.filter((node) => node.folder.selectable && node.folder.id !== exceptId);
 }
 
 /**

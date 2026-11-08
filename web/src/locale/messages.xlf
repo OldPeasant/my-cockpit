@@ -13500,18 +13500,11 @@
           <context context-type="linenumber">125,127</context>
         </context-group>
       </trans-unit>
-      <trans-unit id="mailRead.unflag" datatype="html">
-        <source>★ Starred</source>
+      <trans-unit id="mailRead.flag" datatype="html">
+        <source>Star</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
           <context context-type="linenumber">128,129</context>
-        </context-group>
-      </trans-unit>
-      <trans-unit id="mailRead.flag" datatype="html">
-        <source>☆ Star</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
-          <context context-type="linenumber">130,132</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailRead.moveTitle" datatype="html">
@@ -13539,14 +13532,14 @@
         <source>The message could not be starred: <x id="reason" equiv-text="reason"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.ts</context>
-          <context context-type="linenumber">578</context>
+          <context context-type="linenumber">576</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailRead.unflagFailed" datatype="html">
         <source>The star could not be removed: <x id="reason" equiv-text="reason"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.ts</context>
-          <context context-type="linenumber">580</context>
+          <context context-type="linenumber">578</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailRead.moveFailed" datatype="html">

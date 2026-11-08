@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { ChangeEvent, MailAccountResponse, MailFolderResponse } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
 import { ApiError } from '../../../core/http';
-import { folderTree, MailFoldersStore } from './mail-folders-store';
+import { folderTree, MailFoldersStore, moveTargetsOf } from './mail-folders-store';
 import { MAIL_ACCOUNT_EVENT, MAIL_FOLDER_EVENT, REFRESH_DEBOUNCE_MS } from './mail-list-store';
 import { FakeEvents } from './mail-testing';
 import { MailService } from './mail.service';
@@ -104,6 +104,22 @@ describe('folderTree', () => {
       tree([folder('b', 'B/Same', { name: 'Same' }), folder('a', 'A/Same', { name: 'Same' })]),
     ).toEqual(['A/Same', 'B/Same']);
     expect(folderTree([])).toEqual([]);
+  });
+});
+
+describe('moveTargetsOf', () => {
+  const nodes = folderTree([
+    folder('in', 'INBOX', { role: 'INBOX' }),
+    folder('p', 'Projects', { selectable: false }),
+    folder('p1', 'Projects/Alpha'),
+    folder('w', 'Work'),
+  ]);
+
+  it('keeps the selectable folders in tree order, without the excluded one', () => {
+    expect(moveTargetsOf(nodes, 'w').map((node) => node.folder.id)).toEqual(['in', 'p1']);
+    expect(moveTargetsOf(nodes).map((node) => node.folder.id)).toEqual(['in', 'p1', 'w']);
+    expect(moveTargetsOf(nodes, null).map((node) => node.folder.id)).toEqual(['in', 'p1', 'w']);
+    expect(moveTargetsOf([], 'w')).toEqual([]);
   });
 });
 

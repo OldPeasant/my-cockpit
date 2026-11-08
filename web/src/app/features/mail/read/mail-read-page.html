@@ -124,11 +124,8 @@
           i18n-title="@@mailRead.flagTitle"
           title="Star (s)"
         >
-          @if (message()?.flagged) {
-            <ng-container i18n="@@mailRead.unflag">★ Starred</ng-container>
-          } @else {
-            <ng-container i18n="@@mailRead.flag">☆ Star</ng-container>
-          }
+          <span aria-hidden="true">{{ message()?.flagged ? '★' : '☆' }} </span>
+          <ng-container i18n="@@mailRead.flag">Star</ng-container>
         </button>
         <button
           mat-stroked-button

@@ -1824,15 +1824,34 @@ describe('MailReadPage', () => {
         await flush();
         fixture.detectChanges();
         expect(mail.applies).toEqual([{ action: 'FLAG', ids: [ID] }]);
-        expect(flagButton()!.textContent?.trim()).toBe('★ Starred');
+        expect(flagButton()!.textContent?.trim()).toBe('★ Star');
         expect(flagButton()!.getAttribute('aria-pressed')).toBe('true');
         expect(navigate).not.toHaveBeenCalled();
         expect(notifications.error).not.toHaveBeenCalled();
       });
 
+      it('keeps one accessible label, with the state in aria-pressed and the glyph hidden', async () => {
+        await open();
+        /** The button text a screen reader announces: without aria-hidden content. */
+        const label = () => {
+          const copy = flagButton()!.cloneNode(true) as HTMLElement;
+          copy.querySelectorAll('[aria-hidden="true"]').forEach((node) => node.remove());
+          return copy.textContent?.trim();
+        };
+        const glyph = () => flagButton()!.querySelector('.mdc-button__label [aria-hidden="true"]')!;
+        expect(label()).toBe('Star');
+        expect(glyph().textContent?.trim()).toBe('☆');
+        flagButton()!.click();
+        await flush();
+        fixture.detectChanges();
+        expect(label()).toBe('Star');
+        expect(glyph().textContent?.trim()).toBe('★');
+        expect(flagButton()!.getAttribute('aria-pressed')).toBe('true');
+      });
+
       it('removes the star of a starred message with UNFLAG, then stars it again with s', async () => {
         await open(message({ flagged: true }));
-        expect(flagButton()!.textContent?.trim()).toBe('★ Starred');
+        expect(flagButton()!.textContent?.trim()).toBe('★ Star');
         expect(flagButton()!.getAttribute('aria-pressed')).toBe('true');
         const event = press('s');
         await flush();
@@ -1887,7 +1906,7 @@ describe('MailReadPage', () => {
         expect(notifications.error).toHaveBeenCalledWith(
           'The star could not be removed: The account is being synced',
         );
-        expect(flagButton()!.textContent?.trim()).toBe('★ Starred');
+        expect(flagButton()!.textContent?.trim()).toBe('★ Star');
       });
 
       it('does not star the message the user moved to while it ran', async () => {

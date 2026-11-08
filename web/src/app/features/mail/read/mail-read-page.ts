@@ -25,7 +25,7 @@ import { ApiError, NotificationService } from '../../../core/http';
 import { LinkedItems } from '../../../shared/links';
 import { BackButton, BackNavigation } from '../../../shared/navigation';
 import { PageShortcuts } from '../../../shell/page-shortcuts';
-import { folderTree } from '../list/mail-folders-store';
+import { folderTree, moveTargetsOf } from '../list/mail-folders-store';
 import { MailListSession } from '../list/mail-list-session';
 import { MailMoveDialog, MailMoveDialogData } from '../list/mail-move-dialog';
 import { MailAction, MailService } from '../list/mail.service';
@@ -277,9 +277,7 @@ export default class MailReadPage {
     this.triaging.set('MOVE');
     let target: string | undefined;
     try {
-      const folders = folderTree(await this.mail.folders(accountId)).filter(
-        (node) => node.folder.selectable && node.folder.id !== shown.folderId,
-      );
+      const folders = moveTargetsOf(folderTree(await this.mail.folders(accountId)), shown.folderId);
       if (this.destroyed || this.message()?.id !== id) return;
       target = await firstValueFrom(
         this.dialog

@@ -15182,7 +15182,7 @@
       </trans-unit>
       <trans-unit id="mailShortcuts.flag" datatype="html">
         <source>Star or unstar</source>
-        <target state="translated">Markieren oder Markierung entfernen</target>
+        <target state="translated">Mit Stern markieren oder Stern entfernen</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-shortcuts.ts</context>
           <context context-type="linenumber">80</context>
@@ -15310,26 +15310,18 @@
       </trans-unit>
       <trans-unit id="mailRead.flagTitle" datatype="html">
         <source>Star (s)</source>
-        <target state="translated">Markieren (s)</target>
+        <target state="translated">Mit Stern markieren (s)</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
           <context context-type="linenumber">125,127</context>
         </context-group>
       </trans-unit>
-      <trans-unit id="mailRead.unflag" datatype="html">
-        <source>★ Starred</source>
-        <target state="translated">★ Markiert</target>
+      <trans-unit id="mailRead.flag" datatype="html">
+        <source>Star</source>
+        <target state="translated">Mit Stern markieren</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
           <context context-type="linenumber">128,129</context>
-        </context-group>
-      </trans-unit>
-      <trans-unit id="mailRead.flag" datatype="html">
-        <source>☆ Star</source>
-        <target state="translated">☆ Markieren</target>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
-          <context context-type="linenumber">130,132</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailRead.moveTitle" datatype="html">
@@ -15358,18 +15350,18 @@
       </trans-unit>
       <trans-unit id="mailRead.flagFailed" datatype="html">
         <source>The message could not be starred: <x id="reason" equiv-text="reason"/></source>
-        <target state="translated">Die Nachricht konnte nicht markiert werden: <x id="reason" equiv-text="reason"/></target>
+        <target state="translated">Die Nachricht konnte nicht mit Stern markiert werden: <x id="reason" equiv-text="reason"/></target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.ts</context>
-          <context context-type="linenumber">578</context>
+          <context context-type="linenumber">576</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailRead.unflagFailed" datatype="html">
         <source>The star could not be removed: <x id="reason" equiv-text="reason"/></source>
-        <target state="translated">Die Markierung konnte nicht entfernt werden: <x id="reason" equiv-text="reason"/></target>
+        <target state="translated">Der Stern konnte nicht entfernt werden: <x id="reason" equiv-text="reason"/></target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.ts</context>
-          <context context-type="linenumber">580</context>
+          <context context-type="linenumber">578</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailRead.moveFailed" datatype="html">
