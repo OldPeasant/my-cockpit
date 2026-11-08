@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [mail-images-web-settings]
 touches: [web/src/app/features/search,web/src/app/features/capture,web/src/app/features/settings/general,web/src/locale]
 prio: 3
-lease_until: 2026-11-08T16:37:47Z
+lease_until: 2026-11-08T16:42:51Z
 ---
 ## Goal
 Small web gaps found in the parity check (docs/PARITY.md): Android's global search has a type filter, Android
