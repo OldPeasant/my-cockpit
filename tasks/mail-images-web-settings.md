@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [web-back-navigation,fix-mail-images-firefox]
 touches: [web/src/app/features/mail/read,web/src/app/features/settings/general,web/src/locale]
 prio: 1
-lease_until: 2026-11-08T12:08:18Z
+lease_until: 2026-11-08T12:13:22Z
 ---
 ## Goal
 The server already stores `mailImagePolicy` (`block`|`allow`, default `block`) and `mailImageAllowedSenders`
