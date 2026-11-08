@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "task": "and-totp-reenroll",
+  "reviewed_revision": "15872e89d2369058ead42c18afaf1892ebdefcb2",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-totp-reenroll/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-totp-reenroll/review.md"},
+    "fixer": {"status": "not_required", "reason": "code-reviewer (initial and re-review of final revision) and test-writer reported no findings and no production bugs"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug --continue", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
