@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "task": "and-capture-improve",
+  "reviewed_revision": "fa0380357a0ab8b0f4a055f8dadb53cec9d87602",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-capture-improve/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-capture-improve/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-capture-improve/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "CaptureSyntax used Unicode-aware \\s on ICU; now ASCII whitespace like the server JVM"},
+    {"id": "CR-2 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "tapping an attachment chip removed it; now only the close button removes it"},
+    {"id": "CR-3 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "no 'Saved' toast after process death; counter now uses remember instead of rememberSaveable"},
+    {"id": "CR-1 (final review)", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "no activity-level test of CaptureActivity's three one-line lambdas; the shared composable and ViewModel are fully tested and ShareActivity's identical wiring has an end-to-end test (also listed as a gap in tests.md)"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
