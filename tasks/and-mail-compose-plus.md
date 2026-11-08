@@ -13,7 +13,8 @@ Android compose has plain recipient fields and can only attach device files; web
 correspondents (`recipient-input.ts`, `GET /api/v1/mail/correspondents`) and attaches from cockpit Files.
 
 ## Acceptance criteria
-- [ ] To/Cc/Bcc suggest contacts and recent correspondents while typing; chosen recipients shown as chips
+- [x] To/Cc/Bcc suggest contacts and recent correspondents while typing; chosen recipients shown as chips
+  - verified (2026-11-08 17:00+0100 by rudi/agent-2): cd android && ./gradlew testDebugUnitTest (MailComposeRecipientsFilesTest/EdgeCasesTest/ScreenTest/ScreenEdgeCasesTest/ReviewFixesTest/ReviewFixesScreenTest: debounced GET /contacts/autocomplete per To/Cc/Bcc field, suggestions list, choose -> chip, chips from drafts/replies, close icon removes) -> pass (3871 tests, 0 failures)
 - [ ] "Attach from Files" opens a cockpit Files picker
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
