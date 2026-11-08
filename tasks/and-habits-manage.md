@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/habits,android/app/src/test/java/ch/sonensei/cockpit/habits,android/app/src/main/res/values/strings_habits.xml,android/app/src/main/res/values-de/strings_habits.xml]
 prio: 2
-lease_until: 2026-11-08T19:58:59Z
+lease_until: 2026-11-08T20:01:58Z
 extended: dell26/agent-3
 ---
 ## Goal
