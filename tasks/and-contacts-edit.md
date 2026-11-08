@@ -19,7 +19,8 @@ Android contacts are view-only (SPEC.md §9.2; owner decided on 2026-11-08 to ad
   - verified (2026-11-08 22:30+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest (HEAD 6e40c2dd5) -> 0 failures; ContactsRouteInAppTest/ContactEditScreenTest: Delete opens confirm dialog, confirm sends DELETE with If-Match (server moves to Trash), cancel keeps contact, 412 conflict reloads and retries
 - [x] Contacts synced from a read-only source show why they cannot be edited (same rule as web)
   - verified (2026-11-08 22:30+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest -> 0 failures; ContactEditScreenTest/ContactsRepositoryTest: source line 'Kept in the cockpit only'/'Synced with X', 403/405 on save/delete shows 'comes from X, change it there' (same rule as web, see assumption)
-- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [x] New strings are in English and German (`res/values/` + `res/values-de/`)
+  - verified (2026-11-08 22:30+0100 by dell26/agent-1): compared string names in res/values/strings_contacts.xml vs res/values-de/strings_contacts.xml -> identical 68 keys; ContactsStringsTest (EN+DE keys, German quotes) passes in testDebugUnitTest; lintDebug 0 errors (MissingTranslation)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
