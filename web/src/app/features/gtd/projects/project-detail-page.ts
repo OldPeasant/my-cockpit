@@ -61,6 +61,7 @@ import { ProjectTaskStore } from './project-task-store';
     '../task-detail/controls.scss',
     './project-detail-page.scss',
     './project-description.scss',
+    './project-list-label.scss',
   ],
 })
 export class ProjectDetailPage {

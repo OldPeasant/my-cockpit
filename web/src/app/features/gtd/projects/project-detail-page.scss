@@ -111,17 +111,6 @@
   }
 }
 
-.list-label {
-  align-self: stretch;
-  display: flex;
-  align-items: center;
-  padding-inline: var(--app-space-2);
-  border-bottom: 1px solid var(--app-border);
-  color: var(--app-fg-muted);
-  font: var(--mat-sys-label-medium);
-  white-space: nowrap;
-}
-
 .handle {
   justify-content: center;
   align-self: stretch;
