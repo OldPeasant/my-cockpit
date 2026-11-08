@@ -298,7 +298,12 @@ private fun ImagePreview(
     var failed by remember { mutableStateOf(false) }
     if (failed) {
         Notice(file, R.string.files_preview_image_failed, PreviewTags.PROBLEM, error = true) {
-            FilledTonalButton(onClick = callbacks.retryPreview, modifier = Modifier.testTag(PreviewTags.RETRY)) {
+            // Retry keeps the preview's state (an image), so the image itself has to be loaded again here.
+            val retry = {
+                failed = false
+                callbacks.retryPreview()
+            }
+            FilledTonalButton(onClick = retry, modifier = Modifier.testTag(PreviewTags.RETRY)) {
                 Text(stringResource(R.string.files_retry))
             }
         }
