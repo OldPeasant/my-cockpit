@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-links-panel,and-mail-attachments]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/read,android/app/src/test/java/ch/sonensei/cockpit/mail/read,android/app/src/main/res/values/strings_mail.xml,android/app/src/main/res/values-de/strings_mail.xml]
 prio: 2
-lease_until: 2026-11-08T20:38:02Z
+lease_until: 2026-11-08T20:43:07Z
 ---
 ## Goal
 Web read view can create a note from a mail and shows the linked-items panel (`mail-read-page.html:62-70,284`);
