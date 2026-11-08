@@ -425,6 +425,87 @@ class ProjectWorkRepositoryTest {
             assertTrue(requests("GET", TASKS).isEmpty())
         }
 
+    @Test
+    fun `adding a task creates a next action in the project and leaves the next step of a project that has one`() =
+        runBlocking {
+            dispatcher.enqueue(TASKS, json(taskJson(7, "Pack the bags", "NEXT")))
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}", json(projectJson(10, "Plan holiday")))
+            enqueueCacheReloads()
+            assertEquals(NextStepAdded(ActionOutcome.DONE, UUID.fromString(uuid(7))), repository.addTask(project, "Pack the bags", false))
+            val create = requests("POST", TASKS).single().body!!.utf8()
+            assertTrue(create.contains("\"title\":\"Pack the bags\""))
+            assertTrue(create.contains("\"list\":\"NEXT\""))
+            assertTrue(create.contains("\"projectId\":\"${uuid(10)}\""))
+            assertTrue(requests("POST", "$PROJECTS/${uuid(10)}/next-step").isEmpty())
+            val views = requests("GET", TASKS).map { it.url.queryParameter("list") ?: it.url.queryParameter("due") }
+            assertEquals(setOf("NEXT", "OVERDUE", "TODAY"), views.toSet())
+        }
+
+    @Test
+    fun `adding a task as next step sets it on the project's current version`() =
+        runBlocking {
+            dispatcher.enqueue(TASKS, json(taskJson(7, "Pack the bags", "NEXT")))
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}", json(projectJson(10, "Plan holiday")))
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}/next-step", json(projectJson(10, "Plan holiday")))
+            enqueueCacheReloads()
+            assertEquals(NextStepAdded(ActionOutcome.DONE, UUID.fromString(uuid(7))), repository.addTask(project, "Pack the bags", true))
+            val next = requests("POST", "$PROJECTS/${uuid(10)}/next-step").single()
+            assertEquals("\"2\"", next.headers["If-Match"])
+            assertTrue(next.body!!.utf8().contains("\"taskId\":\"${uuid(7)}\""))
+        }
+
+    @Test
+    fun `a task added to a stalled project becomes its next step`() =
+        runBlocking {
+            dispatcher.enqueue(TASKS, json(taskJson(7, "Pack the bags", "NEXT")))
+            dispatcher.enqueue(
+                "$PROJECTS/${uuid(10)}",
+                json(projectJson(10, "Plan holiday").replace("\"stalled\":false", "\"stalled\":true")),
+            )
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}/next-step", json(projectJson(10, "Plan holiday")))
+            enqueueCacheReloads()
+            assertEquals(NextStepAdded(ActionOutcome.DONE, UUID.fromString(uuid(7))), repository.addTask(project, "Pack the bags", false))
+            assertEquals(1, requests("POST", "$PROJECTS/${uuid(10)}/next-step").size)
+        }
+
+    @Test
+    fun `a task created whose next step could not be set reports the task`() =
+        runBlocking {
+            dispatcher.enqueue(TASKS, json(taskJson(7, "Pack the bags", "NEXT")))
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}", json(projectJson(10, "Plan holiday")))
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}/next-step", status(412))
+            enqueueCacheReloads()
+            assertEquals(
+                NextStepAdded(ActionOutcome.CONFLICT, UUID.fromString(uuid(7))),
+                repository.addTask(project, "Pack the bags", true),
+            )
+
+            dispatcher.requests.clear()
+            dispatcher.enqueue(TASKS, status(400))
+            enqueueCacheReloads()
+            assertEquals(NextStepAdded(ActionOutcome.FAILED, null), repository.addTask(project, "Pack the bags", true))
+            assertTrue(requests("GET", "$PROJECTS/${uuid(10)}").isEmpty())
+        }
+
+    @Test
+    fun `reordering sends the task ids in the new order`() =
+        runBlocking {
+            dispatcher.enqueue(
+                "$PROJECTS/${uuid(10)}/order",
+                json(taskPage(taskJson(2, "Compare hotels", "NEXT"), taskJson(1, "Book", "NEXT"))),
+            )
+            enqueueCacheReloads()
+            val ids = listOf(UUID.fromString(uuid(2)), book.id)
+            assertEquals(ActionOutcome.DONE, repository.reorder(project.id, ids))
+            val request = requests("PUT", "$PROJECTS/${uuid(10)}/order").single()
+            assertEquals("""{"taskIds":["${uuid(2)}","${uuid(1)}"]}""", request.body!!.utf8())
+
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}/order", status(404))
+            assertEquals(ActionOutcome.CONFLICT, repository.reorder(project.id, ids))
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}/order", status(400))
+            assertEquals(ActionOutcome.FAILED, repository.reorder(project.id, ids))
+        }
+
     private companion object {
         const val TIMEOUT = 10_000L
     }

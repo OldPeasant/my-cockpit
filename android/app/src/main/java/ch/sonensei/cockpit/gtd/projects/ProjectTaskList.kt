@@ -1,5 +1,8 @@
 package ch.sonensei.cockpit.gtd.projects
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.VisibilityThreshold
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -38,7 +41,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
@@ -53,6 +55,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import ch.sonensei.cockpit.R
@@ -143,13 +146,12 @@ internal fun ProjectTaskList(
 ) {
     val ids = detail.tasks.map { it.id }
     val byId = detail.tasks.associateBy { it.id }
-    // The order while dragging; it starts again from the state's order whenever that changes (the drop saved it).
-    var order by remember(ids) { mutableStateOf(ids) }
+    // The dropped order until the state's order changes (to it, once the view model has it).
+    var dropped by remember(ids) { mutableStateOf(ids) }
     val listState = rememberLazyListState()
     val drag = remember { DragState() }
+    val order = drag.order ?: dropped
     val canReorder = !state.readOnly && ids.size > 1
-    val currentOrder by rememberUpdatedState(order)
-    val currentIds by rememberUpdatedState(ids)
     val reorder by rememberUpdatedState(callbacks.reorder)
     val moveUp = stringResource(R.string.projects_task_move_up)
     val moveDown = stringResource(R.string.projects_task_move_down)
@@ -161,28 +163,29 @@ internal fun ProjectTaskList(
         items(order.mapNotNull(byId::get), key = { it.id }) { task ->
             val dragged = drag.taskId == task.id
             val index = order.indexOf(task.id)
+            // The same modifiers whether dragged or not: changing the chain when the row is picked up would restart the
+            // gesture underneath and drop it.
             Column(
                 Modifier
-                    .then(
-                        if (dragged) {
-                            Modifier
-                                .zIndex(1f)
-                                .graphicsLayer { translationY = drag.translation(listState, task.id) }
-                                .shadow(8.dp)
-                        } else {
-                            Modifier.animateItem()
-                        },
-                    ).background(MaterialTheme.colorScheme.surface)
+                    // The dragged row follows the finger, not the list's animation.
+                    .animateItem(placementSpec = if (dragged) null else ItemPlacement)
+                    .zIndex(if (dragged) 1f else 0f)
+                    .graphicsLayer {
+                        translationY = if (dragged) drag.translation(listState, task.id) else 0f
+                        shadowElevation = if (dragged) DRAGGED_ELEVATION.toPx() else 0f
+                    }.background(MaterialTheme.colorScheme.surface)
                     .testTag(ProjectTaskTags.item(task.id))
                     .then(
                         if (canReorder) {
                             Modifier.longPressDrag(
                                 keys = arrayOf(task.id, ids),
-                                onStart = { drag.start(listState, task.id) },
-                                onDrag = { dy -> drag.by(dy, listState, currentOrder)?.let { order = it } },
+                                // Restarted (keys) when the tasks change, so these see the current ones.
+                                onStart = { drag.start(listState, task.id, dropped) },
+                                onDrag = { dy -> drag.by(dy, listState) },
                                 onEnd = {
-                                    drag.stop()
-                                    if (currentOrder != currentIds) reorder(currentOrder)
+                                    val result = drag.stop() ?: return@longPressDrag
+                                    dropped = result
+                                    if (result != ids) reorder(result)
                                 },
                             )
                         } else {
@@ -211,9 +214,21 @@ internal fun ProjectTaskList(
     }
 }
 
-/** The row being dragged: where it was laid out when picked up and how far the finger moved since. */
+private val DRAGGED_ELEVATION = 8.dp
+
+/** How the other rows move out of the way (the lazy list's default). */
+private val ItemPlacement = spring(stiffness = Spring.StiffnessMediumLow, visibilityThreshold = IntOffset.VisibilityThreshold)
+
+/**
+ * The row being dragged: where it was laid out when picked up, how far the finger moved since, and the order it has
+ * made so far. Held here, not in composition state, so a release right after a move (before the next frame) sees it.
+ */
 private class DragState {
     var taskId by mutableStateOf<UUID?>(null)
+        private set
+
+    /** The order while dragging, `null` otherwise. */
+    var order by mutableStateOf<List<UUID>?>(null)
         private set
     private var startOffset by mutableFloatStateOf(0f)
     private var moved by mutableFloatStateOf(0f)
@@ -221,15 +236,21 @@ private class DragState {
     fun start(
         list: LazyListState,
         id: UUID,
+        current: List<UUID>,
     ) {
         startOffset = list.offsetOf(id)?.toFloat() ?: 0f
         moved = 0f
+        order = current
         taskId = id
     }
 
-    fun stop() {
+    /** Ends the drag; returns the order it made. */
+    fun stop(): List<UUID>? {
+        val result = order
         taskId = null
+        order = null
         moved = 0f
+        return result
     }
 
     /** How far to draw the row from where it is laid out now, so it stays under the finger. */
@@ -238,29 +259,28 @@ private class DragState {
         id: UUID,
     ): Float = startOffset + moved - (list.offsetOf(id)?.toFloat() ?: (startOffset + moved))
 
-    /**
-     * Moves the finger by [dy]; returns the new order when the row's middle is now over another row, which it then
-     * takes the place of.
-     */
+    /** Moves the finger by [dy]; when the row's middle is now over another row, the row takes that one's place. */
     fun by(
         dy: Float,
         list: LazyListState,
-        order: List<UUID>,
-    ): List<UUID>? {
+    ) {
         moved += dy
-        val id = taskId ?: return null
+        val id = taskId ?: return
+        val current = order ?: return
         val items = list.layoutInfo.visibleItemsInfo
-        val current = items.firstOrNull { it.key == id } ?: return null
-        val middle = (startOffset + moved + current.size / 2f).toInt()
-        val target = items.firstOrNull { it.key != id && middle in it.offset until it.offset + it.size } ?: return null
-        val from = order.indexOf(id)
-        val to = order.indexOf(target.key)
-        if (from < 0 || to < 0) return null
+        val dragged = items.firstOrNull { it.key == id } ?: return
+        val from = current.indexOf(id)
+        // The list has not been laid out in the last order yet: its positions are stale, wait for the next frame.
+        if (dragged.index != from) return
+        val middle = (startOffset + moved + dragged.size / 2f).toInt()
+        val target = items.firstOrNull { it.key != id && middle in it.offset until it.offset + it.size } ?: return
+        val to = current.indexOf(target.key)
+        if (from < 0 || to < 0) return
         // A lazy list keeps its first visible item in place: moving that one would scroll the list along with it.
         if (from == list.firstVisibleItemIndex || to == list.firstVisibleItemIndex) {
             list.requestScrollToItem(list.firstVisibleItemIndex, list.firstVisibleItemScrollOffset)
         }
-        return order.toMutableList().apply { add(to, removeAt(from)) }
+        order = current.toMutableList().apply { add(to, removeAt(from)) }
     }
 
     private fun LazyListState.offsetOf(id: UUID): Int? = layoutInfo.visibleItemsInfo.firstOrNull { it.key == id }?.offset

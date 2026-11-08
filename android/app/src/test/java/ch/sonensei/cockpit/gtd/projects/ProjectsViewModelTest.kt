@@ -1251,4 +1251,166 @@ class ProjectsViewModelTest {
                     .tasks,
             )
         }
+
+    private val visa = GtdTask(id(3), "Visa from the embassy", TaskList.WAITING, 2, 1, projectId = id(10))
+
+    @Test
+    fun `adding a task trims it, sends it with the make-next choice, clears the field and tells it`() =
+        test { vm ->
+            coEvery { work0.addTask(holiday, "Pack the bags", true) } returns NextStepAdded(ActionOutcome.DONE, id(5))
+            vm.open(holiday)
+            vm.addTask("   ", false)
+            coVerify(exactly = 0) { work0.addTask(any(), any(), any()) }
+            vm.addTask("  Pack the bags ", true)
+            coVerify(exactly = 1) { work0.addTask(holiday, "Pack the bags", true) }
+            val detail = vm.uiState.value.detail!!
+            assertEquals(AddedTask(holiday.id, "Pack the bags", 1), detail.added)
+            assertEquals(
+                ProjectMessage(ProjectMessage.Kind.TASK_ADDED, "Pack the bags", ActionOutcome.DONE),
+                vm.uiState.value.projectMessage,
+            )
+        }
+
+    @Test
+    fun `a task added whose next step failed still clears the field, a task not created does not`() =
+        test { vm ->
+            coEvery { work0.addTask(holiday, "Pack the bags", true) } returns NextStepAdded(ActionOutcome.CONFLICT, id(5))
+            coEvery { work0.addTask(holiday, "Buy a guide", false) } returns NextStepAdded(ActionOutcome.OFFLINE, null)
+            vm.open(holiday)
+            vm.addTask("Buy a guide", false)
+            assertNull(
+                vm.uiState.value.detail!!
+                    .added,
+            )
+            assertEquals(
+                ProjectMessage(ProjectMessage.Kind.TASK_ADDED, "Buy a guide", ActionOutcome.OFFLINE),
+                vm.uiState.value.projectMessage,
+            )
+            vm.addTask("Pack the bags", true)
+            assertEquals(
+                "Pack the bags",
+                vm.uiState.value.detail!!
+                    .added
+                    ?.title,
+            )
+            assertEquals(
+                ActionOutcome.CONFLICT,
+                vm.uiState.value.projectMessage
+                    ?.outcome,
+            )
+        }
+
+    @Test
+    fun `the field of another project does not clear for a task added here`() =
+        test { vm ->
+            coEvery { work0.addTask(holiday, "Pack the bags", false) } returns NextStepAdded(ActionOutcome.DONE, id(5))
+            vm.open(holiday)
+            vm.addTask("Pack the bags", false)
+            vm.open(garden)
+            assertNull(
+                vm.uiState.value.detail!!
+                    .added,
+            )
+        }
+
+    @Test
+    fun `adding a task runs once at a time and not while read-only`() =
+        test { vm ->
+            val answer = CompletableDeferred<NextStepAdded>()
+            coEvery { work0.addTask(holiday, any(), any()) } coAnswers { answer.await() }
+            vm.open(holiday)
+            vm.addTask("Pack the bags", false)
+            assertTrue(holiday.id in vm.uiState.value.busy)
+            vm.addTask("Buy a guide", false)
+            answer.complete(NextStepAdded(ActionOutcome.DONE, id(5)))
+            coVerify(exactly = 1) { work0.addTask(any(), any(), any()) }
+
+            taskFlow.value = Live(listOf(book, hotel), LoadError.FAILED)
+            vm.addTask("Buy a guide", false)
+            coVerify(exactly = 1) { work0.addTask(any(), any(), any()) }
+        }
+
+    @Test
+    fun `a dragged order shows at once and stays until a load after saving it`() =
+        test { vm ->
+            val answer = CompletableDeferred<ActionOutcome>()
+            coEvery { work0.reorder(holiday.id, listOf(visa.id, book.id, hotel.id)) } coAnswers { answer.await() }
+            taskFlow.value = Live(listOf(book, hotel, visa))
+            vm.open(holiday)
+            vm.reorder(listOf(visa.id, book.id, hotel.id))
+            assertEquals(
+                listOf(visa, book, hotel),
+                vm.uiState.value.detail!!
+                    .tasks,
+            )
+            answer.complete(ActionOutcome.DONE)
+            // Saved, but the list has not loaded again yet: the new order stays.
+            assertEquals(
+                listOf(visa, book, hotel),
+                vm.uiState.value.detail!!
+                    .tasks,
+            )
+            // A drag shows where the task went: only failures are told.
+            assertNull(vm.uiState.value.projectMessage)
+            // The next load is the server's order.
+            taskFlow.value = Live(listOf(hotel, visa, book))
+            assertEquals(
+                listOf(hotel, visa, book),
+                vm.uiState.value.detail!!
+                    .tasks,
+            )
+        }
+
+    @Test
+    fun `a refused order goes back to the server's and says why`() =
+        test { vm ->
+            coEvery { work0.reorder(holiday.id, any()) } returns ActionOutcome.CONFLICT
+            vm.open(holiday)
+            vm.reorder(listOf(hotel.id, book.id))
+            assertEquals(
+                listOf(book, hotel),
+                vm.uiState.value.detail!!
+                    .tasks,
+            )
+            assertEquals(
+                ProjectMessage(ProjectMessage.Kind.MOVED, "Plan holiday", ActionOutcome.CONFLICT, 0, 2),
+                vm.uiState.value.projectMessage,
+            )
+        }
+
+    @Test
+    fun `an unchanged order, a read-only detail or no open project saves nothing`() =
+        test { vm ->
+            vm.reorder(listOf(hotel.id, book.id))
+            vm.move(hotel, -1)
+            vm.open(holiday)
+            vm.reorder(listOf(book.id, hotel.id))
+            taskFlow.value = Live(listOf(book, hotel), LoadError.FAILED)
+            vm.reorder(listOf(hotel.id, book.id))
+            vm.move(hotel, -1)
+            coVerify(exactly = 0) { work0.reorder(any(), any()) }
+        }
+
+    @Test
+    fun `moving a task up or down saves the order and says where it went`() =
+        test { vm ->
+            coEvery { work0.reorder(holiday.id, any()) } returns ActionOutcome.DONE
+            taskFlow.value = Live(listOf(book, hotel, visa))
+            vm.open(holiday)
+            vm.move(book, -1)
+            vm.move(visa, 1)
+            coVerify(exactly = 0) { work0.reorder(any(), any()) }
+            vm.move(book, 1)
+            coVerify(exactly = 1) { work0.reorder(holiday.id, listOf(hotel.id, book.id, visa.id)) }
+            assertEquals(
+                ProjectMessage(ProjectMessage.Kind.MOVED, "Book the flights", ActionOutcome.DONE, 2, 3),
+                vm.uiState.value.projectMessage,
+            )
+            vm.move(visa, -1)
+            coVerify(exactly = 1) { work0.reorder(holiday.id, listOf(hotel.id, visa.id, book.id)) }
+            assertEquals(
+                ProjectMessage(ProjectMessage.Kind.MOVED, "Visa from the embassy", ActionOutcome.DONE, 2, 3),
+                vm.uiState.value.projectMessage,
+            )
+        }
 }

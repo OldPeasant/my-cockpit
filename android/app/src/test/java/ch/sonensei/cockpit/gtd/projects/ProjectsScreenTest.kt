@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -17,6 +18,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.gtd.data.GtdProject
@@ -343,6 +345,7 @@ class ProjectsScreenTest {
         show(detail(holiday, listOf(book, inbox, later, dated)))
         composeRule.onNodeWithText("Inbox", useUnmergedTree = true).assertIsDisplayed()
         composeRule.onNodeWithText("Someday", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithTag(LiveListTags.LIST).performScrollToNode(hasText("Scheduled", substring = false))
         composeRule.onNodeWithText("Scheduled", useUnmergedTree = true).assertIsDisplayed()
     }
 
