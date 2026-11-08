@@ -1,11 +1,11 @@
 ---
 title: Android: shared linked-items panel with add, remove, create linked
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-task-convert]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/core/links,android/app/src/test/java/ch/sonensei/cockpit/core/links,android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/test/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/java/ch/sonensei/cockpit/contacts,android/app/src/test/java/ch/sonensei/cockpit/contacts,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml,android/app/src/main/res/values/strings_contacts.xml,android/app/src/main/res/values-de/strings_contacts.xml,android/app/src/main/res/values/strings_links.xml,android/app/src/main/res/values-de/strings_links.xml]
 prio: 2
-lease_until: 2026-11-08T20:22:59Z
+lease_until: 
 releases: 2
 extended: 
 ---
@@ -31,3 +31,4 @@ Mail, note and event panels use this component in their own tasks.
 - ASSUMPTION (2026-11-08 20:41+0100 by dell26/agent-1): Contacts has no shell navigation: ContactDetailRoute opens tasks/mails/notes/contacts in place (SearchItemScreen, back returns); events and other web-only items open the web URL (/calendar/events/id); with no server URL set, event taps do nothing
 - release by dell26/agent-1: Done (committed, contacts+TaskDetail* unit tests pass): panel/VM/repo in core/links; task detail uses it via linksPanel slot (TaskDetailContentTest fixed); LinkedItemsSection returns early without Hilt (viewModel param nullable, linksViewModelKey shared); contacts: new ContactDetailRoute (ContactsRoute uses it) with LinkedItemsSection, read-only RelatedLink list removed, waiting/mail/event rows clickable via ContactDetailCallbacks.openRelated, relatedTarget() (events -> web /calendar/events/id) + tests in ContactsScreensTest. LEFT: (1) search/SearchItemScreen SearchContact could call ContactDetailRoute (search/ not in touches; optional); (2) tests: LinkedItemsViewModelTest (fake LinksSource), LinksRepositoryTest (MockWebServer), LinkedItemsPanel Compose test; optionally drop unused TaskLink loading in TaskDetailRepository; (3) full android ktlintCheck testDebugUnitTest lintDebug, quality workflow (test-writer, code-reviewer), verify, done.
 - ASSUMPTION (2026-11-08 20:45+0100 by dell26/agent-1): Contacts opened from global search and birthday events (search/SearchItemScreen, calendar/edit/BirthdayContact, outside touches) now render ContactDetailRoute so they keep links and tappable rows; call-site-only edits
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 336s on 132465c89; criteria verified 4/4
