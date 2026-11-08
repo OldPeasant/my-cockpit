@@ -245,6 +245,57 @@ class BackupWorkDirCleanupTests {
 		}
 	}
 
+	// Without a tempRoot (production), the work dirs are in the JVM temp dir. Other test forks use it at the same time,
+	// so these tests find their own dir by the zip they wrote, never by listing what changed.
+
+	private val jvmTemp: Path = Path.of(System.getProperty("java.io.tmpdir")).toAbsolutePath().normalize()
+
+	@Test
+	fun `without a temp root the backup service works in the JVM temp dir and deletes its work dir there`() {
+		val service = BackupJobService(backups, publisher, clock)
+		try {
+			val job = service.start()
+			val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+			while (service.get(job.id).state == BackupJobState.RUNNING) {
+				check(System.nanoTime() < deadline) { "Backup ${job.id} did not finish" }
+				Thread.sleep(5)
+			}
+			service.get(job.id).state shouldBe BackupJobState.COMPLETED
+			val workDir = service.zip(job.id).second.parent
+
+			workDir.toAbsolutePath().normalize().parent shouldBe jvmTemp
+			workDir.name.startsWith(BACKUPS) shouldBe true
+
+			service.destroy()
+
+			Files.exists(workDir) shouldBe false
+		} finally {
+			service.destroy()
+		}
+	}
+
+	@Test
+	fun `without a temp root the restore service works in the JVM temp dir and deletes its work dir there`() {
+		val service = RestoreService(backups, jobs, JdbcTemplate(), clock, dataDir)
+		try {
+			val report = service.upload(ByteArrayInputStream(validBackup()))
+			report.valid shouldBe true
+			val zipName = "${report.id}.zip"
+			val ours =
+				jvmTemp
+					.listDirectoryEntries("$RESTORES*")
+					.filter { Files.exists(it.resolve(zipName)) }
+			ours shouldHaveSize 1
+			val workDir = ours.single()
+
+			service.destroy()
+
+			Files.exists(workDir) shouldBe false
+		} finally {
+			service.destroy()
+		}
+	}
+
 	private companion object {
 		const val BACKUPS = "cockpit-backups"
 		const val RESTORES = "cockpit-restores"

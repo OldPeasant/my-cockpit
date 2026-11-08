@@ -11,7 +11,9 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldNotContain
+import org.bouncycastle.crypto.generators.Argon2BytesGenerator
 import org.junit.jupiter.api.Test
+import java.net.URLClassLoader
 import java.util.Base64
 
 /**
@@ -81,6 +83,27 @@ class BackupSecretsCryptoTests {
 		envelope.kdf.iterations shouldBe 3
 		envelope.kdf.parallelism shouldBe 1
 		BackupSecrets.decrypt(envelope, PASSPHRASE) shouldBe plaintext
+	}
+
+	@Test
+	fun `a freshly loaded BackupSecrets encrypts with the default KDF, so production is not lowered like Spring tests`() {
+		// The test above sets encryptionKdf itself, and Spring tests in this JVM lower it (support/FastTestCrypto.kt):
+		// only a copy of the class that nothing else has touched shows the value production starts with.
+		val classpath =
+			listOf(BackupSecrets::class.java, Unit::class.java, Argon2BytesGenerator::class.java)
+				.map { it.protectionDomain.codeSource.location }
+				.distinct()
+				.toTypedArray()
+		URLClassLoader(classpath, ClassLoader.getPlatformClassLoader()).use { loader ->
+			val fresh = Class.forName(BackupSecrets::class.java.name, true, loader)
+			fresh.classLoader shouldBe loader
+
+			fun staticValue(name: String): Any? = fresh.getDeclaredField(name).apply { isAccessible = true }.get(null)
+
+			val expected = "Kdf(memoryKiB=65536, iterations=3, parallelism=1)"
+			staticValue("DEFAULT_KDF").toString() shouldBe expected
+			staticValue("encryptionKdf").toString() shouldBe expected
+		}
 	}
 
 	@Test
