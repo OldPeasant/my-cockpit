@@ -16,7 +16,8 @@ panel with add (search-as-you-type), remove and "create linked…" (`web/src/app
 ## Acceptance criteria
 - [x] A reusable Compose `LinkedItemsPanel` (in `core/links`): lists links, opens each in-app where a screen exists (else the web URL), adds a link via the global search API, removes a link, "create linked task/note"
   - verified (2026-11-08 20:59+0100 by dell26/agent-1): LinkedItemsPanelTest (28), LinkedItemsViewModelTest (39), LinksRepositoryTest (16, MockWebServer) via ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.core.links.*' -> all pass: list, open in-app/web URL, add via search API, remove, create linked task/note
-- [ ] Used in task detail (replacing the current list) and contact detail; contact related rows (waiting for, events, mails) become tappable
+- [x] Used in task detail (replacing the current list) and contact detail; contact related rows (waiting for, events, mails) become tappable
+  - verified (2026-11-08 20:59+0100 by dell26/agent-1): TaskDetailContentTest, ContactsScreensTest (panel slot, related rows clickable, not clickable without callback), ContactsRouteInAppTest, BirthdayContactTest via ./gradlew testDebugUnitTest at ae6701993 -> pass; TaskDetailScreen/ContactDetailRoute/SearchContact/BirthdayContact render LinkedItemsSection
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
