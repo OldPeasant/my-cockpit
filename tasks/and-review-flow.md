@@ -25,3 +25,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 Steps 4-7 come in and-review-steps.
 - ASSUMPTION (2026-11-08 14:28+0100 by dell26/agent-2): 'Mark complete' = 'Next step' marks the current step done and moves on; on step 8 it becomes 'Complete review' (the server tracks only the current step, like the web wizard).
 - ASSUMPTION (2026-11-08 14:28+0100 by dell26/agent-2): Steps 4-7 show their hint and a button opening the matching list (Waiting/Projects/Next/Someday) until and-review-steps adds the in-wizard actions.
+- ASSUMPTION (2026-11-08 14:28+0100 by dell26/agent-2): The reflection draft lives in the review view model only (survives tab switches and rotation, not app death); the web keeps it in localStorage. Saved on completion by appending '## Weekly review' to today's (device-local date) journal entry, like the web.
