@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [web-mail-read-actions,and-mail-actions,and-mail-note-links]
 touches: [web/src/app/features/mail/list,android/app/src/main/java/ch/sonensei/cockpit/mail/list,android/app/src/test/java/ch/sonensei/cockpit/mail/list,android/app/src/main/res/values/strings_mail.xml,android/app/src/main/res/values-de/strings_mail.xml,web/src/locale]
 prio: 3
-lease_until: 2026-11-08T21:12:41Z
+lease_until: 2026-11-08T21:17:37Z
 ---
 ## Goal
 SPEC.md §7.2: only a sync window is cached; `POST /api/v1/mail/folders/{id}/load-older` exists but no client calls it.
