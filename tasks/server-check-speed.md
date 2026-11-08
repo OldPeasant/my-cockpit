@@ -6,6 +6,7 @@ deps: []
 touches: [server/build.gradle.kts,server/src/test,scripts/check.sh,.github/workflows/ci.yml,docs/ARCHITECTURE.md]
 prio: 1
 lease_until: 2026-11-08T18:35:57Z
+extended: dell26/agent-1
 ---
 ## Goal
 `sh scripts/check.sh` (`.taskcheck`, run by every `tasks.py done`) should take < 2 min but no longer finishes in
@@ -30,3 +31,4 @@ not finishing within 10 min in agent sessions. Related: `ci-split-check` (CI job
 `fix-flaky-pagefetcher-size-test` (server test failing on one machine).
 Until this is done, finishing a task may need `TASK_CHECK_TIMEOUT=1800` (the owner used it for
 `and-mail-attachments` and `and-mail-compose-plus`).
+- extended by dell26/agent-1: Implemented and committed (3c33df2e8..2d1d57218): parallel test forks (1 per 4 cores, max 4, 2g heap, per-fork Postgres/data dir, -PtestForks/COCKPIT_TEST_FORKS), cheap Argon2/backup KDF in Spring tests via support/FastTestCrypto + spring.factories, order-independent temp-dir tests, ARCHITECTURE.md Testing notes; tests.md + review.md committed (review CR-1 P2 was addressed by test-writer commit 2d1d57218). Left: (1) re-run code-reviewer on final code (review predates 2d1d57218); (2) measure baseline (-PtestForks=1) vs new ./gradlew check wall time on same load, list 20 slowest classes from build/test-results/test XML in ARCHITECTURE.md or evidence; (3) 3 consecutive green ./gradlew check runs; (4) sh scripts/check.sh; (5) verify #1-#5, write quality.json (CR-1 disposition), done.
