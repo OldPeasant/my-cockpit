@@ -15,7 +15,8 @@ correspondents (`recipient-input.ts`, `GET /api/v1/mail/correspondents`) and att
 ## Acceptance criteria
 - [x] To/Cc/Bcc suggest contacts and recent correspondents while typing; chosen recipients shown as chips
   - verified (2026-11-08 17:00+0100 by rudi/agent-2): cd android && ./gradlew testDebugUnitTest (MailComposeRecipientsFilesTest/EdgeCasesTest/ScreenTest/ScreenEdgeCasesTest/ReviewFixesTest/ReviewFixesScreenTest: debounced GET /contacts/autocomplete per To/Cc/Bcc field, suggestions list, choose -> chip, chips from drafts/replies, close icon removes) -> pass (3871 tests, 0 failures)
-- [ ] "Attach from Files" opens a cockpit Files picker
+- [x] "Attach from Files" opens a cockpit Files picker
+  - verified (2026-11-08 17:00+0100 by rudi/agent-2): cd android && ./gradlew testDebugUnitTest (Attach menu -> 'Attach from Files' opens cockpit Files picker, folder navigation via FilesRepository.list, pick -> PUT draft attachments [{fileId}]; Robolectric Compose + ViewModel tests) -> pass
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
