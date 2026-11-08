@@ -18,3 +18,4 @@ Goal: the Android event view/editor calls `POST /api/v1/calendar/events/{id}/res
 
 ## Notes
 - Work done on `cal-invitation-respond` before the split is on `origin/wip/cal-invitation-respond` (if it exists): merge it first if your part builds on it.
+- ASSUMPTION (2026-11-08 23:11+0100 by felix/agent-1): Same rules as web (parent assumption #1): Accept/Maybe/Decline shown for existing events with guests in writable GOOGLE/MICROSOFT calendars; own status = guest matching a mail account address; 412 -> conflict (reload), 404 -> gone, other failures (409 organizer/not invited) -> 'could not be sent' message; unsaved form edits are kept after answering.
