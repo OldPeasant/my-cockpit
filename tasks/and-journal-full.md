@@ -1,12 +1,14 @@
 ---
 title: Android journal: other days, mood, tags, calendar, on this day
-status: in_progress
-owner: rudi/agent-1
+status: todo
+owner: 
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/journal,android/app/src/test/java/ch/sonensei/cockpit/journal,android/app/src/main/res/values/strings_journal.xml,android/app/src/main/res/values-de/strings_journal.xml]
 prio: 2
-lease_until: 2026-11-08T20:30:35Z
-extended: rudi/agent-1
+lease_until: 
+extended: 
+hold: Implementation, review evidence (quality.json, reviewed_revision c12daa98) and criteria 1-6 recorded; only 'done' is left. .taskcheck cannot pass on this machine (rudi/agent-1) for reasons outside the
+releases: 0
 ---
 ## Goal
 Android's journal is fixed to today (`JournalViewModel.kt:86`); web has previous/next day, mood, tags, a heatmap
@@ -33,3 +35,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 20:07+0100 by rudi/agent-1): Kept JournalRepository.save(date, base, text) (keeps mood/tags) for ReflectionSaver in review/ and added saveEntry(date, base, draft), so no file outside the task's touches changes.
 - extended by rudi/agent-1: Implementation, fixes for CR-1..4 and re-review (0 P0-P2, 2 optional P3: camera photo after process death goes to today; on-this-day 'none' shown while loading) are committed at 4fdf5ce4; journal unit tests pass incl. new late-answer/locale/photo-day test files. Left: decide/fix the 2 P3s (if code changes, re-run code-reviewer), let test-writer write reviews/and-journal-full/tests.md with coverage, record verify for criteria 1-6, run sh scripts/check.sh (earlier failed only on server Testcontainers without Docker - skip-verify that part with reason if still so), write quality.json, done.
 - ASSUMPTION (2026-11-08 21:12+0100 by rudi/agent-1): Criterion 6: full scripts/check.sh not runnable here (no Docker for server Testcontainers, Node 20 too old for Angular CLI); assumed server/web unaffected since this task changes only android/ and reviews/; tfp+android parts pass.
+- hold by rudi/agent-1: Implementation, review evidence (quality.json, reviewed_revision c12daa98) and criteria 1-6 recorded; only 'done' is left. .taskcheck cannot pass on this machine (rudi/agent-1) for reasons outside the task: no Docker for server Testcontainers (424/3068 fail) and Node v20.9.0 < Angular CLI's minimum 22. tfp+android parts pass. Run 'python tasks.py done and-journal-full' on a host with Docker and Node >=22, or fix this machine's environment.
