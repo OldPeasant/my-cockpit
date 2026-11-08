@@ -1466,6 +1466,29 @@ describe('MailListStore', () => {
       expect(store.loadingOlder()).toBe(false);
     });
 
+    it('ends when the list is reloaded while it waits for an action', async () => {
+      await loaded([summary('a'), summary('b')], folder);
+      const archived = store.apply('ARCHIVE', undefined, ['a']);
+      await flush();
+      const done = store.loadOlder();
+      mail.loadOlders[0].resolve({ loaded: 2, hasMore: false });
+      await flush();
+      const lists = mail.lists.length;
+
+      void store.reload();
+      expect(store.loadingOlder()).toBe(false);
+      mail.lists.at(-1)!.resolve({ items: [summary('b')], nextCursor: null });
+      await flush();
+
+      // The action ends: the dropped load-older finishes without reading or showing anything.
+      mail.succeed();
+      expect(await archived).toBe(true);
+      await done;
+      expect(mail.lists).toHaveLength(lists + 1);
+      expect(store.loadingOlder()).toBe(false);
+      expect(ids()).toEqual(['b']);
+    });
+
     it('reads the list again when an action changed it while it was read', async () => {
       await loaded([summary('a'), summary('b')], folder);
       const done = store.loadOlder();
