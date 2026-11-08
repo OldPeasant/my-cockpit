@@ -7,7 +7,7 @@ touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/compose,android/app
 prio: 2
 lease_until: 
 extended: 
-hold: Everything is done and committed (impl, final test-writer + code-reviewer, quality.json, verify #1-#3, #4 skipped). done is REFUSED only because .taskcheck's web step needs Node >=22.22.3/24 and this 
+hold: 
 releases: 0
 ---
 ## Goal
