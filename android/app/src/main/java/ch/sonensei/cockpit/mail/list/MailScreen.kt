@@ -1,8 +1,9 @@
 package ch.sonensei.cockpit.mail.list
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,16 +24,23 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DriveFileRenameOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.Mail
+import androidx.compose.material.icons.outlined.MarkEmailRead
+import androidx.compose.material.icons.outlined.MarkEmailUnread
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.OutlinedFlag
+import androidx.compose.material.icons.outlined.Report
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -44,6 +52,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -64,11 +76,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -164,6 +179,15 @@ fun MailRoute(
                             submit = viewModel::submitFolderEdit,
                             cancel = viewModel::cancelFolderEdit,
                         ),
+                    selection =
+                        SelectionCallbacks(
+                            toggle = viewModel::toggleSelection,
+                            clear = viewModel::clearSelection,
+                            act = viewModel::actOnSelection,
+                            move = viewModel::moveSelection,
+                        ),
+                    undo = viewModel::undo,
+                    dismissUndo = viewModel::dismissUndo,
                 ),
             listState = listState,
             searchState = searchState,
@@ -191,6 +215,8 @@ fun MailRoute(
             onClose = { open = null },
             onSeen = viewModel::markSeen,
             onRemoved = viewModel::removed,
+            onMarked = viewModel::marked,
+            accounts = state.accounts,
             onCompose = { composing = it.encode() },
             navigation = MailReadNavigation.of(ids, current) { open = it.toString() },
             modifier = modifier,
@@ -208,6 +234,19 @@ data class MailListCallbacks(
     val compose: () -> Unit = {},
     val folders: FolderCallbacks = FolderCallbacks(),
     val search: SearchCallbacks = SearchCallbacks(),
+    val selection: SelectionCallbacks = SelectionCallbacks(),
+    val undo: (MailUndo) -> Unit = {},
+    val dismissUndo: (MailUndo) -> Unit = {},
+)
+
+/** The multi-selection started by a long press, and its bulk actions. */
+data class SelectionCallbacks(
+    /** Adds or removes a mail (a long press starts the selection). */
+    val toggle: (UUID) -> Unit = {},
+    val clear: () -> Unit = {},
+    /** A bulk action other than move. */
+    val act: (MailListAction) -> Unit = {},
+    val move: (MailFolder) -> Unit = {},
 )
 
 /** The search box and its results. */
@@ -274,6 +313,13 @@ internal object MailListTags {
         id: UUID,
         action: MailListAction,
     ) = "mail-swipe:$id:$action"
+
+    const val SELECTION_BAR = "mail-selection-bar"
+    const val SELECTION_CLOSE = "mail-selection-close"
+    const val SELECTION_COUNT = "mail-selection-count"
+    const val SELECTION_MORE = "mail-selection-more"
+
+    fun selectionAction(action: MailListAction) = "mail-selection-action:$action"
 }
 
 /** Rows from the end at which the next page is loaded. */
@@ -305,6 +351,10 @@ fun MailListContent(
     clock: Clock = Clock.systemDefaultZone(),
     searchState: LazyListState = rememberLazyListState(),
 ) {
+    val snackbarHost = remember { SnackbarHostState() }
+    UndoSnackbarEffect(state.undo, snackbarHost, callbacks.undo, callbacks.dismissUndo)
+    // Back ends a multi-selection before it leaves the screen.
+    BackHandler(enabled = state.selecting && state.search == null, onBack = callbacks.selection.clear)
     Box(modifier.fillMaxSize()) {
         val search = state.search
         if (search != null) {
@@ -312,15 +362,52 @@ fun MailListContent(
         } else {
             MailboxContent(state, callbacks, listState, clock)
         }
-        ExtendedFloatingActionButton(
-            onClick = callbacks.compose,
-            icon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
-            text = { Text(stringResource(R.string.mail_compose)) },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp).testTag(MailListTags.COMPOSE),
-        )
+        if (!state.selecting) {
+            ExtendedFloatingActionButton(
+                onClick = callbacks.compose,
+                icon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
+                text = { Text(stringResource(R.string.mail_compose)) },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp).testTag(MailListTags.COMPOSE),
+            )
+        }
+        // Above the compose button, which it would otherwise cover.
+        SnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp))
     }
     state.folderEdit?.let { FolderDialog(it, callbacks.folders) }
 }
+
+/** Offers to undo [undo] ("3 mails archived  Undo") until it is taken, dismissed or replaced by the next action. */
+@Composable
+private fun UndoSnackbarEffect(
+    undo: MailUndo?,
+    host: SnackbarHostState,
+    onUndo: (MailUndo) -> Unit,
+    onDismiss: (MailUndo) -> Unit,
+) {
+    val resources = LocalResources.current
+    LaunchedEffect(undo) {
+        if (undo == null) return@LaunchedEffect
+        val result =
+            host.showSnackbar(
+                message = resources.getQuantityString(doneText(undo.action), undo.mails.size, undo.mails.size),
+                actionLabel = resources.getString(R.string.mail_undo),
+                duration = SnackbarDuration.Long,
+            )
+        if (result == SnackbarResult.ActionPerformed) onUndo(undo) else onDismiss(undo)
+    }
+}
+
+private fun doneText(action: MailListAction): Int =
+    when (action) {
+        MailListAction.ARCHIVE -> R.plurals.mail_done_archive
+        MailListAction.DELETE -> R.plurals.mail_done_delete
+        MailListAction.SPAM -> R.plurals.mail_done_spam
+        MailListAction.MOVE -> R.plurals.mail_done_move
+        MailListAction.READ -> R.plurals.mail_done_read
+        MailListAction.UNREAD -> R.plurals.mail_done_unread
+        MailListAction.FLAG -> R.plurals.mail_done_flag
+        MailListAction.UNFLAG -> R.plurals.mail_done_unflag
+    }
 
 /** The mailbox picker with the search action, and the mailbox's mails. */
 @Composable
@@ -331,10 +418,14 @@ private fun MailboxContent(
     clock: Clock,
 ) {
     Column(Modifier.fillMaxSize()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) { MailboxPicker(state, callbacks.select, callbacks.folders) }
-            IconButton(onClick = callbacks.search.open, modifier = Modifier.padding(end = 8.dp).testTag(MailListTags.SEARCH_OPEN)) {
-                Icon(Icons.Outlined.Search, contentDescription = stringResource(R.string.mail_search))
+        if (state.selecting) {
+            SelectionBar(state, callbacks.selection)
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) { MailboxPicker(state, callbacks.select, callbacks.folders) }
+                IconButton(onClick = callbacks.search.open, modifier = Modifier.padding(end = 8.dp).testTag(MailListTags.SEARCH_OPEN)) {
+                    Icon(Icons.Outlined.Search, contentDescription = stringResource(R.string.mail_search))
+                }
             }
         }
         state.message?.let { ListMessage(it, callbacks.retry) }
@@ -349,6 +440,97 @@ private fun MailboxContent(
                 )
             else -> Messages(state, callbacks, listState, clock)
         }
+    }
+}
+
+/**
+ * Shown instead of the mailbox picker while mails are selected: the count, archive, delete, read/unread and flag (each
+ * as the selection needs it: "Mark read" while one is unread, "Remove flag" when all are flagged), and in the overflow
+ * "Move to folder" (when all are of one account) and spam.
+ */
+@Composable
+private fun SelectionBar(
+    state: MailListUiState,
+    callbacks: SelectionCallbacks,
+) {
+    val mails = state.selection
+    val read = if (mails.any { !it.seen }) MailListAction.READ else MailListAction.UNREAD
+    val flag = if (mails.isNotEmpty() && mails.all { it.flagged }) MailListAction.UNFLAG else MailListAction.FLAG
+    val targets = state.moveTargets
+    var menu by remember { mutableStateOf(false) }
+    var moving by remember { mutableStateOf(false) }
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 4.dp).testTag(MailListTags.SELECTION_BAR),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = callbacks.clear, modifier = Modifier.testTag(MailListTags.SELECTION_CLOSE)) {
+            Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.mail_selection_close))
+        }
+        Text(
+            pluralStringResource(R.plurals.mail_selection_count, state.selected.size, state.selected.size),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.weight(1f).testTag(MailListTags.SELECTION_COUNT),
+        )
+        if (state.canArchive) SelectionButton(Icons.Outlined.Archive, R.string.mail_archive, MailListAction.ARCHIVE, callbacks.act)
+        SelectionButton(Icons.Outlined.Delete, R.string.mail_delete, MailListAction.DELETE, callbacks.act)
+        if (read == MailListAction.READ) {
+            SelectionButton(Icons.Outlined.MarkEmailRead, R.string.mail_mark_read, read, callbacks.act)
+        } else {
+            SelectionButton(Icons.Outlined.MarkEmailUnread, R.string.mail_mark_unread, read, callbacks.act)
+        }
+        if (flag == MailListAction.FLAG) {
+            SelectionButton(Icons.Outlined.Flag, R.string.mail_flag, flag, callbacks.act)
+        } else {
+            SelectionButton(Icons.Outlined.OutlinedFlag, R.string.mail_unflag, flag, callbacks.act)
+        }
+        Box {
+            IconButton(onClick = { menu = true }, modifier = Modifier.testTag(MailListTags.SELECTION_MORE)) {
+                Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.mail_more_actions))
+            }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.mail_move)) },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Outlined.DriveFileMove, contentDescription = null) },
+                    enabled = targets.isNotEmpty(),
+                    onClick = {
+                        menu = false
+                        moving = true
+                    },
+                    modifier = Modifier.testTag(MailListTags.selectionAction(MailListAction.MOVE)),
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.mail_spam)) },
+                    leadingIcon = { Icon(Icons.Outlined.Report, contentDescription = null) },
+                    onClick = {
+                        menu = false
+                        callbacks.act(MailListAction.SPAM)
+                    },
+                    modifier = Modifier.testTag(MailListTags.selectionAction(MailListAction.SPAM)),
+                )
+            }
+        }
+    }
+    if (moving) {
+        MoveFolderDialog(
+            folders = targets,
+            onPick = {
+                moving = false
+                callbacks.move(it)
+            },
+            onDismiss = { moving = false },
+        )
+    }
+}
+
+@Composable
+private fun SelectionButton(
+    icon: ImageVector,
+    label: Int,
+    action: MailListAction,
+    act: (MailListAction) -> Unit,
+) {
+    IconButton(onClick = { act(action) }, modifier = Modifier.testTag(MailListTags.selectionAction(action))) {
+        Icon(icon, contentDescription = stringResource(label))
     }
 }
 
@@ -377,8 +559,18 @@ private fun Messages(
     // The bottom padding keeps the last row clear of the compose button.
     LazyColumn(Modifier.fillMaxSize().testTag(MailListTags.LIST), state = listState, contentPadding = PaddingValues(bottom = 88.dp)) {
         items(state.messages, key = { it.id }) { mail ->
-            SwipeRow(mail, state.canArchive, callbacks) {
-                MailRow(mail, state.account(mail.accountId)?.takeIf { state.showAccounts }, today, clock, callbacks.open)
+            // While selecting, a tap picks a mail instead of opening it, and the swipes rest.
+            val selecting = state.selecting
+            SwipeRow(mail, state.canArchive, callbacks, enabled = !selecting) {
+                MailRow(
+                    mail = mail,
+                    account = state.account(mail.accountId)?.takeIf { state.showAccounts },
+                    today = today,
+                    clock = clock,
+                    open = if (selecting) callbacks.selection.toggle else callbacks.open,
+                    selected = mail.id in state.selected,
+                    onLongClick = callbacks.selection.toggle,
+                )
             }
             HorizontalDivider()
         }
@@ -395,6 +587,7 @@ private fun SwipeRow(
     mail: MailSummary,
     canArchive: Boolean,
     callbacks: MailListCallbacks,
+    enabled: Boolean,
     content: @Composable () -> Unit,
 ) {
     val dismissState = rememberSwipeToDismissBoxState()
@@ -402,8 +595,9 @@ private fun SwipeRow(
     val delete = stringResource(R.string.mail_delete)
     SwipeToDismissBox(
         state = dismissState,
-        enableDismissFromStartToEnd = canArchive,
-        enableDismissFromEndToStart = true,
+        enableDismissFromStartToEnd = enabled && canArchive,
+        enableDismissFromEndToStart = enabled,
+        gesturesEnabled = enabled,
         onDismiss = { value ->
             when (value) {
                 SwipeToDismissBoxValue.StartToEnd -> callbacks.act(mail.id, MailListAction.ARCHIVE)
@@ -424,7 +618,7 @@ private fun SwipeRow(
                             callbacks.act(mail.id, MailListAction.DELETE)
                             true
                         },
-                    )
+                    ).takeIf { enabled }.orEmpty()
             },
     ) {
         content()
@@ -465,20 +659,35 @@ internal fun MailRow(
     today: LocalDate,
     clock: Clock,
     open: (UUID) -> Unit,
+    selected: Boolean = false,
+    /** A long press (starts or changes the multi-selection); `null` where rows cannot be selected. */
+    onLongClick: ((UUID) -> Unit)? = null,
 ) {
     val unread = stringResource(R.string.mail_unread)
-    Surface {
+    val selectedLabel = stringResource(R.string.mail_selected)
+    Surface(color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .clickable { open(mail.id) }
+                .combinedClickable(
+                    onClick = { open(mail.id) },
+                    onLongClick = onLongClick?.let { { it(mail.id) } },
+                    onLongClickLabel = onLongClick?.let { stringResource(R.string.mail_select) },
+                ).semantics { if (onLongClick != null) this.selected = selected }
                 .padding(horizontal = 16.dp, vertical = 10.dp)
                 .testTag(MailListTags.row(mail.id)),
             verticalAlignment = Alignment.Top,
         ) {
-            // The unread dot.
+            // The unread dot, or the check of a selected mail.
             Box(Modifier.padding(top = 6.dp).width(16.dp)) {
-                if (!mail.seen) {
+                if (selected) {
+                    Icon(
+                        Icons.Outlined.CheckCircle,
+                        contentDescription = selectedLabel,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(14.dp),
+                    )
+                } else if (!mail.seen) {
                     Box(
                         Modifier
                             .size(8.dp)
@@ -778,6 +987,10 @@ internal fun ListMessage(
             MailListMessage.ARCHIVE_FAILED -> R.string.mail_archive_failed
             MailListMessage.DELETE_FAILED -> R.string.mail_delete_failed
             MailListMessage.FOLDER_CHANGED -> R.string.mail_folder_changed
+            MailListMessage.SPAM_FAILED -> R.string.mail_spam_failed
+            MailListMessage.MOVE_FAILED -> R.string.mail_move_failed
+            MailListMessage.MARK_FAILED -> R.string.mail_mark_failed
+            MailListMessage.UNDO_FAILED -> R.string.mail_undo_failed
         }
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(

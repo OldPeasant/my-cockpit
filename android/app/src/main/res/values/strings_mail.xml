@@ -60,4 +60,53 @@
     <string name="mail_search_has_more">Only the newest results are listed. Refine the search to find older ones.</string>
     <string name="mail_search_server_failed">The server of %1$s could not be searched; only cached mail is shown for it.</string>
     <string name="mail_search_unknown_account">an account</string>
+    <string name="mail_mark_read">Mark read</string>
+    <string name="mail_mark_unread">Mark unread</string>
+    <string name="mail_flag">Flag</string>
+    <string name="mail_unflag">Remove flag</string>
+    <string name="mail_move">Move to folder</string>
+    <string name="mail_more_actions">More actions</string>
+    <string name="mail_move_failed">The mail could not be moved.</string>
+    <string name="mail_mark_failed">The mail could not be changed.</string>
+    <string name="mail_undo">Undo</string>
+    <string name="mail_undo_failed">The action could not be undone.</string>
+    <string name="mail_selection_close">End selection</string>
+    <string name="mail_selected">Selected</string>
+    <string name="mail_select">Select</string>
+    <plurals name="mail_selection_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
+    <plurals name="mail_done_archive">
+        <item quantity="one">%1$d mail archived</item>
+        <item quantity="other">%1$d mails archived</item>
+    </plurals>
+    <plurals name="mail_done_delete">
+        <item quantity="one">%1$d mail deleted</item>
+        <item quantity="other">%1$d mails deleted</item>
+    </plurals>
+    <plurals name="mail_done_spam">
+        <item quantity="one">%1$d mail moved to spam</item>
+        <item quantity="other">%1$d mails moved to spam</item>
+    </plurals>
+    <plurals name="mail_done_move">
+        <item quantity="one">%1$d mail moved</item>
+        <item quantity="other">%1$d mails moved</item>
+    </plurals>
+    <plurals name="mail_done_read">
+        <item quantity="one">%1$d mail marked read</item>
+        <item quantity="other">%1$d mails marked read</item>
+    </plurals>
+    <plurals name="mail_done_unread">
+        <item quantity="one">%1$d mail marked unread</item>
+        <item quantity="other">%1$d mails marked unread</item>
+    </plurals>
+    <plurals name="mail_done_flag">
+        <item quantity="one">%1$d mail flagged</item>
+        <item quantity="other">%1$d mails flagged</item>
+    </plurals>
+    <plurals name="mail_done_unflag">
+        <item quantity="one">Flag removed from %1$d mail</item>
+        <item quantity="other">Flag removed from %1$d mails</item>
+    </plurals>
 </resources>

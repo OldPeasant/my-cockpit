@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.mail.read
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
@@ -16,17 +17,24 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
 import androidx.compose.material.icons.automirrored.outlined.Forward
 import androidx.compose.material.icons.automirrored.outlined.Reply
 import androidx.compose.material.icons.automirrored.outlined.ReplyAll
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.HideImage
 import androidx.compose.material.icons.outlined.HourglassEmpty
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.MarkEmailUnread
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.OutlinedFlag
 import androidx.compose.material.icons.outlined.Report
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,6 +46,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -51,7 +62,10 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.mail.compose.ComposeMode
+import ch.sonensei.cockpit.mail.list.MailAccountFolders
+import ch.sonensei.cockpit.mail.list.MailFolder
 import ch.sonensei.cockpit.mail.list.MailListAction
+import ch.sonensei.cockpit.mail.list.MoveFolderDialog
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -72,6 +86,8 @@ fun MailReadRoute(
     onRemoved: (UUID) -> Unit = {},
     onCompose: (ComposeMode) -> Unit = {},
     navigation: MailReadNavigation? = null,
+    onMarked: (UUID, MailListAction) -> Unit = { _, _ -> },
+    accounts: List<MailAccountFolders> = emptyList(),
     viewModel: MailReadViewModel = hiltViewModel(),
 ) {
     // One view model for all mails (cleared with the Mail screen); it drops the mail when the view closes.
@@ -83,6 +99,13 @@ fun MailReadRoute(
     }
     BackHandler(onBack = close)
     LaunchedEffect(state.message?.id) { if (state.message != null) onSeen(id) }
+    LaunchedEffect(state.mark) { state.mark?.let { onMarked(id, it.action) } }
+    LaunchedEffect(state.unread) {
+        if (state.unread) {
+            onMarked(id, MailListAction.UNREAD)
+            close()
+        }
+    }
     LaunchedEffect(state.removed) {
         if (state.removed) {
             // The neighbours are those of the list before the mail left it.
@@ -99,13 +122,15 @@ fun MailReadRoute(
                 back = close,
                 retry = viewModel::retry,
                 gtd = viewModel::gtd,
-                act = viewModel::act,
+                act = { viewModel.act(it) },
+                move = { viewModel.act(MailListAction.MOVE, it.id) },
                 compose = onCompose,
                 loadImages = viewModel::loadImages,
                 alwaysLoadImages = viewModel::alwaysLoadImages,
             ),
         modifier = modifier,
         navigation = navigation,
+        moveTargets = moveTargets(accounts, state.message),
         body = { html, m -> MailBodyView(html, m, viewModel.images) },
     )
 }
@@ -135,12 +160,27 @@ data class MailReadNavigation(
     }
 }
 
+/** The folders [message] can be moved to: the other folders of its account. */
+internal fun moveTargets(
+    accounts: List<MailAccountFolders>,
+    message: MailMessage?,
+): List<MailFolder> {
+    val accountId = message?.accountId ?: return emptyList()
+    return accounts
+        .firstOrNull { it.account.id == accountId }
+        ?.folders
+        .orEmpty()
+        .filterNot { it.id == message.folderId }
+}
+
 /** What the read view can ask for, so it can be tested without a view model. */
 data class MailReadCallbacks(
     val back: () -> Unit = {},
     val retry: () -> Unit = {},
     val gtd: (MailGtdAction) -> Unit = {},
     val act: (MailListAction) -> Unit = {},
+    /** "Move to folder" picked [MailFolder]. */
+    val move: (MailFolder) -> Unit = {},
     val compose: (ComposeMode) -> Unit = {},
     /** "Load images": the blocked remote images of this mail, through the server's proxy. */
     val loadImages: () -> Unit = {},
@@ -169,6 +209,7 @@ internal object MailReadTags {
     const val REPLY = "mail-read-reply"
     const val REPLY_ALL = "mail-read-reply-all"
     const val FORWARD = "mail-read-forward"
+    const val MORE = "mail-read-more"
 
     fun gtd(action: MailGtdAction) = "mail-read-gtd:$action"
 
@@ -176,7 +217,7 @@ internal object MailReadTags {
 }
 
 /**
- * The read view: toolbar (back, GTD actions, archive, delete, spam), previous/next through the list it was opened from
+ * The read view: toolbar (back, GTD actions, archive, delete, a menu with unread, flag, move and spam), previous/next through the list it was opened from
  * ([navigation], when given), headers, then the sanitized HTML in [body] (a locked-down WebView; replaceable in tests)
  * or the plain text of a text-only mail.
  */
@@ -187,10 +228,11 @@ fun MailReadContent(
     modifier: Modifier = Modifier,
     zone: ZoneId = ZoneId.systemDefault(),
     navigation: MailReadNavigation? = null,
+    moveTargets: List<MailFolder> = emptyList(),
     body: @Composable (String, Modifier) -> Unit = { html, m -> MailBodyView(html, m) },
 ) {
     Column(modifier.fillMaxSize()) {
-        Toolbar(state, callbacks)
+        Toolbar(state, callbacks, moveTargets)
         navigation?.let { NavigationRow(it, enabled = !state.busy) }
         if (state.loading || state.busy) LinearProgressIndicator(Modifier.fillMaxWidth()) else Spacer(Modifier.height(4.dp))
         state.notice?.let { Notice(it) }
@@ -206,6 +248,7 @@ fun MailReadContent(
 private fun Toolbar(
     state: MailReadUiState,
     callbacks: MailReadCallbacks,
+    moveTargets: List<MailFolder>,
 ) {
     val enabled = state.message != null && !state.busy
     Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -225,10 +268,70 @@ private fun Toolbar(
         ToolbarButton(Icons.Outlined.Delete, R.string.mail_delete, MailReadTags.action(MailListAction.DELETE), enabled) {
             callbacks.act(MailListAction.DELETE)
         }
-        ToolbarButton(Icons.Outlined.Report, R.string.mail_spam, MailReadTags.action(MailListAction.SPAM), enabled) {
-            callbacks.act(MailListAction.SPAM)
+        MoreMenu(state.message?.flagged == true, enabled, callbacks, moveTargets)
+    }
+}
+
+/** The overflow of the toolbar: mark unread, flag or remove the flag, move to folder (of the same account) and spam. */
+@Composable
+private fun MoreMenu(
+    flagged: Boolean,
+    enabled: Boolean,
+    callbacks: MailReadCallbacks,
+    moveTargets: List<MailFolder>,
+) {
+    var open by remember { mutableStateOf(false) }
+    var moving by remember { mutableStateOf(false) }
+    val pick: (() -> Unit) -> Unit = { action ->
+        open = false
+        action()
+    }
+    Box {
+        ToolbarButton(Icons.Outlined.MoreVert, R.string.mail_more_actions, MailReadTags.MORE, enabled) { open = true }
+        DropdownMenu(expanded = open && enabled, onDismissRequest = { open = false }) {
+            MenuItem(Icons.Outlined.MarkEmailUnread, R.string.mail_mark_unread, MailListAction.UNREAD) {
+                pick { callbacks.act(MailListAction.UNREAD) }
+            }
+            if (flagged) {
+                MenuItem(Icons.Outlined.OutlinedFlag, R.string.mail_unflag, MailListAction.UNFLAG) {
+                    pick { callbacks.act(MailListAction.UNFLAG) }
+                }
+            } else {
+                MenuItem(Icons.Outlined.Flag, R.string.mail_flag, MailListAction.FLAG) { pick { callbacks.act(MailListAction.FLAG) } }
+            }
+            MenuItem(Icons.AutoMirrored.Outlined.DriveFileMove, R.string.mail_move, MailListAction.MOVE, moveTargets.isNotEmpty()) {
+                pick { moving = true }
+            }
+            MenuItem(Icons.Outlined.Report, R.string.mail_spam, MailListAction.SPAM) { pick { callbacks.act(MailListAction.SPAM) } }
         }
     }
+    if (moving) {
+        MoveFolderDialog(
+            folders = moveTargets,
+            onPick = {
+                moving = false
+                callbacks.move(it)
+            },
+            onDismiss = { moving = false },
+        )
+    }
+}
+
+@Composable
+private fun MenuItem(
+    icon: ImageVector,
+    label: Int,
+    action: MailListAction,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    DropdownMenuItem(
+        text = { Text(stringResource(label)) },
+        leadingIcon = { Icon(icon, contentDescription = null) },
+        enabled = enabled,
+        onClick = onClick,
+        modifier = Modifier.testTag(MailReadTags.action(action)),
+    )
 }
 
 /** "3 of 12" with previous and next (disabled at the ends and while an action runs). */
@@ -309,11 +412,16 @@ private fun actionFailed(notice: MailReadNotice.ActionFailed): String {
             MailListAction.ARCHIVE -> stringResource(R.string.mail_archive_failed)
             MailListAction.DELETE -> stringResource(R.string.mail_delete_failed)
             MailListAction.SPAM -> stringResource(R.string.mail_spam_failed)
+            MailListAction.MOVE -> stringResource(R.string.mail_move_failed)
+            MailListAction.READ, MailListAction.UNREAD, MailListAction.FLAG, MailListAction.UNFLAG ->
+                stringResource(R.string.mail_mark_failed)
         }
     val reason =
         when (val code = notice.errorCode) {
             null -> null
-            NO_ROLE_FOLDER -> stringResource(R.string.mail_read_no_role_folder, stringResource(roleFolder(notice.action)))
+            NO_ROLE_FOLDER ->
+                roleFolder(notice.action)?.let { stringResource(R.string.mail_read_no_role_folder, stringResource(it)) }
+                    ?: stringResource(R.string.mail_read_action_error, code)
             else -> stringResource(R.string.mail_read_action_error, code)
         }
     return if (reason == null) failed else "$failed $reason"
@@ -321,12 +429,13 @@ private fun actionFailed(notice: MailReadNotice.ActionFailed): String {
 
 private const val NO_ROLE_FOLDER = "NO_ROLE_FOLDER"
 
-/** The folder role an action moves the mail to. */
-private fun roleFolder(action: MailListAction) =
+/** The folder role an action moves the mail to; `null` for the others. */
+private fun roleFolder(action: MailListAction): Int? =
     when (action) {
         MailListAction.ARCHIVE -> R.string.mail_folder_archive
         MailListAction.DELETE -> R.string.mail_folder_trash
         MailListAction.SPAM -> R.string.mail_folder_spam
+        else -> null
     }
 
 @Composable

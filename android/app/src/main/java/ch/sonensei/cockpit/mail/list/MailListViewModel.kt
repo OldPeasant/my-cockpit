@@ -13,7 +13,30 @@ import java.util.UUID
 import javax.inject.Inject
 
 /** Why the list may be outdated, or what did not work. */
-enum class MailListMessage { OFFLINE, FAILED, ARCHIVE_FAILED, DELETE_FAILED, FOLDER_CHANGED }
+enum class MailListMessage {
+    OFFLINE,
+    FAILED,
+    ARCHIVE_FAILED,
+    DELETE_FAILED,
+    FOLDER_CHANGED,
+    SPAM_FAILED,
+    MOVE_FAILED,
+    MARK_FAILED,
+    UNDO_FAILED,
+}
+
+/**
+ * What [action] just did to [mails] (as they were before), offered to undo: a marking action by its inverse, a move
+ * (also archive, delete and spam) by moving each mail back to its folder. [positions] are the mails' places in the list
+ * of [mailbox], so undoing puts them back there. [id] tells two equal actions apart.
+ */
+data class MailUndo(
+    val action: MailListAction,
+    val mails: List<MailSummary>,
+    val mailbox: Mailbox,
+    val positions: Map<UUID, Int> = emptyMap(),
+    val id: Long = 0,
+)
 
 /** What a folder dialog does. */
 enum class FolderEditKind { CREATE, RENAME, DELETE }
@@ -68,7 +91,30 @@ data class MailListUiState(
     val folderEdit: FolderEdit? = null,
     /** The open search, shown instead of the mailbox; `null` when closed. */
     val search: MailSearchState? = null,
+    /** The mails picked by a long press (multi-select); empty when not selecting. */
+    val selected: Set<UUID> = emptySet(),
+    /** The last action that can be undone, offered until the next one or until dismissed. */
+    val undo: MailUndo? = null,
 ) {
+    val selecting: Boolean get() = selected.isNotEmpty()
+
+    /** The selected mails, in list order. */
+    val selection: List<MailSummary> get() = messages.filter { it.id in selected }
+
+    /**
+     * The folders the selection can be moved to: those of its account (all selected mails must be of one account),
+     * without the folder all of them are in already. Empty when the selection spans accounts.
+     */
+    val moveTargets: List<MailFolder>
+        get() {
+            val mails = selection
+            val accountId = mails.firstOrNull()?.accountId ?: return emptyList()
+            if (mails.any { it.accountId != accountId }) return emptyList()
+            val folders = accounts.firstOrNull { it.account.id == accountId }?.folders.orEmpty()
+            val shared = mails.map { it.folderId }.distinct().singleOrNull()
+            return folders.filterNot { it.id == shared }
+        }
+
     val folder: MailFolder?
         get() =
             (mailbox as? Mailbox.Folder)?.let { box ->
@@ -118,13 +164,16 @@ class MailListViewModel
          */
         private var folderGeneration = 0L
 
+        /** Numbers the undos, so the same action twice is offered twice. */
+        private var undoCount = 0L
+
         /** Loads the accounts and the first page of the current mailbox again. */
         fun refresh() = load(state.value.mailbox)
 
         /** Shows [mailbox] from its newest mail. */
         fun select(mailbox: Mailbox) {
             if (mailbox == state.value.mailbox && state.value.loaded) return
-            state.update { it.copy(mailbox = mailbox, messages = emptyList(), nextCursor = null, loaded = false) }
+            state.update { it.copy(mailbox = mailbox, messages = emptyList(), nextCursor = null, loaded = false, selected = emptySet()) }
             load(mailbox)
         }
 
@@ -153,49 +202,148 @@ class MailListViewModel
                 }
         }
 
-        /** Archives or deletes [id]: it leaves the list now, and returns to its place if the server refuses. */
+        /** A swipe archived or deleted [id]. */
         fun act(
             id: UUID,
             action: MailListAction,
+        ) = perform(listOf(id), action)
+
+        /** A long press: starts the multi-selection with [id], or adds or removes [id] while selecting. */
+        fun toggleSelection(id: UUID) {
+            if (state.value.messages.none { it.id == id }) return
+            state.update { s -> s.copy(selected = if (id in s.selected) s.selected - id else s.selected + id) }
+        }
+
+        /** Ends the multi-selection. */
+        fun clearSelection() = state.update { it.copy(selected = emptySet()) }
+
+        /** Applies [action] (not MOVE, see [moveSelection]) to the selected mails; the selection ends. */
+        fun actOnSelection(action: MailListAction) {
+            if (action == MailListAction.MOVE) return
+            perform(state.value.selection.map { it.id }, action)
+        }
+
+        /** Moves the selected mails to [folder] (one of [MailListUiState.moveTargets]); the selection ends. */
+        fun moveSelection(folder: MailFolder) {
+            if (state.value.moveTargets.none { it.id == folder.id }) return
+            perform(state.value.selection.map { it.id }, MailListAction.MOVE, folder.id)
+        }
+
+        /** The undo was not taken: forgets it. */
+        fun dismissUndo(undo: MailUndo) = state.update { if (it.undo == undo) it.copy(undo = null) else it }
+
+        /** Undoes [undo] (when it is still the one offered). */
+        fun undo(undo: MailUndo) {
+            if (state.value.undo != undo) return
+            state.update { it.copy(undo = null) }
+            val inverse = undo.action.inverse
+            if (inverse != null) {
+                perform(undo.mails.map { it.id }, inverse, offerUndo = false, failure = MailListMessage.UNDO_FAILED)
+            } else {
+                moveBack(undo)
+            }
+        }
+
+        /**
+         * Applies [action] to [ids] at once in the list: a removing action takes the mails out, a marking action changes
+         * them. Mails the server could not do it for come back as they were, with a message. Afterwards the action is
+         * offered to undo when [offerUndo] and it can be undone (see [undoFor]).
+         */
+        private fun perform(
+            ids: List<UUID>,
+            action: MailListAction,
+            target: UUID? = null,
+            offerUndo: Boolean = true,
+            failure: MailListMessage = failureOf(action),
         ) {
-            val index = state.value.messages.indexOfFirst { it.id == id }
-            if (index < 0) return
-            if (action == MailListAction.ARCHIVE && !state.value.canArchive) return
-            val mail = state.value.messages[index]
-            val mailbox = state.value.mailbox
-            state.update { s -> s.copy(messages = s.messages.filterNot { it.id == id }) }
+            val before = state.value
+            val wanted = ids.toSet()
+            val mails = before.messages.filter { it.id in wanted }
+            if (mails.isEmpty()) return
+            if (action == MailListAction.ARCHIVE && !before.canArchive) return
+            val positions =
+                before.messages
+                    .withIndex()
+                    .filter { it.value.id in wanted }
+                    .associate { it.value.id to it.index }
+            val mailbox = before.mailbox
+            val acted = mails.mapTo(HashSet()) { it.id }
+            state.update { s -> s.copy(messages = s.messages.changed(acted, action), selected = s.selected - acted, undo = null) }
             viewModelScope.launch {
-                val done = (repository.act(id, action) as? MailResult.Ok)?.value == true
-                if (done) {
-                    // A reload that overtook the call may have brought the mail back.
-                    state.update { s -> s.copy(messages = s.messages.filterNot { it.id == id }) }
-                } else {
-                    state.update { s ->
-                        val messages =
-                            // Another mailbox shown meanwhile never gets the mail; a reload of this one may have it already.
-                            if (s.mailbox != mailbox || s.messages.any { it.id == id }) {
-                                s.messages
-                            } else {
-                                s.messages.toMutableList().apply {
-                                    add(
-                                        minOf(index, size),
-                                        mail,
-                                    )
-                                }
-                            }
-                        s.copy(
-                            messages = messages,
-                            message =
-                                if (action ==
-                                    MailListAction.ARCHIVE
-                                ) {
-                                    MailListMessage.ARCHIVE_FAILED
-                                } else {
-                                    MailListMessage.DELETE_FAILED
-                                },
-                        )
-                    }
+                val done = (repository.actAll(mails.map { it.id }, action, target) as? MailResult.Ok)?.value.orEmpty()
+                val failed = mails.filterNot { it.id in done }
+                val undo = undoFor(action, mails.filter { it.id in done }, mailbox, positions)?.takeIf { offerUndo && failed.isEmpty() }
+                state.update { s ->
+                    // A reload that overtook the call may have brought the old state back.
+                    var messages = s.messages.changed(done, action)
+                    // Another mailbox shown meanwhile never gets the mails back.
+                    if (failed.isNotEmpty() && s.mailbox == mailbox) messages = messages.restored(failed, positions, action)
+                    s.copy(
+                        messages = messages,
+                        message = if (failed.isEmpty()) s.message else failure,
+                        undo = undo?.copy(id = ++undoCount) ?: s.undo,
+                    )
                 }
+            }
+        }
+
+        /**
+         * The undo of [action] on [mails]: its inverse for a marking action; for a move, moving each mail back to its
+         * folder, unless one is in no known folder or was deleted for good (deleted in Trash).
+         */
+        private fun undoFor(
+            action: MailListAction,
+            mails: List<MailSummary>,
+            mailbox: Mailbox,
+            positions: Map<UUID, Int>,
+        ): MailUndo? {
+            if (mails.isEmpty()) return null
+            if (action.removes) {
+                val folders =
+                    state.value.accounts
+                        .flatMap { it.folders }
+                        .associateBy { it.id }
+                val lost =
+                    mails.any { m ->
+                        val folder = m.folderId?.let(folders::get)
+                        folder == null || (action == MailListAction.DELETE && folder.role == FolderRole.TRASH)
+                    }
+                if (lost) return null
+            }
+            return MailUndo(action, mails, mailbox, positions)
+        }
+
+        /** Moves the mails of [undo] back to their folders: they return to the list at once, and leave it again if that fails. */
+        private fun moveBack(undo: MailUndo) {
+            val ids = undo.mails.mapTo(HashSet()) { it.id }
+            state.update { s ->
+                if (s.mailbox == undo.mailbox) s.copy(messages = s.messages.restored(undo.mails, undo.positions, undo.action)) else s
+            }
+            viewModelScope.launch {
+                val done = HashSet<UUID>()
+                undo.mails.groupBy { checkNotNull(it.folderId) }.forEach { (folderId, group) ->
+                    (repository.actAll(group.map { it.id }, MailListAction.MOVE, folderId) as? MailResult.Ok)?.value?.let(done::addAll)
+                }
+                val failed = ids - done
+                if (failed.isNotEmpty()) {
+                    state.update { s -> s.copy(messages = s.messages.filterNot { it.id in failed }, message = MailListMessage.UNDO_FAILED) }
+                }
+                // The server may have given the returned mails new ids: the list shows its current state.
+                if (done.isNotEmpty()) refresh()
+            }
+        }
+
+        /** The read view marked [id] (read, unread, flagged or not); the list shows it at once. */
+        fun marked(
+            id: UUID,
+            action: MailListAction,
+        ) {
+            if (action.removes) return
+            state.update { s ->
+                s.copy(
+                    messages = s.messages.map { if (it.id == id) action.applyTo(it) else it },
+                    search = s.search?.let { q -> q.copy(results = q.results.map { if (it.id == id) action.applyTo(it) else it }) },
+                )
             }
         }
 
@@ -219,7 +367,7 @@ class MailListViewModel
 
         /** Opens the search box for the mailbox shown; an open search stays as it is. */
         fun openSearch() {
-            if (state.value.search == null) state.update { it.copy(search = MailSearchState(it.mailbox)) }
+            if (state.value.search == null) state.update { it.copy(search = MailSearchState(it.mailbox), selected = emptySet()) }
         }
 
         /** Searches the cached mail for [query] (trimmed, at most [MAX_QUERY] characters); a blank query does nothing. */
@@ -416,6 +564,7 @@ class MailListViewModel
                                 val (messages, cursor) = mergeFirstPage(current, mailbox, result.value)
                                 withAccounts.copy(
                                     messages = messages,
+                                    selected = current.selected.filterTo(HashSet()) { id -> messages.any { it.id == id } },
                                     nextCursor = cursor,
                                     loading = false,
                                     loaded = true,
@@ -448,6 +597,43 @@ class MailListViewModel
             return if (older.isEmpty()) page.items to page.nextCursor else (page.items + older) to current.nextCursor
         }
     }
+
+/** The message shown when the server could not do [action]. */
+private fun failureOf(action: MailListAction): MailListMessage =
+    when (action) {
+        MailListAction.ARCHIVE -> MailListMessage.ARCHIVE_FAILED
+        MailListAction.DELETE -> MailListMessage.DELETE_FAILED
+        MailListAction.SPAM -> MailListMessage.SPAM_FAILED
+        MailListAction.MOVE -> MailListMessage.MOVE_FAILED
+        MailListAction.READ, MailListAction.UNREAD, MailListAction.FLAG, MailListAction.UNFLAG -> MailListMessage.MARK_FAILED
+    }
+
+/** The list after [action] on [ids]: without them for a removing action, else with them changed. */
+private fun List<MailSummary>.changed(
+    ids: Set<UUID>,
+    action: MailListAction,
+): List<MailSummary> = if (action.removes) filterNot { it.id in ids } else map { if (it.id in ids) action.applyTo(it) else it }
+
+/**
+ * The list with [mails] back as they were: a removed mail returns to its place in [positions] (unless a reload brought
+ * it back already), a marked one gets its old state again.
+ */
+private fun List<MailSummary>.restored(
+    mails: List<MailSummary>,
+    positions: Map<UUID, Int>,
+    action: MailListAction,
+): List<MailSummary> {
+    if (!action.removes) {
+        val old = mails.associateBy { it.id }
+        return map { old[it.id] ?: it }
+    }
+    val result = toMutableList()
+    mails
+        .filter { m -> result.none { it.id == m.id } }
+        .sortedBy { positions[it.id] ?: Int.MAX_VALUE }
+        .forEach { m -> result.add(minOf(positions[m.id] ?: result.size, result.size), m) }
+    return result
+}
 
 /** The longest query the server takes. */
 internal const val MAX_QUERY = 200

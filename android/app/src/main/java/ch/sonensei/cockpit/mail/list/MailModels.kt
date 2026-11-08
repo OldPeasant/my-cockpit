@@ -83,6 +83,8 @@ data class MailSummary(
     val seen: Boolean,
     val flagged: Boolean,
     val hasAttachments: Boolean,
+    /** The folder the mail is in; undoing a move puts it back there. */
+    val folderId: UUID? = null,
 )
 
 /** One page of a folder, newest first; [nextCursor] is `null` on the last page. */
@@ -101,13 +103,46 @@ data class MailSearchResult(
     val failedAccounts: List<UUID> = emptyList(),
 )
 
-/** The swipe actions of the list (SPEC.md §7.3). */
+/**
+ * The actions on mail (SPEC.md §7.3): the swipes archive and delete, and in the read view and on a multi-selection
+ * also spam, read/unread, flag/unflag and move (to a folder of the mail's account).
+ */
 enum class MailListAction(
     internal val wire: String,
 ) {
     ARCHIVE("ARCHIVE"),
     DELETE("DELETE"),
     SPAM("SPAM"),
+    READ("READ"),
+    UNREAD("UNREAD"),
+    FLAG("FLAG"),
+    UNFLAG("UNFLAG"),
+    MOVE("MOVE"),
+    ;
+
+    /** The mail leaves the folder it is in. */
+    val removes: Boolean get() = this == ARCHIVE || this == DELETE || this == SPAM || this == MOVE
+
+    /** The action that undoes a marking action; `null` for the actions that move the mail. */
+    val inverse: MailListAction?
+        get() =
+            when (this) {
+                READ -> UNREAD
+                UNREAD -> READ
+                FLAG -> UNFLAG
+                UNFLAG -> FLAG
+                else -> null
+            }
+
+    /** [mail] as it looks after a marking action (unchanged for the others). */
+    fun applyTo(mail: MailSummary): MailSummary =
+        when (this) {
+            READ -> mail.copy(seen = true)
+            UNREAD -> mail.copy(seen = false)
+            FLAG -> mail.copy(flagged = true)
+            UNFLAG -> mail.copy(flagged = false)
+            else -> mail
+        }
 }
 
 internal fun MailAccountDto.toAccount() =
@@ -159,6 +194,7 @@ internal fun MailSummaryDto.toSummary() =
         seen = seen,
         flagged = flagged,
         hasAttachments = hasAttachments,
+        folderId = folderId?.let { runCatching { UUID.fromString(it) }.getOrNull() },
     )
 
 /** "Name" when the address has one, else the address itself. */

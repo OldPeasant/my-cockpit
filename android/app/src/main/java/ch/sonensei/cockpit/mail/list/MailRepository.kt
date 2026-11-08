@@ -102,6 +102,26 @@ class MailRepository
         /** Marks [id] read; failures are ignored by callers, the list shows the mail server's state on the next load. */
         suspend fun markRead(id: UUID): MailResult<Boolean> = act(id, "READ")
 
+        /**
+         * Applies [action] to [ids] (moving them to [target] for MOVE), at most [MAX_ACTION_IDS] per request. Each mail
+         * succeeds or fails on its own: the result holds the ids the server did it for. A request that fails as a whole
+         * fails the call, also when an earlier batch went through (the list then reloads anyway).
+         */
+        suspend fun actAll(
+            ids: List<UUID>,
+            action: MailListAction,
+            target: UUID? = null,
+        ): MailResult<Set<UUID>> =
+            mailCall {
+                val done = HashSet<UUID>()
+                ids.distinct().chunked(MAX_ACTION_IDS).forEach { batch ->
+                    val request = MailActionRequestDto(action.wire, batch.map { it.toString() }, target?.toString())
+                    val ok = mailBody(api.act(request)).results.filter { it.ok }.mapTo(HashSet()) { it.id }
+                    batch.filterTo(done) { it.toString() in ok }
+                }
+                done
+            }
+
         private suspend fun act(
             id: UUID,
             action: String,
@@ -141,6 +161,9 @@ class MailRepository
 
         internal companion object {
             const val PAGE_SIZE = 50
+
+            /** The most ids the server takes in one action request. */
+            const val MAX_ACTION_IDS = 1000
         }
     }
 

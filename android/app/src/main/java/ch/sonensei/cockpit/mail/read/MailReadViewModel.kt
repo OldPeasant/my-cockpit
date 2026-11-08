@@ -10,6 +10,7 @@ import ch.sonensei.cockpit.mail.list.MailListAction
 import ch.sonensei.cockpit.mail.list.MailRepository
 import ch.sonensei.cockpit.mail.list.MailResult
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -52,8 +53,18 @@ data class MailReadUiState(
     /** An action is running: the buttons wait for it. */
     val busy: Boolean = false,
     val notice: MailReadNotice? = null,
-    /** The message was archived, deleted or moved to spam: the view closes. */
+    /** The message was archived, deleted, moved or moved to spam: the view closes. */
     val removed: Boolean = false,
+    /** The message was marked unread: the view returns to the list. */
+    val unread: Boolean = false,
+    /** The last flag change the server took, for the list to show; [MailMark.seq] tells two equal ones apart. */
+    val mark: MailMark? = null,
+)
+
+/** [action] (FLAG or UNFLAG) was done on the open mail. */
+data class MailMark(
+    val action: MailListAction,
+    val seq: Int,
 )
 
 /**
@@ -79,6 +90,9 @@ class MailReadViewModel
         /** Counts the openings: answers for an earlier one are dropped. */
         private var session = 0
 
+        /** Marks the open mail read on the server (opening it does that). */
+        private var markReadJob: Job? = null
+
         /**
          * Shows [messageId], loaded once while it stays open (again with [retry]); a mail shown before is dropped. One
          * view model serves every mail of the list, so a closed mail does not stay in memory.
@@ -95,6 +109,7 @@ class MailReadViewModel
         private fun reset(messageId: UUID?) {
             id = messageId
             session++
+            markReadJob = null
             state.value = MailReadUiState()
         }
 
@@ -126,17 +141,36 @@ class MailReadViewModel
                 }
             }
 
-        fun act(action: MailListAction) =
+        /**
+         * Archive, delete, spam and move ([target] for MOVE) close the view; mark unread returns to the list; flag and
+         * unflag show at once and are taken back if the server refuses. A failure shows as a notice. Marking read is
+         * not offered here: opening the mail does it.
+         */
+        fun act(
+            action: MailListAction,
+            target: UUID? = null,
+        ) {
+            if (action == MailListAction.READ || (action == MailListAction.MOVE && target == null)) return
+            val flagging = action == MailListAction.FLAG || action == MailListAction.UNFLAG
             run { messageId, opened ->
-                val outcome = (reader.act(messageId, action) as? MailResult.Ok)?.value
+                if (flagging) updateFor(opened) { it.copy(message = it.message?.copy(flagged = action == MailListAction.FLAG)) }
+                // Opening marked the mail read: "unread" must reach the server after that.
+                if (action == MailListAction.UNREAD) markReadJob?.join()
+                val outcome = (reader.act(messageId, action, target) as? MailResult.Ok)?.value
                 updateFor(opened) {
-                    if (outcome?.ok == true) {
-                        it.copy(removed = true)
-                    } else {
-                        it.copy(notice = MailReadNotice.ActionFailed(action, outcome?.errorCode))
+                    when {
+                        outcome?.ok != true ->
+                            it.copy(
+                                message = if (flagging) it.message?.copy(flagged = action != MailListAction.FLAG) else it.message,
+                                notice = MailReadNotice.ActionFailed(action, outcome?.errorCode),
+                            )
+                        action.removes -> it.copy(removed = true)
+                        action == MailListAction.UNREAD -> it.copy(unread = true)
+                        else -> it.copy(mark = MailMark(action, (it.mark?.seq ?: 0) + 1))
                     }
                 }
             }
+        }
 
         /** "Load images": shows the mail again with its remote images through the server's proxy. */
         fun loadImages() = run { messageId, opened -> showWithImages(messageId, opened) }
@@ -196,7 +230,9 @@ class MailReadViewModel
                         updateFor(opened) { it.copy(message = result.value, loading = false) }
                         // Read state is the mail server's: a failure shows on the next load. Only a mail still open
                         // (so shown) counts as read.
-                        if (opened == session && !result.value.seen) mail.markRead(result.value.id)
+                        if (opened == session && !result.value.seen) {
+                            markReadJob = launch { mail.markRead(result.value.id) }
+                        }
                     }
                     MailResult.Offline -> updateFor(opened) { it.copy(loading = false, error = MailReadError.OFFLINE) }
                     is MailResult.Failed ->

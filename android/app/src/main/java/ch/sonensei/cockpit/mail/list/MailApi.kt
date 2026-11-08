@@ -179,6 +179,8 @@ data class MailServerSearchFailureDto(
 data class MailActionRequestDto(
     val action: String,
     val ids: List<String>,
+    /** Only for MOVE: a folder of the messages' account. */
+    val targetFolderId: String? = null,
 )
 
 @Serializable
@@ -222,6 +224,7 @@ data class MailMessageDto(
     val sentAt: String? = null,
     val receivedAt: String? = null,
     val seen: Boolean = false,
+    val flagged: Boolean = false,
     val body: MailBodyDto? = null,
     val attachments: List<MailAttachmentDto> = emptyList(),
 )

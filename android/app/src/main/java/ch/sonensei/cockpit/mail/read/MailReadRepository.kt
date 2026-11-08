@@ -42,6 +42,10 @@ data class MailMessage(
     val attachments: List<MailAttachment>,
     /** The address of the (first) sender, for the per-sender image allowlist; `null` when it has none. */
     val fromAddress: String? = null,
+    val flagged: Boolean = false,
+    /** The account and folder the mail is in: "Move to folder" offers the account's other folders. */
+    val accountId: UUID? = null,
+    val folderId: UUID? = null,
 )
 
 /** How the server answered an action on one mail: [ok], or refused with its [errorCode] (e.g. `NO_ROLE_FOLDER`). */
@@ -80,14 +84,19 @@ class MailReadRepository
                 item.title.orEmpty()
             }
 
-        /** Archives, deletes or moves [id] to spam; a refusal keeps the server's error code, so the view can show it. */
+        /**
+         * Applies [action] to [id] (moving it to [target] for MOVE); a refusal keeps the server's error code, so the view
+         * can show it.
+         */
         suspend fun act(
             id: UUID,
             action: MailListAction,
+            target: UUID? = null,
         ): MailResult<MailActionOutcome> =
             mailCall {
+                val request = MailActionRequestDto(action.wire, listOf(id.toString()), target?.toString())
                 val result =
-                    mailBody(api.act(MailActionRequestDto(action.wire, listOf(id.toString())))).results.firstOrNull {
+                    mailBody(api.act(request)).results.firstOrNull {
                         it.id ==
                             id.toString()
                     }
@@ -112,6 +121,9 @@ private fun MailMessageDto.toMessage() =
                 .filterNot { it.inline }
                 .map { MailAttachment(it.partId, it.filename?.takeIf { n -> n.isNotBlank() } ?: it.partId, it.sizeBytes) },
         fromAddress = from.firstNotNullOfOrNull { it.address?.trim()?.takeIf { address -> address.isNotEmpty() } },
+        flagged = flagged,
+        accountId = accountId?.let { runCatching { UUID.fromString(it) }.getOrNull() },
+        folderId = folderId?.let { runCatching { UUID.fromString(it) }.getOrNull() },
     )
 
 /** "Name <address>", or whichever of the two there is. */

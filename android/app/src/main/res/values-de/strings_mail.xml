@@ -60,4 +60,53 @@
     <string name="mail_search_has_more">Nur die neuesten Ergebnisse werden angezeigt. Verfeinere die Suche, um ältere zu finden.</string>
     <string name="mail_search_server_failed">Der Server von %1$s konnte nicht durchsucht werden; dafür werden nur zwischengespeicherte E-Mails angezeigt.</string>
     <string name="mail_search_unknown_account">einem Konto</string>
+    <string name="mail_mark_read">Als gelesen markieren</string>
+    <string name="mail_mark_unread">Als ungelesen markieren</string>
+    <string name="mail_flag">Markieren</string>
+    <string name="mail_unflag">Markierung entfernen</string>
+    <string name="mail_move">In Ordner verschieben</string>
+    <string name="mail_more_actions">Weitere Aktionen</string>
+    <string name="mail_move_failed">Die E-Mail konnte nicht verschoben werden.</string>
+    <string name="mail_mark_failed">Die E-Mail konnte nicht geändert werden.</string>
+    <string name="mail_undo">Rückgängig</string>
+    <string name="mail_undo_failed">Die Aktion konnte nicht rückgängig gemacht werden.</string>
+    <string name="mail_selection_close">Auswahl beenden</string>
+    <string name="mail_selected">Ausgewählt</string>
+    <string name="mail_select">Auswählen</string>
+    <plurals name="mail_selection_count">
+        <item quantity="one">%1$d ausgewählt</item>
+        <item quantity="other">%1$d ausgewählt</item>
+    </plurals>
+    <plurals name="mail_done_archive">
+        <item quantity="one">%1$d E-Mail archiviert</item>
+        <item quantity="other">%1$d E-Mails archiviert</item>
+    </plurals>
+    <plurals name="mail_done_delete">
+        <item quantity="one">%1$d E-Mail gelöscht</item>
+        <item quantity="other">%1$d E-Mails gelöscht</item>
+    </plurals>
+    <plurals name="mail_done_spam">
+        <item quantity="one">%1$d E-Mail in den Spam verschoben</item>
+        <item quantity="other">%1$d E-Mails in den Spam verschoben</item>
+    </plurals>
+    <plurals name="mail_done_move">
+        <item quantity="one">%1$d E-Mail verschoben</item>
+        <item quantity="other">%1$d E-Mails verschoben</item>
+    </plurals>
+    <plurals name="mail_done_read">
+        <item quantity="one">%1$d E-Mail als gelesen markiert</item>
+        <item quantity="other">%1$d E-Mails als gelesen markiert</item>
+    </plurals>
+    <plurals name="mail_done_unread">
+        <item quantity="one">%1$d E-Mail als ungelesen markiert</item>
+        <item quantity="other">%1$d E-Mails als ungelesen markiert</item>
+    </plurals>
+    <plurals name="mail_done_flag">
+        <item quantity="one">%1$d E-Mail markiert</item>
+        <item quantity="other">%1$d E-Mails markiert</item>
+    </plurals>
+    <plurals name="mail_done_unflag">
+        <item quantity="one">Markierung von %1$d E-Mail entfernt</item>
+        <item quantity="other">Markierung von %1$d E-Mails entfernt</item>
+    </plurals>
 </resources>
