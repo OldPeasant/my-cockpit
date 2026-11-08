@@ -12,7 +12,8 @@ In the web read view mark unread, flag and move are missing (only reachable from
 shortcuts `r`, `a`, `f`, `c` (SPEC.md §7.3) are not implemented.
 
 ## Acceptance criteria
-- [ ] Read view: mark unread (returns to origin), flag/unflag, move to folder
+- [x] Read view: mark unread (returns to origin), flag/unflag, move to folder
+  - verified (2026-11-08 14:49+0100 by dell26/agent-1): cd web && npx ng test --include read/mail-read-page.spec.ts (Mark unread: waits for read-on-open, UNREAD then back('/mail',replaceUrl); Star/Unstar FLAG/UNFLAG with aria-pressed; Move: folder picker without current/non-selectable folders, MOVE with targetFolderId then next message or back; failures toasted) -> part of 436 focused tests passed at bfe1687b4
 - [ ] Shortcuts: `r` reply, `a` reply all, `f` forward in the read view; `c` compose everywhere in mail; listed in the shortcut help
 - [ ] New UI strings are in `web/src/locale` (English + German)
 - [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
