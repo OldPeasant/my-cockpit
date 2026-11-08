@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "and-scheduled-list",
+  "reviewed_revision": "161f8080365a52dfa3733708d356b8e43eb5d10e",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-scheduled-list/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-scheduled-list/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-scheduled-list/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "ScheduledViewModel had no test; test-writer added ScheduledViewModelTest (9 tests), fixer verified it covers the finding"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "ListSection made generic over its key type, cast in ScheduledScreen removed"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck lintDebug testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.lists.*' --tests 'ch.sonensei.cockpit.ui.navigation.*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
