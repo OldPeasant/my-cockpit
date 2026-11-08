@@ -113,6 +113,23 @@ class ReviewWizardEdgeCasesTest {
     }
 
     @Test
+    fun `a failed past calendar retries the past step, not the upcoming one`() {
+        val loads = mutableListOf<ReviewStep>()
+        composeRule.setContent {
+            CockpitTheme {
+                ReviewContent(
+                    wizard(ReviewStep.PAST_CALENDAR, ReviewUiState(pastEvents = StepData(failed = true))),
+                    callbacks.copy(loadStep = { loads += it }),
+                )
+            }
+        }
+        composeRule.onNodeWithTag(ReviewTags.STEP_FAILED).assertExists()
+        composeRule.onNodeWithTag(ReviewTags.STEP_RETRY).performClick()
+        // The first load is the step being shown, the second the retry.
+        assertEquals(listOf(ReviewStep.PAST_CALENDAR, ReviewStep.PAST_CALENDAR), loads)
+    }
+
+    @Test
     fun `a calendar still loading shows neither empty nor failed`() {
         show(wizard(ReviewStep.PAST_CALENDAR, ReviewUiState(pastEvents = StepData(loading = true))))
         composeRule.onNodeWithTag(ReviewTags.EVENTS_EMPTY).assertDoesNotExist()

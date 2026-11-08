@@ -106,6 +106,26 @@ class ReviewViewModelRaceTest {
         }
 
     @Test
+    fun `an overview load answering after a new review was started keeps the wizard open`() =
+        runTest(dispatcher) {
+            coEvery { repo.overview() } returns ReviewResult.Ok(overview(null))
+            val vm = ReviewViewModel(repo, captures, habits, reflections)
+            vm.refresh()
+            advanceUntilIdle()
+            val stale = CompletableDeferred<ReviewResult<ReviewOverview>>()
+            coEvery { repo.overview() } coAnswers { stale.await() }
+            vm.refresh()
+            advanceUntilIdle()
+            coEvery { repo.start() } returns ReviewResult.Ok(open(ReviewStep.GET_CLEAR, 0))
+            vm.start()
+            advanceUntilIdle()
+            // The load read the server before the start: no review open yet.
+            stale.complete(ReviewResult.Ok(overview(null)))
+            advanceUntilIdle()
+            assertEquals(open(ReviewStep.GET_CLEAR, 0), vm.uiState.value.wizardReview)
+        }
+
+    @Test
     fun `a load started after the move applies the server's newer state`() =
         runTest(dispatcher) {
             val vm = inWizard(open(ReviewStep.GET_CLEAR, 1))
