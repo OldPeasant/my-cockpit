@@ -5,7 +5,7 @@ owner: rudi/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/journal,android/app/src/test/java/ch/sonensei/cockpit/journal,android/app/src/main/res/values/strings_journal.xml,android/app/src/main/res/values-de/strings_journal.xml]
 prio: 2
-lease_until: 2026-11-08T20:25:33Z
+lease_until: 2026-11-08T20:30:35Z
 extended: rudi/agent-1
 ---
 ## Goal
