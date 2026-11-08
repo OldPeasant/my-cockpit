@@ -21,3 +21,4 @@ and "on this day" (`journal-page.html`).
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 20:07+0100 by rudi/agent-1): Opening another day first saves the shown one and stays on it (DAY_NOT_SAVED message) if that save fails or a conflict waits; web asks in a leave dialog instead. Navigation is ignored while a photo uploads.
