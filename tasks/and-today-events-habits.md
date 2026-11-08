@@ -20,3 +20,4 @@ Web Today shows today's calendar events and due habits with one-tap check (`toda
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 22:41+0100 by dell26/agent-1): Today: events above the task sections, habits below (as on web today-view); events/habits load when Today opens and again whenever the event editor closes, a failed load keeps what was shown (no own error banner); only habits with dueToday are listed, done ones stay with an undo tap
