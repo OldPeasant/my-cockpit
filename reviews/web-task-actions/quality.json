@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "task": "web-task-actions",
+  "reviewed_revision": "c2b8a9e48200711afcd1da8e8b368740e72c4023",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-task-actions/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-task-actions/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-task-actions/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "first review: every checklist step struck through; strike-through restored to done steps only (fixes.md round 1)"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "first review: missing unit tests; test-writer added 77 tests, second review confirmed coverage"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: edits typed during Complete/Reopen discarded; draft replaced only when unchanged (fixes.md round 1)"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "duplicated Markdown styles and renderMarkdown import from gtd/projects; follow-up task web-gtd-shared-markdown"},
+    {"id": "R1-CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: DELETED event guard ended too early; deletedId marker (fixes.md round 1)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "no Undo after switching task; fixed in 6e9442aa8 (fixes.md round 1)"},
+    {"id": "TW-2", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "Choose next step prompt closed by title instead of id; fixed in 6e9442aa8 (fixes.md round 1)"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "second review: Complete went on after a 412 on the save before it; save() returns boolean (fixes.md round 2)"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "second review: Complete could act on another task after a switch during the save; task id checked (fixes.md round 2)"},
+    {"id": "R2-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "same as R1-CR-4; follow-up task web-gtd-shared-markdown"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "third review, same as R1-CR-4; follow-up task web-gtd-shared-markdown"}
+  ],
+  "validation": [
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
