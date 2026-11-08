@@ -4,32 +4,40 @@ Date: 2026-11-08
 
 Task: and-mail-note-links - Android mail: create note and linked items
 
-Scope: committed diff `49b1d117a..2fac1622b` (task commit only; uncommitted working-tree files such as test-writer output were not reviewed)
+Scope: committed diff `49b1d117a..f2c4f9e82`, task commits only (423c4110d, 2f887b549, 3e75cb196, d6d6e39e5, ed6e3a240, f2c4f9e82). Board-only commits by other agents in the range (tasks/and-journal-full.md, tasks/and-mail-chip-a11y.md) are outside the task and were not reviewed. Re-review of the final revision after the fixes for CR-1 and CR-2 of the first review.
 
 Requirements:
-- tasks/and-mail-note-links.md (acceptance criteria and the two recorded assumptions)
-- AGENTS.md project notes (conventions, strings EN/DE, tests)
-- Web reference: web/src/app/features/mail/read/mail-read-page.ts gtd() (notice, then links reload) and the server endpoint `POST /api/v1/mail/messages/{id}/to-note` (MailGtdController, api/openapi.yaml)
-- Existing Android patterns: ContactsScreen.kt ContactDetailRoute, TaskDetailScreen.kt, core/links/LinkedItemsPanel.kt, search/SearchItemScreen.kt
+- tasks/and-mail-note-links.md (acceptance criteria and the three recorded assumptions, including the superseding one: "Create note" is the first item of the More menu)
+- AGENTS.md project notes (conventions, strings EN/DE, tests, lint)
+- Web reference: `POST /api/v1/mail/messages/{id}/to-note` (same endpoint as web), web read view notice then links reload
+- Existing Android patterns: ContactsScreen.kt ContactDetailRoute, core/links/LinkedItemsPanel.kt, search/SearchItemScreen.kt
+- Build/test result supplied by the parent: at f2c4f9e82, `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` -> BUILD SUCCESSFUL, all tests pass (this reviewer cannot run Gradle; static review)
 
 Git range:
 - Branch: main
-- HEAD: 2fac1622b0e1740ef4abe61610219c9dbf207c69
+- HEAD: f2c4f9e82
 - Base/start: 49b1d117ae2928436695d299aa85451676ed42f4
-- Commits reviewed: 1
+- Commits reviewed: 6 task commits (17 commits in the range, 11 are board commits of other tasks)
 
-Summary: 0 P0, 1 P1, 1 P2, 0 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-Static review only (Gradle cannot run in this sub-agent); the parent runs the build and test suites.
+## Status of earlier findings
 
-Verified as correct:
-- `MailApi.toNote` posts to `api/v1/mail/messages/{id}/to-note`, the same server endpoint the web uses, returning `MailGtdItemDto`; no test fake implements `MailApi`, so the interface addition does not break test compilation.
-- `MailReadRepository.gtd(NOTE)` routes to `toNote`; the exhaustive `when` blocks in `Notice` cover NOTE for created and failed texts.
-- The three new strings exist in `values/strings_mail.xml` and `values-de/strings_mail.xml` with matching placeholders.
-- The links panel uses `ItemRef("EMAIL", message.id)`, the same type the search and `SearchItemScreen` use for mails; the Hilt guard (`GeneratedComponentManagerHolder`) and the keyed `hiltViewModel(linksViewModelKey(...))` follow ContactDetailRoute.
-- After a successful GTD action the panel reloads (`LaunchedEffect(state.notice)`), matching the web's `links()?.reload()` after gtd(); `run()` clears the notice before each action, so two equal `Created` notices in a row still re-trigger the effect.
-- Opening a linked item in place (saveable `type:id`, BackHandler, SearchItemScreen) mirrors ContactDetailRoute. A linked EMAIL reuses the same `MailReadViewModel` instance (same ViewModelStore owner); its close resets the view model and the outer route's `LaunchedEffect(viewModel, id)` reloads the original mail on return, so state is consistent. Re-firing `onMarked` on return is idempotent (`MailListViewModel.marked`).
-- `SearchTarget.Screen` being ignored is a recorded assumption consistent with Contacts; not reported.
+- **CR-1 (P1, missing screen/VM tests): resolved.** New tests cover the behavior the first review listed:
+  - `MailReadNoteLinksTest`: Create note in the menu calls `gtd(NOTE)` and closes the menu; English label; not in the toolbar and placed above "Mark unread" in the menu; unreachable while busy, without a mail and after a failed load (More disabled); NOTE created and failed notice texts; `linksPanel` slot rendered under `MailReadTags.LINKS` below the body, also for text-only mails and while busy; no panel without a mail or after OFFLINE/FAILED/GONE; route-level create note success and failure through the real `MailReadViewModel` with a mocked repository; route renders the links area.
+  - `MailReadNoteGermanTest`: German menu label and both German notices.
+  - `MailReadNoteViewModelTest`: success notice with title and busy toggling, failure for `Failed(500)`, `Failed(null)` and `Offline`, double tap creates one note, no call before a mail is shown, a late answer for a closed mail is not shown on the next one.
+  - `MailReadRepositoryTest`: NOTE posts to `to-note`.
+  - Remaining gap (Hilt-only route wiring) is reported as CR-1 below at P3; it is acknowledged in tests.md and fixes.md.
+- **CR-2 (P2, 7-icon toolbar clips at 320dp): resolved.** `MailReadScreen.kt:319-336` now holds back, To task, To Waiting, Archive, Delete and More (6 buttons, 6 x 48dp + 8dp padding = 296dp, the same width as before the task), and "Create note" is the first `MenuItem` of `MoreMenu` (`MailReadScreen.kt:360-362`) with tag `MailReadTags.gtd(NOTE)` and the existing `pick` close-then-act pattern. The test `on a 320dp wide window the menu button is shown at full size` (`@Config(qualifiers = "w320dp-h470dp")`) asserts every toolbar button is displayed, at least 40dp wide and inside the root bounds, which would have failed with the squeezed More button. The placement differs from the web (next to the GTD buttons); this is recorded as an assumption in the task file, so it is not reported.
+
+Verified as correct in the final code:
+- `MailApi.toNote` posts to `api/v1/mail/messages/{id}/to-note` returning `MailGtdItemDto`; `MailReadRepository.gtd(NOTE)` routes to it; the exhaustive `when` blocks in `Notice` cover NOTE.
+- `MenuItem` now takes a `tag: String`; every existing call site was converted to `MailReadTags.action(...)`, so the existing menu tags (unread, flag, unflag, move, spam) are unchanged.
+- The menu stays gated: `DropdownMenu(expanded = open && enabled)` with `enabled = state.message != null && !state.busy`, so Create note cannot run without a mail or during another action, matching the toolbar actions.
+- The three new strings exist in `values/strings_mail.xml` and `values-de/strings_mail.xml` with matching `%1$s` placeholders.
+- Links panel: `ItemRef("EMAIL", message.id)`, Hilt guard via `GeneratedComponentManagerHolder`, keyed `hiltViewModel(linksViewModelKey(...))`, reload on `MailReadNotice.Created`, in-place linked item with `rememberSaveable(id)` plus `BackHandler`, all as in ContactDetailRoute; the panel area is capped at 240dp and scrollable below the body (recorded assumption).
+- No secrets, logging, or new dependencies introduced; changes stay inside the task's `touches` apart from the one-line `MailApi.toNote` addition, which is recorded as an assumption.
 
 ## P0 Critical
 
@@ -37,26 +45,21 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | New UI behavior has no Compose/screen tests (criterion 4)**
-    - File: `android/app/src/test/java/ch/sonensei/cockpit/mail/read/MailReadScreenTest.kt:80`
-    - Category: Tests
-    - Problem: The only test added in the commit is the repository test `create note posts to to-note and returns the note's title` (MailReadRepositoryTest.kt). Nothing in the reviewed commit covers: the new "Create note" toolbar button (tag `MailReadTags.gtd(MailGtdAction.NOTE)`) invoking `callbacks.gtd(NOTE)` and being disabled while busy or without a message (the existing `actionTags` list at MailReadScreenTest.kt:80-87 still lists only TASK, WAITING, ARCHIVE, DELETE, MORE); the NOTE created and failed notices in English and German; the `linksPanel` slot being rendered below the body (`MailReadTags.LINKS`); the route-level panel reload after a `Created` notice; and opening a linked in-app item and returning with back.
-    - Why it matters: Criterion 4 requires "Unit/Compose tests cover the new behavior". The screen and route changes (MailReadScreen.kt:113-193, 329-331, 455, 461, 571-580) are the bulk of the task and are currently unverified; a regression (button removed, wrong action, panel slot not rendered, German string missing) would pass the suite.
-    - Suggested fix: Add NOTE to `actionTags` in MailReadScreenTest; add screen tests for the note button click, the NOTE created/failed notice texts (EN plus a German test like MailReadSpamGermanTest), and that `linksPanel` content appears under `MailReadTags.LINKS`; add a view-model test for `gtd(NOTE)` success/failure notices. If test-writer has already added such tests in the working tree, commit them and have the parent confirm they pass.
+None.
 
 ## P2 Medium
 
-- [ ] **CR-2 | Toolbar now needs 344dp and squeezes the overflow menu on 320dp-wide windows**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailReadScreen.kt:318`
-    - Category: Correctness
-    - Problem: The toolbar Row holds back plus six 48dp IconButtons (task, waiting, note, archive, delete, more) with 4dp horizontal padding: 7 x 48dp + 8dp = 344dp. Before this change it was 296dp. In a Row, unweighted children are measured in order against the remaining width, so on a 320dp-wide window (small phones, larger system display size, split-screen; also Robolectric's default `w320dp` configuration used by the screen tests) the last child, the "More" button that holds mark unread, flag, move and spam, gets only about 24dp or less and is clipped.
-    - Why it matters: Four actions become hard or impossible to reach on narrow windows; the regression is caused by adding the 7th icon (the recorded assumption chose the placement but not the layout consequence).
-    - Suggested fix: Keep the toolbar within 320dp, e.g. move "Create note" (or one of the GTD actions) into the overflow menu, or make the action row horizontally scrollable / collapse actions into the menu when width is short. Add a screen test asserting the MORE button is displayed at full size at 320dp.
+None.
 
 ## P3 Low
 
-None.
+- [ ] **CR-1 | Hilt-only route wiring of the links panel has no automated test**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailReadScreen.kt:113-126`
+    - Category: Tests
+    - Problem: `mailLinks()` returns `null` outside a Hilt activity, so the Robolectric route tests never exercise the real `LinkedItemsSection` for the mail, the `links?.reload()` after a `Created` notice (line 126), or the linked-item overlay branch (`SearchItemScreen` plus `BackHandler`, lines 113-120). `the route shows the links area for a loaded mail` only asserts the empty container exists.
+    - Why it matters: A regression in the reload trigger or the open/back handling would not be caught by `testDebugUnitTest`. Impact is limited: the code mirrors the already-used ContactDetailRoute pattern, and `LinkedItemsSection` has its own tests from and-links-panel. The gap is documented in tests.md and fixes.md.
+    - Suggested fix: Optional; accept the documented gap, or cover it later with a Hilt test activity or an instrumented/e2e flow (create a note from a mail, see it in the panel, open it, press back). Note that tests.md still describes "Create note" as a toolbar button (written before the CR-2 fix); the re-run of test-writer on the final code should refresh it.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
