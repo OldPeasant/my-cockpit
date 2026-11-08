@@ -1,11 +1,11 @@
 ---
 title: Android reads and writes the synced user settings
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/core/settings,android/app/src/test/java/ch/sonensei/cockpit/core/settings,android/app/src/main/java/ch/sonensei/cockpit/settings,android/app/src/test/java/ch/sonensei/cockpit/settings,android/app/src/main/java/ch/sonensei/cockpit/ui/theme,android/app/src/test/java/ch/sonensei/cockpit/ui/theme,android/app/src/main/res/values/strings_settings.xml,android/app/src/main/res/values-de/strings_settings.xml]
 prio: 1
-lease_until: 2026-11-08T08:43:44Z
+lease_until: 
 ---
 ## Goal
 Android does not read `/api/v1/settings` at all (week start comes from the device locale, theme from the system,
@@ -37,3 +37,4 @@ Editing GTD contexts/areas, labels or time zone on Android is out of scope (web-
 - ASSUMPTION (2026-11-08 08:45+0100 by dell26/agent-1): Android edits the theme setting (Settings > Appearance radio group, PATCH with If-Match) since PARITY.md keeps only time zone, week start and labels web-only; update() on 409/412/428 reloads and reports Conflict without retrying the write, the user chooses again.
 - ASSUMPTION (2026-11-08 08:45+0100 by dell26/agent-1): Cached settings are dropped on logout (SessionCache), so a different account never sees the previous user's labels/theme.
 - ASSUMPTION (2026-11-08 09:24+0100 by dell26/agent-1): Review CR-3 (possible one-frame system theme at cold start before the cached theme loads asynchronously) is accepted, not fixed: P3, not reproduced; a fix would need a splash/hold-until-cache-read mechanism outside this task's scope
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 68s on 5b992b357; criteria verified 6/6
