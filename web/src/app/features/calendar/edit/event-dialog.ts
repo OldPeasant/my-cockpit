@@ -1,3 +1,4 @@
+import { hasModifierKey } from '@angular/cdk/keycodes';
 import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -368,7 +369,7 @@ export class EventDialog {
     }
     const patch = patchRequest(this.initial!, value, this.attendeesEditable());
     if (Object.keys(patch).length === 0) {
-      this.ref.close(undefined);
+      this.ref.close(this.answered() ? 'saved' : undefined);
       return;
     }
     const occurrence = this.data.occurrence;
@@ -433,7 +434,7 @@ export class EventDialog {
       this.initial = { ...this.initial!, attendees };
       this.attendees.set(attendees);
       this.savedAttendees.set(attendees.map((a) => a.email));
-      this.answered.set(true);
+      this.closeAsSavedOnDismiss();
       this.notifications.info($localize`:@@calendar.respond.sent:Your answer was sent.`);
     } catch (error) {
       if (error instanceof ApiError && error.status === 412) this.conflict.set(true);
@@ -444,9 +445,28 @@ export class EventDialog {
             : $localize`:@@calendar.respond.failed:Your answer could not be sent.`,
         );
     } finally {
-      this.ref.disableClose = false;
+      this.ref.disableClose = this.answered();
       this.responding.set(false);
     }
+  }
+
+  /**
+   * After an answer the event changed even if the dialog is just dismissed: Escape and a backdrop
+   * click close it with 'saved' too, so the view refetches (MatDialog itself would return nothing).
+   */
+  private closeAsSavedOnDismiss(): void {
+    if (this.answered()) return;
+    this.answered.set(true);
+    const dismiss = (): void => {
+      if (!this.busy()) this.ref.close('saved');
+    };
+    this.ref.backdropClick().subscribe(dismiss);
+    this.ref.keydownEvents().subscribe((event) => {
+      if (event.key === 'Escape' && !hasModifierKey(event)) {
+        event.preventDefault();
+        dismiss();
+      }
+    });
   }
 
   /** A save, delete or answer is running. */
@@ -470,7 +490,8 @@ export class EventDialog {
             : $localize`:@@calendar.edit.failed:The event could not be saved.`,
         );
     } finally {
-      this.ref.disableClose = false;
+      // Once answered, dismissing still has to report the change (closeAsSavedOnDismiss).
+      this.ref.disableClose = this.answered();
       this.saving.set(false);
     }
   }

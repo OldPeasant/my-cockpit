@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatSelectHarness } from '@angular/material/select/testing';
 import { provideRouter } from '@angular/router';
+import { Subject } from 'rxjs';
 import { CalendarResponse, EventResponse, OccurrenceResponse } from '../../../api/generated';
 import { ApiError, NotificationService } from '../../../core/http';
 import { LinksService } from '../../../shared/links';
@@ -34,7 +35,15 @@ function deferred<T>() {
 
 describe('EventDialog', () => {
   let fixture: ComponentFixture<EventDialog>;
-  let ref: { close: ReturnType<typeof vi.fn>; disableClose: boolean };
+  let ref: {
+    close: ReturnType<typeof vi.fn>;
+    disableClose: boolean;
+    backdropClick: () => Subject<MouseEvent>;
+    keydownEvents: () => Subject<KeyboardEvent>;
+  };
+  // What MatDialogRef reports even while closing is disabled.
+  let backdropClicks: Subject<MouseEvent>;
+  let keydowns: Subject<KeyboardEvent>;
   let stored: Map<string, EventResponse>;
   let events: {
     get: ReturnType<typeof vi.fn>;
@@ -79,7 +88,14 @@ describe('EventDialog', () => {
   });
 
   async function open(data: EventDialogData): Promise<void> {
-    ref = { close: vi.fn(), disableClose: false };
+    backdropClicks = new Subject();
+    keydowns = new Subject();
+    ref = {
+      close: vi.fn(),
+      disableClose: false,
+      backdropClick: () => backdropClicks,
+      keydownEvents: () => keydowns,
+    };
     TestBed.configureTestingModule({
       imports: [EventDialog],
       providers: [
@@ -970,6 +986,69 @@ describe('EventDialog', () => {
       expect(ref.close).toHaveBeenCalledWith('saved');
     });
 
+    it('tells the view the event changed when dismissed by Escape after an answer', async () => {
+      await invited();
+      choice('Accept')!.click();
+      await stable();
+      expect(ref.disableClose).toBe(true);
+      keydowns.next(new KeyboardEvent('keydown', { key: 'Enter' }));
+      keydowns.next(new KeyboardEvent('keydown', { key: 'Escape', shiftKey: true }));
+      expect(ref.close).not.toHaveBeenCalled();
+      const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+      keydowns.next(escape);
+      expect(ref.close).toHaveBeenCalledExactlyOnceWith('saved');
+      expect(escape.defaultPrevented).toBe(true);
+    });
+
+    it('tells the view the event changed when dismissed by a backdrop click after an answer', async () => {
+      await invited();
+      choice('Decline')!.click();
+      await stable();
+      backdropClicks.next(new MouseEvent('click'));
+      expect(ref.close).toHaveBeenCalledExactlyOnceWith('saved');
+    });
+
+    it('tells the view the event changed when saved without changes after an answer', async () => {
+      await invited();
+      choice('Maybe')!.click();
+      await stable();
+      await save();
+      expect(events.update).not.toHaveBeenCalled();
+      expect(ref.close).toHaveBeenCalledExactlyOnceWith('saved');
+    });
+
+    it('leaves Escape and backdrop clicks to MatDialog before an answer or after a failed one', async () => {
+      events.respond.mockRejectedValue(new Error('offline'));
+      await invited();
+      expect(ref.disableClose).toBe(false);
+      choice('Accept')!.click();
+      await stable();
+      expect(ref.disableClose).toBe(false);
+      keydowns.next(new KeyboardEvent('keydown', { key: 'Escape' }));
+      backdropClicks.next(new MouseEvent('click'));
+      expect(ref.close).not.toHaveBeenCalled();
+    });
+
+    it('keeps the dialog open on Escape while a change after an answer is saved', async () => {
+      const pending = deferred<EventResponse>();
+      await invited();
+      choice('Accept')!.click();
+      await stable();
+      events.update.mockReturnValue(pending.promise);
+      type('title', 'Planning Q2');
+      await save();
+      keydowns.next(new KeyboardEvent('keydown', { key: 'Escape' }));
+      backdropClicks.next(new MouseEvent('click'));
+      expect(ref.close).not.toHaveBeenCalled();
+      expect(ref.disableClose).toBe(true);
+      pending.reject(new Error('offline'));
+      await stable();
+      // Still answered: dismissing after the failed save reports the answer.
+      expect(ref.disableClose).toBe(true);
+      keydowns.next(new KeyboardEvent('keydown', { key: 'Escape' }));
+      expect(ref.close).toHaveBeenCalledExactlyOnceWith('saved');
+    });
+
     it('disables the choices while the answer is sent', async () => {
       const pending = deferred<EventResponse>();
       events.respond.mockReturnValue(pending.promise);
@@ -983,7 +1062,8 @@ describe('EventDialog', () => {
       pending.resolve(fakeEvent('g1', { calendarId: 'google', attendees: guests }));
       await stable();
       expect(choice('Decline')!.disabled).toBe(false);
-      expect(ref.disableClose).toBe(false);
+      // Stays disabled: the dialog closes itself on Escape or a backdrop click to return 'saved'.
+      expect(ref.disableClose).toBe(true);
     });
 
     it('offers a reload when the event changed since it was opened (412)', async () => {
