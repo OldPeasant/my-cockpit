@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-mail-images]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/list,android/app/src/test/java/ch/sonensei/cockpit/mail/list,android/app/src/main/java/ch/sonensei/cockpit/mail/read,android/app/src/test/java/ch/sonensei/cockpit/mail/read,android/app/src/main/java/ch/sonensei/cockpit/ui,android/app/src/test/java/ch/sonensei/cockpit/ui,android/app/src/main/res/values/strings_mail.xml,android/app/src/main/res/values-de/strings_mail.xml]
 prio: 1
-lease_until: 2026-11-08T09:54:19Z
+lease_until: 2026-11-08T09:59:23Z
 ---
 ## Goal
 Same needs as web-mail-search-nav for Android: the search term and results must survive opening a match and
