@@ -44,6 +44,31 @@
     <string name="next_creativity_creative">Creative</string>
     <string name="next_empty">No next actions. Process your inbox to add some.</string>
     <string name="next_empty_filtered">No next action matches these filters.</string>
+    <!-- Next actions: due, area/project filters and saved presets -->
+    <string name="next_filter_due">Due</string>
+    <string name="next_due_any">Any</string>
+    <string name="next_due_overdue">Overdue</string>
+    <string name="next_due_today">Today</string>
+    <string name="next_due_week">Next 7 days</string>
+    <string name="next_filter_where">Area and project</string>
+    <string name="next_filter_area">Area</string>
+    <string name="next_filter_project">Project</string>
+    <string name="next_filter_any_area">Any area</string>
+    <string name="next_filter_any_project">Any project</string>
+    <string name="next_presets">Saved filters</string>
+    <string name="next_preset_save">Save filter…</string>
+    <string name="next_preset_name">Preset name</string>
+    <string name="next_preset_save_button">Save</string>
+    <string name="next_preset_cancel">Cancel</string>
+    <string name="next_preset_delete">Delete preset “%1$s”</string>
+    <string name="next_preset_name_required">Enter a name for the preset.</string>
+    <plurals name="next_preset_too_many">
+        <item quantity="one">You can save up to %1$d preset. Delete it first.</item>
+        <item quantity="other">You can save up to %1$d presets. Delete one first.</item>
+    </plurals>
+    <string name="next_preset_conflict">Your saved filters were changed on another device. Try again.</string>
+    <string name="next_preset_offline">Saved filters can only be changed online. Try again when you are online.</string>
+    <string name="next_preset_failed">The saved filters could not be changed. Try again.</string>
 
     <!-- Today -->
     <string name="today_overdue">Overdue</string>

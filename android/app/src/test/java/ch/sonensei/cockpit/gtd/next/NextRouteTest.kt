@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.gtd.data.Cached
 import ch.sonensei.cockpit.gtd.data.ContextRepository
@@ -95,21 +96,21 @@ class NextRouteTest {
         composeRule.onNodeWithText("2 next actions").assertIsDisplayed()
         composeRule.onNodeWithTag(NextTags.FILTER_TOGGLE).performClick()
 
-        composeRule.onNodeWithTag(NextTags.context(home.id)).performClick()
+        composeRule.onNodeWithTag(NextTags.context(home.id)).performScrollTo().performClick()
         assertShows(sketch.title)
-        composeRule.onNodeWithTag(NextTags.context(home.id)).performClick()
+        composeRule.onNodeWithTag(NextTags.context(home.id)).performScrollTo().performClick()
 
-        composeRule.onNodeWithTag(NextTags.energy(Energy.LOW)).performClick()
+        composeRule.onNodeWithTag(NextTags.energy(Energy.LOW)).performScrollTo().performClick()
         assertShows(call.title)
-        composeRule.onNodeWithTag(NextTags.energy(Energy.LOW)).performClick()
+        composeRule.onNodeWithTag(NextTags.energy(Energy.LOW)).performScrollTo().performClick()
 
-        composeRule.onNodeWithTag(NextTags.creativity(Creativity.ROUTINE)).performClick()
+        composeRule.onNodeWithTag(NextTags.creativity(Creativity.ROUTINE)).performScrollTo().performClick()
         assertShows(call.title)
-        composeRule.onNodeWithTag(NextTags.estimate(30)).performClick()
+        composeRule.onNodeWithTag(NextTags.estimate(30)).performScrollTo().performClick()
         assertShows(call.title)
         composeRule.onNodeWithText("1 of 2 next actions").assertIsDisplayed()
 
-        composeRule.onNodeWithTag(NextTags.CLEAR).performClick()
+        composeRule.onNodeWithTag(NextTags.CLEAR).performScrollTo().performClick()
         assertShows(call.title, sketch.title)
         composeRule.onNodeWithText("2 next actions").assertIsDisplayed()
     }

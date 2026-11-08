@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "task": "and-next-filters",
+  "reviewed_revision": "bffd4e70439887e4e13a40f166392a91d5cf7fa4",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-next-filters/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-next-filters/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-next-filters/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "concurrent preset writes could undo each other; Mutex around load/read/change/store in NextViewModel (bffd4e704), test 'two deletes back to back both stay deleted'"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "18 dp delete target; IconButton (48 dp) outside the chip, Compose test checks size and separate taps (bffd4e704)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "50-preset limit now counts every stored text (bffd4e704)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "applyPreset compared the hidden filter after a context was deleted; uses the shown filter (bffd4e704)"},
+    {"id": "TW-2", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "savePreset stored a deleted context id; uses the shown filter (bffd4e704)"},
+    {"id": "TW-3", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "late save after cancel+reopen closed/annotated the new dialog; editor session counter, two tests (bffd4e704)"},
+    {"id": "LINT-1", "source": "parent", "severity": "P2", "disposition": "fixed",
+     "note": "lintDebug errors ConfigurationScreenWidthHeight and PluralsCandidate; LocalWindowInfo + plurals (bffd4e704)"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport -q (bffd4e704, 3672 tests, 0 failures, 145 in gtd.next; task files line coverage 706/710)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
