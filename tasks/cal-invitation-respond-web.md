@@ -12,7 +12,8 @@ Part of `cal-invitation-respond` (Accept, decline or tentatively accept invitati
 Goal: the web event dialog calls `POST /api/v1/calendar/events/{id}/respond` (SPEC §6.2). See the assumptions on cal-invitation-respond: show the actions for events of non-read-only GOOGLE/MICROSOFT calendars with attendees; current status = attendee matching one of the user's mail account addresses; show the server's 409/412 errors. Touches web/src/app/features/calendar and web/src/locale only.
 
 ## Acceptance criteria
-- [ ] Web event dialog: Accept / Maybe / Decline with the current status; sending updates the status (and the dialog's ETag/version)
+- [x] Web event dialog: Accept / Maybe / Decline with the current status; sending updates the status (and the dialog's ETag/version)
+  - verified (2026-11-08 23:33+0100 by dell26/agent-1): npm --prefix web exec -- ng test --include src/app/features/calendar/edit --watch=false -> 195 passed (event-dialog.spec 'answering invitations': Accept/Maybe/Decline shown for writable GOOGLE/MICROSOFT events with guests, own status highlighted via mail account address, respond sends If-Match of occurrence version, new statuses + version used for next save, 412 conflict, 409 message)
 - [ ] New strings in English and German (`web/src/locale`)
 - [ ] Unit tests cover the new behavior; `sh scripts/check.sh` passes
 
