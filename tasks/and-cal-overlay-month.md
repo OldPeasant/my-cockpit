@@ -19,8 +19,9 @@ SPEC.md §6.3 and the phase 4 demo want the task/tickler overlay on Android too;
   - verified (2026-11-08 20:55+0100 by rudi/agent-2): same sh scripts/check.sh tfp android run: month-view tests in CalendarOverlayMonthScreensTest and monthGrid tests (whole weeks 4-6, up to 3 titles + '+n', tap day -> DAY view, plusMonths paging, 360dp layout) -> pass
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 20:55+0100 by rudi/agent-2): python3 compare of name= keys in res/values/strings_calendar_agenda.xml vs res/values-de/ -> 34 == 34, identical sets; Compose tests render EN and DE -> pass
-- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [~] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
   - verified (2026-11-08 20:55+0100 by rudi/agent-2): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug (via sh scripts/check.sh tfp android) -> exit 0, all checks passed; test-writer run: 4584 tests 0 failures, changed-file coverage 99.2% lines / 92.0% branches. Full sh scripts/check.sh not runnable here: server step needs Docker (socket permission denied), web step needs Node >=22 (host v20.9.0); task touches only android/
+  - skipped (2026-11-08 20:55+0100 by rudi/agent-2): Android part verified: cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug (via sh scripts/check.sh tfp android) -> exit 0, 4584 tests 0 failures. Full sh scripts/check.sh cannot run on this host: server step needs Docker (socket permission denied), web step needs Node >=22 (host v20.9.0); task touches only android/
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
