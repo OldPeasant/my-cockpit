@@ -4,7 +4,7 @@ Date: 2026-11-09
 
 Task: and-task-reminders - Reminders on tasks (Android)
 
-Scope: re-review of the final revision, `git diff 362ff9a53..1a1937346 -- android`. This covers the task's production commits (reminders section, ktlint format, notification opens the task detail), the test commit 2232208de (TaskRemindersTest.kt, TaskRemindersContentTest.kt, OpenItemRequestTaskTest.kt, ReminderUiTest.kt) and the fixer's Hilt guard in TaskRemindersSection.kt (1a1937346, TW-1).
+Scope: final review of the task at revision abb292178. Earlier full re-review: `git diff 362ff9a53..1a1937346 -- android`, which covered the task's production commits (reminders section, ktlint format, notification opens the task detail), the test commit 2232208de (TaskRemindersTest.kt, TaskRemindersContentTest.kt, OpenItemRequestTaskTest.kt, ReminderUiTest.kt) and the fixer's Hilt guard in TaskRemindersSection.kt (1a1937346, TW-1). Delta for this review: `git diff 1a1937346..abb292178 -- android`. It contains only one new test in TaskRemindersContentTest.kt (the Hilt guard test). Outside `android/`, the range only changes `reviews/` reports.
 
 Requirements:
 - tasks/and-task-reminders.md (acceptance criteria and recorded assumptions)
@@ -14,13 +14,20 @@ Requirements:
 
 Git range:
 - Branch: main
-- HEAD: 1a1937346a88c80ef27b87f9345726fd84f6d36b
+- HEAD (reviewed revision): abb292178463b94f2368bb62baa9f2c4854e0051
 - Base/start: 362ff9a5303b6e31a9dc200c705e7e8b4b0d437c
-- Commits reviewed: all task commits in the range (11 files under android changed, +1366 / -8)
+- Commits reviewed: all task commits in the range. The delta since the previous review is one test commit (abb292178), plus report commits.
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-This was a static review only. Gradle was not run, as instructed, because the test-writer was running it at the same time. Test results come from the fixer's report (526 tests in the focused suites, 0 failures), not from a run by this reviewer.
+This was a static review only. As instructed, this reviewer did not run Gradle. The test results come from the test-writer's report (527 tests, 0 failures).
+
+## Delta review (1a1937346..abb292178)
+
+- New test `without a view model outside a Hilt activity the section renders nothing` in `android/app/src/test/java/ch/sonensei/cockpit/gtd/task/TaskRemindersContentTest.kt:238`. `createComposeRule()` hosts a plain `ComponentActivity`, which is not a `GeneratedComponentManagerHolder`. So `TaskRemindersSection(taskId, anchors, true)` with the default `viewModel = null` reaches the early return in `TaskRemindersSection.kt:71`, and the test exercises the guard path it names.
+- The assertions check that the "Reminders" title, `TaskReminderTags.SECTION` (the root column tag, `TaskRemindersSection.kt:109`) and `TaskReminderTags.CUSTOM` all have zero nodes. These are the observable results of the guard. Without the guard, `hiltViewModel()` would throw in a non-Hilt activity, so the test would also catch the guard being removed. The existing test that wires the section to an explicit view model gives the positive counterpart.
+- All imports (`assertCountEquals`, `onAllNodesWithTag`, `onAllNodesWithText`, `UUID`) and the `anchors` fixture were already in the file. The test uses fictitious data and does not change any other test.
+- The delta makes no production code changes.
 
 ## Status of earlier findings
 
@@ -31,7 +38,7 @@ This was a static review only. Gradle was not run, as instructed, because the te
   - `TaskRemindersViewModel`: open and reopen, switching task, load error and retry, an unexpected exception, the busy guard, past and exactly-now times, sorted insert, remove, and failed add or remove keeping the list.
   - `TaskRemindersContent` (Robolectric/Compose): listing, the sent marker, empty, offline, invalid and failed states, the past-time message without retry, preset chips, the custom date then time flow, cancel, busy, read-only, and the section wired to a view model and to the task detail panel.
   - `OpenItemRequest.taskId` (a valid id, a malformed or empty id, other types, a lower-case type): `OpenItemRequestTaskTest.kt`. The shell opening the task detail on top of Next and going back to Next: `ReminderUiTest.kt`.
-- TW-1 (Hilt-only section broke plain-activity screen tests): the fix is correct. `TaskRemindersSection` now takes `viewModel: TaskRemindersViewModel? = null` and renders nothing when there is no view model and `LocalActivity.current` is not a `GeneratedComponentManagerHolder`. This is the same pattern as `LinkedItemsSection` in `core/links/LinkedItemsPanel.kt`. Production (`TaskDetailRoute` in the Hilt `MainActivity`) still goes through `hiltViewModel()`. A test covers the case with no Hilt and no view model.
+- TW-1 (Hilt-only section broke plain-activity screen tests): the fix is correct. `TaskRemindersSection` now takes `viewModel: TaskRemindersViewModel? = null` and renders nothing when there is no view model and `LocalActivity.current` is not a `GeneratedComponentManagerHolder`. This is the same pattern as `LinkedItemsSection` in `core/links/LinkedItemsPanel.kt`. Production (`TaskDetailRoute` in the Hilt `MainActivity`) still goes through `hiltViewModel()`. The new test in abb292178 covers the case with no Hilt and no view model.
 
 ## P0 Critical
 
@@ -62,4 +69,4 @@ Notes (checked, no finding):
 
 ## Review conclusion
 
-No material issues found. CR-1 is resolved by the added tests, and the TW-1 Hilt guard is correct and consistent with the existing pattern. No correctness, integration, security or test-quality defects were found in the final revision.
+No material issues found. CR-1 is resolved by the added tests, and the TW-1 Hilt guard is correct, matches the existing pattern, and is now covered by a dedicated test (abb292178). No correctness, integration, security or test-quality defects were found in the final revision abb292178.

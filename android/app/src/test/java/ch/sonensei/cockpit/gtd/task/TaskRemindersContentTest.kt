@@ -199,7 +199,8 @@ class TaskRemindersContentTest {
         val taskId = UUID.fromString("0192f000-0000-7000-9000-000000000001")
         // A due date far ahead, so the presets stay in the future on the real clock the section uses.
         val farAhead = ReminderAnchors(dueDate = LocalDate.of(2099, 1, 10))
-        composeRule.setContent { CockpitTheme { TaskRemindersSection(taskId, farAhead, true, TaskRemindersViewModel(source)) } }
+        val viewModel = TaskRemindersViewModel(source)
+        composeRule.setContent { CockpitTheme { TaskRemindersSection(taskId, farAhead, true, viewModel) } }
         composeRule.waitForIdle()
 
         composeRule.onAllNodesWithTag(TaskReminderTags.ITEM).assertCountEquals(1)
