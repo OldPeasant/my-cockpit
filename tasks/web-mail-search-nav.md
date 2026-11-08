@@ -24,7 +24,8 @@ loses the search term and results. While reading a match the owner wants to step
   - verified (2026-11-08 14:03+0100 by dell26/agent-2): same mail spec run -> 732 passed; mail-list-page 'scroll position' + restore specs keep scrollTop and cursor row, also for restored lists >200 items
 - [x] New UI strings are in `web/src/locale` (English + German)
   - verified (2026-11-08 14:03+0100 by dell26/agent-2): cd web && npm run build:de -> only 16 missing ids, all calendar.invite.* (other task web-de-invite-translations); no mail id missing; new strings present in messages.xlf + messages.de.xlf
-- [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+- [x] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 14:03+0100 by dell26/agent-2): cd web && npm run check -> lint clean, 188 files/4265 tests passed, build ok (pre-existing budget warning); sh scripts/check.sh at cba84e987+final specs (test-writer) -> all checks passed; done re-runs it
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
