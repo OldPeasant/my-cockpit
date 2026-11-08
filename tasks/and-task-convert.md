@@ -22,7 +22,8 @@ Web converts a task to a note (reference) or an event from task detail and inbox
   - verified (2026-11-08 19:03+0100 by felix/agent-1): cd android && ./gradlew testDebugUnitTest --tests '*Convert*' --tests '*Conversion*' --tests '*EventPlan*' --tests '*TaskDetailStringsTest' --tests '*InboxRepositoryTest' --tests '*TaskDetailRepositoryTest' at c24989938 -> 183 passed, 0 failed; snackbar with Open in task detail and Inbox (LocalConvertedOpener), incl. ordering tests that only the latest action is shown
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 19:03+0100 by felix/agent-1): cd android && ./gradlew testDebugUnitTest --tests '*Convert*' --tests '*Conversion*' --tests '*EventPlan*' --tests '*TaskDetailStringsTest' --tests '*InboxRepositoryTest' --tests '*TaskDetailRepositoryTest' at c24989938 -> 183 passed, 0 failed; TaskDetailStringsTest checks new keys exist in res/values and res/values-de; lintDebug (MissingTranslation) clean
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [~] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - skipped (2026-11-08 20:03+0100 by rudi/agent-2): On rudi host at 1d401070: cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> pass; sh scripts/check.sh tfp android -> all checks passed. Full sh scripts/check.sh cannot pass on this host: server Testcontainers tests need Docker (socket permission denied) and web needs Node >= 22.22.3 (host older); both unrelated to this Android-only change. done's .taskcheck run on a capable host is the remaining gate.
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
