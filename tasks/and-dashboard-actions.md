@@ -1,10 +1,11 @@
 ---
 title: Android dashboard: tappable items, review button, layout editing
-status: todo
-owner:
+status: in_progress
+owner: rudi/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/dashboard,android/app/src/test/java/ch/sonensei/cockpit/dashboard,android/app/src/main/res/values/strings_dashboard.xml,android/app/src/main/res/values-de/strings_dashboard.xml]
 prio: 2
+lease_until: 2026-11-08T17:56:34Z
 ---
 ## Goal
 On Android only task items in dashboard widgets are tappable; the review widget has no Start/Continue button and
