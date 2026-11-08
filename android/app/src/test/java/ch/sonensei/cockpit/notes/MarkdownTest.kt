@@ -31,8 +31,8 @@ class MarkdownTest {
             listOf(
                 MdBlock.Heading(1, "Trip"),
                 MdBlock.Paragraph("Pack the bag\ntonight."),
-                MdBlock.ListItem("passport", "-", checked = false),
-                MdBlock.ListItem("tickets", "-", checked = true),
+                MdBlock.ListItem("passport", "-", checked = false, line = 4),
+                MdBlock.ListItem("tickets", "-", checked = true, line = 5),
                 MdBlock.ListItem("snacks", "*"),
                 MdBlock.ListItem("first", "1."),
                 MdBlock.Quote("be early"),
@@ -98,7 +98,7 @@ class MarkdownTest {
             listOf(
                 MdBlock.ListItem("top", "-"),
                 MdBlock.ListItem("inner", "-", depth = 1),
-                MdBlock.ListItem("done", "2)", checked = true, depth = 2),
+                MdBlock.ListItem("done", "2)", checked = true, depth = 2, line = 2),
                 MdBlock.Code("a\n# not a heading"),
             ),
             Markdown.parse("- top\n  - inner\n    2) [X] done\n```\na\n# not a heading"),
