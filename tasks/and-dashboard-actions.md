@@ -5,7 +5,7 @@ owner: rudi/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/dashboard,android/app/src/test/java/ch/sonensei/cockpit/dashboard,android/app/src/main/res/values/strings_dashboard.xml,android/app/src/main/res/values-de/strings_dashboard.xml]
 prio: 2
-lease_until: 2026-11-08T18:04:19Z
+lease_until: 2026-11-08T18:09:19Z
 ---
 ## Goal
 On Android only task items in dashboard widgets are tappable; the review widget has no Start/Continue button and
