@@ -1,6 +1,5 @@
 package ch.sonensei.cockpit.newitems
 
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,11 +18,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Mail
@@ -31,7 +27,6 @@ import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -39,7 +34,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -60,6 +54,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.gtd.data.GtdTask
+import ch.sonensei.cockpit.gtd.task.LocalTaskOpener
 import ch.sonensei.cockpit.mail.compose.ComposeMode
 import ch.sonensei.cockpit.mail.compose.MailComposeRoute
 import ch.sonensei.cockpit.mail.list.MailSummary
@@ -86,19 +81,17 @@ fun NewScreen(modifier: Modifier = Modifier) {
     }
 }
 
-/** What is open on top of the list (kept across configuration changes). */
+/**
+ * What is open on top of the list (kept across configuration changes). Tasks are not opened here: they open the shell's
+ * task detail screen, which lies on top of the whole New screen.
+ */
 internal sealed interface NewOpen {
-    data class Task(
-        val id: UUID,
-    ) : NewOpen
-
     data class Mail(
         val id: UUID,
     ) : NewOpen
 
     fun encode(): String =
         when (this) {
-            is Task -> "task:$id"
             is Mail -> "mail:$id"
         }
 
@@ -107,7 +100,6 @@ internal sealed interface NewOpen {
             val (kind, id) = value.split(':', limit = 2).takeIf { it.size == 2 } ?: return null
             val uuid = runCatching { UUID.fromString(id) }.getOrNull() ?: return null
             return when (kind) {
-                "task" -> Task(uuid)
                 "mail" -> Mail(uuid)
                 else -> null
             }
@@ -115,7 +107,10 @@ internal sealed interface NewOpen {
     }
 }
 
-/** The list, or the task or mail opened from it; back returns to the list. */
+/**
+ * The list, or the mail opened from it; back returns to the list. A task opens the task detail screen (SPEC.md §5.3),
+ * and back from there returns to this list with its filter (view model) and scroll position (saved [listState]).
+ */
 @Composable
 fun NewRoute(
     modifier: Modifier = Modifier,
@@ -124,8 +119,9 @@ fun NewRoute(
     var open by rememberSaveable { mutableStateOf<String?>(null) }
     var composing by rememberSaveable { mutableStateOf<String?>(null) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    // Kept here, so the list keeps its position while a task or mail is open on top of it.
+    // Kept here, so the list keeps its position while a mail is open on top of it; saved while the task detail is.
     val listState = rememberLazyListState()
+    val taskOpener = LocalTaskOpener.current
     // Reloaded when the screen is shown and when the app comes back to it, so mail that arrived meanwhile appears.
     LifecycleResumeEffect(viewModel) {
         viewModel.refresh()
@@ -140,6 +136,7 @@ fun NewRoute(
                     NewCallbacks(
                         setFilter = viewModel::setFilter,
                         open = { open = it.encode() },
+                        openTask = { task -> taskOpener?.open(task.id, task) },
                         toTask = viewModel::toTask,
                         loadMore = viewModel::loadMore,
                         retry = viewModel::retry,
@@ -148,14 +145,6 @@ fun NewRoute(
                 modifier = modifier,
                 listState = listState,
             )
-        is NewOpen.Task -> {
-            val task = state.task(current.id)
-            // A task processed meanwhile (here or elsewhere) is no longer new: back to the list. Before the Inbox is
-            // read (just after a configuration change), the task is simply not shown yet.
-            val gone = task == null && state.inboxRefreshedAt != null
-            LaunchedEffect(gone) { if (gone) open = null }
-            if (task != null) NewTaskView(task, onClose = { open = null }, modifier = modifier)
-        }
         is NewOpen.Mail ->
             if (compose != null) {
                 MailComposeRoute(mode = compose, onClose = { composing = null }, modifier = modifier)
@@ -176,6 +165,8 @@ fun NewRoute(
 internal data class NewCallbacks(
     val setFilter: (NewFilter) -> Unit = {},
     val open: (NewOpen) -> Unit = {},
+    /** Opens an Inbox task in the task detail screen. */
+    val openTask: (GtdTask) -> Unit = {},
     val toTask: (UUID) -> Unit = {},
     val loadMore: () -> Unit = {},
     val retry: () -> Unit = {},
@@ -191,7 +182,6 @@ internal object NewTags {
     const val RETRY = "new-retry"
     const val NOTICE = "new-notice"
     const val LOAD_MORE = "new-load-more"
-    const val TASK_VIEW = "new-task-view"
 
     fun filter(filter: NewFilter) = "new-filter-${filter.name.lowercase()}"
 
@@ -274,7 +264,7 @@ private fun Rows(
     LazyColumn(Modifier.fillMaxSize().testTag(NewTags.LIST), state = listState) {
         items(state.rows, key = { it.key }) { row ->
             when (row) {
-                is NewRow.Task -> TaskRow(row, today, clock, callbacks.open)
+                is NewRow.Task -> TaskRow(row, today, clock, callbacks.openTask)
                 is NewRow.Mail -> MailRow(row, state, today, clock, callbacks)
             }
             HorizontalDivider()
@@ -299,9 +289,10 @@ private fun TaskRow(
     row: NewRow.Task,
     today: LocalDate,
     clock: Clock,
-    open: (NewOpen) -> Unit,
+    openTask: (GtdTask) -> Unit,
 ) {
-    RowFrame(row, Icons.Outlined.Inbox, R.string.new_source_inbox, today, clock, onClick = { open(NewOpen.Task(row.task.id)) }) {
+    val onClick = { openTask(row.task) }
+    RowFrame(row, Icons.Outlined.Inbox, R.string.new_source_inbox, today, clock, onClick = onClick) {
         Text(row.task.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
         row.task.notesMd?.takeIf { it.isNotBlank() }?.let {
             Text(
@@ -482,56 +473,6 @@ private fun Notice(
         Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f).padding(vertical = 10.dp))
             TextButton(onClick = dismiss) { Text(stringResource(R.string.new_dismiss)) }
-        }
-    }
-}
-
-/** A GTD Inbox item opened from the list, read-only: it is processed in the Inbox. */
-@Composable
-internal fun NewTaskView(
-    task: GtdTask,
-    onClose: () -> Unit,
-    modifier: Modifier = Modifier,
-    clock: Clock = Clock.systemDefaultZone(),
-) {
-    BackHandler(onBack = onClose)
-    Column(modifier.fillMaxSize().testTag(NewTags.TASK_VIEW)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onClose) {
-                Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.nav_back))
-            }
-            Icon(
-                Icons.Outlined.Inbox,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.tertiary,
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                stringResource(R.string.new_source_inbox),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.tertiary,
-            )
-        }
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(task.title, style = MaterialTheme.typography.headlineSmall)
-            createdAt(task.id)?.let {
-                val time = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).format(it.atZone(clock.zone))
-                Text(
-                    stringResource(R.string.new_task_created_at, time),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            task.notesMd?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-            Text(
-                stringResource(R.string.new_task_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }

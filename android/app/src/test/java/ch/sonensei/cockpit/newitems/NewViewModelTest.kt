@@ -742,32 +742,6 @@ class NewViewModelTest {
             assertEquals(null, cache.last)
         }
 
-    @Test
-    fun theUiStateFindsOnlyInboxTasks() {
-        val state = NewUiState(rows = listOf(NewRow.Mail(invoice)), inbox = listOf(plumber))
-
-        assertEquals(plumber, state.task(plumber.id))
-        assertEquals(null, state.task(invoice.id))
-    }
-
-    @Test
-    fun anOpenTaskIsFoundWhileTheListHidesOrHoldsItBack() =
-        runTest {
-            mailAnswers(MailResult.Ok(MailPage(listOf(party, invoice), "page-2")))
-            val vm = viewModel().collected(backgroundScope, testScheduler)
-            vm.refresh()
-
-            // Older than the oldest loaded mail: held back under All until the next page.
-            assertFalse("task:${plumber.id}" in vm.keys())
-            assertEquals(plumber, vm.uiState.value.task(plumber.id))
-
-            vm.setFilter(NewFilter.MAIL)
-            assertEquals(plumber, vm.uiState.value.task(plumber.id))
-
-            inbox.value = Cached(emptyList(), offline = false, refreshedAt = loadedAt)
-            assertEquals(null, vm.uiState.value.task(plumber.id))
-        }
-
     // --- Logout ---
 
     @Test

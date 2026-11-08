@@ -27,7 +27,6 @@ import org.junit.runner.RunWith
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
-import java.util.UUID
 
 /** The screen alone, driven by a state the test controls. */
 @RunWith(AndroidJUnit4::class)
@@ -52,6 +51,7 @@ class NewScreenTest {
             NewCallbacks(
                 setFilter = { calls += "filter $it" },
                 open = { calls += "open ${it.encode()}" },
+                openTask = { calls += "openTask ${it.id}" },
                 toTask = { calls += "toTask $it" },
                 loadMore = { calls += "loadMore" },
                 retry = { calls += "retry" },
@@ -79,7 +79,7 @@ class NewScreenTest {
         composeRule.onNodeWithTag(NewTags.filter(NewFilter.MAIL)).performClick()
 
         assertEquals(
-            listOf("open task:${plumber.id}", "open mail:${invoice.id}", "toTask ${invoice.id}", "filter MAIL"),
+            listOf("openTask ${plumber.id}", "open mail:${invoice.id}", "toTask ${invoice.id}", "filter MAIL"),
             calls,
         )
     }
@@ -276,29 +276,5 @@ class NewScreenTest {
         assertEquals(listOf("Mail", "Bare"), bareTexts.map { it.text })
         val plantTexts = composeRule.onNodeWithTag(NewTags.row(blankNotes)).fetchSemanticsNode().config[SemanticsProperties.Text]
         assertEquals(listOf("GTD Inbox", "10/19/26", "Water the plants"), plantTexts.map { it.text })
-    }
-
-    @Test
-    fun theTaskViewShowsTheTaskReadOnlyAndBackCloses() {
-        var closed = 0
-        val withNotes = task("Call the plumber", "2026-10-20T08:00:00Z", 1, notes = "Ask about the boiler")
-        composeRule.setContent { CockpitTheme { NewTaskView(withNotes, onClose = { closed++ }, clock = clock) } }
-
-        composeRule.onNodeWithTag(NewTags.TASK_VIEW).assertExists()
-        composeRule.onNodeWithText("Call the plumber").assertExists()
-        composeRule.onNodeWithText("Ask about the boiler").assertExists()
-        composeRule.onNodeWithText("Captured", substring = true).assertExists()
-        composeRule.onNodeWithText("Process it in the Inbox to decide what it is.").assertExists()
-        composeRule.onNodeWithContentDescription("Back").performClick()
-        assertEquals(1, closed)
-    }
-
-    @Test
-    fun aTaskWithoutTimestampShowsNoCaptureTime() {
-        val legacy = plumber.copy(id = UUID.fromString("00000000-0000-4000-8000-000000000009"), notesMd = " ")
-        composeRule.setContent { CockpitTheme { NewTaskView(legacy, onClose = {}, clock = clock) } }
-
-        composeRule.onNodeWithText("Call the plumber").assertExists()
-        composeRule.onNodeWithText("Captured", substring = true).assertDoesNotExist()
     }
 }

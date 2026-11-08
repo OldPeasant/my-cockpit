@@ -12,6 +12,9 @@ import ch.sonensei.cockpit.gtd.data.ProjectRepository
 import ch.sonensei.cockpit.gtd.data.ProjectStatus
 import ch.sonensei.cockpit.gtd.data.TaskRepository
 import ch.sonensei.cockpit.gtd.data.TaskView
+import ch.sonensei.cockpit.gtd.next.CompletionSnackbar
+import ch.sonensei.cockpit.gtd.next.TaskCompleter
+import ch.sonensei.cockpit.gtd.next.TaskCompletionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -77,6 +80,8 @@ data class InboxUiState(
     /** A reload asked for by the user (the offline banner's retry) is running. */
     val retrying: Boolean = false,
     val today: LocalDate = LocalDate.MIN,
+    /** The undo offer after a task was completed from the list, or why completing failed. */
+    val snackbar: CompletionSnackbar? = null,
 ) {
     /** The item being processed. */
     val current: GtdTask? get() = tasks.firstOrNull()
@@ -91,6 +96,7 @@ class InboxViewModel internal constructor(
     private val tasks: TaskRepository,
     projects: ProjectRepository,
     contexts: ContextRepository,
+    completion: TaskCompletionRepository,
     private val clock: Clock,
     /** Monotonic milliseconds, for the double-tap guard. */
     private val uptimeMs: () -> Long,
@@ -101,7 +107,10 @@ class InboxViewModel internal constructor(
         tasks: TaskRepository,
         projects: ProjectRepository,
         contexts: ContextRepository,
-    ) : this(inbox, tasks, projects, contexts, Clock.systemDefaultZone(), { System.nanoTime() / 1_000_000 })
+        completion: TaskCompletionRepository,
+    ) : this(inbox, tasks, projects, contexts, completion, Clock.systemDefaultZone(), { System.nanoTime() / 1_000_000 })
+
+    private val completer = TaskCompleter(viewModelScope, completion)
 
     /** When the last action started: taps right after it belong to the item that just left (see [choose]). */
     private var lastRunAt: Long? = null
@@ -122,8 +131,14 @@ class InboxViewModel internal constructor(
     private val local = MutableStateFlow(Local())
 
     val uiState: StateFlow<InboxUiState> =
-        combine(tasks.observe(TaskView.INBOX), projects.observe(), contexts.observe(), local) { inbox, projectList, contextList, l ->
-            val queue = inbox.data.filter { it.id !in l.busy }
+        combine(
+            tasks.observe(TaskView.INBOX),
+            projects.observe(),
+            contexts.observe(),
+            local,
+            completer.state,
+        ) { inbox, projectList, contextList, l, done ->
+            val queue = inbox.data.filter { it.id !in l.busy && !done.hides(it) }
             val current = queue.firstOrNull()
             InboxUiState(
                 tasks = queue,
@@ -138,6 +153,7 @@ class InboxViewModel internal constructor(
                 message = l.message,
                 retrying = l.retrying,
                 today = today(),
+                snackbar = done.snackbar,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), InboxUiState(today = today()))
 
@@ -215,6 +231,15 @@ class InboxViewModel internal constructor(
     }
 
     fun dismissMessage() = local.update { it.copy(message = null) }
+
+    /** Completes [task] from the list (not while offline): it disappears at once, the snackbar offers to undo it. */
+    fun complete(task: GtdTask) {
+        if (!uiState.value.offline) completer.complete(task)
+    }
+
+    fun undo(offer: CompletionSnackbar.Undo) = completer.undo(offer)
+
+    fun dismissSnackbar(shown: CompletionSnackbar) = completer.dismiss(shown)
 
     /** The item leaves the queue at once; if the server refuses, it comes back with a message. */
     private fun run(

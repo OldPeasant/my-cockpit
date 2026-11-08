@@ -13,6 +13,11 @@ import ch.sonensei.cockpit.gtd.data.RefreshResult
 import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.gtd.data.TaskRepository
 import ch.sonensei.cockpit.gtd.data.TaskView
+import ch.sonensei.cockpit.gtd.next.Completion
+import ch.sonensei.cockpit.gtd.next.CompletionMessage
+import ch.sonensei.cockpit.gtd.next.CompletionResult
+import ch.sonensei.cockpit.gtd.next.CompletionSnackbar
+import ch.sonensei.cockpit.gtd.next.TaskCompletionRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -56,6 +61,7 @@ class InboxViewModelTest {
     private val projects =
         mockk<ProjectRepository> { every { observe() } returns MutableStateFlow(Cached(listOf(garden, kitchen, done), false, loadedAt)) }
     private val contexts = mockk<ContextRepository> { every { observe() } returns MutableStateFlow(Cached(listOf(home), false, loadedAt)) }
+    private val completion = mockk<TaskCompletionRepository>()
     private val clock = Clock.fixed(Instant.parse("2026-10-20T10:00:00Z"), ZoneOffset.UTC)
     private val today = LocalDate.of(2026, 10, 20)
 
@@ -75,7 +81,7 @@ class InboxViewModelTest {
     private fun test(block: suspend (InboxViewModel) -> Unit) =
         runTest(UnconfinedTestDispatcher()) {
             val viewModel =
-                InboxViewModel(inbox, tasks, projects, contexts, clock) {
+                InboxViewModel(inbox, tasks, projects, contexts, completion, clock) {
                     uptime += uptimeStep
                     uptime
                 }
@@ -516,5 +522,55 @@ class InboxViewModelTest {
             assertNull(vm.uiState.value.prompt)
             vm.startProcessing()
             assertEquals(0, vm.uiState.value.processed)
+        }
+
+    @Test
+    fun `completing a task from the list hides it and offers undo`() =
+        test { vm ->
+            val completion = Completion(first.id, first.title, 2)
+            coEvery { this@InboxViewModelTest.completion.complete(first) } returns CompletionResult.Completed(completion)
+
+            vm.complete(first)
+
+            assertEquals(listOf(second), vm.uiState.value.tasks)
+            assertEquals(CompletionSnackbar.Undo(completion), vm.uiState.value.snackbar)
+        }
+
+    @Test
+    fun `undoing a completion shows the task again`() =
+        test { vm ->
+            val completion = Completion(first.id, first.title, 2)
+            coEvery { this@InboxViewModelTest.completion.complete(first) } returns CompletionResult.Completed(completion)
+            coEvery { this@InboxViewModelTest.completion.undo(completion) } returns CompletionResult.Reopened
+            vm.complete(first)
+
+            vm.undo(CompletionSnackbar.Undo(completion))
+
+            assertEquals(listOf(first, second), vm.uiState.value.tasks)
+            assertNull(vm.uiState.value.snackbar)
+        }
+
+    @Test
+    fun `a refused completion brings the task back with the reason`() =
+        test { vm ->
+            coEvery { completion.complete(first) } returns CompletionResult.NotDone(CompletionMessage.CONFLICT)
+
+            vm.complete(first)
+
+            assertEquals(listOf(first, second), vm.uiState.value.tasks)
+            assertEquals(CompletionSnackbar.Failed(CompletionMessage.CONFLICT), vm.uiState.value.snackbar)
+            vm.dismissSnackbar(CompletionSnackbar.Failed(CompletionMessage.CONFLICT))
+            assertNull(vm.uiState.value.snackbar)
+        }
+
+    @Test
+    fun `completing is ignored while offline`() =
+        test { vm ->
+            inboxFlow.value = inboxFlow.value.copy(offline = true)
+
+            vm.complete(first)
+
+            coVerify(exactly = 0) { completion.complete(any()) }
+            assertEquals(listOf(first, second), vm.uiState.value.tasks)
         }
 }

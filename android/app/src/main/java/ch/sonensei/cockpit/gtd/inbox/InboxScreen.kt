@@ -2,8 +2,10 @@ package ch.sonensei.cockpit.gtd.inbox
 
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +21,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,6 +35,8 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,6 +51,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -56,6 +63,11 @@ import ch.sonensei.cockpit.core.settings.userEnergyLabel
 import ch.sonensei.cockpit.gtd.data.Creativity
 import ch.sonensei.cockpit.gtd.data.Energy
 import ch.sonensei.cockpit.gtd.data.GtdTask
+import ch.sonensei.cockpit.gtd.next.CompletionSnackbar
+import ch.sonensei.cockpit.gtd.next.CompletionSnackbarEffect
+import ch.sonensei.cockpit.gtd.next.TaskListTags
+import ch.sonensei.cockpit.gtd.next.opensTask
+import ch.sonensei.cockpit.ui.LocalFabClearance
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
 import java.time.Instant
@@ -104,6 +116,10 @@ data class InboxCallbacks(
     val confirmPrompt: (UUID) -> Unit = {},
     val dismissMessage: () -> Unit = {},
     val retry: () -> Unit = {},
+    /** Completes a task from the list. */
+    val complete: (GtdTask) -> Unit = {},
+    val undo: (CompletionSnackbar.Undo) -> Unit = {},
+    val dismissSnackbar: (CompletionSnackbar) -> Unit = {},
 ) {
     companion object {
         fun of(vm: InboxViewModel) =
@@ -120,6 +136,9 @@ data class InboxCallbacks(
                 vm::confirmPrompt,
                 vm::dismissMessage,
                 vm::retry,
+                vm::complete,
+                vm::undo,
+                vm::dismissSnackbar,
             )
     }
 }
@@ -144,14 +163,19 @@ fun InboxContent(
     callbacks: InboxCallbacks,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier.fillMaxSize()) {
-        if (state.offline) OfflineBanner(state.refreshedAt, state.retrying, callbacks.retry)
-        state.message?.let { MessageBanner(it, callbacks.dismissMessage) }
-        if (state.processing) {
-            ProcessingMode(state, callbacks)
-        } else {
-            InboxList(state, callbacks)
+    val snackbarHost = remember { SnackbarHostState() }
+    CompletionSnackbarEffect(state.snackbar, snackbarHost, callbacks.undo, callbacks.dismissSnackbar)
+    Box(modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            if (state.offline) OfflineBanner(state.refreshedAt, state.retrying, callbacks.retry)
+            state.message?.let { MessageBanner(it, callbacks.dismissMessage) }
+            if (state.processing) {
+                ProcessingMode(state, callbacks)
+            } else {
+                InboxList(state, callbacks)
+            }
         }
+        SnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter).padding(bottom = LocalFabClearance.current))
     }
 }
 
@@ -231,19 +255,42 @@ private fun InboxList(
                 modifier = Modifier.padding(24.dp),
             )
         }
-        LazyColumn(Modifier.fillMaxSize().testTag(InboxTags.LIST)) {
+        LazyColumn(
+            Modifier.fillMaxSize().testTag(InboxTags.LIST),
+            contentPadding = PaddingValues(bottom = LocalFabClearance.current),
+        ) {
             items(state.tasks, key = { it.id }) { task ->
-                ListItem(
-                    headlineContent = { Text(task.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                    supportingContent =
-                        task.notesMd?.takeIf { it.isNotBlank() }?.let { notes ->
-                            { Text(notes, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                        },
-                )
+                InboxRow(task, readOnly = state.offline, onComplete = callbacks.complete)
                 HorizontalDivider()
             }
         }
     }
+}
+
+/** An Inbox item: a checkbox to complete it (disabled offline), its title and notes; tapping it opens the task detail. */
+@Composable
+private fun InboxRow(
+    task: GtdTask,
+    readOnly: Boolean,
+    onComplete: (GtdTask) -> Unit,
+) {
+    ListItem(
+        modifier = Modifier.testTag(TaskListTags.row(task.id)).opensTask(task),
+        leadingContent = {
+            val label = stringResource(R.string.tasks_complete, task.title)
+            Checkbox(
+                checked = false,
+                onCheckedChange = { onComplete(task) },
+                enabled = !readOnly,
+                modifier = Modifier.testTag(TaskListTags.complete(task.id)).semantics { contentDescription = label },
+            )
+        },
+        headlineContent = { Text(task.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+        supportingContent =
+            task.notesMd?.takeIf { it.isNotBlank() }?.let { notes ->
+                { Text(notes, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            },
+    )
 }
 
 @Composable

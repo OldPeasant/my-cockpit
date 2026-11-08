@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.gtd.inbox
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -15,12 +16,19 @@ import ch.sonensei.cockpit.gtd.data.RefreshResult
 import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.gtd.data.TaskRepository
 import ch.sonensei.cockpit.gtd.data.TaskView
+import ch.sonensei.cockpit.gtd.next.Completion
+import ch.sonensei.cockpit.gtd.next.CompletionResult
+import ch.sonensei.cockpit.gtd.next.TaskCompletionRepository
+import ch.sonensei.cockpit.gtd.next.TaskListTags
+import ch.sonensei.cockpit.gtd.task.LocalTaskOpener
+import ch.sonensei.cockpit.gtd.task.TaskOpener
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,15 +55,27 @@ class InboxRouteTest {
     private val tasks = mockk<TaskRepository> { every { observe(TaskView.INBOX) } returns inboxFlow }
     private val projects = mockk<ProjectRepository> { every { observe() } returns MutableStateFlow(Cached(emptyList(), false, loadedAt)) }
     private val contexts = mockk<ContextRepository> { every { observe() } returns MutableStateFlow(Cached(emptyList(), false, loadedAt)) }
+    private val completion = mockk<TaskCompletionRepository>()
     private var uptime = 0L
 
-    private fun show() {
+    private fun show(opener: TaskOpener? = null) {
         val viewModel =
-            InboxViewModel(inbox, tasks, projects, contexts, Clock.fixed(Instant.parse("2026-10-20T10:00:00Z"), ZoneOffset.UTC)) {
+            InboxViewModel(
+                inbox,
+                tasks,
+                projects,
+                contexts,
+                completion,
+                Clock.fixed(Instant.parse("2026-10-20T10:00:00Z"), ZoneOffset.UTC),
+            ) {
                 uptime += 1_000L
                 uptime
             }
-        composeRule.setContent { CockpitTheme { InboxRoute(viewModel = viewModel) } }
+        composeRule.setContent {
+            CockpitTheme {
+                CompositionLocalProvider(LocalTaskOpener provides opener) { InboxRoute(viewModel = viewModel) }
+            }
+        }
     }
 
     @Test
@@ -108,5 +128,37 @@ class InboxRouteTest {
         composeRule.onNodeWithTag(InboxTags.action(InboxActionKind.TRASH)).performScrollTo().performClick()
         composeRule.waitForIdle()
         coVerify(exactly = 1) { inbox.process(first, any(), InboxAction.Trash) }
+    }
+
+    @Test
+    fun `the checkbox of a row completes the task and the snackbar offers undo`() {
+        val completion = Completion(first.id, first.title, 2)
+        coEvery { this@InboxRouteTest.completion.complete(first) } returns CompletionResult.Completed(completion)
+        show()
+
+        composeRule.onNodeWithTag(TaskListTags.complete(first.id)).performClick()
+        composeRule.waitForIdle()
+
+        coVerify(exactly = 1) { this@InboxRouteTest.completion.complete(first) }
+        composeRule.onNodeWithTag(TaskListTags.row(first.id)).assertDoesNotExist()
+        composeRule.onNodeWithText("Completed Call the plumber", substring = true).assertExists()
+    }
+
+    @Test
+    fun `tapping a row opens the task detail with the list's copy`() {
+        val opened = mutableListOf<Pair<UUID, GtdTask?>>()
+        show(TaskOpener { id, snapshot, _ -> opened += id to snapshot })
+
+        composeRule.onNodeWithText("Buy tiles").performClick()
+
+        assertEquals(listOf(second.id to second), opened)
+    }
+
+    @Test
+    fun `offline the row checkbox is disabled`() {
+        inboxFlow.value = inboxFlow.value.copy(offline = true)
+        show()
+
+        composeRule.onNodeWithTag(TaskListTags.complete(first.id)).assertIsNotEnabled()
     }
 }

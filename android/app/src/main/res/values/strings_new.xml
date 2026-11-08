@@ -20,7 +20,5 @@
     <string name="new_task_offline">The server could not be reached. No task was created.</string>
     <string name="new_task_failed">The task could not be created.</string>
     <string name="new_dismiss">Dismiss</string>
-    <string name="new_task_created_at">Captured %1$s</string>
-    <string name="new_task_hint">Process it in the Inbox to decide what it is.</string>
     <string name="new_no_subject">(no subject)</string>
 </resources>

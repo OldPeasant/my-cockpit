@@ -89,13 +89,20 @@ class NewStoresTest {
     fun whatIsOpenSurvivesEncoding() {
         val id = UUID.fromString("00000000-0000-4000-9000-000000000003")
 
-        assertEquals(NewOpen.Task(id), NewOpen.parse(NewOpen.Task(id).encode()))
         assertEquals(NewOpen.Mail(id), NewOpen.parse(NewOpen.Mail(id).encode()))
     }
 
     @Test
     fun malformedOpenValuesAreIgnored() {
-        listOf("", "task", "task:", "task:not-a-uuid", "note:00000000-0000-4000-9000-000000000003").forEach {
+        // A task is no longer opened inside the New screen: a saved "task:" value from before is ignored.
+        listOf(
+            "",
+            "task",
+            "task:",
+            "task:not-a-uuid",
+            "task:00000000-0000-4000-9000-000000000003",
+            "note:00000000-0000-4000-9000-000000000003",
+        ).forEach {
             assertNull(it, NewOpen.parse(it))
         }
     }
