@@ -4,47 +4,47 @@ Date: 2026-11-08
 
 Task: web-back-navigation - Web back buttons return to where the user came from
 
-Scope: `git diff 8f36a3d..70358e258 -- web/` (all task commits on top of base 8f36a3d9668cb4a1dffd21b73f42ae828f5bd53d). Committed changes only. The working tree holds an uncommitted edit of `web/src/app/shared/navigation/back-navigation.spec.ts` by another helper running at the same time; it is not part of the reviewed scope, but its failing test confirmed CR-1 below.
+Scope: `git diff 1a634a78e..3ff3a2c3f -- web/` (all task commits on top of base 1a634a78e3ac169fd6fe817a129bb3bd39373630). This is a re-review of the final code. The focus is the production changes since the previous review (which covered up to e9c908136): d1cabbdc0 and 3ff3a2c3f in `web/src/app/shared/navigation/back-navigation.ts`, plus the spec changes in d1cabbdc0, bed9bc2da and 3ff3a2c3f. Only committed code was reviewed. Uncommitted test-writer edits in the working tree were ignored.
 
 Requirements:
-- `tasks/web-back-navigation.md` (acceptance criteria and recorded assumptions, including the accepted known limitation for the earlier CR-1)
+- `tasks/web-back-navigation.md` (acceptance criteria and recorded assumptions, including the accepted known limitation for a refused Back followed by a browser Forward, and the note to stop chasing further exotic history races)
 - `SPEC.md`, `docs/ARCHITECTURE.md`, `AGENTS.md` "Project notes"
-- Parent agent instructions (re-review of the final code; verify the redirect fix of TW-1 against the Angular router source)
-- `reviews/web-back-navigation/fixes.md`
+- Parent agent instructions (re-review the final code; review committed code only)
+- Previous `reviews/web-back-navigation/review.md` (CR-1, CR-2) and `reviews/web-back-navigation/fixes.md`
 
 Git range:
 - Branch: main
-- HEAD: 70358e258
-- Base/start: 8f36a3d9668cb4a1dffd21b73f42ae828f5bd53d
-- Commits reviewed: 8 (3a11262b8, 5f3374c69, fbd730ace, 1cb7f53a7, 7655d5891, e8c58ec89, e55caf3fc, 70358e258; four of them carry only tests and reports)
+- HEAD: 3ff3a2c3f7bcd3a6756ce4c1aa5bc66f8e2a4591
+- Base/start: 1a634a78e3ac169fd6fe817a129bb3bd39373630
+- Commits reviewed: 12 (b3b1f4396, 3f5e1909d, 02f9be5e0, 017142026, a2f06e977, eae4fb86b, 99b2dce55, e9c908136, 3f828d971, d1cabbdc0, bed9bc2da, 3ff3a2c3f). The re-review concentrated on d1cabbdc0, bed9bc2da and 3ff3a2c3f.
 
-Summary: 0 P0, 0 P1, 1 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
 ## Commands run
 
-- `git log --oneline 8f36a3d..HEAD`, `git diff --stat 8f36a3d..HEAD` -> 8 commits, 38 files (35 under `web/`)
-- `git diff --stat e8c58ec89..HEAD -- web/` -> since the previous review only `back-navigation.ts` (+33/-10) and its spec changed in production/test code
-- Full read of `back-navigation.ts`, `back-navigation.spec.ts`; diff of `app.config.ts`, `back-button.ts`, `index.ts`, mail read page, task detail page and task detail component
-- Angular router source `node_modules/@angular/router/fesm2022/_router-chunk.mjs` (v22.2.3): `NavigationTransitions.setupNavigations` (lines 3840-3910, 4053-4069), `HistoryStateManager.handleRouterEvent` / `setBrowserUrl` / `restoreHistory` (4404-4483), `Router.subscribeToNavigationEvents` `RedirectRequest` handling (4595-4610)
-- `npx ng test --watch=false --include src/app/features/mail/read/mail-read-page.spec.ts --include src/app/features/gtd/task-detail/task-detail-page.spec.ts` -> 2 files, 113 tests passed
-- `npx ng test --watch=false --include src/app/shared/navigation/back-navigation.spec.ts` -> run on the working tree (the committed spec could not be isolated without touching the other helper's uncommitted edit): 48 passed, 1 failed, the uncommitted test "leads to the page its back button names after a Back another navigation took over" (`previous()?.url` is `/mail/messages/m1`, expected `/waiting`), see CR-1. The fixer's run of the committed spec is recorded in `fixes.md` (148 tests passed with the mail read spec).
+- `git log --oneline 1a634a78e..HEAD`, `git diff --stat 1a634a78e..3ff3a2c3f -- web/`: 12 commits and 35 files under `web/`
+- `git diff --stat e9c908136..3ff3a2c3f`: since the previous review, only `back-navigation.ts` (+15/-13), `back-navigation.spec.ts` and the review reports changed
+- Read in full: `back-navigation.ts` at 3ff3a2c3f, and the new or changed tests in `back-navigation.spec.ts` at 3ff3a2c3f
+- `grep` for `skip|xit|.only` in the committed spec: none. The test from bed9bc2da that was skipped earlier ("goes to the parent route after a Back to an entry it never saw that another navigation took over") is now enabled.
+- Angular router source `web/node_modules/@angular/router/fesm2022/_router-chunk.mjs`: `setupNavigations` (3840-3887), `isUpdatingInternalState` / `isUpdatedBrowserUrl` (4103-4111), `isRedirectingEvent` (1903), history restore (4421), `navigateToSyncWithBrowser` (4639-4660)
+- Tests were not re-run in this pass. The committed spec cannot be run in isolation without touching the other helper's uncommitted edit of the same file.
 
-## Redirect fix (TW-1) checked against the router
+## Changes since the previous review
 
-- A guard redirect produces `NavigationCancel` with code `Redirect` and then a `RedirectRequest` (`_router-chunk.mjs:4064-4068`). The state manager does not restore history for a redirecting cancel (`:4421-4425`), so the browser stays on the entry the popstate moved to.
-- The follow-up is scheduled as an `IMPERATIVE_NAVIGATION` with `replaceUrl` true for a browser-triggered source (`:4603-4606`), and `setBrowserUrl` then calls `replaceState` on that entry (`:4442-4448`).
-- `followRedirect` moves the mirror's index to the restored entry before the follow-up's `NavigationStart` (which resets `restoring`), and `record` then replaces that entry because `currentNavigation().extras.replaceUrl` is set. This matches the browser. The unknown-entry branch (`[current]`, index 0) gives "nothing known behind", as for other unknown entries.
-- `back()` no longer resolves on a redirecting cancel and waits for the follow-up's `NavigationEnd`. This is bounded by the 1.5 s timeout and covered by "resolves back() only when the navigation a guard redirected the Back to has ended".
+- Previous CR-1 (a superseded Back left the mirror on the old entry) is fixed. When a running popstate gets a `SupersededByNewNavigation` cancel, `followTakenOver` now moves the index to the restored entry. The ordering is correct: the outer `switchMap` unsubscribes the running inner pipeline, so its `finalize` emits the cancel (`:4043-4047`) before the new navigation's `NavigationStart` (`:3882`), and `restoring` still identifies the Back at that point. The history state manager does not restore history for this cancel (`:4421`), so the browser stays on the restored entry. A newer popstate finds its own entry by `restoredId` in `record`, and an imperative push or replace applies at the restored index. Both cases are covered: "leads to the page its back button names after a Back another navigation took over" (it also asserts that the cancel code really is `SupersededByNewNavigation`) and "follows the second Back when a Back runs into a first one still running".
+- Previous CR-2 is fixed. The replace branch of `record` keeps the forward entries, like `replaceState`. This is covered by "keeps the page ahead after a Back a guard redirected, as the browser does".
+- 3ff3a2c3f: for a taken-over Back to an entry the mirror never saw, the mirror is now cleared (index -1) instead of keeping the page that was left. Pushing or replacing afterwards gives a single entry with nothing behind it, so `back()` goes to the parent route. This is the documented rule for unknown entries. The forward entries are lost in that case, which only costs a parent-route fallback and never leads to a wrong page. `restoreCancelled` still keeps `[current]` for an unknown entry, which is correct because there the router rewrites the entry with the current page.
+- `back()` keeps waiting past redirecting and superseded cancels and ends on `NavigationEnd`, a non-redirecting cancel, `NavigationError`, `NavigationSkipped` or the 1.5 s timeout. The double-click guard (`goingBack`) is unchanged.
 
 ## Acceptance criteria assessment
 
-1. Shared helper: `BackNavigation` (root service, started by `provideBackNavigation()` in `app.config.ts`) and `app-back-button` in `web/src/app/shared/navigation`. Met, apart from the superseded-Back race in CR-1.
-2. Label: route title or a page's own name via `setLabel`, else "Back"; aria label "Back to {destination}". Met.
-3. Used by mail read, task detail page, project detail, note editor, contact detail and bookmark reader. Met (mail compose is excluded by a recorded assumption).
-4. Archive, Spam and Delete call `back('/mail', { replaceUrl: true })`. Met.
-5. Unit tests for "opened from New -> back returns to New with its filter" and "deep link -> parent route" exist. Met.
-6. EN and DE locale units `back.label`, `back.aria`. Met (checked in the previous review; the locale files did not change since then).
-7. Focused suites pass (above). The parent still has to run and record `npm run check` and `sh scripts/check.sh` on the final code.
+1. Shared helper: `BackNavigation` (root service, started by `provideBackNavigation()`) and `app-back-button` in `web/src/app/shared/navigation`. It goes back when the previous entry is a known app page and to the parent route otherwise. Met, apart from the narrow race in CR-1.
+2. Label: the route title, or the name a page sets via `setLabel`, otherwise "Back". Met.
+3. Used by mail read, task detail, project detail, note editor, contact detail and bookmark reader. Met (mail compose is excluded by a recorded assumption).
+4. Mail Archive, Spam and Delete go back to the origin, or replace the message with `/mail` on a deep link. Met (unchanged since the previous review).
+5. Unit tests "opened from New -> back returns to New with its filter" and "deep link -> parent route" exist. Met.
+6. EN and DE locale units. Met (the locale files are unchanged since the previous review).
+7. Unit tests cover the new behaviour. The parent still has to run and record `npm run check` and `sh scripts/check.sh` on the final code.
 
 ## P0 Critical
 
@@ -56,22 +56,17 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | A Back that a newer navigation supersedes leaves the back button on the wrong page**
-    - File: `web/src/app/shared/navigation/back-navigation.ts:78-88`, `web/src/app/shared/navigation/back-navigation.ts:226-232`
-    - Category: Correctness
-    - Problem: A popstate navigation cancelled with `SupersededByNewNavigation` is ignored. `isRedirecting` excludes it from `restoreCancelled`, and only `Redirect` reaches `followRedirect`. In the router the browser has already moved to the restored entry, and a superseded cancel does not restore history (`_router-chunk.mjs:4421`). The outer `switchMap` emits the old navigation's cancel before the new navigation's `NavigationStart` (`:3842`, `:4043-4047`, `:3882`), so `restoring` still identifies the Back at that point. Example: the history is `[/today, /waiting, /mail/messages/m1]` and the Back to `/waiting` is still running (slow guard or lazy chunk). The user then clicks a nav link to `/mail`, and the browser pushes `/mail` on top of the `/waiting` entry: `[/today, /waiting, /mail]`. The mirror's index is still on m1, so it pushes after it: `[/today, /waiting, m1, /mail]`. The back button then names "Message" and links to m1, but its click (`location.back()`) goes to `/waiting`. The other helper's uncommitted test reproduces this (`previous()?.url` is `/mail/messages/m1` instead of `/waiting`). The previous review called ignoring this case correct, which was wrong for a popstate superseded by an imperative navigation.
-    - Why it matters: criteria 1 and 2 (the label names the destination, and the button goes where it says) break after a realistic race: clicking a nav item while a Back is still loading.
-    - Suggested fix: send a `SupersededByNewNavigation` cancel of the running popstate to `followRedirect` as well, so the index moves to the restored entry. A newer popstate still finds its own entry by `restoredId`, and an imperative push or replace then applies at the right index. Keep `back()` waiting past it as now. Commit the other helper's test as the regression test.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | A replacing navigation drops the forward entries the browser keeps**
-    - File: `web/src/app/shared/navigation/back-navigation.ts:215-220`
+- [ ] **CR-1 | A Back that is followed by a browser Forward before it finishes leaves the mirror one step behind**
+    - File: `web/src/app/shared/navigation/back-navigation.ts:177-189` (`followTakenOver`), `web/src/app/shared/navigation/back-navigation.ts:78-79`
     - Category: Correctness
-    - Problem: For `replaceUrl` or a same-URL navigation, `record` truncates the mirror to `entries.slice(0, index + 1)`. The browser's `replaceState` (`_router-chunk.mjs:4448`) keeps the forward entries. The new redirect path now reaches this branch after a Back: with `[/today, /guarded, m1]`, a Back redirected to `/login` leaves the mirror at `[/today, /login]` while the browser has `[/today, /login, m1]`. If the user then presses the browser's Forward to m1, its `restoredId` is not found, the mirror starts afresh, and the back button goes to the parent route (a push) instead of back to `/login` or `/today`.
-    - Why it matters: after this rare sequence the button falls back to the parent route although an app page lies behind (criterion 1). It never leads to a wrong page.
-    - Suggested fix: replace in place without truncating (`next = [...entries]; next[index] = entry`) in the replace branch, and add a test for "redirected Back, then Forward". Alternatively, accept it alongside the recorded known limitation.
+    - Problem: `followTakenOver` moves the index to the restored entry as soon as the superseded cancel arrives. It assumes that the navigation taking over will start and be recorded. A browser Forward back to the page that is still shown is never recorded, though. Example: the history is `[/today, /waiting, /mail/messages/m1]`, the user is on m1 and presses Back, and the guard or lazy chunk of `/waiting` is still loading. The user then presses Forward. The browser is on m1 again. The first popstate is cancelled with `SupersededByNewNavigation`, and `followTakenOver` moves the mirror to `/waiting`. The Forward popstate targets the router's current URL (m1), and the browser URL is m1 too. So `isUpdatingInternalState()` and `isUpdatedBrowserUrl()` are both false (`_router-chunk.mjs:3872-3878`, `:4103-4111`), and the router emits `NavigationSkipped` with no `NavigationStart` or `NavigationEnd`. The mirror stays on `/waiting` while m1 is shown. The back button then names "Today" (`previous()` is `/today`), but its click (`location.back()`) goes to `/waiting`. This fixes itself after one step. Before d1cabbdc0 this sequence came out right, because the superseded cancel was ignored. So the fix for the earlier CR-1 introduced this case. It differs from the accepted known limitation, which covers a refused Back followed by Forward, not a Back that is still running.
+    - Why it matters: for one step, the label does not match where the button leads (criterion 2). The race needs a slow guard or chunk plus a quick Forward, so it is rare.
+    - Suggested fix: move the index later. In `followTakenOver`, only remember the restored index or the "unknown" result. Apply it at the next `NavigationStart` if that navigation is imperative (a newer popstate resolves its own entry in `record`), and drop it on `NavigationSkipped`. A skipped popstate means the browser is back on the URL the router shows, which is the entry the mirror never left. Add a regression test: a slow Back, then `location.forward()`, then `previous()` should still be `/waiting`. If the parent prefers not to add more special cases, the alternative is to record this sequence as a further accepted limitation with `tasks.py assume`, in line with the extension note to stop chasing exotic history races.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 (P2) is a concrete, reproduced mismatch between the back button's label and its destination after a superseded Back. CR-2 is optional. The TW-1 redirect fix itself is correct against the Angular 22.2.3 router.
+No material issues found. The fixes for the previous CR-1 and CR-2 are correct when checked against the Angular router source, and the test that was skipped earlier is now enabled. The only finding is a P3 race that d1cabbdc0 introduced (CR-1). The parent can fix it as suggested or record it as an accepted limitation.

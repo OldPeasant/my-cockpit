@@ -211,6 +211,34 @@ describe('BackNavigation', () => {
     expect(navigation.previous()?.url).toBe('/today');
   });
 
+  it('keeps the pages ahead when the current entry is replaced, as the browser does', async () => {
+    await go('/today');
+    await go('/new');
+    await go('/mail/messages/m1');
+    await popBack();
+    // E.g. New changes its filter in place (replaceState): the message still lies ahead.
+    await router.navigateByUrl('/new?filter=mail', { replaceUrl: true });
+    expect(navigation.previous()?.url).toBe('/today');
+    location.forward();
+    await settle();
+    expect(router.url).toBe('/mail/messages/m1');
+    expect(navigation.previous()).toEqual(
+      expect.objectContaining({ url: '/new?filter=mail', label: 'New' }),
+    );
+  });
+
+  it('keeps the pages ahead on a navigation to the same URL', async () => {
+    await go('/today');
+    await go('/new');
+    await go('/mail/messages/m1');
+    await popBack();
+    await router.navigateByUrl('/new', { onSameUrlNavigation: 'reload' });
+    location.forward();
+    await settle();
+    expect(router.url).toBe('/mail/messages/m1');
+    expect(navigation.previous()?.url).toBe('/new');
+  });
+
   it('ignores navigations that skip the location', async () => {
     await go('/today');
     await go('/new');
@@ -709,6 +737,54 @@ describe('BackNavigation when a Back does not reach its page', () => {
     await navigation.back('/today');
     await settle();
     expect(router.url).toBe('/waiting');
+  });
+
+  it('leads to the page its back button names after a Forward another navigation took over', async () => {
+    await go('/today');
+    await go('/waiting');
+    await go('/new');
+    await navigation.back('/mail');
+    await navigation.back('/mail');
+    expect(router.url).toBe('/today');
+    let open!: (value: boolean) => void;
+    gate = new Promise((resolve) => (open = resolve));
+    location.forward();
+    await settle();
+    // The Forward to /waiting still runs; the user opens Mail meanwhile.
+    expect(router.url).toBe('/today');
+    const opened = router.navigateByUrl('/mail');
+    open(true);
+    await opened;
+    await settle();
+    gate = null;
+    expect(router.url).toBe('/mail');
+    // The browser went forward to /waiting and pushed /mail there, dropping /new.
+    expect(navigation.previous()).toEqual(
+      expect.objectContaining({ url: '/waiting', label: 'Waiting' }),
+    );
+    await navigation.back('/today');
+    expect(router.url).toBe('/waiting');
+    expect(navigation.previous()?.url).toBe('/today');
+  });
+
+  it('counts the page that took over a link still running as the page opened', async () => {
+    await go('/today');
+    await go('/new');
+    let open!: (value: boolean) => void;
+    gate = new Promise((resolve) => (open = resolve));
+    // A link to /waiting still runs when the user clicks a link to Mail.
+    const first = router.navigateByUrl('/waiting');
+    await settle();
+    const opened = router.navigateByUrl('/mail');
+    open(true);
+    expect(await first).toBe(false);
+    await opened;
+    gate = null;
+    expect(router.url).toBe('/mail');
+    expect(navigation.previous()?.url).toBe('/new');
+    await navigation.back('/today');
+    expect(router.url).toBe('/new');
+    expect(navigation.previous()?.url).toBe('/today');
   });
 
   it('follows the second Back when a Back runs into a first one still running', async () => {
