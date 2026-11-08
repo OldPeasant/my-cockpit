@@ -13724,6 +13724,111 @@
           <context context-type="linenumber">32,35</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="capture.destinationLabel" datatype="html">
+        <source>Save to</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/capture/capture-dialog.html</context>
+          <context context-type="linenumber">40,41</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="capture.destinationInbox" datatype="html">
+        <source>Inbox</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/capture/capture-dialog.html</context>
+          <context context-type="linenumber">49,51</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="capture.destinationReadLater" datatype="html">
+        <source>Read later</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/capture/capture-dialog.html</context>
+          <context context-type="linenumber">59,62</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="capture.readLaterHint" datatype="html">
+        <source> Saved as a bookmark in Read later; the title comes from the page. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/capture/capture-dialog.html</context>
+          <context context-type="linenumber">67,69</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="capture.saveReadLater" datatype="html">
+        <source>Save to Read later</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/capture/capture-dialog.html</context>
+          <context context-type="linenumber">200,202</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="capture.savedReadLater" datatype="html">
+        <source>Saved to Read later</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/capture/capture-dialog.ts</context>
+          <context context-type="linenumber">182</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.androidApp.loading" datatype="html">
+        <source>Checking…</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/android-app-download.ts</context>
+          <context context-type="linenumber">31,34</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.androidApp.none" datatype="html">
+        <source> No Android app is available on this server. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/android-app-download.ts</context>
+          <context context-type="linenumber">35,38</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.androidApp.failed" datatype="html">
+        <source>The Android app version could not be loaded.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/android-app-download.ts</context>
+          <context context-type="linenumber">41,43</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.androidApp.version" datatype="html">
+        <source>Version <x id="INTERPOLATION" equiv-text="{{ app.versionName }}"/></source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/android-app-download.ts</context>
+          <context context-type="linenumber">53,54</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.androidApp.versionUnknown" datatype="html">
+        <source>Version unknown</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/android-app-download.ts</context>
+          <context context-type="linenumber">57,60</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.androidApp.details" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ size(app) }}"/>, updated <x id="INTERPOLATION_1" equiv-text="{{ app.updatedAt | date: &apos;mediumDate&apos; }}"/> </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/android-app-download.ts</context>
+          <context context-type="linenumber">62,64</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.androidApp.download" datatype="html">
+        <source>Download APK</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/android-app-download.ts</context>
+          <context context-type="linenumber">65,70</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.androidApp" datatype="html">
+        <source>Android app</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
+          <context context-type="linenumber">217,218</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.androidApp.hint" datatype="html">
+        <source> Install it on your phone from this server; no app store needed. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
+          <context context-type="linenumber">219,221</context>
+        </context-group>
+      </trans-unit>
     </body>
   </file>
 </xliff>
