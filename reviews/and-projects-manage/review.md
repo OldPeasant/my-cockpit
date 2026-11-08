@@ -4,30 +4,35 @@ Date: 2026-11-08
 
 Task: and-projects-manage - Android: create, edit, complete and drop projects
 
-Scope: production changes `git diff 9714b6dc..7745affc -- android` (ProjectEditing.kt, ProjectWriteApi.kt, ProjectWorkRepository.kt, ProjectsViewModel.kt, ProjectForm.kt, ProjectsScreen.kt under `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/`, EN/DE `strings_projects_lists.xml`). The test-writer's in-progress test files were out of scope, as the parent worker asked.
+Scope: final revision of the task, `git diff 1f7a57199..2f5e046f5`. Production code reviewed in full: `ProjectEditing.kt`, `ProjectForm.kt`, `ProjectWorkRepository.kt`, `ProjectWriteApi.kt`, `ProjectsScreen.kt` and `ProjectsViewModel.kt` under `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/`, plus the EN/DE `strings_projects_lists.xml`. I re-checked the fixes for CR-1..CR-3 from the previous review in the fix diff `6afe42171..2f5e046f5`. The committed tests were only checked for coverage of the fixes. Uncommitted test changes by the concurrent test-writer were out of scope.
 
 Requirements:
-- tasks/and-projects-manage.md (acceptance criteria and the four recorded assumptions)
+- tasks/and-projects-manage.md (acceptance criteria #1-#7 and the four recorded assumptions)
 - SPEC.md §5.3, §4.2 (PATCH semantics, ETag/If-Match)
-- docs/PARITY.md (row "No create/edit/complete/drop/delete project")
-- docs/ARCHITECTURE.md, AGENTS.md project notes
-- Reference behavior: web/src/app/features/gtd/projects/project-form.ts (MAX_PROJECT_TITLE 500), server ProjectService (update: present fields applied, null clears; delete: soft delete, tasks keep their project; title max 500, description max 100000)
+- docs/ARCHITECTURE.md, docs/QUALITY.md, AGENTS.md project notes
+- Previous review and fix report: reviews/and-projects-manage/review.md (earlier revision), reviews/and-projects-manage/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: 7745affc5113e551e8800f25e088effbe5e4441a
-- Base/start: 9714b6dc5a5558b625f35c0c233ffbce1696f3ce
-- Commits reviewed: 1 (7745affc)
+- HEAD: 2f5e046f51152f33466fb5c0b300b9aaeb6914d7 (the parent named b405e35eb, but that commit is not in this clone; the HEAD present when this review ran is recorded here)
+- Base/start: 1f7a57199238adcf106c7c72531af6e8671bca2e
+- Commits reviewed: 4 (ebc2d7788 heartbeat, 3655a0ce3 implementation, 6afe42171 tests and review, 2f5e046f5 fixes)
+- Uncommitted changes: none at review time
 
-Summary: 0 P0, 0 P1, 1 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 3 P3
 
-Things I checked and found correct:
-- The PATCH body only contains changed fields. Emptied fields are sent as JSON `null`, which matches the server's `ProjectChanges` semantics. The hand-written `ProjectWriteApi` follows the same pattern the repo already uses (InboxRepository, NotesRepository, TaskDetailRepository).
-- 404/409/412 become `ActionOutcome.CONFLICT`. Every change reloads the project cache first, and only then does the form get rebased on the current version. Fields the user did not change take the server's value.
-- Delete sends `If-Match`, always asks for confirmation, and says that the tasks keep their project. This matches `ProjectService.delete`, as recorded in the assumption.
-- The description renders through the notes `MarkdownView` both in the detail view and in the form preview. `NoteImages` is `@Singleton`, so no extra ImageLoader is created per view model.
-- Every new string key is present in both `values/` and `values-de/`, including the plurals.
-- No secrets, no logging of description contents, and no dependency changes.
+Verification of the earlier findings:
+- CR-1 (an old save overwrites a later form) is fixed. Every open, replace and close of the form goes through `replaceForm()`, which bumps `formSession`. `saveForm` and `create` capture the session and apply their result only if it has not changed. The project message is still shown. Three ViewModel tests cover this (`ProjectsViewModelTest.kt:700`, `:721`, `:742`). One narrow residual window remains in the CONFLICT path (CR-1 below).
+- CR-2 (no confirmation while the tasks are loading) is fixed. Both `setStatus` and `saveForm` treat "not loaded" as unknown and ask. `openTasks` became `Int?`, and the dialog leaves out the count line when it is unknown. Tests: `ProjectsViewModelTest.kt:763` and a Compose test. The fix adds one edge case, where the project is no longer in the cache (CR-2 below).
+- CR-3 (a stale confirmation appears for another project) is fixed. `ProjectConfirm` now carries `projectId`. `open()` clears `confirm`, `confirm()` drops a confirmation for a project that is not open, and the screen only shows a matching dialog. Tests: `ProjectsViewModelTest.kt:781`, `:795`, `ProjectsScreenTest.kt:471`.
+- The German "abschließen" lint fix is correct. The EN and DE files both have 106 string/plurals entries with the same keys.
+
+Other checks that passed:
+- The PATCH body sends only changed fields, and emptied fields go as JSON `null`. `If-Match` is sent on update and delete. 404/409/412 map to CONFLICT. The project cache reloads before the form is rebased.
+- Create sends status ACTIVE and the title trimmed (max 500 in the UI). Delete always confirms, matching the recorded assumption.
+- The description renders through the notes `MarkdownView` both in the detail view and in the form preview.
+- The new-project action is disabled offline. The detail menu is disabled while read-only or while a change on the project is running.
+- No secrets, no logging of descriptions, and no dependency changes.
 
 ## P0 Critical
 
@@ -39,34 +44,31 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | An old form save can close or replace a form the user opened later**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/ProjectsViewModel.kt:313-321` (also `:373-383` for create; cancel stays enabled at `ProjectForm.kt:108` and through the BackHandler in `ProjectsScreen.kt`)
-    - Category: Correctness
-    - Problem: The form's Cancel button and system back stay active while `saving` is true. `saveForm` does not use `busy`/`run`, so nothing blocks the detail menu either. The save coroutine ignores whether the form it started from is still open and writes its result straight into `form`:
-        - `DONE` sets `form.value = null`.
-        - `CONFLICT` sets `form.value = f.rebase(...)`.
-      Example: the user cancels while a save is in flight, taps Edit again (a new form, maybe with new edits), and the first save then returns. On `DONE` the new form closes and its edits are lost without a message. On `CONFLICT` the new form is replaced by a rebase of the old draft, and the conflict banner reappears for a form the user had already cancelled. For create: after a cancel, a later `DONE` still closes any form that is open and moves the user to the new project.
-    - Why it matters: This is the "older request overwrites newer state" defect: unsaved user input is silently dropped or swapped out. It needs a slow network, but slow networks are normal on mobile.
-    - Suggested fix: Have the coroutine apply its result only if the form is still the one it started (for example, give it a request id or token, or `form.update { if (it?.saving == true && it.projectId == f.projectId) ... else it }`). Or disable Cancel and back while `saving`, and block the menu actions for the project while its save runs (put the project id in `busy`). Add a ViewModel test for "cancel during save, then the result arrives".
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | Complete or drop skips the confirmation while the project's tasks are still loading**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/ProjectsViewModel.kt:333` (same for the form path at `:297-305`)
+- [ ] **CR-1 | The CONFLICT path checks the session before a suspending read, so a narrow race remains**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/ProjectsViewModel.kt:330-334`
     - Category: Correctness
-    - Problem: The open-task count is `detail.tasks.size`. While the project's tasks are still loading (`loaded == false`, no error), that count is 0. `readOnly` is false in this state and the menu is enabled, so Complete or Drop is sent without the confirmation, even if the project has open tasks.
-    - Why it matters: Criterion 2 asks for a confirmation when open tasks remain. The change can be undone (Reactivate) and the tasks are not touched, hence P3.
-    - Suggested fix: Treat "not loaded yet" as unknown. Either disable Complete/Drop until `detail.loaded` is true, or always ask while the count is not known.
+    - Problem: The code checks `session == formSession` first. Only then does `replaceForm(currentProject(id)?.let { ... })` run, and `currentProject` suspends on `projects.observe().first()`, which is a Room-backed flow (`GtdRepositories.kt:113`). If the user cancels and opens another form during that DB read, the old draft's rebase replaces the new form anyway. This is the case the CR-1 fix was meant to close.
+    - Why it matters: The window is short (one cache query), so the risk is low. When it happens, the new form's edits are lost without a message.
+    - Suggested fix: Read `currentProject(id)` before the session check (only for CONFLICT), then check the session and apply the result with no suspension in between.
 
-- [ ] **CR-3 | A pending confirmation can show up again for a different project**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/ProjectsScreen.kt:212`, `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/ProjectsViewModel.kt:249-252`
+- [ ] **CR-2 | Saving a finishing status does nothing when the edited project has left the cache**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/ProjectsViewModel.kt:311-318` (dialog gate at `ProjectsScreen.kt:211-213`)
     - Category: Correctness
-    - Problem: The dialog only shows while `detail != null`, but `confirm` stays set when the detail disappears. That happens when the selected project is trashed or changed elsewhere and the cache reload removes it while the dialog is open. `open()` does not clear `confirm`. If the user then opens another project, the old Delete or Finish dialog appears for that project (with its title but the old open-task count), and `confirm()` applies it to the newly opened project.
-    - Why it matters: An unexpected destructive dialog appears for a project the user did not act on. The dialog shows the right title, which limits the risk.
-    - Suggested fix: Clear `confirm` in `open()`, and clear it when the selected project is no longer in the cache. Better still, store the project id in `ProjectConfirm` and ignore or drop the confirmation when it does not match the open project.
+    - Problem: After the CR-2 fix, `open` is `null` whenever `detail` is null or belongs to another project, not only while the tasks load. Suppose the edited project was trashed elsewhere and a refresh removed it from the cache while the form was open (the form still shows, because it takes precedence over the detail). If the user then sets Completed or Dropped and taps Save, `saveForm` sets `confirm`. The screen never shows that confirmation, because `detail` is null, and `confirm()` would drop it anyway. Save silently does nothing, every time. Before the fix, the PATCH went out, came back 404/CONFLICT, closed the form and told the user.
+    - Why it matters: In a rare situation the screen gives no feedback, and the user can only cancel.
+    - Suggested fix: Ask only when the open detail is this project (`detail?.project?.id == id`) and its tasks are not loaded or not empty. If the project is not in the cache, skip the confirmation and send the PATCH, so the existing CONFLICT handling closes the form and shows the message.
+
+- [ ] **CR-3 | The fix report still contains an unfilled placeholder**
+    - File: `reviews/and-projects-manage/fixes.md:93`
+    - Category: Quality
+    - Problem: The `.taskcheck` line reads `CHECK_RESULT_PLACEHOLDER`. It does not use the `<...>` form that docs/QUALITY.md line 25 rejects, so the gate may accept it. It is still unfinished evidence in a committed helper report.
+    - Why it matters: A human reading the review evidence cannot tell whether `.taskcheck` ran for the fixes.
+    - Suggested fix: Don't edit the helper's report by hand (AGENTS.md). If the fixer runs again for CR-1/CR-2, have it write the real result. Otherwise record the actual `sh scripts/check.sh` result in `quality.json` and say there that fixes.md left it open.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 should be fixed or explicitly decided on by the parent worker. CR-2 and CR-3 are low-priority robustness fixes.
-
-Note: when this review was written, no acceptance-criterion evidence had been recorded yet (`python tasks.py verify and-projects-manage` shows #1-#7 unchecked), and the new tests for criterion 7 were still being written by the test-writer. Both need to be done before `done`. Neither is reported as a finding, because they are part of the parent worker's remaining workflow.
+No material issues found. The earlier CR-1..CR-3 are fixed correctly, and each fix has a test. The three remaining P3 items are small robustness and evidence cleanups that the parent worker may fix or record. Acceptance criteria #1-#7 are implemented as the recorded assumptions describe. `python tasks.py verify and-projects-manage` still shows all seven criteria unverified, and the parent worker must record that evidence (including the full `sh scripts/check.sh` run for #7) before `done`.

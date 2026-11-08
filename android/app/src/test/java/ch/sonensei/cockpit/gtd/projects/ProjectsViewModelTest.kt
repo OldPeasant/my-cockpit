@@ -1024,6 +1024,126 @@ class ProjectsViewModelTest {
         }
 
     @Test
+    fun `a failed save that returns after its form was cancelled does not unlock the save running for the next form`() =
+        test { vm ->
+            val first = CompletableDeferred<ActionOutcome>()
+            val second = CompletableDeferred<ActionOutcome>()
+            coEvery { work0.update(holiday.id, 2, JsonObject(mapOf("title" to JsonPrimitive("Plan the holiday")))) } coAnswers
+                { first.await() }
+            coEvery { work0.update(holiday.id, 2, JsonObject(mapOf("title" to JsonPrimitive("Plan the summer holiday")))) } coAnswers
+                { second.await() }
+            vm.open(holiday)
+            vm.editProject()
+            vm.editForm { it.copy(title = "Plan the holiday") }
+            vm.saveForm()
+            vm.cancelForm()
+            vm.editProject()
+            vm.editForm { it.copy(title = "Plan the summer holiday") }
+            vm.saveForm()
+            first.complete(ActionOutcome.FAILED)
+            assertTrue(
+                vm.uiState.value.form!!
+                    .saving,
+            )
+            // Still saving: a second tap does not send the newer form twice.
+            vm.saveForm()
+            coVerify(exactly = 1) {
+                work0.update(holiday.id, 2, JsonObject(mapOf("title" to JsonPrimitive("Plan the summer holiday"))))
+            }
+            second.complete(ActionOutcome.DONE)
+            assertNull(vm.uiState.value.form)
+        }
+
+    @Test
+    fun `a failed create that returns after its form was cancelled does not unlock the create running for the next form`() =
+        test { vm ->
+            val first = CompletableDeferred<ProjectCreated>()
+            val second = CompletableDeferred<ProjectCreated>()
+            coEvery { work0.create(ProjectDraft(title = "Learn Italian")) } coAnswers { first.await() }
+            coEvery { work0.create(ProjectDraft(title = "Learn Spanish")) } coAnswers { second.await() }
+            vm.newProject()
+            vm.editForm { it.copy(title = "Learn Italian") }
+            vm.saveForm()
+            vm.cancelForm()
+            vm.newProject()
+            vm.editForm { it.copy(title = "Learn Spanish") }
+            vm.saveForm()
+            first.complete(ProjectCreated(ActionOutcome.FAILED, null))
+            assertTrue(
+                vm.uiState.value.form!!
+                    .saving,
+            )
+            vm.saveForm()
+            coVerify(exactly = 1) { work0.create(ProjectDraft(title = "Learn Spanish")) }
+            second.complete(ProjectCreated(ActionOutcome.DONE, garden.id))
+            val state = vm.uiState.value
+            assertNull(state.form)
+            assertEquals(garden, state.detail?.project)
+        }
+
+    @Test
+    fun `a confirmation asked about one project does not apply after another project was opened by a create`() =
+        test { vm ->
+            coEvery { work0.create(any()) } returns ProjectCreated(ActionOutcome.DONE, garden.id)
+            vm.open(holiday)
+            vm.requestDelete()
+            assertEquals(ProjectConfirm.Delete(holiday.id, 2), vm.uiState.value.confirm)
+            // The create opens the new project without going through open(): the old question is still pending.
+            vm.newProject()
+            vm.editForm { it.copy(title = "Redo the garden") }
+            vm.saveForm()
+            val opened = vm.uiState.value
+            assertEquals(garden, opened.detail?.project)
+            vm.confirm()
+            val after = vm.uiState.value
+            assertNull(after.confirm)
+            coVerify(exactly = 0) { work0.delete(any()) }
+            assertEquals(garden, after.detail?.project)
+        }
+
+    @Test
+    fun `finishing from the menu while the tasks load is sent once confirmed, and asks no more once none are open`() =
+        test { vm ->
+            taskFlow.value = Live()
+            coEvery { work0.update(any(), any(), any()) } returns ActionOutcome.DONE
+            vm.open(garden)
+            vm.setStatus(ProjectStatus.DROPPED)
+            assertEquals(ProjectConfirm.Finish(garden.id, ProjectStatus.DROPPED, null, viaForm = false), vm.uiState.value.confirm)
+            vm.confirm()
+            coVerify(exactly = 1) { work0.update(garden.id, 2, status(ProjectStatus.DROPPED)) }
+            assertNull(vm.uiState.value.confirm)
+
+            // The tasks have loaded now and none is open: finishing no longer asks.
+            taskFlow.value = Live(emptyList())
+            vm.setStatus(ProjectStatus.COMPLETED)
+            assertNull(vm.uiState.value.confirm)
+            coVerify(exactly = 1) { work0.update(garden.id, 2, status(ProjectStatus.COMPLETED)) }
+        }
+
+    @Test
+    fun `finishing in the form after the project disappeared does not leave the save doing nothing`() =
+        test { vm ->
+            var sent = 0
+            coEvery { work0.update(any(), any(), any()) } coAnswers {
+                sent++
+                ActionOutcome.CONFLICT
+            }
+            vm.open(holiday)
+            vm.editProject()
+            // Trashed elsewhere: a reload removes it from the cache while the form is open.
+            projectFlow.value = projectFlow.value.copy(data = listOf(garden, report, move))
+            assertNull(vm.uiState.value.detail)
+            vm.editForm { it.copy(status = ProjectStatus.COMPLETED) }
+            vm.saveForm()
+            val state = vm.uiState.value
+            val confirm = state.confirm
+            // The screen only shows a confirmation for the open project's detail; otherwise the save must reach the server
+            // (which answers with a conflict that closes the form and tells the user).
+            val shown = confirm != null && confirm.projectId == state.detail?.project?.id
+            assertTrue("save neither sent nor a visible confirmation (confirm=$confirm, detail=${state.detail})", shown || sent > 0)
+        }
+
+    @Test
     fun `a completed task is hidden until a successful reload no longer holds it, then shows if reopened elsewhere`() =
         test { vm ->
             coEvery { work0.complete(hotel) } returns ProjectCompletion.Completed(needsNextStep = false)

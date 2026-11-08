@@ -636,6 +636,48 @@ class ProjectsScreenTest {
         }
     }
 
+    @Test
+    fun `a due date is picked in a date picker and confirmed with OK`() {
+        val dated = holiday.copy(dueDate = LocalDate.of(2026, 12, 1))
+        val edit = ProjectFormState.edit(dated)
+        show(form(edit, detail(dated, listOf(book))))
+        composeRule.onNodeWithTag(ProjectFormTags.DUE).performScrollTo().performClick()
+        composeRule.onNodeWithText("OK").performClick()
+        assertEquals(listOf("form ${edit.draft.copy(dueDate = LocalDate.of(2026, 12, 1))}"), calls)
+        composeRule.onNodeWithText("OK").assertDoesNotExist()
+    }
+
+    @Test
+    fun `a review date already set is offered in the picker and kept by OK`() {
+        val dated = holiday.copy(reviewDate = LocalDate.of(2026, 11, 15))
+        val edit = ProjectFormState.edit(dated)
+        show(form(edit, detail(dated, listOf(book))))
+        composeRule.onNodeWithTag(ProjectFormTags.REVIEW).performScrollTo().performClick()
+        composeRule.onNodeWithText("OK").performClick()
+        assertEquals(listOf("form ${edit.draft.copy(reviewDate = LocalDate.of(2026, 11, 15))}"), calls)
+    }
+
+    @Test
+    fun `a created project is confirmed in a snackbar`() {
+        show(list.copy(projectMessage = ProjectMessage(ProjectMessage.Kind.CREATED, "Learn Italian", ActionOutcome.DONE)))
+        composeRule.waitUntil(TIMEOUT) { composeRule.onAllNodesWithText("Created Learn Italian").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test
+    fun `a reactivated project is confirmed in a snackbar`() {
+        show(list.copy(projectMessage = ProjectMessage(ProjectMessage.Kind.REACTIVATED, "File taxes", ActionOutcome.DONE)))
+        composeRule.waitUntil(TIMEOUT) {
+            composeRule.onAllNodesWithText("File taxes is active again").fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    @Test
+    fun `a project change made offline says it was not saved`() {
+        show(list.copy(projectMessage = ProjectMessage(ProjectMessage.Kind.DROPPED, "Plan holiday", ActionOutcome.OFFLINE)))
+        val text = "Not saved: the server is unreachable. Try again when you are online."
+        composeRule.waitUntil(TIMEOUT) { composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
+    }
+
     private companion object {
         const val TIMEOUT = 10_000L
     }
