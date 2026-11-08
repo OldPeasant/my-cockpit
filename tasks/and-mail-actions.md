@@ -13,7 +13,8 @@ Android mail cannot mark read/unread, flag, or move, has spam only in the read v
 `mail-list-page.html:36-121`). Decided: mobile versions (long-press multi-select).
 
 ## Acceptance criteria
-- [ ] Read view menu: mark unread (returns to the list), flag/unflag, move to folder (folder picker of the same account), spam
+- [x] Read view menu: mark unread (returns to the list), flag/unflag, move to folder (folder picker of the same account), spam
+  - verified (2026-11-08 12:22+0100 by dell26/agent-2): Compose/VM tests MailReadMenuScreenTest, MailRead*ViewModelTest, MailActionsInAppTest (real MailRoute with fake repos: unread returns to list, flag shows on row, move picker lists only same-account folders + sends MOVE, spam) via android/gradlew -p android testDebugUnitTest -> all pass
 - [ ] Long-press on a row starts multi-select; bulk archive, delete, spam, read/unread, flag, move
 - [ ] Swipe actions stay; optimistic updates with undo where the action can be undone
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
