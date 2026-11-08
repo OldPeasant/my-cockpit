@@ -22,3 +22,4 @@ loses the search term and results. While reading a match the owner wants to step
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 13:17+0100 by dell26/agent-2): The saved list (MailListSession, root service) lives for the browser tab session without expiry: going back to /mail?q=... restores the old results without searching again even after a long detour; folder lists are refetched in the background on restore. Reload/new tab loads anew.
