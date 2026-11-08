@@ -1514,6 +1514,58 @@ describe('MailListStore', () => {
       expect(ids()).toEqual(['a', 'b', 'c']);
       expect(store.items()![1].flagged).toBe(true);
     });
+
+    it('drops the list it read when the list is reloaded while it reads it', async () => {
+      await loaded([summary('a')], folder);
+      const done = store.loadOlder();
+      mail.loadOlders[0].resolve({ loaded: 1, hasMore: false });
+      await flush();
+      const stale = mail.lists.at(-1)!;
+
+      void store.reload();
+      const fresh = mail.lists.at(-1)!;
+      expect(fresh).not.toBe(stale);
+      fresh.resolve({ items: [summary('x')], nextCursor: null });
+      await flush();
+      // The older read answers last: it must not replace the reloaded list.
+      stale.resolve({ items: [summary('a'), summary('b')], nextCursor: null });
+      await done;
+
+      expect(ids()).toEqual(['x']);
+      expect(store.loadingOlder()).toBe(false);
+      expect(store.olderError()).toBeNull();
+      expect(store.olderNote()).toBeNull();
+    });
+
+    it('puts the cursor on the first message when its message is gone after loading older', async () => {
+      await loaded([summary('a'), summary('b')], folder);
+      store.setCursor('b');
+      const done = store.loadOlder();
+      mail.loadOlders[0].resolve({ loaded: 1, hasMore: false });
+      await flush();
+      mail.lists.at(-1)!.resolve({
+        items: [summary('a'), summary('c'), summary('d')],
+        nextCursor: null,
+      });
+      await done;
+
+      expect(ids()).toEqual(['a', 'c', 'd']);
+      expect(store.cursorId()).toBe('a');
+    });
+
+    it('puts the cursor on the first newly cached message of an empty folder', async () => {
+      await loaded([], folder);
+      expect(store.cursorId()).toBeNull();
+      const done = store.loadOlder();
+      mail.loadOlders[0].resolve({ loaded: 2, hasMore: false });
+      await flush();
+      expect(mail.lists.at(-1)).toMatchObject({ limit: 2 });
+      mail.lists.at(-1)!.resolve({ items: [summary('c'), summary('d')], nextCursor: null });
+      await done;
+
+      expect(ids()).toEqual(['c', 'd']);
+      expect(store.cursorId()).toBe('c');
+    });
   });
 });
 
