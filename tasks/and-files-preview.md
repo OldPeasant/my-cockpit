@@ -19,7 +19,8 @@ SPEC.md §8.2 asks for an in-app preview (PDF via Android `PdfRenderer`); Androi
   - verified (2026-11-08 16:42+0100 by dell26/agent-1): cd android && ./gradlew createDebugUnitTestCoverageReport (b521e71c9) -> FilePreviewScreenTest/FilePreviewViewModelTest previous/next file tests and FilesScreenTest/FilesRouteInAppTest thumbnail (/thumbnail?size=256 over type icon) tests pass, 0 failures
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 16:42+0100 by dell26/agent-1): diff of android/app/src/main/res/values{,-de}/strings_files.xml b3359b2e9..HEAD: all new preview strings present in both; ./gradlew lintDebug (MissingTranslation) clean -> pass
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 16:42+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck lintDebug createDebugUnitTestCoverageReport (runs testDebugUnitTest) on b521e71c9 -> exit 0, 3860 tests, 0 failures; task files coverage lines 97.3% branches 90.0%; sh scripts/check.sh -> exit 0
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
