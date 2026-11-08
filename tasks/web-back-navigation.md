@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [fix-mail-images-firefox]
 touches: [web/src/app/shared/navigation,web/src/app/features/mail/read,web/src/app/features/gtd/task-detail,web/src/app/features/notes/editor,web/src/app/features/contacts,web/src/app/features/gtd/projects]
 prio: 1
-lease_until: 2026-11-08T11:29:55Z
+lease_until: 2026-11-08T11:35:00Z
 extended: dell26/agent-1
 ---
 ## Goal
