@@ -639,5 +639,77 @@ class NotesListViewModelTest {
             assertNull(vm.uiState.value.snackbar)
         }
 
+    @Test
+    fun `unpinning sends pinned false and moves the note below the pinned ones`() =
+        runTest(dispatcher) {
+            val pinnedA = note(1).copy(pinned = true)
+            val pinnedB = note(2).copy(pinned = true)
+            val vm = loadedWith(pinnedA, pinnedB, note(3))
+            val unpinned = note(1).copy(version = 2, updatedAt = Instant.EPOCH.plusSeconds(60))
+            coEvery { repo.setFlags(pinnedA, pinned = false, archived = null) } returns SaveResult.Saved(unpinned)
+
+            vm.togglePin(pinnedA)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { repo.setFlags(pinnedA, pinned = false, archived = null) }
+            // Still pinned first; the unpinned note is the most recently changed of the others.
+            assertEquals(listOf(pinnedB, unpinned, note(3)), vm.uiState.value.notes)
+        }
+
+    @Test
+    fun `deleting during a search removes the note from the results, and Undo searches again and shows it`() =
+        runTest(dispatcher) {
+            val vm = loadedWith(note(1), note(2), note(3))
+            coEvery { repo.search("milk") } returns NotesResult.Ok(listOf(id(1), id(3)))
+            vm.setQuery("milk")
+            advanceUntilIdle()
+            assertEquals(listOf(note(1), note(3)), vm.uiState.value.shown)
+
+            coEvery { repo.delete(note(1)) } returns NotesResult.Ok(Unit)
+            vm.delete(note(1))
+            advanceUntilIdle()
+            assertEquals(listOf(note(3)), vm.uiState.value.shown)
+            assertEquals("milk", vm.uiState.value.query)
+
+            coEvery { repo.restore(id(1)) } returns NotesResult.Ok(Unit)
+            vm.undo(vm.uiState.value.snackbar as NotesSnackbar.Trashed)
+            advanceUntilIdle()
+
+            // The reload after Undo keeps the search text and asks the server's search again.
+            coVerify(exactly = 2) { repo.search("milk") }
+            assertEquals(listOf(note(1), note(3)), vm.uiState.value.shown)
+            assertFalse(vm.uiState.value.loading)
+        }
+
+    @Test
+    fun `pinning a found note during a search keeps it in the results, pinned first`() =
+        runTest(dispatcher) {
+            val vm = loadedWith(note(1), note(2), note(3))
+            coEvery { repo.search("milk") } returns NotesResult.Ok(listOf(id(2), id(3)))
+            vm.setQuery("milk")
+            advanceUntilIdle()
+            val pinned = note(3).copy(pinned = true, version = 2)
+            coEvery { repo.setFlags(note(3), pinned = true, archived = null) } returns SaveResult.Saved(pinned)
+
+            vm.togglePin(note(3))
+            advanceUntilIdle()
+
+            assertEquals(listOf(pinned, note(2)), vm.uiState.value.shown)
+        }
+
+    @Test
+    fun `a delete whose tags cannot be reloaded keeps the tags shown before`() =
+        runTest(dispatcher) {
+            val vm = loadedWith(note(1), note(2))
+            coEvery { repo.tags() } returns NotesResult.Offline
+            coEvery { repo.delete(note(1)) } returns NotesResult.Ok(Unit)
+
+            vm.delete(note(1))
+            advanceUntilIdle()
+
+            assertEquals(listOf(NoteTag("home", 2), NoteTag("work", 1)), vm.uiState.value.tags)
+            assertEquals(listOf(note(2)), vm.uiState.value.notes)
+        }
+
     private fun id(n: Int): UUID = UUID.fromString("00000000-0000-7000-8000-%012d".format(n))
 }

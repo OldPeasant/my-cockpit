@@ -249,4 +249,23 @@ class NotesActionsScreensTest {
         composeRule.onNodeWithText("Dismiss").performClick()
         assertEquals(listOf("dismiss"), calls)
     }
+
+    @Test
+    fun `a pin refused because the note changed elsewhere says that the latest version is shown`() {
+        showEditor(NoteEditorUiState(note = plain, body = plain.bodyMd, message = NoteEditorMessage.CHANGE_CONFLICT))
+        composeRule.onNodeWithText("Not changed: this note was changed elsewhere. Its latest version is shown.").assertExists()
+    }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `the editor menu and its messages are translated to German`() {
+        showEditor(NoteEditorUiState(note = plain, body = plain.bodyMd, message = NoteEditorMessage.CHANGE_CONFLICT))
+        composeRule
+            .onNodeWithText("Nicht geändert: Diese Notiz wurde anderswo geändert. Die neueste Version wird angezeigt.")
+            .assertExists()
+        composeRule.onNodeWithTag(NoteEditorTags.MENU).performClick()
+        composeRule.onNodeWithTag(NoteEditorTags.PIN).assertTextContains("Anheften")
+        composeRule.onNodeWithTag(NoteEditorTags.ARCHIVE).assertTextContains("Archivieren")
+        composeRule.onNodeWithTag(NoteEditorTags.DELETE).assertTextContains("In den Papierkorb")
+    }
 }

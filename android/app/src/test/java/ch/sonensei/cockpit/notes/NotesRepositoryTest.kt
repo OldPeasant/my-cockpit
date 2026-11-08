@@ -445,6 +445,35 @@ class NotesRepositoryTest {
         }
 
     @Test
+    fun `unpinning and unarchiving send false for that flag only`() =
+        runBlocking {
+            server.enqueue(json(noteJson(1, pinned = false, version = 4)))
+            notes.setFlags(base.copy(pinned = true), pinned = false)
+            val unpin = Json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+            assertEquals(setOf("pinned"), unpin.keys)
+            assertEquals("false", unpin["pinned"]!!.jsonPrimitive.content)
+
+            server.enqueue(json(noteJson(1, version = 5)))
+            val result = notes.setFlags(base.copy(archived = true), archived = false) as SaveResult.Saved
+            assertEquals(false, result.note.archived)
+            val unarchive = Json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+            assertEquals(setOf("archived"), unarchive.keys)
+            assertEquals("false", unarchive["archived"]!!.jsonPrimitive.content)
+        }
+
+    @Test
+    fun `a refused pin whose current version cannot be loaded is failed or offline, never a conflict`() =
+        runBlocking {
+            server.enqueue(status(412))
+            server.enqueue(status(403))
+            assertEquals(SaveResult.Failed(403), notes.setFlags(base, pinned = true))
+
+            server.enqueue(status(409))
+            server.enqueue(status(502))
+            assertEquals(SaveResult.Offline, notes.setFlags(base, archived = true))
+        }
+
+    @Test
     fun `other refusals of a pin are failures, a server error or no connection is offline`() =
         runBlocking {
             server.enqueue(status(400))
