@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -24,6 +25,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -31,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -149,21 +152,51 @@ internal fun TaskChip(
     }
 }
 
-/** Shown under the toolbar when the overlay is on but its tasks could not be loaded. */
+/** Shown under the toolbar when the overlay is on but its tasks could not be loaded; [onRetry] loads them again. */
 @Composable
-internal fun TasksFailedLine() {
-    Text(
-        stringResource(R.string.calendar_tasks_failed),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.error,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).testTag(CalendarTags.TASKS_FAILED),
-    )
+internal fun TasksFailedLine(onRetry: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            stringResource(R.string.calendar_tasks_failed),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.weight(1f).testTag(CalendarTags.TASKS_FAILED),
+        )
+        val description = stringResource(R.string.calendar_tasks_retry)
+        TextButton(
+            onClick = onRetry,
+            modifier = Modifier.semantics { contentDescription = description }.testTag(CalendarTags.TASKS_RETRY),
+        ) {
+            Text(stringResource(R.string.calendar_retry))
+        }
+    }
 }
 
 // ---- Month ----
 
-/** How many entries a day of the month view lists by title before it says "+n". */
+/** How many entries a day of the month view lists by title before it says "+n" (fewer when the cell is too low). */
 internal const val MONTH_TITLES = 3
+
+/**
+ * Room kept free under the month grid for the calendar's floating "new event" button (56dp plus its 16dp margin), so
+ * it never covers the last week's cells: the month grid does not scroll like the other views.
+ */
+internal val MONTH_FAB_SPACE = 72.dp
+
+/**
+ * How many of a day's [count] entries are listed by title when [lines] title lines fit into the cell: at most
+ * [MONTH_TITLES], and when not all are listed, one line is left for "+n".
+ */
+internal fun monthTitlesShown(
+    count: Int,
+    lines: Int,
+): Int {
+    val fit = lines.coerceAtLeast(0)
+    return if (count <= minOf(fit, MONTH_TITLES)) count else minOf(MONTH_TITLES, fit - 1).coerceAtLeast(0)
+}
 
 /** One item listed in a month day: an event or an overlay task. */
 private sealed interface MonthItem {
@@ -196,7 +229,7 @@ internal fun MonthGrid(
             }
         }
     val weeks = days.chunked(DAYS_PER_WEEK)
-    Column(Modifier.fillMaxSize().testTag(CalendarTags.MONTH)) {
+    Column(Modifier.fillMaxSize().padding(bottom = MONTH_FAB_SPACE).testTag(CalendarTags.MONTH)) {
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
             weeks.first().forEach { day ->
                 Text(
@@ -240,18 +273,49 @@ private fun MonthDay(
             day.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale)),
             pluralStringResource(R.plurals.calendar_month_items, items.size, items.size),
         ).joinToString(", ")
-    Column(
+    // The cells do not scroll: only as many title lines are listed as fit under the day number, so "+n" is never cut off.
+    val lineHeight =
+        with(LocalDensity.current) {
+            MaterialTheme.typography.labelSmall.lineHeight
+                .toDp()
+        }
+    BoxWithConstraints(
         modifier
             .clickable(onClick = onClick)
             .semantics { contentDescription = description }
             .padding(horizontal = 1.dp, vertical = 2.dp)
             .testTag(CalendarTags.monthDay(day)),
-        verticalArrangement = Arrangement.spacedBy(1.dp),
     ) {
+        val lines =
+            if (constraints.hasBoundedHeight) {
+                ((maxHeight - MONTH_DAY_SIZE) / (maxOf(lineHeight, MONTH_TITLE_MIN_HEIGHT) + MONTH_SPACING)).toInt()
+            } else {
+                MONTH_TITLES + 1
+            }
+        MonthDayContent(day, items, state, isToday, inMonth, monthTitlesShown(items.size, lines))
+    }
+}
+
+private val MONTH_DAY_SIZE = 22.dp
+private val MONTH_SPACING = 1.dp
+
+/** An event title has a 14dp color bar, so a title line is at least that high. */
+private val MONTH_TITLE_MIN_HEIGHT = 14.dp
+
+@Composable
+private fun MonthDayContent(
+    day: LocalDate,
+    items: List<MonthItem>,
+    state: CalendarUiState,
+    isToday: Boolean,
+    inMonth: Boolean,
+    shown: Int,
+) {
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(MONTH_SPACING)) {
         Box(
             Modifier
                 .align(Alignment.CenterHorizontally)
-                .size(22.dp)
+                .size(MONTH_DAY_SIZE)
                 .clip(CircleShape)
                 .background(if (isToday) MaterialTheme.colorScheme.primary else Color.Transparent),
             contentAlignment = Alignment.Center,
@@ -268,8 +332,8 @@ private fun MonthDay(
                     },
             )
         }
-        items.take(MONTH_TITLES).forEach { item -> MonthTitle(item, state) }
-        val more = items.size - MONTH_TITLES
+        items.take(shown).forEach { item -> MonthTitle(item, state) }
+        val more = items.size - shown
         if (more > 0) {
             Text(
                 stringResource(R.string.calendar_month_more, more),

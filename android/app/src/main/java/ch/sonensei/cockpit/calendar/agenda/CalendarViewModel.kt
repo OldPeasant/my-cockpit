@@ -204,6 +204,9 @@ class CalendarViewModel internal constructor(
         }
     }
 
+    /** Loads the overlay's tasks of the shown range again, e.g. after they could not be loaded. */
+    fun retryTasks() = loadTasks(state.value.from, state.value.to, append = false)
+
     /**
      * Loads the overlay's tasks of [from, to) (when it is on): replaces the shown ones, or adds those of the days the
      * agenda appended. A load still running for an earlier range is dropped when the range is replaced.
@@ -366,6 +369,8 @@ class CalendarViewModel internal constructor(
                 // The occurrences of another range would be wrong here: cleared until the new ones arrive.
                 occurrences = if (sameRange) it.occurrences else emptyList(),
                 tasks = if (sameRange) it.tasks else emptyList(),
+                // A failure of another range's tasks says nothing about this range's.
+                tasksFailed = it.tasksFailed && sameRange,
                 loaded = it.loaded && sameRange,
                 cachedAt = it.cachedAt.takeIf { sameRange },
             )

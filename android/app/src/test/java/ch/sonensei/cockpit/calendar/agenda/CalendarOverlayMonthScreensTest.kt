@@ -223,6 +223,8 @@ class CalendarOverlayMonthScreensTest {
     }
 
     @Test
+    // A phone with room for three titles per cell: lower cells list fewer (see CalendarMonthLayoutTest).
+    @Config(qualifiers = "en-rUS-w412dp-h915dp")
     fun `the month view lists up to three titles per day, events first, then +n, and a tap opens the day`() {
         val events = listOf(allDay(1, "Holiday", today), allDay(2, "Offsite", today))
         show(state(view = CalendarView.MONTH, occurrences = events))
@@ -420,6 +422,7 @@ class CalendarOverlayMonthScreensTest {
                 R.string.calendar_task_scheduled,
                 R.string.calendar_task_tickler,
                 R.string.calendar_tasks_failed,
+                R.string.calendar_tasks_retry,
                 R.string.calendar_more_options,
             )
         for (name in names) {

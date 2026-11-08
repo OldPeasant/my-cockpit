@@ -564,4 +564,83 @@ class CalendarViewModelOverlayTest {
                     .map { it.id },
             )
         }
+
+    @Test
+    fun `another range does not keep the old range's tasks failure while its own tasks load`() =
+        runTest(dispatcher) {
+            tasks.all = listOf(task(1, today), task(2, today.plusDays(7)))
+            val vm = viewModel(TaskOverlaySetting.InMemory(enabled = true))
+            vm.select(CalendarView.WEEK)
+            tasks.failure = CalendarResult.Offline
+            vm.refresh()
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.tasksFailed)
+
+            tasks.failure = null
+            val nextWeek = monday.plusDays(7) to monday.plusDays(14)
+            val gate = CompletableDeferred<Unit>()
+            tasks.gates[nextWeek] = gate
+            vm.move(1)
+            // Cleared as soon as the range changes, not only when the new answer arrives.
+            assertFalse(vm.uiState.value.tasksFailed)
+            gate.complete(Unit)
+            advanceUntilIdle()
+            assertFalse(vm.uiState.value.tasksFailed)
+            assertEquals(
+                listOf(id(2)),
+                vm.uiState.value.tasks
+                    .map { it.id },
+            )
+        }
+
+    @Test
+    fun `the same range shown again keeps its tasks failure`() =
+        runTest(dispatcher) {
+            val vm = viewModel(TaskOverlaySetting.InMemory(enabled = true))
+            vm.select(CalendarView.DAY)
+            tasks.failure = CalendarResult.Failed(500)
+            vm.refresh()
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.tasksFailed)
+
+            vm.openDay(today)
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.tasksFailed)
+        }
+
+    @Test
+    fun `retrying the tasks reloads only the shown range's tasks and clears the failure`() =
+        runTest(dispatcher) {
+            tasks.all = listOf(task(1, today))
+            val vm = viewModel(TaskOverlaySetting.InMemory(enabled = true))
+            vm.select(CalendarView.DAY)
+            tasks.failure = CalendarResult.Offline
+            vm.refresh()
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.tasksFailed)
+            val callsBefore = tasks.calls.size
+
+            tasks.failure = null
+            vm.retryTasks()
+            advanceUntilIdle()
+
+            val state = vm.uiState.value
+            assertFalse(state.tasksFailed)
+            assertEquals(listOf(id(1)), state.tasks.map { it.id })
+            assertEquals(listOf(today to today.plusDays(1)), tasks.calls.drop(callsBefore))
+        }
+
+    @Test
+    fun `retrying the tasks does nothing while the overlay is off`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.select(CalendarView.DAY)
+            advanceUntilIdle()
+            val callsBefore = tasks.calls.size
+
+            vm.retryTasks()
+            advanceUntilIdle()
+
+            assertEquals(callsBefore, tasks.calls.size)
+        }
 }

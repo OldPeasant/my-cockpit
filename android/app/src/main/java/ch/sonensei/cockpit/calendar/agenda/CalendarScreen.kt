@@ -142,6 +142,7 @@ fun CalendarRoute(
                 loadMore = viewModel::loadMore,
                 setVisible = viewModel::setVisible,
                 retry = viewModel::refresh,
+                retryTasks = viewModel::retryTasks,
                 open = onOpen,
                 setOverlay = viewModel::setOverlay,
                 openTask = { task -> taskOpener?.open(task.id, task.snapshot) },
@@ -160,6 +161,8 @@ data class CalendarCallbacks(
     val loadMore: () -> Unit = {},
     val setVisible: (UUID, Boolean) -> Unit = { _, _ -> },
     val retry: () -> Unit = {},
+    /** Loads the overlay's tasks again after they could not be loaded. */
+    val retryTasks: () -> Unit = {},
     /** An occurrence was tapped: the event editor opens it. */
     val open: (Occurrence) -> Unit = {},
     /** The task overlay was switched on or off. */
@@ -185,6 +188,7 @@ internal object CalendarTags {
     const val MENU = "calendar-menu"
     const val MONTH = "calendar-month"
     const val TASKS_FAILED = "calendar-tasks-failed"
+    const val TASKS_RETRY = "calendar-tasks-retry"
 
     fun task(
         key: String,
@@ -229,7 +233,7 @@ fun CalendarContent(
             )
         }
         state.message?.let { Message(it, state.cachedAt, state.zone, state.loading, shownCallbacks.retry) }
-        if (state.overlay && state.tasksFailed && state.message == null) TasksFailedLine()
+        if (state.overlay && state.tasksFailed && state.message == null) TasksFailedLine(shownCallbacks.retryTasks)
         if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth()) else Spacer(Modifier.height(4.dp))
         when (state.view) {
             CalendarView.AGENDA -> Agenda(state, shownCallbacks)
