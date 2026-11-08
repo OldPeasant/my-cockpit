@@ -76,7 +76,7 @@ function typeOf(name: string): ItemType | undefined {
 
 function lookup(key: string): ItemType | undefined {
   return (
-    ALIASES[key] ??
+    (Object.hasOwn(ALIASES, key) ? ALIASES[key] : undefined) ??
     SEARCH_TYPES.find((type) => normalize(type) === key || normalize(itemTypeLabel(type)) === key)
   );
 }

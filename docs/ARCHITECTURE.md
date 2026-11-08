@@ -92,7 +92,7 @@ variables (and `nvm use`) in that shell, or in your shell profile.
 | Part | Command | Notes |
 |---|---|---|
 | Server | `cd server && ./gradlew bootRun --args='--spring.profiles.active=dev'` | http://localhost:8080, health at `/actuator/health`. Needs Postgres 16 at `localhost:5432/cockpit` (user/password `cockpit`) or `SPRING_DATASOURCE_*`, e.g. `podman run -d -p 5432:5432 -e POSTGRES_DB=cockpit -e POSTGRES_USER=cockpit -e POSTGRES_PASSWORD=cockpit postgres:16-alpine`. Also needs `COCKPIT_MASTER_KEY`, e.g. `export COCKPIT_MASTER_KEY=$(openssl rand -base64 32)` (keep it: stored credentials need the same key) |
-| Web | `cd web && npm ci && npm start` | http://localhost:4200. The dev proxy (`web/proxy.conf.json`) forwards `/api` and `/actuator` to `localhost:8080` |
+| Web | `cd web && npm ci && npm start` | http://localhost:4200. The dev proxy (`web/proxy.conf.json`) forwards `/api`, `/actuator` and `/download` to `localhost:8080` |
 | Android | `cd android && ./gradlew installDebug` | needs a device/emulator (`adb devices`). Only humans can verify on a real device |
 | Full stack | `sh deploy/gen-env.sh localhost` (set ports ≥ 1024 for rootless Podman), then `docker compose -f deploy/docker-compose.yml up --build` | Caddy + server image + Postgres; see `deploy/README.md`. Image only: `docker build .` |
 
