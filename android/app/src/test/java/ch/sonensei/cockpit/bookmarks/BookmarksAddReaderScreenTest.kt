@@ -5,6 +5,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
@@ -138,6 +141,28 @@ class BookmarksAddReaderScreenTest {
         composeRule.onNodeWithTag(AdderTags.URL).performTextReplacement("https://example.org")
         composeRule.onNodeWithTag(AdderTags.SAVE).performClick()
         assertEquals(listOf("add ${NewBookmark("https://example.org", "Kept title", "kept")}"), calls)
+    }
+
+    @Test
+    fun `the add dialog marks the field the failure is about, and no field for other failures`() {
+        val hasError = SemanticsMatcher.keyIsDefined(SemanticsProperties.Error)
+        var state by mutableStateOf(
+            BookmarksUiState(adding = AddBookmarkState(NewBookmark("example.org", tags = "kept"), failure = AddFailure.INVALID_URL)),
+        )
+        composeRule.setContent { CockpitTheme { BookmarksContent(state, callbacks) } }
+
+        composeRule.onNodeWithTag(AdderTags.URL).assert(hasError)
+        composeRule.onNodeWithTag(AdderTags.TAGS).assert(!hasError)
+
+        state = state.copy(adding = state.adding!!.copy(failure = AddFailure.INVALID_TAGS))
+        composeRule.onNodeWithTag(AdderTags.URL).assert(!hasError)
+        composeRule.onNodeWithTag(AdderTags.TAGS).assert(hasError)
+
+        for (other in listOf(AddFailure.OFFLINE, AddFailure.FAILED)) {
+            state = state.copy(adding = state.adding!!.copy(failure = other))
+            composeRule.onNodeWithTag(AdderTags.URL).assert(!hasError)
+            composeRule.onNodeWithTag(AdderTags.TAGS).assert(!hasError)
+        }
     }
 
     @Test

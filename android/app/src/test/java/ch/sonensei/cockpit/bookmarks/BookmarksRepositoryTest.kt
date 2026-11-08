@@ -260,6 +260,45 @@ class BookmarksRepositoryTest {
         }
 
     @Test
+    fun `only a 400 reports invalid fields, and errors without a field name none`() =
+        runBlocking {
+            fun problem(
+                code: Int,
+                errors: String,
+            ) = MockResponse
+                .Builder()
+                .code(code)
+                .addHeader("Content-Type", "application/problem+json")
+                .body("""{"status":$code,"title":"Refused","errors":$errors}""")
+                .build()
+            server.enqueue(problem(400, """[{"message":"something is off"},{"field":"url","message":"private host"}]"""))
+            server.enqueue(problem(409, """[{"field":"url","message":"already saved"}]"""))
+            server.enqueue(problem(400, """[]"""))
+
+            assertEquals(BookmarksResult.Failed(400, setOf("url")), repo.create(NewBookmark("https://example.org/1")))
+            assertEquals(BookmarksResult.Failed(409), repo.create(NewBookmark("https://example.org/1")))
+            assertEquals(BookmarksResult.Failed(400), repo.create(NewBookmark("https://example.org/1")))
+        }
+
+    @Test
+    fun `a repeated Inbox task the server already has is ok and linked`() =
+        runBlocking {
+            // The idempotent create answers 200 with the task made before.
+            server.enqueue(json("""{"id":"${id(50)}","title":"Page 1"}""", code = 200))
+            server.enqueue(json("""{"id":"${id(51)}"}""", code = 201))
+
+            assertEquals(BookmarksResult.Ok(true), repo.toInbox(bookmark(1), id(50)))
+            assertEquals(
+                true,
+                server
+                    .takeRequest()
+                    .body!!
+                    .utf8()
+                    .contains("\"id\":\"${id(50)}\""),
+            )
+        }
+
+    @Test
     fun `the readable copy is the file preview, and says when it was cut short`() =
         runBlocking {
             val file = id(90)

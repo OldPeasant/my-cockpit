@@ -513,6 +513,41 @@ class BookmarksAddReaderViewModelTest {
         }
 
     @Test
+    fun `to Inbox keeps the task id only while the answer is unknown, any server answer ends it`() =
+        runTest(dispatcher) {
+            val sent = mutableListOf<UUID>()
+            val answers =
+                ArrayDeque(
+                    listOf<BookmarksResult<Boolean>>(
+                        BookmarksResult.Offline,
+                        BookmarksResult.Offline,
+                        BookmarksResult.Failed(409),
+                        BookmarksResult.Ok(false),
+                        BookmarksResult.Failed(null),
+                        BookmarksResult.Ok(true),
+                    ),
+                )
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1)))
+            coEvery { repo.toInbox(any(), any()) } coAnswers {
+                sent += secondArg<UUID>()
+                answers.removeFirst()
+            }
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+
+            repeat(6) {
+                vm.toInbox(bookmark(1))
+                advanceUntilIdle()
+            }
+
+            // Two lost answers and the refusal that follows them all carry the first id.
+            assertEquals(listOf(sent[0], sent[0], sent[0]), sent.subList(0, 3))
+            // After the refusal, the unlinked task and the unreadable answer, each next action is a new task.
+            assertEquals(listOf(sent[0]) + sent.subList(3, 6), sent.distinct())
+        }
+
+    @Test
     fun `a failed to Inbox says why`() =
         runTest(dispatcher) {
             coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1)))
@@ -794,6 +829,35 @@ class BookmarksAddReaderViewModelTest {
                 vm.uiState.value.reading!!
                     .saving,
             )
+        }
+
+    @Test
+    fun `leaving the reader while a copy is saved frees the bookmark for other changes`() =
+        runTest(dispatcher) {
+            val saving = CompletableDeferred<BookmarksResult<Bookmark?>>()
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1)))
+            coEvery { repo.get(id(1)) } returns BookmarksResult.Ok(bookmark(1))
+            coEvery { repo.saveSnapshot(any()) } coAnswers { saving.await() }
+            coEvery { repo.setReadLater(any(), any()) } returns BookmarksResult.Ok(bookmark(1, readLater = false, version = 2))
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+            vm.openReader(bookmark(1))
+            advanceUntilIdle()
+
+            vm.saveSnapshot()
+            runCurrent()
+            assertTrue(id(1) in vm.uiState.value.busy)
+            vm.closeReader()
+            advanceUntilIdle()
+
+            assertTrue(
+                vm.uiState.value.busy
+                    .isEmpty(),
+            )
+            vm.toggleReadLater(bookmark(1))
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.setReadLater(any(), false) }
         }
 
     @Test
