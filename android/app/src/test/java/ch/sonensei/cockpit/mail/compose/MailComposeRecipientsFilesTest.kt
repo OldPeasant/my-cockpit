@@ -131,7 +131,8 @@ class MailComposeRecipientsFilesTest {
             advanceTimeBy(2)
             runCurrent()
 
-            assertEquals(RecipientSuggestions(RecipientField.TO, listOf(ann, ben)), vm.suggestions.value)
+            // ben is already a recipient of the field, so only ann is suggested.
+            assertEquals(RecipientSuggestions(RecipientField.TO, listOf(ann)), vm.suggestions.value)
             coVerify(exactly = 1) { lookup.suggestions("an") }
             coVerify(exactly = 0) { lookup.suggestions("a") }
         }

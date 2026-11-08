@@ -74,7 +74,7 @@ class MailComposeRecipientsFilesScreenEdgeCasesTest {
 
         composeRule.onNodeWithText("Doe, Carl").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Remove carl@example.org").assertIsDisplayed()
-        composeRule.onNodeWithTag(MailComposeTags.recipient(RecipientField.TO, 0)).performClick()
+        composeRule.onNodeWithContentDescription("Remove carl@example.org").performClick()
 
         assertEquals(listOf("to:ben@example.org, "), calls)
     }
@@ -123,12 +123,12 @@ class MailComposeRecipientsFilesScreenEdgeCasesTest {
     }
 
     @Test
-    fun `typing the subject hides the recipient suggestions first`() {
+    fun `typing the subject is no leave of the recipient fields by itself`() {
         show(editing)
 
         composeRule.onNodeWithTag(MailComposeTags.SUBJECT).performTextInput("Plan")
 
-        assertEquals(listOf("leave", "subject:Plan"), calls)
+        assertEquals(listOf("subject:Plan"), calls)
     }
 
     @Test

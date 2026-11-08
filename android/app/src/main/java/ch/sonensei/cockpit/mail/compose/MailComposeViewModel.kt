@@ -171,7 +171,8 @@ class MailComposeViewModel
 
         /**
          * Looks up suggestions for the text typed in [field] ([value] is the whole field) once typing paused for
-         * [SUGGEST_DEBOUNCE_MILLIS]; only the latest lookup shows, a failed one shows none.
+         * [SUGGEST_DEBOUNCE_MILLIS]; only the latest lookup shows, a failed one shows none, recipients already in the field
+         * are left out.
          */
         private fun suggest(
             field: RecipientField,
@@ -186,8 +187,9 @@ class MailComposeViewModel
             suggesting =
                 viewModelScope.launch {
                     delay(SUGGEST_DEBOUNCE_MILLIS)
+                    val chosen = chosenAddresses(value)
                     val items = (lookup.suggestions(query) as? MailResult.Ok)?.value.orEmpty()
-                    suggestionState.value = RecipientSuggestions(field, items)
+                    suggestionState.value = RecipientSuggestions(field, items.filterNot { it.address.lowercase() in chosen })
                 }
         }
 

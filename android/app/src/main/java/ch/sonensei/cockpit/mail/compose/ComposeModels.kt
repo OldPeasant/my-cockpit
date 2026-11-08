@@ -153,9 +153,11 @@ internal fun splitRecipients(field: String): List<String> {
 fun formatRecipients(recipients: List<Recipient>): String =
     recipients.joinToString(", ") { r ->
         val name = r.name?.takeIf { it.isNotBlank() }
+        // An unpaired quote would swallow the separators after it, so it is quoted (without it) like a separator.
+        val quote = name != null && (name.any { it == ',' || it == ';' || it == '<' || it == '>' } || name.count { it == '"' } % 2 != 0)
         when {
             name == null -> r.address
-            name.any { it == ',' || it == ';' || it == '<' || it == '>' } -> "\"${name.replace("\"", "")}\" <${r.address}>"
+            quote -> "\"${name.replace("\"", "")}\" <${r.address}>"
             else -> "$name <${r.address}>"
         }
     }

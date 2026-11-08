@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -87,10 +88,10 @@ class MailComposeRecipientsFilesScreenTest {
     }
 
     @Test
-    fun `a chip removes its recipient`() {
+    fun `the close icon of a chip removes its recipient`() {
         show(editing.copy(to = "ann@example.org, ben@example.org, "))
 
-        composeRule.onNodeWithTag(MailComposeTags.recipient(RecipientField.TO, 0)).performClick()
+        composeRule.onNodeWithContentDescription("Remove ann@example.org").performClick()
 
         assertEquals(listOf("to:ben@example.org, "), calls)
     }

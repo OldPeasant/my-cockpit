@@ -32,6 +32,12 @@ internal class ComposeSession(
     private var edits = 0
     private var savedEdits = 0
 
+    /**
+     * The stored draft lacks a recipient still being typed that is not an address yet (an autosave or upload left it
+     * out): a save, send or leave still has to check and store it.
+     */
+    private var partial = false
+
     /** The user changed something (a reply never touched is discarded when leaving). */
     private var touched = false
 
@@ -44,7 +50,7 @@ internal class ComposeSession(
     /** The start while it runs: a retry meanwhile would prepare a second reply draft. */
     private var loading: Job? = null
 
-    private val dirty get() = edits != savedEdits
+    private val dirty get() = edits != savedEdits || partial
 
     fun update(change: (MailComposeUiState) -> MailComposeUiState) {
         value = change(value)
@@ -128,7 +134,7 @@ internal class ComposeSession(
                 delay(AUTOSAVE_MILLIS)
                 // From here on an edit schedules the next autosave, and leaving or sending waits for this save.
                 autosave = null
-                if (dirty && value.editable) store()
+                if (dirty && value.editable) store(strict = false)
             }
     }
 
@@ -144,13 +150,15 @@ internal class ComposeSession(
 
     /**
      * Stores the current content: creates the draft on the first save, else replaces it. Returns whether the draft on
-     * the server now holds what is on screen.
+     * the server now holds what is on screen. Not [strict] (autosave, before an upload), a recipient still being typed
+     * that is not an address yet is left out instead of failing the save.
      */
-    private suspend fun store(): Boolean =
+    private suspend fun store(strict: Boolean = true): Boolean =
         writes.withLock {
             val current = stored
-            if (current != null && !dirty) return@withLock true
-            val content = content() ?: return@withLock false
+            if (current != null && (if (strict) !dirty else edits == savedEdits)) return@withLock true
+            val content = content(strict) ?: return@withLock false
+            val leftOut = !strict && typingLeftOut()
             val at = edits
             val before = value.attachments
             update { it.copy(draft = DraftState.SAVING) }
@@ -165,6 +173,7 @@ internal class ComposeSession(
                 is MailResult.Ok -> {
                     stored = result.value
                     savedEdits = at
+                    partial = leftOut
                     update {
                         it.copy(
                             attachments = result.value.attachments.withoutRemoved(before, it.attachments),
@@ -173,7 +182,8 @@ internal class ComposeSession(
                             problem = it.problem.takeUnless { p -> p in SAVE_PROBLEMS },
                         )
                     }
-                    if (dirty) scheduleAutosave()
+                    // Only for a change made meanwhile: a left-out recipient fragment waits for the next edit or save.
+                    if (edits != savedEdits) scheduleAutosave()
                     true
                 }
                 MailResult.Offline -> failSave(ComposeProblem.OFFLINE)
@@ -218,12 +228,18 @@ internal class ComposeSession(
         return false
     }
 
-    /** What a save stores, or `null` (and the fields marked) when a recipient is not an address. */
-    private fun content(): DraftContent? {
+    /**
+     * What a save stores, or `null` (and the fields marked) when a recipient is not an address. Not [strict], the text
+     * still being typed in a recipient field is left out while it is not an address (see [leavesOut]).
+     */
+    private fun content(strict: Boolean = true): DraftContent? {
         val s = value
-        val to = parseRecipients(s.to)
-        val cc = parseRecipients(s.cc)
-        val bcc = parseRecipients(s.bcc)
+
+        fun recipients(field: RecipientField) =
+            parseRecipients(if (!strict && leavesOut(field)) typingRemoved(s.text(field)) else s.text(field))
+        val to = recipients(RecipientField.TO)
+        val cc = recipients(RecipientField.CC)
+        val bcc = recipients(RecipientField.BCC)
         val invalid =
             buildSet {
                 if (to.invalid.isNotEmpty()) add(RecipientField.TO)
@@ -244,6 +260,15 @@ internal class ComposeSession(
         )
     }
 
+    /**
+     * Whether a save that is not strict leaves out the text still being typed in [field]: it is not an address yet, and
+     * the field is not already marked (a save the user asked for showed the problem, so it stays until the field changes).
+     */
+    private fun leavesOut(field: RecipientField) = field !in value.invalid && typingIncomplete(value.text(field))
+
+    /** Whether a save that is not strict leaves out text still being typed in a recipient field. */
+    private fun typingLeftOut() = RecipientField.entries.any { leavesOut(it) }
+
     fun attach(files: List<PickedFile>) {
         if (files.isEmpty() || !value.editable) return
         touched = true
@@ -259,7 +284,7 @@ internal class ComposeSession(
     private suspend fun upload(file: PickedFile) {
         if (discarded) return
         // Saved first, so the upload adds to what is on screen: an attachment removed here does not come back.
-        if ((stored == null || dirty) && !store()) return
+        if ((stored == null || dirty) && !store(strict = false)) return
         writes.withLock {
             val draft = stored?.takeUnless { discarded } ?: return
             val before = value.attachments
@@ -293,17 +318,19 @@ internal class ComposeSession(
 
     private suspend fun addFile(file: DriveEntry.File) {
         if (discarded) return
-        if ((stored == null || dirty) && !store()) return
+        if ((stored == null || dirty) && !store(strict = false)) return
         writes.withLock {
             val draft = stored?.takeUnless { discarded } ?: return
             // What is on screen goes along: a change typed meanwhile is stored with the file.
-            val content = content() ?: return
+            val content = content(strict = false) ?: return
+            val leftOut = typingLeftOut()
             val at = edits
             val before = value.attachments
             when (val result = update(draft, content.copy(files = listOf(file.id)))) {
                 is MailResult.Ok -> {
                     stored = result.value
                     savedEdits = at
+                    partial = leftOut
                     update {
                         it.copy(
                             attachments = result.value.attachments.withoutRemoved(before, it.attachments),
@@ -311,7 +338,7 @@ internal class ComposeSession(
                             problem = null,
                         )
                     }
-                    if (dirty) scheduleAutosave()
+                    if (edits != savedEdits) scheduleAutosave()
                 }
                 MailResult.Offline -> update { it.copy(problem = ComposeProblem.OFFLINE) }
                 is MailResult.Failed ->
@@ -465,3 +492,16 @@ internal fun List<DraftAttachment>.withoutRemoved(
 /** The same file in another version of the draft (part ids change between versions). */
 private fun DraftAttachment.sameFileAs(other: DraftAttachment) =
     name == other.name && sizeBytes == other.sizeBytes && inline == other.inline
+
+private fun MailComposeUiState.text(field: RecipientField) =
+    when (field) {
+        RecipientField.TO -> to
+        RecipientField.CC -> cc
+        RecipientField.BCC -> bcc
+    }
+
+/** The text still being typed in recipient [field] is not an address (yet). */
+private fun typingIncomplete(field: String) = parseRecipients(recipientEntry(field).pending).invalid.isNotEmpty()
+
+/** Recipient [field] with only its finished recipients. */
+private fun typingRemoved(field: String) = recipientEntry(field).copy(pending = "").text()

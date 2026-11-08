@@ -23,11 +23,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -65,12 +69,21 @@ fun recipientEntry(field: String): RecipientEntry {
 /** The field text for [recipients] as finished chips (empty for none). */
 fun recipientField(recipients: List<Recipient>): String = if (recipients.isEmpty()) "" else formatRecipients(recipients) + ", "
 
-/** [field] with the text being typed replaced by [suggestion], finished as a chip. */
+/** The addresses of the finished recipients of [field], lowercased (to skip suggestions already chosen). */
+fun chosenAddresses(field: String): Set<String> =
+    recipientEntry(field)
+        .tokens
+        .flatMap { parseRecipients(it).recipients }
+        .map { it.address.lowercase() }
+        .toSet()
+
+/** [field] with the text being typed replaced by [suggestion], finished as a chip (once: an address already chosen stays one chip). */
 fun chooseSuggestion(
     field: String,
     suggestion: RecipientSuggestion,
 ): String {
     val entry = recipientEntry(field)
+    if (suggestion.address.lowercase() in chosenAddresses(field)) return entry.copy(pending = "").text()
     return entry.copy(tokens = entry.tokens + formatRecipients(listOf(Recipient(suggestion.address, suggestion.name))), pending = "").text()
 }
 
@@ -109,8 +122,10 @@ internal fun RecipientInput(
     suggestions: List<RecipientSuggestion>,
     onChange: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onLeave: () -> Unit = {},
 ) {
     val entry = recipientEntry(value)
+    val focused = remember { mutableStateOf(false) }
     Column(modifier) {
         FlowRow(
             Modifier.fillMaxWidth(),
@@ -123,10 +138,20 @@ internal fun RecipientInput(
                 val label = recipient?.let { it.name ?: it.address } ?: token
                 InputChip(
                     selected = false,
-                    onClick = { if (enabled) onChange(removeRecipient(value, index)) },
+                    // Only the close icon removes: a stray tap on the chip keeps the recipient.
+                    onClick = {},
                     enabled = enabled,
                     label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    trailingIcon = { Icon(Icons.Outlined.Close, contentDescription = "$removeLabel ${recipient?.address ?: token}") },
+                    trailingIcon = {
+                        Icon(
+                            Icons.Outlined.Close,
+                            contentDescription = "$removeLabel ${recipient?.address ?: token}",
+                            modifier =
+                                Modifier
+                                    .size(InputChipDefaults.IconSize)
+                                    .clickable(enabled = enabled, role = Role.Button) { onChange(removeRecipient(value, index)) },
+                        )
+                    },
                     colors =
                         if (recipient == null) {
                             InputChipDefaults.inputChipColors(
@@ -154,7 +179,11 @@ internal fun RecipientInput(
                         .widthIn(min = 120.dp)
                         .align(Alignment.CenterVertically)
                         .padding(vertical = 12.dp)
-                        .testTag(MailComposeTags.field(field)),
+                        .onFocusChanged {
+                            // Leaving the field hides its suggestions (a first unfocused report is no leave).
+                            if (focused.value && !it.isFocused) onLeave()
+                            focused.value = it.isFocused
+                        }.testTag(MailComposeTags.field(field)),
             )
         }
         if (suggestions.isNotEmpty() && enabled) {
@@ -178,9 +207,7 @@ private fun SuggestionRow(
 ) {
     val kind =
         stringResource(
-            if (suggestion.contactId !=
-                null
-            ) {
+            if (suggestion.contactId != null) {
                 R.string.mail_compose_suggestion_contact
             } else {
                 R.string.mail_compose_suggestion_recent

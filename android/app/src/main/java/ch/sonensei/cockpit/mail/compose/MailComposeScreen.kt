@@ -403,7 +403,15 @@ private fun Form(
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         From(state, callbacks.account)
         HorizontalDivider()
-        RecipientRow(R.string.mail_compose_to, state.to, RecipientField.TO, state, shown(RecipientField.TO), callbacks.to) {
+        RecipientRow(
+            R.string.mail_compose_to,
+            state.to,
+            RecipientField.TO,
+            state,
+            shown(RecipientField.TO),
+            callbacks.to,
+            callbacks.leaveRecipients,
+        ) {
             if (!state.showCcBcc) {
                 TextButton(onClick = callbacks.showCcBcc, modifier = Modifier.testTag(MailComposeTags.CC_BCC)) {
                     Text(stringResource(R.string.mail_compose_cc_bcc))
@@ -411,16 +419,29 @@ private fun Form(
             }
         }
         if (state.showCcBcc) {
-            RecipientRow(R.string.mail_compose_cc, state.cc, RecipientField.CC, state, shown(RecipientField.CC), callbacks.cc)
-            RecipientRow(R.string.mail_compose_bcc, state.bcc, RecipientField.BCC, state, shown(RecipientField.BCC), callbacks.bcc)
+            RecipientRow(
+                R.string.mail_compose_cc,
+                state.cc,
+                RecipientField.CC,
+                state,
+                shown(RecipientField.CC),
+                callbacks.cc,
+                callbacks.leaveRecipients,
+            )
+            RecipientRow(
+                R.string.mail_compose_bcc,
+                state.bcc,
+                RecipientField.BCC,
+                state,
+                shown(RecipientField.BCC),
+                callbacks.bcc,
+                callbacks.leaveRecipients,
+            )
         }
         LabeledRow(R.string.mail_compose_subject, isError = false) {
             PlainField(
                 value = state.subject,
-                onValueChange = {
-                    callbacks.leaveRecipients()
-                    callbacks.subject(it)
-                },
+                onValueChange = callbacks.subject,
                 enabled = state.editable,
                 keyboard = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 modifier = Modifier.testTag(MailComposeTags.SUBJECT),
@@ -509,6 +530,7 @@ private fun RecipientRow(
     state: MailComposeUiState,
     suggestions: List<RecipientSuggestion>,
     onChange: (String) -> Unit,
+    onLeave: () -> Unit,
     trailing: @Composable () -> Unit = {},
 ) {
     val isError = field in state.invalid
@@ -520,6 +542,7 @@ private fun RecipientRow(
             suggestions = suggestions,
             onChange = onChange,
             modifier = Modifier.weight(1f),
+            onLeave = onLeave,
         )
         trailing()
     }
