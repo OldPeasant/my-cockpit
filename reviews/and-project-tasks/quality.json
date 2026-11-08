@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "task": "and-project-tasks",
+  "reviewed_revision": "ddb2388ede612219f2e24985bec77825950fa2ea",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-project-tasks/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-project-tasks/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-project-tasks/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "longPressDrag saves only on a real lift (onDrop); cancellation, lost pointer or system cancel run onCancel; regression tests in ProjectTaskListTest; second review confirmed"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "same defect as CR-1; the test-writer's failing tests pass after the fixer commit"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "Move up/down customActions now on the focused clickable LiveTaskRow node; tests check them there; TalkBack on a device not checked (recorded as assumption)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "order saves serialized with a fair Mutex in ProjectsViewModel.saveOrder; new view model test"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests '*gtd.projects*'", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck lintDebug createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
