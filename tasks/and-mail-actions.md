@@ -1,11 +1,11 @@
 ---
 title: Android mail: unread, flag, move, spam, multi-select
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [and-mail-search-nav]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/list,android/app/src/test/java/ch/sonensei/cockpit/mail/list,android/app/src/main/java/ch/sonensei/cockpit/mail/read,android/app/src/test/java/ch/sonensei/cockpit/mail/read,android/app/src/main/res/values/strings_mail.xml,android/app/src/main/res/values-de/strings_mail.xml]
 prio: 2
-lease_until: 2026-11-08T11:42:55Z
+lease_until: 
 extended: dell26/agent-2
 ---
 ## Goal
@@ -30,3 +30,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 11:18+0100 by dell26/agent-2): Bulk 'Move to folder' is only enabled when all selected mails belong to one account (the server needs a target folder of the messages' account); in the unified Inbox with mixed accounts it is disabled.
 - ASSUMPTION (2026-11-08 11:18+0100 by dell26/agent-2): Multi-select works in the mailbox list only, not in search results; spam moved from the read view toolbar into its overflow menu (with unread, flag, move) to keep the toolbar within phone width.
 - extended by dell26/agent-2: All features implemented (read view menu, long-press multi-select + bulk actions, swipe + undo, en/de strings); CR-1/CR-2 fixed (fixes.md); second code review: no material issues (one optional P3 on bulk failure wording). sh scripts/check.sh passes at 87ac84a08. Left: final test-writer run on the current code to write reviews/and-mail-actions/tests.md with coverage (its extra tests are committed in 87ac84a08); re-run code-reviewer if the review is stale against those tests; tasks.py verify for criteria 1-5; write quality.json; done.
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 79s on 90e7898b7; criteria verified 5/5
