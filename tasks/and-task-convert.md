@@ -6,6 +6,7 @@ deps: [and-task-detail-dates,and-inbox-rows]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/test/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/java/ch/sonensei/cockpit/gtd/inbox,android/app/src/test/java/ch/sonensei/cockpit/gtd/inbox,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml,android/app/src/main/res/values/strings_inbox.xml,android/app/src/main/res/values-de/strings_inbox.xml]
 prio: 2
 lease_until: 2026-11-08T16:24:47Z
+extended: dell26/agent-3
 ---
 ## Goal
 Web converts a task to a note (reference) or an event from task detail and inbox processing (`gtd-convert-note`,
@@ -24,3 +25,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 16:13+0100 by dell26/agent-3): 'Open' for an event opens the Calendar tab (no per-event screen/route on Android); the snackbar names the event's day. Notes open in the note editor.
 - ASSUMPTION (2026-11-08 16:13+0100 by dell26/agent-3): To calendar dialog: timed events in the device zone (ZoneId of the system clock), default start = next full hour, duration chips 15/30/60/90/120/180 min (default 60), all-day = one day; calendars = writable ones, default first (web parity).
 - ASSUMPTION (2026-11-08 16:13+0100 by dell26/agent-3): Task detail: after converting, a Long snackbar 'Moved to ... / Open'; Open closes the detail and opens the item, dismiss closes the detail (like delete). Convert actions only for open (not completed) tasks. Inbox: To calendar under 'Defer it', To reference under 'Drop it'; inline clarification is not saved before converting (like Trash).
+- extended by dell26/agent-3: Impl (4ebb4f268) + tests (a2668a93b, f0492d419) + reviews/and-task-convert/review.md committed. Left: run fixer for CR-1 (use synced settings.timeZone ?: clock.zone like EventEditorViewModel), CR-2 (cancel previous loadCalendars job; 2 failing regression tests InboxConvertViewModelTest/TaskDetailConvertViewModelTest 'calendars of an earlier ... answering last' cover it), CR-3 (confirm To reference or assume), CR-4 optional; then test-writer -> tests.md with coverage, re-run code-reviewer, verify #1-#5, quality.json, done. check.sh takes ~5 min.
