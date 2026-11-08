@@ -4,21 +4,28 @@ Date: 2026-11-08
 
 Task: and-mail-compose-plus - Android compose: recipient autocomplete, attach from Files
 
-Scope: `git diff 6610a72c..6eb3ee8a -- android` (task commits 5eea90d2, 6eb3ee8a; on the current branch they appear as 608fbf87 and 6cf1735c with the same Android content). Package `ch.sonensei.cockpit.mail.compose`, the strings in `res/values{,-de}/strings_mail_compose.xml`, and the tests. The later Android commits on main (calendar edit) are out of scope.
+Scope: `git diff e60758be211736938ded1f7c25c41aa767f66077..e79e5586 -- . ':!tasks' ':!reviews'`. This is the final code after the review fixes: package `ch.sonensei.cockpit.mail.compose` (main and test), and `res/values{,-de}/strings_mail_compose.xml`. Committed changes only. The working tree was clean.
 
 Requirements:
-- tasks/and-mail-compose-plus.md (acceptance criteria and the three recorded ASSUMPTIONs)
-- SPEC.md §7.3/§7.4 (drafts, autosave), docs/ARCHITECTURE.md, AGENTS.md
-- api/openapi.yaml: `GET /api/v1/contacts/autocomplete`, `ContactSuggestionDto`, `DraftAttachmentRequest`
-- Web reference: web/src/app/features/mail/compose/recipient-input.ts, file-picker-dialog.ts, mail-compose.service.ts
+- tasks/and-mail-compose-plus.md (acceptance criteria #1-#4 and the three recorded ASSUMPTIONs)
+- AGENTS.md project notes, docs/ARCHITECTURE.md conventions
+- The previous review (CR-1..CR-4), fixes.md and tests.md in reviews/and-mail-compose-plus/
 
 Git range:
 - Branch: main
-- HEAD: 6cf1735c
-- Base/start: 6610a72c59359b5821d1121e0e35477128e46fe2
-- Commits reviewed: 2
+- HEAD: e79e5586
+- Base/start: e60758be211736938ded1f7c25c41aa767f66077
+- Commits reviewed: 5 (8e01c0d7, 1a20e46d, bf05d554, f1cb1c11, e79e5586)
 
-Summary: 0 P0, 0 P1, 2 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
+
+## Earlier findings re-checked
+
+- CR-1 (suggestions hid only when the Subject text changed): resolved. `RecipientInput` calls `onLeave` when its text field changes from focused to unfocused (`RecipientInput.kt:182-186`). To, Cc and Bcc wire it to `viewModel::clearSuggestions`, and the Subject special case is gone. Compose tests cover To->Subject, To->Cc and fields that never had focus.
+- CR-2 (an autosave or attach during a search failed with INVALID_ADDRESS): resolved. `store(strict = false)` and `content(strict = false)` leave out pending text that does not parse as an address (`ComposeSession.kt`, `leavesOut`, `typingIncomplete`, `typingRemoved`). The autosave, the device upload and `addFile` use the non-strict mode. Explicit save, send (including the conflict overwrite in `sendStored`) and leave stay strict. The `partial` flag keeps the session dirty, so the left-out fragment is still checked later. No new autosave is scheduled for `partial` alone, so it cannot loop. A field already marked invalid stays strict. Tests cover each of these paths.
+- CR-3 (no filtering of chosen recipients, duplicate chips): resolved. `chosenAddresses` is case-insensitive. `suggest` filters the items per field, and `chooseSuggestion` adds no second chip but still clears the typed text.
+- CR-4 (a tap anywhere on a chip removed it; broken line wrap): resolved. The chip's `onClick` is a no-op. Only the close icon removes the recipient (role Button, disabled with the chip). The `SuggestionRow` condition is on one line again. See CR-1 below for a remaining accessibility detail of this fix.
+- The unpaired-quote fix in `formatRecipients` (`ComposeModels.kt`) is correct: a name with an odd number of `"` is quoted with its quotes removed. Names with paired quotes keep their old output, so the existing round-trip test still holds.
 
 ## P0 Critical
 
@@ -30,43 +37,23 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Suggestions only hide when the Subject text changes, not when focus leaves the recipient fields**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/mail/compose/MailComposeScreen.kt:421`
-    - Category: Correctness
-    - Problem: `MailComposeCallbacks.leaveRecipients` is documented as "Focus left the recipient fields: their suggestions hide". The only call site is the Subject field's `onValueChange`. Nothing hides the panel on focus change (`RecipientInput` has no `onFocusChanged`), when the user taps into the body or Subject without typing, when the body text changes (line 434 passes `callbacks.body` directly), or after IME Done (`finishRecipient` leaves the pending text empty, which does clear it, but only when there was pending text). If the user types "an" in To and then moves to the body, the To suggestions stay open above the form until the user types into Subject or back into a recipient field.
-    - Why it matters: A stale suggestion list stays on screen and pushes the form down. One tap on it changes a recipient field the user has already left. The web closes its autocomplete on blur.
-    - Suggested fix: Call `clearSuggestions` from an `onFocusChanged` on the recipient `BasicTextField` when focus is lost (or track the focused field), and drop the special case in Subject. Add a Compose test for it.
-
-- [ ] **CR-2 | Autosave during a recipient search marks the field invalid and fails the save**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/mail/compose/ComposeSession.kt:131` (with `content()` at :222 and the pending text from `RecipientInput.kt`)
-    - Category: Correctness
-    - Problem: Following the chips ASSUMPTION, the text being typed (`RecipientEntry.pending`) stays part of `state.to/cc/bcc`. `content()` parses the whole field. The autosave runs 10 s after the first unsaved edit, not 10 s after the last one. So when it fires while the user is typing a search fragment such as "ann", it sets `invalid = {TO}` and `ComposeProblem.INVALID_ADDRESS`, and the draft stays unsaved. The same happens to "Attach from Files" and device uploads started while a fragment is typed (`addFile` -> `store()` returns false, and the file is not added). The plain field had the same parsing, but autocomplete now makes "type a name fragment and wait" the normal flow. On the web the typed text is not part of `recipients()` until it is committed, so an autosave never sees it.
-    - Why it matters: In normal use the user gets an error banner and a red field in the middle of a search, the autosave silently stops working, and a file pick can be dropped.
-    - Suggested fix: Leave out `pending` text that is not yet a valid address when building autosave content (e.g. use only `recipientEntry(field).tokens` plus the pending text if it parses). Keep the strict validation for explicit save and send. Add a ViewModel test: type a fragment, advance past `AUTOSAVE_MILLIS`, assert that there is no INVALID_ADDRESS and that the draft is saved.
+None.
 
 ## P3 Low
 
-- [ ] **CR-3 | Suggestions are not filtered against recipients already chosen, and choosing one can add a duplicate**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/mail/compose/MailComposeViewModel.kt:189`, `android/app/src/main/java/ch/sonensei/cockpit/mail/compose/RecipientInput.kt:69`
-    - Category: Correctness
-    - Problem: The web `recipient-input.ts` drops suggestions whose address is already a recipient of the field, and `add()` skips duplicates (case-insensitive). Android shows every suggestion, and `chooseSuggestion` always appends, so the same address can end up as two chips.
-    - Why it matters: Small web/Android parity gap for a criterion the task is about. Duplicates reach the draft.
-    - Suggested fix: Filter `items` by the field's current tokens (lowercased addresses) before publishing them, and make `chooseSuggestion` a no-op for an address that is already present.
-
-- [ ] **CR-4 | Tapping anywhere on a recipient chip removes it**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/mail/compose/RecipientInput.kt:126`
+- [ ] **CR-1 | The chip's close icon is an 18 dp touch target, and the chip itself is announced as a clickable control that does nothing**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/mail/compose/RecipientInput.kt:152` (and `:142`)
     - Category: Quality
-    - Problem: The whole `InputChip`'s `onClick` calls `removeRecipient`, so one stray tap on a chip deletes the recipient with no undo. The web removes only through the chip's remove button. `SuggestionRow` (lines 108-116) also has a broken `!=\n null` line wrap, which hurts readability.
-    - Why it matters: Recipients are easy to lose by accident on a touch screen.
-    - Suggested fix: Remove only through the trailing icon (make it an `IconButton`, or handle the click on the icon only), or offer undo. Rejoin the condition in `SuggestionRow`.
+    - Problem: After the CR-4 fix the only way to remove a recipient is a `clickable` placed directly on an `Icon` of size `InputChipDefaults.IconSize` (18 dp). Nothing applies `minimumInteractiveComponentSize()`, so the target stays far below the 48 dp minimum. Also, `InputChip(onClick = {}, enabled = enabled)` is still exposed to TalkBack as an enabled, clickable chip whose action does nothing.
+    - Why it matters: Removing a recipient on a phone takes a precise tap. For screen-reader users the chip offers a dead action, next to a small separate remove button.
+    - Suggested fix: Give the remove control a 48 dp interactive size, e.g. an `IconButton` or `Modifier.minimumInteractiveComponentSize()` around the icon. Optionally, add a custom accessibility action "Remove <address>" on the chip.
 
 ## Notes
 
-- Criteria checked: #1 is met (debounced lookup through `/contacts/autocomplete`, which merges contacts and correspondents on the server as recorded in the ASSUMPTION; only the latest lookup can publish because of job cancellation, and `mailCall` rethrows `CancellationException`; chips; contact and recent icons). #2 is met (Attach menu, then the Files picker dialog with folder navigation, retry and empty/error states; the file is attached through `fileId`). #3 is met (all 11 new keys are in both `values/` and `values-de/`).
-- API contract: `AttachmentRefDto` leaves out the unset `partId`/`fileId` (`EncodeDefault.NEVER`), which matches "exactly one of" in `DraftAttachmentRequest`. `autocomplete(q, limit=8)` is within the allowed 1-50. `ContactSuggestionDto` fields match the spec, including the nullable `email`.
-- The changes to existing tests are justified: the Attach menu adds a step, and draft recipients now end in `", "`. No test was weakened.
-- Evidence: `tasks.py verify` lists no recorded evidence yet for criteria #1-#4. The Gradle and `scripts/check.sh` runs for #4 must be recorded before `done`. This reviewer could not run Gradle (the command was not permitted in this session), so #4 is unverified here.
+- Criteria checked against the code: #1 is met. Suggestions are debounced (200 ms) through `GET /api/v1/contacts/autocomplete`, as the ASSUMPTION records. Only the latest lookup publishes: the job is cancelled on every edit, on focus leave and on session start, and `mailCall` rethrows `CancellationException`. A failed lookup shows no suggestions. Chips use contact and recent icons. #2 is met. The Attach menu leads to the Files picker dialog, which has folder navigation, loading, empty, offline and failed states with retry. Older listings are cancelled, and `FilesRepository.call` rethrows cancellation. A picked file is sent as `fileId` in the PUT body. `AttachmentRefDto` leaves out unset fields, so exactly one of them is set. #3 is met: all 11 new keys are in both `values/` and `values-de/`.
+- The changes to existing tests are justified and weaken nothing. The Attach button now opens a menu, so the tests click `ATTACH_DEVICE`. Draft recipients now end in `", "` so that they show as chips. CR-3 changed the expected suggestions in one debounce test, as intended.
+- Evidence: `python tasks.py verify and-mail-compose-plus` still lists criteria #1-#4 as unrecorded. tests.md reports that the Android command `./gradlew ktlintCheck testDebugUnitTest lintDebug` passed (3871 tests). It also reports that `sh scripts/check.sh` did not finish in the test-writer's shell: Node v20.9.0 is below the version Angular requires, and fixes.md mentions a flaky, unrelated server test. Criterion #4 explicitly names `sh scripts/check.sh`. The parent worker must run it to the end and record the result before `done`. This reviewer did not run Gradle or the check.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
