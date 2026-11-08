@@ -17,7 +17,8 @@ the chip itself is announced to TalkBack as a clickable control that does nothin
   - verified (2026-11-08 21:24+0100 by felix/agent-1): MailComposeChipA11yTest 'the remove control has a 48 dp touch target' (IconButton size 48.dp; assertWidth/HeightIsAtLeast(48.dp)) via ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.compose.*' -> pass
 - [x] TalkBack does not announce the chip body as an action that does nothing; the chip offers a "Remove" accessibility action (English and German string)
   - verified (2026-11-08 21:24+0100 by felix/agent-1): MailComposeChipA11yTest: chip has no OnClick semantics, not a button, reads its label; CustomActions == [Remove] (de: [Entfernen]) removes only its recipient; disabled while sending with no action -> 7/7 pass (robolectric unit tests)
-- [ ] Compose tests cover it; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Compose tests cover it; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 21:24+0100 by felix/agent-1): cd android && ./gradlew ktlintCheck lintDebug -> OK; ./gradlew ktlintCheck testDebugUnitTest -> all mail.compose tests pass, 1 failure auth.AppStartRoutingTest 'logging out from settings clears the cached files' which fails identically on clean origin/main (worktree, --rerun-tasks), unrelated; sh scripts/check.sh via tasks.py done
 
 ## Notes
 - ASSUMPTION (2026-11-08 21:05+0100 by felix/agent-1): Replaced Material InputChip with a custom Surface+Row chip for recipients: InputChip always exposes an OnClick action, so a non-clickable body requires a custom chip (same colors: surface + outlineVariant border, errorContainer for invalid).
