@@ -494,6 +494,48 @@ class CalendarViewModelOverlayTest {
             )
         }
 
+    /** A clock the test can move past midnight. */
+    private class MovableClock(
+        var now: Instant,
+        private val zoneId: ZoneId,
+    ) : Clock() {
+        override fun getZone(): ZoneId = zoneId
+
+        override fun withZone(zone: ZoneId): Clock = MovableClock(now, zone)
+
+        override fun instant(): Instant = now
+    }
+
+    @Test
+    fun `a refresh on the next day in the same week asks for the new today's tasks and drops yesterday's released mark`() =
+        runTest(dispatcher) {
+            val movable = MovableClock(Instant.parse("2026-10-21T08:00:00Z"), zone)
+            val released = OverlayTask(id(1), "Call the fictitious plumber", releasedOn = today)
+            tasks.releasedToday = listOf(released)
+            val setting = TaskOverlaySetting.InMemory(enabled = true)
+            val vm = CalendarViewModel(repo, movable, Locale.GERMANY, taskSource = tasks, overlaySetting = setting)
+            vm.select(CalendarView.WEEK)
+            vm.refresh()
+            advanceUntilIdle()
+            assertEquals(
+                listOf(today),
+                vm.uiState.value.taskMarks.keys
+                    .toList(),
+            )
+
+            // Thursday 22 October, 10:00 in Zurich: the app comes back to the still open week view.
+            movable.now = Instant.parse("2026-10-22T08:00:00Z")
+            vm.refresh()
+            advanceUntilIdle()
+
+            val state = vm.uiState.value
+            assertEquals(today.plusDays(1), state.today)
+            assertEquals(monday to monday.plusDays(7), state.from to state.to)
+            assertEquals(today.plusDays(1), tasks.todays.last())
+            // The task released yesterday is no longer marked scheduled on yesterday, nor on the new today.
+            assertTrue(state.taskMarks.isEmpty())
+        }
+
     @Test
     fun `Today in the month view returns to today's month with its tasks and the released-today mark`() =
         runTest(dispatcher) {

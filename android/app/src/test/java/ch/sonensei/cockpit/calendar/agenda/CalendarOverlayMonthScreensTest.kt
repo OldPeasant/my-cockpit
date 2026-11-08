@@ -328,6 +328,10 @@ class CalendarOverlayMonthScreensTest {
         assertReleasedMarkFollowsToday(CalendarView.AGENDA)
 
     @Test
+    fun `when today moves on with the same tasks, the day view drops yesterday's released-today mark`() =
+        assertReleasedMarkFollowsToday(CalendarView.DAY)
+
+    @Test
     fun `when today moves on with the same tasks, the week view drops yesterday's released-today mark`() =
         assertReleasedMarkFollowsToday(CalendarView.WEEK)
 
