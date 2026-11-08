@@ -14,7 +14,8 @@ Part of `and-notes-editor` (Android note editor: tags, checklists, links, revisi
 Goal: Tapping a checklist item in the preview toggles it and saves like an edit; typing `[[` in the editor offers search-as-you-type and inserts `[[type:id]]`. Helpers `Markdown.toggleChecklist`, `Markdown.linkQuery`, `Markdown.insertLink` and `MarkdownView(onToggleChecklist)` are already on `origin/wip/and-notes-editor` (no tests yet); wire them into NoteEditorScreen/NoteEditorViewModel. Touches android/.../cockpit/notes, its tests and strings_notes.xml (en + de).
 
 ## Acceptance criteria
-- [ ] Tapping a checklist item in preview toggles it (saved like an edit)
+- [x] Tapping a checklist item in preview toggles it (saved like an edit)
+  - verified (2026-11-08 22:52+0100 by felix/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*' (Robolectric) -> pass; NoteEditorChecklistLinksViewModelTest toggle tests (body toggled, unsaved, autosave like edit; no toggle while loading/conflict) and NoteEditorChecklistLinksScreenTest 'tapping a checklist item in the view toggles it by its line' pass (VM 9/9, Screen 4/4, MarkdownChecklistLinksTest 12/12)
 - [ ] Typing `[[` offers search-as-you-type and inserts `[[type:id]]`
 - [x] New strings are in English and German (`res/values/strings_notes.xml` + `res/values-de/strings_notes.xml`)
   - verified (2026-11-08 22:28+0100 by felix/agent-1): git diff 1f9b236ce..HEAD -- android/app/src/main/res -> 5 new notes_link_* strings (hint, searching, none, offline, failed), each in values/strings_notes.xml and values-de/strings_notes.xml; lintDebug (MissingTranslation) run with criterion 4
