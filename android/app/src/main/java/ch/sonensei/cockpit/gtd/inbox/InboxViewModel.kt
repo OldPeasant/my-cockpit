@@ -12,6 +12,7 @@ import ch.sonensei.cockpit.gtd.data.ProjectRepository
 import ch.sonensei.cockpit.gtd.data.ProjectStatus
 import ch.sonensei.cockpit.gtd.data.TaskRepository
 import ch.sonensei.cockpit.gtd.data.TaskView
+import ch.sonensei.cockpit.gtd.next.CompletionMessage
 import ch.sonensei.cockpit.gtd.next.CompletionSnackbar
 import ch.sonensei.cockpit.gtd.next.TaskCompleter
 import ch.sonensei.cockpit.gtd.next.TaskCompletionRepository
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -234,10 +236,15 @@ class InboxViewModel internal constructor(
 
     /** Completes [task] from the list (not while offline): it disappears at once, the snackbar offers to undo it. */
     fun complete(task: GtdTask) {
-        if (!uiState.value.offline) completer.complete(task)
+        if (uiState.value.offline || completer.state.value.hides(task)) return
+        completer.complete(task)
+        refreshInboxAfter(task.id)
     }
 
-    fun undo(offer: CompletionSnackbar.Undo) = completer.undo(offer)
+    fun undo(offer: CompletionSnackbar.Undo) {
+        completer.undo(offer)
+        refreshInboxAfter(offer.completion.taskId)
+    }
 
     fun dismissSnackbar(shown: CompletionSnackbar) = completer.dismiss(shown)
 
@@ -266,6 +273,18 @@ class InboxViewModel internal constructor(
                     message = message ?: it.message,
                 )
             }
+        }
+    }
+
+    /**
+     * Reloads the Inbox once the completion or undo of [taskId] has an answer from the server. The shared completion
+     * reloads only Next and Today; without this the Inbox keeps the version from before, and the next completion or
+     * undo of the task is refused as changed elsewhere (412). Not after an offline failure: nothing reached the server.
+     */
+    private fun refreshInboxAfter(taskId: UUID) {
+        viewModelScope.launch {
+            val answered = completer.state.first { taskId !in it.pending }
+            if (answered.snackbar != CompletionSnackbar.Failed(CompletionMessage.OFFLINE)) tasks.refresh(TaskView.INBOX)
         }
     }
 

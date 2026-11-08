@@ -134,6 +134,7 @@ class InboxRouteTest {
     fun `the checkbox of a row completes the task and the snackbar offers undo`() {
         val completion = Completion(first.id, first.title, 2)
         coEvery { this@InboxRouteTest.completion.complete(first) } returns CompletionResult.Completed(completion)
+        coEvery { tasks.refresh(TaskView.INBOX) } returns RefreshResult.Refreshed
         show()
 
         composeRule.onNodeWithTag(TaskListTags.complete(first.id)).performClick()

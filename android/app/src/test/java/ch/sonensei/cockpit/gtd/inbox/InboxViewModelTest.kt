@@ -73,6 +73,7 @@ class InboxViewModelTest {
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         coEvery { inbox.process(any(), any(), any()) } returns ProcessResult.Processed
+        coEvery { tasks.refresh(TaskView.INBOX) } returns RefreshResult.Refreshed
     }
 
     @After
@@ -609,7 +610,7 @@ class InboxViewModelTest {
             coEvery { completion.complete(first) } returns CompletionResult.Completed(Completion(first.id, first.title, 2))
             vm.complete(first)
 
-            // The cached Inbox still holds the version before the completion (the Inbox is not reloaded after it).
+            // The cached Inbox still holds the version before the completion (its reload has not arrived yet).
             inboxFlow.value = inboxFlow.value.copy(data = listOf(first, second), refreshedAt = loadedAt.plusSeconds(60))
             assertEquals(listOf(second), vm.uiState.value.tasks)
 
@@ -659,5 +660,59 @@ class InboxViewModelTest {
 
             assertEquals(CompletionSnackbar.Undo(secondDone), vm.uiState.value.snackbar)
             assertEquals(emptyList<GtdTask>(), vm.uiState.value.tasks)
+        }
+
+    @Test
+    fun `complete, undo and complete again sends the version of the reloaded inbox`() =
+        test { vm ->
+            val reopened = first.copy(version = 3)
+            val firstDone = Completion(first.id, first.title, 2)
+            val secondDone = Completion(first.id, first.title, 4)
+            coEvery { completion.complete(first) } returns CompletionResult.Completed(firstDone)
+            coEvery { completion.undo(firstDone) } returns CompletionResult.Reopened
+            coEvery { completion.complete(reopened) } returns CompletionResult.Completed(secondDone)
+            // What the server holds after each step: completed (not in the Inbox), reopened at version 3, completed.
+            val reloads = ArrayDeque(listOf(listOf(second), listOf(reopened, second), listOf(second)))
+            coEvery { tasks.refresh(TaskView.INBOX) } coAnswers {
+                inboxFlow.value = inboxFlow.value.copy(data = reloads.removeFirst())
+                RefreshResult.Refreshed
+            }
+
+            vm.complete(first)
+            vm.undo(CompletionSnackbar.Undo(firstDone))
+            assertEquals(listOf(reopened, second), vm.uiState.value.tasks)
+            val shown = vm.uiState.value.tasks
+            vm.complete(shown.first())
+
+            coVerify(exactly = 1) { completion.complete(reopened) }
+            coVerify(exactly = 3) { tasks.refresh(TaskView.INBOX) }
+            assertEquals(listOf(second), vm.uiState.value.tasks)
+            assertEquals(CompletionSnackbar.Undo(secondDone), vm.uiState.value.snackbar)
+        }
+
+    @Test
+    fun `a refused completion reloads the inbox, an offline one does not`() =
+        test { vm ->
+            coEvery { completion.complete(first) } returns CompletionResult.NotDone(CompletionMessage.CONFLICT)
+            coEvery { completion.complete(second) } returns CompletionResult.NotDone(CompletionMessage.OFFLINE)
+
+            vm.complete(first)
+            coVerify(exactly = 1) { tasks.refresh(TaskView.INBOX) }
+
+            vm.complete(second)
+            coVerify(exactly = 1) { tasks.refresh(TaskView.INBOX) }
+        }
+
+    @Test
+    fun `the inbox is reloaded only once the server answered`() =
+        test { vm ->
+            val answer = CompletableDeferred<CompletionResult>()
+            coEvery { completion.complete(first) } coAnswers { answer.await() }
+
+            vm.complete(first)
+            coVerify(exactly = 0) { tasks.refresh(TaskView.INBOX) }
+
+            answer.complete(CompletionResult.Completed(Completion(first.id, first.title, 2)))
+            coVerify(exactly = 1) { tasks.refresh(TaskView.INBOX) }
         }
 }
