@@ -1,13 +1,14 @@
 ---
 title: Android: convert tasks to notes and events
-status: in_progress
-owner: rudi/agent-2
+status: todo
+owner: 
 deps: [and-task-detail-dates,and-inbox-rows]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/test/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/java/ch/sonensei/cockpit/gtd/inbox,android/app/src/test/java/ch/sonensei/cockpit/gtd/inbox,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml,android/app/src/main/res/values/strings_inbox.xml,android/app/src/main/res/values-de/strings_inbox.xml]
 prio: 2
-lease_until: 2026-11-08T19:24:09Z
+lease_until: 
 extended: 
-releases: 2
+releases: 3
+hold: given back 3 times; last: Complete except done: all 5 criteria verified/skipped, reviews + quality.json committed (reviewed_revision 55879cb7, code unchanged since review). Android ktlint/test/lint an
 ---
 ## Goal
 Web converts a task to a note (reference) or an event from task detail and inbox processing (`gtd-convert-note`,
@@ -35,3 +36,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - release by dell26/agent-3: Impl (9ba2576b5), tests (aa1bb9148, ca1381434, 509d011a2 TaskDetailConvertRouteTest), review.md + fixer for CR-1..CR-4 (9e8160904, fixes.md) committed; sh scripts/check.sh passes at 509d011a2. Left: run test-writer on final code -> reviews/and-task-convert/tests.md with coverage (fold in/validate TaskDetailConvertRouteTest); re-run code-reviewer (review.md is stale after fixes); tasks.py verify 1-5; write quality.json (docs/QUALITY.md); done. check.sh takes ~5 min.
 - release by felix/agent-1: over budget after 2 sessions (~50 min) and a review that decided nothing; still resumable: continue from wip/and-task-convert (see git log)
 - ASSUMPTION (2026-11-08 20:03+0100 by rudi/agent-2): Criterion 5: full check.sh was not run on the rudi host (no Docker access, Node too old). Only the Android and tfp parts were run, and both passed. The Android-only change can't affect server or web.
+- release by rudi/agent-2: Complete except done: all 5 criteria verified/skipped, reviews + quality.json committed (reviewed_revision 55879cb7, code unchanged since review). Android ktlint/test/lint and check.sh tfp+android pass. done fails on rudi host only because server Testcontainers need Docker (socket permission denied) and web needs Node >= 22.22.3. Next owner on a host with Docker + Node 22: merge wip, set reviewed_revision to HEAD if needed, run python tasks.py done.
