@@ -71,15 +71,23 @@ data class CreatedStep(
 
 /** A change on a project that is asked about first. */
 sealed interface ProjectConfirm {
-    /** Completing or dropping ([status]) the open project while [openTasks] tasks are still open; [viaForm]: the form's save. */
+    /** The project asked about: the confirmation only applies while it is the open project. */
+    val projectId: UUID
+
+    /**
+     * Completing or dropping ([status]) the open project while [openTasks] tasks are still open (`null`: its tasks have
+     * not loaded yet, so it is not known whether any remain); [viaForm]: the form's save.
+     */
     data class Finish(
+        override val projectId: UUID,
         val status: ProjectStatus,
-        val openTasks: Int,
+        val openTasks: Int?,
         val viaForm: Boolean,
     ) : ProjectConfirm
 
     /** Moving the open project to the Trash; its [openTasks] open tasks keep the project. */
     data class Delete(
+        override val projectId: UUID,
         val openTasks: Int,
     ) : ProjectConfirm
 }
@@ -176,6 +184,9 @@ class ProjectsViewModel internal constructor(
     private val form = MutableStateFlow<ProjectFormState?>(null)
     private val confirm = MutableStateFlow<ProjectConfirm?>(null)
     private val projectMessage = MutableStateFlow<ProjectMessage?>(null)
+
+    /** Counts the forms opened and closed: a save only applies its result to the form it was started from. */
+    private var formSession = 0L
     private val reloads = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
     /** The areas loaded last: kept while a later load fails, and while they load again after the screen came back. */
@@ -248,27 +259,28 @@ class ProjectsViewModel internal constructor(
 
     fun open(project: GtdProject) {
         prompt.value = null
+        confirm.value = null
         selected.value = project.id
     }
 
     fun close() {
         prompt.value = null
         confirm.value = null
-        form.update { if (it?.isNew == false) null else it }
+        if (form.value?.isNew == false) replaceForm(null)
         selected.value = null
     }
 
     /** Opens the form for a new project. */
     fun newProject() {
         if (uiState.value.offline) return
-        form.value = ProjectFormState()
+        replaceForm(ProjectFormState())
     }
 
     /** Opens the form to edit the open project. */
     fun editProject() {
         val project = uiState.value.detail?.project ?: return
         if (uiState.value.readOnly) return
-        form.value = ProjectFormState.edit(project)
+        replaceForm(ProjectFormState.edit(project))
     }
 
     fun editForm(change: (ProjectDraft) -> ProjectDraft) =
@@ -279,7 +291,7 @@ class ProjectsViewModel internal constructor(
     fun togglePreview() = form.update { it?.copy(preview = !it.preview) }
 
     fun cancelForm() {
-        form.value = null
+        replaceForm(null)
         confirm.update { if (it is ProjectConfirm.Finish && it.viaForm) null else it }
     }
 
@@ -295,13 +307,14 @@ class ProjectsViewModel internal constructor(
             return
         }
         val id = f.projectId ?: return create(f)
+        // `null` while the project's tasks are not loaded: whether any remain open is not known, so it is asked too.
         val open =
             uiState.value.detail
-                ?.takeIf { it.project.id == id }
+                ?.takeIf { it.project.id == id && it.loaded }
                 ?.tasks
-                ?.size ?: 0
-        if (!confirmed && f.draft.status != f.initial.status && finishes(f.draft.status) && open > 0) {
-            confirm.value = ProjectConfirm.Finish(f.draft.status, open, viaForm = true)
+                ?.size
+        if (!confirmed && f.draft.status != f.initial.status && finishes(f.draft.status) && (open == null || open > 0)) {
+            confirm.value = ProjectConfirm.Finish(id, f.draft.status, open, viaForm = true)
             return
         }
         val patch = projectPatch(f.initial, f.draft)
@@ -310,13 +323,17 @@ class ProjectsViewModel internal constructor(
             return
         }
         form.value = f.copy(saving = true)
+        val session = formSession
         viewModelScope.launch {
             val outcome = work.update(id, f.version, patch)
-            when (outcome) {
-                ActionOutcome.DONE -> form.value = null
-                // Changed (or trashed) elsewhere: the projects were reloaded; show the current one with the user's edits.
-                ActionOutcome.CONFLICT -> form.value = currentProject(id)?.let { f.rebase(it).copy(conflict = true) }
-                else -> form.update { it?.copy(saving = false) }
+            // The form was cancelled (and maybe another one opened) meanwhile: only the message is shown.
+            if (session == formSession) {
+                when (outcome) {
+                    ActionOutcome.DONE -> replaceForm(null)
+                    // Changed (or trashed) elsewhere: the projects were reloaded; show the current one with the user's edits.
+                    ActionOutcome.CONFLICT -> replaceForm(currentProject(id)?.let { f.rebase(it).copy(conflict = true) })
+                    else -> form.update { it?.copy(saving = false) }
+                }
             }
             projectMessage.value = ProjectMessage(ProjectMessage.Kind.SAVED, f.draft.title.trim(), outcome)
         }
@@ -330,8 +347,9 @@ class ProjectsViewModel internal constructor(
         val detail = uiState.value.detail ?: return
         val project = detail.project
         if (uiState.value.readOnly || project.status == status) return
-        if (!confirmed && finishes(status) && detail.tasks.isNotEmpty()) {
-            confirm.value = ProjectConfirm.Finish(status, detail.tasks.size, viaForm = false)
+        // While the tasks are not loaded yet it is not known whether any remain open: ask too.
+        if (!confirmed && finishes(status) && (!detail.loaded || detail.tasks.isNotEmpty())) {
+            confirm.value = ProjectConfirm.Finish(project.id, status, detail.tasks.size.takeIf { detail.loaded }, viaForm = false)
             return
         }
         val kind =
@@ -350,13 +368,15 @@ class ProjectsViewModel internal constructor(
     fun requestDelete() {
         val detail = uiState.value.detail ?: return
         if (uiState.value.readOnly) return
-        confirm.value = ProjectConfirm.Delete(detail.tasks.size)
+        confirm.value = ProjectConfirm.Delete(detail.project.id, detail.tasks.size)
     }
 
     /** The user confirmed the change [ProjectsUiState.confirm] asked about. */
     fun confirm() {
         val asked = confirm.value ?: return
         confirm.value = null
+        // Asked about a project that is no longer the open one (it disappeared, or another one was opened): drop it.
+        if (asked.projectId != selected.value || uiState.value.detail == null) return
         when (asked) {
             is ProjectConfirm.Finish -> if (asked.viaForm) saveForm(confirmed = true) else setStatus(asked.status, confirmed = true)
             is ProjectConfirm.Delete -> delete()
@@ -371,14 +391,18 @@ class ProjectsViewModel internal constructor(
 
     private fun create(f: ProjectFormState) {
         form.value = f.copy(saving = true)
+        val session = formSession
         viewModelScope.launch {
             val result = work.create(f.draft)
-            if (result.outcome == ActionOutcome.DONE && result.id != null) {
-                form.value = null
-                prompt.value = null
-                selected.value = result.id
-            } else {
-                form.update { it?.copy(saving = false) }
+            // The form was cancelled (and maybe another one opened) meanwhile: only the message is shown.
+            if (session == formSession) {
+                if (result.outcome == ActionOutcome.DONE && result.id != null) {
+                    replaceForm(null)
+                    prompt.value = null
+                    selected.value = result.id
+                } else {
+                    form.update { it?.copy(saving = false) }
+                }
             }
             projectMessage.value = ProjectMessage(ProjectMessage.Kind.CREATED, f.draft.title.trim(), result.outcome)
         }
@@ -391,6 +415,12 @@ class ProjectsViewModel internal constructor(
             if (outcome == ActionOutcome.DONE && selected.value == project.id) close()
             projectMessage.value = ProjectMessage(ProjectMessage.Kind.DELETED, project.title, outcome)
         }
+    }
+
+    /** Opens, replaces or closes ([state] `null`) the form: a save still running for the previous one no longer applies. */
+    private fun replaceForm(state: ProjectFormState?) {
+        formSession++
+        form.value = state
     }
 
     /** The cached project [id] as it is now (after a reload), `null` when it is gone. */

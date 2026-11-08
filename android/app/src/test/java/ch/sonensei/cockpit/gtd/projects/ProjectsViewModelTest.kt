@@ -697,6 +697,112 @@ class ProjectsViewModelTest {
         }
 
     @Test
+    fun `a save that returns after its form was cancelled leaves the form opened since alone`() =
+        test { vm ->
+            val first = CompletableDeferred<ActionOutcome>()
+            coEvery { work0.update(any(), any(), any()) } coAnswers { first.await() }
+            vm.open(holiday)
+            vm.editProject()
+            vm.editForm { it.copy(title = "Plan the holiday") }
+            vm.saveForm()
+            vm.cancelForm()
+            vm.editProject()
+            vm.editForm { it.copy(title = "Plan the summer holiday") }
+            first.complete(ActionOutcome.DONE)
+            val form = vm.uiState.value.form!!
+            assertEquals("Plan the summer holiday", form.draft.title)
+            assertEquals(false, form.saving)
+            assertEquals(false, form.conflict)
+            // The first save did happen: the user is told.
+            assertEquals(ProjectMessage(ProjectMessage.Kind.SAVED, "Plan the holiday", ActionOutcome.DONE), vm.uiState.value.projectMessage)
+        }
+
+    @Test
+    fun `a conflict that returns after its form was cancelled does not bring the old draft back`() =
+        test { vm ->
+            val first = CompletableDeferred<ActionOutcome>()
+            coEvery { work0.update(any(), any(), any()) } coAnswers { first.await() }
+            vm.open(holiday)
+            vm.editProject()
+            vm.editForm { it.copy(title = "Plan the holiday") }
+            vm.saveForm()
+            vm.cancelForm()
+            first.complete(ActionOutcome.CONFLICT)
+            assertNull(vm.uiState.value.form)
+            vm.editProject()
+            vm.editForm { it.copy(title = "Plan the summer holiday") }
+            assertEquals(
+                false,
+                vm.uiState.value.form!!
+                    .conflict,
+            )
+        }
+
+    @Test
+    fun `a create that returns after its form was cancelled neither closes the next form nor opens the project`() =
+        test { vm ->
+            val first = CompletableDeferred<ProjectCreated>()
+            coEvery { work0.create(any()) } coAnswers { first.await() }
+            vm.newProject()
+            vm.editForm { it.copy(title = "Learn Italian") }
+            vm.saveForm()
+            vm.cancelForm()
+            vm.newProject()
+            vm.editForm { it.copy(title = "Learn Spanish") }
+            first.complete(ProjectCreated(ActionOutcome.DONE, garden.id))
+            assertEquals(
+                "Learn Spanish",
+                vm.uiState.value.form!!
+                    .draft.title,
+            )
+            assertNull(vm.uiState.value.detail)
+            assertEquals(ProjectMessage(ProjectMessage.Kind.CREATED, "Learn Italian", ActionOutcome.DONE), vm.uiState.value.projectMessage)
+        }
+
+    @Test
+    fun `finishing while the project's tasks are still loading asks first, without a count`() =
+        test { vm ->
+            taskFlow.value = Live()
+            coEvery { work0.update(any(), any(), any()) } returns ActionOutcome.DONE
+            vm.open(holiday)
+            vm.setStatus(ProjectStatus.COMPLETED)
+            assertEquals(ProjectConfirm.Finish(holiday.id, ProjectStatus.COMPLETED, null, viaForm = false), vm.uiState.value.confirm)
+            vm.cancelConfirm()
+            vm.editProject()
+            vm.editForm { it.copy(status = ProjectStatus.DROPPED) }
+            vm.saveForm()
+            assertEquals(ProjectConfirm.Finish(holiday.id, ProjectStatus.DROPPED, null, viaForm = true), vm.uiState.value.confirm)
+            coVerify(exactly = 0) { work0.update(any(), any(), any()) }
+            vm.confirm()
+            coVerify(exactly = 1) { work0.update(holiday.id, 2, status(ProjectStatus.DROPPED)) }
+        }
+
+    @Test
+    fun `a confirmation left open when its project disappeared does not apply to the next project opened`() =
+        test { vm ->
+            vm.open(holiday)
+            vm.requestDelete()
+            // Trashed elsewhere: the reload removes it while the dialog is open.
+            projectFlow.value = projectFlow.value.copy(data = listOf(garden, report, move))
+            assertNull(vm.uiState.value.detail)
+            vm.open(garden)
+            assertNull(vm.uiState.value.confirm)
+            vm.confirm()
+            coVerify(exactly = 0) { work0.delete(any()) }
+        }
+
+    @Test
+    fun `a confirmation for a project that is no longer open is dropped`() =
+        test { vm ->
+            vm.open(holiday)
+            vm.requestDelete()
+            projectFlow.value = projectFlow.value.copy(data = listOf(garden, report, move))
+            vm.confirm()
+            assertNull(vm.uiState.value.confirm)
+            coVerify(exactly = 0) { work0.delete(any()) }
+        }
+
+    @Test
     fun `completing in the form with open tasks asks first, confirming saves`() =
         test { vm ->
             coEvery { work0.update(any(), any(), any()) } returns ActionOutcome.DONE
@@ -704,7 +810,7 @@ class ProjectsViewModelTest {
             vm.editProject()
             vm.editForm { it.copy(status = ProjectStatus.COMPLETED) }
             vm.saveForm()
-            assertEquals(ProjectConfirm.Finish(ProjectStatus.COMPLETED, 2, viaForm = true), vm.uiState.value.confirm)
+            assertEquals(ProjectConfirm.Finish(holiday.id, ProjectStatus.COMPLETED, 2, viaForm = true), vm.uiState.value.confirm)
             coVerify(exactly = 0) { work0.update(any(), any(), any()) }
             vm.confirm()
             assertNull(vm.uiState.value.confirm)
@@ -719,7 +825,7 @@ class ProjectsViewModelTest {
             vm.editProject()
             vm.editForm { it.copy(status = ProjectStatus.DROPPED) }
             vm.saveForm()
-            assertEquals(ProjectConfirm.Finish(ProjectStatus.DROPPED, 2, viaForm = true), vm.uiState.value.confirm)
+            assertEquals(ProjectConfirm.Finish(holiday.id, ProjectStatus.DROPPED, 2, viaForm = true), vm.uiState.value.confirm)
             vm.cancelForm()
             assertNull(vm.uiState.value.form)
             assertNull(vm.uiState.value.confirm)
@@ -757,7 +863,7 @@ class ProjectsViewModelTest {
             coEvery { work0.update(any(), any(), any()) } returns ActionOutcome.DONE
             vm.open(holiday)
             vm.setStatus(ProjectStatus.COMPLETED)
-            assertEquals(ProjectConfirm.Finish(ProjectStatus.COMPLETED, 2, viaForm = false), vm.uiState.value.confirm)
+            assertEquals(ProjectConfirm.Finish(holiday.id, ProjectStatus.COMPLETED, 2, viaForm = false), vm.uiState.value.confirm)
             vm.cancelConfirm()
             assertNull(vm.uiState.value.confirm)
             coVerify(exactly = 0) { work0.update(any(), any(), any()) }
@@ -807,7 +913,7 @@ class ProjectsViewModelTest {
             coEvery { work0.delete(holiday) } returns ActionOutcome.DONE
             vm.open(holiday)
             vm.requestDelete()
-            assertEquals(ProjectConfirm.Delete(2), vm.uiState.value.confirm)
+            assertEquals(ProjectConfirm.Delete(holiday.id, 2), vm.uiState.value.confirm)
             coVerify(exactly = 0) { work0.delete(any()) }
             vm.confirm()
             coVerify(exactly = 1) { work0.delete(holiday) }

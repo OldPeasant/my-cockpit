@@ -208,7 +208,8 @@ fun ProjectsContent(
     }
     if (state.form == null) state.detail?.prompt?.let { NextStepDialog(state, it, callbacks) }
     val detail = state.detail
-    val confirm = state.confirm
+    // Only for the project it was asked about: not for another project opened meanwhile.
+    val confirm = state.confirm?.takeIf { it.projectId == detail?.project?.id }
     if (detail != null && confirm != null) ProjectConfirmDialog(detail.project.title, confirm, callbacks)
 }
 

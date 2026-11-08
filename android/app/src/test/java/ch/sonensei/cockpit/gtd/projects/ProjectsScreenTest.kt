@@ -436,7 +436,12 @@ class ProjectsScreenTest {
 
     @Test
     fun `completing with open tasks asks with the count, and confirming confirms`() {
-        show(detail(holiday, listOf(book, hotel)).copy(confirm = ProjectConfirm.Finish(ProjectStatus.COMPLETED, 2, viaForm = false)))
+        show(
+            detail(
+                holiday,
+                listOf(book, hotel),
+            ).copy(confirm = ProjectConfirm.Finish(holiday.id, ProjectStatus.COMPLETED, 2, viaForm = false)),
+        )
         composeRule.onNodeWithTag(ProjectFormTags.CONFIRM).assertIsDisplayed()
         composeRule.onNodeWithText("Complete “Plan holiday”?").assertIsDisplayed()
         composeRule.onNodeWithText("2 tasks are still open. They stay open and keep the project.").assertIsDisplayed()
@@ -446,7 +451,7 @@ class ProjectsScreenTest {
 
     @Test
     fun `dropping with one open task asks in the singular, cancelling cancels`() {
-        show(detail(holiday, listOf(book)).copy(confirm = ProjectConfirm.Finish(ProjectStatus.DROPPED, 1, viaForm = true)))
+        show(detail(holiday, listOf(book)).copy(confirm = ProjectConfirm.Finish(holiday.id, ProjectStatus.DROPPED, 1, viaForm = true)))
         composeRule.onNodeWithText("Drop “Plan holiday”?").assertIsDisplayed()
         composeRule.onNodeWithText("1 task is still open. It stays open and keeps the project.").assertIsDisplayed()
         composeRule.onNodeWithTag(ProjectFormTags.CONFIRM_OK).assertTextEquals("Drop")
@@ -455,13 +460,27 @@ class ProjectsScreenTest {
     }
 
     @Test
+    fun `finishing while the open tasks are not known yet asks without a count`() {
+        show(detail(holiday, emptyList()).copy(confirm = ProjectConfirm.Finish(holiday.id, ProjectStatus.COMPLETED, null, viaForm = false)))
+        composeRule.onNodeWithText("Complete “Plan holiday”?").assertIsDisplayed()
+        composeRule.onNodeWithText("still open", substring = true).assertDoesNotExist()
+        composeRule.onNodeWithTag(ProjectFormTags.CONFIRM_OK).assertTextEquals("Complete")
+    }
+
+    @Test
+    fun `a confirmation asked about another project is not shown`() {
+        show(detail(garden, emptyList()).copy(confirm = ProjectConfirm.Delete(holiday.id, 2)))
+        composeRule.onNodeWithTag(ProjectFormTags.CONFIRM).assertDoesNotExist()
+    }
+
+    @Test
     fun `deleting asks first, says where the project goes and what happens to its open tasks`() {
-        show(detail(holiday, listOf(book, hotel)).copy(confirm = ProjectConfirm.Delete(2)))
+        show(detail(holiday, listOf(book, hotel)).copy(confirm = ProjectConfirm.Delete(holiday.id, 2)))
         composeRule.onNodeWithText("Delete “Plan holiday”?").assertIsDisplayed()
         composeRule.onNodeWithText("The project moves to the Trash, where you can restore it.").assertIsDisplayed()
         composeRule.onNodeWithText("Its 2 open tasks stay open and keep the project.").assertIsDisplayed()
         composeRule.onNodeWithTag(ProjectFormTags.CONFIRM_OK).assertTextEquals("Delete")
-        state = detail(holiday, emptyList()).copy(confirm = ProjectConfirm.Delete(0))
+        state = detail(holiday, emptyList()).copy(confirm = ProjectConfirm.Delete(holiday.id, 0))
         composeRule.onNodeWithText("The project moves to the Trash, where you can restore it.").assertIsDisplayed()
         composeRule.onNodeWithText("keep the project", substring = true).assertDoesNotExist()
         composeRule.onNodeWithText("keeps the project", substring = true).assertDoesNotExist()

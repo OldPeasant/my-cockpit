@@ -64,7 +64,7 @@
     <string name="projects_edit">Bearbeiten</string>
     <string name="projects_edit_title">Projekt bearbeiten</string>
     <string name="projects_menu">Projektaktionen</string>
-    <string name="projects_complete">Projekt abschliessen</string>
+    <string name="projects_complete">Projekt abschließen</string>
     <string name="projects_drop">Projekt verwerfen</string>
     <string name="projects_reactivate">Wieder aktivieren</string>
     <string name="projects_delete">Projekt löschen</string>
@@ -88,7 +88,7 @@
     <string name="projects_form_cancel">Abbrechen</string>
     <string name="projects_form_ok">OK</string>
     <string name="projects_form_conflict">Dieses Projekt wurde anderswo geändert und neu geladen. Deine Änderungen bleiben erhalten: prüfe sie und speichere erneut.</string>
-    <string name="projects_confirm_complete_title">„%1$s“ abschliessen?</string>
+    <string name="projects_confirm_complete_title">„%1$s“ abschließen?</string>
     <string name="projects_confirm_drop_title">„%1$s“ verwerfen?</string>
     <string name="projects_confirm_delete_title">„%1$s“ löschen?</string>
     <string name="projects_confirm_delete_text">Das Projekt kommt in den Papierkorb, wo du es wiederherstellen kannst.</string>
@@ -100,7 +100,7 @@
         <item quantity="one">Seine %d offene Aufgabe bleibt offen und behält das Projekt.</item>
         <item quantity="other">Seine %d offenen Aufgaben bleiben offen und behalten das Projekt.</item>
     </plurals>
-    <string name="projects_confirm_complete">Abschliessen</string>
+    <string name="projects_confirm_complete">Abschließen</string>
     <string name="projects_confirm_drop">Verwerfen</string>
     <string name="projects_confirm_delete">Löschen</string>
     <string name="projects_created">%1$s erstellt</string>

@@ -409,7 +409,7 @@ internal fun ProjectConfirmDialog(
                         is ProjectConfirm.Delete -> confirm.openTasks to R.plurals.projects_confirm_delete_tasks
                     }
                 if (confirm is ProjectConfirm.Delete) Text(stringResource(R.string.projects_confirm_delete_text))
-                if (open > 0) Text(pluralStringResource(plural, open, open))
+                if (open != null && open > 0) Text(pluralStringResource(plural, open, open))
             }
         },
         confirmButton = {
