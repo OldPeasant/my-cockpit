@@ -16,7 +16,8 @@ capture can send a URL to Read later, and web never offers the Android app downl
   - verified (2026-11-08 17:31+0100 by dell26/agent-1): npm --prefix web run test:ci --include search/** (search-query.spec 'type:' prefix parsing incl. German labels, search-palette.provider.spec sends types=TASK&types=NOTE for 'type:note,Tasks passport') -> 69 passed; full npm --prefix web run check -> 4520 passed
 - [x] Capture of a single URL offers "Inbox" or "Read later" (bookmark)
   - verified (2026-11-08 17:31+0100 by dell26/agent-1): capture-dialog.spec 'read later' describe: single URL shows Inbox/Read later radiogroup, Read later POSTs /api/v1/bookmarks {url, readLater:true, description}; not offered for non-URL or with attachments; capture.service.spec readLater -> all pass in npm --prefix web run check (4520 passed)
-- [ ] Settings shows the Android app version with a download link (`/download/android`)
+- [x] Settings shows the Android app version with a download link (`/download/android`)
+  - verified (2026-11-08 17:31+0100 by dell26/agent-1): android-app-download.spec + general-settings.spec: GET /download/android/version shows 'Version 1.4.0', size/date and <a download href=/download/android>; 404 -> no link; errors -> Try again -> pass in npm --prefix web run check. Dev proxy now forwards /download (not exercised against a live server)
 - [ ] New UI strings are in `web/src/locale` (English + German)
 - [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
 
