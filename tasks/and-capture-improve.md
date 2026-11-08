@@ -14,7 +14,8 @@ Android's capture sheet has neither and can only attach files that came from a s
 ## Acceptance criteria
 - [x] The sheet shows the parsed project/contexts/due/waiting as chips while typing (same parsing rules as web; offline-capable, no server call)
   - verified (2026-11-08 18:37+0100 by dell26/agent-3): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL, 4230 tests 0 failures; CaptureSyntaxTest (26, mirrors server CaptureParserTests), CaptureVocabularySourceTest (Room cache only), CaptureSheetCaptureTest syntax-chip tests, ShareViewModelCaptureTest 'the preview is local only and queues nothing', ShareAddAnotherActivityTest 'a project from the offline GTD cache is previewed as a chip while typing' pass
-- [ ] "Save and add another" keeps the sheet open, cleared
+- [x] "Save and add another" keeps the sheet open, cleared
+  - verified (2026-11-08 18:37+0100 by dell26/agent-3): same run -> CaptureSheetCaptureTest add-another tests, ShareViewModelCaptureTest add-another tests and ShareAddAnotherActivityTest 'save and add another queues the share, keeps the sheet open and cleared, then a plain save closes it' (real activity + Hilt + Room queue, Robolectric) pass
 - [ ] An attach button picks files/photos (system picker) and attachments can be removed before saving; works with the offline queue
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
