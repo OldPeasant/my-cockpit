@@ -24,7 +24,8 @@ Decided behavior (owner, 2026-11-08): remote images blocked by default, same as 
   - verified (2026-11-08 10:02+0100 by dell26/agent-1): MailWebViewTest (gradle mail.read.*) -> pass: CSP img-src is exactly https://server.invalid data:; shouldInterceptRequest for https://evil.example/x returns 403 with strict OkHttp mock (no network call)
 - [~] Manually verified on an emulator or device against a running server with a mail containing a `cid:` image and a remote image (record what you ran); if no emulator is available, skip with reason
   - skipped (2026-11-08 09:47+0100 by dell26/agent-1): No emulator/device or adb available to this agent (no adb/emulator on PATH, Android SDK dir outside the sandbox); WebView image loading through shouldInterceptRequest verified only by Robolectric unit tests
-- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [x] New strings are in English and German (`res/values/` + `res/values-de/`)
+  - verified (2026-11-08 10:02+0100 by dell26/agent-1): values/strings_mail.xml + values-de/strings_mail.xml contain mail_read_load_images, mail_read_always_images, mail_read_images_failed, mail_read_sender_not_saved; MailReadImagesGermanTest -> pass; lintDebug (MissingTranslation) -> pass
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
