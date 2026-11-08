@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-user-settings]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/read,android/app/src/test/java/ch/sonensei/cockpit/mail/read,android/app/src/main/res/values/strings_mail.xml,android/app/src/main/res/values-de/strings_mail.xml]
 prio: 1
-lease_until: 2026-11-08T09:14:03Z
+lease_until: 2026-11-08T09:19:04Z
 ---
 ## Goal
 Android shows no images in mail at all: the WebView blocks network loads and its CSP only allows `data:`
