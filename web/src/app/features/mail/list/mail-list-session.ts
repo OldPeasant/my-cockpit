@@ -1,7 +1,7 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { BackNavigation } from '../../../shared/navigation';
 import { MailListSnapshot } from './mail-list-store';
-import { MailScope, MailService } from './mail.service';
+import { MailScope, MailService, MailSummary } from './mail.service';
 
 /** The mail list a message was opened from, as the list page left it. */
 export interface SavedMailList extends MailListSnapshot {
@@ -104,6 +104,18 @@ export class MailListSession {
     });
   }
 
+  /** The list shows message `id` as unread again (marked unread in the read view). */
+  markedUnread(id: string): void {
+    this.patch(id, (item) =>
+      item.seen ? { ...item, seen: false, threadUnread: (item.threadUnread ?? 0) + 1 } : item,
+    );
+  }
+
+  /** The list shows message `id` starred, or not (starred or unstarred in the read view). */
+  flagged(id: string, flagged: boolean): void {
+    this.patch(id, (item) => ({ ...item, flagged }));
+  }
+
   /**
    * Takes message `id` out of the saved list (it was archived, deleted or marked as spam) and
    * returns the message to show instead: the next one in the list (loading the next page of a
@@ -160,6 +172,14 @@ export class MailListSession {
     } catch {
       // Best effort: "next" stays at the last loaded message; the list loads more when scrolled.
     }
+  }
+
+  private patch(id: string, change: (item: MailSummary) => MailSummary): void {
+    this.update((saved) =>
+      saved.items.some((item) => item.id === id)
+        ? { ...saved, items: saved.items.map((item) => (item.id === id ? change(item) : item)) }
+        : saved,
+    );
   }
 
   private update(change: (saved: SavedMailList) => SavedMailList): void {

@@ -14,7 +14,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { map } from 'rxjs';
+import { firstValueFrom, map } from 'rxjs';
 import {
   ItemRefDto,
   MailAddressResponse,
@@ -24,9 +24,12 @@ import {
 import { ApiError, NotificationService } from '../../../core/http';
 import { LinkedItems } from '../../../shared/links';
 import { BackButton, BackNavigation } from '../../../shared/navigation';
+import { PageShortcuts } from '../../../shell/page-shortcuts';
+import { folderTree } from '../list/mail-folders-store';
 import { MailListSession } from '../list/mail-list-session';
+import { MailMoveDialog, MailMoveDialogData } from '../list/mail-move-dialog';
 import { MailAction, MailService } from '../list/mail.service';
-import { MailShortcut, mailShortcutFor } from '../list/mail-shortcuts';
+import { MAIL_READ_HELP, MailShortcut, mailShortcutFor } from '../list/mail-shortcuts';
 import { formatBytes } from './format-bytes';
 import { ImageAllowlist } from './image-allowlist';
 import { MailFrame } from './mail-frame';
@@ -37,14 +40,15 @@ type State = 'loading' | 'notFound' | 'failed' | 'ready';
 /** The mail actions that take the message out of the list it was opened from. */
 type TriageAction = Extract<MailAction, 'ARCHIVE' | 'SPAM' | 'DELETE'>;
 
-/** The list's shortcuts that the read view takes too. */
-const TRIAGE_SHORTCUTS: ReadonlyMap<MailShortcut, TriageAction> = new Map<
-  MailShortcut,
-  TriageAction
->([
-  ['archive', 'ARCHIVE'],
-  ['spam', 'SPAM'],
-  ['delete', 'DELETE'],
+/** The mail actions of the read view (one runs at a time). */
+type ReadAction = TriageAction | Extract<MailAction, 'UNREAD' | 'FLAG' | 'UNFLAG' | 'MOVE'>;
+
+/** The compose page's query parameter for `r`, `a` and `f`. */
+type Respond = 'reply' | 'replyAll' | 'forward';
+const RESPOND_SHORTCUTS: ReadonlyMap<MailShortcut, Respond> = new Map<MailShortcut, Respond>([
+  ['reply', 'reply'],
+  ['replyAll', 'replyAll'],
+  ['forward', 'forward'],
 ]);
 
 /** An attachment preview: an image (by URL) or the start of a text file. */
@@ -64,6 +68,10 @@ export const TEXT_PREVIEW_LIMIT = 100_000;
  * Opened from a mail list (a folder, the unified Inbox or search results), previous/next (buttons or
  * `k`/`j`) step through that list in its order, and Archive, Spam and Delete move on to the next
  * message of the list (back to it when none is left).
+ *
+ * Mark unread (`u`) returns to where the message was opened from, Star (`s`) stars or unstars it,
+ * and Move (`v`) moves it to a folder of its account (then on like Archive). `r`, `a` and `f` reply,
+ * reply to all and forward; `c` writes a new message.
  */
 @Component({
   selector: 'app-mail-read-page',
@@ -103,8 +111,8 @@ export default class MailReadPage {
   /** Attachments being saved to Files, by message id and part id (part ids repeat across messages). */
   protected readonly saving = signal<ReadonlySet<string>>(new Set());
   protected readonly preview = signal<Preview | null>(null);
-  /** The Archive, Spam or Delete request that runs (one at a time). */
-  protected readonly triaging = signal<TriageAction | null>(null);
+  /** The mail action that runs (one at a time), e.g. Archive or Star. */
+  protected readonly triaging = signal<ReadAction | null>(null);
 
   /** Where the message is in the list it was opened from; null when not opened from a list. */
   protected readonly position = computed(() => {
@@ -119,6 +127,8 @@ export default class MailReadPage {
   /** Counts the loads: only the latest one may apply its result. */
   private seq = 0;
   private destroyed = false;
+  /** Marking the shown message read: marking it unread waits for it, so the two cannot cross. */
+  private marking: Promise<unknown> = Promise.resolve();
 
   protected readonly sender = computed<MailAddressResponse | null>(
     () => this.message()?.from?.[0] ?? null,
@@ -144,6 +154,10 @@ export default class MailReadPage {
 
   constructor() {
     inject(DestroyRef).onDestroy(() => (this.destroyed = true));
+    inject(PageShortcuts).register({
+      title: $localize`:@@mailRead.shortcutsTitle:Message`,
+      shortcuts: MAIL_READ_HELP,
+    });
     effect(() => {
       const id = this.id();
       if (id) untracked(() => void this.open(id));
@@ -217,34 +231,118 @@ export default class MailReadPage {
    */
   protected async triage(action: TriageAction): Promise<void> {
     const id = this.message()?.id;
-    if (!id || this.state() !== 'ready' || this.triaging()) return;
-    this.triaging.set(action);
-    try {
-      const results = await this.mail.apply(action, [id]);
-      const result = results.find((entry) => entry.id === id);
-      if (!result?.ok) {
-        const reason = result?.detail || $localize`:@@mailRead.unexpected:Something went wrong.`;
-        this.notifications.error(triageFailed(action, reason));
-        return;
-      }
-      // The list it was opened from no longer shows it; the message to show instead, if any (this
-      // may load the next page of the list).
-      const following = await this.session.remove(id);
-      // The user may have left this message (or the page) while the request ran: stay there.
+    if (!id || !this.canAct()) return;
+    await this.run(action, id, () => this.leave(id));
+  }
+
+  /**
+   * Marks the message unread and returns to where it was opened from (staying would show it as
+   * read), as Gmail does.
+   */
+  protected async markUnread(): Promise<void> {
+    const id = this.message()?.id;
+    if (!id || !this.canAct()) return;
+    this.triaging.set('UNREAD');
+    // Marking it read on opening must not land after this.
+    await this.marking;
+    await this.run('UNREAD', id, async () => {
+      this.session.markedUnread(id);
       if (this.destroyed || this.message()?.id !== id) return;
-      if (following) {
-        // On to the next message of the list, in place of this one: Back still returns to the list.
-        await this.router.navigate(['/mail/messages', following], { replaceUrl: true });
-        return;
-      }
-      // Back to where the message was opened from (or to Mail, replacing the message in the history,
-      // so Back does not open it again).
+      this.message.update((shown) => (shown ? { ...shown, seen: false } : shown));
       await this.backNavigation.back('/mail', { replaceUrl: true });
+    });
+  }
+
+  /** Stars the message, or removes its star; it stays open. */
+  protected async toggleFlag(): Promise<void> {
+    const shown = this.message();
+    const id = shown?.id;
+    if (!id || !this.canAct()) return;
+    const flagged = !shown.flagged;
+    await this.run(flagged ? 'FLAG' : 'UNFLAG', id, async () => {
+      this.session.flagged(id, flagged);
+      this.message.update((current) => (current?.id === id ? { ...current, flagged } : current));
+    });
+  }
+
+  /**
+   * Moves the message to a folder of its account picked in the move dialog, then goes on like
+   * Archive (the next message of the list, else back to it).
+   */
+  protected async move(): Promise<void> {
+    const shown = this.message();
+    const id = shown?.id;
+    const accountId = shown?.accountId;
+    if (!id || !accountId || !this.canAct() || this.dialog.openDialogs.length) return;
+    this.triaging.set('MOVE');
+    let target: string | undefined;
+    try {
+      const folders = folderTree(await this.mail.folders(accountId)).filter(
+        (node) => node.folder.selectable && node.folder.id !== shown.folderId,
+      );
+      if (this.destroyed || this.message()?.id !== id) return;
+      target = await firstValueFrom(
+        this.dialog
+          .open<MailMoveDialog, MailMoveDialogData, string>(MailMoveDialog, {
+            data: { folders },
+            width: '24rem',
+          })
+          .afterClosed(),
+      );
     } catch (error) {
-      this.notifications.error(triageFailed(action, messageOf(error)));
+      this.notifications.error(actionFailed('MOVE', messageOf(error)));
     } finally {
       this.triaging.set(null);
     }
+    if (!target || this.destroyed || this.message()?.id !== id) return;
+    await this.run('MOVE', id, () => this.leave(id), target);
+  }
+
+  private canAct(): boolean {
+    return this.state() === 'ready' && !this.triaging();
+  }
+
+  /**
+   * Applies `action` to message `id`, then `done`. A failure is toasted and keeps the message open.
+   */
+  private async run(
+    action: ReadAction,
+    id: string,
+    done: () => Promise<void>,
+    targetFolderId?: string,
+  ): Promise<void> {
+    this.triaging.set(action);
+    try {
+      const results = await this.mail.apply(action, [id], targetFolderId);
+      const result = results.find((entry) => entry.id === id);
+      if (!result?.ok) {
+        const reason = result?.detail || $localize`:@@mailRead.unexpected:Something went wrong.`;
+        this.notifications.error(actionFailed(action, reason));
+        return;
+      }
+      await done();
+    } catch (error) {
+      this.notifications.error(actionFailed(action, messageOf(error)));
+    } finally {
+      this.triaging.set(null);
+    }
+  }
+
+  /** Message `id` left the list it was opened from: on to its next message, else back to the list. */
+  private async leave(id: string): Promise<void> {
+    // The list it was opened from no longer shows it; the message to show instead, if any (this
+    // may load the next page of the list).
+    const following = await this.session.remove(id);
+    // The user may have left this message (or the page) while the request ran: stay there.
+    if (this.destroyed || this.message()?.id !== id) return;
+    if (following) {
+      // On to the next message of the list, in place of this one: Back still returns to the list.
+      await this.router.navigate(['/mail/messages', following], { replaceUrl: true });
+      return;
+    }
+    // Back to where the message was opened from (or to Mail, replacing the message in the history,
+    // so Back does not open it again).
+    await this.backNavigation.back('/mail', { replaceUrl: true });
   }
 
   /**
@@ -266,22 +364,56 @@ export default class MailReadPage {
   }
 
   /**
-   * `e` archives, `!` marks as spam and `#` deletes, as in the list; `j`/`k` step to the next and
-   * previous message of the list it was opened from (never while typing or while a dialog is open).
+   * `e` archives, `!` marks as spam and `#` deletes, as in the list; `u` marks unread, `s` stars and
+   * `v` moves; `r`, `a` and `f` reply, reply to all and forward; `c` writes a new message; `j`/`k`
+   * step to the next and previous message of the list it was opened from (never while typing or
+   * while a dialog is open).
    */
   protected onKeydown(event: KeyboardEvent): void {
     if (this.dialog.openDialogs.length) return;
     const shortcut = mailShortcutFor(event);
+    if (!shortcut) return;
     if ((shortcut === 'next' || shortcut === 'previous') && this.position()) {
       event.preventDefault();
       void this.step(shortcut === 'next' ? 1 : -1);
       return;
     }
-    if (this.state() !== 'ready') return;
-    const action = shortcut ? TRIAGE_SHORTCUTS.get(shortcut) : undefined;
+    if (shortcut === 'compose') {
+      event.preventDefault();
+      void this.router.navigate(['/mail/compose']);
+      return;
+    }
+    const id = this.message()?.id;
+    if (this.state() !== 'ready' || !id) return;
+    const respond = RESPOND_SHORTCUTS.get(shortcut);
+    if (respond) {
+      event.preventDefault();
+      void this.router.navigate(['/mail/compose'], { queryParams: { [respond]: id } });
+      return;
+    }
+    const action = this.shortcutAction(shortcut);
     if (!action) return;
     event.preventDefault();
-    void this.triage(action);
+    void action();
+  }
+
+  private shortcutAction(shortcut: MailShortcut): (() => Promise<void>) | null {
+    switch (shortcut) {
+      case 'archive':
+        return () => this.triage('ARCHIVE');
+      case 'spam':
+        return () => this.triage('SPAM');
+      case 'delete':
+        return () => this.triage('DELETE');
+      case 'unread':
+        return () => this.markUnread();
+      case 'flag':
+        return () => this.toggleFlag();
+      case 'move':
+        return () => this.move();
+      default:
+        return null;
+    }
   }
 
   protected downloadUrl(part: MailAttachmentResponse): string {
@@ -407,7 +539,7 @@ export default class MailReadPage {
       this.session.visited(id);
       if (!message.seen && message.id) {
         // Best effort: the list shows the change through its events, a failure only keeps it unread.
-        this.service.markRead(message.id).catch(() => undefined);
+        this.marking = this.service.markRead(message.id).catch(() => undefined);
       }
     } catch (error) {
       if (seq !== this.seq || this.destroyed) return;
@@ -432,7 +564,7 @@ function previewKind(part: MailAttachmentResponse): 'image' | 'text' | null {
   return null;
 }
 
-function triageFailed(action: TriageAction, reason: string): string {
+function actionFailed(action: ReadAction, reason: string): string {
   switch (action) {
     case 'ARCHIVE':
       return $localize`:@@mailRead.archiveFailed:The message could not be archived: ${reason}:reason:`;
@@ -440,6 +572,14 @@ function triageFailed(action: TriageAction, reason: string): string {
       return $localize`:@@mailRead.spamFailed:The message could not be marked as spam: ${reason}:reason:`;
     case 'DELETE':
       return $localize`:@@mailRead.deleteFailed:The message could not be deleted: ${reason}:reason:`;
+    case 'UNREAD':
+      return $localize`:@@mailRead.unreadFailed:The message could not be marked as unread: ${reason}:reason:`;
+    case 'FLAG':
+      return $localize`:@@mailRead.flagFailed:The message could not be starred: ${reason}:reason:`;
+    case 'UNFLAG':
+      return $localize`:@@mailRead.unflagFailed:The star could not be removed: ${reason}:reason:`;
+    case 'MOVE':
+      return $localize`:@@mailRead.moveFailed:The message could not be moved: ${reason}:reason:`;
   }
 }
 

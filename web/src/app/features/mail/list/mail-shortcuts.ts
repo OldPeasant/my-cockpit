@@ -1,6 +1,6 @@
-import { isTypingTarget } from '../../../shell/hotkeys';
+import { isTypingTarget, ShortcutInfo } from '../../../shell/hotkeys';
 
-/** What a key does in the mail list. */
+/** What a key does in the mail list or the read view. */
 export type MailShortcut =
   | 'next'
   | 'previous'
@@ -13,9 +13,13 @@ export type MailShortcut =
   | 'move'
   | 'spam'
   | 'clear'
-  | 'open';
+  | 'open'
+  | 'reply'
+  | 'replyAll'
+  | 'forward'
+  | 'compose';
 
-/** Gmail-like keys (SPEC.md §7.3), shown in the list's shortcut help. */
+/** Gmail-like keys (SPEC.md §7.3); the `?` overview shows them through {@link MAIL_LIST_HELP} and {@link MAIL_READ_HELP}. */
 export const MAIL_SHORTCUTS: readonly { key: string; shortcut: MailShortcut }[] = [
   { key: 'j', shortcut: 'next' },
   { key: 'k', shortcut: 'previous' },
@@ -29,6 +33,10 @@ export const MAIL_SHORTCUTS: readonly { key: string; shortcut: MailShortcut }[] 
   { key: '!', shortcut: 'spam' },
   { key: 'Escape', shortcut: 'clear' },
   { key: 'o', shortcut: 'open' },
+  { key: 'r', shortcut: 'reply' },
+  { key: 'a', shortcut: 'replyAll' },
+  { key: 'f', shortcut: 'forward' },
+  { key: 'c', shortcut: 'compose' },
 ];
 
 const BY_KEY = new Map(MAIL_SHORTCUTS.map(({ key, shortcut }) => [key, shortcut]));
@@ -60,3 +68,65 @@ function typedWithAltGraph(event: KeyboardEvent): boolean {
   if (event.metaKey) return false;
   return event.getModifierState('AltGraph') || event.altKey;
 }
+
+const DESCRIPTIONS: Record<MailShortcut, string> = {
+  next: $localize`:@@mailShortcuts.next:Next message`,
+  previous: $localize`:@@mailShortcuts.previous:Previous message`,
+  select: $localize`:@@mailShortcuts.select:Select or unselect the message`,
+  archive: $localize`:@@mailShortcuts.archive:Archive`,
+  delete: $localize`:@@mailShortcuts.delete:Delete`,
+  unread: $localize`:@@mailShortcuts.unread:Mark as unread`,
+  read: $localize`:@@mailShortcuts.read:Mark as read`,
+  flag: $localize`:@@mailShortcuts.flag:Star or unstar`,
+  move: $localize`:@@mailShortcuts.move:Move to folder`,
+  spam: $localize`:@@mailShortcuts.spam:Mark as spam`,
+  clear: $localize`:@@mailShortcuts.clear:Clear the selection`,
+  open: $localize`:@@mailShortcuts.open:Open the message`,
+  reply: $localize`:@@mailShortcuts.reply:Reply`,
+  replyAll: $localize`:@@mailShortcuts.replyAll:Reply all`,
+  forward: $localize`:@@mailShortcuts.forward:Forward`,
+  compose: $localize`:@@mailShortcuts.compose:Write a new message`,
+};
+
+function help(shortcuts: readonly MailShortcut[]): readonly ShortcutInfo[] {
+  return shortcuts.map((shortcut) => ({
+    keys: MAIL_SHORTCUTS.filter((entry) => entry.shortcut === shortcut).map((entry) => entry.key),
+    description: DESCRIPTIONS[shortcut],
+  }));
+}
+
+/** The keys of the mail list, for the `?` overview. */
+export const MAIL_LIST_HELP: readonly ShortcutInfo[] = [
+  ...help([
+    'next',
+    'previous',
+    'open',
+    'select',
+    'clear',
+    'archive',
+    'delete',
+    'spam',
+    'unread',
+    'read',
+    'flag',
+    'move',
+    'compose',
+  ]),
+  { keys: ['/'], description: $localize`:@@mailShortcuts.search:Search mail` },
+];
+
+/** The keys of the read view, for the `?` overview. */
+export const MAIL_READ_HELP: readonly ShortcutInfo[] = help([
+  'reply',
+  'replyAll',
+  'forward',
+  'compose',
+  'archive',
+  'delete',
+  'spam',
+  'unread',
+  'flag',
+  'move',
+  'next',
+  'previous',
+]);

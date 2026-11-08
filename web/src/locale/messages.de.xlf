@@ -15116,6 +15116,270 @@
           <context context-type="linenumber">207</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="mail.shortcutsTitle" datatype="html">
+        <source>Mail</source>
+        <target state="translated">E-Mail</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.ts</context>
+          <context context-type="linenumber">131</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailShortcuts.next" datatype="html">
+        <source>Next message</source>
+        <target state="translated">Nächste Nachricht</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-shortcuts.ts</context>
+          <context context-type="linenumber">73</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailShortcuts.previous" datatype="html">
+        <source>Previous message</source>
+        <target state="translated">Vorherige Nachricht</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-shortcuts.ts</context>
+          <context context-type="linenumber">74</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailShortcuts.select" datatype="html">
+        <source>Select or unselect the message</source>
+        <target state="translated">Nachricht auswählen oder abwählen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-shortcuts.ts</context>
+          <context context-type="linenumber">75</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailShortcuts.archive" datatype="html">
+        <source>Archive</source>
+        <target state="translated">Archivieren</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-shortcuts.ts</context>
+          <context context-type="linenumber">76</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailShortcuts.delete" datatype="html">
+        <source>Delete</source>
+        <target state="translated">Löschen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-shortcuts.ts</context>
+          <context context-type="linenumber">77</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailShortcuts.unread" datatype="html">
+        <source>Mark as unread</source>
+        <target state="translated">Als ungelesen markieren</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-shortcuts.ts</context>
+          <context context-type="linenumber">78</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailShortcuts.read" datatype="html">
+        <source>Mark as read</source>
+        <target state="translated">Als gelesen markieren</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-shortcuts.ts</context>
+          <context context-type="linenumber">79</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailShortcuts.flag" datatype="html">
+        <source>Star or unstar</source>
+        <target state="translated">Markieren oder Markierung entfernen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-shortcuts.ts</context>
+          <context context-type="linenumber">80</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailShortcuts.move" datatype="html">
+        <source>Move to folder</source>
+        <target state="translated">In Ordner verschieben</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-shortcuts.ts</context>
+          <context context-type="linenumber">81</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailShortcuts.spam" datatype="html">
+        <source>Mark as spam</source>
+        <target state="translated">Als Spam markieren</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-shortcuts.ts</context>
+          <context context-type="linenumber">82</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailShortcuts.clear" datatype="html">
+        <source>Clear the selection</source>
+        <target state="translated">Auswahl aufheben</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-shortcuts.ts</context>
+          <context context-type="linenumber">83</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailShortcuts.open" datatype="html">
+        <source>Open the message</source>
+        <target state="translated">Nachricht öffnen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-shortcuts.ts</context>
+          <context context-type="linenumber">84</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailShortcuts.reply" datatype="html">
+        <source>Reply</source>
+        <target state="translated">Antworten</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-shortcuts.ts</context>
+          <context context-type="linenumber">85</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailShortcuts.replyAll" datatype="html">
+        <source>Reply all</source>
+        <target state="translated">Allen antworten</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-shortcuts.ts</context>
+          <context context-type="linenumber">86</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailShortcuts.forward" datatype="html">
+        <source>Forward</source>
+        <target state="translated">Weiterleiten</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-shortcuts.ts</context>
+          <context context-type="linenumber">87</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailShortcuts.compose" datatype="html">
+        <source>Write a new message</source>
+        <target state="translated">Neue Nachricht schreiben</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-shortcuts.ts</context>
+          <context context-type="linenumber">88</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailShortcuts.search" datatype="html">
+        <source>Search mail</source>
+        <target state="translated">E-Mail durchsuchen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-shortcuts.ts</context>
+          <context context-type="linenumber">115</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailRead.shortcutsTitle" datatype="html">
+        <source>Message</source>
+        <target state="translated">Nachricht</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.ts</context>
+          <context context-type="linenumber">158</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailRead.replyTitle" datatype="html">
+        <source>Reply (r)</source>
+        <target state="translated">Antworten (r)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
+          <context context-type="linenumber">52,53</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailRead.replyAllTitle" datatype="html">
+        <source>Reply all (a)</source>
+        <target state="translated">Allen antworten (a)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
+          <context context-type="linenumber">61,62</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailRead.forwardTitle" datatype="html">
+        <source>Forward (f)</source>
+        <target state="translated">Weiterleiten (f)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
+          <context context-type="linenumber">70,71</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailRead.unreadTitle" datatype="html">
+        <source>Mark unread (u)</source>
+        <target state="translated">Als ungelesen markieren (u)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
+          <context context-type="linenumber">112,113</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailRead.unread" datatype="html">
+        <source> Mark unread </source>
+        <target state="translated">Als ungelesen markieren</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
+          <context context-type="linenumber">115,117</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailRead.flagTitle" datatype="html">
+        <source>Star (s)</source>
+        <target state="translated">Markieren (s)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
+          <context context-type="linenumber">125,127</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailRead.unflag" datatype="html">
+        <source>★ Starred</source>
+        <target state="translated">★ Markiert</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
+          <context context-type="linenumber">128,129</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailRead.flag" datatype="html">
+        <source>☆ Star</source>
+        <target state="translated">☆ Markieren</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
+          <context context-type="linenumber">130,132</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailRead.moveTitle" datatype="html">
+        <source>Move to folder (v)</source>
+        <target state="translated">In Ordner verschieben (v)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
+          <context context-type="linenumber">140,141</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailRead.move" datatype="html">
+        <source> Move </source>
+        <target state="translated">Verschieben</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
+          <context context-type="linenumber">143,145</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailRead.unreadFailed" datatype="html">
+        <source>The message could not be marked as unread: <x id="reason" equiv-text="reason"/></source>
+        <target state="translated">Die Nachricht konnte nicht als ungelesen markiert werden: <x id="reason" equiv-text="reason"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.ts</context>
+          <context context-type="linenumber">576</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailRead.flagFailed" datatype="html">
+        <source>The message could not be starred: <x id="reason" equiv-text="reason"/></source>
+        <target state="translated">Die Nachricht konnte nicht markiert werden: <x id="reason" equiv-text="reason"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.ts</context>
+          <context context-type="linenumber">578</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailRead.unflagFailed" datatype="html">
+        <source>The star could not be removed: <x id="reason" equiv-text="reason"/></source>
+        <target state="translated">Die Markierung konnte nicht entfernt werden: <x id="reason" equiv-text="reason"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.ts</context>
+          <context context-type="linenumber">580</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailRead.moveFailed" datatype="html">
+        <source>The message could not be moved: <x id="reason" equiv-text="reason"/></source>
+        <target state="translated">Die Nachricht konnte nicht verschoben werden: <x id="reason" equiv-text="reason"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.ts</context>
+          <context context-type="linenumber">582</context>
+        </context-group>
+      </trans-unit>
     </body>
   </file>
 </xliff>

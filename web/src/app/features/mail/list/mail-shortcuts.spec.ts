@@ -20,6 +20,10 @@ describe('mailShortcutFor', () => {
     ['!', 'spam'],
     ['Escape', 'clear'],
     ['o', 'open'],
+    ['r', 'reply'],
+    ['a', 'replyAll'],
+    ['f', 'forward'],
+    ['c', 'compose'],
   ])('maps %s to %s', (pressed, shortcut) => {
     expect(mailShortcutFor(key(pressed))).toBe(shortcut);
   });
@@ -38,6 +42,10 @@ describe('mailShortcutFor', () => {
       '!',
       'Escape',
       'o',
+      'r',
+      'a',
+      'f',
+      'c',
     ]);
   });
 
@@ -48,7 +56,7 @@ describe('mailShortcutFor', () => {
   });
 
   it('ignores unmapped keys', () => {
-    expect(mailShortcutFor(key('a'))).toBeNull();
+    expect(mailShortcutFor(key('b'))).toBeNull();
     expect(mailShortcutFor(key('Enter'))).toBeNull();
   });
 

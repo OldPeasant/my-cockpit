@@ -1425,6 +1425,9 @@ describe('MailReadPage', () => {
       await open();
       const group = button('Delete')!.closest('[role="group"]')!;
       expect([...group.querySelectorAll('button')].map((b) => b.textContent?.trim())).toEqual([
+        'Mark unread',
+        '☆ Star',
+        'Move',
         'Archive',
         'Spam',
         'Delete',

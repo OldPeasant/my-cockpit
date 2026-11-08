@@ -24,14 +24,9 @@ import { MailListSession } from './mail-list-session';
 import { MailListStore } from './mail-list-store';
 import { MailMoveDialog, MailMoveDialogData } from './mail-move-dialog';
 import { isTypingTarget } from '../../../shell/hotkeys';
-import { mailShortcutFor, MailShortcut } from './mail-shortcuts';
-import {
-  MAIL_MAX_PAGE_SIZE,
-  MailAction,
-  MailScope,
-  MailSearch,
-  MailSummary,
-} from './mail.service';
+import { PageShortcuts } from '../../../shell/page-shortcuts';
+import { MAIL_LIST_HELP, mailShortcutFor, MailShortcut } from './mail-shortcuts';
+import { MAIL_MAX_PAGE_SIZE, MailAction, MailScope, MailSearch, MailSummary } from './mail.service';
 
 /** `localStorage` key of the threaded/flat choice. */
 export const THREADED_KEY = 'cockpit.mail.threaded';
@@ -126,6 +121,10 @@ export default class MailListPage {
   private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
 
   constructor() {
+    inject(PageShortcuts).register({
+      title: $localize`:@@mail.shortcutsTitle:Mail`,
+      shortcuts: MAIL_LIST_HELP,
+    });
     void this.folders.load();
     const destroyRef = inject(DestroyRef);
     // The route's snapshot is complete when either map emits: a navigation that changes the folder
@@ -329,12 +328,15 @@ export default class MailListPage {
       return;
     }
     const shortcut = mailShortcutFor(event);
-    if (!shortcut) return;
+    // Replying and forwarding are keys of the read view.
+    if (!shortcut || shortcut === 'reply' || shortcut === 'replyAll' || shortcut === 'forward') {
+      return;
+    }
     event.preventDefault();
     this.run(shortcut);
   }
 
-  private run(shortcut: MailShortcut): void {
+  private run(shortcut: Exclude<MailShortcut, 'reply' | 'replyAll' | 'forward'>): void {
     switch (shortcut) {
       case 'next':
         this.store.moveCursor(1);
@@ -372,6 +374,9 @@ export default class MailListPage {
         if (id) this.open(id);
         return;
       }
+      case 'compose':
+        void this.router.navigate(['/mail/compose']);
+        return;
     }
   }
 

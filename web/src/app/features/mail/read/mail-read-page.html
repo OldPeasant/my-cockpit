@@ -48,6 +48,8 @@
           mat-stroked-button
           routerLink="/mail/compose"
           [queryParams]="{ reply: message()?.id }"
+          i18n-title="@@mailRead.replyTitle"
+          title="Reply (r)"
           i18n="@@mailRead.reply"
           >Reply</a
         >
@@ -55,6 +57,8 @@
           mat-stroked-button
           routerLink="/mail/compose"
           [queryParams]="{ replyAll: message()?.id }"
+          i18n-title="@@mailRead.replyAllTitle"
+          title="Reply all (a)"
           i18n="@@mailRead.replyAll"
           >Reply all</a
         >
@@ -62,6 +66,8 @@
           mat-stroked-button
           routerLink="/mail/compose"
           [queryParams]="{ forward: message()?.id }"
+          i18n-title="@@mailRead.forwardTitle"
+          title="Forward (f)"
           i18n="@@mailRead.forward"
           >Forward</a
         >
@@ -96,6 +102,46 @@
         </button>
       </div>
       <div class="actions" role="group" i18n-aria-label="@@mailRead.manageAria" aria-label="Manage">
+        <button
+          mat-stroked-button
+          type="button"
+          class="unread"
+          [disabled]="!!triaging()"
+          (click)="markUnread()"
+          i18n-title="@@mailRead.unreadTitle"
+          title="Mark unread (u)"
+          i18n="@@mailRead.unread"
+        >
+          Mark unread
+        </button>
+        <button
+          mat-stroked-button
+          type="button"
+          class="flag"
+          [disabled]="!!triaging()"
+          [attr.aria-pressed]="!!message()?.flagged"
+          (click)="toggleFlag()"
+          i18n-title="@@mailRead.flagTitle"
+          title="Star (s)"
+        >
+          @if (message()?.flagged) {
+            <ng-container i18n="@@mailRead.unflag">★ Starred</ng-container>
+          } @else {
+            <ng-container i18n="@@mailRead.flag">☆ Star</ng-container>
+          }
+        </button>
+        <button
+          mat-stroked-button
+          type="button"
+          class="move"
+          [disabled]="!!triaging()"
+          (click)="move()"
+          i18n-title="@@mailRead.moveTitle"
+          title="Move to folder (v)"
+          i18n="@@mailRead.move"
+        >
+          Move
+        </button>
         <button
           mat-stroked-button
           type="button"
