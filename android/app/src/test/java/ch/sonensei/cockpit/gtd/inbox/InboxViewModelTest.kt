@@ -573,4 +573,91 @@ class InboxViewModelTest {
             coVerify(exactly = 0) { completion.complete(any()) }
             assertEquals(listOf(first, second), vm.uiState.value.tasks)
         }
+
+    @Test
+    fun `a task being completed is hidden before the server answers and comes back if it refuses`() =
+        test { vm ->
+            val answer = CompletableDeferred<CompletionResult>()
+            coEvery { completion.complete(first) } coAnswers { answer.await() }
+
+            vm.complete(first)
+            assertEquals(listOf(second), vm.uiState.value.tasks)
+            assertNull(vm.uiState.value.snackbar)
+
+            answer.complete(CompletionResult.NotDone(CompletionMessage.OFFLINE))
+            assertEquals(listOf(first, second), vm.uiState.value.tasks)
+            assertEquals(CompletionSnackbar.Failed(CompletionMessage.OFFLINE), vm.uiState.value.snackbar)
+        }
+
+    @Test
+    fun `a second tap on a task being completed sends one completion`() =
+        test { vm ->
+            val answer = CompletableDeferred<CompletionResult>()
+            coEvery { completion.complete(first) } coAnswers { answer.await() }
+
+            vm.complete(first)
+            vm.complete(first)
+            answer.complete(CompletionResult.Completed(Completion(first.id, first.title, 2)))
+
+            coVerify(exactly = 1) { completion.complete(first) }
+            assertEquals(listOf(second), vm.uiState.value.tasks)
+        }
+
+    @Test
+    fun `the not yet reloaded inbox keeps a completed task hidden, a newer version of it shows again`() =
+        test { vm ->
+            coEvery { completion.complete(first) } returns CompletionResult.Completed(Completion(first.id, first.title, 2))
+            vm.complete(first)
+
+            // The cached Inbox still holds the version before the completion (the Inbox is not reloaded after it).
+            inboxFlow.value = inboxFlow.value.copy(data = listOf(first, second), refreshedAt = loadedAt.plusSeconds(60))
+            assertEquals(listOf(second), vm.uiState.value.tasks)
+
+            // Reopened elsewhere: the server's newer version is back in the Inbox.
+            val reopened = first.copy(version = 3)
+            inboxFlow.value = inboxFlow.value.copy(data = listOf(reopened, second))
+            assertEquals(listOf(reopened, second), vm.uiState.value.tasks)
+        }
+
+    @Test
+    fun `a refused undo keeps the task hidden and says why`() =
+        test { vm ->
+            val done = Completion(first.id, first.title, 2)
+            coEvery { completion.complete(first) } returns CompletionResult.Completed(done)
+            coEvery { completion.undo(done) } returns CompletionResult.NotDone(CompletionMessage.FAILED)
+            vm.complete(first)
+
+            vm.undo(CompletionSnackbar.Undo(done))
+
+            assertEquals(listOf(second), vm.uiState.value.tasks)
+            assertEquals(CompletionSnackbar.Failed(CompletionMessage.FAILED), vm.uiState.value.snackbar)
+        }
+
+    @Test
+    fun `a task completed from the list is not offered when processing starts`() =
+        test { vm ->
+            coEvery { completion.complete(first) } returns CompletionResult.Completed(Completion(first.id, first.title, 2))
+            vm.complete(first)
+
+            vm.startProcessing()
+
+            assertEquals(second, vm.uiState.value.current)
+            assertEquals(listOf(second), vm.uiState.value.tasks)
+        }
+
+    @Test
+    fun `dismissing an older snackbar keeps the newer one`() =
+        test { vm ->
+            val firstDone = Completion(first.id, first.title, 2)
+            val secondDone = Completion(second.id, second.title, 2)
+            coEvery { completion.complete(first) } returns CompletionResult.Completed(firstDone)
+            coEvery { completion.complete(second) } returns CompletionResult.Completed(secondDone)
+            vm.complete(first)
+            vm.complete(second)
+
+            vm.dismissSnackbar(CompletionSnackbar.Undo(firstDone))
+
+            assertEquals(CompletionSnackbar.Undo(secondDone), vm.uiState.value.snackbar)
+            assertEquals(emptyList<GtdTask>(), vm.uiState.value.tasks)
+        }
 }

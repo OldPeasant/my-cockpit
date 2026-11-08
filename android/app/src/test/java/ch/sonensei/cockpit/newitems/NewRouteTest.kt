@@ -83,6 +83,19 @@ class NewRouteTest {
     }
 
     @Test
+    fun withoutTheShellsOpenerATaskTapKeepsTheListAndOpensNoSheet() {
+        show(opener = null)
+
+        composeRule.onNodeWithText("Call the plumber").performClick()
+        composeRule.waitForIdle()
+
+        // No read-only task view any more: the list (and the task's notes only as a row preview) stays.
+        composeRule.onNodeWithTag(NewTags.LIST).assertExists()
+        composeRule.onNodeWithText("Invoice").assertExists()
+        composeRule.onNodeWithContentDescription("Back").assertDoesNotExist()
+    }
+
+    @Test
     fun showingTheScreenLoadsTheMail() {
         show()
 

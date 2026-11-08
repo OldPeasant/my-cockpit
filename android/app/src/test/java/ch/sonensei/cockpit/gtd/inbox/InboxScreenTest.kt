@@ -1,10 +1,14 @@
 package ch.sonensei.cockpit.gtd.inbox
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -23,9 +27,17 @@ import ch.sonensei.cockpit.gtd.data.GtdProject
 import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.data.ProjectStatus
 import ch.sonensei.cockpit.gtd.data.TaskList
+import ch.sonensei.cockpit.gtd.next.Completion
+import ch.sonensei.cockpit.gtd.next.CompletionMessage
+import ch.sonensei.cockpit.gtd.next.CompletionSnackbar
+import ch.sonensei.cockpit.gtd.next.TaskListTags
+import ch.sonensei.cockpit.gtd.task.LocalTaskOpener
+import ch.sonensei.cockpit.gtd.task.TaskOpener
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -72,9 +84,17 @@ class InboxScreenTest {
                 retry = { calls += "retry" },
                 cancelPrompt = { calls += "cancel" },
                 dismissMessage = { calls += "dismiss" },
+                complete = { calls += "complete ${it.title}" },
+                undo = { calls += "undo ${it.completion.title}" },
+                dismissSnackbar = { calls += "dismissSnackbar" },
             )
-        composeRule.setContent { CockpitTheme { InboxContent(state, callbacks) } }
+        composeRule.setContent {
+            CockpitTheme { CompositionLocalProvider(LocalTaskOpener provides opener) { InboxContent(state, callbacks) } }
+        }
     }
+
+    /** The shell's task opener; `null` outside the shell. */
+    private var opener: TaskOpener? = null
 
     private fun action(kind: InboxActionKind) = composeRule.onNodeWithTag(InboxTags.action(kind)).performScrollTo()
 
@@ -339,5 +359,126 @@ class InboxScreenTest {
         composeRule.onNodeWithText("Back to the list").performClick()
 
         assertEquals(listOf("stop"), calls)
+    }
+
+    // --- List rows: complete and open (and-inbox-rows) ---
+
+    @Test
+    fun `every row has an unchecked complete checkbox labelled with its title that completes it`() {
+        show(loaded)
+
+        composeRule.onNodeWithTag(TaskListTags.complete(first.id)).assertIsOff().assertIsEnabled()
+        composeRule.onNodeWithContentDescription("Complete Buy tiles").assertIsOff().performClick()
+        composeRule.onNodeWithTag(TaskListTags.complete(first.id)).performClick()
+
+        assertEquals(listOf("complete Buy tiles", "complete Call the plumber"), calls)
+    }
+
+    @Test
+    fun `offline every row checkbox is disabled and completes nothing`() {
+        show(loaded.copy(offline = true))
+
+        listOf(first, second).forEach { task ->
+            composeRule.onNodeWithTag(TaskListTags.complete(task.id)).assertIsNotEnabled().performClick()
+        }
+
+        assertEquals(emptyList<String>(), calls)
+    }
+
+    @Test
+    fun `tapping a row opens its task detail, the checkbox does not`() {
+        val opened = mutableListOf<Pair<UUID, GtdTask?>>()
+        opener = TaskOpener { id, snapshot, _ -> opened += id to snapshot }
+        show(loaded)
+
+        composeRule.onNodeWithTag(TaskListTags.row(first.id)).assertIsDisplayed().performClick()
+        composeRule.onNodeWithTag(TaskListTags.complete(second.id)).performClick()
+
+        assertEquals(listOf(first.id to first), opened)
+        assertEquals(listOf("complete Buy tiles"), calls)
+    }
+
+    @Test
+    fun `offline a row still opens its task detail`() {
+        val opened = mutableListOf<UUID>()
+        opener = TaskOpener { id, _, _ -> opened += id }
+        show(loaded.copy(offline = true))
+
+        composeRule.onNodeWithTag(TaskListTags.row(second.id)).performClick()
+
+        assertEquals(listOf(second.id), opened)
+    }
+
+    @Test
+    fun `outside the shell a row has no tap target`() {
+        show(loaded)
+
+        val row = composeRule.onNodeWithTag(TaskListTags.row(first.id)).fetchSemanticsNode()
+        assertFalse(SemanticsActions.OnClick in row.config)
+    }
+
+    @Test
+    fun `in the shell a row announces that it opens the task`() {
+        opener = TaskOpener { _, _, _ -> }
+        show(loaded)
+
+        val row = composeRule.onNodeWithTag(TaskListTags.row(first.id)).fetchSemanticsNode()
+        assertTrue(SemanticsActions.OnClick in row.config)
+        assertEquals("Open task", row.config[SemanticsActions.OnClick].label)
+    }
+
+    @Test
+    fun `processing mode shows the current item without the list rows and their checkboxes`() {
+        opener = TaskOpener { _, _, _ -> }
+        show(loaded.copy(processing = true))
+
+        composeRule.onNodeWithTag(TaskListTags.complete(first.id)).assertDoesNotExist()
+        composeRule.onNodeWithTag(TaskListTags.row(first.id)).assertDoesNotExist()
+        composeRule.onNodeWithTag(InboxTags.LIST).assertDoesNotExist()
+        composeRule.onNodeWithTag(InboxTags.CURRENT).assertExists()
+    }
+
+    @Test
+    fun `the undo snackbar after completing from the list reopens the task`() {
+        show(loaded)
+        state = state.copy(tasks = listOf(second), snackbar = CompletionSnackbar.Undo(Completion(first.id, first.title, 2)))
+
+        composeRule.onNodeWithText("Completed Call the plumber").assertIsDisplayed()
+        composeRule.onNodeWithText("Undo").performClick()
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("undo Call the plumber"), calls)
+    }
+
+    @Test
+    fun `an undo offer that times out is dismissed, not undone`() {
+        show(loaded.copy(snackbar = CompletionSnackbar.Undo(Completion(first.id, first.title, 2))))
+        composeRule.onNodeWithText("Completed Call the plumber").assertIsDisplayed()
+
+        composeRule.mainClock.advanceTimeBy(UNDO_TIMEOUT_MS)
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("dismissSnackbar"), calls)
+        composeRule.onNodeWithText("Completed Call the plumber").assertDoesNotExist()
+    }
+
+    @Test
+    fun `a refused completion is explained in the snackbar`() {
+        show(loaded.copy(snackbar = CompletionSnackbar.Failed(CompletionMessage.CONFLICT)))
+
+        composeRule.onNodeWithText("This task was changed elsewhere. The list now shows its current state.").assertIsDisplayed()
+        composeRule.onNodeWithText("Undo").assertDoesNotExist()
+    }
+
+    @Test
+    fun `the completion snackbar also shows while processing`() {
+        show(loaded.copy(processing = true, snackbar = CompletionSnackbar.Failed(CompletionMessage.OFFLINE)))
+
+        composeRule.onNodeWithText("Not saved: the server is unreachable. Try again when you are online.").assertIsDisplayed()
+    }
+
+    private companion object {
+        /** Longer than a long snackbar (the undo offer) is shown. */
+        const val UNDO_TIMEOUT_MS = 15_000L
     }
 }
