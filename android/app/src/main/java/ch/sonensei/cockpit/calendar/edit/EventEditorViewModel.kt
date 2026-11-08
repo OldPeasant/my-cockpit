@@ -10,6 +10,7 @@ import ch.sonensei.cockpit.core.settings.UserSettings
 import ch.sonensei.cockpit.core.settings.UserSettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -69,6 +70,24 @@ data class EventEditorUiState(
     /** The "Delete this event?" confirmation of a single event is shown. */
     val confirmingDelete: Boolean = false,
     val message: EditorMessage? = null,
+    /** The calendars whose guests are edited here (the local ones); `null` while not known. */
+    val localCalendars: Set<UUID>? = null,
+    /** The guests of the event as saved: invitations go out for the saved version. */
+    val savedAttendees: List<String> = emptyList(),
+    /** What is typed into the "add guest" field. */
+    val guestQuery: String = "",
+    /** Contacts matching [guestQuery], not yet invited. */
+    val suggestions: List<Attendee> = emptyList(),
+    /** The typed guest is not an email address. */
+    val guestInvalid: Boolean = false,
+    /** The invitation prompt, when shown. */
+    val invitation: InvitationUiState? = null,
+    /** The last invitation mail sent from the editor. */
+    val invitationSent: InvitationSent? = null,
+    /** "Send invitations" was asked with unsaved changes. */
+    val saveBeforeInviting: Boolean = false,
+    /** The linked items of an existing event; `null` for a new one. */
+    val links: LinksUiState? = null,
 ) {
     /** The problems shown next to the fields. */
     val errors: Set<FormError> get() = if (showErrors) form?.errors.orEmpty() else emptySet()
@@ -91,7 +110,21 @@ data class EventEditorUiState(
         get() = if (form != null && repeatOf(form.rule) == Repeat.CUSTOM) REPEAT_PRESETS + Repeat.CUSTOM else REPEAT_PRESETS
 
     val canSave: Boolean
-        get() = form != null && !loading && !saving && !readOnly && message != EditorMessage.CONFLICT && message != EditorMessage.GONE
+        get() =
+            form != null &&
+                !loading &&
+                !saving &&
+                !readOnly &&
+                invitation == null &&
+                message != EditorMessage.CONFLICT &&
+                message != EditorMessage.GONE
+
+    /** Guests are changed in local calendars only: providers own the guests of synced ones. */
+    val attendeesEditable: Boolean
+        get() = canSave && form?.calendarId?.let { localCalendars?.contains(it) } == true
+
+    /** Invitations can be sent for a saved event of a local calendar that has guests (SPEC.md §6.2). */
+    val invitable: Boolean get() = !creating && attendeesEditable && savedAttendees.isNotEmpty()
 
     /**
      * An existing event of a writable calendar can be deleted, as it can be saved: not while a save or delete runs, nor
@@ -113,10 +146,12 @@ class EventEditorViewModel internal constructor(
     private val repository: EventEditRepository,
     private val clock: Clock,
     private val settings: StateFlow<UserSettings?> = MutableStateFlow(null),
+    /** Guests' calendars, suggestions, invitations and links; `null` leaves them out (no guests are edited then). */
+    private val extras: EventExtrasRepository? = null,
 ) : ViewModel() {
     @Inject
-    constructor(repository: EventEditRepository, settings: UserSettingsRepository) :
-        this(repository, Clock.systemDefaultZone(), settings.settings)
+    constructor(repository: EventEditRepository, settings: UserSettingsRepository, extras: EventExtrasRepository) :
+        this(repository, Clock.systemDefaultZone(), settings.settings, extras)
 
     /** The zone of new and edited events: the synced time zone, the device's while it is not known. */
     private val zone: ZoneId get() = settings.value?.timeZone ?: clock.zone
@@ -141,6 +176,12 @@ class EventEditorViewModel internal constructor(
 
     private var job: Job? = null
 
+    /** Load the local calendars, the links, suggestions, or send invitations: beside [job]. */
+    private var sourcesJob: Job? = null
+    private var linksJob: Job? = null
+    private var suggestJob: Job? = null
+    private var inviteJob: Job? = null
+
     /** Opens the form of a new event on [date] in one of [calendars]. */
     fun create(
         date: LocalDate,
@@ -153,6 +194,7 @@ class EventEditorViewModel internal constructor(
         val form = newForm(date, ZonedDateTime.now(clock.withZone(zone)), calendarId)
         initial = form
         state.value = EventEditorUiState(open = true, creating = true, form = form, calendars = calendars)
+        loadSources()
     }
 
     /** Opens the form of [occurrence] and loads its event; a birthday has none, so it is not opened (see [Occurrence.contactId]). */
@@ -164,6 +206,7 @@ class EventEditorViewModel internal constructor(
         this.occurrence = occurrence
         newId = null
         state.value = EventEditorUiState(open = true, calendars = calendars, series = occurrence.inSeries)
+        loadSources()
         load()
     }
 
@@ -185,17 +228,19 @@ class EventEditorViewModel internal constructor(
             return
         }
         val edited = occurrence
+        val withAttendees = current.attendeesEditable
         if (edited == null) {
-            send { repository.create(createBody(form, newId ?: UuidV7.generate(clock.millis()).also { newId = it })) }
+            val id = newId ?: UuidV7.generate(clock.millis()).also { newId = it }
+            send(onOk = { saved(it, form, withAttendees) }) { repository.create(createBody(form, id, withAttendees)) }
             return
         }
-        val patch = patchBody(initial ?: form, form)
+        val patch = patchBody(initial ?: form, form, withAttendees)
         if (patch.isEmpty()) {
             close()
         } else if (edited.inSeries) {
             state.update { it.copy(scopes = scopesFor(patch)) }
         } else {
-            sendPatch(edited, null, patch)
+            sendPatch(edited, null, patch, form, withAttendees)
         }
     }
 
@@ -210,7 +255,8 @@ class EventEditorViewModel internal constructor(
         if (current.deleting) {
             sendDelete(edited, scope)
         } else {
-            sendPatch(edited, scope, patchBody(initial ?: form, form))
+            val withAttendees = current.attendeesEditable
+            sendPatch(edited, scope, patchBody(initial ?: form, form, withAttendees), form, withAttendees)
         }
     }
 
@@ -254,6 +300,7 @@ class EventEditorViewModel internal constructor(
 
     private fun reset() {
         job?.cancel()
+        listOf(sourcesJob, linksJob, suggestJob, inviteJob).forEach { it?.cancel() }
         occurrence = null
         initial = null
         newId = null
@@ -264,7 +311,39 @@ class EventEditorViewModel internal constructor(
         edited: Occurrence,
         scope: EditScope?,
         patch: JsonObject,
-    ) = send { repository.update(edited, version, scope, patch) }
+        form: EventForm,
+        withAttendees: Boolean,
+    ) = send(onOk = { saved(it, form, withAttendees) }) { repository.update(edited, version, scope, patch) }
+
+    /**
+     * A create or change was saved: when the event has guests in a local calendar (or guests were removed), the editor
+     * offers to tell them by mail (iTIP REQUEST / CANCEL, as on the web); otherwise it closes.
+     */
+    private fun saved(
+        result: Any?,
+        form: EventForm,
+        withAttendees: Boolean,
+    ) {
+        val event = result as? EventDetails
+        val guests = form.attendees.map { it.email }
+        val removed =
+            initial
+                ?.attendees
+                .orEmpty()
+                .map { it.email }
+                .filterNot { old -> guests.any { it.equals(old, ignoreCase = true) } }
+        if (event == null || extras == null || !withAttendees || (guests.isEmpty() && removed.isEmpty())) {
+            reset()
+            return
+        }
+        state.update {
+            it.copy(
+                saving = false,
+                invitation = InvitationUiState(event.id, event.title, guests, removed, afterSave = true),
+            )
+        }
+        loadAccounts()
+    }
 
     private fun sendDelete(
         edited: Occurrence,
@@ -277,6 +356,7 @@ class EventEditorViewModel internal constructor(
      */
     private fun send(
         failed: EditorMessage = EditorMessage.FAILED,
+        onOk: (Any?) -> Unit = { reset() },
         request: suspend () -> CalendarResult<*>,
     ) {
         val creating = occurrence == null
@@ -284,7 +364,7 @@ class EventEditorViewModel internal constructor(
         job =
             viewModelScope.launch {
                 when (val result = request()) {
-                    is CalendarResult.Ok -> reset()
+                    is CalendarResult.Ok -> onOk(result.value)
                     CalendarResult.Offline -> state.update { it.copy(saving = false, message = EditorMessage.OFFLINE) }
                     is CalendarResult.Failed -> {
                         // A refused create (409: the calendar is read-only, or the id belongs to an event in the
@@ -360,7 +440,194 @@ class EventEditorViewModel internal constructor(
                 val form = editForm(edited, event.value, (master as? CalendarResult.Ok)?.value, zone)
                 version = event.value.version
                 initial = form
-                state.update { it.copy(loading = false, form = form) }
+                state.update { it.copy(loading = false, form = form, savedAttendees = form.attendees.map { a -> a.email }) }
+                loadLinks()
+            }
+    }
+
+    // --- Guests
+
+    /** The "add guest" field changed: suggests matching contacts (after a short pause, from two characters). */
+    fun setGuestQuery(text: String) {
+        state.update { it.copy(guestQuery = text, guestInvalid = false) }
+        suggestJob?.cancel()
+        val query = text.trim()
+        val source = extras
+        if (source == null || query.length < MIN_SUGGEST_LENGTH || !state.value.attendeesEditable) {
+            state.update { it.copy(suggestions = emptyList()) }
+            return
+        }
+        suggestJob =
+            viewModelScope.launch {
+                delay(SUGGEST_DELAY_MS)
+                val found = (source.suggestions(query) as? CalendarResult.Ok)?.value.orEmpty()
+                state.update { s ->
+                    val invited = s.form?.attendees.orEmpty().map { it.email.lowercase() }.toSet()
+                    s.copy(suggestions = found.filterNot { it.email.lowercase() in invited })
+                }
+            }
+    }
+
+    /** Adds [suggestion], or the typed address when it is one. */
+    fun addGuest(suggestion: Attendee? = null) {
+        val current = state.value
+        if (!current.attendeesEditable) return
+        val email = suggestion?.email ?: current.guestQuery.trim()
+        if (suggestion == null && !isEmailAddress(email)) {
+            state.update { it.copy(guestInvalid = email.isNotEmpty()) }
+            return
+        }
+        suggestJob?.cancel()
+        state.update { s ->
+            s.copy(
+                form = s.form?.withAttendee(email, suggestion?.name),
+                guestQuery = "",
+                suggestions = emptyList(),
+                guestInvalid = false,
+            )
+        }
+    }
+
+    fun removeGuest(email: String) {
+        if (!state.value.attendeesEditable) return
+        state.update { s -> s.copy(form = s.form?.withoutAttendee(email)) }
+    }
+
+    // --- Invitations
+
+    /** Opens the invitation prompt for the saved event; unsaved changes must be saved first. */
+    fun invite() {
+        val current = state.value
+        val edited = occurrence ?: return
+        val form = current.form ?: return
+        val saved = initial ?: return
+        if (!current.invitable) return
+        if (patchBody(saved, form, true).isNotEmpty()) {
+            state.update { it.copy(saveBeforeInviting = true) }
+            return
+        }
+        state.update {
+            it.copy(
+                saveBeforeInviting = false,
+                invitationSent = null,
+                invitation = InvitationUiState(edited.eventId, saved.title, current.savedAttendees, emptyList(), afterSave = false),
+            )
+        }
+        loadAccounts()
+    }
+
+    /** Changes the prompt's choices (not while it sends). */
+    fun updateInvitation(change: (InvitationUiState) -> InvitationUiState) {
+        state.update { s -> s.copy(invitation = s.invitation?.let { if (it.sending) it else change(it) }) }
+    }
+
+    /** Loads the mail accounts of the invitation prompt (again, after a failure). */
+    fun loadAccounts() {
+        val source = extras ?: return
+        if (state.value.invitation == null) return
+        updateInvitation { it.copy(accounts = null, loadFailed = false) }
+        inviteJob?.cancel()
+        inviteJob =
+            viewModelScope.launch {
+                val result = source.mailAccounts()
+                updateInvitation {
+                    if (result is CalendarResult.Ok) {
+                        it.copy(accounts = result.value, accountId = it.accountId ?: result.value.firstOrNull()?.id)
+                    } else {
+                        it.copy(loadFailed = true)
+                    }
+                }
+            }
+    }
+
+    /** Sends the prompt's mail(s); after a save the editor then closes, otherwise the prompt does. */
+    fun sendInvitation() {
+        val source = extras ?: return
+        val prompt = state.value.invitation ?: return
+        val accountId = prompt.accountId ?: return
+        if (!prompt.canSend) return
+        state.update { s -> s.copy(invitation = prompt.copy(sending = true, failed = false)) }
+        inviteJob =
+            viewModelScope.launch {
+                var count = 0
+                var ok = true
+                if (prompt.recipients.isNotEmpty()) {
+                    val result = source.sendInvitations(prompt.eventId, prompt.method, accountId)
+                    if (result is CalendarResult.Ok) count += result.value else ok = false
+                }
+                if (ok && prompt.tellRemoved && prompt.removed.isNotEmpty()) {
+                    val result = source.sendInvitations(prompt.eventId, InvitationMethod.CANCEL, accountId, prompt.removed)
+                    if (result is CalendarResult.Ok) count += result.value else ok = false
+                }
+                when {
+                    !ok -> state.update { s -> s.copy(invitation = s.invitation?.copy(sending = false, failed = true)) }
+                    prompt.afterSave -> reset()
+                    else -> state.update { it.copy(invitation = null, invitationSent = InvitationSent(prompt.method, count)) }
+                }
+            }
+    }
+
+    /** The prompt was dismissed without sending; after a save the editor closes (the event is saved). */
+    fun dismissInvitation() {
+        val prompt = state.value.invitation ?: return
+        if (prompt.sending) return
+        inviteJob?.cancel()
+        if (prompt.afterSave) reset() else state.update { it.copy(invitation = null) }
+    }
+
+    // --- Linked items
+
+    /** Creates an Inbox task or a note titled with the event and its date, linked to the event. */
+    fun createLinked(kind: LinkedKind) {
+        val source = extras ?: return
+        val links = state.value.links ?: return
+        val edited = occurrence ?: return
+        val saved = initial ?: return
+        if (links.creating != null) return
+        val title = "${saved.title.trim()} (${saved.startDate})"
+        state.update { s -> s.copy(links = links.copy(creating = kind, result = null)) }
+        linksJob =
+            viewModelScope.launch {
+                val result =
+                    when (kind) {
+                        LinkedKind.TASK -> source.createTask(title, edited.eventId)
+                        LinkedKind.NOTE -> source.createNote(title, edited.eventId)
+                    }
+                state.update { s -> s.copy(links = s.links?.copy(creating = null, result = LinkedResult(kind, result))) }
+                // Also after a failed link: the panel shows what the server has.
+                if (result !is LinkedCreateResult.Failed) loadLinks()
+            }
+    }
+
+    /** Loads the linked items of the edited event (again, after a failure). */
+    fun loadLinks() {
+        val source = extras ?: return
+        val edited = occurrence ?: return
+        state.update { s -> s.copy(links = (s.links ?: LinksUiState()).copy(loading = true, failed = false)) }
+        linksJob =
+            viewModelScope.launch {
+                val result = source.links(edited.eventId)
+                state.update { s ->
+                    val links = s.links ?: LinksUiState()
+                    s.copy(
+                        links =
+                            if (result is CalendarResult.Ok) {
+                                links.copy(loading = false, items = result.value)
+                            } else {
+                                links.copy(loading = false, failed = true)
+                            },
+                    )
+                }
+            }
+    }
+
+    private fun loadSources() {
+        val source = extras ?: return
+        sourcesJob?.cancel()
+        sourcesJob =
+            viewModelScope.launch {
+                val result = source.localCalendars()
+                if (result is CalendarResult.Ok) state.update { it.copy(localCalendars = result.value) }
             }
     }
 
@@ -376,6 +643,9 @@ class EventEditorViewModel internal constructor(
 
         /** A create refused: the calendar is read-only, or the id belongs to an event in the Trash. */
         const val CREATE_REFUSED = 409
+
+        const val MIN_SUGGEST_LENGTH = 2
+        const val SUGGEST_DELAY_MS = 250L
     }
 }
 
@@ -436,6 +706,8 @@ internal fun editForm(
             rule = rule,
             location = event.location.orEmpty(),
             description = event.description.orEmpty(),
+            reminders = event.reminderMinutes.distinct().sorted(),
+            attendees = event.attendees,
         )
     if (allDay) {
         val first = (if (fromOccurrence) occurrence.startDate else event.startDate) ?: occurrence.startDate ?: LocalDate.now(zone)

@@ -4,6 +4,7 @@ import ch.sonensei.cockpit.calendar.agenda.CalendarResult
 import ch.sonensei.cockpit.calendar.agenda.Occurrence
 import ch.sonensei.cockpit.calendar.agenda.toOccurrence
 import ch.sonensei.cockpit.core.network.generated.apis.CalendarsApi
+import ch.sonensei.cockpit.core.network.generated.models.AttendeeDto
 import ch.sonensei.cockpit.core.network.generated.models.EventResponse
 import dagger.Module
 import dagger.Provides
@@ -64,6 +65,9 @@ interface EventWriteApi {
 object CalendarEditModule {
     @Provides
     fun eventWriteApi(retrofit: Retrofit): EventWriteApi = retrofit.create(EventWriteApi::class.java)
+
+    @Provides
+    fun eventLinksApi(retrofit: Retrofit): EventLinksApi = retrofit.create(EventLinksApi::class.java)
 }
 
 /** An event as the form needs it. */
@@ -86,6 +90,9 @@ data class EventDetails(
     val seriesId: UUID?,
     /** Sent back as `If-Match`. */
     val version: Long,
+    /** Minutes before the start. */
+    val reminderMinutes: List<Int> = emptyList(),
+    val attendees: List<Attendee> = emptyList(),
 )
 
 /** Whether [this] occurrence belongs to a repeating series (a change needs a scope). */
@@ -166,34 +173,38 @@ class EventEditRepository
                 if (!response.isSuccessful) throw EventHttpFailure(response.code())
             }
 
-        private suspend fun <T> call(block: suspend () -> T): CalendarResult<T> =
-            try {
-                CalendarResult.Ok(block())
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: IOException) {
-                CalendarResult.Offline
-            } catch (e: EventHttpFailure) {
-                if (e.status >= SERVER_ERROR) CalendarResult.Offline else CalendarResult.Failed(e.status)
-            } catch (_: SerializationException) {
-                CalendarResult.Failed(null)
-            } catch (_: IllegalArgumentException) {
-                CalendarResult.Failed(null)
-            } catch (_: DateTimeException) {
-                CalendarResult.Failed(null)
-            }
+        private suspend fun <T> call(block: suspend () -> T): CalendarResult<T> = calendarCall(block)
+    }
 
-        private companion object {
-            const val SERVER_ERROR = 500
-        }
+private const val SERVER_ERROR = 500
+
+/**
+ * Runs a request: no answer or a server error is [CalendarResult.Offline], a refusal [CalendarResult.Failed] with its
+ * status, an unreadable answer [CalendarResult.Failed] without one.
+ */
+internal suspend fun <T> calendarCall(block: suspend () -> T): CalendarResult<T> =
+    try {
+        CalendarResult.Ok(block())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: IOException) {
+        CalendarResult.Offline
+    } catch (e: EventHttpFailure) {
+        if (e.status >= SERVER_ERROR) CalendarResult.Offline else CalendarResult.Failed(e.status)
+    } catch (_: SerializationException) {
+        CalendarResult.Failed(null)
+    } catch (_: IllegalArgumentException) {
+        CalendarResult.Failed(null)
+    } catch (_: DateTimeException) {
+        CalendarResult.Failed(null)
     }
 
 /** A non-2xx answer; its message carries only the status, never the body. */
-private class EventHttpFailure(
+internal class EventHttpFailure(
     val status: Int,
 ) : Exception("HTTP $status")
 
-private fun <T> body(response: Response<T>): T {
+internal fun <T> body(response: Response<T>): T {
     val body = response.body()
     if (!response.isSuccessful || body == null) throw EventHttpFailure(response.code())
     return body
@@ -231,4 +242,13 @@ internal fun EventResponse.toDetails() =
         rrule = rrule,
         seriesId = seriesId,
         version = version,
+        reminderMinutes = reminderMinutes.distinct().sorted(),
+        attendees = attendees.map { it.toAttendee() },
+    )
+
+internal fun AttendeeDto.toAttendee() =
+    Attendee(
+        email = email,
+        name = name?.ifBlank { null },
+        status = status?.let { s -> AttendeeStatus.entries.firstOrNull { it.name == s.name } } ?: AttendeeStatus.NEEDS_ACTION,
     )
