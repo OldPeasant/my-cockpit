@@ -26,7 +26,8 @@ mail list instead of where the user was. The owner wants a real "back".
   - verified (2026-11-08 12:15+0100 by dell26/agent-1): back-navigation.spec.ts tests 'opened from New with filter -> back returns to /new?filter=...' and 'deep link -> parent route', cd web && npx ng test --watch=false --include src/app/shared/navigation/back-navigation.spec.ts -> 57 passed
 - [x] New UI strings are in `web/src/locale` (English + German)
   - verified (2026-11-08 12:15+0100 by dell26/agent-1): grep back.label web/src/locale/messages.xlf + messages.de.xlf -> 'Back' / 'Zurück' (translated); messages-de.spec.ts passes in npm run check
-- [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+- [x] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 12:15+0100 by dell26/agent-1): sh scripts/check.sh at 4b5e8a788 (runs cd web && npm run check: eslint + 187 files/4139 tests + build; server, android, tfp) -> all checks passed, exit 0; task coverage 98.42% statements per tests.md
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
