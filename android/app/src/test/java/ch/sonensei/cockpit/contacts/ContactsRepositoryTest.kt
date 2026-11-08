@@ -238,6 +238,46 @@ class ContactsRepositoryTest {
         }
 
     @Test
+    fun `a problem without usable field errors falls back to its detail, and nothing usable gives no detail`() {
+        // A field error with only a message, or only a field, still says something.
+        assertEquals("must not be blank", problemDetail("""{"errors":[{"message":"must not be blank"}],"detail":"Invalid"}"""))
+        assertEquals("birthday", problemDetail("""{"errors":[{"field":"birthday","message":null}]}"""))
+        // Empty or blank field errors fall back to the detail.
+        assertEquals("Invalid", problemDetail("""{"errors":[{"field":" "},{}],"detail":"Invalid"}"""))
+        assertEquals("Invalid", problemDetail("""{"errors":[],"detail":"Invalid"}"""))
+        // No body, a blank detail, or a body that is not a problem object.
+        assertNull(problemDetail(null))
+        assertNull(problemDetail("""{"detail":" "}"""))
+        assertNull(problemDetail("""{"title":"Bad Request"}"""))
+        assertNull(problemDetail("""["not","an","object"]"""))
+    }
+
+    @Test
+    fun `a refused update says which fields the server found wrong, other refusals carry no detail`() =
+        runBlocking {
+            server.enqueue(
+                MockResponse
+                    .Builder()
+                    .code(400)
+                    .addHeader("Content-Type", "application/problem+json")
+                    .body("""{"status":400,"errors":[{"field":"photoFileId","message":"does not exist"}]}""")
+                    .build(),
+            )
+            val request = ContactForm.of(base).toRequest()
+            assertEquals(ContactsResult.Failed(400, "photoFileId does not exist"), contacts.update(base, request))
+            // A 403 body is not read: only refused values (400) carry a detail.
+            server.enqueue(
+                MockResponse
+                    .Builder()
+                    .code(403)
+                    .addHeader("Content-Type", "application/problem+json")
+                    .body("""{"status":403,"detail":"Read-only source"}""")
+                    .build(),
+            )
+            assertEquals(ContactsResult.Failed(403), contacts.update(base, request))
+        }
+
+    @Test
     fun `delete moves the contact to the Trash with its version as If-Match`() =
         runBlocking {
             server.enqueue(status(204))

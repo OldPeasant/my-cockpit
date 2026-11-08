@@ -70,6 +70,9 @@ class ContactsStringsTest {
                 "contacts_save_offline",
                 "contacts_save_failed",
                 "contacts_save_conflict",
+                "contacts_save_invalid",
+                "contacts_save_invalid_detail",
+                "contacts_delete_conflict",
                 "contacts_not_allowed",
                 "contacts_delete_title",
                 "contacts_delete_text",
@@ -83,9 +86,25 @@ class ContactsStringsTest {
             assertTrue("$key missing in German", german[key]?.isNotBlank() == true)
         }
         // The source, the contact's name and the trashed contact are filled in, in both languages.
-        listOf("contacts_not_allowed", "contacts_delete_text", "contacts_trashed", "contacts_source_synced").forEach { key ->
+        listOf(
+            "contacts_not_allowed",
+            "contacts_delete_text",
+            "contacts_trashed",
+            "contacts_source_synced",
+            "contacts_save_invalid_detail",
+        ).forEach { key ->
             assertEquals(key, listOf("%1\$s"), placeholders(english.getValue(key)))
             assertEquals(key, listOf("%1\$s"), placeholders(german.getValue(key)))
         }
+    }
+
+    @Test
+    fun `German contacts strings quote with the low-high quotes the rest of the app uses`() {
+        german.forEach { (key, text) ->
+            assertTrue("$key uses guillemets: $text", '«' !in text && '»' !in text)
+            assertTrue("$key uses straight quotes: $text", '"' !in text)
+        }
+        // The quoted contact name keeps its placeholder between „ and “.
+        assertEquals("„%1\$s“ wird in den Papierkorb verschoben.", german.getValue("contacts_delete_text"))
     }
 }

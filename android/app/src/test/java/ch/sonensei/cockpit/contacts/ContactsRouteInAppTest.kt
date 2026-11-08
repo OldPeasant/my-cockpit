@@ -6,6 +6,8 @@ import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
@@ -364,6 +366,74 @@ class ContactsRouteInAppTest {
             .onNodeWithText("This contact comes from Google, which does not accept changes from the cockpit. Change it there.")
             .assertExists()
         composeRule.onNodeWithTag(ContactsTags.CALL).assertExists()
+    }
+
+    @Test
+    fun `a save the server refused as invalid shows what the server found wrong in the form`() {
+        coEvery { repo.update(any(), any()) } returns ContactsResult.Failed(400, "emails[0].address is not an email address")
+        openAnna()
+        composeRule.onNodeWithTag(ContactsTags.EDIT).performClick()
+        waitForTag(ContactEditTags.FORM)
+        composeRule.onNodeWithTag(ContactEditTags.SAVE).performClick()
+
+        waitForText("The server did not accept the contact: emails[0].address is not an email address")
+        // The form stays open with the user's input.
+        composeRule.onNodeWithTag(ContactEditTags.FORM).assertExists()
+    }
+
+    @Test
+    fun `what was typed into the form survives a configuration change`() {
+        openAnna()
+        composeRule.onNodeWithTag(ContactsTags.EDIT).performClick()
+        waitForTag(ContactEditTags.FORM)
+        composeRule.onNodeWithTag(ContactEditTags.TITLE).performTextInput("CEO")
+
+        scenario!!.recreate()
+        waitForTag(ContactEditTags.FORM)
+        composeRule.onNodeWithText("Edit contact").assertExists()
+        // Starting the form again would refill it from the contact, which has no title.
+        composeRule.onNodeWithTag(ContactEditTags.TITLE).assertTextContains("CEO")
+        coVerify(exactly = 0) { repo.update(any(), any()) }
+    }
+
+    @Test
+    fun `a delete refused on one contact shows no error on another contact`() {
+        coEvery { repo.get(bertId) } returns ContactsResult.Ok(bert)
+        coEvery { repo.related(bertId) } returns ContactsResult.Ok(ContactRelated(emptyList(), emptyList(), emptyList()))
+        coEvery { repo.delete(any()) } returns ContactsResult.Failed(403)
+        openAnna()
+        composeRule.onNodeWithTag(ContactsTags.DELETE).performClick()
+        composeRule.onNodeWithTag(ContactsTags.CONFIRM_DELETE).performClick()
+        waitForTag(ContactsTags.ACTION_ERROR)
+
+        composeRule.onNodeWithTag(ContactsTags.BACK).performClick()
+        waitForTag(ContactsTags.contact(bertId))
+        composeRule.onNodeWithTag(ContactsTags.contact(bertId)).performClick()
+        waitForText("Bert Beispiel")
+        waitForTag(ContactsTags.EDIT)
+        composeRule.onNodeWithTag(ContactsTags.ACTION_ERROR).assertDoesNotExist()
+        composeRule.onNodeWithTag(ContactsTags.DELETE).assertIsEnabled()
+    }
+
+    @Test
+    fun `a delete that hit a change made elsewhere reloads the contact, and Delete again uses its current version`() {
+        val reloaded = anna.copy(title = "CEO", version = 5)
+        coEvery { repo.get(annaId) } returns ContactsResult.Ok(anna) andThen ContactsResult.Ok(reloaded)
+        coEvery { repo.delete(any()) } returns ContactsResult.Failed(412) andThen ContactsResult.Ok(Unit)
+        openAnna()
+
+        composeRule.onNodeWithTag(ContactsTags.DELETE).performClick()
+        composeRule.onNodeWithTag(ContactsTags.CONFIRM_DELETE).performClick()
+        waitForText("It was changed elsewhere in the meantime. The contact was reloaded: check it and delete again.")
+        // The detail now shows the other device's change.
+        waitForText("CEO, Beispiel AG")
+        coVerify(exactly = 2) { repo.get(annaId) }
+
+        composeRule.onNodeWithTag(ContactsTags.DELETE).performClick()
+        composeRule.onNodeWithTag(ContactsTags.CONFIRM_DELETE).performClick()
+        waitForTag(ContactsTags.contact(annaId))
+        coVerify(exactly = 1) { repo.delete(anna) }
+        coVerify(exactly = 1) { repo.delete(reloaded) }
     }
 
     private companion object {

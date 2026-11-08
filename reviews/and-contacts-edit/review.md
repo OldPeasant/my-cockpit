@@ -4,23 +4,81 @@ Date: 2026-11-08
 
 Task: and-contacts-edit - Android contacts: create, edit, delete
 
-Scope: committed task changes under `android/`, `git diff 45b5d48a..5f8c61811 -- android` (commits 1073bc818, 5f8c61811)
+Scope: the committed task changes under `android/`, `git diff 51965a212 HEAD -- android`. The task commits are 52ac12361, b50dbaa4f, f1318e81e, ee30b903b and e7ff7d8f3. e7ff7d8f3 is the fixer commit and holds the final code. For `android/`, HEAD (merge 6f8b9e0ec) has the same content as e7ff7d8f3. This is a re-review of the final code after the fixes. It checks that CR-1..CR-9 and TW-1..TW-3 are resolved and looks for new issues.
 
 Requirements:
-- tasks/and-contacts-edit.md acceptance criteria and its two recorded assumptions (Edit/Delete for every source with a source line and a 403/405 message; ISO birthday text field, photo id carried through)
-- SPEC.md §4.2 (ETag/If-Match, Problem Details), AGENTS.md project notes (strings EN+DE, lint, conventions)
-- Web reference: web/src/app/features/contacts/contact-form-model.ts, contact-detail.ts
-- Server contract: generated ContactsApi / ContactRequest / ContactResponse; server ContactService.update/apply/validate (PATCH: only sent fields change, null clears, cleared displayName is derived again; a sent photoFileId is checked against the drive)
+- tasks/and-contacts-edit.md: acceptance criteria 1-5 and the recorded assumptions:
+    - Edit and Delete for every source, plus a source line and a 403/405 message;
+    - birthday as ISO text, photo id carried through;
+    - Contacts added to `withOwnFab` outside the touches;
+    - CR-8 accepted.
+- SPEC.md §9.2, §4.2 (ETag/If-Match, Problem Details); docs/PARITY.md (row "Contacts view-only")
+- AGENTS.md project notes (EN+DE strings, lint, no logging of contents)
+- Web reference: web/src/app/features/contacts/contact-form-model.ts (`derivedName`, `toForm`)
+- Server contract:
+    - generated ContactsApi: PATCH plus If-Match, ContactRequest;
+    - ContactService.derivedName/validate;
+    - ProblemDetailsAdvice `errors` list of FieldError(field, message).
 
 Git range:
 - Branch: main
-- HEAD: 5f8c61811c2ace22c688b80e04ae5222a778b06c
-- Base/start: 45b5d48a683c20ae59293e21e3ff4c3360270974
-- Commits reviewed: 2
+- HEAD: 6f8b9e0ec04f76c443d426ea1f336f32eea2649f (final code commit e7ff7d8f3ca3ea04e497a2b9cca0fd61d71dd294)
+- Base/start: 51965a2123e13d9f5babc4cd3dbc23b26251e33b
+- Commits reviewed: 5
 
-Summary: 0 P0, 2 P1, 5 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-Gradle could not be run by the reviewer; findings come from reading the code, the generated client and the server. Parent reported compileDebugKotlin and ktlintFormat as passing.
+Uncommitted changes exist in the working tree. They are test additions in ContactEditScreenTest.kt and ContactsStringsTest.kt, presumably from the test-writer re-run. They are not part of this review.
+
+Build evidence: the parent ran `./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport --continue`. Its log in .tmp/and-gradle.log ends with "BUILD SUCCESSFUL" and "EXIT 0". That run included the uncommitted test edits. The reviewer did not run Gradle itself.
+
+## Status of earlier findings
+
+- CR-1: resolved.
+    - `ContactDetailRoute` takes `editViewModel: ContactEditViewModel? = null`.
+    - It gets one from Hilt only when the activity is a `GeneratedComponentManagerHolder` (ContactsScreen.kt:184-185). Outside Hilt, Edit and Delete are hidden (`:254-255`).
+    - BirthdayContactTest therefore no longer calls hiltViewModel().
+- CR-2: resolved. ContactFormTest, ContactEditViewModelTest, ContactEditScreenTest, ContactsRepositoryTest, ContactsRouteInAppTest and ContactsStringsTest cover the new behavior.
+- CR-3: resolved.
+    - The form session is a `rememberSaveable` token (ContactsScreen.kt:144).
+    - `start` does nothing for the same session, and it never resets a save that is running (ContactsViewModels.kt:177-183).
+    - ContactEditViewModelTest has a VM-level test for this.
+- CR-4 and TW-2: resolved.
+    - The edit view model is keyed per contact and once for new contacts (`editViewModelKey`, ContactsScreen.kt:131).
+    - Cancel and Back call `cancel()`, which clears the problem, error, detail and session (ContactsViewModels.kt:189).
+    - The form closes only on a `saved` from its own session (ContactsScreen.kt:148).
+    - Cases (a)-(e) from the first review no longer apply: per-contact keys keep a delete or save outcome on its own contact, and a leftover `saved` from another session is ignored.
+- CR-5: resolved in code.
+    - On a delete conflict the detail reloads (ContactsScreen.kt:205-207).
+    - The detail shows its own text, `contacts_delete_conflict` (EN and DE), at ContactsScreen.kt `deleteErrorText`.
+    - The next Delete uses the reloaded `shown.version`.
+    - See CR-1 below for the missing test of the reload.
+- CR-6 and TW-1: resolved. `derivedName` (ContactForm.kt:130-136) uses the same order as the server and the web: given and family name, else the organization, else the first email.
+- CR-7: resolved.
+    - On a 400 the repository reads the Problem Details `errors[].field` and `message`, else `detail`. This matches the server's FieldError shape. The body is kept in memory only and is never logged.
+    - A save refused with 400 shows `contacts_save_invalid_detail` (EN and DE). A delete answered with 400 still maps to FAILED.
+- CR-8: accepted by the parent and recorded as an assumption. Because of CR-7, the 400 now shows the server's field error.
+- CR-9: resolved.
+    - Notes use `trimEnd()` and are null when blank (ContactForm.kt:90).
+    - The German strings use „…“ quotes (values-de/strings_contacts.xml:5, 65, 66).
+- TW-3: resolved. `Contacts` is in `CockpitDestination.withOwnFab`, and the copies of that set in CaptureButtonTest and FabClearanceTest were updated. This change is outside the touches and is recorded as an assumption.
+- F-1 (found by the fixer): `Straße` in values-de, matching the web translation.
+
+## Acceptance criteria
+
+1. Create and edit with repeatable emails, phones and addresses, plus names, organization, birthday and notes: met.
+    - ContactEditScreen.kt, ContactForm.toRequest/of.
+    - The whole form is sent through PATCH with If-Match. Title and photo are carried through, so no field is cleared by accident.
+2. Delete with confirmation, to the Trash: met.
+    - `DeleteDialog`, then `ContactEditViewModel.delete` sends DELETE with If-Match.
+    - On success it shows a toast and closes the detail. A conflict reloads the contact.
+3. Read-only sources: met as the recorded assumption describes.
+    - The source line reads "Kept in the cockpit only" or "Synced with X".
+    - A 403/405 maps to `contacts_not_allowed`, naming the source.
+4. EN and DE strings: met. Every new key exists in both files, and ContactsStringsTest checks that the keys and placeholders match.
+5. Tests, ktlintCheck, testDebugUnitTest and lintDebug: the Gradle run is green (see above).
+    - The reviewer did not see a `sh scripts/check.sh` result for this revision.
+    - The parent must record that with `tasks.py verify`.
 
 ## P0 Critical
 
@@ -28,78 +86,28 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | ContactDetailRoute now always calls hiltViewModel(), which crashes the existing non-Hilt BirthdayContactTest**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/contacts/ContactsScreen.kt:167`
-    - Category: Tests
-    - Problem: The new parameter `editViewModel: ContactEditViewModel = hiltViewModel()` runs unconditionally. `BirthdayContactTest` (android/app/src/test/java/ch/sonensei/cockpit/calendar/edit/BirthdayContactTest.kt) renders `BirthdayContact` -> `ContactDetailRoute` inside a plain `ComponentActivity` and only injects a fake `ContactDetailViewModel`. In a non-Hilt activity, `hiltViewModel()` throws (the activity is not a GeneratedComponentManagerHolder). The same route already guards the links view model for exactly this reason (comment "Without Hilt (screen tests with a fake contact view model) there is no links panel"). `BirthdayContact` gives no way to pass an edit view model.
-    - Why it matters: All four BirthdayContactTest cases are expected to fail, so criterion 5 (`testDebugUnitTest` and `scripts/check.sh` pass) is not met. Only compilation was checked.
-    - Suggested fix: Create the edit view model only when the activity is a Hilt holder, the same way as `links`, and hide Edit/Delete when it is missing. Another option is to let `BirthdayContact` pass one through. Then run `./gradlew testDebugUnitTest` to confirm.
-
-- [ ] **CR-2 | No tests for the new behavior in the reviewed commits**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/contacts/ContactForm.kt:1`
-    - Category: Tests
-    - Problem: The two task commits change no test file. Nothing tests `ContactForm` (`of`, `toRequest`, `problem`), the `ContactEditViewModel` flows (save, conflict reload, 403/405 mapping, delete), the repository's If-Match writes, the form UI (repeatable rows, add and remove) or the delete confirmation and source line.
-    - Why it matters: Criterion 5 asks for unit and Compose tests of the new behavior. Several defects below would show up in such tests.
-    - Suggested fix: Have the test-writer add tests for these areas. At minimum: request mapping with photo and title kept, 409/412 reload, delete success and failure, and rotation and reuse of the view model (CR-3, CR-4).
+None.
 
 ## P2 Medium
 
-- [ ] **CR-3 | Unsaved form edits are lost when the activity is recreated (rotation, theme or locale change)**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/contacts/ContactsScreen.kt:140`
-    - Category: Correctness
-    - Problem: `LaunchedEffect(contact?.id) { viewModel.start(contact) }` runs on every new composition. The manifest declares no `configChanges`, so a rotation recreates the activity. The activity-scoped `ContactEditViewModel` survives, and `editing` / `open == NEW` are restored by `rememberSaveable`. The new composition then calls `start()` again, which replaces the form with the stored contact (or an empty form) and drops everything typed so far. A save that is running at that moment also gets `saving = false`, so Save becomes enabled again mid-request.
-    - Why it matters: The user loses typing without warning. A second Save while the first is still running can create duplicate contacts.
-    - Suggested fix: Make `start` do nothing when the same contact (or the same new-form session) is already being edited, for example by keeping a session key in the view model or a `rememberSaveable` token. Do not restart while `saving` is true.
-
-- [ ] **CR-4 | State of the activity-scoped ContactEditViewModel leaks across contacts and screens**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/contacts/ContactsScreen.kt:184` (also `:240-241`, `ContactsViewModels.kt:200-216`)
-    - Category: Correctness
-    - Problem: One `ContactEditViewModel` instance serves the Contacts tab, the calendar's BirthdayContact and contacts opened from search. Its `error`, `deleted`, `saving` and `saved` fields are not tied to a contact, and they are cleared only by `start`, `finished`, `save` or `delete`. Concrete cases:
-        - (a) A save fails (for example offline), then the user taps Cancel. `onDone(null)` does not clear `error`, so the detail screen shows "Can't reach the server. Nothing was saved." as `actionError`. The same banner then appears on every other contact opened later.
-        - (b) A delete fails on contact A, the user goes back and opens B. B shows A's "could not be deleted" banner.
-        - (c) The user taps Delete and then presses Back while the request runs. Back stays enabled in the detail. `deleted = true` stays set because no detail is composed to consume it. The next contact detail opened anywhere, including from the calendar, fires `LaunchedEffect(editState.deleted)` at once: it shows "Moved {name} to the Trash" for the wrong contact and closes it.
-        - (d) The same case with `saving`: B opens with Edit and Delete disabled and a progress bar.
-        - (e) A pending `saved` left over after the screen was left (for example by switching tabs) closes the next form as soon as it opens. `LaunchedEffect(saved)` captured the old value in the same frame that `start()` resets it.
-    - Why it matters: Misleading errors, wrong toasts and screens that close on their own. In (c) the screen claims a contact was trashed when it was not.
-    - Suggested fix: Store the contact id with the outcome (`deletedId`, `errorFor`) and only act when it matches the contact shown. Clear `error` on cancel. Alternatively, scope the edit view model per contact with a `key`, as is done for the links view model.
-
-- [ ] **CR-5 | A delete conflict shows the save-conflict text and retrying it can never work**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/contacts/ContactsViewModels.kt:200`
-    - Category: Correctness
-    - Problem: `delete()` maps 409/412 to `CONFLICT`. `deleteErrorText` then falls through to `saveErrorText`, which says "Your changes are kept: save again to replace that version", which makes no sense on the detail screen. Nothing is reloaded after the conflict. The next Delete again sends `shown.version` from the unrefreshed `ContactDetailViewModel` and fails with 412 again, until the user leaves and reopens the contact. The web (`contact-detail.ts` `remove`) reloads the contact after a delete conflict.
-    - Why it matters: The user cannot delete a contact that was changed elsewhere, and the message tells them to do something that does not exist.
-    - Suggested fix: On a delete conflict, refresh the detail view model (for example call `viewModel.refresh()` from the route) and show a delete-specific conflict text (EN and DE).
-
-- [ ] **CR-6 | Display name derivation differs from server and web, so organization- or email-named contacts keep a stale name after edits**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/contacts/ContactForm.kt:99`
-    - Category: Integration
-    - Problem: `ContactForm.of` treats the display name as derived only when it equals "given family". The server (`ContactService.derivedName`) and the web (`contact-form-model.ts` `derivedName`) fall back to the organization, then the first email address. For a contact without a name whose display name is its organization or email, Android fills the Display name field with that value and sends it back as an explicit `displayName`. If the user changes the organization (or the first email) in the same edit, the display name keeps the old value. The web would derive it again.
-    - Why it matters: Lists, search and birthdays show an outdated name after a normal edit. Android and web behave differently, against the parity goal.
-    - Suggested fix: Use the same derivation as the server and web (given + family, else organization, else first email, all trimmed). Leave the field empty when the display name matches it.
-
-- [ ] **CR-7 | Server validation errors (400) show only "The contact could not be saved."**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/contacts/ContactsViewModels.kt:227`
-    - Category: Correctness
-    - Problem: The client does not check email syntax or the entry limit. The server rejects these with 400 Problem Details and field errors (for example `emails[0].address is not an email address`). `saveError()` maps every other status to `FAILED`, so the form says only "The contact could not be saved." and does not say which field is wrong. The web shows the server's message (`error.userMessage`).
-    - Why it matters: A mistyped email address is a common input error. The user cannot see why the save keeps failing.
-    - Suggested fix: Add a `ContactSaveError.INVALID` for 400 with its own EN/DE text, or show the Problem Details detail. A basic email check in `ContactForm.problem()` would also help.
+None.
 
 ## P3 Low
 
-- [ ] **CR-8 | Always sending photoFileId makes every Android edit fail when the photo file is gone from the drive**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/contacts/ContactForm.kt:92`
-    - Category: Integration
-    - Problem: The generated serializer uses `encodeDefaults = true`, so `photoFileId` is always sent. The server sets `checkPhoto = fields.photoFileId != null` for any sent field and checks that the file still exists. Its own comment notes that "an unchanged photo may be gone from the drive meanwhile". The web leaves `photoFileId` out of updates and avoids this. On Android, a contact whose photo file was deleted can no longer be saved, and the user sees only the generic error.
-    - Why it matters: This is an edge case, but then every edit of that contact fails, while the same edit works on the web.
-    - Suggested fix: Accept it and record it with the existing assumption, or map the 400 `photoFileId` error to a clear message. A cleaner fix needs a request that can leave the field out (a server or client change, outside this task's touches).
-
-- [ ] **CR-9 | Notes lose leading whitespace, and German strings mix quote styles**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/contacts/ContactForm.kt:89`; `android/app/src/main/res/values-de/strings_contacts.xml`
-    - Category: Quality
-    - Problem: `notesMd = notes.trimToNull()` also trims leading whitespace. That changes Markdown that starts with indentation, for example an indented code block. The web only uses `trimEnd()`. In the German strings, the new entries use «…» (`contacts_delete_text`, `contacts_trashed`, `contacts_empty`), while the existing entries in the same file use „…“.
-    - Why it matters: Small content change in notes, and inconsistent copy in the German strings.
-    - Suggested fix: Use `trimEnd()` for notes (null when blank). Use „…“ in the new German strings.
+- [ ] **CR-1 | No route-level test checks that a delete conflict reloads the contact**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/contacts/ContactsScreen.kt:205`
+    - Category: Tests
+    - Problem: The CR-5 fix depends on `LaunchedEffect(editState.error) { if (error == CONFLICT) viewModel.refresh() }` in `ContactDetailRoute`. No committed test checks this:
+        - ContactsRouteInAppTest covers delete success, cancelling the dialog and a 403 refusal, but not a 409/412 conflict.
+        - The uncommitted ContactEditScreenTest addition checks only the banner text.
+        - The fixer's report also lists this as uncovered.
+    - Why it matters: If the reload is lost in a later change, every repeated Delete fails again with 412 until the contact is reopened, and no test fails. That was the original defect.
+    - Suggested fix: Add a test to ContactsRouteInAppTest:
+        - let the fake repository's delete fail once with 412, then load a newer version;
+        - confirm the delete;
+        - assert that the contact was fetched again;
+        - assert that a second confirmed Delete sends the new version and returns to the list.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found. All earlier findings CR-1..CR-9 and TW-1..TW-3 are resolved or accepted as recorded. The only remaining finding is a small test gap (P3).

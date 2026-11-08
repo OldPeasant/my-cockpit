@@ -155,6 +155,32 @@ class ContactEditViewModelTest {
         }
 
     @Test
+    fun `a form started again while its save runs keeps the save, which then closes the form shown now`() =
+        runTest(dispatcher) {
+            val answer = CompletableDeferred<ContactsResult<Contact>>()
+            val updated = anna.copy(title = "CEO", version = 4)
+            coEvery { repo.update(anna, any()) } coAnswers { answer.await() }
+            val vm = ContactEditViewModel(repo)
+            vm.start(anna, "session-1")
+            vm.change(ContactForm.of(anna).copy(title = "CEO"))
+            vm.save()
+            advanceUntilIdle()
+
+            // The screen was recreated without its saved session and starts a new one while the save runs.
+            vm.start(anna, "session-2")
+            val during = vm.uiState.value
+            assertTrue(during.saving)
+            assertEquals("CEO", during.form.title)
+            assertEquals("session-2", during.session)
+
+            answer.complete(ContactsResult.Ok(updated))
+            advanceUntilIdle()
+            assertEquals(updated, vm.uiState.value.saved)
+            assertEquals("session-2", vm.uiState.value.session)
+            coVerify(exactly = 1) { repo.update(any(), any()) }
+        }
+
+    @Test
     fun `a change made elsewhere reloads the contact and keeps the user's edits for the next save`() =
         runTest(dispatcher) {
             val current = anna.copy(organization = "Neu AG", version = 5)

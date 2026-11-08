@@ -11,6 +11,7 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -19,6 +20,8 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
+import io.mockk.coEvery
+import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -206,6 +209,18 @@ class ContactEditScreenTest {
     }
 
     @Test
+    fun `a save the server refused as invalid shows what it found wrong, or asks to check the fields`() {
+        val refused =
+            ContactEditUiState(base = anna, error = ContactSaveError.INVALID, errorDetail = "emails[0].address is not an email address")
+        var state by mutableStateOf(refused)
+        composeRule.setContent { CockpitTheme { ContactEditContent(state, ContactEditCallbacks()) } }
+        assertShowsText(ContactEditTags.ERROR, "The server did not accept the contact: emails[0].address is not an email address")
+
+        state = state.copy(errorDetail = null)
+        assertShowsText(ContactEditTags.ERROR, "The server did not accept the contact. Check its fields.")
+    }
+
+    @Test
     fun `a change refused by a synced source says where to change the contact`() {
         val google = anna.copy(source = "GOOGLE")
         showForm(ContactEditUiState(form = ContactForm.of(google), base = google, error = ContactSaveError.NOT_ALLOWED))
@@ -292,9 +307,33 @@ class ContactEditScreenTest {
     }
 
     @Test
+    fun `a delete that hit a change made elsewhere says the contact was reloaded, not that edits are kept`() {
+        showDetail(anna, actionError = ContactSaveError.CONFLICT)
+        assertShowsText(
+            ContactsTags.ACTION_ERROR,
+            "It was changed elsewhere in the meantime. The contact was reloaded: check it and delete again.",
+        )
+        composeRule.onNodeWithText("Your changes are kept", substring = true).assertDoesNotExist()
+    }
+
+    @Test
     fun `a delete without connection says so`() {
         showDetail(anna, actionError = ContactSaveError.OFFLINE)
         assertShowsText(ContactsTags.ACTION_ERROR, "Can't reach the server. Nothing was saved.")
+    }
+
+    @Test
+    fun `outside a Hilt activity the detail route opens the contact without edit actions instead of failing`() {
+        val repo = mockk<ContactsRepository>()
+        coEvery { repo.get(anna.id) } returns ContactsResult.Ok(anna)
+        coEvery { repo.related(anna.id) } returns ContactsResult.Ok(ContactRelated(emptyList(), emptyList(), emptyList()))
+        composeRule.setContent {
+            CockpitTheme { ContactDetailRoute(anna.id, onClose = {}, viewModel = ContactDetailViewModel(repo)) }
+        }
+        composeRule.waitUntil(5_000) { composeRule.onAllNodesWithTag(ContactsTags.SOURCE).fetchSemanticsNodes().isNotEmpty() }
+        composeRule.onNodeWithText("Anna Muster").assertExists()
+        composeRule.onNodeWithTag(ContactsTags.EDIT).assertDoesNotExist()
+        composeRule.onNodeWithTag(ContactsTags.DELETE).assertDoesNotExist()
     }
 
     @Test
