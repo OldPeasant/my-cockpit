@@ -96,6 +96,39 @@ describe('BackNavigation', () => {
     expect(navigation.canGoBack()).toBe(false);
   });
 
+  it('resolves back() only when the Back navigation has ended', async () => {
+    await go('/new?filter=mail');
+    await go('/mail/messages/m1');
+    let resolved = false;
+    const back = navigation.back('/mail').then(() => (resolved = true));
+    // The router handles the popstate in a later task: the page is still shown.
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    expect(resolved).toBe(false);
+    expect(router.url).toBe('/mail/messages/m1');
+    await back;
+    expect(router.url).toBe('/new?filter=mail');
+  });
+
+  it('resolves back() after a short while when no navigation follows', async () => {
+    await go('/new');
+    await go('/mail/messages/m1');
+    vi.useFakeTimers();
+    try {
+      // E.g. the browser never reports the Back.
+      vi.spyOn(location, 'back').mockImplementation(() => undefined);
+      let resolved = false;
+      const back = navigation.back('/mail').then(() => (resolved = true));
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(resolved).toBe(false);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(resolved).toBe(true);
+      await back;
+      expect(router.url).toBe('/mail/messages/m1');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('goes to the parent route on a deep link, adding it to the history', async () => {
     await go('/mail/messages/m1');
     await navigation.back('/mail');
@@ -238,6 +271,17 @@ describe('BackNavigation', () => {
     await go('/projects/p1');
     await go('/mail/messages/m1');
     expect(navigation.previous()?.label).toBe('First, renamed');
+  });
+
+  it('keeps a name set again among the most recent names', async () => {
+    navigation.setLabel('/projects/p1', 'First');
+    for (let i = 0; i < 99; i++) navigation.setLabel(`/projects/x${i}`, `Project ${i}`);
+    // The same name again (e.g. the page opened once more): it becomes the most recent one.
+    navigation.setLabel('/projects/p1', 'First');
+    navigation.setLabel('/projects/x99', 'Project 99');
+    await go('/projects/p1');
+    await go('/mail/messages/m1');
+    expect(navigation.previous()?.label).toBe('First');
   });
 
   it('keeps exactly 100 names', async () => {

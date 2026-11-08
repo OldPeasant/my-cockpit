@@ -1536,6 +1536,45 @@ describe('MailReadPage Archive, Spam and Delete: back to where it was opened fro
     expect(location.path()).toBe('/notes');
   });
 
+  describe('while going back', () => {
+    /** Lets the action's request finish, but not the router's (later) popstate navigation. */
+    const microtasks = async () => {
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+    };
+    const deleteButton = (harness: RouterTestingHarness) =>
+      [...harness.routeNativeElement!.querySelectorAll('button')].find(
+        (b) => b.textContent?.trim() === 'Delete',
+      )!;
+
+    it('does not delete again on a second # until the list is shown', async () => {
+      const harness = await openFrom('/mail/folders/f-trash');
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: '#', bubbles: true }));
+      await microtasks();
+      expect(mail.applies).toHaveLength(1);
+      expect(TestBed.inject(Router).url).toBe(`/mail/messages/${ID}`);
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: '#', bubbles: true }));
+      await flush();
+      await harness.fixture.whenStable();
+      await flush();
+      expect(TestBed.inject(Router).url).toBe('/mail/folders/f-trash');
+      expect(mail.applies).toEqual([{ action: 'DELETE', ids: [ID] }]);
+    });
+
+    it('does not delete again on a second click until the list is shown', async () => {
+      const harness = await openFrom('/mail/folders/f-trash');
+      deleteButton(harness).click();
+      await microtasks();
+      expect(TestBed.inject(Router).url).toBe(`/mail/messages/${ID}`);
+      harness.detectChanges();
+      deleteButton(harness).click();
+      await flush();
+      await harness.fixture.whenStable();
+      await flush();
+      expect(TestBed.inject(Router).url).toBe('/mail/folders/f-trash');
+      expect(mail.applies).toEqual([{ action: 'DELETE', ids: [ID] }]);
+    });
+  });
+
   it('returns to the message it was opened from when moving on to another message', async () => {
     const harness = await openFrom('/mail/folders/f-work');
     await harness.navigateByUrl('/mail/messages/0192f0c4-0000-7000-8000-00000000a002');

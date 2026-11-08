@@ -2,14 +2,21 @@ import { Location } from '@angular/common';
 import { computed, DestroyRef, inject, Injectable, signal } from '@angular/core';
 import {
   ActivatedRouteSnapshot,
+  NavigationCancel,
   NavigationEnd,
+  NavigationError,
+  NavigationSkipped,
   NavigationStart,
   PRIMARY_OUTLET,
   Router,
 } from '@angular/router';
+import { filter, firstValueFrom, map, of, timeout } from 'rxjs';
 
 /** How many page names {@link BackNavigation.setLabel} keeps. */
 const MAX_LABELS = 100;
+
+/** How long {@link BackNavigation.back} waits at most for the Back navigation to finish. */
+const BACK_TIMEOUT_MS = 1500;
 
 /** One page of this app in the browser history, as far as the app has seen it. */
 interface Entry {
@@ -79,10 +86,27 @@ export class BackNavigation {
    * Goes back in the browser history if the previous entry is a page of this app, else to
    * `fallback` (the page's parent route). `replaceUrl` replaces the current entry on the fallback
    * path (e.g. after the shown item was archived, so Back does not open it again).
+   *
+   * Resolves once the resulting navigation has finished (or after a short safety timeout, should
+   * the browser never report the Back), so a caller can stay busy until its page is left.
    */
   async back(fallback: string, options: { replaceUrl?: boolean } = {}): Promise<void> {
     if (this.canGoBack()) {
+      const finished = firstValueFrom(
+        this.router.events.pipe(
+          filter(
+            (event) =>
+              event instanceof NavigationEnd ||
+              event instanceof NavigationCancel ||
+              event instanceof NavigationError ||
+              event instanceof NavigationSkipped,
+          ),
+          map(() => undefined),
+          timeout({ first: BACK_TIMEOUT_MS, with: () => of(undefined) }),
+        ),
+      );
       this.location.back();
+      await finished;
       return;
     }
     await this.router.navigateByUrl(fallback, { replaceUrl: !!options.replaceUrl });
@@ -91,11 +115,13 @@ export class BackNavigation {
   /**
    * Names the page at `url` for the back buttons of the pages opened from it (e.g. the project's
    * title instead of "Project"). Query and fragment do not matter: `/new?filter=mail` is New.
+   * Setting a name again makes it the most recent one.
    */
   setLabel(url: string, label: string): void {
     const path = pathOf(url);
     this.labels.update((labels) => {
-      if (labels.get(path) === label) return labels;
+      // Already the most recent name: nothing changes.
+      if (labels.get(path) === label && [...labels.keys()].at(-1) === path) return labels;
       const next = new Map(labels);
       next.delete(path);
       next.set(path, label);
