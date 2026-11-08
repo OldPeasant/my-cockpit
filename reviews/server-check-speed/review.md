@@ -4,35 +4,66 @@ Date: 2026-11-08
 
 Task: server-check-speed - Server check: make .taskcheck's server tests fast again
 
-Scope: `git diff bb487db91..HEAD -- . ':!reviews'` (re-review of the final code), committed changes only
+Scope: `git diff bb487db91..HEAD -- . ':!reviews'` (whole task, final code), with focus on the CR-2 fix
+(`git diff d55caf130..075e9f168`, rebased as `37552d012..fab402e79`, same patch-id). Committed changes only.
 
 Requirements:
 - tasks/server-check-speed.md acceptance criteria
 - SPEC.md §10.2 (backup secrets: Argon2id-derived key), docs/ARCHITECTURE.md "Testing"/"Coverage"
 - AGENTS.md project notes (lint, test conventions, CI must still run every server test)
-- Parent focus: production never uses the cheap test KDF/hashing, per-fork isolation, CI still runs every server
-  test, status of the earlier finding CR-1
-- Context: previous review (reviewed 76d08ab22 before the rebase) and reviews/server-check-speed/tests.md
+- Parent focus: is deleting build/test-data safe for every Test task (test, integrationTest, updateOpenApi), does
+  anything else write there (android, e2e, scripts/), are the docs accurate
+- Context: previous reviews of this task, reviews/server-check-speed/tests.md and fixes.md
 
 Git range:
 - Branch: main
-- HEAD: d55caf13069c0053a795cdbcd2d7ddff0105f4e3 (reviewed revision; code last changed in 568abb8b0, d55caf130 only adds reports)
-- Base/start: bb487db914cd59cc0dcd661523f992d6f3ef6ca4
-- Commits reviewed: 5 (e68803c9d, d33ce2f2f, 7e608c1ea, 568abb8b0 code; d55caf130 reports only)
+- HEAD: fab402e79bdb7295a1a53f5f4fe81e213a42f56d (reviewed revision; HEAD was rebased during the review from
+  075e9f168, and the code diff of the last commit has the same patch-id 8812d1532a0d)
+- Base/start: bb487db914cd59cc0dcd661523f992d6f3ef6ca4 (current merge-base with origin/main: 9c3f0186d; the
+  commits in between only touch tasks/ files of this and other tasks)
+- Commits reviewed: 6 task commits (3d707e99b, c49249179, 2e1620bc5, f66c1bfb7 code; d716bbb80, 37552d012 reports
+  only; fab402e79 code and docs for CR-2)
 
-Summary: 0 P0, 0 P1, 0 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3 open (CR-1 and CR-2 resolved)
 
-## Status of the previous finding
+## Status of earlier findings
 
-- CR-1 (P2, production default of the backup secrets KDF not covered): **resolved**. The new test
+- CR-1 (P2, production default of the backup secrets KDF not covered): **resolved** in f66c1bfb7. The test
   `a freshly loaded BackupSecrets encrypts with the default KDF, so production is not lowered like Spring tests`
-  (`server/src/test/kotlin/ch/sonensei/cockpit/backup/BackupSecretsCryptoTests.kt:88`) loads a separate copy of
-  `BackupSecrets` in an isolated `URLClassLoader` (main classes, Kotlin stdlib, Bouncy Castle, platform loader as
-  parent), checks that the class really came from that loader, and asserts that both `DEFAULT_KDF` and the initial
-  `encryptionKdf` are 64 MiB / 3 passes / 1 lane. Changing the initializer at `BackupSecrets.kt:59` to a weak value now
-  fails this test, whatever the test order or fork. The class's static initializer only needs `Kdf` (same output dir),
-  `SecureRandom` and the inlined `BackupFormat.DATA_DIR` constant, so the reduced classpath is enough. The parent
-  still has to run it (sub-agents cannot run Gradle).
+  (`server/src/test/kotlin/ch/sonensei/cockpit/backup/BackupSecretsCryptoTests.kt`) loads `BackupSecrets` in an
+  isolated class loader and asserts `DEFAULT_KDF` and the initial `encryptionKdf` are 64 MiB / 3 passes / 1 lane, so a
+  weakened initializer fails regardless of test order or fork.
+- CR-2 (P3, per-fork test data dirs never cleared, new names on most runs): **resolved** in fab402e79.
+  `server/build.gradle.kts:141-144` adds `testDataDir = layout.buildDirectory.dir("test-data")` and calls
+  `deleteRecursively()` on it in the `doFirst` of every `Test` task, before any fork JVM starts.
+
+## Review of the CR-2 fix
+
+- Safe for all Test tasks. The deletion is in `tasks.withType<Test>().configureEach`, so `test`, `integrationTest`
+  and `updateOpenApi` each clear `build/test-data` in `doFirst`, which runs before the task's fork JVMs start, so it
+  cannot delete data under a running fork of the same task. All three tasks run in the same project; neither
+  `org.gradle.parallel` nor the configuration cache is enabled (`server/gradle.properties`), so two Test tasks of
+  one build do not run at the same time (for example `./gradlew test integrationTest` runs them in sequence, and each
+  starts from an empty dir). No test reads data left by an earlier run or another task: each JVM starts its own
+  Postgres container with an empty schema, so blobs or files left in the data dir have no DB rows pointing to them.
+- Nothing else writes there. `git grep test-data` finds only `server/src/test/resources/config/application.properties:9`
+  (`cockpit.data-dir=build/test-data/fork-${org.gradle.test.worker:0}`), the build script and docs/ARCHITECTURE.md.
+  `bootRun` uses the default `data` dir (or `COCKPIT_DATA_DIR`); the web e2e setups and `scripts/check.sh` only
+  start `./gradlew check`/`bootRun`/`integrationTest` and set no data dir under `build/test-data`; android uses its own
+  Gradle project and never touches `server/build`. CI (`.github/workflows/ci.yml`) has no reference to it.
+- Path is consistent. The test working directory is the server project dir (Gradle default), so the relative
+  `build/test-data/...` in the test properties resolves to the same folder as `layout.buildDirectory.dir("test-data")`
+  (no custom `buildDir`).
+- Concurrent Gradle invocations on the same clone (two `./gradlew` processes at once) could delete each other's
+  data dir, but the same was already true for `build/tmp/test-jvm/{task}` and for the build outputs themselves; this
+  is not a usage the project supports and not a regression. Not a finding.
+- `deleteRecursively()` ignores failures (returns false); a leftover file would only be the old leak, not a test
+  failure. Acceptable, consistent with the existing temp dir cleanup.
+- Docs. The build script comment (lines 98, 130-132) and docs/ARCHITECTURE.md line 163
+  (`build/test-data/fork-{worker id}`, "emptied at the start of each test task") now describe the behaviour
+  correctly, including that the folder name is the Gradle worker id, not a fork index. docs/ARCHITECTURE.md line 112
+  ("Tests use `server/build/test-data`") is still true. The first clean after this change will also delete the old
+  shared `build/test-data/blobs` (13 GB on this machine), a one-off cost.
 
 ## P0 Critical
 
@@ -48,64 +79,25 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-2 | Per-fork test data dirs are never cleared, and get a new name on most runs**
-    - File: `server/src/test/resources/config/application.properties:9` (cleanup only for the temp dir:
-      `server/build.gradle.kts:141`)
-    - Category: Quality
-    - Problem: `cockpit.data-dir=build/test-data/fork-${org.gradle.test.worker:0}` uses Gradle's worker id. That id
-      is not a fork index from 1 to N: it keeps counting across runs in the same Gradle daemon. So most runs write a new
-      set of `fork-*` folders, and nothing deletes the old ones. `doFirst` clears only `build/tmp/test-jvm/{task}`.
-      The clone under review already has `fork-5`..`fork-8`, `fork-17`..`fork-20`, `fork-34`, `fork-36`, up to 77 MB
-      each. This leak existed before in a milder form: the old single `build/test-data` (its `blobs` folder is 13 GB
-      here) was reused, not cleared. The change adds a new folder set on each run on top of that.
-    - Why it matters: agent machines run the check on every `tasks.py done`. Disk use in `server/build` grows by about
-      100 to 200 MB per run until someone runs `clean`. This is the same kind of build-dir/tmp exhaustion that has held
-      tasks before.
-    - Suggested fix: clear `build/test-data` in the `tasks.test` `doFirst` (as is done for the temp dir), before the
-      forks start. This also deletes the old shared folders. Optionally update the "Testing" note in
-      docs/ARCHITECTURE.md, which calls the folders `fork-{n}` as if `n` were a fork index.
+None open (CR-2 resolved, see above).
 
-## Notes (checked, no finding)
+## Notes on the whole task (checked, no finding; unchanged since the previous review)
 
-- Production never uses the cheap crypto. `BackupSecrets.encryptionKdf` is `internal @Volatile`, its initializer is
-  `DEFAULT_KDF`, and nothing under `server/src/main` assigns it (grep: the only writers are `support/FastTestCrypto.kt`
-  and the save/restore in `BackupSecretsCryptoTests`). `FastTestCrypto` and `META-INF/spring.factories` are in
-  the test source set, and a `ContextCustomizerFactory` runs only in the Spring TestContext framework, so `bootRun` and
-  the boot jar keep `DEFAULT_KDF` and the `m=16384,t=2,p=1` password encoder. `FastTestCryptoTests` covers the
-  production encoder's parameters, and tests that the fast hashes and fast-KDF envelopes still pass production
-  verification and `decrypt`'s lower bounds (8 KiB, 1 pass).
-- Per-fork isolation. No `junit-platform.properties` exists, so test classes run one after another in each fork. Each
-  fork JVM has its own `PostgresTestBase` container (static companion), its own Spring context cache and its own
-  default data dir. Classes that need their own data dir (`RestoreTestSupport`, `BackupRoundTripTest`, the
-  `*BackupContributorTests`) use `Files.createTempDirectory(...)`, which gives each one a unique name in the shared JVM
-  temp dir. `BackupWorkDirCleanupTests` was the only test that listed the shared temp dir. It now uses its own `@TempDir`
-  through `tempRoot`. The two new production-path tests (`tempRoot` null) find their own work dir by its unique zip,
-  so other forks that create or delete `cockpit-*` folders at the same time cannot affect them. `destroy()` is
-  idempotent, so calling it twice in those tests is safe. Fixed output paths written by `test` (for example
-  `PerfBaselineTests`' report) have one writer each.
-- `tempRoot` in `BackupJobService`/`RestoreService`: null in production, which keeps the old
-  `Files.createTempDirectory(prefix)` behaviour. Both branches now have tests with assertions.
-- Order-independence fixes (`HabitEdgeCaseTests` deletes all reminders, `GoogleContactsSyncTests` also resets in
-  `@AfterEach`) are correct, and each class's `@BeforeEach` keeps it independent of earlier classes.
-- CI: the `check-server` job in `.github/workflows/ci.yml` still runs `sh scripts/check.sh server`, that is
-  `./gradlew check` with every non-external server test. The `integrationTest` job runs the `external` ones. No test
-  was moved out of `test`, and docs/ARCHITECTURE.md says so. The default fork count is `availableProcessors / 4` capped
-  at 1..4, so CI's 4-core runners get 1 fork (the old serial behaviour). The override `-PtestForks`/`COCKPIT_TEST_FORKS`
-  is clamped to at least 1.
-- Heap: 2 GB per fork, unchanged per JVM. As the previous review noted, the fork count does not take memory into
-  account (up to 4 JVMs plus 4 Postgres containers per check). Not a finding without an observed failure.
-- Not reviewable from code (parent evidence): criterion 1 (20 slowest classes and their times), criterion 3 (baseline
-  and new wall time on the same load), criterion 4 (3 green runs in a row), and `sh scripts/check.sh` passing. The new
-  tests from 568abb8b0 have not been compiled or run by any helper yet. The parent must run them before recording
-  evidence.
-
-## Commands for the parent to run (sub-agents cannot run Gradle)
-
-- `cd server && ./gradlew test --tests '*BackupSecretsCryptoTests' --tests '*FastTestCryptoTests' --tests '*BackupWorkDirCleanupTests'`
-- `cd server && ./gradlew check -PtestForks=1` (baseline / serial path)
-- `cd server && ./gradlew check` three times (default forks)
+- Production never uses the cheap crypto: `FastTestCrypto` and `META-INF/spring.factories` are in the test source
+  set and only run in the Spring TestContext framework; nothing under `server/src/main` assigns
+  `BackupSecrets.encryptionKdf`. `FastTestCryptoTests` covers the production encoder parameters and that fast
+  hashes and envelopes still pass production verification and `decrypt`'s lower bounds.
+- Per-fork isolation: each fork has its own Postgres container, Spring context cache and data dir; classes needing
+  their own dirs use unique temp dirs; `BackupWorkDirCleanupTests` uses its own `@TempDir`. `tempRoot` is null in
+  production (old behaviour), and both branches are tested.
+- Order-independence fixes in `HabitEdgeCaseTests` and `GoogleContactsSyncTests` are correct.
+- CI still runs every non-external server test via `sh scripts/check.sh server`; the default fork count is
+  `availableProcessors / 4` clamped to 1..4, overrides clamped to at least 1.
+- Not reviewable from code (parent evidence): criteria 1, 3 and 4 (slowest classes, wall-time comparison, three
+  green runs) and `sh scripts/check.sh` passing on the final code. The parent's three `./gradlew check` runs on this
+  revision are the evidence for the CR-2 change as well.
 
 ## Review conclusion
 
-No material issues found. CR-1 is resolved. CR-2 (P3) is optional cleanup of the test data dirs and does not block
-completion.
+No material issues found. CR-1 and CR-2 are resolved; the CR-2 fix is safe for `test`, `integrationTest` and
+`updateOpenApi`, nothing else writes to `server/build/test-data`, and the docs match the behaviour.
