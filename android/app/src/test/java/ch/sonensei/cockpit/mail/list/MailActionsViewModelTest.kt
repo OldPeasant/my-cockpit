@@ -262,10 +262,11 @@ class MailActionsViewModelTest {
             advanceUntilIdle()
             assertFalse(vm.mail(2).flagged)
             vm.toggleSelection(id(2))
-            vm.actOnSelection(MailListAction.UNREAD)
+            vm.actOnSelection(MailListAction.READ)
             advanceUntilIdle()
-            assertFalse(vm.mail(2).seen)
-            assertEquals(MailListAction.UNREAD, vm.state.undo?.action)
+            assertTrue(vm.mail(2).seen)
+            assertFalse(vm.mail(1).seen)
+            assertEquals(MailListAction.READ, vm.state.undo?.action)
         }
 
     @Test
@@ -369,7 +370,8 @@ class MailActionsViewModelTest {
                     MailListAction.MOVE to MailListMessage.MOVE_FAILED,
                     MailListAction.SPAM to MailListMessage.SPAM_FAILED,
                     MailListAction.DELETE to MailListMessage.DELETE_FAILED,
-                    MailListAction.UNREAD to MailListMessage.MARK_FAILED,
+                    // The mails are unread: marking them read changes them.
+                    MailListAction.READ to MailListMessage.MARK_FAILED,
                 )
             cases.forEach { (action, message) ->
                 coEvery { repo.actAll(any(), action, any()) } returns
@@ -411,6 +413,112 @@ class MailActionsViewModelTest {
             // Undoing is not offered to undo again.
             assertNull(vm.state.undo)
             assertNull(vm.state.message)
+        }
+
+    @Test
+    fun `a bulk flag of a mixed selection is sent and undone only for the mails it flagged`() =
+        runTest(dispatcher) {
+            coEvery { repo.messages(Mailbox.Unified, null) } returns
+                MailResult.Ok(MailPage(listOf(mail(1, flagged = true), mail(2), mail(3)), null))
+            val vm = loaded()
+            listOf(1, 2, 3).forEach { vm.toggleSelection(id(it)) }
+
+            vm.actOnSelection(MailListAction.FLAG)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { repo.actAll(listOf(id(2), id(3)), MailListAction.FLAG, null) }
+            val undo = checkNotNull(vm.state.undo)
+            assertEquals(listOf(id(2), id(3)), undo.mails.map { it.id })
+            assertFalse(vm.state.selecting)
+
+            vm.undo(undo)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { repo.actAll(listOf(id(2), id(3)), MailListAction.UNFLAG, null) }
+            // The flag set before the action stays.
+            assertTrue(vm.mail(1).flagged)
+            assertFalse(vm.mail(2).flagged)
+            assertFalse(vm.mail(3).flagged)
+        }
+
+    @Test
+    fun `a bulk mark read of a mixed selection is sent and undone only for the unread mails`() =
+        runTest(dispatcher) {
+            coEvery { repo.messages(Mailbox.Unified, null) } returns
+                MailResult.Ok(MailPage(listOf(mail(1), mail(2, seen = true), mail(3)), null))
+            val vm = loaded()
+            listOf(1, 2, 3).forEach { vm.toggleSelection(id(it)) }
+
+            vm.actOnSelection(MailListAction.READ)
+            advanceUntilIdle()
+            vm.undo(checkNotNull(vm.state.undo))
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { repo.actAll(listOf(id(1), id(3)), MailListAction.READ, null) }
+            coVerify(exactly = 1) { repo.actAll(listOf(id(1), id(3)), MailListAction.UNREAD, null) }
+            // The mail that was read before stays read.
+            assertTrue(vm.mail(2).seen)
+            assertFalse(vm.mail(1).seen)
+            assertFalse(vm.mail(3).seen)
+        }
+
+    @Test
+    fun `a mark that changes no mail sends nothing, offers no undo and ends the selection`() =
+        runTest(dispatcher) {
+            coEvery { repo.messages(Mailbox.Unified, null) } returns MailResult.Ok(MailPage(listOf(mail(1, flagged = true)), null))
+            val vm = loaded()
+            vm.toggleSelection(id(1))
+
+            vm.actOnSelection(MailListAction.FLAG)
+            advanceUntilIdle()
+
+            coVerify(exactly = 0) { repo.actAll(any(), any(), any()) }
+            assertNull(vm.state.undo)
+            assertFalse(vm.state.selecting)
+        }
+
+    @Test
+    fun `undoing a mark after another mailbox was opened still sends the inverse for every mail`() =
+        runTest(dispatcher) {
+            val box = Mailbox.Folder(work.id, workInbox.id)
+            // The other mailbox lists one of the marked mails (with the mark), and one that was not marked.
+            coEvery { repo.messages(box, null) } returns MailResult.Ok(MailPage(listOf(mail(2, flagged = true), mail(7)), null))
+            val vm = loaded()
+            vm.toggleSelection(id(1))
+            vm.toggleSelection(id(2))
+            vm.actOnSelection(MailListAction.FLAG)
+            advanceUntilIdle()
+            val undo = checkNotNull(vm.state.undo)
+            vm.select(box)
+            advanceUntilIdle()
+
+            vm.undo(undo)
+            assertFalse(vm.mail(2).flagged)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { repo.actAll(listOf(id(1), id(2)), MailListAction.UNFLAG, null) }
+            assertEquals(listOf(id(2), id(7)), vm.ids())
+            assertFalse(vm.mail(2).flagged)
+            assertFalse(vm.mail(7).flagged)
+            assertNull(vm.state.message)
+        }
+
+    @Test
+    fun `a partly failed undo of a mark puts the mark back on the mails it failed for`() =
+        runTest(dispatcher) {
+            coEvery { repo.actAll(listOf(id(1), id(2)), MailListAction.UNFLAG, null) } returns MailResult.Ok(setOf(id(1)))
+            val vm = loaded()
+            vm.toggleSelection(id(1))
+            vm.toggleSelection(id(2))
+            vm.actOnSelection(MailListAction.FLAG)
+            advanceUntilIdle()
+
+            vm.undo(checkNotNull(vm.state.undo))
+            advanceUntilIdle()
+
+            assertFalse(vm.mail(1).flagged)
+            assertTrue(vm.mail(2).flagged)
+            assertEquals(MailListMessage.UNDO_FAILED, vm.state.message)
         }
 
     @Test

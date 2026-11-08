@@ -167,6 +167,9 @@ class MailListViewModel
         /** Numbers the undos, so the same action twice is offered twice. */
         private var undoCount = 0L
 
+        /** Numbers the actions (undos included) as they start; only the newest one's answer may offer its undo. */
+        private var actionCount = 0L
+
         /** Loads the accounts and the first page of the current mailbox again. */
         fun refresh() = load(state.value.mailbox)
 
@@ -236,31 +239,55 @@ class MailListViewModel
         fun undo(undo: MailUndo) {
             if (state.value.undo != undo) return
             state.update { it.copy(undo = null) }
+            actionCount++
             val inverse = undo.action.inverse
-            if (inverse != null) {
-                perform(undo.mails.map { it.id }, inverse, offerUndo = false, failure = MailListMessage.UNDO_FAILED)
-            } else {
-                moveBack(undo)
+            if (inverse != null) unmark(undo, inverse) else moveBack(undo)
+        }
+
+        /**
+         * Sends [inverse] for the mails of [undo] (which the action changed), also when another mailbox is shown now; the
+         * list changes the ones it shows at once, and changes them again if the server could not undo it.
+         */
+        private fun unmark(
+            undo: MailUndo,
+            inverse: MailListAction,
+        ) {
+            val ids = undo.mails.mapTo(HashSet()) { it.id }
+            state.update { s -> s.copy(messages = s.messages.changed(ids, inverse)) }
+            viewModelScope.launch {
+                val done = (repository.actAll(undo.mails.map { it.id }, inverse, null) as? MailResult.Ok)?.value.orEmpty()
+                val failed = ids - done
+                state.update { s ->
+                    // A reload that overtook the call may have brought the marked state back.
+                    val messages = s.messages.changed(done, inverse).changed(failed, undo.action)
+                    s.copy(messages = messages, message = if (failed.isEmpty()) s.message else MailListMessage.UNDO_FAILED)
+                }
             }
         }
 
         /**
          * Applies [action] to [ids] at once in the list: a removing action takes the mails out, a marking action changes
-         * them. Mails the server could not do it for come back as they were, with a message. Afterwards the action is
-         * offered to undo when [offerUndo] and it can be undone (see [undoFor]).
+         * them (only those it changes are sent, so its undo changes nothing else). Mails the server could not do it for
+         * come back as they were, with a message. Afterwards the action is offered to undo when it can be undone (see
+         * [undoFor]) and no newer action started meanwhile.
          */
         private fun perform(
             ids: List<UUID>,
             action: MailListAction,
             target: UUID? = null,
-            offerUndo: Boolean = true,
-            failure: MailListMessage = failureOf(action),
         ) {
             val before = state.value
             val wanted = ids.toSet()
-            val mails = before.messages.filter { it.id in wanted }
-            if (mails.isEmpty()) return
+            val listed = before.messages.filter { it.id in wanted }
+            if (listed.isEmpty()) return
             if (action == MailListAction.ARCHIVE && !before.canArchive) return
+            val mails = if (action.removes) listed else listed.filter { action.applyTo(it) != it }
+            if (mails.isEmpty()) {
+                state.update { s -> s.copy(selected = s.selected - wanted) }
+                return
+            }
+            val generation = ++actionCount
+            val failure = failureOf(action)
             val positions =
                 before.messages
                     .withIndex()
@@ -268,11 +295,12 @@ class MailListViewModel
                     .associate { it.value.id to it.index }
             val mailbox = before.mailbox
             val acted = mails.mapTo(HashSet()) { it.id }
-            state.update { s -> s.copy(messages = s.messages.changed(acted, action), selected = s.selected - acted, undo = null) }
+            state.update { s -> s.copy(messages = s.messages.changed(acted, action), selected = s.selected - wanted, undo = null) }
             viewModelScope.launch {
                 val done = (repository.actAll(mails.map { it.id }, action, target) as? MailResult.Ok)?.value.orEmpty()
                 val failed = mails.filterNot { it.id in done }
-                val undo = undoFor(action, mails.filter { it.id in done }, mailbox, positions)?.takeIf { offerUndo && failed.isEmpty() }
+                val newest = generation == actionCount
+                val undo = undoFor(action, mails.filter { it.id in done }, mailbox, positions)?.takeIf { newest && failed.isEmpty() }
                 state.update { s ->
                     // A reload that overtook the call may have brought the old state back.
                     var messages = s.messages.changed(done, action)
@@ -325,11 +353,13 @@ class MailListViewModel
                     (repository.actAll(group.map { it.id }, MailListAction.MOVE, folderId) as? MailResult.Ok)?.value?.let(done::addAll)
                 }
                 val failed = ids - done
-                if (failed.isNotEmpty()) {
-                    state.update { s -> s.copy(messages = s.messages.filterNot { it.id in failed }, message = MailListMessage.UNDO_FAILED) }
+                val message = MailListMessage.UNDO_FAILED.takeIf { failed.isNotEmpty() }
+                if (message != null) {
+                    state.update { s -> s.copy(messages = s.messages.filterNot { it.id in failed }, message = message) }
                 }
-                // The server may have given the returned mails new ids: the list shows its current state.
-                if (done.isNotEmpty()) refresh()
+                // The server may have given the returned mails new ids: the list shows its current state, still saying
+                // that some could not be moved back.
+                if (done.isNotEmpty()) load(state.value.mailbox, message)
             }
         }
 
@@ -545,8 +575,11 @@ class MailListViewModel
                 }
         }
 
-        /** Loads the accounts and the first page of [mailbox]; a load still running is dropped. */
-        private fun load(mailbox: Mailbox) {
+        /** Loads the accounts and the first page of [mailbox], then shows [message]; a load still running is dropped. */
+        private fun load(
+            mailbox: Mailbox,
+            message: MailListMessage? = null,
+        ) {
             loadJob?.cancel()
             state.update { it.copy(loading = true, loadingMore = false) }
             loadJob =
@@ -568,7 +601,7 @@ class MailListViewModel
                                     nextCursor = cursor,
                                     loading = false,
                                     loaded = true,
-                                    message = null,
+                                    message = message,
                                 )
                             }
                             MailResult.Offline -> withAccounts.copy(loading = false, message = MailListMessage.OFFLINE)
@@ -628,10 +661,15 @@ private fun List<MailSummary>.restored(
         return map { old[it.id] ?: it }
     }
     val result = toMutableList()
-    mails
-        .filter { m -> result.none { it.id == m.id } }
-        .sortedBy { positions[it.id] ?: Int.MAX_VALUE }
-        .forEach { m -> result.add(minOf(positions[m.id] ?: result.size, result.size), m) }
+    val present = mapTo(HashSet()) { it.id }
+    val returning = mails.filter { it.id !in present }.sortedBy { positions[it.id] ?: Int.MAX_VALUE }
+    val back = returning.mapTo(HashSet()) { it.id }
+    returning.forEach { m ->
+        val at = positions[m.id]
+        // The mails that were above it and stay away (moved for good) no longer take a place.
+        val index = if (at == null) result.size else at - positions.count { (id, p) -> p < at && id !in back && id !in present }
+        result.add(index.coerceIn(0, result.size), m)
+    }
     return result
 }
 
