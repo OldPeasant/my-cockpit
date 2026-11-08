@@ -1,11 +1,11 @@
 ---
 title: Android weekly review: start, steps, resume, reflection
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [and-scheduled-list]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/review,android/app/src/test/java/ch/sonensei/cockpit/review,android/app/src/main/java/ch/sonensei/cockpit/ui/navigation,android/app/src/test/java/ch/sonensei/cockpit/ui/navigation,android/app/src/main/res/values/strings_review.xml,android/app/src/main/res/values-de/strings_review.xml]
 prio: 2
-lease_until: 2026-11-08T14:29:47Z
+lease_until: 
 ---
 ## Goal
 Android's weekly review is read-only (SPEC.md §9.2 said "read-only first"; the owner decided on 2026-11-08 that
@@ -37,3 +37,4 @@ Steps 4-7 come in and-review-steps.
 - ASSUMPTION (2026-11-08 14:28+0100 by dell26/agent-2): Calendar quick-add goes through the offline capture queue (CaptureQueue), so it works offline, unlike the web's direct createTask.
 - ASSUMPTION (2026-11-08 14:58+0100 by dell26/agent-2): Links from the Review screen (step 1 Mail, steps 4-7 lists) push the target on top of Review instead of switching tabs, so system back returns to the wizard (PARITY decision 6); bottom bar then highlights Mail, without an app-bar back arrow
 - ASSUMPTION (2026-11-08 14:58+0100 by dell26/agent-2): Correction of the earlier draft assumption: the reflection draft and the open wizard survive tab switches via an in-memory @Singleton ReviewDrafts holder keyed by review id, but not app death (web uses localStorage)
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 114s on 452d47f5f; criteria verified 7/7
