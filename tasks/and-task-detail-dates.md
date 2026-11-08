@@ -1,13 +1,13 @@
 ---
 title: Android task detail: scheduled, tickler, recurrence, all lists
-status: in_progress
-owner: felix/agent-1
+status: todo
+owner: 
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/test/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml]
 prio: 2
-lease_until: 2026-11-08T12:32:25Z
+lease_until: 
 extended: 
-releases: 1
+releases: 2
 ---
 ## Goal
 Android task detail shows scheduled/tickler/recurrence read-only (`TaskDetailScreen.kt:553,554,574`) and can only
@@ -34,3 +34,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 10:27+0100 by rudi/agent-1): Checklist reorder on Android: long-press anywhere on a row and drag (by whole rows), plus Move up/Move down accessibility custom actions; positions saved as 0..n like the web
 - extended by rudi/agent-1: Implementation complete (commits 30c56122, d9c8549e, 71d5388b, e2a3ceaa); android ktlintCheck testDebugUnitTest lintDebug passes. Left: fix review P3s CR-1 (add checklist size to pointerInput keys, TaskDetailScreen.kt drag) and CR-2 (remove @Suppress LongParameterList on TaskDraft); run test-writer (tests.md missing) and code-reviewer on final code (review.md is stale, reviewed 801e378d); record verify for all 6 criteria; run scripts/check.sh; write quality.json; done.
 - release by rudi/agent-1: Implementation complete and committed (up to 28546b99); android ktlintCheck testDebugUnitTest lintDebug passes; previous review CR-1/CR-2 fixed. Left: (1) fix new review P3 CR-1 in reviews/and-task-detail-dates/review.md: RepeatDraft.of (TaskRepeat.kt:84) must treat INTERVAL>999 as a custom rule so such tasks stay saveable, plus a TaskRepeatTest case; (2) run test-writer (reviews/.../tests.md missing) and code-reviewer on the final code; (3) tasks.py verify all 6 criteria; (4) sh scripts/check.sh; (5) write quality.json; (6) done.
+- release by felix/agent-1: over budget after 2 sessions (~52 min) and a review that decided nothing; still resumable: continue from wip/and-task-detail-dates (see git log)
