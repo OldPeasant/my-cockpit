@@ -2,31 +2,45 @@
 
 Date: 2026-11-08
 
-Task: and-dashboard-actions - Android dashboard: tappable items, review button, layout editing
+Task: and-dashboard-actions - Android dashboard: tappable items, review button, layout editing (re-review after fixes)
 
-Scope: `git diff f964dbfe..734e6678` (single task commit, Android only; committed changes only)
+Scope: `git diff a32d28124 78ac21c00 -- android` (the four task commits; the range also contains unrelated merged main changes outside `android/`, which are not part of this task and were not reviewed). `git diff 78ac21c00 HEAD -- android` is empty, so the reviewed Android code is identical at HEAD 10fca3091. Committed changes only.
+
+Reviewed revision: 78ac21c00 (Android code identical at 10fca3091)
 
 Requirements:
-- tasks/and-dashboard-actions.md (acceptance criteria and the five recorded assumptions)
+- tasks/and-dashboard-actions.md (5 acceptance criteria, 5 recorded assumptions)
 - AGENTS.md "Project notes", docs/QUALITY.md
-- Reference behaviour: web/src/app/features/dashboard/dashboard-layout.ts, dashboard-page.html
-- Server contract: server/src/main/kotlin/ch/sonensei/cockpit/core/settings/api/SettingsController.kt (PATCH needs If-Match; 409/412/428), core/settings/infra/DashboardSettings.kt (`dashboardWidgets`)
+- Previous review and fix report: reviews/and-dashboard-actions/review.md (first round, CR-1 to CR-6), reviews/and-dashboard-actions/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: 734e6678
-- Base/start: f964dbfe49e97a5594f2edcefcc78fd0f6d67c42
-- Commits reviewed: 1 (734e6678 "Android dashboard: tappable items, review button, layout editing")
+- HEAD: 10fca3091
+- Base/start: a32d28124c56d00b287cd6377c4bd589c8389399
+- Commits reviewed: 4 (416627a6a, b87452d1e, 569068224, 78ac21c00)
 - Uncommitted changes: none
 
 Commands run:
-- `git log --oneline f964dbfe..734e6678`, `git diff --stat` and `git diff f964dbfe..734e6678` -> 12 files, +743/-80
-- Read DashboardScreen.kt, DashboardViewModel.kt, DashboardRepository.kt in full, plus EventEditorScreen.kt / CalendarWithEditor.kt diff, ProjectOpenRequests.kt, BirthdayContact/NoteEditor/EventEditor back handlers, SettingsController.kt, web dashboard-layout.ts
-- `grep -rln "saveLayout|REVIEW_BUTTON|customize|openEvent|setVisible|reviewButton|DashboardActions|CUSTOMIZE" android/app/src/test/java/ch/sonensei/cockpit/dashboard` -> no matches
-- `python tasks.py verify and-dashboard-actions` -> all 5 criteria still unverified
-- `./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.dashboard.*'` -> not run (Bash permission denied for Gradle in this review session); lint/test status must come from the parent worker or the test-writer
+- `git log --oneline a32d28124..78ac21c00`, `git diff --stat a32d28124 78ac21c00`
+- `git diff a32d28124 78ac21c00 -- android/app/src/main/res .../calendar/edit/EventEditorScreen.kt`
+- `git diff 78ac21c00 HEAD --stat -- android` -> empty
+- Read in full: DashboardViewModel.kt, DashboardRepository.kt, DashboardScreen.kt; read DashboardActionsScreenTest.kt (helpers, a11y and drag tests)
+- `git grep -n 'fun \`' 78ac21c00 -- android/app/src/test/java/ch/sonensei/cockpit/dashboard/` -> test inventory
+- `python tasks.py verify and-dashboard-actions` -> all 5 criteria still unverified (the parent worker records them later)
+- Gradle was not run in this review session; build, lint and test status comes from the parent worker and the test-writer
 
-Summary: 0 P0, 2 P1, 1 P2, 3 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
+
+## Status of the first-round findings
+
+- CR-1 (no tests): resolved. Tests now cover the new behaviour. DashboardActionsScreenTest covers item openers, Inbox lines, the habits line, review button states, Customize enablement, checkbox toggle, accessibility actions, long-press drag, reset, layout error messages, the all-hidden state and the German strings. DashboardCustomizeViewModelTest covers change/rollback/queue/refresh races and the openers. DashboardSaveLayoutTest covers If-Match, the ETag carried between saves, 409/412/428 retry once, failure mapping and the late-read ETag race. DashboardSlotsTest covers parse/serialize/move/withVisible. DashboardRouteInAppTest covers the real route: review, project, bookmark with and without a browser, event editor, birthday contact, note editor, and hiding a widget.
+- CR-2 (a11y actions on a node TalkBack cannot focus): resolved. `customActions` now sit on the Checkbox's semantics next to `contentDescription = title` (DashboardScreen.kt:497-501). The modifier is applied on the same layout node as the checkbox's toggleable semantics, so the actions end up on the focusable node. The test reads them from that node.
+- CR-3 (stale refresh overwrites the saved layout and ETag): resolved. `refresh()` applies the layout only when `generation` is unchanged and nothing is pending (DashboardViewModel.kt:105-109). `readSettings()` keeps its ETag only if no PATCH wrote one meanwhile (DashboardRepository.kt:276-280). Both have regression tests.
+- CR-4 (a failed save discards later pending changes): resolved. Edits are queued in `pending`. Each save applies its own edit to `stored`, and the shown layout is `pending` replayed on top of `stored` (DashboardViewModel.kt:174-186), as on the web.
+- CR-5 (stale "Read only" KDoc): resolved (DashboardRepository.kt:206).
+- CR-6 (wrapped conditions): resolved. Conditions are on one line or extracted into helpers.
+
+Also checked without findings: all 14 new strings exist in EN and DE. The `<id>:hidden` serialization and `dashboardWidgets` key match the web. `stored` cannot be null when `change()` runs (`layoutLoaded` only becomes true together with a fresh first read). All view model state (`pending`, `generation`, `stored`) is touched only on the main dispatcher, and the `saving` mutex serializes saves. `opened()` has an equality guard. Bookmarks fall back to the Bookmarks screen when there is no URL or no browser. `EventEditorCallbacks.of` keeps all 19 callbacks of the former inline wiring.
 
 ## P0 Critical
 
@@ -34,54 +48,21 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | None of the new behaviour has tests**
-    - File: `android/app/src/test/java/ch/sonensei/cockpit/dashboard/DashboardViewModelTest.kt:43`
-    - Category: Tests
-    - Problem: The commit only adapts existing tests to the new `List<WidgetSlot>` type (and taps the Inbox card at its edge). Nothing tests `saveLayout` (If-Match sent, ETag kept, 409/412/428 re-read and resend, failure mapping), `parseSlots`/`toSetting`/`moved`/`withVisible`, the view model's `setVisible`/`move`/`reset`/`customize` (optimistic update, newly shown widget loads, rollback plus `layoutError` on failure, `unsaved` vs. `refresh()`), `openEvent`/`openProject`/`opened`, `reviewButton()` (continue / start at >= 7 days / none), or the Compose behaviour (item taps for events, projects, bookmarks, notes, Inbox lines, review button, Customize panel, checkbox, reset, accessibility actions).
-    - Why it matters: Criterion 5 ("Unit/Compose tests cover the new behavior") is not met, and the concurrency code in `change()` is the kind of logic that breaks without anyone noticing.
-    - Suggested fix: Add repository tests with MockWebServer for the PATCH/ETag paths. Add view model tests for change/rollback/serialization and the refresh interplay (see CR-3). Add Compose tests for each item opener, the review button states, the Customize panel (toggle, reset, custom actions present on a focusable node) and the drag (`performTouchInput { longClick(); moveBy(...) ; up() }`).
-
-- [ ] **CR-2 | Accessibility "Move up / Move down" actions sit on a node TalkBack cannot focus**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/dashboard/DashboardScreen.kt:497`
-    - Category: Correctness
-    - Problem: `customActions` is set on the row's plain `Modifier.semantics { ... }`, without `mergeDescendants`. The row has no text, content description or click of its own, so Compose does not make it screen-reader focusable (it is neither a merging node nor a speaking leaf). TalkBack focuses its children separately instead: the `Checkbox` (toggleable, which merges its own subtree, with `contentDescription = title`) and the `Text`. Neither child carries the custom actions, so a TalkBack user cannot reach them. A semantics-tree test would still find the actions on the tagged row, so a test alone would not catch this.
-    - Why it matters: Criterion 3 asks for reordering through accessibility actions. Without them, reordering needs the long-press drag, which TalkBack users cannot do.
-    - Suggested fix: Move the `customActions` to the Checkbox's semantics (the focusable node that already names the widget). Or make the row `semantics(mergeDescendants = true)` with the title as its description, and check that the checkbox state is still announced. Then test the actions on the node TalkBack actually focuses (e.g. `onNode(hasContentDescription(title) and hasCustomAction...)`).
+None.
 
 ## P2 Medium
 
-- [ ] **CR-3 | A refresh whose GET started before a layout save can overwrite the saved layout and roll back the ETag**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/dashboard/DashboardViewModel.kt:99`
-    - Category: Correctness
-    - Problem: `refresh()` checks `unsaved == 0` only after `dashboard.layout()` returns. Sequence: a refresh (on resume, after an editor closes, or a pull) sends GET /settings. The user then toggles a widget. Its PATCH finishes first, so `unsaved` is back to 0. The older GET response then arrives: `stored` and the shown layout are set to the pre-change layout. In the repository, `readSettings()` also overwrites `settingsEtag` with the older ETag (DashboardRepository.kt:265). The UI now shows the old layout while the server holds the new one. The next Customize change edits the stale layout and sends it, which reverts the earlier change on the server. The stale ETag itself recovers through the 412 retry.
-    - Why it matters: The user's saved change is reverted without any message. The window is short but real, because a refresh runs on every resume and after every editor close.
-    - Suggested fix: Keep a layout generation counter, incremented in `change()`, record it before the GET, and only apply the GET's layout when the counter has not moved (instead of checking only `unsaved == 0`). In the repository, only accept a GET's ETag when no PATCH completed during it, or let PATCH results always win.
+None.
 
 ## P3 Low
 
-- [ ] **CR-4 | A failed save also discards later pending changes, unlike the web**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/dashboard/DashboardViewModel.kt:184`
-    - Category: Correctness
-    - Problem: When save N fails while save N+1 waits on the mutex, the rollback restores `stored`. The waiting save then sends `state.value.layout`, which is the rolled-back layout. So the later change is lost too, and a redundant PATCH goes out. The web (`DashboardLayout`) replays pending changes on top of the stored layout, so "a refused change drops out without taking the later ones with it".
-    - Why it matters: This is a minor parity gap. An error message is shown, but it suggests that only one change failed.
-    - Suggested fix: Queue the edit functions (as the web does) and re-apply the ones still pending on top of `stored` after a failure. Or document the behaviour in the assumption.
-
-- [ ] **CR-5 | Repository KDoc still says it is read only**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/dashboard/DashboardRepository.kt:206`
+- [ ] **CR-1 | Customize rows announce the widget name twice, and tapping the name does not toggle it**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/dashboard/DashboardScreen.kt:493`
     - Category: Quality
-    - Problem: The class KDoc says "Read only: nothing here changes data.", but `saveLayout` now PATCHes `/settings`.
-    - Why it matters: The comment now misleads anyone reasoning about side effects.
-    - Suggested fix: Update the sentence (e.g. "Only the dashboard layout setting is written.").
-
-- [ ] **CR-6 | Hard-to-read wrapped conditions**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/dashboard/DashboardScreen.kt:173`
-    - Category: Quality
-    - Problem: Several conditions are wrapped as `if (x !=\n null\n)` or `index >\n 0` (DashboardScreen.kt:173, 217, 446, 500-507; DashboardViewModel.kt:138-141), apparently formatter output from an over-long expression.
-    - Why it matters: These conditions are hard to read, and they sit in the branching logic.
-    - Suggested fix: Extract locals or helper functions (e.g. `val birthday = ...; if (birthday != null)`, a `layoutErrorText(error)` helper, `index > 0` on one line) so the formatter keeps them on one line.
-
-Checked without findings: EN/DE strings (14 new keys in both files, matching). Setting key and `<id>:hidden` serialization match the web's `serializeLayout`. PATCH sends only `dashboardWidgets` with If-Match and retries once on 409/412/428 as the assumption states. The mutex serializes saves, and each save sends the latest layout. Customize is disabled until the layout has loaded. Nested item clickables inside the clickable card take the tap first, and the Inbox card test was adjusted for that. `LaunchedEffect(state.open)` calls `opened()` after acting, with an equality guard. The overlays (note, birthday contact) and the event editor all have back handlers, and closing them refreshes the dashboard. The `EventEditorCallbacks.of` extraction preserves every callback. `ProjectOpenRequests` is a singleton shared with the Projects screen.
+    - Problem: Each layout row has a Checkbox with `contentDescription = title` and next to it a separate `Text(title)` (line 503). The Row has neither `mergeDescendants` nor a toggle of its own. TalkBack therefore focuses the checkbox ("Today, checkbox, checked") and then the text again ("Today"). On touch, only the 48 dp checkbox toggles, and tapping the widget name does nothing.
+    - Why it matters: Redundant screen-reader stops in an 8-row list, and a smaller touch target than the usual Material "checkbox row" pattern. Behaviour is correct, so this is low priority.
+    - Suggested fix: Make the row the toggle: `Modifier.toggleable(value = slot.visible, role = Role.Checkbox) { actions.setVisible(slot.id, it) }` on the Row, plus the `customActions`, with `Checkbox(onCheckedChange = null)` and no extra contentDescription. Keep the long-press drag on the same row, and move the test tag and a11y test to the row node.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found. All six first-round findings are fixed and covered by tests, and the one remaining finding is P3. Before `done`, the parent worker still has to record evidence for criteria 1-5 with `tasks.py verify` (none is recorded yet) and run the Gradle and `.taskcheck` commands that criterion 5 names.
