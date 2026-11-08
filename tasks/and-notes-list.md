@@ -13,7 +13,8 @@ releases: 1
 Android notes have no search, pin, archive or archived view (web: `notes-page.html:6-50`, `note-card.ts`).
 
 ## Acceptance criteria
-- [ ] Search field (server search over title and body)
+- [x] Search field (server search over title and body)
+  - verified (2026-11-08 17:57+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*' on a4af5022 -> pass; NotesListViewModelTest covers GET /api/v1/search?types=NOTE (title+body server search), out-of-order/cancel/failure cases; reviewed by code-reviewer (0 findings)
 - [ ] Pin/unpin and archive/unarchive (row menu and editor menu); an Archived view
 - [ ] Delete a note (to Trash, with undo)
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
