@@ -1,13 +1,13 @@
 ---
 title: Android calendar: task overlay and month view
-status: in_progress
-owner: rudi/agent-2
+status: todo
+owner: 
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/main/res/values/strings_calendar_agenda.xml,android/app/src/main/res/values-de/strings_calendar_agenda.xml]
 prio: 2
-lease_until: 2026-11-08T19:09:05Z
+lease_until: 
 extended: 
-releases: 1
+releases: 2
 ---
 ## Goal
 SPEC.md §6.3 and the phase 4 demo want the task/tickler overlay on Android too; web also has a month view.
@@ -27,3 +27,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - extended by rudi/agent-1: Implemented and committed: overlay toggle in day/week/agenda, month view, EN/DE strings, tests (82d62eb9, aedd2700). code-reviewer report reviews/and-cal-overlay-month/review.md has 3 open findings: CR-1 (P2, a task scheduled for today is missing because the server tickler releases it to NEXT; mark releasedOn==today as SCHEDULED or record an assumption), CR-2 (P2, toolbar too narrow on 360dp with 4 segments + 2 toggles), CR-3 (P3, call loadTasks(append) after the state update in loadMore). Left: fixer for CR-1..3, test-writer (tests.md missing), re-run code-reviewer, tasks.py verify #1-4, quality.json, done. Note: sh scripts/check.sh currently fails in server tests with 'Could not find a valid Docker environment' (Docker unavailable on this host, not caused by this task).
 - ASSUMPTION (2026-11-08 18:24+0100 by rudi/agent-1): Overlay and calendars toggles moved into a toolbar overflow menu and Today became an icon button, so 4 view segments fit on 360dp phones (review CR-2); tasks released by the tickler today (GET /tasks?scheduled=today, releasedOn==today) are shown as scheduled marks on today (CR-1)
 - release by rudi/agent-1: Implementation complete and committed (overlay toggle in day/week/agenda via toolbar overflow menu, month view, EN/DE strings, tests; review fixes CR-1..3 done, fixes.md committed). Re-review reviews/and-cal-overlay-month/review.md: 0 findings, but its commit hashes are pre-rebase and extra tests were committed after it (8272f99a). Left: 1) run test-writer -> reviews/and-cal-overlay-month/tests.md (missing, needs coverage numbers); 2) re-run code-reviewer on final code if test-writer changes code (tests count); 3) tasks.py verify #1-4 (cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug; sh scripts/check.sh - previously failed in server tests with 'Could not find a valid Docker environment', unrelated to this task); 4) write quality.json (fixer was run, fixes.md); 5) done.
+- release by rudi/agent-2: Implementation, review rounds 1-2 fixes (fixes.md) and extra tests committed (HEAD 99d2a71a); cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug passes at 99d2a71a. Latest review.md (round 3, scope 5566785...392b2b72): 0 P0-P2, 1 open P3 CR-1 (add state.today to the remember keys of taskMarks in CalendarOverlayMonth.kt:224 and CalendarScreen.kt Agenda/TimeGrid). Left: 1) fixer for P3 CR-1 (or record accepted disposition); 2) re-run test-writer (tests.md must cover final code incl. commit 99d2a71a tests, with coverage numbers) and code-reviewer on final code; 3) tasks.py verify #1-4; 4) sh scripts/check.sh (earlier failed only in server Testcontainers tests: no Docker on host, unrelated); 5) write+commit quality.json; 6) done.
