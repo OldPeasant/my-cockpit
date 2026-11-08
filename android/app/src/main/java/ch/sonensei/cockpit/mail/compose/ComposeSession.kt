@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.mail.compose
 
+import ch.sonensei.cockpit.files.DriveEntry
 import ch.sonensei.cockpit.mail.compose.MailComposeViewModel.Companion.AUTOSAVE_MILLIS
 import ch.sonensei.cockpit.mail.compose.MailComposeViewModel.Companion.SAVE_PROBLEMS
 import ch.sonensei.cockpit.mail.compose.MailComposeViewModel.Companion.TOO_LARGE
@@ -100,9 +101,9 @@ internal class ComposeSession(
                 phase = ComposePhase.EDITING,
                 accountId = draft.accountId,
                 accountLocked = true,
-                to = formatRecipients(draft.to),
-                cc = formatRecipients(draft.cc),
-                bcc = formatRecipients(draft.bcc),
+                to = recipientField(draft.to),
+                cc = recipientField(draft.cc),
+                bcc = recipientField(draft.bcc),
                 showCcBcc = draft.cc.isNotEmpty() || draft.bcc.isNotEmpty(),
                 subject = draft.subject,
                 quotedText = draft.text.trim(),
@@ -266,6 +267,51 @@ internal class ComposeSession(
                 is MailResult.Ok -> {
                     stored = result.value
                     update { it.copy(attachments = result.value.attachments.withoutRemoved(before, it.attachments), problem = null) }
+                }
+                MailResult.Offline -> update { it.copy(problem = ComposeProblem.OFFLINE) }
+                is MailResult.Failed ->
+                    update {
+                        it.copy(problem = if (result.status in TOO_LARGE) ComposeProblem.TOO_LARGE else ComposeProblem.ATTACH_FAILED)
+                    }
+            }
+        }
+    }
+
+    /**
+     * Adds [file] of the cockpit drive to the draft (saved first, like an upload). The server copies it into the draft, so
+     * nothing is uploaded from the device.
+     */
+    fun attachFile(file: DriveEntry.File) {
+        if (!value.editable) return
+        touched = true
+        update { it.copy(uploading = it.uploading + file.name) }
+        scope.launch {
+            addFile(file)
+            update { it.copy(uploading = it.uploading - file.name) }
+        }
+    }
+
+    private suspend fun addFile(file: DriveEntry.File) {
+        if (discarded) return
+        if ((stored == null || dirty) && !store()) return
+        writes.withLock {
+            val draft = stored?.takeUnless { discarded } ?: return
+            // What is on screen goes along: a change typed meanwhile is stored with the file.
+            val content = content() ?: return
+            val at = edits
+            val before = value.attachments
+            when (val result = update(draft, content.copy(files = listOf(file.id)))) {
+                is MailResult.Ok -> {
+                    stored = result.value
+                    savedEdits = at
+                    update {
+                        it.copy(
+                            attachments = result.value.attachments.withoutRemoved(before, it.attachments),
+                            draft = if (dirty) DraftState.UNSAVED else DraftState.SAVED,
+                            problem = null,
+                        )
+                    }
+                    if (dirty) scheduleAutosave()
                 }
                 MailResult.Offline -> update { it.copy(problem = ComposeProblem.OFFLINE) }
                 is MailResult.Failed ->

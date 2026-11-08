@@ -97,7 +97,9 @@ class MailComposeRepository
                             bcc = content.bcc.map { it.dto() },
                             subject = content.subject,
                             html = content.html,
-                            attachments = content.keep.map { AttachmentRefDto(it) },
+                            attachments =
+                                content.keep.map { AttachmentRefDto(partId = it) } +
+                                    content.files.map { AttachmentRefDto(fileId = it.toString()) },
                         ),
                     ),
                 )

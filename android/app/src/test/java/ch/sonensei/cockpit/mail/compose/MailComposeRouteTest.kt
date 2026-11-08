@@ -182,6 +182,7 @@ class MailComposeRouteTest {
         composeRule.waitUntil(WAIT_MS) { vm.uiState.value.phase == ComposePhase.EDITING }
 
         composeRule.onNodeWithTag(MailComposeTags.ATTACH).performClick()
+        composeRule.onNodeWithTag(MailComposeTags.ATTACH_DEVICE).performClick()
         composeRule.waitUntil(WAIT_MS) { uploaded.isNotEmpty() }
         composeRule.waitForIdle()
 

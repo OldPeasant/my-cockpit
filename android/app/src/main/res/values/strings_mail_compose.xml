@@ -46,4 +46,15 @@
     <string name="mail_read_reply">Reply</string>
     <string name="mail_read_reply_all">Reply all</string>
     <string name="mail_read_forward">Forward</string>
+    <string name="mail_compose_attach_device">From this device</string>
+    <string name="mail_compose_attach_files">From Files</string>
+    <string name="mail_compose_files_title">Attach from Files</string>
+    <string name="mail_compose_files_root">Files</string>
+    <string name="mail_compose_files_up">Parent folder</string>
+    <string name="mail_compose_files_cancel">Cancel</string>
+    <string name="mail_compose_files_empty">This folder is empty.</string>
+    <string name="mail_compose_files_failed">The folder could not be loaded.</string>
+    <string name="mail_compose_remove_recipient">Remove</string>
+    <string name="mail_compose_suggestion_contact">Contact</string>
+    <string name="mail_compose_suggestion_recent">Recent</string>
 </resources>

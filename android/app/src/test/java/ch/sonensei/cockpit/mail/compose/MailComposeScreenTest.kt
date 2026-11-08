@@ -78,6 +78,7 @@ class MailComposeScreenTest {
         composeRule.onNodeWithTag(MailComposeTags.format(TextFormat.BULLET)).performClick()
         composeRule.onNodeWithTag(MailComposeTags.CC_BCC).performClick()
         composeRule.onNodeWithTag(MailComposeTags.ATTACH).performClick()
+        composeRule.onNodeWithTag(MailComposeTags.ATTACH_DEVICE).performClick()
         composeRule.onNodeWithTag(MailComposeTags.SEND).performClick()
         composeRule.onNodeWithTag(MailComposeTags.BACK).performClick()
 

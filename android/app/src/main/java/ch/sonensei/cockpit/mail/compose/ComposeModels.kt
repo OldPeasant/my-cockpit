@@ -83,6 +83,8 @@ data class DraftContent(
     val html: String,
     /** `partId`s of the current version to keep. */
     val keep: List<String>,
+    /** Files of the cockpit drive to add as attachments. */
+    val files: List<UUID> = emptyList(),
 )
 
 /** A file picked on the device, streamed when uploaded. */
@@ -126,7 +128,7 @@ fun parseRecipients(field: String): ParsedRecipients {
 }
 
 /** Splits at `,` and `;` outside quotes; blank parts are dropped. */
-private fun splitRecipients(field: String): List<String> {
+internal fun splitRecipients(field: String): List<String> {
     val parts = mutableListOf<String>()
     val current = StringBuilder()
     var quoted = false

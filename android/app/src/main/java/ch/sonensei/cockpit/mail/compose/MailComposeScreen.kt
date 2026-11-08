@@ -27,9 +27,11 @@ import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.FormatBold
 import androidx.compose.material.icons.outlined.FormatItalic
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -57,7 +59,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -82,6 +83,8 @@ fun MailComposeRoute(
     var session by remember(viewModel, mode) { mutableStateOf<Int?>(null) }
     LaunchedEffect(viewModel, mode) { session = viewModel.start(mode) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
+    val filePicker by viewModel.filePicker.collectAsStateWithLifecycle()
     val resolver = LocalContext.current.contentResolver
     val picker =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
@@ -101,6 +104,7 @@ fun MailComposeRoute(
                 retry = viewModel::retry,
                 account = viewModel::selectAccount,
                 to = viewModel::setTo,
+                leaveRecipients = viewModel::clearSuggestions,
                 cc = viewModel::setCc,
                 bcc = viewModel::setBcc,
                 showCcBcc = viewModel::showCcBcc,
@@ -108,12 +112,23 @@ fun MailComposeRoute(
                 body = viewModel::setBody,
                 format = viewModel::format,
                 attach = { picker.launch(arrayOf("*/*")) },
+                attachFromFiles = viewModel::openFiles,
                 removeAttachment = viewModel::removeAttachment,
                 save = viewModel::save,
                 send = viewModel::send,
                 discard = viewModel::discard,
             ),
         modifier = modifier,
+        suggestions = if (own) suggestions else RecipientSuggestions(),
+        filePicker = filePicker.takeIf { own },
+        pickerCallbacks =
+            FilePickerCallbacks(
+                open = viewModel::openFolder,
+                up = viewModel::folderUp,
+                pick = viewModel::pickFile,
+                retry = viewModel::retryFiles,
+                close = viewModel::closeFiles,
+            ),
     )
 }
 
@@ -126,11 +141,16 @@ data class MailComposeCallbacks(
     val to: (String) -> Unit = {},
     val cc: (String) -> Unit = {},
     val bcc: (String) -> Unit = {},
+    /** Focus left the recipient fields: their suggestions hide. */
+    val leaveRecipients: () -> Unit = {},
     val showCcBcc: () -> Unit = {},
     val subject: (String) -> Unit = {},
     val body: (TextFieldValue) -> Unit = {},
     val format: (TextFormat) -> Unit = {},
+    /** Attach a file of the device. */
     val attach: () -> Unit = {},
+    /** Attach a file of cockpit Files. */
+    val attachFromFiles: () -> Unit = {},
     val removeAttachment: (String) -> Unit = {},
     val save: () -> Unit = {},
     val send: () -> Unit = {},
@@ -142,6 +162,13 @@ internal object MailComposeTags {
     const val TITLE = "mail-compose-title"
     const val SEND = "mail-compose-send"
     const val ATTACH = "mail-compose-attach"
+    const val ATTACH_DEVICE = "mail-compose-attach-device"
+    const val ATTACH_FILES = "mail-compose-attach-files"
+    const val FILES = "mail-compose-files"
+    const val FILES_UP = "mail-compose-files-up"
+    const val FILES_CANCEL = "mail-compose-files-cancel"
+    const val FILES_PROBLEM = "mail-compose-files-problem"
+    const val FILES_EMPTY = "mail-compose-files-empty"
     const val MENU = "mail-compose-menu"
     const val SAVE = "mail-compose-save"
     const val DISCARD = "mail-compose-discard"
@@ -158,6 +185,17 @@ internal object MailComposeTags {
 
     fun field(field: RecipientField) = "mail-compose-field:$field"
 
+    fun recipient(
+        field: RecipientField,
+        index: Int,
+    ) = "mail-compose-recipient:$field:$index"
+
+    fun suggestions(field: RecipientField) = "mail-compose-suggestions:$field"
+
+    fun suggestion(address: String) = "mail-compose-suggestion:$address"
+
+    fun filesEntry(id: UUID) = "mail-compose-files-entry:$id"
+
     fun format(format: TextFormat) = "mail-compose-format:$format"
 
     fun account(id: UUID) = "mail-compose-account:$id"
@@ -171,7 +209,11 @@ fun MailComposeContent(
     state: MailComposeUiState,
     callbacks: MailComposeCallbacks,
     modifier: Modifier = Modifier,
+    suggestions: RecipientSuggestions = RecipientSuggestions(),
+    filePicker: FilePickerState? = null,
+    pickerCallbacks: FilePickerCallbacks = FilePickerCallbacks(),
 ) {
+    filePicker?.let { FilePickerDialog(it, pickerCallbacks) }
     Column(modifier.fillMaxSize()) {
         Toolbar(state, callbacks)
         val busy = state.phase == ComposePhase.STARTING && state.problem == null || state.phase == ComposePhase.SENDING
@@ -187,7 +229,7 @@ fun MailComposeContent(
                 Text(stringResource(R.string.mail_compose_leave_unsaved))
             }
         }
-        if (state.phase != ComposePhase.STARTING) Form(state, callbacks)
+        if (state.phase != ComposePhase.STARTING) Form(state, callbacks, suggestions)
     }
 }
 
@@ -215,9 +257,7 @@ private fun Toolbar(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).testTag(MailComposeTags.TITLE),
         )
-        IconButton(onClick = callbacks.attach, enabled = state.editable, modifier = Modifier.testTag(MailComposeTags.ATTACH)) {
-            Icon(Icons.Outlined.AttachFile, contentDescription = stringResource(R.string.mail_compose_attach))
-        }
+        AttachMenu(state.editable, callbacks)
         IconButton(
             onClick = callbacks.send,
             enabled = state.editable && state.uploading.isEmpty(),
@@ -260,6 +300,40 @@ private fun Toolbar(
                     modifier = Modifier.testTag(MailComposeTags.DISCARD),
                 )
             }
+        }
+    }
+}
+
+/** Attach opens a choice: a file of the device or one of cockpit Files. */
+@Composable
+private fun AttachMenu(
+    enabled: Boolean,
+    callbacks: MailComposeCallbacks,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }, enabled = enabled, modifier = Modifier.testTag(MailComposeTags.ATTACH)) {
+            Icon(Icons.Outlined.AttachFile, contentDescription = stringResource(R.string.mail_compose_attach))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.mail_compose_attach_device)) },
+                leadingIcon = { Icon(Icons.Outlined.PhoneAndroid, contentDescription = null) },
+                onClick = {
+                    open = false
+                    callbacks.attach()
+                },
+                modifier = Modifier.testTag(MailComposeTags.ATTACH_DEVICE),
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.mail_compose_attach_files)) },
+                leadingIcon = { Icon(Icons.Outlined.Folder, contentDescription = null) },
+                onClick = {
+                    open = false
+                    callbacks.attachFromFiles()
+                },
+                modifier = Modifier.testTag(MailComposeTags.ATTACH_FILES),
+            )
         }
     }
 }
@@ -323,11 +397,13 @@ private fun Problem(
 private fun Form(
     state: MailComposeUiState,
     callbacks: MailComposeCallbacks,
+    suggestions: RecipientSuggestions,
 ) {
+    fun shown(field: RecipientField) = if (suggestions.field == field) suggestions.items else emptyList()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         From(state, callbacks.account)
         HorizontalDivider()
-        RecipientRow(R.string.mail_compose_to, state.to, RecipientField.TO, state, callbacks.to) {
+        RecipientRow(R.string.mail_compose_to, state.to, RecipientField.TO, state, shown(RecipientField.TO), callbacks.to) {
             if (!state.showCcBcc) {
                 TextButton(onClick = callbacks.showCcBcc, modifier = Modifier.testTag(MailComposeTags.CC_BCC)) {
                     Text(stringResource(R.string.mail_compose_cc_bcc))
@@ -335,13 +411,16 @@ private fun Form(
             }
         }
         if (state.showCcBcc) {
-            RecipientRow(R.string.mail_compose_cc, state.cc, RecipientField.CC, state, callbacks.cc)
-            RecipientRow(R.string.mail_compose_bcc, state.bcc, RecipientField.BCC, state, callbacks.bcc)
+            RecipientRow(R.string.mail_compose_cc, state.cc, RecipientField.CC, state, shown(RecipientField.CC), callbacks.cc)
+            RecipientRow(R.string.mail_compose_bcc, state.bcc, RecipientField.BCC, state, shown(RecipientField.BCC), callbacks.bcc)
         }
         LabeledRow(R.string.mail_compose_subject, isError = false) {
             PlainField(
                 value = state.subject,
-                onValueChange = callbacks.subject,
+                onValueChange = {
+                    callbacks.leaveRecipients()
+                    callbacks.subject(it)
+                },
                 enabled = state.editable,
                 keyboard = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 modifier = Modifier.testTag(MailComposeTags.SUBJECT),
@@ -428,17 +507,19 @@ private fun RecipientRow(
     value: String,
     field: RecipientField,
     state: MailComposeUiState,
+    suggestions: List<RecipientSuggestion>,
     onChange: (String) -> Unit,
     trailing: @Composable () -> Unit = {},
 ) {
     val isError = field in state.invalid
     LabeledRow(label, isError) {
-        PlainField(
+        RecipientInput(
             value = value,
-            onValueChange = onChange,
+            field = field,
             enabled = state.editable,
-            keyboard = KeyboardOptions(keyboardType = KeyboardType.Email),
-            modifier = Modifier.weight(1f).testTag(MailComposeTags.field(field)),
+            suggestions = suggestions,
+            onChange = onChange,
+            modifier = Modifier.weight(1f),
         )
         trailing()
     }

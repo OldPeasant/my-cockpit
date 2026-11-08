@@ -19,6 +19,7 @@ import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 /**
  * The draft calls of SPEC.md §7.4 with hand-written bodies (see `MailApi`). A draft's version travels as the `ETag`
@@ -79,6 +80,13 @@ interface MailComposeApi {
     suspend fun forward(
         @Path("id") id: String,
     ): Response<DraftDto>
+
+    /** Contacts, then recent correspondents, matching [query]. */
+    @GET("api/v1/contacts/autocomplete")
+    suspend fun autocomplete(
+        @Query("q") query: String,
+        @Query("limit") limit: Int,
+    ): Response<List<ContactSuggestionDto>>
 }
 
 @Module
@@ -94,10 +102,18 @@ data class AddressRequestDto(
     val name: String? = null,
 )
 
-/** Keeps an attachment of the current version (`partId`). */
+/** Keeps an attachment of the current version (`partId`) or adds a file of the drive (`fileId`): exactly one is set. */
 @Serializable
 data class AttachmentRefDto(
-    val partId: String,
+    val partId: String? = null,
+    val fileId: String? = null,
+)
+
+@Serializable
+data class ContactSuggestionDto(
+    val contactId: String? = null,
+    val email: String? = null,
+    val name: String? = null,
 )
 
 @Serializable

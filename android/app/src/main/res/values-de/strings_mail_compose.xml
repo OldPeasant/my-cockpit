@@ -46,4 +46,15 @@
     <string name="mail_read_reply">Antworten</string>
     <string name="mail_read_reply_all">Allen antworten</string>
     <string name="mail_read_forward">Weiterleiten</string>
+    <string name="mail_compose_attach_device">Von diesem Gerät</string>
+    <string name="mail_compose_attach_files">Aus Dateien</string>
+    <string name="mail_compose_files_title">Aus Dateien anhängen</string>
+    <string name="mail_compose_files_root">Dateien</string>
+    <string name="mail_compose_files_up">Übergeordneter Ordner</string>
+    <string name="mail_compose_files_cancel">Abbrechen</string>
+    <string name="mail_compose_files_empty">Dieser Ordner ist leer.</string>
+    <string name="mail_compose_files_failed">Der Ordner konnte nicht geladen werden.</string>
+    <string name="mail_compose_remove_recipient">Entfernen</string>
+    <string name="mail_compose_suggestion_contact">Kontakt</string>
+    <string name="mail_compose_suggestion_recent">Zuletzt</string>
 </resources>

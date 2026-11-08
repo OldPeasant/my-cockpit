@@ -300,8 +300,8 @@ class MailComposeViewModelTest {
 
             val s = vm.uiState.value
             assertEquals(ComposePhase.EDITING, s.phase)
-            assertEquals("Ann Example <ann@example.org>", s.to)
-            assertEquals("ben@example.org", s.cc)
+            assertEquals("Ann Example <ann@example.org>, ", s.to)
+            assertEquals("ben@example.org, ", s.cc)
             assertTrue(s.showCcBcc)
             assertEquals("Re: Plan", s.subject)
             assertEquals("> old", s.quotedText)

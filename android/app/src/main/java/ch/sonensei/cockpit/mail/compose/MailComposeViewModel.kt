@@ -3,11 +3,17 @@ package ch.sonensei.cockpit.mail.compose
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ch.sonensei.cockpit.files.DriveEntry
+import ch.sonensei.cockpit.files.FolderCrumb
 import ch.sonensei.cockpit.mail.list.MailAccount
+import ch.sonensei.cockpit.mail.list.MailResult
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
 
@@ -104,9 +110,26 @@ class MailComposeViewModel
     @Inject
     constructor(
         private val repository: MailComposeRepository,
+        private val lookup: ComposeLookup,
     ) : ViewModel() {
+        /** Without suggestions and Files (tests of the draft logic). */
+        internal constructor(repository: MailComposeRepository) : this(repository, ComposeLookup.None)
+
         private val state = MutableStateFlow(MailComposeUiState())
         val uiState: StateFlow<MailComposeUiState> = state.asStateFlow()
+
+        private val suggestionState = MutableStateFlow(RecipientSuggestions())
+
+        /** Suggestions for the recipient field typed in last. */
+        val suggestions: StateFlow<RecipientSuggestions> = suggestionState.asStateFlow()
+
+        private val pickerState = MutableStateFlow<FilePickerState?>(null)
+
+        /** The cockpit Files picker while it is open. */
+        val filePicker: StateFlow<FilePickerState?> = pickerState.asStateFlow()
+
+        private var suggesting: Job? = null
+        private var listing: Job? = null
 
         private var sessions = 0
         private var current: ComposeSession? = null
@@ -120,6 +143,8 @@ class MailComposeViewModel
             val session = ComposeSession(++sessions, mode, repository, viewModelScope) { s -> if (current === s) state.value = s.value }
             current = session
             state.value = session.value
+            clearSuggestions()
+            closeFiles()
             session.load()
             return session.id
         }
@@ -129,11 +154,95 @@ class MailComposeViewModel
             current?.retry()
         }
 
-        fun setTo(value: String) = edit { it.copy(to = value, invalid = it.invalid - RecipientField.TO) }
+        fun setTo(value: String) {
+            edit { it.copy(to = value, invalid = it.invalid - RecipientField.TO) }
+            suggest(RecipientField.TO, value)
+        }
 
-        fun setCc(value: String) = edit { it.copy(cc = value, invalid = it.invalid - RecipientField.CC) }
+        fun setCc(value: String) {
+            edit { it.copy(cc = value, invalid = it.invalid - RecipientField.CC) }
+            suggest(RecipientField.CC, value)
+        }
 
-        fun setBcc(value: String) = edit { it.copy(bcc = value, invalid = it.invalid - RecipientField.BCC) }
+        fun setBcc(value: String) {
+            edit { it.copy(bcc = value, invalid = it.invalid - RecipientField.BCC) }
+            suggest(RecipientField.BCC, value)
+        }
+
+        /**
+         * Looks up suggestions for the text typed in [field] ([value] is the whole field) once typing paused for
+         * [SUGGEST_DEBOUNCE_MILLIS]; only the latest lookup shows, a failed one shows none.
+         */
+        private fun suggest(
+            field: RecipientField,
+            value: String,
+        ) {
+            suggesting?.cancel()
+            val query = recipientEntry(value).pending.trim()
+            if (query.isEmpty() || current?.value?.editable != true) {
+                clearSuggestions()
+                return
+            }
+            suggesting =
+                viewModelScope.launch {
+                    delay(SUGGEST_DEBOUNCE_MILLIS)
+                    val items = (lookup.suggestions(query) as? MailResult.Ok)?.value.orEmpty()
+                    suggestionState.value = RecipientSuggestions(field, items)
+                }
+        }
+
+        /** Hides the suggestions (a field lost focus, or one was chosen). */
+        fun clearSuggestions() {
+            suggesting?.cancel()
+            suggestionState.value = RecipientSuggestions()
+        }
+
+        /** Opens the cockpit Files picker at the drive root. */
+        fun openFiles() {
+            if (current?.value?.editable != true) return
+            list(emptyList())
+        }
+
+        fun openFolder(folder: DriveEntry.Folder) {
+            val picker = pickerState.value ?: return
+            list(picker.path + FolderCrumb(folder.id, folder.name))
+        }
+
+        /** The parent folder; at the root it stays. */
+        fun folderUp() {
+            val picker = pickerState.value ?: return
+            if (picker.path.isNotEmpty()) list(picker.path.dropLast(1))
+        }
+
+        fun retryFiles() {
+            pickerState.value?.let { list(it.path) }
+        }
+
+        fun closeFiles() {
+            listing?.cancel()
+            pickerState.value = null
+        }
+
+        /** Attaches [file] of the drive to the draft and closes the picker. */
+        fun pickFile(file: DriveEntry.File) {
+            closeFiles()
+            current?.attachFile(file)
+        }
+
+        private fun list(path: List<FolderCrumb>) {
+            listing?.cancel()
+            pickerState.value = FilePickerState(path = path, loading = true)
+            listing =
+                viewModelScope.launch {
+                    val result = lookup.folder(path.lastOrNull()?.id)
+                    pickerState.value =
+                        when (result) {
+                            is MailResult.Ok -> FilePickerState(path = path, entries = result.value, loading = false)
+                            MailResult.Offline -> FilePickerState(path = path, loading = false, problem = FilePickerProblem.OFFLINE)
+                            is MailResult.Failed -> FilePickerState(path = path, loading = false, problem = FilePickerProblem.FAILED)
+                        }
+                }
+        }
 
         fun setSubject(value: String) = edit { it.copy(subject = value) }
 
@@ -201,6 +310,9 @@ class MailComposeViewModel
         internal companion object {
             /** SPEC.md §7.3: drafts autosave every 10 s. */
             const val AUTOSAVE_MILLIS = 10_000L
+
+            /** Wait this long after the last keystroke before asking for suggestions (as the web does). */
+            const val SUGGEST_DEBOUNCE_MILLIS = 200L
             val TOO_LARGE = setOf(400, 413)
 
             /** What a successful save resolves; a send or upload problem stays until its own next try. */
