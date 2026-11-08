@@ -20,7 +20,8 @@ the basic ones.
   - verified (2026-11-08 09:23+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest -> CockpitSettingsThemeTest (light/dark/system, dynamic color kept for system), AppearanceSectionTest, AppearanceViewModelTest pass (part of 2940 tests, 0 failures); theme wraps MainActivity/Share/Capture activities via CockpitSettingsTheme
 - [x] The calendar week start and time zone come from the settings instead of the device locale (fallback to the locale when unset)
   - verified (2026-11-08 09:23+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest -> CalendarViewModelSettingsTest (synced week start + zone, locale/device fallback when unset, reload on change) and EventEditorViewModelSettingsTest (synced zone for new/edited events) pass, 0 failures
-- [ ] Energy/creativity labels shown in inbox processing and task detail come from the settings
+- [x] Energy/creativity labels shown in inbox processing and task detail come from the settings
+  - verified (2026-11-08 09:23+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest -> InboxUserLabelsTest and TaskDetailUserLabelsTest (Robolectric Compose: renamed energy/creativity labels from settings shown, defaults translated) + UserSettingsTest pass, 0 failures
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
