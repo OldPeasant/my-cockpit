@@ -20,7 +20,8 @@ Android gets the full review). Web: `review-session.ts`, `steps/*`.
   - verified (2026-11-08 15:10+0100 by dell26/agent-2): ReviewWizardRouteInAppTest: get clear embeds the real InboxRoute, Open Mail opens Mail and system back returns to the wizard, via cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug at a51ef0aea -> pass, review package 130 tests 0 failures
 - [x] Steps 2/3 past/upcoming calendar with quick-add capture
   - verified (2026-11-08 15:10+0100 by dell26/agent-2): ReviewWizardTest/ReviewWizardEdgeCasesTest: past/upcoming events grouped by local day, quick-add goes to CaptureQueue, retry per step, double-capture guard, via cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug at a51ef0aea -> pass, review package 130 tests 0 failures
-- [ ] Step 8 reflection saved as a journal entry, with the habit stats shown
+- [x] Step 8 reflection saved as a journal entry, with the habit stats shown
+  - verified (2026-11-08 15:10+0100 by dell26/agent-2): ReflectionSaverTest + ReviewWizardTest: reflection appended as '## Weekly review' to today's journal entry (idempotent on retry), habit rate/streak shown, draft kept per review (ReviewDraftsTest), via cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug at a51ef0aea -> pass, review package 130 tests 0 failures
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
