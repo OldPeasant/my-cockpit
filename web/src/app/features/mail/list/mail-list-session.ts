@@ -106,11 +106,16 @@ export class MailListSession {
 
   /**
    * Takes message `id` out of the saved list (it was archived, deleted or marked as spam) and
-   * returns the message to show instead: the next one in the list, else the one before it; null
-   * when none is left or the message was not opened from the list.
+   * returns the message to show instead: the next one in the list (loading the next page of a
+   * folder list at its end, as `step` does), else the one before it; null when none is left or the
+   * message was not opened from the list.
    */
-  remove(id: string): string | null {
-    const position = this.position(id);
+  async remove(id: string): Promise<string | null> {
+    let position = this.position(id);
+    if (position && !position.nextId && position.more) {
+      await this.loadMore();
+      position = this.position(id);
+    }
     const following = position ? (position.nextId ?? position.previousId) : null;
     this.update((saved) => {
       if (!saved.items.some((item) => item.id === id)) return saved;

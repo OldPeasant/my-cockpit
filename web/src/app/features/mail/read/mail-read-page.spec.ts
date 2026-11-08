@@ -2002,6 +2002,44 @@ describe('MailReadPage previous/next through the list it was opened from', () =>
     expect(TestBed.inject(MailListSession).saved()!.items).toEqual([]);
   });
 
+  it('loads the next page of a folder list after archiving its last loaded message', async () => {
+    const D = '0192f0c4-0000-7000-8000-0000000000dd';
+    const harness = await openFromList(C, {
+      scope: { folderId: null, threaded: false },
+      searchResult: null,
+      nextCursor: 'cur-1',
+    });
+    mail.list.mockResolvedValue({ items: [item(D)], nextCursor: null });
+    key('e');
+    await settle(harness);
+    expect(mail.list).toHaveBeenCalledWith({ folderId: null, threaded: false }, 'cur-1');
+    expect(url()).toBe(`/mail/messages/${D}`);
+    expect(
+      TestBed.inject(MailListSession)
+        .saved()!
+        .items.map((entry) => entry.id),
+    ).toEqual([A, B, D]);
+  });
+
+  it('stays on the message the user went to while the next page loaded for an archive', async () => {
+    const harness = await openFromList(C, {
+      scope: { folderId: null, threaded: false },
+      searchResult: null,
+      nextCursor: 'cur-1',
+    });
+    const page = deferred<{ items: MailSummary[]; nextCursor: string | null }>();
+    mail.list.mockReturnValue(page.promise);
+    key('e');
+    await settle(harness);
+    expect(mail.list).toHaveBeenCalledTimes(1);
+    TestBed.inject(Location).back();
+    await settle(harness);
+    expect(url()).toBe(LIST);
+    page.resolve({ items: [], nextCursor: null });
+    await settle(harness);
+    expect(url()).toBe(LIST);
+  });
+
   it('does not step with j or k while a dialog is open', async () => {
     const harness = await openFromList(B);
     const dialog = TestBed.inject(MatDialog);

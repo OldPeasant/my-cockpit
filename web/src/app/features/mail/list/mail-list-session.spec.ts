@@ -41,9 +41,9 @@ describe('MailListSession', () => {
     session = TestBed.inject(MailListSession);
   });
 
-  it('knows nothing before a list was saved', () => {
+  it('knows nothing before a list was saved', async () => {
     expect(session.position('a')).toBeNull();
-    expect(session.remove('a')).toBeNull();
+    expect(await session.remove('a')).toBeNull();
     session.visited('a');
     expect(session.saved()).toBeNull();
   });
@@ -152,11 +152,11 @@ describe('MailListSession', () => {
     expect(session.saved()?.items[0]).toMatchObject({ seen: true, threadUnread: 0 });
   });
 
-  it('keeps the list cursor when another message than the cursor is removed', () => {
+  it('keeps the list cursor when another message than the cursor is removed', async () => {
     session.save(saved({ cursorId: 'a' }));
-    expect(session.remove('c')).toBe('b');
+    expect(await session.remove('c')).toBe('b');
     expect(session.saved()?.cursorId).toBe('a');
-    expect(session.remove('unknown')).toBeNull();
+    expect(await session.remove('unknown')).toBeNull();
     expect(session.saved()?.items.map((item) => item.id)).toEqual(['a', 'b']);
   });
 
@@ -176,20 +176,48 @@ describe('MailListSession', () => {
     expect(session.saved()?.cursorId).toBe('a');
   });
 
-  it('removes a message and names the next one, else the one before', () => {
+  it('removes a message and names the next one, else the one before', async () => {
     session.save(saved({ cursorId: 'b' }));
-    expect(session.remove('b')).toBe('c');
+    expect(await session.remove('b')).toBe('c');
     expect(session.saved()?.items.map((item) => item.id)).toEqual(['a', 'c']);
     expect(session.saved()?.cursorId).toBe('c');
-    expect(session.remove('c')).toBe('a');
-    expect(session.remove('a')).toBeNull();
+    expect(await session.remove('c')).toBe('a');
+    expect(await session.remove('a')).toBeNull();
     expect(session.saved()?.items).toEqual([]);
   });
 
-  it('removes a message from the saved list also when it was not opened from it', () => {
+  it('loads the next page of a folder list before removing its last loaded message', async () => {
+    const scope = { folderId: 'f-inbox', threaded: false };
+    session.save(saved({ scope, searchResult: null, nextCursor: 'cur-1', cursorId: 'c' }));
+    const removed = session.remove('c');
+    await flush();
+    expect(mail.lists).toEqual([expect.objectContaining({ scope, cursor: 'cur-1' })]);
+    mail.lists[0].resolve({ items: [summary('d'), summary('e')], nextCursor: 'cur-2' });
+    expect(await removed).toBe('d');
+    expect(session.saved()?.items.map((item) => item.id)).toEqual(['a', 'b', 'd', 'e']);
+    expect(session.saved()?.cursorId).toBe('d');
+    expect(session.saved()?.nextCursor).toBe('cur-2');
+  });
+
+  it('removes the last loaded message and names the one before when the next page fails', async () => {
+    session.save(saved({ scope: { folderId: null, threaded: false }, nextCursor: 'cur-1' }));
+    const removed = session.remove('c');
+    await flush();
+    mail.lists[0].reject(new Error('offline'));
+    expect(await removed).toBe('b');
+    expect(session.saved()?.items.map((item) => item.id)).toEqual(['a', 'b']);
+  });
+
+  it('removes the last message of a folder list without loading more when it has no next page', async () => {
+    session.save(saved({ scope: { folderId: null, threaded: false }, nextCursor: null }));
+    expect(await session.remove('c')).toBe('b');
+    expect(mail.lists).toHaveLength(0);
+  });
+
+  it('removes a message from the saved list also when it was not opened from it', async () => {
     session.save(saved({ cursorId: 'a' }));
     previous.set({ url: '/new' });
-    expect(session.remove('a')).toBeNull();
+    expect(await session.remove('a')).toBeNull();
     expect(session.saved()?.items.map((item) => item.id)).toEqual(['b', 'c']);
     expect(session.saved()?.cursorId).toBe('b');
   });

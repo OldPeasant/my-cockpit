@@ -25,7 +25,13 @@ import { MailListStore } from './mail-list-store';
 import { MailMoveDialog, MailMoveDialogData } from './mail-move-dialog';
 import { isTypingTarget } from '../../../shell/hotkeys';
 import { mailShortcutFor, MailShortcut } from './mail-shortcuts';
-import { MailAction, MailScope, MailSearch, MailSummary } from './mail.service';
+import {
+  MAIL_MAX_PAGE_SIZE,
+  MailAction,
+  MailScope,
+  MailSearch,
+  MailSummary,
+} from './mail.service';
 
 /** `localStorage` key of the threaded/flat choice. */
 export const THREADED_KEY = 'cockpit.mail.threaded';
@@ -198,8 +204,9 @@ export default class MailListPage {
       return;
     }
     this.store.restore(saved);
-    // A folder list may have changed meanwhile; search results stay as they were found.
-    if (!saved.scope.search) void this.store.refresh();
+    // A folder list may have changed meanwhile; search results stay as they were found. A list
+    // longer than the server returns at once is kept as it is: refetching it would cut it short.
+    if (!saved.scope.search && saved.items.length <= MAIL_MAX_PAGE_SIZE) void this.store.refresh();
     afterNextRender(() => this.restoreScroll(saved.scrollTop), { injector: this.injector });
   }
 

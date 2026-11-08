@@ -227,8 +227,9 @@ export default class MailReadPage {
         this.notifications.error(triageFailed(action, reason));
         return;
       }
-      // The list it was opened from no longer shows it; the message to show instead, if any.
-      const following = this.session.remove(id);
+      // The list it was opened from no longer shows it; the message to show instead, if any (this
+      // may load the next page of the list).
+      const following = await this.session.remove(id);
       // The user may have left this message (or the page) while the request ran: stay there.
       if (this.destroyed || this.message()?.id !== id) return;
       if (following) {

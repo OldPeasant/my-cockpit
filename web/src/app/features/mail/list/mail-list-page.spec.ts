@@ -16,7 +16,7 @@ import { FakeEvents, FakeMail, summary } from './mail-testing';
 import { ApiError } from '../../../core/http';
 import { MailListSession } from './mail-list-session';
 import { MAIL_FOLDER_EVENT, MailListStore, REFRESH_DEBOUNCE_MS } from './mail-list-store';
-import { MailPage, MailService, MailSummary } from './mail.service';
+import { MAIL_MAX_PAGE_SIZE, MailPage, MailService, MailSummary } from './mail.service';
 
 const flush = async () => {
   for (let i = 0; i < 10; i++) await Promise.resolve();
@@ -1201,6 +1201,28 @@ describe('MailListPage', () => {
         fixture.detectChanges();
         expect(rows().map((row) => row.dataset['id'])).toEqual(['b', 'c']);
         expect(rows()[0].getAttribute('aria-current')).toBe('true');
+      });
+
+      it('keeps a saved folder list longer than one server page without refetching it', async () => {
+        const items = Array.from({ length: MAIL_MAX_PAGE_SIZE + 30 }, (_, i) => summary(`m${i}`));
+        const cursorId = `m${MAIL_MAX_PAGE_SIZE + 20}`;
+        await create('inbox-1', {
+          firstPage: 'pending',
+          before: () =>
+            TestBed.inject(MailListSession).save({
+              url: '/mail/folders/inbox-1',
+              scrollTop: 0,
+              scope: { folderId: 'inbox-1', threaded: false },
+              items,
+              nextCursor: 'cur-5',
+              cursorId,
+              searchResult: null,
+            }),
+        });
+        expect(mail.lists).toEqual([]);
+        expect(rows()).toHaveLength(MAIL_MAX_PAGE_SIZE + 30);
+        expect(listStore().cursorId()).toBe(cursorId);
+        expect(leave()).toMatchObject({ nextCursor: 'cur-5', cursorId });
       });
 
       it('loads anew when the saved list is another one', async () => {
