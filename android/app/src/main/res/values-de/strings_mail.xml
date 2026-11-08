@@ -31,6 +31,10 @@
         <item quantity="one">%1$d externes Bild wurde blockiert.</item>
         <item quantity="other">%1$d externe Bilder wurden blockiert.</item>
     </plurals>
+    <string name="mail_read_load_images">Bilder laden</string>
+    <string name="mail_read_always_images">Immer für diesen Absender</string>
+    <string name="mail_read_images_failed">Die Bilder konnten nicht geladen werden.</string>
+    <string name="mail_read_sender_not_saved">Der Absender konnte nicht gespeichert werden; die Bilder werden nur für diese Mail angezeigt.</string>
     <string name="mail_read_attachments">Anhänge: %1$s</string>
     <string name="mail_read_offline">Der Server ist nicht erreichbar.</string>
     <string name="mail_read_failed">Die E-Mail konnte nicht geladen werden.</string>

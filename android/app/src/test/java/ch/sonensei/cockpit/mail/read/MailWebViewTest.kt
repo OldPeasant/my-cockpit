@@ -23,8 +23,8 @@ class MailWebViewTest {
         assertFalse(settings.javaScriptCanOpenWindowsAutomatically)
         assertFalse(settings.allowFileAccess)
         assertFalse(settings.allowContentAccess)
-        assertTrue(settings.blockNetworkLoads)
-        assertTrue(settings.blockNetworkImage)
+        assertFalse(settings.blockNetworkLoads)
+        assertFalse(settings.blockNetworkImage)
         assertFalse(settings.domStorageEnabled)
         assertFalse(settings.supportMultipleWindows())
     }
@@ -45,9 +45,9 @@ class MailWebViewTest {
     }
 
     @Test
-    fun `the page around the mail allows only inline styles and data images`() {
+    fun `the page around the mail allows only inline styles and images from the server or data`() {
         val doc = mailDocument("<p>Hello</p>")
-        assertTrue(doc.contains("default-src 'none'; style-src 'unsafe-inline'; img-src data:"))
+        assertTrue(doc.contains("default-src 'none'; style-src 'unsafe-inline'; img-src https://server.invalid data:"))
         assertTrue(doc.contains("<body><p>Hello</p></body>"))
     }
 

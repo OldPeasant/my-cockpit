@@ -2,6 +2,10 @@ package ch.sonensei.cockpit.mail.read
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ch.sonensei.cockpit.core.settings.MailImagePolicy
+import ch.sonensei.cockpit.core.settings.SettingsUpdateResult
+import ch.sonensei.cockpit.core.settings.UserSettingsChange
+import ch.sonensei.cockpit.core.settings.UserSettingsRepository
 import ch.sonensei.cockpit.mail.list.MailListAction
 import ch.sonensei.cockpit.mail.list.MailRepository
 import ch.sonensei.cockpit.mail.list.MailResult
@@ -33,6 +37,12 @@ sealed interface MailReadNotice {
         val action: MailListAction,
         val errorCode: String? = null,
     ) : MailReadNotice
+
+    /** "Load images" failed: the mail stays shown without its remote images. */
+    data object ImagesFailed : MailReadNotice
+
+    /** "Always for this sender" could not save the sender in the settings (the images of this mail still load). */
+    data object SenderNotSaved : MailReadNotice
 }
 
 data class MailReadUiState(
@@ -46,13 +56,20 @@ data class MailReadUiState(
     val removed: Boolean = false,
 )
 
-/** One message (SPEC.md §7.3): opening it marks it read; archive, delete, spam, "→ Inbox task" and "→ Waiting For". */
+/**
+ * One message (SPEC.md §7.3): opening it marks it read; archive, delete, spam, "→ Inbox task" and "→ Waiting For".
+ * Remote images stay blocked unless the synced settings allow them (`mailImagePolicy = allow`, or the sender is in
+ * `mailImageAllowedSenders`) or the user asks for them ([loadImages], [alwaysLoadImages]); they then come through the
+ * server's image proxy. [images] loads the server's images (inline parts and proxied ones) into the mail page.
+ */
 @HiltViewModel
 class MailReadViewModel
     @Inject
     constructor(
         private val reader: MailReadRepository,
         private val mail: MailRepository,
+        private val settings: UserSettingsRepository,
+        val images: MailImageFetcher,
     ) : ViewModel() {
         private val state = MutableStateFlow(MailReadUiState())
         val uiState: StateFlow<MailReadUiState> = state.asStateFlow()
@@ -121,6 +138,43 @@ class MailReadViewModel
                 }
             }
 
+        /** "Load images": shows the mail again with its remote images through the server's proxy. */
+        fun loadImages() = run { messageId, opened -> showWithImages(messageId, opened) }
+
+        /** "Always for this sender": adds the sender to `mailImageAllowedSenders`, then loads the images. */
+        fun alwaysLoadImages() {
+            val sender = state.value.message?.fromAddress ?: return
+            run { messageId, opened ->
+                val allowed =
+                    settings.settings.value
+                        ?.mailImageAllowedSenders
+                        .orEmpty()
+                val saved =
+                    allowed.any { it.equals(sender, ignoreCase = true) } ||
+                        settings.update(UserSettingsChange(mailImageAllowedSenders = allowed + sender)) == SettingsUpdateResult.Updated
+                showWithImages(messageId, opened)
+                if (!saved) updateFor(opened) { it.copy(notice = it.notice ?: MailReadNotice.SenderNotSaved) }
+            }
+        }
+
+        private suspend fun showWithImages(
+            messageId: UUID,
+            opened: Int,
+        ) {
+            val result = reader.message(messageId, proxyImages = true)
+            updateFor(opened) {
+                if (result is MailResult.Ok) it.copy(message = result.value) else it.copy(notice = MailReadNotice.ImagesFailed)
+            }
+        }
+
+        /** Whether the settings load remote images of [message] without asking. */
+        private fun imagesAllowed(message: MailMessage?): Boolean {
+            val current = settings.settings.value ?: return false
+            if (current.mailImagePolicy == MailImagePolicy.ALLOW) return true
+            val sender = message?.fromAddress ?: return false
+            return current.mailImageAllowedSenders.any { it.equals(sender, ignoreCase = true) }
+        }
+
         private fun run(block: suspend (messageId: UUID, opened: Int) -> Unit) {
             val messageId = state.value.message?.id ?: return
             if (state.value.busy) return
@@ -137,7 +191,7 @@ class MailReadViewModel
             val opened = session
             state.update { it.copy(loading = true, error = null) }
             viewModelScope.launch {
-                when (val result = reader.message(messageId)) {
+                when (val result = loadMessage(messageId)) {
                     is MailResult.Ok -> {
                         updateFor(opened) { it.copy(message = result.value, loading = false) }
                         // Read state is the mail server's: a failure shows on the next load. Only a mail still open
@@ -151,6 +205,18 @@ class MailReadViewModel
                         }
                 }
             }
+        }
+
+        /**
+         * [messageId] with remote images as the settings want: `allow` asks for proxied images right away; an allowed
+         * sender is only known from the mail, so its blocked images are asked for again (as the web app does). If that
+         * second request fails, the blocked copy is shown (its banner still offers "Load images").
+         */
+        private suspend fun loadMessage(messageId: UUID): MailResult<MailMessage> {
+            if (imagesAllowed(null)) return reader.message(messageId, proxyImages = true)
+            val result = reader.message(messageId)
+            if (result !is MailResult.Ok || result.value.remoteImagesBlocked == 0 || !imagesAllowed(result.value)) return result
+            return reader.message(result.value.id, proxyImages = true) as? MailResult.Ok ?: result
         }
 
         private companion object {

@@ -288,7 +288,7 @@ class MailReadScreenTest {
         val mail = mockk<MailRepository>()
         coEvery { reader.message(id(1)) } returns MailResult.Ok(message)
         coEvery { reader.act(id(1), MailListAction.SPAM) } returns MailResult.Ok(MailActionOutcome(false, "NO_ROLE_FOLDER"))
-        val vm = MailReadViewModel(reader, mail)
+        val vm = readViewModel(reader, mail)
 
         composeRule.setContent {
             CockpitTheme {
@@ -320,7 +320,7 @@ class MailReadScreenTest {
         coEvery { reader.message(id(1)) } returns MailResult.Ok(message.copy(seen = false))
         coEvery { mail.markRead(id(1)) } returns MailResult.Ok(true)
         coEvery { reader.act(id(1), MailListAction.DELETE) } returns MailResult.Ok(MailActionOutcome(true))
-        val vm = MailReadViewModel(reader, mail)
+        val vm = readViewModel(reader, mail)
 
         composeRule.setContent {
             CockpitTheme {
@@ -348,7 +348,7 @@ class MailReadScreenTest {
     fun `the route's back button closes without removing`() {
         val reader = mockk<MailReadRepository>()
         coEvery { reader.message(id(1)) } returns MailResult.Failed(404)
-        val vm = MailReadViewModel(reader, mockk<MailRepository>())
+        val vm = readViewModel(reader, mockk<MailRepository>())
 
         composeRule.setContent {
             CockpitTheme {

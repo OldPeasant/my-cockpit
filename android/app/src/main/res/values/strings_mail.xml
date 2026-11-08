@@ -31,6 +31,10 @@
         <item quantity="one">%1$d remote image was blocked.</item>
         <item quantity="other">%1$d remote images were blocked.</item>
     </plurals>
+    <string name="mail_read_load_images">Load images</string>
+    <string name="mail_read_always_images">Always for this sender</string>
+    <string name="mail_read_images_failed">The images could not be loaded.</string>
+    <string name="mail_read_sender_not_saved">The sender could not be saved; images are shown for this mail only.</string>
     <string name="mail_read_attachments">Attachments: %1$s</string>
     <string name="mail_read_offline">Can\'t reach the server.</string>
     <string name="mail_read_failed">The mail could not be loaded.</string>

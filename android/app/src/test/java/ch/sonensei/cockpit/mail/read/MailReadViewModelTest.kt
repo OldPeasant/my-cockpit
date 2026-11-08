@@ -61,7 +61,7 @@ class MailReadViewModelTest {
 
     private fun opened(result: MailResult<MailMessage> = MailResult.Ok(message())): MailReadViewModel {
         coEvery { reader.message(id(1)) } returns result
-        return MailReadViewModel(reader, mail).also { it.open(id(1)) }
+        return readViewModel(reader, mail).also { it.open(id(1)) }
     }
 
     @Test
@@ -408,7 +408,7 @@ class MailReadViewModelTest {
         runTest(dispatcher) {
             val load = CompletableDeferred<MailResult<MailMessage>>()
             coEvery { reader.message(id(1)) } coAnswers { load.await() }
-            val vm = MailReadViewModel(reader, mail).also { it.open(id(1)) }
+            val vm = readViewModel(reader, mail).also { it.open(id(1)) }
             advanceUntilIdle()
             vm.close()
             load.complete(MailResult.Ok(message()))
@@ -443,7 +443,7 @@ class MailReadViewModelTest {
         runTest(dispatcher) {
             val first = CompletableDeferred<MailResult<MailMessage>>()
             coEvery { reader.message(id(1)) } coAnswers { first.await() }
-            val vm = MailReadViewModel(reader, mail).also { it.open(id(1)) }
+            val vm = readViewModel(reader, mail).also { it.open(id(1)) }
             advanceUntilIdle()
             vm.close()
             first.complete(MailResult.Ok(message()))

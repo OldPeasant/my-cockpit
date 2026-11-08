@@ -68,6 +68,7 @@ interface MailApi {
     @GET("api/v1/mail/messages/{id}")
     suspend fun message(
         @Path("id") id: String,
+        @Query("remoteImages") remoteImages: String? = null,
     ): Response<MailMessageDto>
 
     @POST("api/v1/mail/messages/{id}/to-task")

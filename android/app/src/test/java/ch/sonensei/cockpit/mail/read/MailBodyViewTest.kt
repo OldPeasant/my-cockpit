@@ -47,10 +47,10 @@ class MailBodyViewTest {
         val loaded = shadowOf(view).lastLoadDataWithBaseURL
         assertNotNull(loaded)
         assertEquals(mailDocument("<p>Hello Anna</p>"), loaded.data)
-        assertNull(loaded.baseUrl)
+        assertEquals("https://server.invalid/", loaded.baseUrl)
         assertFalse(view.settings.javaScriptEnabled)
         assertFalse(view.settings.allowFileAccess)
-        assertTrue(view.settings.blockNetworkLoads)
+        assertTrue(view.webViewClient is MailWebViewClient)
     }
 
     @Test

@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.automirrored.outlined.Reply
 import androidx.compose.material.icons.automirrored.outlined.ReplyAll
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.HideImage
 import androidx.compose.material.icons.outlined.HourglassEmpty
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Report
@@ -28,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -91,8 +94,11 @@ fun MailReadRoute(
                 gtd = viewModel::gtd,
                 act = viewModel::act,
                 compose = onCompose,
+                loadImages = viewModel::loadImages,
+                alwaysLoadImages = viewModel::alwaysLoadImages,
             ),
         modifier = modifier,
+        body = { html, m -> MailBodyView(html, m, viewModel.images) },
     )
 }
 
@@ -103,6 +109,10 @@ data class MailReadCallbacks(
     val gtd: (MailGtdAction) -> Unit = {},
     val act: (MailListAction) -> Unit = {},
     val compose: (ComposeMode) -> Unit = {},
+    /** "Load images": the blocked remote images of this mail, through the server's proxy. */
+    val loadImages: () -> Unit = {},
+    /** "Always for this sender": allows the sender's remote images from now on, and loads them. */
+    val alwaysLoadImages: () -> Unit = {},
 )
 
 internal object MailReadTags {
@@ -115,6 +125,9 @@ internal object MailReadTags {
     const val RETRY = "mail-read-retry"
     const val NOTICE = "mail-read-notice"
     const val IMAGES_BLOCKED = "mail-read-images-blocked"
+    const val IMAGES_BANNER = "mail-read-images-banner"
+    const val LOAD_IMAGES = "mail-read-load-images"
+    const val ALWAYS_IMAGES = "mail-read-always-images"
     const val ATTACHMENTS = "mail-read-attachments"
     const val REPLY = "mail-read-reply"
     const val REPLY_ALL = "mail-read-reply-all"
@@ -143,7 +156,7 @@ fun MailReadContent(
         state.notice?.let { Notice(it) }
         val message = state.message
         when {
-            message != null -> Message(message, zone, body, callbacks.compose.takeUnless { state.busy })
+            message != null -> Message(message, zone, body, callbacks.takeUnless { state.busy })
             state.error != null -> Error(state.error, callbacks.retry)
         }
     }
@@ -206,6 +219,8 @@ private fun Notice(notice: MailReadNotice) {
                     MailGtdAction.WAITING -> stringResource(R.string.mail_read_waiting_failed)
                 }
             is MailReadNotice.ActionFailed -> actionFailed(notice)
+            MailReadNotice.ImagesFailed -> stringResource(R.string.mail_read_images_failed)
+            MailReadNotice.SenderNotSaved -> stringResource(R.string.mail_read_sender_not_saved)
         }
     val color = if (notice is MailReadNotice.Created) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
     Text(
@@ -268,7 +283,7 @@ private fun ColumnScope.Message(
     message: MailMessage,
     zone: ZoneId,
     body: @Composable (String, Modifier) -> Unit,
-    compose: ((ComposeMode) -> Unit)?,
+    callbacks: MailReadCallbacks?,
 ) {
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp).testTag(MailReadTags.HEADERS),
@@ -293,14 +308,9 @@ private fun ColumnScope.Message(
                 Modifier.testTag(MailReadTags.ATTACHMENTS),
             )
         }
-        if (message.remoteImagesBlocked > 0) {
-            HeaderLine(
-                pluralStringResource(R.plurals.mail_read_images_blocked, message.remoteImagesBlocked, message.remoteImagesBlocked),
-                Modifier.testTag(MailReadTags.IMAGES_BLOCKED),
-            )
-        }
     }
-    ReplyButtons(message.id, compose)
+    if (message.remoteImagesBlocked > 0) ImagesBanner(message, callbacks)
+    ReplyButtons(message.id, callbacks?.compose)
     HorizontalDivider()
     if (message.html.isNotBlank()) {
         body(message.html, Modifier.fillMaxWidth().weight(1f))
@@ -311,6 +321,48 @@ private fun ColumnScope.Message(
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.verticalScroll(rememberScrollState()).padding(16.dp).testTag(MailReadTags.TEXT),
             )
+        }
+    }
+}
+
+/**
+ * "N remote images were blocked." with "Load images" and, when the mail has a sender address, "Always for this
+ * sender"; the buttons wait while an action runs ([callbacks] `null`).
+ */
+@Composable
+private fun ImagesBanner(
+    message: MailMessage,
+    callbacks: MailReadCallbacks?,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).testTag(MailReadTags.IMAGES_BANNER),
+    ) {
+        Column(Modifier.padding(start = 12.dp, end = 4.dp, top = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.HideImage, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                Text(
+                    pluralStringResource(R.plurals.mail_read_images_blocked, message.remoteImagesBlocked, message.remoteImagesBlocked),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.testTag(MailReadTags.IMAGES_BLOCKED),
+                )
+            }
+            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(
+                    onClick = { callbacks?.loadImages?.invoke() },
+                    enabled = callbacks != null,
+                    modifier = Modifier.testTag(MailReadTags.LOAD_IMAGES),
+                ) { Text(stringResource(R.string.mail_read_load_images)) }
+                if (message.fromAddress != null) {
+                    TextButton(
+                        onClick = { callbacks?.alwaysLoadImages?.invoke() },
+                        enabled = callbacks != null,
+                        modifier = Modifier.testTag(MailReadTags.ALWAYS_IMAGES),
+                    ) { Text(stringResource(R.string.mail_read_always_images)) }
+                }
+            }
         }
     }
 }

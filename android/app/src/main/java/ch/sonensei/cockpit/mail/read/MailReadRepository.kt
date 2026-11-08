@@ -22,7 +22,10 @@ data class MailAttachment(
     val sizeBytes: Long?,
 )
 
-/** A message with its sanitized body (SPEC.md §7.3); remote images were removed by the server. */
+/**
+ * A message with its sanitized body (SPEC.md §7.3): remote images were removed by the server ([remoteImagesBlocked]
+ * counts them) or, when asked for, point to its image proxy.
+ */
 data class MailMessage(
     /** The current id: a message that moved resolves to its new copy. */
     val id: UUID,
@@ -37,6 +40,8 @@ data class MailMessage(
     val text: String,
     val remoteImagesBlocked: Int,
     val attachments: List<MailAttachment>,
+    /** The address of the (first) sender, for the per-sender image allowlist; `null` when it has none. */
+    val fromAddress: String? = null,
 )
 
 /** How the server answered an action on one mail: [ok], or refused with its [errorCode] (e.g. `NO_ROLE_FOLDER`). */
@@ -55,7 +60,11 @@ class MailReadRepository
     constructor(
         private val api: MailApi,
     ) {
-        suspend fun message(id: UUID): MailResult<MailMessage> = mailCall { mailBody(api.message(id.toString())).toMessage() }
+        /** The message [id]; with [proxyImages] its remote images point to the server's image proxy instead of being removed. */
+        suspend fun message(
+            id: UUID,
+            proxyImages: Boolean = false,
+        ): MailResult<MailMessage> = mailCall { mailBody(api.message(id.toString(), if (proxyImages) "PROXY" else null)).toMessage() }
 
         /** Creates an Inbox or Waiting For task from [id], linked to it; the result is the task's title. */
         suspend fun gtd(
@@ -102,6 +111,7 @@ private fun MailMessageDto.toMessage() =
             attachments
                 .filterNot { it.inline }
                 .map { MailAttachment(it.partId, it.filename?.takeIf { n -> n.isNotBlank() } ?: it.partId, it.sizeBytes) },
+        fromAddress = from.firstNotNullOfOrNull { it.address?.trim()?.takeIf { address -> address.isNotEmpty() } },
     )
 
 /** "Name <address>", or whichever of the two there is. */
