@@ -54,9 +54,11 @@ data class CapturePreview(
  * list. The first recognized `#`, `!` and `^` wins; contexts accumulate; unknown names stay text.
  */
 object CaptureSyntax {
-    private val TOKEN = Regex("""(^|\s)([#@!^])(\S+)""")
+    // Explicit ASCII whitespace instead of \s/\S: Android's ICU regex also counts Unicode spaces (e.g. U+00A0) as \s,
+    // the server's java.util.regex does not, and the preview must split tokens exactly like the server.
+    private val TOKEN = Regex("""(^|[ \t\n\u000B\f\r])([#@!^])([^ \t\n\u000B\f\r]+)""")
     private val SPACES = Regex("""[ \t]+""")
-    private val WHITESPACE = Regex("""\s+""")
+    private val WHITESPACE = Regex("""[ \t\n\u000B\f\r]+""")
     private val ISO_DATE = Regex("""\d{4}-\d{2}-\d{2}""")
     private const val TRAILING_PUNCTUATION = ".,;:!?)"
     private const val WAITING_KEYWORD = "waiting"

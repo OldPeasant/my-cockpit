@@ -5,6 +5,7 @@ import android.text.format.DateFormat
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -40,7 +41,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -275,24 +275,39 @@ private fun FileChip(
     enabled: Boolean,
     onRemove: ((Uri) -> Unit)?,
 ) {
-    InputChip(
-        selected = false,
-        onClick = { onRemove?.invoke(file.uri) },
-        enabled = enabled && onRemove != null,
-        label = { Text(file.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        leadingIcon = { Icon(Icons.AutoMirrored.Outlined.InsertDriveFile, contentDescription = null, Modifier.size(18.dp)) },
-        trailingIcon =
-            onRemove?.let {
-                {
+    // Only the trailing close button removes the file: the chip body has no action, so a stray tap cannot drop it.
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.widthIn(max = 240.dp).testTag(ShareTags.FILE),
+    ) {
+        Row(
+            Modifier.heightIn(min = 32.dp).padding(start = 8.dp, end = if (onRemove == null) 12.dp else 0.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.AutoMirrored.Outlined.InsertDriveFile, contentDescription = null, Modifier.size(18.dp))
+            Text(
+                file.name,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 8.dp).weight(1f, fill = false),
+            )
+            if (onRemove != null) {
+                IconButton(
+                    onClick = { onRemove(file.uri) },
+                    enabled = enabled,
+                    modifier = Modifier.size(48.dp).testTag(ShareTags.REMOVE_FILE),
+                ) {
                     Icon(
                         Icons.Outlined.Close,
                         contentDescription = stringResource(R.string.share_remove_attachment, file.name),
-                        modifier = Modifier.size(18.dp).testTag(ShareTags.REMOVE_FILE),
+                        modifier = Modifier.size(18.dp),
                     )
                 }
-            },
-        modifier = Modifier.widthIn(max = 240.dp).testTag(ShareTags.FILE),
-    )
+            }
+        }
+    }
 }
 
 /** What the capture syntax in the title will create, as quiet chips under it (SPEC.md §4.5). */

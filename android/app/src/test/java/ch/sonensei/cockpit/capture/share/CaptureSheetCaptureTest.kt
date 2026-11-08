@@ -291,7 +291,7 @@ class CaptureSheetCaptureTest {
     fun `attachments cannot be removed while saving`() {
         show(ShareUiState(text = "Holiday", files = listOf(beach), saving = true))
 
-        composeRule.onNodeWithTag(ShareTags.FILE).assertIsNotEnabled().performClick()
+        composeRule.onNodeWithTag(ShareTags.REMOVE_FILE, useUnmergedTree = true).assertIsNotEnabled().performClick()
 
         assertTrue(removed.isEmpty())
     }
@@ -302,7 +302,6 @@ class CaptureSheetCaptureTest {
 
         composeRule.onNodeWithText("beach.jpg").assertExists()
         composeRule.onAllNodesWithTag(ShareTags.REMOVE_FILE, useUnmergedTree = true).assertCountEquals(0)
-        composeRule.onNodeWithTag(ShareTags.FILE).assertIsNotEnabled()
     }
 
     // The confirmation toast of "save and add another"

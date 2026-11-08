@@ -10,7 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -69,12 +69,13 @@ class ShareActivity : ComponentActivity() {
 
 /**
  * Confirms each capture saved with "save and add another" ([ShareUiState.savedAndCleared] counts them), as closing the
- * sheet confirms a plain save. A recreated activity does not repeat the last confirmation.
+ * sheet confirms a plain save. A recreated activity does not repeat the last confirmation. The counter of shown
+ * confirmations is plain `remember`, not saveable: it must restart together with the ViewModel's count after process death.
  */
 @Composable
 fun SavedAndClearedToast(state: ShareUiState) {
     val context = LocalContext.current
-    var shown by rememberSaveable { mutableIntStateOf(state.savedAndCleared) }
+    var shown by remember { mutableIntStateOf(state.savedAndCleared) }
     LaunchedEffect(state.savedAndCleared) {
         if (state.savedAndCleared > shown) {
             shown = state.savedAndCleared
