@@ -26,7 +26,8 @@ Android cannot create a project (only inside inbox "To project → New") nor edi
   - verified (2026-11-08 12:29+0100 by dell26/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.projects.*' at 0a2ecdbf8 -> BUILD SUCCESSFUL; ProjectEditingTest/ProjectWorkRepository tests map 412/409/404 to CONFLICT with reload, ProjectsViewModelTest conflict-rebase tests (incl. CR-1 race test) and ProjectsScreenTest 'a form reloaded after a conflict says so', 'a project change refused because it changed elsewhere says it was reloaded' pass
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 12:29+0100 by dell26/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug at 2befbc9c0 (production code identical to final) -> exit 0, lint reports no MissingTranslation; values/ and values-de/strings_projects_lists.xml both have 106 string/plurals entries
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 12:34+0100 by dell26/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug at 2befbc9c0 -> exit 0; projects tests incl. 2 new ViewModel tests at 0a2ecdbf8 -> BUILD SUCCESSFUL (65 ProjectsViewModelTest cases); sh scripts/check.sh at 0a2ecdbf8 -> exit 0, 'all checks passed'
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
