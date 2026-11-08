@@ -3,8 +3,15 @@ package ch.sonensei.cockpit.files
 import ch.sonensei.cockpit.core.network.generated.apis.FilesApi
 import ch.sonensei.cockpit.core.network.generated.infrastructure.Serializer
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
+import mockwebserver3.RecordedRequest
 import okhttp3.MediaType.Companion.toMediaType
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -18,6 +25,7 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import java.time.Instant
 import java.util.UUID
 
 /** The drive calls against a fake server: what is asked, and how answers and refusals are reported. */
@@ -225,5 +233,151 @@ class FilesRepositoryTest {
             assertEquals(FilesResult.Failed(413), files.upload(null, Source("big.bin", ByteArray(10))))
             server.enqueue(status(201))
             assertEquals(FilesResult.Failed(null), files.upload(null, Source("gone.txt", null)))
+        }
+
+    private val file = DriveEntry.File(id(3), "2025.pdf", "application/pdf", 2048, Instant.parse("2026-10-02T09:00:00Z"), version = 7)
+    private val folder = DriveEntry.Folder(id(4), "Projects", null, version = 3)
+
+    private fun RecordedRequest.json() = Json.parseToJsonElement(body!!.utf8())
+
+    /** A created folder as the server answers it: a `FolderResponse`, which carries its path. */
+    private val createdJson = folderJson(5, "Taxes").replace("\"name\":\"Taxes\",", "\"name\":\"Taxes\",\"path\":\"/Documents/Taxes\",")
+
+    @Test
+    fun `a new folder is created in the folder with its trimmed name`() =
+        runBlocking {
+            server.enqueue(json(createdJson, code = 201))
+            assertEquals(FilesResult.Ok(DriveEntry.Folder(id(5), "Taxes", null, version = 1)), files.createFolder(id(9), "  Taxes "))
+            val request = server.takeRequest()
+            assertEquals("POST", request.method)
+            assertEquals("/api/v1/folders", request.url.encodedPath)
+            val body = request.json().jsonObject
+            assertEquals(JsonPrimitive("Taxes"), body["name"])
+            assertEquals(JsonPrimitive(id(9).toString()), body["parentId"])
+        }
+
+    @Test
+    fun `a new folder at the drive root sends no parent`() =
+        runBlocking {
+            server.enqueue(json(createdJson, code = 201))
+            assertTrue(files.createFolder(null, "Taxes") is FilesResult.Ok)
+            val parent = server.takeRequest().json().jsonObject["parentId"]
+            assertTrue("parentId was $parent", parent == null || parent == JsonNull)
+        }
+
+    @Test
+    fun `a taken folder name, a server error and a lost connection are told apart on create`() =
+        runBlocking {
+            server.enqueue(status(409))
+            assertEquals(FilesResult.Failed(409), files.createFolder(null, "Taxes"))
+            server.enqueue(status(503))
+            assertEquals(FilesResult.Offline, files.createFolder(null, "Taxes"))
+            server.enqueue(json("{nope", code = 201))
+            assertEquals(FilesResult.Failed(null), files.createFolder(null, "Taxes"))
+            server.close()
+            assertEquals(FilesResult.Offline, files.createFolder(null, "Taxes"))
+        }
+
+    @Test
+    fun `a file is renamed with a patch of its trimmed name and its version as If-Match`() =
+        runBlocking {
+            server.enqueue(json(fileJson(3, "2026.pdf")))
+            assertEquals(FilesResult.Ok(Unit), files.rename(file, " 2026.pdf "))
+            val request = server.takeRequest()
+            assertEquals("PATCH", request.method)
+            assertEquals("/api/v1/files/${id(3)}", request.url.encodedPath)
+            assertEquals("\"7\"", request.headers["If-Match"])
+            assertEquals(buildJsonObject { put("name", "2026.pdf") }, request.json())
+        }
+
+    @Test
+    fun `a folder is renamed through the folder endpoint`() =
+        runBlocking {
+            server.enqueue(status(204))
+            assertEquals(FilesResult.Ok(Unit), files.rename(folder, "Archive"))
+            val request = server.takeRequest()
+            assertEquals("PATCH", request.method)
+            assertEquals("/api/v1/folders/${id(4)}", request.url.encodedPath)
+            assertEquals("\"3\"", request.headers["If-Match"])
+            assertEquals(buildJsonObject { put("name", "Archive") }, request.json())
+        }
+
+    @Test
+    fun `a file moves with folderId, a folder with parentId`() =
+        runBlocking {
+            server.enqueue(json(fileJson(3, "2025.pdf")))
+            server.enqueue(json(folderJson(4, "Projects")))
+            assertEquals(FilesResult.Ok(Unit), files.move(file, id(9)))
+            assertEquals(FilesResult.Ok(Unit), files.move(folder, id(9)))
+
+            val fileRequest = server.takeRequest()
+            assertEquals("PATCH", fileRequest.method)
+            assertEquals("/api/v1/files/${id(3)}", fileRequest.url.encodedPath)
+            assertEquals("\"7\"", fileRequest.headers["If-Match"])
+            assertEquals(buildJsonObject { put("folderId", id(9).toString()) }, fileRequest.json())
+
+            val folderRequest = server.takeRequest()
+            assertEquals("/api/v1/folders/${id(4)}", folderRequest.url.encodedPath)
+            assertEquals("\"3\"", folderRequest.headers["If-Match"])
+            assertEquals(buildJsonObject { put("parentId", id(9).toString()) }, folderRequest.json())
+        }
+
+    @Test
+    fun `a move to the drive root sends an explicit null, not an empty patch`() =
+        runBlocking {
+            server.enqueue(status(204))
+            server.enqueue(status(204))
+            files.move(file, null)
+            files.move(folder, null)
+            assertEquals("""{"folderId":null}""", server.takeRequest().body!!.utf8())
+            assertEquals("""{"parentId":null}""", server.takeRequest().body!!.utf8())
+        }
+
+    @Test
+    fun `rename and move refusals keep their status, server errors and lost connections are offline`() =
+        runBlocking {
+            server.enqueue(status(409))
+            assertEquals(FilesResult.Failed(409), files.rename(file, "taken.pdf"))
+            server.enqueue(status(412))
+            assertEquals(FilesResult.Failed(412), files.rename(folder, "Archive"))
+            server.enqueue(status(404))
+            assertEquals(FilesResult.Failed(404), files.move(file, id(9)))
+            server.enqueue(status(409))
+            assertEquals(FilesResult.Failed(409), files.move(folder, id(9)))
+            server.enqueue(status(500))
+            assertEquals(FilesResult.Offline, files.move(file, null))
+            server.close()
+            assertEquals(FilesResult.Offline, files.rename(file, "x.pdf"))
+        }
+
+    @Test
+    fun `a file and a folder are moved to the Trash with their versions as If-Match`() =
+        runBlocking {
+            server.enqueue(status(204))
+            server.enqueue(status(204))
+            assertEquals(FilesResult.Ok(Unit), files.delete(file))
+            assertEquals(FilesResult.Ok(Unit), files.delete(folder))
+
+            val fileRequest = server.takeRequest()
+            assertEquals("DELETE", fileRequest.method)
+            assertEquals("/api/v1/files/${id(3)}", fileRequest.url.encodedPath)
+            assertEquals("\"7\"", fileRequest.headers["If-Match"])
+            val folderRequest = server.takeRequest()
+            assertEquals("DELETE", folderRequest.method)
+            assertEquals("/api/v1/folders/${id(4)}", folderRequest.url.encodedPath)
+            assertEquals("\"3\"", folderRequest.headers["If-Match"])
+        }
+
+    @Test
+    fun `a refused delete keeps its status, a server error is offline`() =
+        runBlocking {
+            server.enqueue(status(404))
+            assertEquals(FilesResult.Failed(404), files.delete(file))
+            server.enqueue(status(412))
+            assertEquals(FilesResult.Failed(412), files.delete(folder))
+            server.enqueue(status(409))
+            assertEquals(FilesResult.Failed(409), files.delete(folder))
+            server.enqueue(status(502))
+            assertEquals(FilesResult.Offline, files.delete(file))
         }
 }

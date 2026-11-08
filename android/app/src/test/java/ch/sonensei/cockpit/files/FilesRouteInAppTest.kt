@@ -4,15 +4,19 @@ import android.app.Activity
 import android.app.Application
 import android.content.Intent
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.testing.WorkManagerTestInitHelper
@@ -425,6 +429,77 @@ class FilesRouteInAppTest {
         composeRule.waitForIdle()
 
         coVerify(exactly = 0) { repo.upload(any(), any()) }
+    }
+
+    private fun back() = composeRule.runOnUiThread { (activity() as ComponentActivity).onBackPressedDispatcher.onBackPressed() }
+
+    @Test
+    fun `a long press selects inside a folder, and the system back ends the selection before it leaves the folder`() {
+        openFiles()
+        composeRule.onNodeWithTag(FilesTags.entry(docs.id)).performClick()
+        waitForTag(FilesTags.entry(inner.id))
+
+        composeRule.onNodeWithTag(FilesTags.entry(inner.id)).performTouchInput { longClick() }
+        waitForTag(FilesTags.SELECTION_BAR)
+        composeRule.onNodeWithTag(FilesTags.SELECTION_COUNT).assertTextEquals("1 selected")
+
+        back()
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithTag(FilesTags.SELECTION_BAR).fetchSemanticsNodes().isEmpty() }
+        composeRule.onNodeWithTag(FilesTags.entry(inner.id)).assertExists()
+        composeRule.onNodeWithTag(FilesTags.crumb(1)).assertExists()
+
+        back()
+        waitForTag(FilesTags.entry(pdf.id))
+        composeRule.onNodeWithTag(FilesTags.crumb(1)).assertDoesNotExist()
+    }
+
+    @Test
+    fun `moving a file to the Trash from its menu confirms it and reloads the folder`() {
+        coEvery { repo.delete(pdf) } returns FilesResult.Ok(Unit)
+        openFiles()
+        coEvery { repo.list(null) } returns FilesResult.Ok(listOf(docs))
+
+        composeRule.onNodeWithTag(FilesTags.more(pdf.id)).performClick()
+        composeRule.onNodeWithTag(FilesTags.DELETE).performClick()
+        composeRule.waitUntil(WAIT_MS) { ShadowToast.getTextOfLatestToast() != null }
+
+        assertEquals("Moved Steuern 2025.pdf to the Trash", ShadowToast.getTextOfLatestToast())
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithTag(FilesTags.entry(pdf.id)).fetchSemanticsNodes().isEmpty() }
+        coVerify(exactly = 1) { repo.delete(pdf) }
+    }
+
+    @Test
+    fun `a new folder is named in the dialog, created in the folder shown and confirmed`() {
+        val created = DriveEntry.Folder(id(8), "Belege", null)
+        coEvery { repo.createFolder(null, "Belege") } returns FilesResult.Ok(created)
+        openFiles()
+
+        composeRule.onNodeWithTag(FilesTags.NEW_FOLDER).performClick()
+        waitForTag(FilesTags.NAME_FIELD)
+        composeRule.onNodeWithTag(FilesTags.NAME_FIELD).performTextInput("Belege")
+        composeRule.onNodeWithTag(FilesTags.NAME_SAVE).performClick()
+        composeRule.waitUntil(WAIT_MS) { ShadowToast.getTextOfLatestToast() != null }
+
+        assertEquals("Created Belege", ShadowToast.getTextOfLatestToast())
+        composeRule.onNodeWithTag(FilesTags.NAME_DIALOG).assertDoesNotExist()
+        coVerify(exactly = 1) { repo.createFolder(null, "Belege") }
+    }
+
+    @Test
+    fun `a file is moved into a folder picked in the move picker`() {
+        coEvery { repo.move(pdf, docs.id) } returns FilesResult.Ok(Unit)
+        openFiles()
+
+        composeRule.onNodeWithTag(FilesTags.more(pdf.id)).performClick()
+        composeRule.onNodeWithTag(FilesTags.MOVE).performClick()
+        waitForTag(FilesTags.pickerFolder(docs.id))
+        composeRule.onNodeWithTag(FilesTags.pickerFolder(docs.id)).performClick()
+        waitForTag(FilesTags.pickerCrumb(1))
+        composeRule.onNodeWithTag(FilesTags.PICKER_MOVE).performClick()
+        composeRule.waitUntil(WAIT_MS) { ShadowToast.getTextOfLatestToast() != null }
+
+        assertEquals("Moved Steuern 2025.pdf", ShadowToast.getTextOfLatestToast())
+        coVerify(exactly = 1) { repo.move(pdf, docs.id) }
     }
 
     private companion object {
