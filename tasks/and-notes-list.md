@@ -1,12 +1,13 @@
 ---
 title: Android notes list: search, pin, archive, delete
-status: in_progress
-owner: rudi/agent-1
+status: todo
+owner: 
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/notes,android/app/src/test/java/ch/sonensei/cockpit/notes,android/app/src/main/res/values/strings_notes.xml,android/app/src/main/res/values-de/strings_notes.xml]
 prio: 2
-lease_until: 2026-11-08T16:38:30Z
-extended: rudi/agent-1
+lease_until: 
+extended: 
+releases: 1
 ---
 ## Goal
 Android notes have no search, pin, archive or archived view (web: `notes-page.html:6-50`, `note-card.ts`).
@@ -25,3 +26,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 16:12+0100 by rudi/agent-1): List query sends archived=true/false via a hand-written Retrofit method, because the generated ArchivedListNotes enum would be sent by its Kotlin name (TRUE)
 - ASSUMPTION (2026-11-08 16:48+0100 by rudi/agent-1): A pin/archive refused with 409/412 in the editor while there are no unsaved local edits shows the server's latest version with a 'Not changed' message instead of the Keep mine/Use theirs conflict banner (banner only when there are unsaved edits or the note was deleted); avoids overwriting another device's edit (review CR-4)
 - extended by rudi/agent-1: Implementation, review fixes (CR-1..CR-5) and the code re-review (cf600107, 0 P0-P2, 1 P3) are committed. Left: run test-writer on the final code to write reviews/and-notes-list/tests.md (with coverage), write quality.json, record verify for criteria 1-5, then done. sh scripts/check.sh fails in this sandbox only because Docker is unreachable (203 Testcontainers errors in server tests, no server code changed); the Android stage passes on its own. Run the check where Docker is available.
+- release by rudi/agent-1: Implementation, fixes for review CR-1..CR-5 and re-review CR-1 are committed; latest test-writer tests + second re-review committed in 7e90e382 (notes unit tests pass). Second re-review has 0 P0-P2, 1 P3: NotesListViewModel.kt:126 refresh() still sets searchMessage = null on list-load completion (remove it + test with repo.list held on a CompletableDeferred). Left: optionally fix that P3 via fixer (then re-run code-reviewer), run test-writer on final code to write reviews/and-notes-list/tests.md with coverage, write quality.json, verify criteria 1-5, done. sh scripts/check.sh only failed in this sandbox because Docker is unreachable (server Testcontainers); the Android stage passes.
