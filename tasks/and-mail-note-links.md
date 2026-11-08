@@ -14,7 +14,8 @@ Android only has To task / Waiting.
 ## Acceptance criteria
 - [x] "Create note" action from the read view (same server call as web)
   - verified (2026-11-08 21:23+0100 by dell26/agent-1): MailReadRepositoryTest 'create note posts to to-note' (POST /api/v1/mail/messages/{id}/to-note, same mailToNote endpoint as web) + MailReadNoteLinksTest/MailReadNoteViewModelTest (More menu > Create note calls gtd(NOTE), notices) via ./gradlew testDebugUnitTest at f2c4f9e82 -> pass
-- [ ] The read view shows `LinkedItemsPanel` (from and-links-panel) for the mail
+- [x] The read view shows `LinkedItemsPanel` (from and-links-panel) for the mail
+  - verified (2026-11-08 21:23+0100 by dell26/agent-1): MailReadRoute shows LinkedItemsSection(ItemRef(EMAIL, id)) in MailReadContent linksPanel slot below the body; MailReadNoteLinksTest panel-slot tests (shown below body, absent without mail/after error) via ./gradlew testDebugUnitTest -> pass; Hilt-only route wiring statically reviewed (no Hilt test harness)
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
