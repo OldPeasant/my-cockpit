@@ -103,7 +103,7 @@ class HabitsScreenTest {
         composeRule
             .onNodeWithTag(HabitsTags.habit(water.id))
             .assertIsOn()
-            .assertTextContains("Daily, 4-day streak, 75% of the last 30 days", substring = true)
+            .assertTextContains("Daily, 3× a day, 4-day streak, 75% of the last 30 days", substring = true)
     }
 
     @Test

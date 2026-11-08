@@ -80,7 +80,7 @@ class HabitsViewModelTest {
     fun `a tap checks a habit off and shows its new stats`() =
         runTest(dispatcher) {
             val checked = water.copy(doneToday = true, todayCount = 1, currentStreak = 1)
-            coEvery { repo.check(water, done = true) } returns HabitsResult.Ok(checked)
+            coEvery { repo.check(water) } returns HabitsResult.Ok(checked)
             val vm = HabitsViewModel(repo)
             runCurrent()
 
@@ -100,14 +100,14 @@ class HabitsViewModelTest {
         runTest(dispatcher) {
             val done = water.copy(doneToday = true, todayCount = 1, currentStreak = 4)
             coEvery { repo.list() } returns HabitsResult.Ok(listOf(done))
-            coEvery { repo.check(done, done = false) } returns HabitsResult.Ok(water.copy(currentStreak = 3))
+            coEvery { repo.check(done) } returns HabitsResult.Ok(water.copy(currentStreak = 3))
             val vm = HabitsViewModel(repo)
             runCurrent()
 
             vm.toggle(water.id)
             advanceUntilIdle()
 
-            coVerify(exactly = 1) { repo.check(done, done = false) }
+            coVerify(exactly = 1) { repo.check(done) }
             assertFalse(
                 vm.uiState.value.habits[0]
                     .doneToday,
@@ -118,7 +118,7 @@ class HabitsViewModelTest {
     fun `a second tap while the first is on its way is ignored`() =
         runTest(dispatcher) {
             val answer = CompletableDeferred<HabitsResult<Habit>>()
-            coEvery { repo.check(water, done = true) } coAnswers { answer.await() }
+            coEvery { repo.check(water) } coAnswers { answer.await() }
             val vm = HabitsViewModel(repo)
             runCurrent()
 
@@ -128,7 +128,7 @@ class HabitsViewModelTest {
             answer.complete(HabitsResult.Ok(water.copy(doneToday = true)))
             advanceUntilIdle()
 
-            coVerify(exactly = 1) { repo.check(any(), any()) }
+            coVerify(exactly = 1) { repo.check(any()) }
             assertTrue(
                 vm.uiState.value.habits[0]
                     .doneToday,
@@ -138,7 +138,7 @@ class HabitsViewModelTest {
     @Test
     fun `a failed check-off keeps the habit as it was and says why`() =
         runTest(dispatcher) {
-            coEvery { repo.check(water, done = true) } returnsMany listOf(HabitsResult.Offline, HabitsResult.Failed(400))
+            coEvery { repo.check(water) } returnsMany listOf(HabitsResult.Offline, HabitsResult.Failed(400))
             val vm = HabitsViewModel(repo)
             runCurrent()
 
@@ -185,8 +185,8 @@ class HabitsViewModelTest {
         runTest(dispatcher) {
             val waterAnswer = CompletableDeferred<HabitsResult<Habit>>()
             val stretchAnswer = CompletableDeferred<HabitsResult<Habit>>()
-            coEvery { repo.check(water, done = true) } coAnswers { waterAnswer.await() }
-            coEvery { repo.check(stretch, done = true) } coAnswers { stretchAnswer.await() }
+            coEvery { repo.check(water) } coAnswers { waterAnswer.await() }
+            coEvery { repo.check(stretch) } coAnswers { stretchAnswer.await() }
             val vm = HabitsViewModel(repo)
             runCurrent()
 
@@ -214,7 +214,7 @@ class HabitsViewModelTest {
             val renamed = water.copy(name = "Drink more water")
             val answer = CompletableDeferred<HabitsResult<Habit>>()
             coEvery { repo.list() } returnsMany listOf(HabitsResult.Ok(listOf(water, stretch)), HabitsResult.Ok(listOf(renamed)))
-            coEvery { repo.check(water, done = true) } coAnswers { answer.await() }
+            coEvery { repo.check(water) } coAnswers { answer.await() }
             val vm = HabitsViewModel(repo)
             runCurrent()
 
@@ -249,6 +249,6 @@ class HabitsViewModelTest {
             runCurrent()
             vm.toggle(id(9))
             advanceUntilIdle()
-            coVerify(exactly = 0) { repo.check(any(), any()) }
+            coVerify(exactly = 0) { repo.check(any()) }
         }
 }

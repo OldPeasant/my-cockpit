@@ -63,7 +63,7 @@ class HabitsRepositoryTest {
                 .baseUrl(server.url("/"))
                 .addConverterFactory(Serializer.kotlinxSerializationJson.asConverterFactory("application/json".toMediaType()))
                 .build()
-        habits = HabitsRepository(retrofit.create(HabitsApi::class.java))
+        habits = HabitsRepository(retrofit.create(HabitsApi::class.java), retrofit.create(HabitsWriteApi::class.java))
     }
 
     @After
@@ -97,13 +97,13 @@ class HabitsRepositoryTest {
         }
 
     @Test
-    fun `a check-off sends the target count for the server's today`() =
+    fun `a tap sends one more check for the server's today`() =
         runBlocking {
             server.enqueue(json(habitJson(1, target = 3, todayCount = 3, done = true, streak = 3)))
             val habit =
                 Habit(id(1), "Water", HabitSchedule.DAILY, null, emptyList(), 3, LocalDate.of(2026, 10, 21), 1, true, false, 2, false, 0.5)
 
-            val result = (habits.check(habit, done = true) as HabitsResult.Ok).value
+            val result = (habits.check(habit) as HabitsResult.Ok).value
 
             assertEquals(true, result.doneToday)
             assertEquals(3, result.currentStreak)
@@ -111,7 +111,7 @@ class HabitsRepositoryTest {
             assertEquals("PUT", request.method)
             assertEquals("/api/v1/habits/${id(1)}/checks/2026-10-21", request.url.encodedPath)
             assertEquals(
-                3,
+                2,
                 Json
                     .parseToJsonElement(request.body!!.utf8())
                     .jsonObject["count"]!!
@@ -120,13 +120,13 @@ class HabitsRepositoryTest {
         }
 
     @Test
-    fun `unchecking sends zero`() =
+    fun `a tap on a done habit sends zero`() =
         runBlocking {
             server.enqueue(json(habitJson(1)))
             val habit =
                 Habit(id(1), "Water", HabitSchedule.DAILY, null, emptyList(), 1, LocalDate.of(2026, 10, 21), 1, true, true, 3, false, 0.5)
 
-            habits.check(habit, done = false)
+            habits.check(habit)
 
             assertEquals(
                 0,

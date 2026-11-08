@@ -2,9 +2,11 @@
 <resources>
     <string name="habits_due_today">Due today</string>
     <string name="habits_not_due_today">Not due today</string>
-    <string name="habits_empty">No habits yet. Add them in the web app, then check them off here.</string>
+    <string name="habits_empty">No habits yet. Add one with New habit, then check it off here each day.</string>
+    <string name="habits_archived_empty">No archived habits. Archive a habit from its menu to pause it without losing its history.</string>
     <string name="habits_daily">Daily</string>
     <string name="habits_times_per_week">%1$d× a week</string>
+    <string name="habits_times_per_day">%1$d× a day</string>
     <plurals name="habits_streak_days">
         <item quantity="one">%1$d-day streak</item>
         <item quantity="other">%1$d-day streak</item>
@@ -13,12 +15,57 @@
         <item quantity="one">%1$d-week streak</item>
         <item quantity="other">%1$d-week streak</item>
     </plurals>
+    <plurals name="habits_best_days">
+        <item quantity="one">best %1$d day</item>
+        <item quantity="other">best %1$d days</item>
+    </plurals>
+    <plurals name="habits_best_weeks">
+        <item quantity="one">best %1$d week</item>
+        <item quantity="other">best %1$d weeks</item>
+    </plurals>
     <string name="habits_completion">%1$d%% of the last 30 days</string>
     <string name="habits_progress">today %1$d/%2$d</string>
+    <string name="habits_progress_state">%1$d of %2$d today</string>
     <string name="habits_load_offline">Can\'t reach the server, so your habits could not be loaded.</string>
     <string name="habits_load_failed">Your habits could not be loaded.</string>
     <string name="habits_check_offline">Not checked off: no connection.</string>
     <string name="habits_check_failed">Not checked off: the server refused the change.</string>
+    <string name="habits_archive_offline">Not changed: no connection.</string>
+    <string name="habits_archive_failed">Not changed: the server refused the change.</string>
+    <string name="habits_conflict">This habit was changed elsewhere, so the list was loaded again. Try again.</string>
     <string name="habits_retry">Retry</string>
     <string name="habits_dismiss">Dismiss</string>
+    <string name="habits_view_active">Habits</string>
+    <string name="habits_view_archived">Archived</string>
+    <string name="habits_new">New habit</string>
+    <string name="habits_menu">More for %1$s</string>
+    <string name="habits_edit">Edit</string>
+    <string name="habits_archive">Archive</string>
+    <string name="habits_unarchive">Unarchive</string>
+    <string name="habits_new_title">New habit</string>
+    <string name="habits_edit_title">Edit habit</string>
+    <string name="habits_field_name">Name</string>
+    <string name="habits_field_schedule">Repeat</string>
+    <string name="habits_schedule_daily">Daily</string>
+    <string name="habits_schedule_per_week">Per week</string>
+    <string name="habits_schedule_weekdays">Weekdays</string>
+    <string name="habits_field_times_per_week">Days a week</string>
+    <string name="habits_field_target">Times a day</string>
+    <string name="habits_field_reminder">Reminder</string>
+    <string name="habits_reminder_none">None</string>
+    <string name="habits_reminder_remove">Remove reminder</string>
+    <string name="habits_less">Fewer: %1$s</string>
+    <string name="habits_more">More: %1$s</string>
+    <string name="habits_problem_name">Give the habit a name.</string>
+    <string name="habits_problem_name_too_long">The name can have at most 200 characters.</string>
+    <string name="habits_problem_weekdays">Pick at least one day.</string>
+    <string name="habits_problem_times_per_week">Days a week must be between 1 and 7.</string>
+    <string name="habits_problem_target">Times a day must be between 1 and 1000.</string>
+    <string name="habits_save_offline">Not saved: no connection.</string>
+    <string name="habits_save_failed">Not saved: the server refused the change.</string>
+    <string name="habits_save_conflict">Not saved: this habit was changed elsewhere. Its latest version is loaded now; save again to overwrite it.</string>
+    <string name="habits_add">Add habit</string>
+    <string name="habits_save">Save</string>
+    <string name="habits_cancel">Cancel</string>
+    <string name="habits_ok">OK</string>
 </resources>

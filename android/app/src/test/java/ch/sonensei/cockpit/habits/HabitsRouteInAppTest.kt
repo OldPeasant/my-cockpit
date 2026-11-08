@@ -89,7 +89,7 @@ class HabitsRouteInAppTest {
 
     @Test
     fun `the Habits screen is the real list and a tap checks a habit off for today`() {
-        coEvery { repo.check(water, done = true) } returns
+        coEvery { repo.check(water) } returns
             HabitsResult.Ok(water.copy(todayCount = 1, doneToday = true, currentStreak = 3))
         scenario = ActivityScenario.launch(MainActivity::class.java)
         composeRule.onNode(hasText("More") and isSelectable()).performClick()
@@ -107,7 +107,7 @@ class HabitsRouteInAppTest {
             composeRule.onAllNodes(hasText("3-day streak", substring = true)).fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onNodeWithTag(HabitsTags.habit(water.id)).assertIsOn()
-        coVerify(exactly = 1) { repo.check(water, done = true) }
+        coVerify(exactly = 1) { repo.check(water) }
     }
 
     private companion object {
