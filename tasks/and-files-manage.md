@@ -1,11 +1,11 @@
 ---
 title: Android files: new folder, rename, move, delete
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/files,android/app/src/test/java/ch/sonensei/cockpit/files,android/app/src/main/res/values/strings_files.xml,android/app/src/main/res/values-de/strings_files.xml]
 prio: 2
-lease_until: 2026-11-08T13:36:04Z
+lease_until: 
 extended: 
 releases: 2
 ---
@@ -28,3 +28,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - release by rudi/agent-1: Implementation + fixes for first review (CR-1..CR-4) are committed (55032f4b); extra test-writer tests + second review.md committed (fef381d0). Second review: 0 P0-P2, 2 optional P3 (404 retry dead end in rename dialog/move picker; formatting in FilesScreen.kt:529-550). Left: (1) decide on P3s (fix via fixer or record as accepted in quality.json); (2) run test-writer to write reviews/and-files-manage/tests.md with coverage (still missing) and, if code changes, re-run code-reviewer; (3) run 'cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug' and 'sh scripts/check.sh' (earlier failed in unrelated server PageFetcherSizeLimitTests, possibly flaky); (4) tasks.py verify #1-4; (5) write+commit quality.json; (6) done.
 - release by rudi/agent-1: Implementation complete; first-review fixes CR-1..CR-4 committed (0f1dac63); second-review P3s (404 retry dead end in rename dialog/move picker, MovePickerDialog formatting) fixed in 6e1a635d by the parent worker, with tests in FilesViewModelTest; ktlintCheck + files unit tests pass. Left (quality gate only): (1) run test-writer on final code -> write reviews/and-files-manage/tests.md incl. coverage (still missing); (2) re-run code-reviewer on final code (review.md is stale since 6e1a635d); fixer only if new findings; (3) cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug and sh scripts/check.sh (earlier failure in unrelated server PageFetcherSizeLimitTests, possibly flaky); (4) tasks.py verify #1-4; (5) write+commit reviews/and-files-manage/quality.json (record that the P3 fixes in 6e1a635d were made by the parent, not the fixer); (6) done.
 - ASSUMPTION (2026-11-08 14:18+0100 by dell26/agent-1): Third-review P3s R3-CR-1 (picker stuck loading after a failed move when its load finished mid-move) and R3-CR-2 (new folder in a folder trashed elsewhere offers a futile retry) accepted without fix: rare, recoverable, no data loss; candidates for a follow-up polish task
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 69s on 6035078e4; criteria verified 4/4
