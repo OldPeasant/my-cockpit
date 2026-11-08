@@ -5,6 +5,7 @@ import ch.sonensei.cockpit.ui.navigation.CockpitDestination
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.UUID
 
 /** An item a reminder notification asked to open. */
 data class OpenItemRequest(
@@ -12,8 +13,8 @@ data class OpenItemRequest(
     val itemId: String,
 ) {
     /**
-     * Where the app shows the item. The Android app has no item detail screens yet, so this is the screen listing items
-     * of the type; tasks open in Next, where actionable tasks are.
+     * The screen listing items of the type the item is shown on; tasks open in Next, where actionable tasks are, with
+     * their detail screen ([taskId]) on top.
      */
     val destination: CockpitDestination
         get() =
@@ -30,6 +31,10 @@ data class OpenItemRequest(
                 "HABIT" -> CockpitDestination.Habits
                 else -> CockpitDestination.start
             }
+
+    /** The task to open in its detail screen, for a task reminder with a valid id. */
+    val taskId: UUID?
+        get() = if (itemType == "TASK") runCatching { UUID.fromString(itemId) }.getOrNull() else null
 }
 
 /**

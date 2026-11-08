@@ -103,7 +103,11 @@ internal fun CockpitShellFrame(
 
     LaunchedEffect(navController) {
         ReminderOpenRequests.requests.collect { request ->
-            if (request != null && ReminderOpenRequests.take(request)) navController.open(request.destination)
+            if (request != null && ReminderOpenRequests.take(request)) {
+                navController.open(request.destination)
+                // A task opens in its detail screen on top of Next, as when tapped there.
+                request.taskId?.let { navController.navigate(TaskRoutes.detail(it)) }
+            }
         }
     }
 
