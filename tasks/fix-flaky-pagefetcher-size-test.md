@@ -15,7 +15,8 @@ fetcher uses a 1 s timeout in the test; find out whether cancelling at the limit
 (production bug in `PageFetcher`) or whether the test's timeout is just too tight, and fix the cause.
 
 ## Acceptance criteria
-- [ ] Root cause found and fixed (PageFetcher or test), not just retried
+- [x] Root cause found and fixed (PageFetcher or test), not just retried
+  - verified (2026-11-08 23:45+0100 by dell26/agent-1): Root cause: HTTP/2 stream cancel at max-size on the shared client connection. Before: REPEATS=1000 -> 999 ok + 1 'UNREACHABLE (EOF reached while reading)' at fetch #509. Fix: HttpClient.version(HTTP_1_1) in PageFetcher (no retry). After: REPEATS=1000 -> 1000/1000 ok; new test asserts WireMock sees HTTP/1.1
 - [x] `cd server && ./gradlew test --tests '*PageFetcherSizeLimitTests*'` passes 10 runs in a row
   - verified (2026-11-08 23:45+0100 by dell26/agent-1): sh .tmp/loop.sh (cd server; 10x ./gradlew test --tests '*PageFetcherSizeLimitTests*' --rerun -q, REPEATS=200) at 85d491a81 -> passed 10/10
 - [ ] `sh scripts/check.sh` passes
