@@ -2552,6 +2552,58 @@ describe('TaskDetail', () => {
       expect(undo.completed).not.toHaveBeenCalled();
     });
 
+    it('does not complete when saving the changes first meets a 412', async () => {
+      await render();
+      await type('#td-title', 'Mine');
+      answer = ((previous) => (fn: unknown, params: Record<string, unknown>) => {
+        if (fn === updateTask) {
+          server = task({ title: 'Theirs', version: 4 });
+          return Promise.reject(new ApiError(412, 'Precondition Failed'));
+        }
+        return previous?.(fn, params);
+      })(answer);
+
+      await click(completeButton());
+
+      expect(callsOf(updateTask)).toHaveLength(1);
+      expect(callsOf(completeTask)).toHaveLength(0);
+      expect(text()).toContain(CONFLICT_MESSAGE);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Theirs');
+      expect(label(completeButton())).toBe('Complete');
+      expect(undo.completed).not.toHaveBeenCalled();
+    });
+
+    it('does not complete the new task when the editor switches during the save first', async () => {
+      let release!: () => void;
+      await render();
+      await type('#td-title', 'Mine');
+      answer = ((previous) => (fn: unknown, params: Record<string, unknown>) => {
+        if (fn === getTask && params['id'] === 't2') {
+          return Promise.resolve(task({ id: 't2', title: 'Water the plants', version: 7 }));
+        }
+        if (fn === updateTask) {
+          return new Promise((resolve) => {
+            release = () => resolve(task({ title: 'Mine', version: 2 }));
+          });
+        }
+        return previous?.(fn, params);
+      })(answer);
+
+      await click(completeButton());
+      host.id.set('t2');
+      await refresh();
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Water the plants');
+
+      release();
+      await refresh();
+
+      expect(callsOf(updateTask)).toHaveLength(1);
+      expect(callsOf(completeTask)).toHaveLength(0);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Water the plants');
+      expect(label(completeButton())).toBe('Complete');
+      expect(undo.completed).not.toHaveBeenCalled();
+    });
+
     it('on a 412 while completing says the task changed elsewhere and reloads it', async () => {
       hold.complete = () => {
         server = task({ title: 'Theirs', version: 4 });

@@ -152,3 +152,88 @@ Remaining unresolved findings:
 All validated findings fixed and validation passed.
 
 The test-writer's coverage numbers in `tests.md` are stale because the production code changed. Re-run the test-writer and code-reviewer on the final code.
+
+---
+
+# Fix Report - second round
+
+Date: 2026-11-08
+
+Task: web-task-actions - Web task detail: complete, delete, undo, Markdown notes
+
+Scope: current task. The approved findings are CR-1 and CR-2 from the second review in `reviews/web-task-actions/review.md`. CR-3 of the second review (duplicated Markdown styles) stays deferred by the parent worker and was not touched. Base 6871a30a6, HEAD 9f4905fcd. The changes are uncommitted in the working tree.
+
+## Fixed findings
+
+### CR-1 - Complete continues after a save that hit a 412, and completes the server's version (P2)
+
+Files changed:
+- `web/src/app/features/gtd/task-detail/task-detail.ts`
+- `web/src/app/features/gtd/task-detail/task-detail.spec.ts`
+
+Problem:
+With unsaved changes, `toggleDone` called `save()` and then checked only `dirty()`. A 412 makes `failed()` reload the task, which replaces the draft, so `dirty()` became false. Complete then went on, `act()` hid the conflict notice, and the server's version was completed.
+
+Fix:
+`save()` now resolves to a boolean: true only when it saved and the same task is still shown, false on every early return (nothing to save, invalid, busy, editor switched) and after a failure. `toggleDone` returns unless `save()` resolved to true. The existing `dirty()` check after the save stays, so edits typed while the save ran still stop the action as before. The other caller (`onKeydown`, `void this.save()`) and the template's submit binding are unaffected.
+
+Tests added (task-detail.spec.ts, "complete, reopen and delete"):
+- "does not complete when saving the changes first meets a 412": the PATCH answers 412 and the server holds a newer version. No `completeTask` call, the conflict notice shows, the form shows the reloaded title, the button still says Complete, no Undo is offered.
+
+Validation:
+- `npx ng test --watch=false --include='src/app/features/gtd/task-detail/task-detail.spec.ts'` - Pass (147 passed)
+
+### CR-2 - Complete can complete another task when the editor switches during the save before it (P2)
+
+Files changed:
+- `web/src/app/features/gtd/task-detail/task-detail.ts`
+- `web/src/app/features/gtd/task-detail/task-detail.spec.ts`
+
+Problem:
+`toggleDone` read `this.task()` again after `await this.save()` without checking the task id. If the editor switched to task B during the save, B (with a clean draft) got completed.
+
+Fix:
+`toggleDone` captures `this.taskId()` before saving and returns when it differs afterwards. `save()` also resolves to false when the switch happened during the save, so either check stops the action.
+
+Tests added:
+- "does not complete the new task when the editor switches during the save first": the PATCH of t1 is held, the editor switches to t2, then the PATCH answers. No `completeTask` call at all, t2 is shown unchanged with Complete, no Undo is offered.
+
+Validation:
+- `npx ng test --watch=false --include='src/app/features/gtd/task-detail/task-detail.spec.ts'` - Pass (147 passed)
+
+## Not fixed
+
+### CR-3 (second review) - The Markdown styles for notes duplicate the project description styles
+
+Status:
+Out of scope
+
+Reason:
+Deferred by the parent worker (same as CR-4 of the first review). No change was made.
+
+## Validation summary
+
+Focused tests (from `web/`):
+- `npx ng test --watch=false --include='src/app/features/gtd/task-detail/task-detail.spec.ts'` - Pass, 147 passed
+- Regression check: with the old guard (`await this.save(); if (this.dirty()) return;`) temporarily restored, both new tests fail (2 failed, 145 passed). The fixed file was then restored and the spec passes again.
+
+Full test suite:
+- `npx ng test --watch=false` (web) - Pass, 190 files, 4428 tests
+
+Lint/type-check/build:
+- `npx eslint --max-warnings=0` on `task-detail.ts` and `task-detail.spec.ts` - Pass
+- `npx prettier --check` on the same two files - Pass
+- `npx tsc -p tsconfig.app.json --noEmit` and `npx tsc -p tsconfig.spec.json --noEmit` - Pass
+- `npm run check` (full web check incl. build) - Not run; left for the parent worker
+
+`.taskcheck`:
+- Not run. `sh scripts/check.sh` includes the Gradle server and Android checks, which the parent worker runs.
+
+Remaining unresolved findings:
+0 of the approved findings. CR-3 of the second review is deferred by decision.
+
+## Final status
+
+All validated findings fixed and validation passed.
+
+The production code changed after the second review, so the test-writer and code-reviewer must run again on the final code.

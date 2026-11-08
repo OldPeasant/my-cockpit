@@ -307,8 +307,9 @@ export class TaskDetail {
   async toggleDone(): Promise<void> {
     if (this.busy() || !this.task()) return;
     if (this.dirty()) {
-      await this.save();
-      if (this.dirty()) return;
+      const id = this.taskId();
+      // Stop when the save failed (a conflict reloads the task) or the editor switched tasks.
+      if (!(await this.save()) || id !== this.taskId() || this.dirty()) return;
     }
     const task = this.task();
     if (!task) return;
@@ -460,12 +461,15 @@ export class TaskDetail {
     void this.save();
   }
 
-  /** Saves the form: a move (list, tickler) if needed, then a PATCH of the changed fields. */
-  async save(): Promise<void> {
+  /**
+   * Saves the form: a move (list, tickler) if needed, then a PATCH of the changed fields. Resolves to
+   * true only when it saved and the task is still shown.
+   */
+  async save(): Promise<boolean> {
     const task = this.task();
     const draft = this.draft();
     if (!task || !draft || this.busy() || !this.valid() || !this.dirty()) {
-      return;
+      return false;
     }
     this.saving.set(true);
     this.saveError.set(null);
@@ -480,7 +484,7 @@ export class TaskDetail {
       const patch = patchFor(current, draft);
       if (Object.keys(patch).length) current = await this.service.update(current, patch);
       // The editor switched to another task meanwhile: the save stays done, the form is not ours.
-      if (task.id !== this.taskId()) return;
+      if (task.id !== this.taskId()) return false;
       this.task.set(current);
       // Edits made while the save ran stay: they are compared with the saved version now.
       if (this.draft() === draft) {
@@ -488,12 +492,14 @@ export class TaskDetail {
         this.editingNotes.set(false);
       }
       this.flashSaved();
+      return true;
     } catch (error) {
       // Neither the result nor a conflict reload of the previous task belongs to the new one.
-      if (task.id !== this.taskId()) return;
+      if (task.id !== this.taskId()) return false;
       // A move that went through stays: the next save starts from it.
       this.task.set(current);
       await this.failed(error);
+      return false;
     } finally {
       this.saving.set(false);
     }
