@@ -523,6 +523,10 @@ Last weekly review.
   6. Notes (view/edit Markdown, add photo from camera/gallery).
   7. Files (browse, download/open, upload), Contacts (view, call/mail intents).
   8. Bookmarks, journal, habits (check-off), weekly review (read-only first).
+- Beyond v1 (owner decision 2026-11-08, `docs/PARITY.md`): Android reaches parity with the web for everything used
+  day to day (project management, full task detail, mail actions and attachments, notes, files, contacts editing,
+  journal, habits editing, full weekly review). Account and admin setup (mail accounts, calendar sources, CardDAV,
+  backup/restore, first-run setup, devices, GTD contexts/areas) stays web-only; Android uses those settings.
 - Notifications: reminders via AlarmManager (exact alarms permission), new-mail summary from
   periodic sync.
 

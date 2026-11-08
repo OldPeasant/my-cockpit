@@ -1,0 +1,20 @@
+---
+title: Android compose: recipient autocomplete, attach from Files
+status: todo
+owner:
+deps: []
+touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/compose,android/app/src/test/java/ch/sonensei/cockpit/mail/compose,android/app/src/main/res/values/strings_mail_compose.xml,android/app/src/main/res/values-de/strings_mail_compose.xml]
+prio: 2
+---
+## Goal
+Android compose has plain recipient fields and can only attach device files; web suggests contacts and recent
+correspondents (`recipient-input.ts`, `GET /api/v1/mail/correspondents`) and attaches from cockpit Files.
+
+## Acceptance criteria
+- [ ] To/Cc/Bcc suggest contacts and recent correspondents while typing; chosen recipients shown as chips
+- [ ] "Attach from Files" opens a cockpit Files picker
+- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+
+## Notes
+Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.

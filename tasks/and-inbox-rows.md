@@ -1,0 +1,20 @@
+---
+title: Android: inbox and New view rows complete and open tasks
+status: todo
+owner:
+deps: []
+touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/inbox,android/app/src/test/java/ch/sonensei/cockpit/gtd/inbox,android/app/src/main/java/ch/sonensei/cockpit/newitems,android/app/src/test/java/ch/sonensei/cockpit/newitems,android/app/src/main/res/values/strings_inbox.xml,android/app/src/main/res/values-de/strings_inbox.xml,android/app/src/main/res/values/strings_new.xml,android/app/src/main/res/values-de/strings_new.xml]
+prio: 1
+---
+## Goal
+Android inbox list rows have no checkbox and no click (`InboxScreen.kt:234-240`); the New view opens a task in a
+read-only sheet (`NewScreen.kt:488-536`) although SPEC.md §5.3 says it opens the task detail.
+
+## Acceptance criteria
+- [ ] Inbox list rows have a complete checkbox (with the existing undo snackbar from Next) and tapping a row opens task detail
+- [ ] A task row in the New view opens task detail (back returns to New with its filter and scroll position); the read-only `NewTaskView` is removed
+- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+
+## Notes
+Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
