@@ -14,7 +14,8 @@ Android can add bookmarks only through the share sheet and has no snapshot reade
 `bookmark-reader.html`). SPEC.md §4.5 also wants bookmark → Inbox task (neither client has it).
 
 ## Acceptance criteria
-- [ ] "Add bookmark" in the screen (URL, optional title/tags, read later)
+- [x] "Add bookmark" in the screen (URL, optional title/tags, read later)
+  - verified (2026-11-08 19:12+0100 by dell26/agent-3): BookmarksAddReaderViewModelTest + BookmarksAddReaderScreenTest (add dialog: URL, optional title/tags, read later, server field errors) via cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL, 4387 tests 0 failures (161 bookmarks tests)
 - [ ] Toggle read-later on an existing bookmark
 - [ ] Snapshot reader view (server snapshot)
 - [ ] "To Inbox task" action
