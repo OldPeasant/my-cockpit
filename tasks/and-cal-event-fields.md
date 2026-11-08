@@ -24,7 +24,8 @@ The Android event editor lacks reminders, attendees, sending invitations, time z
   - verified (2026-11-08 15:28+0100 by dell26/agent-2): and-links-panel not done -> read-only list; EventEditorViewModelExtrasTest links load/race + create task/note then link, EventExtrasRepositoryTest links/task/note, EventEditorExtrasScreenTest links panel: cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL, 3614 tests 0 failures (aa03d8eb)
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 15:28+0100 by dell26/agent-2): CalendarEditStringsTest (EN/DE keys equal, 4 tests) + lintDebug MissingTranslation clean: cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL (aa03d8eb)
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 15:30+0100 by dell26/agent-2): 34 task tests (5 classes in calendar/edit, 2 added by test-writer), JaCoCo task-scoped 97.7% instr / 89.9% branch; cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL 3614 tests 0 failures; sh scripts/check.sh at 29785efa -> all checks passed
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
