@@ -24,7 +24,8 @@ save to Files (`mail-read-page.html:219-279`, server `mail-attachment-to-files`)
   - verified (2026-11-08 15:25+0100 by rudi/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug at 6569b8ae -> pass; MailAttachmentsViewModelTest/RouteTest/GermanTest: Save to Files stores via server into /Attachments/Mail, folder picker, then PATCH folderId to the picked folder; failed move keeps the file and says so
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 15:25+0100 by rudi/agent-1): android/gradlew -p android lintDebug at 6569b8ae -> pass (MissingTranslation enforced); strings_mail.xml en/de have matching keys; MailAttachmentsGermanTest (12 tests) renders the German texts -> pass
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 15:39+0100 by rudi/agent-1): Tests: 280 mail.read tests incl. new MailAttachments*Test (Robolectric/Compose) -> pass; android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug at 6569b8ae -> pass; sh scripts/check.sh (12 min on this machine) -> fails only in server PageFetcherSizeLimitTests (bookmarks, untouched by this task, reproduces on main here; tracked as fix-flaky-pagefetcher-size-test); done re-runs the check
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
