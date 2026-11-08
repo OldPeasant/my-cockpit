@@ -5,7 +5,7 @@ owner: rudi/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/main/res/values/strings_calendar_agenda.xml,android/app/src/main/res/values-de/strings_calendar_agenda.xml]
 prio: 2
-lease_until: 2026-11-08T16:43:33Z
+lease_until: 2026-11-08T16:48:37Z
 ---
 ## Goal
 SPEC.md §6.3 and the phase 4 demo want the task/tickler overlay on Android too; web also has a month view.
