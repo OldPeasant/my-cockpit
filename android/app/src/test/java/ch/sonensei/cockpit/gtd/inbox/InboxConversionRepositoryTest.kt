@@ -23,6 +23,7 @@ import ch.sonensei.cockpit.gtd.task.TargetCalendar
 import ch.sonensei.cockpit.gtd.task.TaskConverter
 import io.mockk.coEvery
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -234,5 +235,15 @@ class InboxConversionRepositoryTest {
         assertNull(runBlocking { repository(unreachable).calendars() })
 
         assertFalse(gtd.connectivity.offline.value)
+    }
+
+    @Test
+    fun `a cancelled load of the calendars stays cancelled instead of reporting a failure`() {
+        // A newer prompt cancels the older load: it must not answer "could not be loaded" into the newer prompt.
+        val cancelled = mockk<CalendarsApi> { coEvery { listCalendars() } throws CancellationException("a newer load started") }
+
+        val thrown = runCatching { runBlocking { repository(cancelled).calendars() } }.exceptionOrNull()
+
+        assertTrue("$thrown", thrown is CancellationException)
     }
 }

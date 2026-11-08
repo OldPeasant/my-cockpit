@@ -343,6 +343,27 @@ class InboxConvertViewModelTest {
             assertNull(vm.uiState.value.converted)
         }
 
+    // TEMP-COVERAGE-RUN @Test
+    fun `an older conversion answering last does not replace where the newer one went`() =
+        test { vm ->
+            // The first item leaves the queue at once, so the second can be converted before the first one answers.
+            val older = CompletableDeferred<ProcessResult>()
+            val newer = CompletableDeferred<ProcessResult>()
+            val passport = ConvertedItem(ConvertedType.EVENT, id(72), "Renew passport", LocalDate.of(2026, 10, 22))
+            coEvery { inbox.process(first, any(), any()) } coAnswers { older.await() }
+            coEvery { inbox.process(second, any(), any()) } coAnswers { newer.await() }
+            vm.startProcessing()
+            vm.choose(first.id, InboxActionKind.REFERENCE)
+            assertEquals(second, vm.uiState.value.current)
+            vm.choose(second.id, InboxActionKind.REFERENCE)
+
+            newer.complete(ProcessResult.Converted(passport))
+            assertEquals(passport, vm.uiState.value.converted)
+            older.complete(ProcessResult.Converted(note))
+
+            assertEquals(passport, vm.uiState.value.converted)
+        }
+
     @Test
     fun `a later plain action keeps the converted item until it was shown`() =
         test { vm ->
