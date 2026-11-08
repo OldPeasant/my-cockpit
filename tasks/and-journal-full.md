@@ -23,7 +23,8 @@ and "on this day" (`journal-page.html`).
   - verified (2026-11-08 21:12+0100 by rudi/agent-1): cd android && ./gradlew testDebugUnitTest (Robolectric Compose + VM tests, JVM; no device here): JournalDaysViewModelTest on-this-day cases, JournalLateAnswersViewModelTest(8, incl. loading state), JournalDaysScreenStatesTest -> all pass
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 21:12+0100 by rudi/agent-1): JournalGermanTest(2) + JournalLocaleScreenTest(1) under de locale -> pass; every new key in values/strings_journal.xml and values-de/strings_journal.xml; lintDebug (MissingTranslation) -> pass
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [~] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - skipped (2026-11-08 21:12+0100 by rudi/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL, 4584 tests 0 failures; sh scripts/check.sh tfp android -> all checks passed. Full sh scripts/check.sh can't pass on this machine: server part needs Docker (Testcontainers: 'Could not find a valid Docker environment', 424/3068 fail) and web part needs Node >=22 (have v20.9.0). Task changes only android/.
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
