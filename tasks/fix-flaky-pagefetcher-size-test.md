@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/bookmarks,server/src/main/kotlin/ch/sonensei/cockpit/bookmarks]
 prio: 2
-lease_until: 2026-11-08T23:09:44Z
+lease_until: 2026-11-08T23:14:27Z
 releases: 1
 extended: 
 ---
