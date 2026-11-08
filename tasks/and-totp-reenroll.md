@@ -18,3 +18,4 @@ After a passphrase-less restore the server forces TOTP re-enrollment; web has a 
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 23:05+0100 by dell26/agent-1): Android opens the web enrollment page (<server>/enroll-totp, which asks for the web login first) instead of enrolling natively: the server refuses device tokens with 403 until TOTP is re-enrolled and the enrollment endpoints need a web session cookie, so a native flow would need server changes outside this task's touches
