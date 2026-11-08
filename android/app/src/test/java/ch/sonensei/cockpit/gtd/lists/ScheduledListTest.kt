@@ -4,9 +4,16 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -21,6 +28,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -110,4 +118,57 @@ class ScheduledListTest {
         composeRule.onNodeWithTag(LiveListTags.STALE).assertIsDisplayed()
         composeRule.onNodeWithTag(TaskListTags.complete(dentist.id)).assertIsNotEnabled()
     }
+
+    @Test
+    fun `tasks on the same date share one header, which is a heading with the full date`() {
+        show(loaded)
+        val later = today.plusDays(10)
+        composeRule.onAllNodesWithTag(ScheduledTags.day(later)).assertCountEquals(1)
+        composeRule.onNodeWithTag(ScheduledTags.day(later)).assertTextEquals("Friday, October 30, 2026")
+        composeRule.onNodeWithTag(ScheduledTags.day(later)).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
+        composeRule.onNodeWithTag(TaskListTags.row(tyres.id)).assertIsDisplayed()
+        composeRule.onNodeWithTag(TaskListTags.row(plants.id)).assertIsDisplayed()
+        composeRule.onAllNodesWithTag(ScheduledTags.NO_DATE).assertCountEquals(1)
+    }
+
+    @Test
+    fun `rows have no extra action button`() {
+        show(loaded)
+        listOf(dentist, tax, tyres, plants, loose).forEach { task ->
+            composeRule.onNodeWithTag(LiveListTags.action(task.id)).assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun `a busy task cannot be completed again`() {
+        show(loaded.copy(busy = setOf(tax.id)))
+        composeRule.onNodeWithTag(TaskListTags.complete(tax.id)).assertIsNotEnabled()
+        composeRule.onNodeWithTag(TaskListTags.complete(dentist.id)).assertIsEnabled()
+    }
+
+    @Test
+    fun `loading, then a first load error with retry`() {
+        show(TaskListUiState(today = today))
+        composeRule.onNodeWithTag(LiveListTags.LOADING).assertIsDisplayed()
+        state = TaskListUiState(loading = false, error = LoadError.OFFLINE, today = today)
+        composeRule.onNodeWithTag(LiveListTags.ERROR).assertIsDisplayed()
+        composeRule.onNodeWithTag(LiveListTags.RETRY).performClick()
+        assertEquals(listOf("retry"), calls)
+    }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `german day headers and empty state`() {
+        show(loaded.copy(tasks = listOf(late(), dentist, tax, loose)))
+        composeRule.onNodeWithText("Gestern").assertIsDisplayed()
+        composeRule.onNodeWithText("Heute").assertIsDisplayed()
+        composeRule.onNodeWithText("Morgen").assertIsDisplayed()
+        composeRule.onNodeWithText("Kein Datum").assertIsDisplayed()
+        state = TaskListUiState(loading = false, loaded = true, today = today)
+        composeRule
+            .onNodeWithText("Nichts geplant. Plane einen Eingangseintrag ein, damit er an diesem Datum unter „Nächste“ erscheint.")
+            .assertIsDisplayed()
+    }
+
+    private fun late() = GtdTask(id(6), "Return parcel", TaskList.SCHEDULED, 5, 1, scheduledDate = today.minusDays(1))
 }
