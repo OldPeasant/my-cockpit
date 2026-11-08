@@ -20,3 +20,4 @@ Android's capture sheet has neither and can only attach files that came from a s
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 17:53+0100 by dell26/agent-3): Syntax preview on Android uses a Kotlin port of the server's CaptureParser (capture/share/CaptureSyntax.kt) fed by the offline GTD cache (cached_project/cached_context, server's status order); a project/context created since the last GTD refresh is not shown as a chip though the server will recognize it. Web uses the server preview endpoint instead.
