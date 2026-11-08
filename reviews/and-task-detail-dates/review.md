@@ -4,31 +4,60 @@ Date: 2026-11-08
 
 Task: and-task-detail-dates - Android task detail: scheduled, tickler, recurrence, all lists
 
-Scope: `git diff 0a78a3fc..HEAD` (task commits 24fd02be, efe2d9e2, 17fe0466, 40c88f43, e95f8a12), committed changes only; Android code under `android/app/src/main/java/ch/sonensei/cockpit/gtd/task`, its tests, `res/values{,-de}/strings_task_detail.xml`
+Scope: all task commits `53345f25..0f8ca9e7a` (8 commits, deeea8918..0f8ca9e7a), limited to
+`android/app/src/main/java/ch/sonensei/cockpit/gtd/task`, `android/app/src/test/java/ch/sonensei/cockpit/gtd/task`
+and `android/app/src/main/res/values{,-de}/strings_task_detail.xml`. Committed changes only; the working tree was clean.
 
 Requirements:
-- tasks/and-task-detail-dates.md (acceptance criteria and recorded assumptions)
-- SPEC.md, docs/ARCHITECTURE.md, AGENTS.md project notes (conventions)
-- Server contract: `TaskService.move` / `update` validation (server/src/main/kotlin/ch/sonensei/cockpit/gtd/domain/TaskService.kt), `TaskRecurrence.problem`, `ChecklistService` position update
-- Web parity reference: web/src/app/features/gtd/task-detail/recurrence.ts, task-draft.ts
+- `tasks/and-task-detail-dates.md` acceptance criteria 1-6 and the four recorded assumptions (scheduled date coupled to
+  the SCHEDULED list; save = one move then a PATCH, Waiting needs a person, waiting-since only editable when already
+  waiting; presets with INTERVAL plus custom rule as text with a FREQ check; long-press row drag plus Move up/down actions)
+- `AGENTS.md` project notes and conventions, `docs/QUALITY.md` report contract
+- Server contract checked against `server/.../gtd/domain/TaskService.kt` (`move`) and `ChecklistService.kt` (position update)
+- Previous review of this task (earlier revision), finding CR-1 (INTERVAL above 999 blocks saving)
 
 Git range:
 - Branch: main
-- HEAD: e95f8a12543526e547254b3ac47c0ba67962032b
-- Base/start: 0a78a3fcba636583c679aa13acb93cc6a1580d96
-- Commits reviewed: 5
+- HEAD: 0f8ca9e7a81cd32e9c407923f2100b94cb07c8c7
+- Base/start: 53345f2560dd5dd55d2ae7936bdbbe70f7f5dda8
+- Commits reviewed: 8
 
-Summary: 0 P0, 0 P1, 0 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-## Verification notes
+## Verification of the previous finding
 
-- Previous review (revision 801e378d): CR-1 is fixed. `pointerInput(item.id, index, last, enabled)` in TaskDetailScreen.kt now restarts the gesture when the checklist size changes, and a regression test was added ("after an item is added, dragging an earlier item past the bottom lands it on the new last place"). CR-2 is fixed too: `TaskDraft` no longer has the `@Suppress("LongParameterList")` annotation.
-- AC1: `DateField` (TaskDetailListFields.kt) has quick chips for Tomorrow / In a week / In a month, a date picker and a clear button, for both the scheduled date and the tickler. Scheduled date and the SCHEDULED list are linked (`TaskDraft.scheduledOn`/`onList`). This matches the server rule that `scheduledDate` is only allowed on SCHEDULED, and it is recorded as an assumption. Every move resends the tickler, because `TaskService.move` clears a tickler it does not receive. A past tickler on a move is caught client-side (`FieldProblem.NotFuture`), the same check as the server's "must be in the future".
-- AC2: all five lists are offered. A list or tickler change goes through `/move` (`relist`) and then a PATCH on the moved version. A move to WAITING carries the person. Waiting-since can be patched only for a task already on WAITING (the server sets today on a move to WAITING). If the PATCH is refused after a successful move, the moved task stays in state, so saving again does not move the task twice (tested).
-- AC3: the presets are none, daily, weekdays, weekly, monthly, yearly and custom, with an interval (INTERVAL=n) and FIXED/AFTER_COMPLETION. Any other rule comes back unchanged as custom text. `sameAs` normalises the rule, so an unchanged rule sends no PATCH. The mode is sent as null when there is no rule (the server needs rule and mode together). Custom rules are sent normalised, the same way as the web's `normalizeRule`.
-- AC4: rows are dragged by whole rows after a long press, and the Move up / Move down custom accessibility actions only appear where the item can move. Positions are saved as 0..n with each item's own version. Because the server sets positions directly, saving each item one after another is correct. A refused update stops the loop and the checklist is reloaded from the server.
-- AC5: every key added to `values/strings_task_detail.xml` also exists in `values-de/strings_task_detail.xml`, plurals included (compared from the diff).
-- AC6: tests cover the draft rules, the move/patch order and its failure paths, repeat parsing and writing, the Compose list, date and repeat fields, the accessibility actions and dragging. `python tasks.py verify and-task-detail-dates` shows no criterion recorded yet. Before `done`, the parent must record the runs of `./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` (gradle was not run in this review, as instructed).
+- Previous CR-1 (P3, preset rule with INTERVAL above 999 made the task unsaveable): fixed in aef1e37b7.
+  `RepeatDraft.of` (`TaskRepeat.kt:84`) now accepts only `INTERVAL` in `1..MAX_INTERVAL` as a preset and keeps any other
+  value as a custom rule, so `problem()` no longer flags the unchanged rule and the editor shows it as text.
+  `TaskRepeatTest` covers the boundary on both sides (`INTERVAL=999` stays a DAILY preset, `INTERVAL=1000` becomes
+  custom with the original text and mode).
+
+## What was checked
+
+- Correctness of the form model (`TaskDraft.onList`, `scheduledOn`, `problems`, `move`, `patch(task, recurrence)`): the
+  move always resends the tickler (the server clears an omitted one), sends `scheduledDate` only for SCHEDULED and
+  `waitingForText` only for WAITING, matching `TaskService.move` validation; the PATCH only sends list-bound fields
+  while the moved task is on that list; recurrence is compared by normalized rule and mode, so a rule like
+  `FREQ=DAILY;INTERVAL=01` causes no spurious PATCH.
+- Save flow in `TaskDetailViewModel.save`: a successful move updates `detail` before the PATCH, so a refused PATCH
+  leaves a consistent screen and a retry does not repeat the move; failures end `busy` through `refused`/`afterRefusal`;
+  `busy` blocks double submits.
+- Checklist reorder: `reordered` clamps the target, `moveChecklistItem` saves only changed positions sequentially
+  (the server sets `position` without shifting siblings, so per-item versions stay valid), and reloads the checklist
+  from the server on success and failure. Drag gesture keys include index, size and enabled state; accessibility
+  actions are offered only where a move is possible and only when editable.
+- Display: `repeatText` renders presets and intervals with plurals, custom rules verbatim, and the mode.
+- Strings: all 35 new keys (30 strings, 5 plurals) exist in both `values/` and `values-de/` with matching format
+  arguments.
+- No secrets, logging of note contents, or unsafe input handling introduced.
+
+Command run:
+- `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.task.*'` -> 12 suites, 223 tests,
+  0 failures, 0 errors, 0 skipped.
+
+Note for the parent worker (not a code finding): `python tasks.py verify and-task-detail-dates` still shows all six
+criteria unrecorded; record the evidence before `done`. Criterion 6 names `ktlintCheck`, `lintDebug` and
+`sh scripts/check.sh`, which this review did not run.
 
 ## P0 Critical
 
@@ -44,12 +73,7 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | An existing preset rule with INTERVAL above 999 blocks every save of the task**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/task/TaskRepeat.kt:84`
-    - Category: Correctness
-    - Problem: `RepeatDraft.of` reads any `INTERVAL >= 1` as a preset (for example `FREQ=WEEKLY;INTERVAL=1000` becomes WEEKLY with interval "1000"). `problem()` (line 62) refuses intervals outside 1..999, and `TaskDraft.problems()` always runs `repeat.problem()`, even when the repeat was not touched. The server accepts such a rule (`TaskRecurrence.problem` only parses it), and the web's custom-rule editor lets a user enter one.
-    - Why it matters: on Android, such a task cannot be edited at all (title, dates, list) until the user changes or removes its repeat. The interval field also cuts input to 3 digits, so the value it shows cannot be kept.
-    - Suggested fix: in `RepeatDraft.of`, return the custom draft when the interval is above `MAX_INTERVAL`, so the rule is kept as custom text. Alternatively, skip the interval check when the repeat is unchanged from the loaded one. Add a `TaskRepeatTest` case.
+None.
 
 ## Review conclusion
 

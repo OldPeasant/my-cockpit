@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "task": "and-task-detail-dates",
+  "reviewed_revision": "76244b1ec09446895c54fd4efbd98e25dbea438f",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-task-detail-dates/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-task-detail-dates/review.md"},
+    "fixer": {"status": "not_required", "reason": "The final test report and review contain no findings. Findings of reviews of earlier revisions (checklist drag not restarting on size change, a dead @Suppress, preset INTERVAL above 999 blocking save) were fixed directly by the parent in b16fe2447 and aef1e37b7; the final review confirms these fixes."}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.task.*'", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
