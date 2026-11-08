@@ -63,6 +63,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -95,7 +96,6 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
 import java.time.temporal.WeekFields
-import java.util.Locale
 
 /** What the journal can ask for, so it can be tested without a view model. */
 data class JournalCallbacks(
@@ -440,7 +440,7 @@ private fun MonthCalendar(
     state: JournalUiState,
     callbacks: JournalCallbacks,
 ) {
-    val locale = Locale.getDefault()
+    val locale = LocalLocale.current.platformLocale
     val firstDay: DayOfWeek = WeekFields.of(locale).firstDayOfWeek
     val weeks = remember(state.month, firstDay) { JournalText.monthWeeks(state.month, firstDay) }
     Surface(

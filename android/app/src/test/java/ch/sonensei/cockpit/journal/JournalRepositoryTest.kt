@@ -198,6 +198,66 @@ class JournalRepositoryTest {
         }
 
     @Test
+    fun `a save sends the draft's mood and tags`() =
+        runBlocking {
+            server.enqueue(json(entryJson(mood = 2)))
+
+            journal.saveEntry(day, base, JournalDraft("Walked", 2, listOf("rain", "walk")))
+
+            val sent = Json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+            assertEquals(2, sent["mood"]!!.jsonPrimitive.int)
+            assertEquals(listOf("rain", "walk"), sent["tags"]!!.jsonArray.map { it.jsonPrimitive.content })
+        }
+
+    @Test
+    fun `the text-only save keeps the entry's mood and tags`() =
+        runBlocking {
+            server.enqueue(json(entryJson()))
+
+            journal.save(day, base, "Walked twice")
+
+            val sent = Json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+            assertEquals("Walked twice", sent["bodyMd"]!!.jsonPrimitive.content)
+            assertEquals(4, sent["mood"]!!.jsonPrimitive.int)
+            assertEquals("walk", sent["tags"]!!.jsonArray[0].jsonPrimitive.content)
+        }
+
+    @Test
+    fun `the days of a range come with their moods`() =
+        runBlocking {
+            server.enqueue(
+                json("""{"from":"2026-10-01","to":"2026-10-31","items":[{"date":"2026-10-03","mood":5},{"date":"2026-10-09"}]}"""),
+            )
+
+            val days = journal.days(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31))
+
+            assertEquals(JournalResult.Ok(mapOf(LocalDate.of(2026, 10, 3) to 5, LocalDate.of(2026, 10, 9) to null)), days)
+            val url = server.takeRequest().url
+            assertEquals("/api/v1/journal/heatmap", url.encodedPath)
+            assertEquals("2026-10-01", url.queryParameter("from"))
+            assertEquals("2026-10-31", url.queryParameter("to"))
+        }
+
+    @Test
+    fun `on this day returns the earlier years only`() =
+        runBlocking {
+            val earlier = entryJson(body = "Years ago").replace("2026-10-22", "2024-10-22")
+            server.enqueue(json("""{"date":"2026-10-22","items":[${entryJson()},$earlier]}"""))
+
+            val result = (journal.onThisDay(day) as JournalResult.Ok).value
+
+            assertEquals(listOf(LocalDate.of(2024, 10, 22)), result.map { it.date })
+            val url = server.takeRequest().url
+            assertEquals("/api/v1/journal/on-this-day", url.encodedPath)
+            assertEquals("2026-10-22", url.queryParameter("date"))
+
+            server.enqueue(status(503))
+            assertEquals(JournalResult.Offline, journal.onThisDay(day))
+            server.enqueue(status(400))
+            assertEquals(JournalResult.Failed(400), journal.days(day, day))
+        }
+
+    @Test
     fun `no connection is offline`() =
         runBlocking {
             server.close()
