@@ -367,6 +367,45 @@ class ProjectTaskListTest {
     }
 
     @Test
+    fun `a drag the system cancels is not saved, and the next drag starts from the state's order`() {
+        show(detail(holiday, listOf(book, hotel, visa)))
+        pickUpFirstAndDragDownOneRow()
+        // The system takes the gesture (a cancel event, not a lift): it arrives as an up that is already consumed.
+        composeRule.onNodeWithTag(LiveListTags.LIST).performTouchInput { cancel() }
+        composeRule.waitForIdle()
+        assertEquals(emptyList<String>(), calls.filter { it.startsWith("reorder") })
+        assertTrue(top(book) < top(hotel))
+        // The cancelled drag left nothing behind: a new drag of the same row is saved from the state's order.
+        composeRule.onNodeWithTag(ProjectTaskTags.item(book.id)).performTouchInput {
+            down(center)
+            advanceEventTime(viewConfiguration.longPressTimeoutMillis + 100)
+            repeat(6) { moveBy(Offset(0f, height * 0.15f)) }
+            up()
+        }
+        composeRule.waitForIdle()
+        assertEquals(listOf("reorder [Compare hotels, Book the flights, Visa from the embassy]"), calls)
+    }
+
+    @Test
+    fun `after a drag interrupted by a change of the tasks, the next drag saves an order of the new tasks`() {
+        show(detail(holiday, listOf(book, hotel, visa)))
+        pickUpFirstAndDragDownOneRow()
+        state = detail(holiday, listOf(book, hotel))
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(LiveListTags.LIST).performTouchInput { up() }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(ProjectTaskTags.item(book.id)).performTouchInput {
+            down(center)
+            advanceEventTime(viewConfiguration.longPressTimeoutMillis + 100)
+            repeat(6) { moveBy(Offset(0f, height * 0.15f)) }
+            up()
+        }
+        composeRule.waitForIdle()
+        // Only the two tasks the project still has: nothing of the interrupted drag's order is left.
+        assertEquals(listOf("reorder [Compare hotels, Book the flights]"), calls)
+    }
+
+    @Test
     fun `the add field and the move actions are labelled in English`() {
         show(detail(holiday, listOf(book, hotel)))
         composeRule.onNodeWithText("New task", useUnmergedTree = true).assertExists()
