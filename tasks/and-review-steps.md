@@ -18,7 +18,8 @@ The action steps of the weekly review on Android, matching web `steps/waiting-st
   - verified (2026-11-08 18:22+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.review.*' --tests 'ch.sonensei.cockpit.gtd.projects.*' -> BUILD SUCCESSFUL, 0 failures; ReviewActionStepsTest 'waiting for - keep, follow up or complete', ReviewDecisionsViewModelTest still waiting/done/follow up, ReviewActionsTest follow-up/complete requests pass
 - [x] Projects: add next step, change status, keep; rows open project detail
   - verified (2026-11-08 18:22+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.review.*' --tests 'ch.sonensei.cockpit.gtd.projects.*' -> BUILD SUCCESSFUL, 0 failures; ReviewActionStepsTest projects title opens project / next-step field / status menu, ReviewDecisionsViewModelTest projects + add next step, ProjectOpenRequestsTest (detail opened) pass
-- [ ] Next actions older than 30 days: keep / move to someday / delete
+- [x] Next actions older than 30 days: keep / move to someday / delete
+  - verified (2026-11-08 18:22+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.review.*' -> BUILD SUCCESSFUL, 0 failures; ReviewActionStepsTest 'next actions - keeps, moves to someday or deletes it', ReviewDecisionsViewModelTest next actions keep/someday/delete pass
 - [ ] Someday (tasks and projects): activate / keep / delete
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
