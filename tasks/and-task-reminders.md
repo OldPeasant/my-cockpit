@@ -19,3 +19,4 @@ Goal: Android task detail offers the same as the web: add/remove reminders on a 
 
 ## Notes
 - Work done on `task-reminders` before the split is on `origin/wip/task-reminders` (if it exists): merge it first if your part builds on it.
+- ASSUMPTION (2026-11-09 00:03+0100 by dell26/agent-1): Android reminder presets: at due time (due date + due time, else 09:00), 1 h before due (only with a due time), 1 day before due, scheduled date 09:00, plus a custom date+time picker; past presets hidden. Web task reminders are not built yet, so these are Android's own choice.
