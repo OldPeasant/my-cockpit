@@ -26,7 +26,8 @@ The owner reports that missing images make some mails unusable; the decided defa
 - [x] New UI strings are in `web/src/locale` (English + German)
   - verified (2026-11-08 12:36+0100 by dell26/agent-2): 9 units settings.mailImages* / settings.mailImageSenders* added to web/src/locale/messages.xlf (from npm run i18n:extract) and messages.de.xlf with German targets; npm run check incl. ng build + src/locale/messages-de.spec.ts -> passed
   - verified (2026-11-08 12:37+0100 by dell26/agent-2): 9 units settings.mailImages* / settings.mailImageSenders* added to web/src/locale/messages.xlf (from npm run i18n:extract) and messages.de.xlf with German targets; npm run check (incl. src/locale/messages-de.spec.ts) -> passed; npm run build:de -> no missing translation for this task's ids (its 16 'No translation found' errors are all calendar.invite.* already on main from another task)
-- [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+- [x] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 13:07+0100 by dell26/agent-2): image-allowlist.spec.ts, mail-read-page.spec.ts, general-settings.spec.ts, mail.routes.spec.ts cover policy/allowlist/PATCH/migration/settings rows/regressions (coverage: task lines 100%, see reviews/mail-images-web-settings/tests.md); npm --prefix web run check at HEAD c3e2f199a -> passed (187 files, 4185 tests, ng build ok); sh scripts/check.sh -> all checks passed
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
