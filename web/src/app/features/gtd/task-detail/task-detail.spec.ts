@@ -2821,6 +2821,97 @@ describe('TaskDetail', () => {
       expect(undo.deleted).toHaveBeenCalledTimes(1);
       expect(undo.deleted.mock.calls[0][0]).toMatchObject({ id: 't1' });
     });
+
+    it('keeps the new task busy when the deletion of the previous one answers during its completion', async () => {
+      let removed!: () => void;
+      let completed!: () => void;
+      answer = ((previous) => (fn: unknown, params: Record<string, unknown>) => {
+        if (fn === getTask && params['id'] === 't2') {
+          return Promise.resolve(task({ id: 't2', title: 'Water the plants', version: 7 }));
+        }
+        if (fn === completeTask) {
+          return new Promise((resolve) => {
+            completed = () =>
+              resolve({
+                ...task({ id: 't2', title: 'Water the plants', completedAt: DONE_AT, version: 8 }),
+                needsNextStep: false,
+              });
+          });
+        }
+        return previous?.(fn, params);
+      })(answer);
+      hold.remove = () => new Promise<void>((resolve) => (removed = resolve));
+      await render();
+      await click(deleteButton());
+      host.id.set('t2');
+      await refresh();
+      await click(completeButton());
+      expect(label(completeButton())).toBe('Completing…');
+
+      removed();
+      await refresh();
+
+      // The answer for t1 does not end t2's running action.
+      expect(label(completeButton())).toBe('Completing…');
+      expect(deleteButton().disabled).toBe(true);
+      expect(host.closed).toBe(0);
+
+      completed();
+      await refresh();
+      expect(label(completeButton())).toBe('Reopen');
+      expect(deleteButton().disabled).toBe(false);
+    });
+
+    it('shows nothing in the new task when the deletion of the previous one fails late', async () => {
+      let fail!: () => void;
+      answer = ((previous) => (fn: unknown, params: Record<string, unknown>) => {
+        if (fn === getTask && params['id'] === 't2') {
+          return Promise.resolve(task({ id: 't2', title: 'Water the plants', version: 7 }));
+        }
+        return previous?.(fn, params);
+      })(answer);
+      hold.remove = () =>
+        new Promise<void>(
+          (_, reject) =>
+            (fail = () => reject(new ApiError(500, 'Internal Server Error', 'Could not delete.'))),
+        );
+      await render();
+      await click(deleteButton());
+      host.id.set('t2');
+      await refresh();
+
+      fail();
+      await refresh();
+
+      expect(text()).not.toContain('Could not delete.');
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Water the plants');
+      expect(host.closed).toBe(0);
+      expect(undo.deleted).not.toHaveBeenCalled();
+      expect(deleteButton().disabled).toBe(false);
+    });
+
+    it('shows "moved to the Trash" when the task it deleted is opened again and someone else deletes it', async () => {
+      answer = ((previous) => (fn: unknown, params: Record<string, unknown>) => {
+        if (fn === getTask && params['id'] === 't2') {
+          return Promise.resolve(task({ id: 't2', title: 'Water the plants', version: 7 }));
+        }
+        return previous?.(fn, params);
+      })(answer);
+      await render();
+      await click(deleteButton());
+      expect(host.closed).toBe(1);
+      // The page moves on; later the task is restored from the Trash and opened again.
+      host.id.set('t2');
+      await refresh();
+      host.id.set('t1');
+      await refresh();
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Call the plumber');
+
+      events.next({ type: 'TASK', id: 't1', op: 'DELETED' } as ChangeEvent);
+      await refresh();
+
+      expect(text()).toContain('This task was moved to the Trash.');
+    });
   });
 
   describe('rendered notes', () => {
