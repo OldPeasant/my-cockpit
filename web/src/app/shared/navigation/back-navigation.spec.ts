@@ -711,6 +711,53 @@ describe('BackNavigation when a Back does not reach its page', () => {
     expect(router.url).toBe('/waiting');
   });
 
+  it('follows the second Back when a Back runs into a first one still running', async () => {
+    await go('/today');
+    await go('/waiting');
+    await go('/mail/messages/m1');
+    let open!: (value: boolean) => void;
+    gate = new Promise((resolve) => (open = resolve));
+    // Browser Back twice in quick succession while the guard of /waiting still decides.
+    location.back();
+    await settle();
+    expect(router.url).toBe('/mail/messages/m1');
+    location.back();
+    await settle();
+    open(true);
+    await settle();
+    expect(router.url).toBe('/today');
+    expect(navigation.canGoBack()).toBe(false);
+    gate = null;
+    // Both pages still lie ahead, as in the browser.
+    location.forward();
+    await settle();
+    expect(router.url).toBe('/waiting');
+    expect(navigation.previous()?.url).toBe('/today');
+  });
+
+  // TODO(web-back-navigation): fails - previous() still returns the left page; fix in BackNavigation.
+  it.skip('goes to the parent route after a Back to an entry it never saw that another navigation took over', async () => {
+    await go('/new');
+    // E.g. a history entry from before a reload: its navigation id is unknown.
+    location.go('/waiting', '', { navigationId: 999 });
+    await go('/mail/messages/m1');
+    expect(navigation.previous()?.url).toBe('/new');
+    let open!: (value: boolean) => void;
+    gate = new Promise((resolve) => (open = resolve));
+    location.back();
+    await settle();
+    // The Back to the unknown entry still runs; the user opens Mail meanwhile.
+    const opened = router.navigateByUrl('/mail');
+    open(true);
+    await opened;
+    await settle();
+    gate = null;
+    expect(router.url).toBe('/mail');
+    // The browser pushed /mail after the unknown entry: the app knows no page of its own behind.
+    expect(navigation.previous()?.url).not.toBe('/mail/messages/m1');
+    expect(navigation.canGoBack()).toBe(false);
+  });
+
   it('goes back only once when back() is called again while the Back runs', async () => {
     await go('/today');
     await go('/new');
