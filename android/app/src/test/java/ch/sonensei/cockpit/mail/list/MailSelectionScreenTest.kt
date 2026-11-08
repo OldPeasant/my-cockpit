@@ -342,8 +342,9 @@ class MailSelectionScreenTest {
     }
 
     @Test
-    fun `failed moves, marks and undos are reported`() {
+    fun `failed spam, moves, marks and undos are reported`() {
         mapOf(
+            MailListMessage.SPAM_FAILED to "The mail could not be moved to spam.",
             MailListMessage.MOVE_FAILED to "The mail could not be moved.",
             MailListMessage.MARK_FAILED to "The mail could not be changed.",
             MailListMessage.UNDO_FAILED to "The action could not be undone.",

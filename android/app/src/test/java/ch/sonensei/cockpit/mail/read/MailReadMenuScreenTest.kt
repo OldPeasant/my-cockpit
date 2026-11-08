@@ -186,6 +186,22 @@ class MailReadMenuScreenTest {
         composeRule.onNodeWithTag(MailReadTags.NOTICE).assertTextEquals("The mail could not be moved. Server error: OTHER_ACCOUNT")
     }
 
+    @Test
+    fun `a move refused for a missing role folder shows the code, as it names no role folder`() {
+        show(MailReadUiState(message = message, notice = MailReadNotice.ActionFailed(MailListAction.MOVE, "NO_ROLE_FOLDER")))
+        composeRule.onNodeWithTag(MailReadTags.NOTICE).assertTextEquals("The mail could not be moved. Server error: NO_ROLE_FOLDER")
+    }
+
+    @Test
+    fun `while an action runs the menu cannot be opened`() {
+        show(MailReadUiState(message = message, busy = true))
+
+        composeRule.onNodeWithTag(MailReadTags.MORE).assertIsNotEnabled()
+        openMenu()
+        item(MailListAction.UNREAD).assertDoesNotExist()
+        assertEquals(emptyList<String>(), calls)
+    }
+
     // The route with a real view model
 
     private fun route(

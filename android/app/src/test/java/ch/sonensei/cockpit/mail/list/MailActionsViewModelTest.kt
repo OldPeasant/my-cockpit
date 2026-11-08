@@ -609,6 +609,83 @@ class MailActionsViewModelTest {
         }
 
     @Test
+    fun `an undo of a move while offline takes the mails out again, says so and is sent only once when tapped twice`() =
+        runTest(dispatcher) {
+            coEvery { repo.actAll(any(), MailListAction.MOVE, workInbox.id) } returns MailResult.Offline
+            val vm = loaded()
+            vm.toggleSelection(id(1))
+            vm.toggleSelection(id(2))
+            vm.actOnSelection(MailListAction.DELETE)
+            advanceUntilIdle()
+            val undo = checkNotNull(vm.state.undo)
+
+            vm.undo(undo)
+            vm.undo(undo)
+            assertEquals(unified.map { it.id }, vm.ids())
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { repo.actAll(listOf(id(1), id(2)), MailListAction.MOVE, workInbox.id) }
+            assertEquals(listOf(id(3), id(5)), vm.ids())
+            assertEquals(MailListMessage.UNDO_FAILED, vm.state.message)
+            assertFalse(vm.state.loading)
+            // Nothing came back: no reload.
+            coVerify(exactly = 1) { repo.messages(Mailbox.Unified, null) }
+        }
+
+    @Test
+    fun `a bulk mark stays shown when a reload that started before it answers with the old state`() =
+        runTest(dispatcher) {
+            val vm = loaded()
+            val reload = CompletableDeferred<MailResult<MailPage>>()
+            val flag = CompletableDeferred<MailResult<Set<UUID>>>()
+            coEvery { repo.messages(Mailbox.Unified, null) } coAnswers { reload.await() }
+            coEvery { repo.actAll(listOf(id(1), id(2)), MailListAction.FLAG, null) } coAnswers { flag.await() }
+            vm.refresh()
+            advanceUntilIdle()
+            vm.toggleSelection(id(1))
+            vm.toggleSelection(id(2))
+
+            vm.actOnSelection(MailListAction.FLAG)
+            advanceUntilIdle()
+            // The reload answers what the server had before the flag reached it.
+            reload.complete(MailResult.Ok(MailPage(unified, null)))
+            advanceUntilIdle()
+            assertFalse(vm.mail(1).flagged)
+
+            flag.complete(MailResult.Ok(setOf(id(1), id(2))))
+            advanceUntilIdle()
+
+            assertTrue(vm.mail(1).flagged)
+            assertTrue(vm.mail(2).flagged)
+            assertFalse(vm.mail(3).flagged)
+            assertEquals(MailListAction.FLAG, vm.state.undo?.action)
+        }
+
+    @Test
+    fun `a refused bulk mark does not touch a mailbox opened meanwhile`() =
+        runTest(dispatcher) {
+            val box = Mailbox.Folder(work.id, workInbox.id)
+            // The other mailbox lists one of the mails, already flagged on the server by another client.
+            coEvery { repo.messages(box, null) } returns MailResult.Ok(MailPage(listOf(mail(2, flagged = true)), null))
+            val flag = CompletableDeferred<MailResult<Set<UUID>>>()
+            coEvery { repo.actAll(listOf(id(1), id(2)), MailListAction.FLAG, null) } coAnswers { flag.await() }
+            val vm = loaded()
+            vm.toggleSelection(id(1))
+            vm.toggleSelection(id(2))
+            vm.actOnSelection(MailListAction.FLAG)
+            vm.select(box)
+            advanceUntilIdle()
+
+            flag.complete(MailResult.Failed(500))
+            advanceUntilIdle()
+
+            assertEquals(listOf(id(2)), vm.ids())
+            assertTrue(vm.mail(2).flagged)
+            assertEquals(MailListMessage.MARK_FAILED, vm.state.message)
+            assertNull(vm.state.undo)
+        }
+
+    @Test
     fun `a partly failed undo of a move keeps only the mails moved back, and reloads`() =
         runTest(dispatcher) {
             coEvery { repo.actAll(listOf(id(1), id(2)), MailListAction.MOVE, workInbox.id) } returns MailResult.Ok(setOf(id(1)))
