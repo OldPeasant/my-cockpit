@@ -17,7 +17,8 @@ SPEC.md §7.2: only a sync window is cached; `POST /api/v1/mail/folders/{id}/loa
   - verified (2026-11-08 22:15+0100 by felix/agent-1): web store/page tests for failure (olderError inline, list kept, retry possible), nothing-older (neutral olderNote), reload while loading -> pass (npm --prefix web run coverage: 4553 tests passed); android MailLoadOlder* tests for OFFLINE/FAILED/NOTHING_OLDER inline messages -> pass
 - [x] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
   - verified (2026-11-08 22:16+0100 by felix/agent-1): web/src/locale messages.xlf + messages.de.xlf: mail.loadOlderFromServer, mail.loadingOlder, mail.olderFailed, mail.list.nothingOlder with German targets; messages-de.spec.ts (every unit translated) passes in npm run check; android res/values{,-de}/strings_mail.xml: 5 new strings in both, lintDebug passes
-- [ ] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
+- [x] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
+  - verified (2026-11-08 22:16+0100 by felix/agent-1): new unit tests in web mail-list-store.spec.ts/mail-list-page.spec.ts and android mail.list.MailLoadOlder*; sh scripts/check.sh on final code (incl. ad5189a17 tests) -> == all checks passed
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
