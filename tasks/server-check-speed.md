@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [server/build.gradle.kts,server/src/test,scripts/check.sh,.github/workflows/ci.yml,docs/ARCHITECTURE.md]
 prio: 1
-lease_until: 2026-11-08T17:54:51Z
+lease_until: 2026-11-08T17:55:35Z
 ---
 ## Goal
 `sh scripts/check.sh` (`.taskcheck`, run by every `tasks.py done`) should take < 2 min but no longer finishes in
