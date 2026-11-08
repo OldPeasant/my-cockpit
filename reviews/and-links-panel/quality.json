@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "task": "and-links-panel",
+  "reviewed_revision": "ae67019936d70cf36d061110f8c717e44162bd60",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-links-panel/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-links-panel/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-links-panel/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (round 1)", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "contacts opened from search/birthday lost links; now render ContactDetailRoute"},
+    {"id": "CR-2 (round 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "typed-back search showed stale results; in-flight search cancelled before early return"},
+    {"id": "CR-3 (round 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "unused link loading and strings removed, links_searching used, DE typo fixed"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "same defect as CR-2, fixed in ae6701993 with regression tests"},
+    {"id": "CR-4 (round 2)", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "unkeyed hiltViewModel in ContactDetailRoute: nested contact shows the outer contact for one frame on back; cosmetic, reviewer says it can stay"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
