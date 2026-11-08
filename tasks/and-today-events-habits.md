@@ -14,7 +14,8 @@ Web Today shows today's calendar events and due habits with one-tap check (`toda
 ## Acceptance criteria
 - [x] Today lists today's events (time, title, calendar color; tap opens the event editor/viewer)
   - verified (2026-11-08 22:56+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.today.*' -> TodayExtrasTest 21/21 (events rows: time range, title, calendar-colour dot; only visible calendars, all-day of other days filtered), TodayWithEditorTest 2/2 (tap opens event editor, birthday opens contact, close reloads)
-- [ ] Today lists habits due today with a check button (same check semantics as and-habits-manage, increment up to target)
+- [x] Today lists habits due today with a check button (same check semantics as and-habits-manage, increment up to target)
+  - verified (2026-11-08 22:56+0100 by dell26/agent-1): same run -> TodayExtrasTest: due-today habits listed (archived/not-due left out), check sends HabitsRepository.check (Habit.nextCount: increment to target, then reset, as and-habits-manage), busy button disabled, failure message, stale-load guards; all pass
 - [ ] An empty Today offers "Pick a next action" (opens Next)
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
