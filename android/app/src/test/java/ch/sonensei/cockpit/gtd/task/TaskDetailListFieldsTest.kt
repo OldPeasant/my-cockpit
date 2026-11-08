@@ -318,6 +318,31 @@ class TaskDetailListFieldsTest {
     private val mentionsNoTitle = hasText("title", substring = true, ignoreCase = true).not()
 
     @Test
+    fun `each missing field names what it needs, a blank title still asks for a title`() {
+        editing(TaskDetail(seeds))
+        composeRule.onNodeWithTag(TaskDetailTags.TITLE_INPUT).performScrollTo().performTextReplacement("  ")
+        tag(TaskDetailListTags.list(TaskList.SCHEDULED)).performClick()
+        tag(TaskDetailListTags.repeat(RepeatPreset.CUSTOM)).performClick()
+        save()
+        composeRule.onNodeWithTag(TaskDetailTags.error(TaskField.TITLE), useUnmergedTree = true).assert(hasText("Enter a title."))
+        tag(TaskDetailTags.error(TaskField.SCHEDULED)).assert(hasText("Pick a date."))
+        tag(TaskDetailTags.error(TaskField.RECURRENCE)).assert(hasText("Enter a rule, e.g. FREQ=WEEKLY;BYDAY=MO."))
+        assertTrue(source.relists.isEmpty())
+        assertTrue(source.updates.isEmpty())
+    }
+
+    @Test
+    fun `a missing waiting-for person asks for the person`() {
+        editing(TaskDetail(seeds))
+        tag(TaskDetailListTags.list(TaskList.WAITING)).performClick()
+        save()
+        composeRule
+            .onNodeWithTag(TaskDetailTags.error(TaskField.WAITING_FOR), useUnmergedTree = true)
+            .assert(hasText("Enter who you are waiting for."))
+        assertTrue(source.relists.isEmpty())
+    }
+
+    @Test
     fun `choosing no repeat removes the rule and hides the mode`() {
         editing(TaskDetail(seeds, recurrenceRule = "FREQ=DAILY", recurrenceMode = RecurrenceMode.AFTER_COMPLETION))
         tag(TaskDetailListTags.repeatMode(RecurrenceMode.AFTER_COMPLETION)).assertIsSelected()

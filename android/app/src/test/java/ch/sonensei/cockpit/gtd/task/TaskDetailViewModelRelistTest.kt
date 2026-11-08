@@ -2,12 +2,14 @@ package ch.sonensei.cockpit.gtd.task
 
 import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.data.TaskList
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -441,6 +443,40 @@ class TaskDetailViewModelRelistTest {
             // The checklist is the server's again (the fake answers with the loaded order).
             assertEquals(listOf(tomatoes, basil, soil), state.detail?.checklist)
             assertFalse(state.busy)
+        }
+
+    @Test
+    fun `a second move while the first is still saving is ignored`() =
+        runTest {
+            val fake = FakeTaskDetailSource(detail)
+            val gate = CompletableDeferred<Unit>()
+            val slow =
+                object : TaskDetailSource by fake {
+                    override suspend fun updateChecklistItem(
+                        taskId: UUID,
+                        item: ChecklistItem,
+                        patch: JsonObject,
+                    ): TaskResult<ChecklistItem> {
+                        gate.await()
+                        return fake.updateChecklistItem(taskId, item, patch)
+                    }
+                }
+            val vm = TaskDetailViewModel(slow, flowOf(emptyList()), flowOf(emptyList()), flowOf(null))
+            vm.open(task.id)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
+
+            vm.moveChecklistItem(soil, 0)
+            assertTrue(vm.uiState.value.busy)
+            // A second drag before the first is saved neither reorders what is shown nor saves anything.
+            vm.moveChecklistItem(tomatoes, 2)
+            val shown = vm.uiState.value.detail!!
+            assertEquals(listOf(soil, tomatoes, basil), shown.checklist)
+
+            gate.complete(Unit)
+            advanceUntilIdle()
+            assertEquals(listOf(soil.id, tomatoes.id, basil.id), fake.itemPatches.map { it.first.id })
+            assertEquals(1, fake.checklistLoads)
+            assertFalse(vm.uiState.value.busy)
         }
 
     @Test
