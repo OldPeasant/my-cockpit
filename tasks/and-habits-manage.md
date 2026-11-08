@@ -17,7 +17,8 @@ target (`habits-page.ts:169`). The owner decided habits editing comes to Android
   - verified (2026-11-08 20:58+0100 by felix/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport on 9194c59d4 -> pass; HabitsViewModelManageTest (36 tests, 0 failures) and HabitEditorDialog/HabitDraft tests cover name, daily / N per week / weekdays schedule, target per day, reminder time on create and edit
 - [x] Archive/unarchive; an "Archived" view
   - verified (2026-11-08 20:58+0100 by felix/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug on 9194c59d4 -> pass; view-model and HabitsScreen tests cover archive/unarchive PATCH and the Archived view switch with its own empty text
-- [ ] Checking increments by one up to the target, then resets (same as web); best streak shown
+- [x] Checking increments by one up to the target, then resets (same as web); best streak shown
+  - verified (2026-11-08 20:58+0100 by felix/agent-1): cd android && ./gradlew testDebugUnitTest on 9194c59d4 -> pass; Habit.nextCount tests (count up to target, then reset to 0 like web nextCount) and screen tests showing the best streak
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
