@@ -5,7 +5,7 @@ owner: rudi/agent-2
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/compose,android/app/src/test/java/ch/sonensei/cockpit/mail/compose,android/app/src/main/res/values/strings_mail_compose.xml,android/app/src/main/res/values-de/strings_mail_compose.xml]
 prio: 2
-lease_until: 2026-11-08T15:57:18Z
+lease_until: 2026-11-08T16:02:20Z
 extended: rudi/agent-2
 ---
 ## Goal
