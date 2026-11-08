@@ -338,6 +338,46 @@ class BookmarksAddReaderViewModelTest {
         }
 
     @Test
+    fun `an add without an answer before the list was loaded, or one the server refused, does not load the list`() =
+        runTest(dispatcher) {
+            val typed = NewBookmark("https://example.org/9")
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(emptyList())
+            coEvery { repo.create(typed) } returns BookmarksResult.Offline andThen BookmarksResult.Failed(400, setOf("url")) andThen
+                BookmarksResult.Failed(409)
+            val vm = viewModel()
+            vm.startAdd()
+
+            // No list yet: a reload would show a partial list as the whole one.
+            vm.add(typed)
+            advanceUntilIdle()
+            assertEquals(
+                AddFailure.OFFLINE,
+                vm.uiState.value.adding
+                    ?.failure,
+            )
+            coVerify(exactly = 0) { repo.list(any(), any()) }
+
+            vm.refresh()
+            advanceUntilIdle()
+            // An answer says what happened: nothing to look up.
+            vm.add(typed)
+            advanceUntilIdle()
+            assertEquals(
+                AddFailure.INVALID_URL,
+                vm.uiState.value.adding
+                    ?.failure,
+            )
+            vm.add(typed)
+            advanceUntilIdle()
+            assertEquals(
+                AddFailure.FAILED,
+                vm.uiState.value.adding
+                    ?.failure,
+            )
+            coVerify(exactly = 1) { repo.list(any(), any()) }
+        }
+
+    @Test
     fun `a retry after a failed save clears the old reason while it saves`() =
         runTest(dispatcher) {
             val typed = NewBookmark("https://example.org/x")
@@ -948,6 +988,136 @@ class BookmarksAddReaderViewModelTest {
             advanceUntilIdle()
             assertEquals(ReaderState(bookmark(2)), vm.uiState.value.reading)
             coVerify(exactly = 0) { repo.snapshot(any()) }
+        }
+
+    @Test
+    fun `a copy saved while the reader shows another bookmark updates the list and does not stop that reader's load`() =
+        runTest(dispatcher) {
+            val saving = CompletableDeferred<BookmarksResult<Bookmark?>>()
+            val otherCopy = CompletableDeferred<BookmarksResult<BookmarkSnapshot>>()
+            val saved = bookmark(1, version = 2, snapshotFileId = id(90))
+            val other = bookmark(2, snapshotFileId = id(92))
+            val news = BookmarkSnapshot("<p>Other page</p>", truncated = false)
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1), other))
+            coEvery { repo.get(id(1)) } returns BookmarksResult.Ok(bookmark(1))
+            coEvery { repo.get(id(2)) } returns BookmarksResult.Ok(other)
+            coEvery { repo.saveSnapshot(bookmark(1)) } coAnswers { saving.await() }
+            coEvery { repo.snapshot(id(92)) } coAnswers { otherCopy.await() }
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+            vm.openReader(bookmark(1))
+            advanceUntilIdle()
+
+            vm.saveSnapshot()
+            runCurrent()
+            vm.closeReader()
+            vm.openReader(other)
+            runCurrent()
+            // The copy of bookmark 2 is still loading when the save of bookmark 1 answers.
+            saving.complete(BookmarksResult.Ok(saved))
+            advanceUntilIdle()
+            otherCopy.complete(BookmarksResult.Ok(news))
+            advanceUntilIdle()
+
+            assertEquals(ReaderState(other, snapshot = news), vm.uiState.value.reading)
+            assertEquals(listOf(saved, other), vm.uiState.value.bookmarks)
+            coVerify(exactly = 0) { repo.snapshot(id(90)) }
+        }
+
+    @Test
+    fun `a reader opened again on the bookmark while its copy is saved shows the new copy once it is saved`() =
+        runTest(dispatcher) {
+            val saving = CompletableDeferred<BookmarksResult<Bookmark?>>()
+            val saved = bookmark(1, version = 2, snapshotFileId = id(90))
+            coEvery { repo.get(id(1)) } returns BookmarksResult.Ok(bookmark(1))
+            coEvery { repo.saveSnapshot(any()) } coAnswers { saving.await() }
+            coEvery { repo.snapshot(id(90)) } returns BookmarksResult.Ok(copy)
+            val vm = viewModel()
+            vm.openReader(bookmark(1))
+            advanceUntilIdle()
+
+            vm.saveSnapshot()
+            runCurrent()
+            vm.closeReader()
+            vm.openReader(bookmark(1))
+            advanceUntilIdle()
+            assertEquals(ReaderState(bookmark(1)), vm.uiState.value.reading)
+
+            // The first save still runs: a second one would go out with the old version.
+            vm.saveSnapshot()
+            runCurrent()
+            coVerify(exactly = 1) { repo.saveSnapshot(any()) }
+
+            saving.complete(BookmarksResult.Ok(saved))
+            advanceUntilIdle()
+            assertEquals(ReaderState(saved, snapshot = copy), vm.uiState.value.reading)
+            assertTrue(
+                vm.uiState.value.busy
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `leaving the reader while the new copy loads stops the load and keeps the saved version in the list`() =
+        runTest(dispatcher) {
+            val saved = bookmark(1, version = 2, snapshotFileId = id(90))
+            val loading = CompletableDeferred<BookmarksResult<BookmarkSnapshot>>()
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1)))
+            coEvery { repo.get(id(1)) } returns BookmarksResult.Ok(bookmark(1))
+            coEvery { repo.saveSnapshot(bookmark(1)) } returns BookmarksResult.Ok(saved)
+            coEvery { repo.snapshot(id(90)) } coAnswers { loading.await() }
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+            vm.openReader(bookmark(1))
+            advanceUntilIdle()
+
+            vm.saveSnapshot()
+            advanceUntilIdle()
+            assertTrue(
+                vm.uiState.value.reading!!
+                    .loading,
+            )
+            vm.closeReader()
+            loading.complete(BookmarksResult.Ok(copy))
+            advanceUntilIdle()
+
+            assertNull(vm.uiState.value.reading)
+            assertEquals(listOf(saved), vm.uiState.value.bookmarks)
+            assertTrue(
+                vm.uiState.value.busy
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `a save refused as outdated after the reader was left loads the latest version into the list`() =
+        runTest(dispatcher) {
+            val saving = CompletableDeferred<BookmarksResult<Bookmark?>>()
+            val theirs = bookmark(1, version = 5)
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1)))
+            coEvery { repo.get(id(1)) } returns BookmarksResult.Ok(bookmark(1)) andThen BookmarksResult.Ok(theirs)
+            coEvery { repo.saveSnapshot(any()) } coAnswers { saving.await() }
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+            vm.openReader(bookmark(1))
+            advanceUntilIdle()
+
+            vm.saveSnapshot()
+            runCurrent()
+            vm.closeReader()
+            saving.complete(BookmarksResult.Failed(412))
+            advanceUntilIdle()
+
+            assertEquals(BookmarkFailure.CONFLICT, failure(vm))
+            assertEquals(listOf(theirs), vm.uiState.value.bookmarks)
+            assertNull(vm.uiState.value.reading)
+            assertTrue(
+                vm.uiState.value.busy
+                    .isEmpty(),
+            )
         }
 
     @Test

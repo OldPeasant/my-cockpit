@@ -353,6 +353,13 @@ class BookmarksAddReaderScreenTest {
             .assertTextContains("Gib eine vollständige Webadresse ein, die mit http:// oder https:// beginnt.")
         state = state.copy(adding = AddBookmarkState(failure = AddFailure.INVALID_TAGS))
         composeRule.onNodeWithTag(AdderTags.ERROR).assertTextContains("Verwende höchstens 50 Tags mit je höchstens 50 Zeichen.")
+        state = state.copy(adding = AddBookmarkState(failure = AddFailure.OFFLINE))
+        composeRule
+            .onNodeWithTag(AdderTags.ERROR)
+            .assertTextContains(
+                "Der Server ist nicht erreichbar. Das Lesezeichen wurde vielleicht schon gespeichert; " +
+                    "prüfe die Liste, bevor du es noch einmal versuchst.",
+            )
 
         state = BookmarksUiState(reading = ReaderState(article))
         composeRule.onNodeWithTag(ReaderTags.EMPTY).assertTextContains("Für diese Seite wurde keine lesbare Kopie gespeichert.")
@@ -386,5 +393,11 @@ class BookmarksAddReaderScreenTest {
 
         state = state.copy(snackbar = BookmarksSnackbar.AddedToInbox(linked = false, id = 2))
         composeRule.onNodeWithText("Zum Eingang hinzugefügt, aber nicht mit dem Lesezeichen verknüpft").assertExists()
+        state = state.copy(snackbar = BookmarksSnackbar.InboxOffline(id = 3))
+        composeRule
+            .onNodeWithText(
+                "Der Server ist nicht erreichbar. Die Aufgabe wurde vielleicht schon angelegt; " +
+                    "ein erneuter Versuch legt sie nicht doppelt an.",
+            ).assertExists()
     }
 }
