@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/bookmarks,server/src/main/kotlin/ch/sonensei/cockpit/bookmarks]
 prio: 2
-lease_until: 2026-11-08T23:00:51Z
+lease_until: 2026-11-08T23:04:20Z
 ---
 ## Goal
 `PageFetcherSizeLimitTests` "pages larger than max-size are cut off reliably, also over a reused HTTP 2 connection"
