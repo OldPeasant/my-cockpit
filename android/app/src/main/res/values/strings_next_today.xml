@@ -75,4 +75,12 @@
     <string name="today_due">Due today</string>
     <string name="today_scheduled">Scheduled for today</string>
     <string name="today_empty">Nothing due or scheduled today.</string>
+    <string name="today_pick_next">Pick a next action</string>
+    <string name="today_events">Events</string>
+    <string name="today_event_all_day">All day</string>
+    <string name="today_habits">Habits</string>
+    <string name="today_habit_check">Check off %1$s</string>
+    <string name="today_habit_uncheck">Undo %1$s</string>
+    <string name="today_habit_count">%1$d/%2$d</string>
+    <string name="today_habit_check_failed">The habit could not be checked off. Try again.</string>
 </resources>

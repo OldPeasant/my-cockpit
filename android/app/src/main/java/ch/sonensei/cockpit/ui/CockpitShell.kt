@@ -311,7 +311,7 @@ private fun DestinationContent(
 ) {
     when (destination) {
         CockpitDestination.Dashboard -> DashboardScreen(onOpen, modifier)
-        CockpitDestination.Today -> TodayScreen(modifier)
+        CockpitDestination.Today -> TodayScreen(modifier, openNext = { onOpen(CockpitDestination.Next) })
         CockpitDestination.Inbox -> InboxScreen(modifier)
         CockpitDestination.Calendar -> CalendarScreen(modifier)
         CockpitDestination.Mail -> MailScreen(modifier)

@@ -17,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -47,9 +48,12 @@ import dagger.hilt.internal.GeneratedComponentManagerHolder
  * it shows the placeholder instead of failing.
  */
 @Composable
-fun TodayScreen(modifier: Modifier = Modifier) {
+fun TodayScreen(
+    modifier: Modifier = Modifier,
+    openNext: () -> Unit = {},
+) {
     if (LocalActivity.current is GeneratedComponentManagerHolder) {
-        TodayRoute(modifier)
+        TodayWithEditor(openNext, modifier)
     } else {
         PlaceholderScreen(R.string.nav_today, Icons.Outlined.Today, modifier)
     }
@@ -59,9 +63,18 @@ fun TodayScreen(modifier: Modifier = Modifier) {
 fun TodayRoute(
     modifier: Modifier = Modifier,
     viewModel: TodayViewModel = hiltViewModel(),
+    extras: TodayExtrasUiState = TodayExtrasUiState(),
+    extrasCallbacks: TodayExtrasCallbacks = TodayExtrasCallbacks(),
+    openNext: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    TodayContent(state, TodayCallbacks(viewModel::complete, viewModel::undo, viewModel::dismiss, viewModel::retry), modifier)
+    TodayContent(
+        state,
+        TodayCallbacks(viewModel::complete, viewModel::undo, viewModel::dismiss, viewModel::retry, openNext),
+        modifier,
+        extras,
+        extrasCallbacks,
+    )
 }
 
 /** What the Today screen can ask for, so the screen can be tested without a view model. */
@@ -70,12 +83,14 @@ data class TodayCallbacks(
     val undo: (CompletionSnackbar.Undo) -> Unit = {},
     val dismiss: (CompletionSnackbar) -> Unit = {},
     val retry: () -> Unit = {},
+    val openNext: () -> Unit = {},
 )
 
 object TodayTags {
     const val LIST = "today-list"
     const val EMPTY = "today-empty"
     const val LOADING = "today-loading"
+    const val PICK_NEXT = "today-pick-next"
 
     fun section(kind: TodaySectionKind) = "today-section-${kind.name.lowercase()}"
 }
@@ -85,35 +100,66 @@ fun TodayContent(
     state: TodayUiState,
     callbacks: TodayCallbacks,
     modifier: Modifier = Modifier,
+    extras: TodayExtrasUiState = TodayExtrasUiState(),
+    extrasCallbacks: TodayExtrasCallbacks = TodayExtrasCallbacks(),
 ) {
     val snackbarHost = remember { SnackbarHostState() }
     CompletionSnackbarEffect(state.snackbar, snackbarHost, callbacks.undo, callbacks.dismiss)
     val contexts = state.contexts.associateBy { it.id }
+    val hasExtras = extras.events.isNotEmpty() || extras.habits.isNotEmpty()
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             if (state.offline) OfflineBanner(state.refreshedAt)
-            if (state.firstLoadFailed && state.sections.isNotEmpty()) {
+            if (state.firstLoadFailed && (state.sections.isNotEmpty() || hasExtras)) {
                 LoadFailedBanner(callbacks.retry, Modifier.testTag(TaskListTags.ERROR))
             }
             when {
-                state.sections.isNotEmpty() ->
+                state.sections.isEmpty() && !hasExtras && state.loading ->
+                    Centered(
+                        stringResource(R.string.tasks_loading),
+                        TodayTags.LOADING,
+                    )
+                state.sections.isEmpty() && !hasExtras && state.firstLoadFailed ->
+                    LoadFailed(callbacks.retry, Modifier.testTag(TaskListTags.ERROR))
+                else ->
                     LazyColumn(
                         Modifier.fillMaxSize().testTag(TodayTags.LIST),
                         contentPadding = PaddingValues(bottom = LocalFabClearance.current),
                     ) {
+                        todayEvents(extras, state.today, extrasCallbacks.openEvent)
                         state.sections.forEach { section ->
                             item(key = section.kind) { SectionHeader(section) }
                             items(section.tasks, key = { it.id }) { task ->
                                 TaskRow(task, contexts, state.today, state.offline, callbacks.complete)
                             }
                         }
+                        if (state.sections.isEmpty() && !state.loading && !state.firstLoadFailed) {
+                            item(key = TodayTags.EMPTY) { EmptyDay(callbacks.openNext) }
+                        }
+                        todayHabits(extras, extrasCallbacks.checkHabit)
                     }
-                state.loading -> Centered(stringResource(R.string.tasks_loading), TodayTags.LOADING)
-                state.firstLoadFailed -> LoadFailed(callbacks.retry, Modifier.testTag(TaskListTags.ERROR))
-                else -> Centered(stringResource(R.string.today_empty), TodayTags.EMPTY)
             }
         }
         SnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter).padding(bottom = LocalFabClearance.current))
+    }
+}
+
+/** No task for today: says so and offers to pick one from Next (as on the web). */
+@Composable
+private fun EmptyDay(openNext: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().padding(32.dp).testTag(TodayTags.EMPTY),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            stringResource(R.string.today_empty),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(onClick = openNext, modifier = Modifier.testTag(TodayTags.PICK_NEXT)) {
+            Text(stringResource(R.string.today_pick_next))
+        }
     }
 }
 

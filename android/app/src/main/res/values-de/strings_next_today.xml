@@ -75,4 +75,12 @@
     <string name="today_due">Heute fällig</string>
     <string name="today_scheduled">Für heute geplant</string>
     <string name="today_empty">Heute ist nichts fällig oder geplant.</string>
+    <string name="today_pick_next">Nächste Aktion wählen</string>
+    <string name="today_events">Termine</string>
+    <string name="today_event_all_day">Ganztägig</string>
+    <string name="today_habits">Gewohnheiten</string>
+    <string name="today_habit_check">%1$s abhaken</string>
+    <string name="today_habit_uncheck">%1$s zurücksetzen</string>
+    <string name="today_habit_count">%1$d/%2$d</string>
+    <string name="today_habit_check_failed">Die Gewohnheit konnte nicht abgehakt werden. Versuche es noch einmal.</string>
 </resources>
