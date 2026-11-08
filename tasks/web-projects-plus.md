@@ -18,7 +18,8 @@ only open Next tasks while Android shows the project's waiting/someday/scheduled
   - verified (2026-11-08 17:02+0100 by dell26/agent-1): project-detail-delete.spec.ts 'list labels' tests -> pass: tasks in WAITING/SOMEDAY/SCHEDULED/INBOX of the project show 'Waiting'/'Someday'/'Scheduled'/'Inbox', NEXT tasks no label, next-step marker kept on a non-Next next step (GET /tasks?projectId= returns all open lists)
 - [x] New UI strings are in `web/src/locale` (English + German)
   - verified (2026-11-08 17:02+0100 by dell26/agent-1): 12 new trans-units (gtd.project.delete*, gtd.project.actions, gtd.project.list.*, gtd.project.deleted) added to web/src/locale/messages.xlf and messages.de.xlf with German targets; messages-de.spec.ts in npm run check -> pass; ng build (incl. de locale) -> ok
-- [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+- [x] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 17:02+0100 by dell26/agent-1): cd web && npx ng test --include src/app/features/gtd/projects -> 122 passed; sh scripts/check.sh (runs web npm run check: 191 files / 4450 tests, lint, build; server; android) on b7195f3d8 -> all checks passed
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
