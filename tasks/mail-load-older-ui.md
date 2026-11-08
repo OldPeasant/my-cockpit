@@ -1,11 +1,11 @@
 ---
 title: Load mail older than the sync window (web + Android)
-status: in_progress
+status: done
 owner: felix/agent-1
 deps: [web-mail-read-actions,and-mail-actions,and-mail-note-links]
 touches: [web/src/app/features/mail/list,android/app/src/main/java/ch/sonensei/cockpit/mail/list,android/app/src/test/java/ch/sonensei/cockpit/mail/list,android/app/src/main/res/values/strings_mail.xml,android/app/src/main/res/values-de/strings_mail.xml,web/src/locale]
 prio: 3
-lease_until: 2026-11-08T21:37:47Z
+lease_until: 
 ---
 ## Goal
 SPEC.md §7.2: only a sync window is cached; `POST /api/v1/mail/folders/{id}/load-older` exists but no client calls it.
@@ -24,3 +24,4 @@ SPEC.md §7.2: only a sync window is cached; `POST /api/v1/mail/folders/{id}/loa
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 - ASSUMPTION (2026-11-08 21:30+0100 by felix/agent-1): The 'Load older from server' button is offered at the end of every folder list (not the unified Inbox, not search) regardless of the list response's hasOlder hint (it only says 'may'); a click that finds nothing shows 'no older messages' inline next to the button. Newly cached mails are shown by re-reading the folder's first (shown + loaded) messages.
 - ASSUMPTION (2026-11-08 21:52+0100 by felix/agent-1): TW-2 (missing German for calendar.invite.* units and stale capture.save source in messages.de.xlf) is fixed in this task: regenerating messages.xlf surfaced it and web/src/locale is in touches; otherwise .taskcheck fails.
+- done by felix/agent-1: `sh scripts/check.sh` passed in 164s on d722ef713; criteria verified 4/4
