@@ -12,7 +12,8 @@ Same needs as web-mail-search-nav for Android: the search term and results must 
 coming back, and the read view needs previous/next through the matches. Back must return to the origin everywhere.
 
 ## Acceptance criteria
-- [ ] Opening a search result and returning (back gesture or toolbar) shows the same query and results (state in the ViewModel/SavedStateHandle; also survives rotation)
+- [x] Opening a search result and returning (back gesture or toolbar) shows the same query and results (state in the ViewModel/SavedStateHandle; also survives rotation)
+  - verified (2026-11-08 10:26+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests '*MailSearchRouteInAppTest' --tests '*MailReadNavigationInAppTest' (Hilt/Robolectric MainActivity, Mail tab) -> pass: system back and toolbar back from a result show the same query + results, search not re-run (coVerify exactly 1), scenario.recreate() on the open result and on the results keeps both (state in MailListViewModel, open id rememberSaveable)
 - [ ] The read view has previous/next actions stepping through the list it was opened from (search results, or the folder list), disabled at the ends; archive/delete moves to the next one
 - [ ] Back from a mail returns to its origin for every entry point (New, Mail list, search results, global search, dashboard, contact, task links); add a test per entry point that has its own navigation code
 - [ ] Manually verified on an emulator or device (or skipped with reason)
