@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-cal-event-fields]
 prio: 2
 parent: cal-invitation-respond
-lease_until: 2026-11-08T22:54:14Z
+lease_until: 2026-11-08T22:59:14Z
 ---
 ## Goal
 Part of `cal-invitation-respond` (Accept, decline or tentatively accept invitations (web + Android)), which was split.
