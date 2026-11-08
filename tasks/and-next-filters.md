@@ -12,7 +12,8 @@ Web Next has filters by due and area/project and saved presets synced via the `n
 (`next-view.html:12-145`); Android only has context/energy/creativity/estimate.
 
 ## Acceptance criteria
-- [ ] Filters for due (overdue/today/this week/any) and area/project
+- [x] Filters for due (overdue/today/this week/any) and area/project
+  - verified (2026-11-08 16:13+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest on bffd4e704 -> NextViewModelPresetsTest (due overdue/today/week/any, area via project, project, area change drops other-area project), NextFilterMatchTest, NextScreenPresetsTest (due chips incl. Any, area/project menus) pass; 3672 tests, 0 failures
 - [ ] Saved presets: apply, save current, delete; read/written through the shared `nextActionPresets` setting so presets are the same as on web
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
