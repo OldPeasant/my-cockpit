@@ -940,6 +940,74 @@ class BookmarksAddReaderViewModelTest {
         }
 
     @Test
+    fun `a reader reopened while its copy is saved shows the save until it ends`() =
+        runTest(dispatcher) {
+            val saving = CompletableDeferred<BookmarksResult<Bookmark?>>()
+            val saved = bookmark(1, version = 2, snapshotFileId = id(90))
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1), bookmark(2)))
+            coEvery { repo.get(id(1)) } returns BookmarksResult.Ok(bookmark(1))
+            coEvery { repo.get(id(2)) } returns BookmarksResult.Ok(bookmark(2))
+            coEvery { repo.saveSnapshot(any()) } coAnswers { saving.await() }
+            coEvery { repo.snapshot(id(90)) } returns BookmarksResult.Ok(copy)
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+            vm.openReader(bookmark(1))
+            advanceUntilIdle()
+
+            vm.saveSnapshot()
+            runCurrent()
+            vm.closeReader()
+            // Another bookmark's reader is not saving.
+            vm.openReader(bookmark(2))
+            advanceUntilIdle()
+            assertEquals(ReaderState(bookmark(2)), vm.uiState.value.reading)
+
+            vm.openReader(bookmark(1))
+            advanceUntilIdle()
+            // Its own load is done, but the save still runs, so the reader says so.
+            assertEquals(ReaderState(bookmark(1), saving = true), vm.uiState.value.reading)
+
+            saving.complete(BookmarksResult.Ok(saved))
+            advanceUntilIdle()
+            assertEquals(ReaderState(saved, snapshot = copy), vm.uiState.value.reading)
+            assertTrue(
+                vm.uiState.value.busy
+                    .isEmpty(),
+            )
+
+            // A reader opened after the save is not saving.
+            vm.closeReader()
+            vm.openReader(saved)
+            assertEquals(ReaderState(saved, loading = true), vm.uiState.value.reading)
+        }
+
+    @Test
+    fun `a reader reopened while its copy is saved stops showing the save when it fails`() =
+        runTest(dispatcher) {
+            val saving = CompletableDeferred<BookmarksResult<Bookmark?>>()
+            coEvery { repo.list(any(), any()) } returns BookmarksResult.Ok(listOf(bookmark(1)))
+            coEvery { repo.get(id(1)) } returns BookmarksResult.Ok(bookmark(1))
+            coEvery { repo.saveSnapshot(any()) } coAnswers { saving.await() }
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+            vm.openReader(bookmark(1))
+            advanceUntilIdle()
+
+            vm.saveSnapshot()
+            runCurrent()
+            vm.closeReader()
+            vm.openReader(bookmark(1))
+            advanceUntilIdle()
+            assertEquals(ReaderState(bookmark(1), saving = true), vm.uiState.value.reading)
+
+            saving.complete(BookmarksResult.Ok(null))
+            advanceUntilIdle()
+            assertEquals(ReaderState(bookmark(1), failure = ReaderFailure.UNREADABLE), vm.uiState.value.reading)
+        }
+
+    @Test
     fun `a save that fails after the reader was left does not close a reader opened on another bookmark`() =
         runTest(dispatcher) {
             val saving = CompletableDeferred<BookmarksResult<Bookmark?>>()
@@ -1042,7 +1110,8 @@ class BookmarksAddReaderViewModelTest {
             vm.closeReader()
             vm.openReader(bookmark(1))
             advanceUntilIdle()
-            assertEquals(ReaderState(bookmark(1)), vm.uiState.value.reading)
+            // The reopened reader shows that the first save still runs.
+            assertEquals(ReaderState(bookmark(1), saving = true), vm.uiState.value.reading)
 
             // The first save still runs: a second one would go out with the old version.
             vm.saveSnapshot()

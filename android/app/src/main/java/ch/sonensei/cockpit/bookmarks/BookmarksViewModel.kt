@@ -149,6 +149,9 @@ class BookmarksViewModel internal constructor(
     private var loadJob: Job? = null
     private var readerJob: Job? = null
 
+    /** The bookmarks whose readable copy is being saved: a reader opened on one of them shows that it is saving. */
+    private val snapshotSaves = mutableSetOf<UUID>()
+
     /** The ids of Inbox tasks whose create got no answer (offline), by bookmark: a retry sends the same id. */
     private val inboxTaskIds = mutableMapOf<UUID, UUID>()
 
@@ -296,7 +299,7 @@ class BookmarksViewModel internal constructor(
 
     /** Opens the reader on [bookmark]: loads its latest version, then the readable copy, if the server saved one. */
     fun openReader(bookmark: Bookmark) {
-        state.update { it.copy(reading = ReaderState(bookmark, loading = true)) }
+        state.update { it.copy(reading = ReaderState(bookmark, loading = true, saving = bookmark.id in snapshotSaves)) }
         loadReader(bookmark)
     }
 
@@ -324,10 +327,14 @@ class BookmarksViewModel internal constructor(
         val id = reading.bookmark.id
         if (id in state.value.busy) return
         state.update { it.copy(reading = reading.copy(saving = true, failure = null), busy = it.busy + id) }
+        snapshotSaves += id
         viewModelScope.launch {
             try {
                 saveSnapshot(reading.bookmark)
             } finally {
+                snapshotSaves -= id
+                // A reader reopened on the bookmark during the save showed it as saving; the save is over now.
+                updateReader(id) { it.copy(saving = false) }
                 state.update { it.copy(busy = it.busy - id) }
             }
         }

@@ -228,8 +228,8 @@ class BookmarksRepository
                             ),
                         ),
                     )
-                val taskId = UUID.fromString(task["id"]?.jsonPrimitive?.content ?: throw SerializationException("task without id"))
-                link(taskId, bookmark.id)
+                val createdId = UUID.fromString(task["id"]?.jsonPrimitive?.content ?: throw SerializationException("task without id"))
+                link(createdId, bookmark.id)
             }
 
         /** Links task [taskId] to bookmark [bookmarkId] as its origin; `false` when that failed. */

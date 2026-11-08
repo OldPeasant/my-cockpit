@@ -173,6 +173,64 @@ Full test suite:
 Remaining unresolved findings:
 0
 
+## Third round (third review, base bb2aec8a)
+
+Scope: P3 findings CR-1 and CR-2 of the third `reviews/and-bookmarks-plus/review.md` (reviewed HEAD 42d64867).
+
+### Fixed findings
+
+#### CR-1 (third review) — Local `taskId` shadows the `taskId` parameter in `toInbox`
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/bookmarks/BookmarksRepository.kt`
+
+Problem:
+Inside `toInbox(bookmark, taskId)` a local `val taskId` (the id the server returned) shadowed the parameter (the client id).
+
+Fix:
+The local is now `createdId` and is passed to `link(createdId, bookmark.id)`. No behavior change.
+
+Validation:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` — Pass (the existing `BookmarksRepositoryTest` To Inbox tests still pass).
+
+#### CR-2 (third review) — A reader reopened during a running save shows no saving state
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/bookmarks/BookmarksViewModel.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/bookmarks/BookmarksAddReaderViewModelTest.kt`
+
+Problem:
+`openReader` always started with `saving = false`. Reopening the reader on a bookmark whose copy was still being saved showed no progress while the actions stayed disabled by `busy`.
+
+Fix:
+The view model keeps the ids of running snapshot saves (`snapshotSaves`). `openReader` starts with `saving = true` for those. When the save ends (success, unreadable page, failure or cancellation, in the `finally`), the id is removed and a reader still open on that bookmark gets `saving = false`. The existing paths already cleared `saving` on the reader, so this only adds the clear for the reopened reader and covers cancellation.
+
+Test change:
+The existing test `a reader opened again on the bookmark while its copy is saved shows the new copy once it is saved` asserted `ReaderState(bookmark(1))` (with `saving = false`) for the reopened reader, which is the behavior CR-2 reports as the gap. Only that assertion changed, to `saving = true`. The rest of the test is unchanged. New tests:
+- `a reader reopened while its copy is saved shows the save until it ends`: a reader on another bookmark is not saving, the reopened reader is saving after its own load, the saved copy is shown with `saving = false` and `busy` empty after the save, and a reader opened after the save is not saving.
+- `a reader reopened while its copy is saved stops showing the save when it fails`: the server cannot read the page (Ok with no bookmark), so the reopened reader ends with `saving = false` and `UNREADABLE`.
+
+Validation:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` — BUILD SUCCESSFUL. 158 bookmarks tests, 0 failures.
+
+### Not fixed
+
+None.
+
+### Validation summary (third round)
+
+Focused tests, lint and build:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.bookmarks.*'` — Pass after the test update (first run failed on one ktlint chain rule in the new test and on the old assertion described above; both fixed).
+
+Full test suite:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` — BUILD SUCCESSFUL.
+
+`.taskcheck`:
+- Not run in this round. Only Android bookmarks files changed. The parent worker runs it before `done`.
+
+Remaining unresolved findings:
+0
+
 ## Final status
 
-All validated findings fixed and validation passed (both rounds: CR-1 to CR-5 of the first review, CR-1 and CR-2 of the second review). The focused Android validation passes. The full `.taskcheck` was not rerun after the second round. In round one it stopped at the unrelated `web` part because of the Node.js version in this environment.
+All validated findings fixed and validation passed (all three rounds: CR-1 to CR-5 of the first review, CR-1 and CR-2 of the second review, CR-1 and CR-2 of the third review). The focused Android validation passes. The full `.taskcheck` was not rerun after the second or third round. In round one it stopped at the unrelated `web` part because of the Node.js version in this environment.
