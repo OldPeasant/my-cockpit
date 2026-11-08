@@ -1,11 +1,11 @@
 ---
 title: Web projects: delete project, all tasks in project detail
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [web-back-navigation]
 touches: [web/src/app/features/gtd/projects,web/src/locale]
 prio: 2
-lease_until: 2026-11-08T16:22:37Z
+lease_until: 
 ---
 ## Goal
 There is no UI to delete a project (`ProjectStore.remove` unused except in the review), and project detail shows
@@ -26,3 +26,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 16:48+0100 by dell26/agent-1): Delete lives in a 'More project actions' menu on project detail only (not on list rows), like Android's detail menu; after deleting, the page goes to /projects with an Undo snackbar that restores the project via POST /trash restore (type PROJECT).
 - ASSUMPTION (2026-11-08 16:48+0100 by dell26/agent-1): 'Server delete-reassign rules' = the existing server rule (DELETE /projects/{id}: tasks keep their project, no reassignment); the confirmation states that open tasks stay open and keep the project, as Android does. No server change.
 - ASSUMPTION (2026-11-08 16:48+0100 by dell26/agent-1): Project detail already loaded all open tasks of every list (GET /tasks?projectId= has no list filter); the change adds list labels. Inbox tasks of a project also get an 'Inbox' label (Android parity), besides Waiting/Someday/Scheduled.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 133s on 6b987fbcd; criteria verified 4/4
