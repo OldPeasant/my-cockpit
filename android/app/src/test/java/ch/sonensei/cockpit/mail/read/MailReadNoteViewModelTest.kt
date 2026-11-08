@@ -88,7 +88,7 @@ class MailReadNoteViewModelTest {
             val vm = opened()
             advanceUntilIdle()
 
-            listOf<MailResult<String>>(MailResult.Failed(500),MailResult.Failed(null), MailResult.Offline).forEach { result ->
+            listOf<MailResult<String>>(MailResult.Failed(500), MailResult.Failed(null), MailResult.Offline).forEach { result ->
                 coEvery { reader.gtd(id(1), MailGtdAction.NOTE) } returns result
                 vm.gtd(MailGtdAction.NOTE)
                 advanceUntilIdle()
