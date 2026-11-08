@@ -23,3 +23,4 @@ and "on this day" (`journal-page.html`).
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 - ASSUMPTION (2026-11-08 20:07+0100 by rudi/agent-1): Opening another day first saves the shown one and stays on it (DAY_NOT_SAVED message) if that save fails or a conflict waits; web asks in a leave dialog instead. Navigation is ignored while a photo uploads.
 - ASSUMPTION (2026-11-08 20:07+0100 by rudi/agent-1): Month calendar starts weeks on the device locale's first day (not the synced weekStart setting) and is a toggled panel above the entry; marks days by mood strength like the web heatmap.
+- ASSUMPTION (2026-11-08 20:07+0100 by rudi/agent-1): Kept JournalRepository.save(date, base, text) (keeps mood/tags) for ReflectionSaver in review/ and added saveEntry(date, base, draft), so no file outside the task's touches changes.
