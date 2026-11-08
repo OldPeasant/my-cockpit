@@ -21,3 +21,4 @@ Android mail cannot mark read/unread, flag, or move, has spam only in the read v
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 - ASSUMPTION (2026-11-08 11:18+0100 by dell26/agent-2): Undo (snackbar) is offered for list actions (swipes and bulk): marks are undone by the inverse action, moves/archive/delete/spam by MOVE back to each mail's original folder; not offered for a delete in Trash (permanent) or when a mail's folder is unknown. The read view has no undo snackbar: flag toggles are reversible from its menu, unread returns to the list.
+- ASSUMPTION (2026-11-08 11:18+0100 by dell26/agent-2): Bulk 'Move to folder' is only enabled when all selected mails belong to one account (the server needs a target folder of the messages' account); in the unified Inbox with mixed accounts it is disabled.
