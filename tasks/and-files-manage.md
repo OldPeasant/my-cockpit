@@ -13,7 +13,8 @@ releases: 2
 Android Files can browse, download and upload only (web: `files-page.html:76-200`).
 
 ## Acceptance criteria
-- [ ] New folder, rename, move (folder picker), delete (to Trash) for files and folders
+- [x] New folder, rename, move (folder picker), delete (to Trash) for files and folders
+  - verified (2026-11-08 14:07+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport at 4294509ec -> BUILD SUCCESSFUL, 3430 tests 0 failures; files.* tests (FilesViewModelTest 61, FilesScreenTest, FilesRepositoryTest, FilesRouteInAppTest) cover create folder, rename, move via folder picker (files+folders, root, subfolders), delete to Trash; code review reviews/and-files-manage/review.md: 0 P0-P2
 - [ ] Long-press multi-select for move/delete
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
