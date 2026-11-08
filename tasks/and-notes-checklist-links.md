@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [and-notes-list, and-links-panel]
 prio: 2
 parent: and-notes-editor
-lease_until: 2026-11-08T21:47:57Z
+lease_until: 2026-11-08T21:52:57Z
 ---
 ## Goal
 Part of `and-notes-editor` (Android note editor: tags, checklists, links, revisions), which was split.
