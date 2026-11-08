@@ -1,6 +1,9 @@
 package ch.sonensei.cockpit.dashboard
 
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.SemanticsActions
@@ -384,5 +387,24 @@ class DashboardActionsScreenTest {
         composeRule.onNodeWithTag(DashboardTags.ALL_HIDDEN).assertIsDisplayed()
         composeRule.onNodeWithTag(DashboardTags.CHOOSE_WIDGETS).assertDoesNotExist()
         composeRule.onNodeWithTag(DashboardTags.CUSTOMIZE_PANEL).assertExists()
+    }
+
+    /** A new order normally starts at the top again; while the user reorders in the editor it must stay in view. */
+    @Test
+    fun `reordering while customizing keeps the editor in view instead of jumping to the top`() {
+        val before = layoutOf(WidgetId.INBOX, WidgetId.TODAY, WidgetId.WEEKLY_REVIEW)
+        var state by mutableStateOf(customizing(before))
+        composeRule.setContent {
+            CockpitTheme { DashboardContent(state, onRefresh = {}, onOpen = {}, actions = recording) }
+        }
+        scrollTo(DashboardTags.RESET)
+        composeRule.onNodeWithTag(DashboardTags.RESET).assertIsDisplayed()
+
+        val after = before.moved(WidgetId.WEEKLY_REVIEW, 0)
+        state = customizing(after)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(DashboardTags.RESET).assertIsDisplayed()
+        composeRule.onNodeWithTag(DashboardTags.card(WidgetId.WEEKLY_REVIEW)).assertDoesNotExist()
     }
 }
