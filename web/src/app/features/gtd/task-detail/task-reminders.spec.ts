@@ -639,6 +639,51 @@ describe('TaskReminders', () => {
     expect(element.querySelector('.empty')?.textContent).toContain('No reminders.');
   });
 
+  it('keeps the controls locked when an earlier visit answers before the current load', async () => {
+    stored['t1'] = [reminder('r1', new Date(2026, 10, 21, 8, 0))];
+    const first = deferred();
+    loadGate['t1'] = first.promise;
+    await render();
+    host.id.set('t2');
+    await refresh();
+    const second = deferred();
+    loadGate['t1'] = second.promise;
+    host.id.set('t1');
+    await refresh();
+    // The first visit's load answers while this visit's load is still pending.
+    first.resolve();
+    await refresh();
+    expect(buttons('.chip').every((b) => b.disabled)).toBe(true);
+    expect(rows().length).toBe(0);
+    expect(element.querySelector('.empty')).toBeNull();
+    second.resolve();
+    await refresh();
+    expect(rows().length).toBe(1);
+    expect(buttons('.chip').some((b) => b.disabled)).toBe(false);
+  });
+
+  it('ignores a retry of the previous task that fails after switching task', async () => {
+    stored['t2'] = [reminder('x', new Date(2026, 10, 22, 8, 0))];
+    failLoad = new Error('offline');
+    await render();
+    const slow = deferred();
+    loadGate['t1'] = slow.promise;
+    buttons('.retry')[0].click();
+    await refresh();
+    expect(loads).toEqual(['t1', 't1']);
+    failLoad = undefined;
+    host.id.set('t2');
+    await refresh();
+    expect(rows().length).toBe(1);
+    failLoad = new Error('offline');
+    slow.resolve();
+    await refresh();
+    expect(banner()).toBeUndefined();
+    expect(buttons('.retry').length).toBe(0);
+    expect(rows().length).toBe(1);
+    expect(rows()[0].textContent).toContain('22 Nov');
+  });
+
   it('clears the typed time and the error when the task changes', async () => {
     await render();
     typeExact('2026-11-01T07:45');
