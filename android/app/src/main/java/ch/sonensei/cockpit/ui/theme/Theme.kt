@@ -4,6 +4,7 @@ import android.graphics.Color
 import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.LocalActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
@@ -64,7 +65,7 @@ fun CockpitSettingsTheme(
 ) {
     val current by settings.collectAsStateWithLifecycle()
     val dark = isDark(current?.theme ?: ThemeSetting.SYSTEM, isSystemInDarkTheme())
-    val activity = LocalContext.current as? ComponentActivity
+    val activity = LocalActivity.current as? ComponentActivity
     LaunchedEffect(activity, dark) {
         activity?.enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark },
