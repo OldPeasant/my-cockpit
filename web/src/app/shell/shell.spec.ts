@@ -1,5 +1,5 @@
 import { BreakpointObserver, BreakpointState } from '@angular/cdk/layout';
-import { Provider } from '@angular/core';
+import { DestroyRef, Provider } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSidenav } from '@angular/material/sidenav';
@@ -19,6 +19,7 @@ import {
   PaletteProvider,
   THEME_PREFERENCE,
 } from './shell-tokens';
+import { PageShortcuts } from './page-shortcuts';
 import { ShortcutsDialog } from './shortcuts-dialog';
 import { ThemeService } from './theme.service';
 
@@ -219,6 +220,20 @@ describe('Shell', () => {
     expect(openDialogs().some((c) => c instanceof ShortcutsDialog)).toBe(true);
     await fixture.whenStable();
     expect(document.querySelector('app-shortcuts-dialog')?.textContent).toContain('Ctrl+K');
+  });
+
+  it("shows the shown page's shortcuts in the ? overview under its title", async () => {
+    await setup();
+    TestBed.inject(PageShortcuts).register(
+      { title: 'Mail', shortcuts: [{ keys: ['c'], description: 'Write a new message' }] },
+      TestBed.inject(DestroyRef),
+    );
+    keydown({ key: '?', shiftKey: true });
+    await fixture.whenStable();
+    const dialog = document.querySelector('app-shortcuts-dialog')!;
+    expect(dialog.querySelector('h3')?.textContent?.trim()).toBe('Mail');
+    expect(dialog.textContent).toContain('Ctrl+K');
+    expect(dialog.textContent).toContain('Write a new message');
   });
 
   it('does not open capture while a dialog is open', async () => {

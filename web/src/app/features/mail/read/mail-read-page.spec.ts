@@ -11,14 +11,23 @@ import {
   Router,
 } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { BehaviorSubject } from 'rxjs';
-import { ItemRefDto, MailMessageResponse, Settings, SettingsPatch } from '../../../api/generated';
+import { BehaviorSubject, of, Subject } from 'rxjs';
+import {
+  ItemRefDto,
+  MailFolderResponse,
+  MailMessageResponse,
+  Settings,
+  SettingsPatch,
+} from '../../../api/generated';
 import { ApiError, NotificationService } from '../../../core/http';
 import { LinkedItems } from '../../../shared/links';
 import { provideBackNavigation } from '../../../shared/navigation';
 import { SettingsService } from '../../settings/settings.service';
 import { fakeSettings } from '../../settings/testing';
+import { PageShortcuts } from '../../../shell/page-shortcuts';
 import { MailListSession, SavedMailList } from '../list/mail-list-session';
+import { MailMoveDialog, MailMoveDialogData } from '../list/mail-move-dialog';
+import { MAIL_READ_HELP } from '../list/mail-shortcuts';
 import { summary } from '../list/mail-testing';
 import { MailAction, MailService, MailSummary } from '../list/mail.service';
 import { IMAGE_ALLOWLIST_KEY } from './image-allowlist';
@@ -123,16 +132,66 @@ class FakeReadService {
 type ActionAnswer = { id: string; ok: boolean; error?: string; detail?: string }[] | Error;
 
 class FakeMailService {
-  applies: { action: MailAction; ids: string[] }[] = [];
+  applies: { action: MailAction; ids: string[]; target?: string }[] = [];
   /** The answer of the next `apply`; by default every id succeeds. */
   answer?: ActionAnswer | Promise<ActionAnswer>;
+  /** The accounts whose folders were asked for. */
+  folderRequests: string[] = [];
+  /** What `folders` answers. */
+  folderAnswer: MailFolderResponse[] | Error | Promise<MailFolderResponse[]> = [
+    folder('f-inbox', 'INBOX', 'INBOX'),
+    folder('f-archive', 'Archive', 'ARCHIVE'),
+    folder('f-projects', 'Projects'),
+    folder('f-projects-a', 'Projects/Alpha'),
+    folder('f-noselect', '[Gmail]', undefined, false),
+  ];
 
-  async apply(action: MailAction, ids: string[]) {
-    this.applies.push({ action, ids });
+  async apply(action: MailAction, ids: string[], target?: string) {
+    this.applies.push(target === undefined ? { action, ids } : { action, ids, target });
     const answer = (await this.answer) ?? ids.map((id) => ({ id, ok: true }));
     if (answer instanceof Error) throw answer;
     return answer;
   }
+
+  async folders(accountId: string) {
+    this.folderRequests.push(accountId);
+    const answer = await this.folderAnswer;
+    if (answer instanceof Error) throw answer;
+    return answer;
+  }
+}
+
+function folder(
+  id: string,
+  path: string,
+  role?: MailFolderResponse['role'],
+  selectable = true,
+): MailFolderResponse {
+  return {
+    id,
+    accountId: 'acc-1',
+    path,
+    name: path.split('/').at(-1)!,
+    delimiter: '/',
+    role,
+    roleOverridden: false,
+    selectable,
+    version: 0,
+  };
+}
+
+/**
+ * Replaces the move dialog: records what it was opened with and closes with `result` (a folder
+ * id, or nothing on cancel) when the test says so.
+ */
+function fakeMoveDialog(result: string | undefined | Subject<string | undefined>) {
+  const dialog = TestBed.inject(MatDialog);
+  const opened: { component: unknown; data: MailMoveDialogData }[] = [];
+  vi.spyOn(dialog, 'open').mockImplementation(((component: unknown, config: { data: unknown }) => {
+    opened.push({ component, data: config.data as MailMoveDialogData });
+    return { afterClosed: () => (result instanceof Subject ? result : of(result)) };
+  }) as never);
+  return opened;
 }
 
 /** The synced settings as the server holds them: they outlive a page (and a test module). */
@@ -1598,6 +1657,504 @@ describe('MailReadPage', () => {
       expect(notifications.error).not.toHaveBeenCalled();
     });
   });
+
+  describe('Mark unread, Star and Move', () => {
+    const press = (key: string, init: KeyboardEventInit = {}, target: EventTarget = document) => {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+      target.dispatchEvent(event);
+      return event;
+    };
+    const unreadButton = () => el().querySelector<HTMLButtonElement>('button.unread');
+    const flagButton = () => el().querySelector<HTMLButtonElement>('button.flag');
+    const moveButton = () => el().querySelector<HTMLButtonElement>('button.move');
+    /** The Manage group: Mark unread, Star, Move, Archive, Spam, Delete. */
+    const actionButtons = () => [
+      ...el().querySelectorAll<HTMLButtonElement>('[aria-label="Manage"] button'),
+    ];
+    let navigate: ReturnType<typeof vi.spyOn>;
+
+    async function open(...answers: Answer[]) {
+      await create(...answers);
+      navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    }
+
+    it('are not offered, and u, s and v do nothing, before the message has loaded or when it failed', async () => {
+      for (const answer of [deferred<MailMessageResponse>().promise, new ApiError(404, 'Gone')]) {
+        TestBed.resetTestingModule();
+        await create(answer);
+        expect(unreadButton()).toBeNull();
+        expect(flagButton()).toBeNull();
+        expect(moveButton()).toBeNull();
+        for (const key of ['u', 's', 'v']) expect(press(key).defaultPrevented).toBe(false);
+        await flush();
+        expect(mail.applies).toEqual([]);
+        expect(mail.folderRequests).toEqual([]);
+      }
+    });
+
+    it('show their shortcuts in the title', async () => {
+      await open();
+      expect(unreadButton()!.getAttribute('title')).toBe('Mark unread (u)');
+      expect(flagButton()!.getAttribute('title')).toBe('Star (s)');
+      expect(moveButton()!.getAttribute('title')).toBe('Move to folder (v)');
+    });
+
+    describe('Mark unread', () => {
+      it('marks the message unread and returns to where it was opened from', async () => {
+        await open();
+        unreadButton()!.click();
+        await flush();
+        expect(mail.applies).toEqual([{ action: 'UNREAD', ids: [ID] }]);
+        expect(navigate).toHaveBeenCalledExactlyOnceWith('/mail', { replaceUrl: true });
+        expect(notifications.error).not.toHaveBeenCalled();
+      });
+
+      it('runs with u', async () => {
+        await open();
+        const event = press('u');
+        await flush();
+        expect(event.defaultPrevented).toBe(true);
+        expect(mail.applies).toEqual([{ action: 'UNREAD', ids: [ID] }]);
+        expect(navigate).toHaveBeenCalledWith('/mail', { replaceUrl: true });
+      });
+
+      it('waits for marking the message read on opening, so the two cannot cross', async () => {
+        const reading = deferred<void>();
+        setup = (fake) => {
+          fake.markRead = (id: string) => {
+            fake.reads.push(id);
+            return reading.promise;
+          };
+        };
+        await open(message({ seen: false }));
+        expect(service.reads).toEqual([ID]);
+        unreadButton()!.click();
+        await flush();
+        fixture.detectChanges();
+        expect(mail.applies).toEqual([]);
+        expect(actionButtons().every((b) => b.disabled)).toBe(true);
+        press('u');
+        await flush();
+        expect(mail.applies).toEqual([]);
+
+        reading.resolve();
+        await flush();
+        expect(mail.applies).toEqual([{ action: 'UNREAD', ids: [ID] }]);
+        expect(navigate).toHaveBeenCalledTimes(1);
+      });
+
+      it('still marks unread after marking read on opening failed', async () => {
+        const reading = deferred<void>();
+        setup = (fake) => {
+          fake.markRead = () => reading.promise;
+        };
+        await open(message({ seen: false }));
+        press('u');
+        await flush();
+        expect(mail.applies).toEqual([]);
+        reading.reject(new ApiError(503, 'Unavailable'));
+        await flush();
+        expect(mail.applies).toEqual([{ action: 'UNREAD', ids: [ID] }]);
+        expect(notifications.error).not.toHaveBeenCalled();
+      });
+
+      it('stays on the message with the server reason when it could not be marked unread', async () => {
+        await open();
+        mail.answer = [{ id: ID, ok: false, detail: 'The mail server refused the change' }];
+        unreadButton()!.click();
+        await flush();
+        fixture.detectChanges();
+        expect(navigate).not.toHaveBeenCalled();
+        expect(notifications.error).toHaveBeenCalledWith(
+          'The message could not be marked as unread: The mail server refused the change',
+        );
+        expect(el().querySelector('h1')?.textContent?.trim()).toBe('Quarterly report');
+        expect(actionButtons().some((b) => b.disabled)).toBe(false);
+
+        mail.answer = new ApiError(409, 'Conflict', 'The account is being synced');
+        press('u');
+        await flush();
+        expect(notifications.error).toHaveBeenLastCalledWith(
+          'The message could not be marked as unread: The account is being synced',
+        );
+        mail.answer = new TypeError('Failed to fetch');
+        press('u');
+        await flush();
+        expect(notifications.error).toHaveBeenLastCalledWith(
+          'The message could not be marked as unread: Something went wrong.',
+        );
+        expect(navigate).not.toHaveBeenCalled();
+      });
+
+      it('does not leave a message the user moved to while it ran', async () => {
+        await open();
+        const pending = deferred<ActionAnswer>();
+        mail.answer = pending.promise;
+        unreadButton()!.click();
+        await flush();
+        service.answers.push(message({ id: 'other' }));
+        params.next(convertToParamMap({ id: 'other' }));
+        await flush();
+        pending.resolve([{ id: ID, ok: true }]);
+        await flush();
+        expect(mail.applies).toEqual([{ action: 'UNREAD', ids: [ID] }]);
+        expect(navigate).not.toHaveBeenCalled();
+      });
+
+      it('does not navigate when the page was left while it ran', async () => {
+        await open();
+        const pending = deferred<ActionAnswer>();
+        mail.answer = pending.promise;
+        unreadButton()!.click();
+        await flush();
+        fixture.destroy();
+        pending.resolve([{ id: ID, ok: true }]);
+        await flush();
+        expect(navigate).not.toHaveBeenCalled();
+        expect(notifications.error).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Star', () => {
+      it('stars the message with FLAG and stays on it, showing it starred', async () => {
+        await open();
+        expect(flagButton()!.textContent?.trim()).toBe('☆ Star');
+        expect(flagButton()!.getAttribute('aria-pressed')).toBe('false');
+        flagButton()!.click();
+        await flush();
+        fixture.detectChanges();
+        expect(mail.applies).toEqual([{ action: 'FLAG', ids: [ID] }]);
+        expect(flagButton()!.textContent?.trim()).toBe('★ Starred');
+        expect(flagButton()!.getAttribute('aria-pressed')).toBe('true');
+        expect(navigate).not.toHaveBeenCalled();
+        expect(notifications.error).not.toHaveBeenCalled();
+      });
+
+      it('removes the star of a starred message with UNFLAG, then stars it again with s', async () => {
+        await open(message({ flagged: true }));
+        expect(flagButton()!.textContent?.trim()).toBe('★ Starred');
+        expect(flagButton()!.getAttribute('aria-pressed')).toBe('true');
+        const event = press('s');
+        await flush();
+        fixture.detectChanges();
+        expect(event.defaultPrevented).toBe(true);
+        expect(flagButton()!.textContent?.trim()).toBe('☆ Star');
+        press('s');
+        await flush();
+        fixture.detectChanges();
+        expect(mail.applies).toEqual([
+          { action: 'UNFLAG', ids: [ID] },
+          { action: 'FLAG', ids: [ID] },
+        ]);
+        expect(flagButton()!.getAttribute('aria-pressed')).toBe('true');
+        expect(navigate).not.toHaveBeenCalled();
+      });
+
+      it('disables the actions while it runs, so nothing runs twice', async () => {
+        await open();
+        const pending = deferred<ActionAnswer>();
+        mail.answer = pending.promise;
+        press('s');
+        fixture.detectChanges();
+        expect(actionButtons().every((b) => b.disabled)).toBe(true);
+        for (const key of ['s', 'u', 'v', 'e', '#', '!']) press(key);
+        await flush();
+        expect(mail.applies).toEqual([{ action: 'FLAG', ids: [ID] }]);
+        expect(mail.folderRequests).toEqual([]);
+        pending.resolve([{ id: ID, ok: true }]);
+        await flush();
+        fixture.detectChanges();
+        expect(actionButtons().some((b) => b.disabled)).toBe(false);
+      });
+
+      it('keeps the star as it was and reports why when starring or unstarring fails', async () => {
+        await open();
+        mail.answer = [{ id: ID, ok: false, detail: 'Read-only folder' }];
+        flagButton()!.click();
+        await flush();
+        fixture.detectChanges();
+        expect(notifications.error).toHaveBeenCalledWith(
+          'The message could not be starred: Read-only folder',
+        );
+        expect(flagButton()!.textContent?.trim()).toBe('☆ Star');
+
+        TestBed.resetTestingModule();
+        await open(message({ flagged: true }));
+        mail.answer = new ApiError(409, 'Conflict', 'The account is being synced');
+        flagButton()!.click();
+        await flush();
+        fixture.detectChanges();
+        expect(notifications.error).toHaveBeenCalledWith(
+          'The star could not be removed: The account is being synced',
+        );
+        expect(flagButton()!.textContent?.trim()).toBe('★ Starred');
+      });
+
+      it('does not star the message the user moved to while it ran', async () => {
+        await open();
+        const pending = deferred<ActionAnswer>();
+        mail.answer = pending.promise;
+        flagButton()!.click();
+        service.answers.push(message({ id: 'other', subject: 'Other' }));
+        params.next(convertToParamMap({ id: 'other' }));
+        await flush();
+        pending.resolve([{ id: ID, ok: true }]);
+        await flush();
+        fixture.detectChanges();
+        expect(el().querySelector('h1')?.textContent?.trim()).toBe('Other');
+        expect(flagButton()!.textContent?.trim()).toBe('☆ Star');
+      });
+    });
+
+    describe('Move', () => {
+      it("offers the account's selectable folders except the current one and moves there", async () => {
+        await open();
+        const opened = fakeMoveDialog('f-projects');
+        moveButton()!.click();
+        await flush();
+        expect(mail.folderRequests).toEqual(['acc-1']);
+        expect(opened).toHaveLength(1);
+        expect(opened[0].component).toBe(MailMoveDialog);
+        expect(opened[0].data.folders.map((node) => [node.folder.id, node.depth])).toEqual([
+          ['f-archive', 0],
+          ['f-projects', 0],
+          ['f-projects-a', 1],
+        ]);
+        expect(mail.applies).toEqual([{ action: 'MOVE', ids: [ID], target: 'f-projects' }]);
+        expect(navigate).toHaveBeenCalledExactlyOnceWith('/mail', { replaceUrl: true });
+        expect(notifications.error).not.toHaveBeenCalled();
+      });
+
+      it('runs with v', async () => {
+        await open();
+        fakeMoveDialog('f-archive');
+        const event = press('v');
+        await flush();
+        expect(event.defaultPrevented).toBe(true);
+        expect(mail.applies).toEqual([{ action: 'MOVE', ids: [ID], target: 'f-archive' }]);
+      });
+
+      it('does not move, and enables the actions again, when the picker is cancelled', async () => {
+        await open();
+        const opened = fakeMoveDialog(undefined);
+        moveButton()!.click();
+        await flush();
+        fixture.detectChanges();
+        expect(opened).toHaveLength(1);
+        expect(mail.applies).toEqual([]);
+        expect(navigate).not.toHaveBeenCalled();
+        expect(actionButtons().some((b) => b.disabled)).toBe(false);
+      });
+
+      it('keeps the actions busy while the folders load and the picker is open, and opens it once', async () => {
+        await open();
+        const folders = deferred<MailFolderResponse[]>();
+        mail.folderAnswer = folders.promise;
+        const closed = new Subject<string | undefined>();
+        const opened = fakeMoveDialog(closed);
+        press('v');
+        fixture.detectChanges();
+        expect(actionButtons().every((b) => b.disabled)).toBe(true);
+        press('v');
+        moveButton()!.click();
+        press('e');
+        await flush();
+        expect(mail.folderRequests).toEqual(['acc-1']);
+        expect(mail.applies).toEqual([]);
+
+        folders.resolve([folder('f-projects', 'Projects')]);
+        await flush();
+        fixture.detectChanges();
+        expect(opened).toHaveLength(1);
+        expect(actionButtons().every((b) => b.disabled)).toBe(true);
+        closed.next('f-projects');
+        closed.complete();
+        await flush();
+        expect(mail.applies).toEqual([{ action: 'MOVE', ids: [ID], target: 'f-projects' }]);
+      });
+
+      it('reports folders that cannot be loaded, without opening the picker', async () => {
+        await open();
+        mail.folderAnswer = new ApiError(503, 'Unavailable', 'The mail server is unreachable');
+        const opened = fakeMoveDialog('f-projects');
+        moveButton()!.click();
+        await flush();
+        fixture.detectChanges();
+        expect(opened).toEqual([]);
+        expect(notifications.error).toHaveBeenCalledWith(
+          'The message could not be moved: The mail server is unreachable',
+        );
+        expect(mail.applies).toEqual([]);
+        expect(actionButtons().some((b) => b.disabled)).toBe(false);
+      });
+
+      it('stays on the message with the server reason when the move fails', async () => {
+        await open();
+        fakeMoveDialog('f-projects');
+        mail.answer = [{ id: ID, ok: false, detail: 'Folder is full' }];
+        press('v');
+        await flush();
+        fixture.detectChanges();
+        expect(navigate).not.toHaveBeenCalled();
+        expect(notifications.error).toHaveBeenCalledWith(
+          'The message could not be moved: Folder is full',
+        );
+        expect(actionButtons().some((b) => b.disabled)).toBe(false);
+      });
+
+      it('opens no picker for a message the user left while the folders loaded', async () => {
+        await open();
+        const folders = deferred<MailFolderResponse[]>();
+        mail.folderAnswer = folders.promise;
+        const opened = fakeMoveDialog('f-projects');
+        press('v');
+        service.answers.push(message({ id: 'other' }));
+        params.next(convertToParamMap({ id: 'other' }));
+        await flush();
+        folders.resolve([folder('f-projects', 'Projects')]);
+        await flush();
+        expect(opened).toEqual([]);
+        expect(mail.applies).toEqual([]);
+      });
+
+      it('does not move a message the user left while the picker was open', async () => {
+        await open();
+        const closed = new Subject<string | undefined>();
+        fakeMoveDialog(closed);
+        press('v');
+        await flush();
+        service.answers.push(message({ id: 'other' }));
+        params.next(convertToParamMap({ id: 'other' }));
+        await flush();
+        closed.next('f-projects');
+        closed.complete();
+        await flush();
+        expect(mail.applies).toEqual([]);
+        expect(navigate).not.toHaveBeenCalled();
+      });
+
+      it('does not open while another dialog is open', async () => {
+        await open();
+        const dialog = TestBed.inject(MatDialog);
+        const ref = dialog.open(StubDialog, {
+          enterAnimationDuration: 0,
+          exitAnimationDuration: 0,
+        });
+        await flush();
+        try {
+          expect(press('v').defaultPrevented).toBe(false);
+          moveButton()!.click();
+          await flush();
+          expect(mail.folderRequests).toEqual([]);
+        } finally {
+          ref.close();
+          await flush();
+        }
+      });
+    });
+  });
+
+  describe('reply, reply all, forward and compose keys', () => {
+    const press = (key: string, init: KeyboardEventInit = {}, target: EventTarget = document) => {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+      target.dispatchEvent(event);
+      return event;
+    };
+    let navigate: ReturnType<typeof vi.spyOn>;
+
+    async function open(...answers: Answer[]) {
+      await create(...answers);
+      navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    }
+
+    it.each([
+      ['r', 'reply'],
+      ['a', 'replyAll'],
+      ['f', 'forward'],
+    ])('%s opens the compose page to %s to this message', async (key, param) => {
+      await open();
+      const event = press(key);
+      expect(event.defaultPrevented).toBe(true);
+      expect(navigate).toHaveBeenCalledExactlyOnceWith(['/mail/compose'], {
+        queryParams: { [param]: ID },
+      });
+      expect(mail.applies).toEqual([]);
+    });
+
+    it('names the keys in the titles of Reply, Reply all and Forward', async () => {
+      await open();
+      expect(button('Reply')!.getAttribute('title')).toBe('Reply (r)');
+      expect(button('Reply all')!.getAttribute('title')).toBe('Reply all (a)');
+      expect(button('Forward')!.getAttribute('title')).toBe('Forward (f)');
+    });
+
+    it('c opens a new message, also before the message has loaded or when it failed', async () => {
+      for (const answer of [
+        message(),
+        deferred<MailMessageResponse>().promise,
+        new ApiError(404, 'Gone'),
+      ]) {
+        TestBed.resetTestingModule();
+        await open(answer);
+        expect(press('c').defaultPrevented).toBe(true);
+        expect(navigate).toHaveBeenCalledExactlyOnceWith(['/mail/compose']);
+      }
+    });
+
+    it('r, a and f do nothing before the message has loaded or when it failed', async () => {
+      for (const answer of [deferred<MailMessageResponse>().promise, new ApiError(404, 'Gone')]) {
+        TestBed.resetTestingModule();
+        await open(answer);
+        for (const key of ['r', 'a', 'f']) expect(press(key).defaultPrevented).toBe(false);
+        expect(navigate).not.toHaveBeenCalled();
+      }
+    });
+
+    it('reply to the message shown, not the one shown before', async () => {
+      await open(message(), message({ id: 'other' }));
+      params.next(convertToParamMap({ id: 'other' }));
+      await flush();
+      fixture.detectChanges();
+      press('r');
+      expect(navigate).toHaveBeenCalledExactlyOnceWith(['/mail/compose'], {
+        queryParams: { reply: 'other' },
+      });
+    });
+
+    it('ignore r, a, f and c while typing, as chords, repeated or while a dialog is open', async () => {
+      await open();
+      const input = document.createElement('textarea');
+      document.body.append(input);
+      const dialog = TestBed.inject(MatDialog);
+      try {
+        for (const key of ['r', 'a', 'f', 'c']) {
+          expect(press(key, {}, input).defaultPrevented).toBe(false);
+          expect(press(key, { ctrlKey: true }).defaultPrevented).toBe(false);
+          expect(press(key, { metaKey: true }).defaultPrevented).toBe(false);
+          expect(press(key, { repeat: true }).defaultPrevented).toBe(false);
+        }
+        const ref = dialog.open(StubDialog, {
+          enterAnimationDuration: 0,
+          exitAnimationDuration: 0,
+        });
+        await flush();
+        for (const key of ['r', 'a', 'f', 'c']) expect(press(key).defaultPrevented).toBe(false);
+        ref.close();
+        await flush();
+        expect(navigate).not.toHaveBeenCalled();
+      } finally {
+        input.remove();
+      }
+    });
+  });
+
+  it('lists its keys in the ? overview while it is shown', async () => {
+    await create();
+    const sections = TestBed.inject(PageShortcuts).sections;
+    expect(sections()).toEqual([{ title: 'Message', shortcuts: MAIL_READ_HELP }]);
+    fixture.destroy();
+    expect(sections()).toEqual([]);
+  });
 });
 
 @Component({ selector: 'app-stub-dialog', template: '<p>dialog</p>' })
@@ -1766,6 +2323,47 @@ describe('MailReadPage Archive, Spam and Delete: back to where it was opened fro
       expect(TestBed.inject(Router).url).toBe('/mail/folders/f-trash');
       expect(mail.applies).toEqual([{ action: 'DELETE', ids: [ID] }]);
     });
+  });
+
+  describe('Mark unread', () => {
+    it('returns to the folder it was opened from, so Back does not open the message again', async () => {
+      const harness = await openFrom('/notes', '/mail/folders/f-work');
+      expect(await clickAction(harness, 'Mark unread')).toBe('/mail/folders/f-work');
+      expect(mail.applies).toEqual([{ action: 'UNREAD', ids: [ID] }]);
+      expect(harness.routeNativeElement!.querySelector('.list')).not.toBeNull();
+      const location = TestBed.inject(Location);
+      location.back();
+      expect(location.path()).toBe('/notes');
+    });
+
+    it('returns to the page it was opened from, with its filter', async () => {
+      expect(await clickAction(await openFrom('/new?filter=mail'), 'Mark unread')).toBe(
+        '/new?filter=mail',
+      );
+    });
+
+    it('returns to the unified Inbox when opened directly', async () => {
+      expect(await clickAction(await openFrom(null), 'Mark unread')).toBe('/mail');
+    });
+
+    it('stays on the message when it fails', async () => {
+      const harness = await openFrom('/mail/folders/f-work');
+      mail.answer = new Error('offline');
+      expect(await clickAction(harness, 'Mark unread')).toBe(`/mail/messages/${ID}`);
+    });
+  });
+
+  it('stays on the message after starring it', async () => {
+    const harness = await openFrom('/mail/folders/f-work');
+    expect(await clickAction(harness, '☆ Star')).toBe(`/mail/messages/${ID}`);
+    expect(mail.applies).toEqual([{ action: 'FLAG', ids: [ID] }]);
+  });
+
+  it('returns to the folder it was opened from after moving the message, like Archive', async () => {
+    const harness = await openFrom('/mail/folders/f-work');
+    fakeMoveDialog('f-projects');
+    expect(await clickAction(harness, 'Move')).toBe('/mail/folders/f-work');
+    expect(mail.applies).toEqual([{ action: 'MOVE', ids: [ID], target: 'f-projects' }]);
   });
 
   it('returns to the message it was opened from when moving on to another message', async () => {
@@ -1993,6 +2591,58 @@ describe('MailReadPage previous/next through the list it was opened from', () =>
       ).toEqual([A, C]);
     });
   }
+
+  it('Move moves on to the next message of the list, like Archive', async () => {
+    const harness = await openFromList(B);
+    fakeMoveDialog('f-projects');
+    key('v');
+    await settle(harness);
+    expect(mail.applies).toEqual([{ action: 'MOVE', ids: [B], target: 'f-projects' }]);
+    expect(url()).toBe(`/mail/messages/${C}`);
+    expect(
+      TestBed.inject(MailListSession)
+        .saved()!
+        .items.map((entry) => entry.id),
+    ).toEqual([A, C]);
+  });
+
+  it('Mark unread shows the message unread in the list and returns to it', async () => {
+    const harness = await openFromList(B);
+    // Opening B marked it read in the list.
+    expect(TestBed.inject(MailListSession).saved()!.items[1].seen).toBe(true);
+    key('u');
+    await settle(harness);
+    expect(mail.applies).toEqual([{ action: 'UNREAD', ids: [B] }]);
+    expect(url()).toBe(LIST);
+    const saved = TestBed.inject(MailListSession).saved()!;
+    expect(saved.items.map((entry) => entry.id)).toEqual([A, B, C]);
+    expect(saved.items[1].seen).toBe(false);
+    expect(saved.cursorId).toBe(B);
+  });
+
+  it('Star stars the message in the list and stays on it', async () => {
+    const harness = await openFromList(B);
+    key('s');
+    await settle(harness);
+    expect(url()).toBe(`/mail/messages/${B}`);
+    expect(
+      TestBed.inject(MailListSession)
+        .saved()!
+        .items.map((entry) => entry.flagged),
+    ).toEqual([false, true, false]);
+  });
+
+  it('keeps the list as it was when Mark unread or Star fails', async () => {
+    const harness = await openFromList(B);
+    mail.answer = [{ id: B, ok: false, detail: 'No' }];
+    key('s');
+    await settle(harness);
+    key('u');
+    await settle(harness);
+    expect(url()).toBe(`/mail/messages/${B}`);
+    const item = TestBed.inject(MailListSession).saved()!.items[1];
+    expect(item).toMatchObject({ seen: true, flagged: false });
+  });
 
   it('moves to the message before after archiving the last one, then back to the list', async () => {
     const harness = await openFromList(C, { items: [item(B), item(C)] });

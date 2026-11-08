@@ -14,7 +14,9 @@ import { NotificationService } from '../../../core/http';
 import MailListPage, { senderName, THREADED_KEY } from './mail-list-page';
 import { FakeEvents, FakeMail, summary } from './mail-testing';
 import { ApiError } from '../../../core/http';
+import { PageShortcuts } from '../../../shell/page-shortcuts';
 import { MailListSession } from './mail-list-session';
+import { MAIL_LIST_HELP } from './mail-shortcuts';
 import { MAIL_FOLDER_EVENT, MailListStore, REFRESH_DEBOUNCE_MS } from './mail-list-store';
 import { MAIL_MAX_PAGE_SIZE, MailPage, MailService, MailSummary } from './mail.service';
 
@@ -190,6 +192,62 @@ describe('MailListPage', () => {
       (a) => a.textContent?.trim() === 'Compose',
     );
     expect(compose?.getAttribute('href')).toBe('/mail/compose');
+    expect(compose?.getAttribute('title')).toBe('c');
+  });
+
+  describe('compose, reply and forward keys', () => {
+    let navigate: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(async () => {
+      await create();
+      navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    });
+
+    it('opens a new message with c', async () => {
+      const event = press('c');
+      await flush();
+      expect(event.defaultPrevented).toBe(true);
+      expect(navigate).toHaveBeenCalledExactlyOnceWith(['/mail/compose']);
+      expect(mail.applies).toEqual([]);
+    });
+
+    it('ignores c while typing, with modifiers, repeated or while a dialog is open', async () => {
+      const input = document.createElement('input');
+      document.body.appendChild(input);
+      try {
+        expect(press('c', {}, input).defaultPrevented).toBe(false);
+        expect(press('c', { ctrlKey: true }).defaultPrevented).toBe(false);
+        expect(press('c', { metaKey: true }).defaultPrevented).toBe(false);
+        expect(press('c', { repeat: true }).defaultPrevented).toBe(false);
+        const dialog = TestBed.inject(MatDialog) as unknown as { openDialogs: unknown[] };
+        dialog.openDialogs.push({});
+        expect(press('c').defaultPrevented).toBe(false);
+        await flush();
+        expect(navigate).not.toHaveBeenCalled();
+      } finally {
+        input.remove();
+      }
+    });
+
+    it.each(['r', 'a', 'f'])(
+      'leaves %s alone in the list (a read view key): no action, no navigation',
+      async (key) => {
+        const event = press(key);
+        await flush();
+        expect(event.defaultPrevented).toBe(false);
+        expect(navigate).not.toHaveBeenCalled();
+        expect(mail.applies).toEqual([]);
+        expect(rows()[0].getAttribute('aria-current')).toBe('true');
+      },
+    );
+  });
+
+  it('lists its keys in the ? overview while it is shown', async () => {
+    await create();
+    const sections = TestBed.inject(PageShortcuts).sections;
+    expect(sections()).toEqual([{ title: 'Mail', shortcuts: MAIL_LIST_HELP }]);
+    fixture.destroy();
+    expect(sections()).toEqual([]);
   });
 
   it('shows the unified Inbox with account names when there are several accounts', async () => {

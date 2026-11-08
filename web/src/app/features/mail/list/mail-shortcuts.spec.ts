@@ -1,4 +1,4 @@
-import { MAIL_SHORTCUTS, mailShortcutFor } from './mail-shortcuts';
+import { MAIL_LIST_HELP, MAIL_READ_HELP, MAIL_SHORTCUTS, mailShortcutFor } from './mail-shortcuts';
 
 function key(key: string, init: KeyboardEventInit = {}, target?: EventTarget): KeyboardEvent {
   const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
@@ -137,5 +137,60 @@ describe('mailShortcutFor', () => {
     checkbox.type = 'checkbox';
     expect(mailShortcutFor(key('x', {}, checkbox))).toBe('select');
     expect(mailShortcutFor(key('e', {}, document.createElement('button')))).toBe('archive');
+  });
+});
+
+describe('mail shortcut help', () => {
+  type Help = readonly { keys: readonly string[]; description: string }[];
+  const keysOf = (help: Help) => help.map((entry) => entry.keys);
+  const describeKey = (help: Help, k: string) =>
+    help.find((entry) => entry.keys.includes(k))?.description;
+
+  it('lists reply, reply all, forward and compose with their keys in the read view', () => {
+    expect(describeKey(MAIL_READ_HELP, 'r')).toBe('Reply');
+    expect(describeKey(MAIL_READ_HELP, 'a')).toBe('Reply all');
+    expect(describeKey(MAIL_READ_HELP, 'f')).toBe('Forward');
+    expect(describeKey(MAIL_READ_HELP, 'c')).toBe('Write a new message');
+  });
+
+  it('lists the read view keys for marking unread, starring, moving and stepping', () => {
+    expect(keysOf(MAIL_READ_HELP)).toEqual([
+      ['r'],
+      ['a'],
+      ['f'],
+      ['c'],
+      ['e'],
+      ['#'],
+      ['!'],
+      ['u'],
+      ['s'],
+      ['v'],
+      ['j'],
+      ['k'],
+    ]);
+    expect(describeKey(MAIL_READ_HELP, 'u')).toBe('Mark as unread');
+    expect(describeKey(MAIL_READ_HELP, 's')).toBe('Star or unstar');
+    expect(describeKey(MAIL_READ_HELP, 'v')).toBe('Move to folder');
+  });
+
+  it('lists compose and search in the list, but not the read view keys r, a and f', () => {
+    const keys = keysOf(MAIL_LIST_HELP).flat();
+    expect(describeKey(MAIL_LIST_HELP, 'c')).toBe('Write a new message');
+    expect(describeKey(MAIL_LIST_HELP, '/')).toBe('Search mail');
+    for (const k of ['j', 'k', 'o', 'x', 'Escape', 'e', '#', '!', 'u', 'I', 's', 'v']) {
+      expect(keys).toContain(k);
+    }
+    for (const k of ['r', 'a', 'f']) expect(keys).not.toContain(k);
+  });
+
+  it('describes every entry once, with at least one key', () => {
+    for (const help of [MAIL_LIST_HELP, MAIL_READ_HELP]) {
+      const descriptions = help.map((entry) => entry.description);
+      expect(new Set(descriptions).size).toBe(descriptions.length);
+      for (const entry of help) {
+        expect(entry.keys.length).toBeGreaterThan(0);
+        expect(entry.description.trim()).not.toBe('');
+      }
+    }
   });
 });

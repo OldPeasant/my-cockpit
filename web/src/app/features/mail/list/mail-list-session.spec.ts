@@ -308,6 +308,64 @@ describe('MailListSession', () => {
     expect(session.saved()?.cursorId).toBe('b');
   });
 
+  describe('markedUnread', () => {
+    it('shows a read message unread again and counts it in its thread', () => {
+      session.save(
+        saved({
+          items: [summary('a', { seen: true, threadUnread: 2 }), summary('b', { seen: true })],
+        }),
+      );
+      session.markedUnread('a');
+      session.markedUnread('b');
+      expect(session.saved()?.items[0]).toMatchObject({ seen: false, threadUnread: 3 });
+      expect(session.saved()?.items[1]).toMatchObject({ seen: false, threadUnread: 1 });
+    });
+
+    it('keeps a message that is unread already as it is, and the cursor where it was', () => {
+      session.save(saved({ items: [summary('a', { seen: false, threadUnread: 1 })] }));
+      const before = session.saved()!.items[0];
+      session.markedUnread('a');
+      expect(session.saved()!.items[0]).toBe(before);
+      expect(session.saved()?.cursorId).toBe('a');
+    });
+
+    it('leaves the list alone for a message it does not show, and does nothing without one', () => {
+      session.markedUnread('a');
+      expect(session.saved()).toBeNull();
+      session.save(saved());
+      const list = session.saved();
+      session.markedUnread('unknown');
+      expect(session.saved()).toBe(list);
+    });
+
+    it('marks a message whose read-on-open was shown in the list as unread again', () => {
+      session.save(saved({ items: [summary('a', { seen: false, threadUnread: 1 })] }));
+      session.visited('a');
+      expect(session.saved()?.items[0]).toMatchObject({ seen: true, threadUnread: 0 });
+      session.markedUnread('a');
+      expect(session.saved()?.items[0]).toMatchObject({ seen: false, threadUnread: 1 });
+    });
+  });
+
+  describe('flagged', () => {
+    it('stars and unstars only the given message', () => {
+      session.save(saved());
+      session.flagged('b', true);
+      expect(session.saved()?.items.map((item) => item.flagged)).toEqual([false, true, false]);
+      session.flagged('b', false);
+      expect(session.saved()?.items.map((item) => item.flagged)).toEqual([false, false, false]);
+    });
+
+    it('leaves the list alone for a message it does not show, and does nothing without one', () => {
+      session.flagged('a', true);
+      expect(session.saved()).toBeNull();
+      session.save(saved());
+      const list = session.saved();
+      session.flagged('unknown', true);
+      expect(session.saved()).toBe(list);
+    });
+  });
+
   it('restores only the list of the same URL and scope', () => {
     session.save(saved());
     const scope = { folderId: null, threaded: true, search: { query: 'report', server: false } };
