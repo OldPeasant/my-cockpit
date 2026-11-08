@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "and-mail-compose-plus",
-  "reviewed_revision": "e79e5586208cf4c9786f63102eca69264a0d13cc",
+  "reviewed_revision": "66b63a122fb62c5b1fc5fc3c84b641f6308b6639",
   "helpers": {
     "test-writer":   {"status": "completed", "report": "reviews/and-mail-compose-plus/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/and-mail-compose-plus/review.md"},
