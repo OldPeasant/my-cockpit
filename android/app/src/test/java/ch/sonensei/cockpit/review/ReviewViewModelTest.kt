@@ -44,7 +44,7 @@ class ReviewViewModelTest {
     fun `a load shows the overview`() =
         runTest(dispatcher) {
             coEvery { repo.overview() } returns ReviewResult.Ok(overview)
-            val vm = ReviewViewModel(repo)
+            val vm = ReviewViewModel(repo, mockk(), mockk(), mockk())
             assertNull(vm.uiState.value.overview)
             vm.refresh()
             advanceUntilIdle()
@@ -56,7 +56,7 @@ class ReviewViewModelTest {
         runTest(dispatcher) {
             coEvery { repo.overview() } returnsMany
                 listOf(ReviewResult.Ok(overview), ReviewResult.Offline, ReviewResult.Failed(403), ReviewResult.Ok(overview))
-            val vm = ReviewViewModel(repo)
+            val vm = ReviewViewModel(repo, mockk(), mockk(), mockk())
             vm.refresh()
             advanceUntilIdle()
             vm.refresh()
@@ -79,7 +79,7 @@ class ReviewViewModelTest {
         runTest(dispatcher) {
             val pending = CompletableDeferred<ReviewResult<ReviewOverview>>()
             coEvery { repo.overview() } returns ReviewResult.Offline coAndThen { pending.await() }
-            val vm = ReviewViewModel(repo)
+            val vm = ReviewViewModel(repo, mockk(), mockk(), mockk())
             vm.refresh()
             advanceUntilIdle()
 
@@ -99,7 +99,7 @@ class ReviewViewModelTest {
             val older = CompletableDeferred<ReviewResult<ReviewOverview>>()
             val newer = overview.copy(daysSinceLastReview = 0)
             coEvery { repo.overview() } coAnswers { older.await() } andThen ReviewResult.Ok(newer)
-            val vm = ReviewViewModel(repo)
+            val vm = ReviewViewModel(repo, mockk(), mockk(), mockk())
 
             vm.refresh()
             runCurrent()
@@ -118,7 +118,7 @@ class ReviewViewModelTest {
     fun `a first load that fails shows nothing but the message`() =
         runTest(dispatcher) {
             coEvery { repo.overview() } returns ReviewResult.Failed(null)
-            val vm = ReviewViewModel(repo)
+            val vm = ReviewViewModel(repo, mockk(), mockk(), mockk())
             vm.refresh()
             advanceUntilIdle()
             assertEquals(ReviewUiState(message = ReviewMessage.FAILED), vm.uiState.value)

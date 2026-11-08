@@ -33,7 +33,10 @@ class ReviewScreenTest {
     private val atWaitingFor = OpenReview(id(9), ReviewStep.WAITING_FOR, Instant.parse("2026-10-20T18:00:00Z"))
     private var retries = 0
 
-    private fun show(state: ReviewUiState) = composeRule.setContent { CockpitTheme { ReviewContent(state, onRetry = { retries++ }) } }
+    private fun show(state: ReviewUiState) =
+        composeRule.setContent {
+            CockpitTheme { ReviewContent(state, ReviewCallbacks(retry = { retries++ })) }
+        }
 
     private fun overview(
         current: OpenReview? = atWaitingFor,
@@ -61,7 +64,7 @@ class ReviewScreenTest {
     @Test
     fun `without an open review no step is done or current`() {
         show(overview(current = null, days = null))
-        composeRule.onNodeWithTag(ReviewTags.PROGRESS).assertTextEquals("No review in progress. Start one on the web.")
+        composeRule.onNodeWithTag(ReviewTags.PROGRESS).assertTextEquals("No review in progress.")
         composeRule.onNodeWithTag(ReviewTags.LAST).assertTextEquals("No weekly review completed yet.")
         ReviewStep.entries.forEach {
             scrollTo(ReviewTags.step(it))
@@ -98,9 +101,10 @@ class ReviewScreenTest {
     }
 
     @Test
-    fun `the screen is read only, nothing on it can be tapped`() {
+    fun `on the overview only the start button can be tapped`() {
         show(overview())
-        assertEquals(0, composeRule.onAllNodes(hasClickAction()).fetchSemanticsNodes().size)
+        assertEquals(1, composeRule.onAllNodes(hasClickAction()).fetchSemanticsNodes().size)
+        composeRule.onNodeWithTag(ReviewTags.START).assertTextEquals("Continue review")
     }
 
     @Test

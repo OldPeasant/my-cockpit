@@ -88,7 +88,7 @@ class ReviewRepositoryTest {
             )
 
             val overview = (reviews.overview() as ReviewResult.Ok).value
-            assertEquals(OpenReview(id(9), ReviewStep.WAITING_FOR, Instant.parse("2026-10-20T18:00:00Z")), overview.current)
+            assertEquals(OpenReview(id(9), ReviewStep.WAITING_FOR, Instant.parse("2026-10-20T18:00:00Z"), version = 3), overview.current)
             assertEquals(6L, overview.daysSinceLastReview)
             assertEquals(listOf("Move flat", "Tax return"), overview.projects.map { it.title })
             assertEquals(listOf(ReviewProject(id(1), "Move flat", true)), overview.stalledProjects)

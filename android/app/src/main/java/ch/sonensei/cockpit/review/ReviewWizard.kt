@@ -318,7 +318,13 @@ private fun DayHeader(day: LocalDate) {
 
 @Composable
 private fun EventRow(event: ReviewEvent) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).testTag(ReviewTags.event(event))) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .testTag(ReviewTags.event(event))
+            .semantics(mergeDescendants = true) {},
+    ) {
         Text(
             event.time?.let { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).format(it) }
                 ?: stringResource(R.string.review_all_day),
