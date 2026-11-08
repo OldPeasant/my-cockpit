@@ -153,6 +153,75 @@ describe('ImageAllowlist', () => {
     },
   );
 
+  it('does not reload settings that are already loaded', async () => {
+    await list.ready();
+    const load = vi.spyOn(settings, 'load');
+    await list.ready();
+    await list.add('max@example.test');
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it('merges the old local list only once when several pages get ready at the same time', async () => {
+    localStorage.setItem(IMAGE_ALLOWLIST_KEY, JSON.stringify(['max@example.test']));
+    await Promise.all([list.ready(), list.ready(), list.ready()]);
+    expect(settings.patches).toEqual([{ mailImageAllowedSenders: ['max@example.test'] }]);
+  });
+
+  it('merges duplicates of the old local list (any case) into one entry', async () => {
+    localStorage.setItem(
+      IMAGE_ALLOWLIST_KEY,
+      JSON.stringify(['max@example.test', 'MAX@example.test', ' max@example.test ']),
+    );
+    await list.ready();
+    expect(settings.patches).toEqual([{ mailImageAllowedSenders: ['max@example.test'] }]);
+  });
+
+  it('removes an old local list whose entries are all allowed already, without saving', async () => {
+    settings.stored = fakeSettings({ mailImageAllowedSenders: ['example.test'] });
+    localStorage.setItem(IMAGE_ALLOWLIST_KEY, JSON.stringify(['max@example.test']));
+    await list.ready();
+    expect(settings.patches).toEqual([]);
+    expect(localStorage.getItem(IMAGE_ALLOWLIST_KEY)).toBeNull();
+  });
+
+  it('adds a sender after the old local list is merged, keeping both', async () => {
+    localStorage.setItem(IMAGE_ALLOWLIST_KEY, JSON.stringify(['old@example.test']));
+    await list.add('new@example.test');
+    expect(settings.patches).toEqual([
+      { mailImageAllowedSenders: ['old@example.test'] },
+      { mailImageAllowedSenders: ['old@example.test', 'new@example.test'] },
+    ]);
+  });
+
+  it('is ready when the browser storage cannot be read', async () => {
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('SecurityError');
+    });
+    try {
+      await expect(list.ready()).resolves.toBeUndefined();
+      expect(settings.patches).toEqual([]);
+      expect(list.policy()).toBe('block');
+    } finally {
+      getItem.mockRestore();
+    }
+  });
+
+  it('does not replace the stored senders with a list built before the settings were loaded', async () => {
+    settings.stored = fakeSettings({ mailImageAllowedSenders: ['erika@example.test'] });
+    // The first load fails (a network blip); like SettingsService.update, the save loads the
+    // settings itself when none are loaded, and by then the network is back.
+    settings.loadError = new Error('offline');
+    const update = settings.update.bind(settings);
+    vi.spyOn(settings, 'update').mockImplementation(async (patch) => {
+      settings.loadError = undefined;
+      if (!settings.settings()) await settings.load();
+      return update(patch);
+    });
+    await list.add('max@example.test').catch(() => undefined);
+    // Saving ['max@example.test'] would drop erika@example.test on the server.
+    expect(settings.stored.mailImageAllowedSenders).toContain('erika@example.test');
+  });
+
   it('keeps the old local list when merging fails and tries again next time', async () => {
     localStorage.setItem(IMAGE_ALLOWLIST_KEY, JSON.stringify(['max@example.test']));
     settings.updateError = new Error('refused');

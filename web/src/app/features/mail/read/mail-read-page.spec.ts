@@ -357,6 +357,64 @@ describe('MailReadPage', () => {
       expect(settings.current()!.mailImageAllowedSenders).toEqual([]);
     });
 
+    it('show the error state, without a blocked fallback, when the policy is "allow" and the proxied load fails', async () => {
+      settings.current.update((s) => ({ ...s!, mailImagePolicy: 'allow' }));
+      await create(new ApiError(502, 'Bad gateway', 'The mail server failed'));
+      expect(service.gets).toEqual([{ id: ID, loadImages: true }]);
+      expect(el().querySelector('h1')?.textContent?.trim()).not.toBe('Quarterly report');
+      expect(el().textContent).toContain('The mail server failed');
+    });
+
+    it('load only once through the proxy when the policy is "allow" and the sender is allowed too', async () => {
+      settings.current.update((s) => ({
+        ...s!,
+        mailImagePolicy: 'allow',
+        mailImageAllowedSenders: ['max.muster@example.test'],
+      }));
+      await create(proxied());
+      expect(service.gets).toEqual([{ id: ID, loadImages: true }]);
+      expect(el().querySelector('.images:not(.quiet)')).toBeNull();
+    });
+
+    it('stay blocked, and the message still shows, when the settings cannot be loaded', async () => {
+      settings.current.set(null);
+      settings.load = () => Promise.reject(new ApiError(503, 'Unavailable', 'Offline'));
+      await create(blocked(), proxied());
+      expect(service.gets).toEqual([{ id: ID, loadImages: false }]);
+      expect(el().querySelector('h1')?.textContent?.trim()).toBe('Quarterly report');
+      expect(button('Load images')).toBeDefined();
+    });
+
+    it('do not request a message left while the settings were still loading', async () => {
+      const pending = deferred<Settings>();
+      settings.current.set(null);
+      settings.load = async () => {
+        const loaded = await pending.promise;
+        settings.current.set(loaded);
+        return loaded;
+      };
+      await create(message({ id: 'next-message' }));
+      params.next(convertToParamMap({ id: 'next-message' }));
+      fixture.detectChanges();
+      pending.resolve(fakeSettings());
+      await flush();
+      fixture.detectChanges();
+      expect(service.gets).toEqual([{ id: 'next-message', loadImages: false }]);
+    });
+
+    it('keep the sender allowed, and the images shown, when saving "Stop" fails', async () => {
+      settings.allow(['max.muster@example.test']);
+      await create(blocked(), proxied());
+      settings.updateError = new ApiError(500, 'Server error', 'Not saved');
+      button('Stop')!.click();
+      await flush();
+      fixture.detectChanges();
+      expect(settings.patches).toEqual([{ mailImageAllowedSenders: [] }]);
+      expect(settings.current()!.mailImageAllowedSenders).toEqual(['max.muster@example.test']);
+      expect(iframe()!.srcdoc).toContain('image-proxy');
+      expect(button('Stop')).toBeDefined();
+    });
+
     it('offers nothing when the message has no remote images', async () => {
       await create();
       expect(el().querySelector('.images')).toBeNull();

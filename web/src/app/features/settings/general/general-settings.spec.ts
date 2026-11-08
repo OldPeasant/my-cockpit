@@ -541,6 +541,51 @@ describe('GeneralSettings', () => {
       );
     });
 
+    it('shows "always load" when the server has the policy "allow"', async () => {
+      await setup([], fakeSettings({ mailImagePolicy: 'allow' }));
+      expect(toggle('Always load').closest('mat-button-toggle')?.classList).toContain(
+        'mat-button-toggle-checked',
+      );
+    });
+
+    it('goes back to "ask" when saving "always load" fails', async () => {
+      await setup();
+      toggle('Always load').click();
+      await tick();
+      http
+        .expectOne({ method: 'PATCH', url: PATH })
+        .flush(
+          { status: 500, title: 'Internal Server Error', detail: 'Database unavailable.' },
+          { status: 500, statusText: 'Internal Server Error' },
+        );
+      await tick();
+      await fixture.whenStable();
+      expect(toggle('Ask').closest('mat-button-toggle')?.classList).toContain(
+        'mat-button-toggle-checked',
+      );
+      expect(notifications.error).toHaveBeenCalledWith('Database unavailable.');
+    });
+
+    it('disables Remove while the removal saves and sends it once', async () => {
+      await setup(
+        [],
+        fakeSettings({ mailImageAllowedSenders: ['max@example.test', 'example.org'] }),
+      );
+      removeButton('max@example.test').click();
+      fixture.detectChanges();
+      removeButton('max@example.test')?.click();
+      await tick();
+      fixture.detectChanges();
+      const request = http.expectOne({ method: 'PATCH', url: PATH });
+      expect(request.request.body).toEqual({ mailImageAllowedSenders: ['example.org'] });
+      request.flush(fakeSettings({ mailImageAllowedSenders: ['example.org'] }), {
+        headers: { ETag: '"2"' },
+      });
+      await tick();
+      await fixture.whenStable();
+      expect(senders()).toEqual(['example.org']);
+    });
+
     it('says when no sender is allowed', async () => {
       await setup();
       expect(senders()).toEqual([]);
