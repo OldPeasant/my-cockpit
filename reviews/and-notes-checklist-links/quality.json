@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "task": "and-notes-checklist-links",
+  "reviewed_revision": "cb684093212279168a1a5b05cb04ce3023ffcc11",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-notes-checklist-links/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-notes-checklist-links/review.md"},
+    "fixer": {"status": "not_required", "reason": "Final review has no findings. The earlier finding CR-1 (missing ViewModel/Compose tests) was resolved by the test-writer's tests, which the re-review confirmed; no production code changed."}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*'", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport (test-writer, same code)", "result": "pass"}
+  ]
+}
