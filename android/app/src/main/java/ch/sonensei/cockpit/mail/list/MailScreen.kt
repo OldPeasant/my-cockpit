@@ -173,9 +173,19 @@ fun MailRoute(
         // Previous/next step through the list the mail was opened from: the search results, or the mailbox.
         val search = state.search
         val ids = (search?.results ?: state.messages).map { it.id }
-        // The last loaded mail of a mailbox fetches the next page, so "next" can go on.
+        // The last loaded mail of a mailbox fetches the next page, so "next" can go on (opening it tries once, also after
+        // an earlier failure). A refresh or page load running meanwhile makes loadMore skip the request, so it asks again
+        // once that load ends. A failed page load is not retried by itself (that would loop while offline): the list's
+        // Retry does it, and a success clears the failure.
         val atLoadedEnd = search == null && ids.lastOrNull() == current && state.nextCursor != null
-        LaunchedEffect(atLoadedEnd) { if (atLoadedEnd) viewModel.loadMore() }
+        LaunchedEffect(atLoadedEnd, current) {
+            if (!atLoadedEnd) return@LaunchedEffect
+            viewModel.loadMore()
+            viewModel.uiState
+                .map { it.canLoadAfter(current) }
+                .distinctUntilChanged()
+                .collect { can -> if (can) viewModel.loadMore() }
+        }
         MailReadRoute(
             id = current,
             onClose = { open = null },
@@ -269,6 +279,19 @@ internal object MailListTags {
 /** Rows from the end at which the next page is loaded. */
 private const val LOAD_MORE_AHEAD = 10
 
+/** The last page load (first page or next page) failed; it is only retried by the user. */
+private val MailListUiState.pageFailed: Boolean
+    get() = message == MailListMessage.OFFLINE || message == MailListMessage.FAILED
+
+/** [id] is the last loaded mail of the mailbox shown, more mail exists, and nothing keeps the next page from loading. */
+private fun MailListUiState.canLoadAfter(id: UUID): Boolean =
+    search == null &&
+        messages.lastOrNull()?.id == id &&
+        nextCursor != null &&
+        !loading &&
+        !loadingMore &&
+        !pageFailed
+
 /**
  * The mailbox picker and the mails, newest first. A row swiped to the right is archived, to the left deleted (also
  * offered as accessibility actions); the next page loads as the end comes near.
@@ -339,8 +362,7 @@ private fun Messages(
     val loadMore by rememberUpdatedState(callbacks.loadMore)
     // Asks again whenever a page can be loaded while near the end: after a load ends or finds more mail. A failed load
     // is not retried by itself (that would loop while offline); the Retry button does it, and a success clears it.
-    val failed = state.message == MailListMessage.OFFLINE || state.message == MailListMessage.FAILED
-    val canLoadMore by rememberUpdatedState(state.nextCursor != null && !state.loading && !state.loadingMore && !failed)
+    val canLoadMore by rememberUpdatedState(state.nextCursor != null && !state.loading && !state.loadingMore && !state.pageFailed)
     LaunchedEffect(listState) {
         snapshotFlow {
             val info = listState.layoutInfo

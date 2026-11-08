@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
+import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.testing.WorkManagerTestInitHelper
@@ -29,6 +30,7 @@ import dagger.hilt.android.testing.HiltTestApplication
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -291,6 +293,61 @@ class MailReadNavigationInAppTest {
         }
         composeRule.onNodeWithTag(MailReadTags.NEXT).assertIsEnabled().performClick()
         waitForSubject(3)
+        coVerify(exactly = 2) { mail.messages(Mailbox.Unified, "page-2") }
+    }
+
+    @Test
+    fun `the last loaded mail opened during a refresh fetches the next page once the refresh ends`() {
+        val firstPage = MailResult.Ok(MailPage(listOf(summary(1), summary(2)), "page-2"))
+        val refreshAnswer = CompletableDeferred<MailResult<MailPage>>()
+        var holdRefresh = false
+        var refreshAsked = false
+        coEvery { mail.messages(Mailbox.Unified, null) } coAnswers {
+            if (holdRefresh) {
+                refreshAsked = true
+                refreshAnswer.await()
+            } else {
+                firstPage
+            }
+        }
+        // The list's own load near its end fails (offline), so only the read view's request can bring the next page.
+        coEvery { mail.messages(Mailbox.Unified, "page-2") } returnsMany
+            listOf(MailResult.Offline, MailResult.Ok(MailPage(listOf(summary(3)), null)))
+        openMail()
+        waitFor(MailListTags.MESSAGE)
+
+        // Coming back to the app starts a refresh that has not answered yet when the last loaded mail is opened, so the
+        // read view's first request is skipped.
+        holdRefresh = true
+        scenario!!.moveToState(Lifecycle.State.STARTED)
+        scenario!!.moveToState(Lifecycle.State.RESUMED)
+        composeRule.waitUntil(WAIT_MS) { refreshAsked }
+        read(2)
+        composeRule.onNodeWithTag(MailReadTags.POSITION).assertTextEquals("2 of 2")
+        composeRule.onNodeWithTag(MailReadTags.NEXT).assertIsNotEnabled()
+        coVerify(exactly = 1) { mail.messages(Mailbox.Unified, "page-2") }
+
+        refreshAnswer.complete(firstPage)
+        composeRule.waitUntil(WAIT_MS) {
+            composeRule.onAllNodes(hasTestTag(MailReadTags.POSITION) and hasText("2 of 3")).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag(MailReadTags.NEXT).assertIsEnabled().performClick()
+        waitForSubject(3)
+        coVerify(exactly = 2) { mail.messages(Mailbox.Unified, "page-2") }
+    }
+
+    @Test
+    fun `a failed next page from the read view is not retried by itself`() {
+        coEvery { mail.messages(Mailbox.Unified, null) } returns MailResult.Ok(MailPage(listOf(summary(1), summary(2)), "page-2"))
+        coEvery { mail.messages(Mailbox.Unified, "page-2") } returns MailResult.Offline
+        openMail()
+        waitFor(MailListTags.MESSAGE)
+        read(2)
+        composeRule.waitForIdle()
+
+        // One request from the list, one from opening the last loaded mail; no loop while offline.
+        composeRule.onNodeWithTag(MailReadTags.POSITION).assertTextEquals("2 of 2")
+        composeRule.onNodeWithTag(MailReadTags.NEXT).assertIsNotEnabled()
         coVerify(exactly = 2) { mail.messages(Mailbox.Unified, "page-2") }
     }
 
