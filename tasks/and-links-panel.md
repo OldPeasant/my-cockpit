@@ -18,7 +18,8 @@ panel with add (search-as-you-type), remove and "create linked…" (`web/src/app
   - verified (2026-11-08 20:59+0100 by dell26/agent-1): LinkedItemsPanelTest (28), LinkedItemsViewModelTest (39), LinksRepositoryTest (16, MockWebServer) via ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.core.links.*' -> all pass: list, open in-app/web URL, add via search API, remove, create linked task/note
 - [x] Used in task detail (replacing the current list) and contact detail; contact related rows (waiting for, events, mails) become tappable
   - verified (2026-11-08 20:59+0100 by dell26/agent-1): TaskDetailContentTest, ContactsScreensTest (panel slot, related rows clickable, not clickable without callback), ContactsRouteInAppTest, BirthdayContactTest via ./gradlew testDebugUnitTest at ae6701993 -> pass; TaskDetailScreen/ContactDetailRoute/SearchContact/BirthdayContact render LinkedItemsSection
-- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [x] New strings are in English and German (`res/values/` + `res/values-de/`)
+  - verified (2026-11-08 20:59+0100 by dell26/agent-1): python key diff of values/ vs values-de/ strings_links (22/22), strings_contacts, strings_task_detail -> identical key sets; lintDebug (Typos, UnusedResources) clean; LinkedItemsPanelTest German strings test passes
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
