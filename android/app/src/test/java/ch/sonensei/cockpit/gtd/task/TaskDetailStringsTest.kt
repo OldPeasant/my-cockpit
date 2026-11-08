@@ -72,6 +72,26 @@ class TaskDetailStringsTest {
             "task_detail_error_estimate" to "%1\$d",
             "task_detail_error_too_long#one" to "%1\$d",
             "task_detail_error_too_long#other" to "%1\$d",
+            "task_detail_convert_moved_note" to "%1\$s",
+            "task_detail_convert_moved_event" to "%1\$s",
+            "task_detail_convert_calendar_minutes" to "%1\$d",
+            "task_detail_convert_calendar_hours" to "%1\$d",
         ).forEach { (key, expected) -> assertEquals(key, listOf(expected), placeholders(english.getValue(key))) }
+    }
+
+    @Test
+    fun `the converted event's text takes its title and day, the duration its hours and minutes`() {
+        assertEquals(listOf("%1\$s", "%2\$s"), placeholders(english.getValue("task_detail_convert_moved_event_on")))
+        assertEquals(listOf("%1\$d", "%2\$d"), placeholders(english.getValue("task_detail_convert_calendar_hours_minutes")))
+    }
+
+    @Test
+    fun `the inbox conversion buttons exist in English and German`() {
+        val inboxEnglish = strings(File(res, "values/strings_inbox.xml"))
+        val inboxGerman = strings(File(res, "values-de/strings_inbox.xml"))
+        listOf("inbox_action_reference", "inbox_action_calendar").forEach { key ->
+            assertTrue(key, inboxEnglish.getValue(key).isNotBlank())
+            assertNotEquals(key, inboxEnglish.getValue(key), inboxGerman.getValue(key))
+        }
     }
 }
