@@ -18,7 +18,8 @@ loses the search term and results. While reading a match the owner wants to step
   - verified (2026-11-08 14:03+0100 by dell26/agent-2): same mail spec run -> 732 passed; mail-read-page.spec 'previous/next through the list it was opened from' covers buttons, j/k, search order, disabled at ends
 - [x] The same previous/next also works when opened from a normal folder list (unified inbox or folder) in its order
   - verified (2026-11-08 14:03+0100 by dell26/agent-2): same mail spec run -> 732 passed; mail-list-session/read-page specs step through unified inbox and folder lists incl. loading the next page
-- [ ] Archiving/deleting a message from the read view moves to the next match (or back to the list when none is left)
+- [x] Archiving/deleting a message from the read view moves to the next match (or back to the list when none is left)
+  - verified (2026-11-08 14:03+0100 by dell26/agent-2): same mail spec run -> 732 passed; read-page + session specs: archive/spam/delete go to next message (also across a page end), back to list when none left
 - [ ] The scroll position / cursor row of the list is kept when returning
 - [ ] New UI strings are in `web/src/locale` (English + German)
 - [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
