@@ -25,7 +25,8 @@ move to Next/Someday/Waiting. Web edits all of them (`task-detail.html:124-330`)
   - verified (2026-11-08 13:02+0100 by felix/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.task.*' (HEAD 0f8ca9e7a) -> 223 tests pass, incl. TaskDetailListFieldsTest long-press drag (Robolectric touch injection) and Move up/Move down accessibility action cases; not tried on a device
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 13:02+0100 by felix/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> exit 0 (lint MissingTranslation clean); all 35 new keys present in values/ and values-de/ strings_task_detail.xml (code-reviewer diff check)
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 15:52+0100 by dell26/agent-3): sh scripts/check.sh (HEAD 4b3f7fe14, merged main): tfp, server ktlint+tests, web eslint+tests+build passed (set -eu, reached android step); android part run alone via 'sh scripts/check.sh android' (includes ktlintCheck testDebugUnitTest lintDebug) -> 'all checks passed (android)'; full run was cut by my 20 min tool limit on a loaded machine (load avg 12), not a failure. Tests: TaskDetailListFieldsTest, TaskDraftListTest, TaskRepeatTest, TaskDetailViewModelRelistTest
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
