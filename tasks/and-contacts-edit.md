@@ -21,7 +21,8 @@ Android contacts are view-only (SPEC.md §9.2; owner decided on 2026-11-08 to ad
   - verified (2026-11-08 22:30+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest -> 0 failures; ContactEditScreenTest/ContactsRepositoryTest: source line 'Kept in the cockpit only'/'Synced with X', 403/405 on save/delete shows 'comes from X, change it there' (same rule as web, see assumption)
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 22:30+0100 by dell26/agent-1): compared string names in res/values/strings_contacts.xml vs res/values-de/strings_contacts.xml -> identical 68 keys; ContactsStringsTest (EN+DE keys, German quotes) passes in testDebugUnitTest; lintDebug 0 errors (MissingTranslation)
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 22:36+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport (HEAD c36374f73) -> BUILD SUCCESSFUL, 4783 tests 0 failures, lint 0 errors; contacts coverage 96.6% instr / 89.0% branch (tests.md); sh scripts/check.sh -> all checks passed (EXIT 0)
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
