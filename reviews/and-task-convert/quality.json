@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "and-task-convert",
-  "reviewed_revision": "7ea77d229688e2a78b69b91d94b700f441276a03",
+  "reviewed_revision": "28a5237114f3349619bd9b62f805dc748f05ba23",
   "helpers": {
     "test-writer":   {"status": "completed", "report": "reviews/and-task-convert/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/and-task-convert/review.md"},
