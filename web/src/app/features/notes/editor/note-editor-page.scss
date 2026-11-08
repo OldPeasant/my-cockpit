@@ -20,18 +20,6 @@
   min-height: 40px;
 }
 
-.back {
-  color: var(--app-fg-muted);
-  font: var(--mat-sys-label-large);
-  text-decoration: none;
-
-  &:hover,
-  &:focus-visible {
-    color: var(--app-fg);
-    text-decoration: underline;
-  }
-}
-
 // Quiet unless something needs attention.
 .save-state {
   margin-inline-end: auto;

@@ -1,6 +1,7 @@
 import { Location } from '@angular/common';
-import { Component, input, output } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
+import { provideLocationMocks } from '@angular/common/testing';
+import { Component, input, output, signal } from '@angular/core';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import {
   ActivatedRoute,
   convertToParamMap,
@@ -8,10 +9,12 @@ import {
   provideRouter,
   Router,
 } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { BehaviorSubject, Subject } from 'rxjs';
 import { Api, ChangeEvent } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
 import { ApiError } from '../../../core/http';
+import { BackNavigation, provideBackNavigation } from '../../../shared/navigation';
 import { TaskDetail } from './task-detail';
 import { TaskDetailPage } from './task-detail-page';
 import gtdRoutes from '../gtd.routes';
@@ -20,39 +23,44 @@ import routes from './task-detail.routes';
 @Component({
   selector: 'app-task-detail',
   template: `<span class="id">{{ taskId() }}</span
+    ><span class="label">{{ backLabel() }}</span
     ><button (click)="closed.emit()">close</button>`,
 })
 class FakeTaskDetail {
   readonly taskId = input.required<string>();
+  readonly backLabel = input<string | null>(null);
   readonly closed = output<void>();
+}
+
+/** Stands in for the app's history: the previous page, if any, and the back calls. */
+class FakeBackNavigation {
+  readonly previous = signal<{ id: number; url: string; label: string | null } | null>(null);
+  readonly back = vi.fn().mockResolvedValue(undefined);
 }
 
 describe('TaskDetailPage', () => {
   let params: BehaviorSubject<ParamMap>;
-  let state: unknown;
-  let back: ReturnType<typeof vi.fn>;
-  let navigate: ReturnType<typeof vi.fn>;
+  let navigation: FakeBackNavigation;
+  let fixture: ComponentFixture<TaskDetailPage>;
   let element: HTMLElement;
 
   function render(): void {
-    const fixture = TestBed.createComponent(TaskDetailPage);
+    fixture = TestBed.createComponent(TaskDetailPage);
     element = fixture.nativeElement;
     fixture.detectChanges();
   }
 
   const close = () => element.querySelector('button')!.click();
   const shownTaskId = () => element.querySelector('app-task-detail .id')?.textContent;
+  const shownLabel = () => element.querySelector('app-task-detail .label')?.textContent;
 
   beforeEach(() => {
     params = new BehaviorSubject(convertToParamMap({ id: 'task-42' }));
-    state = { navigationId: 3 };
-    back = vi.fn();
-    navigate = vi.fn().mockResolvedValue(true);
+    navigation = new FakeBackNavigation();
     TestBed.configureTestingModule({
       providers: [
         { provide: ActivatedRoute, useValue: { paramMap: params } },
-        { provide: Location, useValue: { getState: () => state, back } },
-        { provide: Router, useValue: { navigate } },
+        { provide: BackNavigation, useValue: navigation },
       ],
     });
     TestBed.overrideComponent(TaskDetailPage, {
@@ -67,9 +75,7 @@ describe('TaskDetailPage', () => {
   });
 
   it('follows a change of the route id', () => {
-    const fixture = TestBed.createComponent(TaskDetailPage);
-    element = fixture.nativeElement;
-    fixture.detectChanges();
+    render();
     params.next(convertToParamMap({ id: 'task-43' }));
     fixture.detectChanges();
     expect(shownTaskId()).toBe('task-43');
@@ -81,33 +87,83 @@ describe('TaskDetailPage', () => {
     expect(element.querySelector('app-task-detail')).toBeNull();
   });
 
-  it('goes back when the app has a previous page', () => {
+  it('goes back with the Inbox as the parent route', () => {
     render();
     close();
-    expect(back).toHaveBeenCalledTimes(1);
-    expect(navigate).not.toHaveBeenCalled();
+    expect(navigation.back).toHaveBeenCalledExactlyOnceWith('/inbox');
   });
 
-  it('goes to the Inbox when the editor was the first page opened', () => {
-    state = { navigationId: 1 };
+  it('names the page the task was opened from', () => {
+    navigation.previous.set({ id: 3, url: '/today', label: 'Today' });
     render();
-    close();
-    expect(back).not.toHaveBeenCalled();
-    expect(navigate).toHaveBeenCalledWith(['/inbox']);
+    expect(shownLabel()).toBe('Today');
   });
 
-  it('goes to the Inbox when there is no navigation state', () => {
-    state = null;
+  it('reads Back when the previous page has no name', () => {
+    navigation.previous.set({ id: 3, url: '/somewhere', label: null });
     render();
-    close();
-    expect(back).not.toHaveBeenCalled();
-    expect(navigate).toHaveBeenCalledWith(['/inbox']);
+    expect(shownLabel()).toBe('Back');
+  });
+
+  it('names the Inbox when the task was the first page opened', () => {
+    render();
+    expect(shownLabel()).toBe('Inbox');
+  });
+});
+
+describe('TaskDetailPage in the app', () => {
+  @Component({ selector: 'app-stub-page', template: '<p class="stub">page</p>' })
+  class StubPage {}
+
+  async function openFrom(...from: string[]): Promise<RouterTestingHarness> {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          { path: 'inbox', title: 'Inbox', component: StubPage },
+          { path: 'today', title: 'Today', component: StubPage },
+          { path: 'tasks/:id', title: 'Task', component: TaskDetailPage },
+        ]),
+        provideLocationMocks(),
+        provideBackNavigation(),
+      ],
+    });
+    TestBed.overrideComponent(TaskDetailPage, {
+      remove: { imports: [TaskDetail] },
+      add: { imports: [FakeTaskDetail] },
+    });
+    const harness = await RouterTestingHarness.create();
+    TestBed.inject(Router).setUpLocationChangeListener();
+    for (const url of from) await harness.navigateByUrl(url);
+    await harness.navigateByUrl('/tasks/task-42');
+    harness.detectChanges();
+    return harness;
+  }
+
+  async function close(harness: RouterTestingHarness): Promise<string> {
+    harness.routeNativeElement!.querySelector('button')!.click();
+    for (let i = 0; i < 3; i++) await new Promise((resolve) => setTimeout(resolve));
+    await harness.fixture.whenStable();
+    return TestBed.inject(Router).url;
+  }
+
+  it('goes back to Today when opened from Today', async () => {
+    const harness = await openFrom('/inbox', '/today');
+    expect(harness.routeNativeElement!.querySelector('.label')?.textContent).toBe('Today');
+    expect(await close(harness)).toBe('/today');
+    TestBed.inject(Location).back();
+    for (let i = 0; i < 3; i++) await new Promise((resolve) => setTimeout(resolve));
+    expect(TestBed.inject(Router).url).toBe('/inbox');
+  });
+
+  it('goes to the Inbox when the task was opened by a deep link', async () => {
+    const harness = await openFrom();
+    expect(await close(harness)).toBe('/inbox');
   });
 });
 
 describe('TaskDetailPage with the real editor', () => {
   it('goes back when the editor is closed', async () => {
-    const back = vi.fn();
+    const navigation = new FakeBackNavigation();
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
@@ -115,7 +171,7 @@ describe('TaskDetailPage with the real editor', () => {
           provide: ActivatedRoute,
           useValue: { paramMap: new BehaviorSubject(convertToParamMap({ id: 'gone' })) },
         },
-        { provide: Location, useValue: { getState: () => ({ navigationId: 2 }), back } },
+        { provide: BackNavigation, useValue: navigation },
         {
           provide: Api,
           useValue: { invoke: () => Promise.reject(new ApiError(404, 'Not Found')) },
@@ -135,7 +191,7 @@ describe('TaskDetailPage with the real editor', () => {
     const element: HTMLElement = fixture.nativeElement;
     expect(element.textContent).toContain('This task does not exist or is in the Trash.');
     [...element.querySelectorAll('button')].find((b) => b.textContent?.includes('Back'))!.click();
-    expect(back).toHaveBeenCalledTimes(1);
+    expect(navigation.back).toHaveBeenCalledExactlyOnceWith('/inbox');
   });
 });
 

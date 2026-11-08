@@ -1,6 +1,6 @@
 @if (project(); as project) {
   <article class="page" aria-labelledby="project-title">
-    <a class="back" routerLink="/projects" i18n="@@gtd.project.back">All projects</a>
+    <app-back-button fallback="/projects" [fallbackLabel]="projectsLabel" />
 
     <header class="head">
       <h1 id="project-title">{{ project.title }}</h1>

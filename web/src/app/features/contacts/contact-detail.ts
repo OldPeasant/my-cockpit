@@ -4,6 +4,7 @@ import {
   Component,
   computed,
   DestroyRef,
+  effect,
   inject,
   signal,
   ViewEncapsulation,
@@ -23,6 +24,7 @@ import {
 import { ChangeEventsService } from '../../core/events';
 import { ApiError, NotificationService } from '../../core/http';
 import { LinkedItems } from '../../shared/links';
+import { BackButton, BackNavigation } from '../../shared/navigation';
 import { renderMarkdown } from '../gtd/projects/markdown';
 import {
   addressLine,
@@ -49,7 +51,7 @@ export const NEW_CONTACT_ID = 'new';
   selector: 'app-contact-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
-  imports: [ContactForm, DatePipe, LinkedItems, MatButtonModule, RouterLink],
+  imports: [BackButton, ContactForm, DatePipe, LinkedItems, MatButtonModule, RouterLink],
   templateUrl: './contact-detail.html',
   styleUrl: './contact-detail.scss',
 })
@@ -88,6 +90,13 @@ export default class ContactDetail {
   protected readonly exportUrl = computed(() => this.service.exportUrl([this.id()]));
   /** The list's search, kept on the way back. */
   protected readonly backParams = signal<{ q?: string }>({});
+  /** The back button's destination when the contact was not opened from a page of the app. */
+  protected readonly backUrl = computed(() =>
+    this.router.serializeUrl(
+      this.router.createUrlTree(['/contacts'], { queryParams: this.backParams() }),
+    ),
+  );
+  protected readonly contactsLabel = $localize`:@@nav.contacts:Contacts`;
 
   protected readonly initials = initials;
   protected readonly roleLine = roleLine;
@@ -109,6 +118,15 @@ export default class ContactDetail {
     this.route.queryParamMap.pipe(takeUntilDestroyed(destroyRef)).subscribe((params) => {
       const q = params.get('q');
       this.backParams.set(q ? { q } : {});
+    });
+    // The back buttons of the pages opened from here (tasks, events, mails) name the contact.
+    const backNavigation = inject(BackNavigation);
+    effect(() => {
+      const contact = this.contact();
+      if (contact?.id && contact.displayName) {
+        const url = this.router.serializeUrl(this.router.createUrlTree(['/contacts', contact.id]));
+        backNavigation.setLabel(url, contact.displayName);
+      }
     });
     const events = inject(ChangeEventsService);
     events

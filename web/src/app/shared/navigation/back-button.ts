@@ -47,9 +47,7 @@ export class BackButton {
   protected readonly label = computed(() => this.target().label || BACK_LABEL);
   protected readonly ariaLabel = computed(() => {
     const destination = this.target().label;
-    return destination
-      ? $localize`:@@back.aria:Back to ${destination}:destination:`
-      : BACK_LABEL;
+    return destination ? $localize`:@@back.aria:Back to ${destination}:destination:` : BACK_LABEL;
   });
   protected readonly href = computed(() => this.location.prepareExternalUrl(this.target().url));
 

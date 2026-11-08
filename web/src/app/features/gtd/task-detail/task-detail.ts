@@ -70,7 +70,7 @@ type LoadKind = 'initial' | 'background' | 'conflict';
  * changes) and its linked items. The form saves with `If-Match`; a 412 reloads the task and says
  * it was changed elsewhere.
  *
- * `<app-task-detail [taskId]="id" (closed)="back()" />`
+ * `<app-task-detail [taskId]="id" [backLabel]="'Today'" (closed)="back()" />`
  */
 @Component({
   selector: 'app-task-detail',
@@ -97,8 +97,17 @@ export class TaskDetail {
   private readonly dialog = inject(MatDialog);
 
   readonly taskId = input.required<string>();
+  /** Where closing leads ("Today", the project's title), shown on the close button; none: "Close". */
+  readonly backLabel = input<string | null>(null);
   /** The user closed the editor (after confirming to drop unsaved changes). */
   readonly closed = output<void>();
+
+  protected readonly closeLabel = computed(() => {
+    const destination = this.backLabel();
+    return destination
+      ? $localize`:@@back.aria:Back to ${destination}:destination:`
+      : $localize`:@@taskDetail.close:Close`;
+  });
 
   protected readonly lists = LIST_OPTIONS;
   protected readonly presets = RECURRENCE_PRESETS;

@@ -47,7 +47,7 @@ test.describe('GTD projects', () => {
     await expect(page.locator('.stalled-badge')).toHaveText('Stalled');
     await expect(page.getByText('This project has no next step.')).toBeVisible();
 
-    await page.getByRole('link', { name: 'All projects' }).click();
+    await page.getByRole('link', { name: 'Back to Projects' }).click();
     const group = page.getByRole('region', { name: `Household ${run}` });
     const row = group.locator('.project', { hasText: `Repaint the hallway ${run}` });
     await expect(row).toHaveClass(/stalled/);

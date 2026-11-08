@@ -8,12 +8,15 @@ import {
   Router,
 } from '@angular/router';
 
+/** How many page names {@link BackNavigation.setLabel} keeps. */
+const MAX_LABELS = 100;
+
 /** One page of this app in the browser history, as far as the app has seen it. */
 interface Entry {
   /** The router navigation id stored in the history entry's state (`navigationId`). */
   readonly id: number;
   readonly url: string;
-  /** What the page is called: its route title, or a name the page set (e.g. the project's). */
+  /** What the page is called: its route title (a page may name itself, see `setLabel`). */
   readonly label: string | null;
 }
 
@@ -40,13 +43,17 @@ export class BackNavigation {
   private readonly location = inject(Location);
 
   private readonly history = signal<History>({ entries: [], index: -1 });
+  /** Names pages set for themselves, by URL path (most recent last). */
+  private readonly labels = signal<ReadonlyMap<string, string>>(new Map());
   /** The `popstate` navigation that runs: the `navigationId` it restores. */
   private restoring: { id: number; restoredId: number | null } | null = null;
 
   /** The app page before the current one in the browser history, if the app knows it. */
   readonly previous = computed<Entry | null>(() => {
     const { entries, index } = this.history();
-    return index > 0 ? entries[index - 1] : null;
+    if (index <= 0) return null;
+    const entry = entries[index - 1];
+    return { ...entry, label: this.labels().get(pathOf(entry.url)) ?? entry.label };
   });
 
   constructor() {
@@ -82,17 +89,19 @@ export class BackNavigation {
   }
 
   /**
-   * Names the current page for the back buttons of the pages opened from it (e.g. the project's
-   * title instead of "Project"). Only applies while the page at `url` is the current one, so a late
-   * answer cannot rename another page.
+   * Names the page at `url` for the back buttons of the pages opened from it (e.g. the project's
+   * title instead of "Project"). Query and fragment do not matter: `/new?filter=mail` is New.
    */
-  setLabel(label: string, url: string = this.router.url): void {
-    this.history.update(({ entries, index }) => {
-      const current = entries[index];
-      if (!current || current.url !== url || current.label === label) return { entries, index };
-      const next = [...entries];
-      next[index] = { ...current, label };
-      return { entries: next, index };
+  setLabel(url: string, label: string): void {
+    const path = pathOf(url);
+    this.labels.update((labels) => {
+      if (labels.get(path) === label) return labels;
+      const next = new Map(labels);
+      next.delete(path);
+      next.set(path, label);
+      // Keeps the most recent names only.
+      while (next.size > MAX_LABELS) next.delete(next.keys().next().value!);
+      return next;
     });
   }
 
@@ -114,7 +123,7 @@ export class BackNavigation {
         );
         if (found < 0) return { entries: [entry], index: 0 };
         const next = [...entries];
-        next[found] = { ...entry, label: entries[found].label ?? entry.label };
+        next[found] = entry;
         return { entries: next, index: found };
       }
       const current = entries[index];
@@ -126,6 +135,11 @@ export class BackNavigation {
       return { entries: [...entries.slice(0, index + 1), entry], index: index + 1 };
     });
   }
+}
+
+/** The path of a URL, without query and fragment. */
+function pathOf(url: string): string {
+  return url.split(/[?#]/, 1)[0];
 }
 
 /** The title of the deepest primary route (`Route.title`, resolved by the router). */

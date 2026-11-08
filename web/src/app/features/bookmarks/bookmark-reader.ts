@@ -3,15 +3,17 @@ import {
   Component,
   computed,
   DestroyRef,
+  effect,
   inject,
   signal,
   ViewEncapsulation,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { BookmarkResponse } from '../../api/generated';
 import { ApiError, NotificationService } from '../../core/http';
+import { BackButton, BackNavigation } from '../../shared/navigation';
 import { renderMarkdown } from '../gtd/projects/markdown';
 import { hostOf } from './bookmark-display';
 import { BookmarksService, Snapshot } from './bookmarks.service';
@@ -24,13 +26,15 @@ import { BookmarksService, Snapshot } from './bookmarks.service';
   selector: 'app-bookmark-reader',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
-  imports: [MatButtonModule, RouterLink],
+  imports: [BackButton, MatButtonModule],
   templateUrl: './bookmark-reader.html',
   styleUrl: './bookmark-reader.scss',
 })
 export default class BookmarkReader {
   private readonly service = inject(BookmarksService);
   private readonly notifications = inject(NotificationService);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   /** The route's `:id`. */
   private id = '';
@@ -49,13 +53,34 @@ export default class BookmarkReader {
 
   protected readonly hostOf = hostOf;
 
+  /** The list's view and tag (query), kept on the way back to it. */
+  private readonly query = toSignal(this.route.queryParams, {
+    initialValue: this.route.snapshot.queryParams,
+  });
+  /** The back button's destination when the bookmark was not opened from a page of the app. */
+  protected readonly backUrl = computed(() =>
+    this.router.serializeUrl(
+      this.router.createUrlTree(['/bookmarks'], { queryParams: this.query() }),
+    ),
+  );
+  protected readonly bookmarksLabel = $localize`:@@nav.bookmarks:Bookmarks`;
+
   constructor() {
-    inject(ActivatedRoute)
-      .paramMap.pipe(takeUntilDestroyed(inject(DestroyRef)))
-      .subscribe((params) => {
-        this.id = params.get('id') ?? '';
-        void this.load();
-      });
+    // The back buttons of the pages opened from here name the bookmark.
+    const backNavigation = inject(BackNavigation);
+    effect(() => {
+      const bookmark = this.bookmark();
+      if (bookmark?.id && bookmark.displayTitle) {
+        const url = this.router.serializeUrl(
+          this.router.createUrlTree(['/bookmarks', bookmark.id]),
+        );
+        backNavigation.setLabel(url, bookmark.displayTitle);
+      }
+    });
+    this.route.paramMap.pipe(takeUntilDestroyed(inject(DestroyRef))).subscribe((params) => {
+      this.id = params.get('id') ?? '';
+      void this.load();
+    });
   }
 
   protected async load(): Promise<void> {

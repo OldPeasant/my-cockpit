@@ -11,6 +11,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   ElementRef,
   inject,
   Injector,
@@ -20,6 +21,7 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { map } from 'rxjs';
 import { ProjectResponse, TaskResponse } from '../../../api/generated';
+import { BackButton, BackNavigation } from '../../../shared/navigation';
 import { ContextStore, localDate, ProjectStore } from '../data';
 import { TaskRow } from '../ui';
 import { AreaStore } from './area-store';
@@ -37,7 +39,16 @@ import { ProjectTaskStore } from './project-task-store';
 @Component({
   selector: 'app-project-detail-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CdkDrag, CdkDragHandle, CdkDropList, DatePipe, ProjectForm, RouterLink, TaskRow],
+  imports: [
+    BackButton,
+    CdkDrag,
+    CdkDragHandle,
+    CdkDropList,
+    DatePipe,
+    ProjectForm,
+    RouterLink,
+    TaskRow,
+  ],
   providers: [ProjectTaskStore],
   templateUrl: './project-detail-page.html',
   styleUrls: [
@@ -55,6 +66,8 @@ export class ProjectDetailPage {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
 
+  /** The back button's destination when the project was not opened from a page of the app. */
+  protected readonly projectsLabel = $localize`:@@nav.projects:Projects`;
   protected readonly today = localDate();
   protected readonly maxTitle = MAX_PROJECT_TITLE;
   protected readonly statusLabel = statusLabel;
@@ -93,6 +106,15 @@ export class ProjectDetailPage {
   private loadedFor?: string;
 
   constructor() {
+    // The back buttons of the pages opened from here (tasks, notes, mail) name the project.
+    const backNavigation = inject(BackNavigation);
+    effect(() => {
+      const project = this.project();
+      if (project?.id && project.title) {
+        const url = this.router.serializeUrl(this.router.createUrlTree(['/projects', project.id]));
+        backNavigation.setLabel(url, project.title);
+      }
+    });
     void this.projects.ensureLoaded();
     void this.areas.ensureLoaded();
     void this.contexts.ensureLoaded();

@@ -19,6 +19,27 @@
   min-height: 40px;
 }
 
+.back {
+  display: inline-flex;
+  gap: var(--app-space-1);
+  align-items: center;
+  min-width: 0;
+
+  svg {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    fill: currentcolor;
+  }
+}
+
+.back-label {
+  overflow: hidden;
+  max-width: 20rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .to-calendar {
   margin-inline-start: auto;
 }

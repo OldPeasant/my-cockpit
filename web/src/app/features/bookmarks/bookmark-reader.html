@@ -1,7 +1,5 @@
 <article class="reader" aria-labelledby="reader-title">
-  <a class="back" routerLink=".." queryParamsHandling="preserve" i18n="@@bookmarks.back"
-    >Back to bookmarks</a
-  >
+  <app-back-button [fallback]="backUrl()" [fallbackLabel]="bookmarksLabel" />
 
   @if (loadError(); as error) {
     <div class="load-error" role="alert">

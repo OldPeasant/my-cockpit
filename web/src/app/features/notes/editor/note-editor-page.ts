@@ -3,6 +3,7 @@ import {
   Component,
   computed,
   DestroyRef,
+  effect,
   inject,
   signal,
   viewChild,
@@ -14,6 +15,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ItemRefDto, NoteResponse } from '../../../api/generated';
 import { ApiError } from '../../../core/http';
 import { itemTypeLabel, LinkedItems, LinksService } from '../../../shared/links';
+import { BackButton, BackNavigation } from '../../../shared/navigation';
 import { LinkOption, MarkdownEditor, withoutUploadPlaceholders } from './markdown-editor';
 import { NoteDraft, NoteEditorService } from './note-editor.service';
 import { InlineLinkInfo, inlineLinks, toggleChecklistItem } from './note-markdown';
@@ -41,7 +43,7 @@ export type SaveState = 'saved' | 'pending' | 'saving' | 'error' | 'conflict';
 @Component({
   selector: 'app-note-editor-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [LinkedItems, MarkdownEditor, MatButtonModule, NoteMarkdownView, RouterLink],
+  imports: [BackButton, LinkedItems, MarkdownEditor, MatButtonModule, NoteMarkdownView, RouterLink],
   host: { '(window:beforeunload)': 'onBeforeUnload($event)' },
   templateUrl: './note-editor-page.html',
   styleUrl: './note-editor-page.scss',
@@ -51,6 +53,9 @@ export default class NoteEditorPage {
   private readonly links = inject(LinksService);
   private readonly dialog = inject(MatDialog);
   private readonly router = inject(Router);
+
+  /** The back button's destination when the note was not opened from a page of the app. */
+  protected readonly notesLabel = $localize`:@@nav.notes:Notes`;
 
   /** The note's id, from the route. */
   protected readonly id = signal('');
@@ -101,6 +106,15 @@ export default class NoteEditorPage {
   private openSeq = 0;
 
   constructor() {
+    // The back buttons of the pages opened from here (links, tasks) name the note.
+    const backNavigation = inject(BackNavigation);
+    effect(() => {
+      const note = this.note();
+      if (note?.id && note.title) {
+        const url = this.router.serializeUrl(this.router.createUrlTree(['/notes', note.id]));
+        backNavigation.setLabel(url, note.title);
+      }
+    });
     inject(ActivatedRoute)
       .paramMap.pipe(takeUntilDestroyed())
       .subscribe((params) => void this.open(params.get('id') ?? ''));

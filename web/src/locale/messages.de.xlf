@@ -754,14 +754,6 @@
           <context context-type="linenumber">149</context>
         </context-group>
       </trans-unit>
-      <trans-unit id="bookmarks.back" datatype="html">
-        <source>Back to bookmarks</source>
-        <target state="translated">Zurück zu den Lesezeichen</target>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/features/bookmarks/bookmark-reader.html</context>
-          <context context-type="linenumber">3,6</context>
-        </context-group>
-      </trans-unit>
       <trans-unit id="bookmarks.reader.loadFailed" datatype="html">
         <source>The bookmark could not be loaded: <x id="INTERPOLATION" equiv-text="{{ error }}"/></source>
         <target state="translated">Das Lesezeichen konnte nicht geladen werden: <x id="INTERPOLATION" equiv-text="{{ error }}"/></target>
@@ -2392,14 +2384,6 @@
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/contacts/contact-form.html</context>
           <context context-type="linenumber">10,11</context>
-        </context-group>
-      </trans-unit>
-      <trans-unit id="contacts.back" datatype="html">
-        <source>Back to contacts</source>
-        <target state="translated">Zurück zu den Kontakten</target>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/features/contacts/contact-detail.html</context>
-          <context context-type="linenumber">3,7</context>
         </context-group>
       </trans-unit>
       <trans-unit id="contacts.newTitle" datatype="html">
@@ -6112,6 +6096,26 @@
           <context context-type="linenumber">25,27</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="back.aria" datatype="html">
+        <source>Back to <x id="destination" equiv-text="destination"/></source>
+        <target state="translated">Zurück zu <x id="destination" equiv-text="destination"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.ts</context>
+          <context context-type="linenumber">108</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shared/navigation/back-button.ts</context>
+          <context context-type="linenumber">51</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="back.label" datatype="html">
+        <source>Back</source>
+        <target state="translated">Zurück</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shared/navigation/back-button.ts</context>
+          <context context-type="linenumber">6</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="taskDetail.close" datatype="html">
         <source>Close</source>
         <target state="translated">Schließen</target>
@@ -8958,14 +8962,6 @@
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-frame.ts</context>
           <context context-type="linenumber">76</context>
-        </context-group>
-      </trans-unit>
-      <trans-unit id="mailRead.backAria" datatype="html">
-        <source>Back to Mail</source>
-        <target state="translated">Zurück zu E-Mail</target>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
-          <context context-type="linenumber">7,9</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailRead.back" datatype="html">

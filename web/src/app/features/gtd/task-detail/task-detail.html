@@ -32,14 +32,18 @@
         <header class="top">
           <button
             type="button"
-            class="icon"
+            [class.icon]="!backLabel()"
+            [class.quiet]="!!backLabel()"
+            [class.back]="!!backLabel()"
             (click)="close()"
-            i18n-aria-label="@@taskDetail.close"
-            aria-label="Close"
+            [attr.aria-label]="closeLabel()"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
             </svg>
+            @if (backLabel(); as label) {
+              <span class="back-label">{{ label }}</span>
+            }
           </button>
           @if (task()?.completedAt) {
             <span class="done" i18n="@@taskDetail.completed">Done</span>

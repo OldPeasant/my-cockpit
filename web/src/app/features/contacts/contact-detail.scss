@@ -6,16 +6,6 @@ app-contact-detail {
     padding: var(--app-space-5) var(--app-space-4);
   }
 
-  .back {
-    color: var(--app-fg-muted);
-    font: var(--mat-sys-label-large);
-    text-decoration: none;
-
-    &:hover {
-      color: var(--app-accent);
-    }
-  }
-
   a:focus-visible {
     outline: 2px solid var(--app-accent);
     outline-offset: 2px;

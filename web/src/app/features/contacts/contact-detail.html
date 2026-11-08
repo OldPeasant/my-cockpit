@@ -1,7 +1,5 @@
 <article class="contact-detail" aria-labelledby="contact-title">
-  <a class="back" routerLink="/contacts" [queryParams]="backParams()" i18n="@@contacts.back"
-    >Back to contacts</a
-  >
+  <app-back-button [fallback]="backUrl()" [fallbackLabel]="contactsLabel" />
 
   @if (isNew()) {
     <h1 id="contact-title" class="new-title" i18n="@@contacts.newTitle">New contact</h1>

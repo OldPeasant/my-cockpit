@@ -206,7 +206,7 @@ test.describe('Phase 1 demo', () => {
     await expect(prompt).toHaveCount(0);
     await expect(page.locator('.stalled-badge')).toHaveText('Stalled');
 
-    await page.getByRole('link', { name: 'All projects' }).click();
+    await page.getByRole('link', { name: 'Back to Projects' }).click();
     const projectRow = page.locator('.project', { hasText: 'Holiday' });
     await expect(projectRow).toHaveClass(/stalled/);
     await expect(projectRow.locator('.stalled-badge')).toHaveText('Stalled');
