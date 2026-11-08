@@ -1,10 +1,11 @@
 ---
 title: Web task detail: complete, delete, undo, Markdown notes
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [web-back-navigation]
 touches: [web/src/app/features/gtd/task-detail,web/src/app/features/gtd/lists,web/src/locale]
 prio: 2
+lease_until: 2026-11-08T14:15:37Z
 ---
 ## Goal
 Web cannot delete a task except during inbox processing and review (conflicts with SPEC.md phase 1 demo step 9)
