@@ -4,26 +4,41 @@ Date: 2026-11-08
 
 Task: and-bookmarks-plus - Android bookmarks: add, read-later toggle, reader, to inbox
 
-Scope: final code of the task, `git diff 7adc3abf..42d64867`, commits 51bbd34f (implementation), 6ab3aee9 and b738bf99 (tests, reports), 1712ee50 (fixes for CR-1 to CR-5 of the first review), c11ff7b9 (tests, second review), 42d64867 (fixes for CR-1 and CR-2 of the second review). Android bookmarks feature (`android/app/src/main/java/ch/sonensei/cockpit/bookmarks`), its tests, and `strings_bookmarks.xml` (en/de). Committed HEAD only. The working tree was clean when the review started.
+Scope: final code of the task, `git diff 3e8f6408c2b032d9501fb91c336923da20fdb185..9defb91aa` (base = `git merge-base HEAD origin/main`). Commits 83196000 (implementation), 8c296159, cc46ef25, 90e31e3c, d5db8896, 9defb91a (tests and reports), 4b46f381, 8a553ef7, cc64e32d (fixes of the earlier review rounds). This round focuses on cc64e32d (fixes for P3 CR-1 and CR-2 of the third review) and the tests added after it, and re-checks the whole feature against the acceptance criteria. Committed HEAD only. The working tree was clean.
 
 Requirements:
-- tasks/and-bookmarks-plus.md acceptance criteria
-- SPEC.md §4.2 (ETag/If-Match, UUIDv7 idempotent creates), §4.5 (bookmark to Inbox task, linked to its origin)
+- tasks/and-bookmarks-plus.md acceptance criteria #1-#6
+- SPEC.md §4.2 (ETag/If-Match, UUIDv7 idempotent creates), §4.5 (bookmark to Inbox task linked to its origin), §8.4 (bookmarks)
 - docs/ARCHITECTURE.md and AGENTS.md project notes (lint is part of the contract, strings in EN and DE)
-- Previous review rounds and `reviews/and-bookmarks-plus/fixes.md`
+- Previous review rounds, `reviews/and-bookmarks-plus/fixes.md`, `reviews/and-bookmarks-plus/tests.md`
 
 Git range:
 - Branch: main
-- HEAD: 42d6486716e7e0745a7a3f364a885de6d43ac777
-- Base/start: 7adc3abf42d567c81db59173e481e988a4d835ce
-- Commits reviewed: 6
+- HEAD: 9defb91aa
+- Base/start: 3e8f6408c2b032d9501fb91c336923da20fdb185
+- Commits reviewed: 9
 
-Summary: 0 P0, 0 P1, 0 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-## Previous findings (second review)
+## Previous findings (third review)
 
-- CR-1 (leaving the reader during a save left an outdated version in the list): resolved. `saveSnapshot()` now runs in its own coroutine, not as `readerJob`, so `closeReader()` no longer cancels it (`BookmarksViewModel.kt:321-334`). On success the saved bookmark is `put()` into the list (`:344`). The new copy is loaded only if the reader is still open on the same bookmark, and that load becomes the cancellable `readerJob` (`:346-349`). On failure with the bookmark gone, only a reader still open on that bookmark is closed (`:355`), so a reader opened on another bookmark stays open. The `busy` guard stays until the save ends, so no list change goes out with the old `If-Match`. Tests cover this: `leaving the reader while a copy is saved lets the save finish and puts the new version into the list` and `a save that fails after the reader was left does not close a reader opened on another bookmark` (`BookmarksAddReaderViewModelTest.kt:857-927`). I traced reopening the reader on the same bookmark during the save: the save's `readerJob?.cancel()` stops the reopened reader's load, and the reader then loads the newer copy. That path is correct. See CR-2 below for a small display gap.
-- CR-2 (the "Nothing was changed" text for creates whose result is unknown): resolved. The add dialog uses `bookmarks_add_offline` (`BookmarkAdder.kt:104`). "To Inbox" shows the new `BookmarksSnackbar.InboxOffline` with `bookmarks_to_inbox_offline` (`BookmarksViewModel.kt:292`, `BookmarksScreen.kt:687-688`). Both strings exist in EN and DE, and `BookmarksStringsTest` lists them. An offline add also reloads a loaded list (`BookmarksViewModel.kt:274`), so a bookmark the server did save shows up. View-model, Compose and string tests were updated.
+- CR-1 (local `taskId` shadowed the parameter in `BookmarksRepository.toInbox`): resolved. The local is now `createdId` (`BookmarksRepository.kt:231-232`), and the link uses it. Behavior is unchanged. The new repository test `to Inbox links the task the server answered with` pins it.
+- CR-2 (a reader reopened during a running save showed no saving state): resolved. `BookmarksViewModel` keeps `snapshotSaves` (`BookmarksViewModel.kt:153`). `openReader` starts with `saving = bookmark.id in snapshotSaves` (`:302`). The save adds the id before it starts (`:330`). Its `finally` removes it and clears `saving` on a reader still open on that bookmark (`:334-338`), whatever the outcome. I traced these paths:
+  - Save succeeds while the reopened reader's own load is still pending: `saveSnapshot` cancels that `readerJob` and loads the new copy (`:351-356`), so the late, older `get` cannot overwrite the saved version.
+  - Save ends `Ok(null)`: the reader shows `UNREADABLE` with `saving = false` (`:349`).
+  - Save fails with a conflict or offline: `failed()` reloads or keeps the version, and the reader gets `saving = false` (`:364`). If the bookmark is gone, only a reader open on it is closed (`:362`).
+  - `retryReader` and `saveSnapshot` refuse while `saving` is set (`:309`, `:326`), and `busy` still blocks other changes, so no write goes out with an old `If-Match`.
+  - `snapshotSaves` is only touched on the main dispatcher (`viewModelScope`), so the plain mutable set is safe.
+  The commit added two view-model tests, and the test-writer added two more (late older load, offline load with retry blocked until the save ends). The earlier test that now expects `saving = true` on reopen was updated to the new, intended behavior, not weakened.
+
+## Acceptance criteria
+
+- #1 Add bookmark: dialog with URL, optional title and tags, read later (preset in the read-later view). Local URL and tag validation, server 400 field errors mapped to the right fields, offline result keeps the input and reloads a loaded list. Met in code and tests.
+- #2 Read-later toggle: `PATCH` with only `readLater` and `If-Match`; conflicts reload; the row leaves the queue view when taken out. Met.
+- #3 Snapshot reader: loads the latest bookmark, then `GET /files/{id}/preview` with `X-Preview-Truncated`; text only; links resolved against the page and limited to http(s) (`BookmarksModels.kt:158-163`). Save a new copy with `If-Match`, 502 as unreadable. Met.
+- #4 To Inbox task: idempotent UUIDv7 task create (id kept only while the answer is unknown) plus an `origin` link TASK to BOOKMARK; snackbars for linked, unlinked, offline and failure. Met.
+- #5 Strings: `strings_bookmarks.xml` has 56 entries in both `values/` and `values-de/`; `BookmarksStringsTest` checks key and placeholder parity, `lintDebug` checks `MissingTranslation`. Met.
+- #6 Tests and checks: tests cover each criterion (view model, repository, Compose screen, route, models, strings). `tests.md` records `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` (4387 tests, 0 failures) and `sh scripts/check.sh` ("all checks passed") on cc64e32d plus the new tests. I did not run them in this read-only review. The parent worker must record the commands it ran on the final HEAD with `tasks.py verify`.
 
 ## P0 Critical
 
@@ -39,24 +54,10 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | Local `taskId` shadows the `taskId` parameter in `toInbox`**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/bookmarks/BookmarksRepository.kt:215,231`
-    - Category: Quality
-    - Problem: `toInbox(bookmark, taskId)` sends the client id `taskId`. Inside the `load { }` lambda, `val taskId = UUID.fromString(task["id"]...)` declares a second `taskId` (the id the server returned) that shadows the parameter, and the link uses that one. The behavior is correct, because the server returns the same id for an idempotent create. But two different values have the same name in one function, and Kotlin reports name shadowing in this pattern as a compiler warning. The project treats warnings as defects ("fix warnings, don't suppress them").
-    - Why it matters: a later edit can easily use the wrong id, and the build gets a warning that can be avoided.
-    - Suggested fix: rename the local, for example `val createdId = ...`, and pass it to `link(createdId, bookmark.id)`.
-
-- [ ] **CR-2 | A reader reopened during a running save shows no saving state**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/bookmarks/BookmarksViewModel.kt:298-300` (`openReader` starts with `saving = false`), `BookmarkReader.kt:82,179`
-    - Category: Correctness
-    - Problem: since the CR-1 fix, a save continues after the reader closes. If the user opens the reader on the same bookmark again before the save ends, `openReader` creates a new `ReaderState(bookmark, loading = true)` with `saving = false`. When the reader's own load finishes, the progress bar goes away (`reading.loading || reading.saving` is false), but the save button and the actions stay disabled (`busy`). Nothing says why. The new copy appears later, when the save ends.
-    - Why it matters: a small UX gap. The state stays correct and fixes itself, so the priority is low.
-    - Suggested fix: keep the ids of running snapshot saves (or check `busy` together with a save marker) and start `openReader` with `saving = true` for them. Alternatively, show the progress bar in the reader while its bookmark is `busy`.
+None.
 
 ## Review conclusion
 
 No material issues found.
 
-All four behavior criteria are implemented and match the server contract. Add bookmark: URL, optional title and tags, read later, with server field errors mapped to the right messages. Read-later toggle: `PATCH` with `If-Match`, and conflicts are reloaded. Snapshot reader: loads the latest bookmark, then `GET /files/{id}/preview` with `X-Preview-Truncated`. It renders text only, and links are resolved and limited to http(s). To Inbox task: an idempotent UUIDv7 task create plus an `origin` link from TASK to BOOKMARK. All new strings exist in English and German. The fixes from the second review are correct and add no regressions. No secrets, sensitive logging or unsafe rendering were found.
-
-The two P3 findings are optional cleanups. I did not run the Gradle suites in this review (read-only). The acceptance criteria are still unchecked in the task file. The parent worker must record criterion 6 with the commands actually run (`cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug`, `sh scripts/check.sh`). The task notes say the `web` part of `scripts/check.sh` fails here because Node.js is v20.9.0. If so, record that part as skipped with this reason, not as passed.
+The fixes for CR-1 and CR-2 are correct and add no regressions. The feature meets all six acceptance criteria in code, and the tests cover the new behavior, including the reopen-during-save paths. No secrets, sensitive logging, unsafe rendering or unsafe link schemes were found. All changed files are inside the task's `touches` (plus its own `reviews/` files).
