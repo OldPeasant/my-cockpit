@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/projects,android/app/src/test/java/ch/sonensei/cockpit/gtd/projects,android/app/src/main/res/values/strings_projects_lists.xml,android/app/src/main/res/values-de/strings_projects_lists.xml]
 prio: 1
-lease_until: 2026-11-08T10:51:33Z
+lease_until: 2026-11-08T10:56:36Z
 ---
 ## Goal
 Android cannot create a project (only inside inbox "To project → New") nor edit one (SPEC.md §5.3; web:
