@@ -16,7 +16,8 @@ Decided behavior (owner, 2026-11-08): remote images blocked by default, same as 
 ## Acceptance criteria
 - [x] Inline `cid:` images render: the WebView fetches only URLs of the configured cockpit server (attachment download and `/api/v1/mail/image-proxy`) through `shouldInterceptRequest` with the app's auth (OkHttp client with the access token); every other request stays blocked and JavaScript stays off
   - verified (2026-11-08 10:02+0100 by dell26/agent-1): ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.read.*' (Robolectric) -> pass: MailImagesTest fetches attachment/image-proxy URLs of the configured server through CockpitHttp OkHttp+ServerUrlInterceptor (MockWebServer), other hosts/paths/methods get 403 without reaching the server; MailWebViewTest asserts javaScriptEnabled=false
-- [ ] The "N images blocked" line becomes a banner with "Load images" (reloads the message with `remoteImages=PROXY`) and "Always for this sender" (adds to `mailImageAllowedSenders`)
+- [x] The "N images blocked" line becomes a banner with "Load images" (reloads the message with `remoteImages=PROXY`) and "Always for this sender" (adds to `mailImageAllowedSenders`)
+  - verified (2026-11-08 10:02+0100 by dell26/agent-1): MailReadScreenTest + MailReadImagesViewModelTest (gradle mail.read.*) -> pass: banner shows count with Load images (reloads with proxyImages=true / remoteImages=PROXY, MailReadRepositoryTest checks query) and Always for this sender (PATCH mailImageAllowedSenders + sender)
 - [ ] `mailImagePolicy = allow` or an allowed sender loads remote images through the proxy without asking
 - [ ] The CSP of the mail document allows images only from the server origin and `data:`; a test asserts a request to another host is blocked
 - [~] Manually verified on an emulator or device against a running server with a mail containing a `cid:` image and a remote image (record what you ran); if no emulator is available, skip with reason
