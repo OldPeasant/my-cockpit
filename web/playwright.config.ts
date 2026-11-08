@@ -48,12 +48,12 @@ export default defineConfig({
       use: { ...devices['Desktop Firefox'] },
     },
     // Inbox processing (also in the weekly review) counts every item of the shared inbox, which the other specs fill
-    // while they run: it runs after them, one spec at a time. The accessibility audit (a11y) processes the inbox and sets
-    // the shared account's theme, so it runs there too.
+    // while they run (chromium and firefox): it runs after both projects, one spec at a time. The accessibility audit
+    // (a11y) processes the inbox and sets the shared account's theme, so it runs there too.
     {
       name: 'inbox-exclusive',
       testMatch: /(gtd-inbox|review|a11y)\/.*\.spec\.ts$/,
-      dependencies: ['chromium'],
+      dependencies: ['chromium', 'firefox'],
       workers: 1,
       use: { ...devices['Desktop Chrome'] },
     },

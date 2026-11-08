@@ -5,15 +5,15 @@ Postgres, from `deploy/docker-compose.e2e.yml`. Not part of `.taskcheck`.
 
 ```sh
 cd web
-npx playwright install --with-deps chromium     # once per Playwright version
-npm run e2e                                     # all specs
-npm run e2e -- support/smoke.spec.ts            # one spec (any Playwright CLI arguments work)
+npx playwright install --with-deps chromium firefox  # once per Playwright version
+npm run e2e                                          # all specs
+npm run e2e -- support/smoke.spec.ts                 # one spec (any Playwright CLI arguments work)
 ```
 
 `npm run e2e` (`support/run-e2e.mjs`) builds and starts the stack on a free port of 127.0.0.1 (one compose
-project per clone), waits for `/actuator/health`, runs Playwright (chromium) with `E2E_BASE_URL`, prints the
-server log on failure and tears the stack down with its volumes. The server image is tagged per project
-(`localhost/<project>:latest`, kept for the layer cache). SIGINT/SIGTERM stop the Playwright run, tear the stack
+project per clone), waits for `/actuator/health`, runs Playwright (chromium, plus a `firefox` project for
+`e2e/mail-read/`) with `E2E_BASE_URL`, prints the server log on failure and tears the stack down with its volumes.
+The server image is tagged per project (`localhost/<project>:latest`, kept for the layer cache). SIGINT/SIGTERM stop the Playwright run, tear the stack
 down and exit non-zero (130/143). Options (environment):
 
 | Variable             | Effect                                                                                  |
@@ -50,7 +50,7 @@ Specs live in `e2e/<feature>/*.spec.ts`. The phase demo scripts of SPEC.md §13.
 their own Playwright project `phase-demos` before all other specs (they reset the stack, trigger the global login
 backoff and move the server clock). Every run includes them, also with a spec filter; `npm run e2e -- --no-deps <spec>`
 skips them. Specs that need the whole shared inbox (`e2e/gtd-inbox/`) run in the project `inbox-exclusive`, after all
-other specs. Import `test` and `expect` from `support/fixtures`:
+other specs (after both the `chromium` and `firefox` projects). Import `test` and `expect` from `support/fixtures`:
 
 - `account` (worker): the owner account. The first worker runs the setup through the API (TOTP code computed
   with otplib) and shares the credentials with the other workers.
