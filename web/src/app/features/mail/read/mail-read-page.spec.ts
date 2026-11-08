@@ -15,6 +15,7 @@ import { BehaviorSubject } from 'rxjs';
 import { ItemRefDto, MailMessageResponse } from '../../../api/generated';
 import { ApiError, NotificationService } from '../../../core/http';
 import { LinkedItems } from '../../../shared/links';
+import { provideBackNavigation } from '../../../shared/navigation';
 import { MailAction, MailService } from '../list/mail.service';
 import { IMAGE_ALLOWLIST_KEY } from './image-allowlist';
 import { MAIL_FRAME_SANDBOX } from './mail-frame';
@@ -1412,7 +1413,7 @@ class StubDialog {}
 @Component({ selector: 'app-stub-list', template: '<p class="list">list</p>' })
 class StubList {}
 
-describe('MailReadPage Archive, Spam and Delete: back to the list it was opened from', () => {
+describe('MailReadPage Archive, Spam and Delete: back to where it was opened from', () => {
   let mail: FakeMailService;
 
   /** Opens the message after visiting the given pages in order (none: opened directly). */
@@ -1423,11 +1424,13 @@ describe('MailReadPage Archive, Spam and Delete: back to the list it was opened 
         provideRouter([
           { path: 'mail', component: StubList },
           { path: 'mail/folders/:folderId', component: StubList },
+          { path: 'new', component: StubList },
           { path: 'notes', component: StubList },
           { path: 'mail/compose', component: StubList },
           { path: 'mail/messages/:id', component: MailReadPage },
         ]),
         provideLocationMocks(),
+        provideBackNavigation(),
         { provide: MailReadService, useValue: new FakeReadService() },
         { provide: MailService, useValue: mail },
         { provide: NotificationService, useValue: { info: vi.fn(), error: vi.fn() } },
@@ -1438,6 +1441,8 @@ describe('MailReadPage Archive, Spam and Delete: back to the list it was opened 
       add: { imports: [StubLinkedItems] },
     });
     const harness = await RouterTestingHarness.create();
+    // As in the app: Back and Forward (popstate) navigate.
+    TestBed.inject(Router).setUpLocationChangeListener();
     for (const url of from) if (url) await harness.navigateByUrl(url);
     await harness.navigateByUrl(`/mail/messages/${ID}`);
     await flush();
@@ -1452,6 +1457,7 @@ describe('MailReadPage Archive, Spam and Delete: back to the list it was opened 
       .click();
     await flush();
     await harness.fixture.whenStable();
+    await flush();
     return TestBed.inject(Router).url;
   }
 
@@ -1469,16 +1475,16 @@ describe('MailReadPage Archive, Spam and Delete: back to the list it was opened 
         expect(harness.routeNativeElement!.querySelector('.list')).not.toBeNull();
       });
 
-      it('returns to the unified Inbox when opened from another page', async () => {
-        expect(await clickAction(await openFrom('/notes'), label)).toBe('/mail');
+      it('returns to the page it was opened from, with its filter', async () => {
+        expect(await clickAction(await openFrom('/new?filter=mail'), label)).toBe(
+          '/new?filter=mail',
+        );
       });
 
-      it('replaces the message in the history, so Back does not open it again', async () => {
+      it('goes back in the history, so Back does not open the message again', async () => {
         const harness = await openFrom('/notes', '/mail/folders/f-work');
         expect(await clickAction(harness, label)).toBe('/mail/folders/f-work');
         const location = TestBed.inject(Location);
-        location.back();
-        expect(location.path()).toBe('/mail/folders/f-work');
         location.back();
         expect(location.path()).toBe('/notes');
       });
@@ -1503,12 +1509,17 @@ describe('MailReadPage Archive, Spam and Delete: back to the list it was opened 
     expect(await clickDelete(await openFrom('/mail'))).toBe('/mail');
   });
 
-  it('returns to the unified Inbox when opened from another page', async () => {
-    expect(await clickDelete(await openFrom('/notes'))).toBe('/mail');
+  it('returns to another page it was opened from', async () => {
+    expect(await clickDelete(await openFrom('/notes'))).toBe('/notes');
   });
 
-  it('returns to the unified Inbox when opened directly', async () => {
-    expect(await clickDelete(await openFrom(null))).toBe('/mail');
+  it('returns to the unified Inbox when opened directly, replacing the message', async () => {
+    const harness = await openFrom(null);
+    expect(await clickDelete(harness)).toBe('/mail');
+    const location = TestBed.inject(Location);
+    location.back();
+    // The deleted message is gone from the history: Back leaves the (mock) history's first page.
+    expect(location.path()).not.toBe(`/mail/messages/${ID}`);
   });
 
   it('returns to a folder whose id needs URL encoding', async () => {
@@ -1517,28 +1528,71 @@ describe('MailReadPage Archive, Spam and Delete: back to the list it was opened 
     );
   });
 
-  it('returns to the unified Inbox when opened from another mail page', async () => {
-    expect(await clickDelete(await openFrom('/mail/compose'))).toBe('/mail');
-  });
-
-  it('replaces the deleted message in the history, so Back does not open it again', async () => {
+  it('goes back in the history, so Back does not open the deleted message again', async () => {
     const harness = await openFrom('/notes', '/mail/folders/f-archive');
     expect(await clickDelete(harness)).toBe('/mail/folders/f-archive');
     const location = TestBed.inject(Location);
-    const back = () => {
-      location.back();
-      return location.path();
-    };
-    // History: /notes, the folder, the folder (was the message): never the deleted message.
-    expect(back()).toBe('/mail/folders/f-archive');
-    expect(back()).toBe('/notes');
+    location.back();
+    expect(location.path()).toBe('/notes');
   });
 
-  it('keeps the origin when moving on to another message', async () => {
+  it('returns to the message it was opened from when moving on to another message', async () => {
     const harness = await openFrom('/mail/folders/f-work');
     await harness.navigateByUrl('/mail/messages/0192f0c4-0000-7000-8000-00000000a002');
     await flush();
     harness.detectChanges();
-    expect(await clickDelete(harness)).toBe('/mail/folders/f-work');
+    expect(await clickDelete(harness)).toBe(`/mail/messages/${ID}`);
+  });
+});
+
+describe('MailReadPage back button', () => {
+  async function openFrom(...from: string[]): Promise<RouterTestingHarness> {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          { path: 'mail', title: 'Mail', component: StubList },
+          { path: 'new', title: 'New', component: StubList },
+          { path: 'mail/messages/:id', title: 'Message', component: MailReadPage },
+        ]),
+        provideLocationMocks(),
+        provideBackNavigation(),
+        { provide: MailReadService, useValue: new FakeReadService() },
+        { provide: MailService, useValue: new FakeMailService() },
+        { provide: NotificationService, useValue: { info: vi.fn(), error: vi.fn() } },
+      ],
+    });
+    TestBed.overrideComponent(MailReadPage, {
+      remove: { imports: [LinkedItems] },
+      add: { imports: [StubLinkedItems] },
+    });
+    const harness = await RouterTestingHarness.create();
+    TestBed.inject(Router).setUpLocationChangeListener();
+    for (const url of from) await harness.navigateByUrl(url);
+    await harness.navigateByUrl(`/mail/messages/${ID}`);
+    await flush();
+    harness.detectChanges();
+    return harness;
+  }
+
+  const backLink = (harness: RouterTestingHarness) =>
+    harness.routeNativeElement!.querySelector<HTMLAnchorElement>('app-back-button a')!;
+
+  it('names New and returns to it with its filter when opened from New', async () => {
+    const harness = await openFrom('/new?filter=mail');
+    expect(backLink(harness).textContent?.trim()).toBe('New');
+    backLink(harness).click();
+    await flush();
+    await harness.fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/new?filter=mail');
+  });
+
+  it('reads Mail and goes to the mail list when opened directly', async () => {
+    const harness = await openFrom();
+    expect(backLink(harness).textContent?.trim()).toBe('Mail');
+    expect(backLink(harness).getAttribute('aria-label')).toBe('Back to Mail');
+    backLink(harness).click();
+    await flush();
+    await harness.fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/mail');
   });
 });

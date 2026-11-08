@@ -13,7 +13,7 @@ import {
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, PRIMARY_OUTLET, Router, RouterLink, UrlTree } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { map } from 'rxjs';
 import {
   ItemRefDto,
@@ -23,6 +23,7 @@ import {
 } from '../../../api/generated';
 import { ApiError, NotificationService } from '../../../core/http';
 import { LinkedItems } from '../../../shared/links';
+import { BackButton, BackNavigation } from '../../../shared/navigation';
 import { MailAction, MailService } from '../list/mail.service';
 import { MailShortcut, mailShortcutFor } from '../list/mail-shortcuts';
 import { formatBytes } from './format-bytes';
@@ -56,13 +57,13 @@ export const TEXT_PREVIEW_LIMIT = 100_000;
 /**
  * Reading one message (SPEC.md §7.3): headers, the sanitized body in a sandboxed frame (or the
  * plain text), "load images" (once or always for the sender), attachments (download, preview, save
- * to Files), the GTD actions, Archive, Spam and Delete (buttons or `e`, `!`, `#`, then back to the
- * list it was opened from) and the linked items. Opening an unread message marks it read.
+ * to Files), the GTD actions, Archive, Spam and Delete (buttons or `e`, `!`, `#`, then back to where
+ * it was opened from) and the linked items. Opening an unread message marks it read.
  */
 @Component({
   selector: 'app-mail-read-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, LinkedItems, MailFrame, MatButtonModule, RouterLink],
+  imports: [BackButton, DatePipe, LinkedItems, MailFrame, MatButtonModule, RouterLink],
   templateUrl: './mail-read-page.html',
   styleUrl: './mail-read-page.scss',
   host: { '(document:keydown)': 'onKeydown($event)' },
@@ -72,10 +73,11 @@ export default class MailReadPage {
   private readonly allowlist = inject(ImageAllowlist);
   private readonly notifications = inject(NotificationService);
   private readonly mail = inject(MailService);
-  private readonly router = inject(Router);
+  private readonly backNavigation = inject(BackNavigation);
   private readonly dialog = inject(MatDialog);
-  /** The mail list this message was opened from, where Archive, Spam and Delete return to. */
-  private readonly origin = mailListOrigin(this.router);
+
+  /** The back button's destination when the message was not opened from a page of the app. */
+  protected readonly mailLabel = $localize`:@@mailRead.back:Mail`;
 
   /** The message id (route parameter). */
   protected readonly id = toSignal(
@@ -204,8 +206,9 @@ export default class MailReadPage {
       }
       // The user may have left this message (or the page) while the request ran: stay there.
       if (this.destroyed || this.message()?.id !== id) return;
-      // Replaces the message in the history, so Back does not open it again.
-      await this.router.navigateByUrl(this.origin, { replaceUrl: true });
+      // Back to where the message was opened from (or to Mail, replacing the message in the history,
+      // so Back does not open it again).
+      await this.backNavigation.back('/mail', { replaceUrl: true });
     } catch (error) {
       this.notifications.error(triageFailed(action, messageOf(error)));
     } finally {
@@ -349,24 +352,6 @@ export default class MailReadPage {
       }
     }
   }
-}
-
-/**
- * The mail list (`/mail` or `/mail/folders/:id`) the navigation to this page came from, else the
- * unified Inbox. Read once when the page is created: moving to another message keeps it.
- */
-function mailListOrigin(router: Router): string {
-  const from = router.currentNavigation()?.previousNavigation?.finalUrl;
-  const path = from ? primaryPath(from) : [];
-  if (path.length === 1 && path[0] === 'mail') return '/mail';
-  if (path.length === 3 && path[0] === 'mail' && path[1] === 'folders' && path[2]) {
-    return `/mail/folders/${encodeURIComponent(path[2])}`;
-  }
-  return '/mail';
-}
-
-function primaryPath(url: UrlTree): string[] {
-  return url.root.children[PRIMARY_OUTLET]?.segments.map((segment) => segment.path) ?? [];
 }
 
 function savingKey(messageId: string, partId: string): string {

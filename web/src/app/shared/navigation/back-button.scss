@@ -1,0 +1,37 @@
+:host {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-1);
+  min-width: 0;
+  padding: var(--app-space-1) var(--app-space-2);
+  border-radius: var(--app-radius);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-label-large);
+  text-decoration: none;
+
+  svg {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+  }
+
+  &:hover,
+  &:focus-visible {
+    background: var(--mat-sys-surface-container);
+    color: inherit;
+  }
+}
+
+.label {
+  overflow: hidden;
+  max-width: 24rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
