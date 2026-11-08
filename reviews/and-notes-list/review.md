@@ -4,22 +4,29 @@ Date: 2026-11-08
 
 Task: and-notes-list - Android notes list: search, pin, archive, delete
 
-Scope: `git diff 0848f1a7..18bbf04a`, production code only: Android notes package (`android/app/src/main/java/ch/sonensei/cockpit/notes`) and `strings_notes.xml` (en, de). A test-writer adds tests in parallel, so the test changes are not reviewed here.
+Scope: `git diff 9693de16690ae78b85572ce04086689ab656d81d..8be33ea2` (commits 0a43ccdd implementation, 01417be4 test-writer tests and the first review, 8be33ea2 fixes). This is a re-review of the final code. It checks that the earlier findings CR-1 to CR-5 are resolved and looks for new issues. Production code was read in full: `NotesListViewModel.kt`, `NotesRepository.kt`, `NoteEditorViewModel.kt`, `NotesScreen.kt`, `NoteEditorScreen.kt`, `strings_notes.xml` (en, de). Tests were read selectively: `NotesListViewModelTest.kt` in full, and the other test files through the diff summary and `fixes.md`. A test-writer may be editing tests in parallel.
 
 Requirements:
-- tasks/and-notes-list.md (acceptance criteria and the recorded assumptions #1-#3)
-- SPEC.md §8.1 (Notes: pinned first, filter by tag, search)
-- docs/PARITY.md (row "Notes: no search, pin, archive, delete", Android, and-notes-list)
-- docs/ARCHITECTURE.md, AGENTS.md project notes
-- Web reference: web/src/app/features/notes/list (notes-page, note-card, messages.de.xlf)
+- tasks/and-notes-list.md (acceptance criteria 1-5, assumptions #1-#4)
+- SPEC.md §8.1 (as cited in the first review), docs/PARITY.md row for and-notes-list
+- AGENTS.md project notes (en/de strings, no secrets or note contents in logs, conventions)
+- reviews/and-notes-list/review.md (first review), reviews/and-notes-list/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: 18bbf04ac3150e5f75341991cdc72f07926ec60a
-- Base/start: 0848f1a7fa85594323f98d002f50a1f4477b4bf5
-- Commits reviewed: 1 (18bbf04a)
+- HEAD: 8be33ea2
+- Base/start: 9693de16690ae78b85572ce04086689ab656d81d
+- Commits reviewed: 3
 
-Summary: 0 P0, 0 P1, 1 P2, 4 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
+
+## Status of the earlier findings
+
+- CR-1 (loading never ends when the search is cleared): resolved. `listLoading` and `searchRunning` are tracked separately, and `cancelSearch()` resets the loading flag (`NotesListViewModel.kt:169-174`). `loading` follows the other flag when either request answers (lines 124, 191). Covered by the tests `clearing the search while it waits for the server ends the loading` and `a reload with a search text keeps loading until both ...`.
+- CR-2 (an older search's hits shown under a new text): resolved. `setQuery` sets `hits = null` when the trimmed text changes (line 157). The message of a failed search is tracked in `searchMessage`. Tests were added. See CR-1 below for a remaining edge case in how that message is matched.
+- CR-3 (a stale load brings back a changed note): resolved for the case reported. `replace`/`remove` restart a running load (`reloadIfLoading`, lines 268-284). Covered by the test `a load that started before an archive does not bring the archived note back`.
+- CR-4 (Keep mine after a flag conflict overwrites the other device's edit): resolved. `changeFlags` takes the server's version and shows `CHANGE_CONFLICT` when nothing typed here is unsaved. It opens the conflict banner only when there are unsaved edits or the note was deleted (`NoteEditorViewModel.kt:380-391`). Assumption #4 records this.
+- CR-5 (German "Unpin" label): resolved. It is now "Lösen" (`values-de/strings_notes.xml:50`).
 
 ## P0 Critical
 
@@ -31,45 +38,27 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Clearing the search during a running search leaves the list loading forever**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NotesListViewModel.kt:143`
-    - Category: Correctness
-    - Problem: `search()` sets `loading = true` (line 156) before it calls `notes.search(query)` and only sets it back in the `state.update` after the call (lines 158-164). `setQuery("")` (the clear button or deleting the text) cancels `searchJob` (line 143) and sets only `hits = null`. If that happens while the request is running, the coroutine is cancelled before the update, so `loading` stays `true`. Nothing resets it until the next `refresh()` finishes. A related case: `refresh()` with a search text starts the load and `search(0)` together. When the load finishes first, it sets `loading = false` (line 112) while the search is still running, and the indicator disappears too early.
-    - Why it matters: The progress bar keeps running with nothing loading. The banner's Retry button is disabled while `loading` is true (`NotesScreen.kt:346`), so if a message is shown, the user cannot recover by tapping Retry. They have to leave the list or change a filter. This is the "every path, including cancellation and clearing the input while a request runs, ends loading" rule.
-    - Suggested fix: Track loading for the load and the search separately (for example `loadingList` and `searching` flags, or derive `loading` from both jobs). Reset the search flag when the search is cleared or cancelled, for example with `try/finally` in the search coroutine or explicitly in `setQuery("")`. Add a unit test: type a query, clear it while `search` suspends, then assert `loading == false`.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | The results of an older search are shown under a new search text**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NotesListViewModel.kt:141`
+- [ ] **CR-1 | The search message is matched by value, so clearing or redoing a search can remove a failed list load's banner**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NotesListViewModel.kt:161`
     - Category: Correctness
-    - Problem: When the query changes from one non-blank text to another, `hits` keeps the ids of the previous query until the new answer arrives: through the 300 ms debounce and the request. If the new search fails, the old hits stay indefinitely (`?: it.hits`, line 160). `shown` filters by these old ids, and `emptyText` then says "No notes match “<new text>”" based on the old query's result. Also, a successful search keeps an earlier search's error banner (`message(result) ?: it.message`, line 162). Only a list reload clears it.
-    - Why it matters: For a moment, or after a failed search for good, the list and the empty text do not match the text in the search field.
-    - Suggested fix: Set `hits = null` when the trimmed query changes (the screen already treats `hits == null` as "not answered yet"). On a failed search, keep `hits = null` instead of the old value. Let a successful search clear the message it set itself.
-
-- [ ] **CR-3 | A list load that started before a pin, archive or delete can bring back the old note**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NotesListViewModel.kt:110`
-    - Category: Correctness
-    - Problem: `refresh()` replaces `notes` with the server's answer when the answer arrives. `toggleArchived`, `delete` and `togglePin` change `notes` locally (`remove`/`replace`, lines 181, 193, 171) without cancelling a load that is already running or dropping its result. A load that started before the change (for example the refresh after an Undo, after a conflict, or when the list is shown) and finishes after it puts the archived or trashed note back, or the old pin state, with its old version. The next action on that row then fails with 412 and shows "changed elsewhere".
-    - Why it matters: This is the out-of-order async rule: an older response overwrites newer state. The effect is temporary (the next refresh fixes it), so the priority is low.
-    - Suggested fix: After a successful change, call `refresh()` again, or keep a list version counter that a change increments and ignore load results that started at an earlier version.
-
-- [ ] **CR-4 | After a pin/archive conflict in the editor, "Keep mine" writes the older text over the other device's edit, and the pin is lost**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteEditorViewModel.kt:376`
-    - Category: Correctness
-    - Problem: `changeFlags` saves the text first, so the user has no unsaved edits when the flag PATCH fails with 409/412. It then opens the save-conflict banner ("This note was changed on another device while you edited it", Keep mine / Use theirs). If the user chooses Keep mine (`keepMine`, line 256), the unchanged, older body and title are saved over the server's newer version. The pin or archive the user asked for is applied with neither choice, and no message says so. Assumption #2 records that the conflict banner is used, but not this effect.
-    - Why it matters: The user only tried to pin or archive, but one choice in the banner silently undoes another device's edit.
-    - Suggested fix: For a flag conflict without local edits, take the server's version (as `useTheirs` does) and show the existing `notes_change_conflict`/`CHANGE_FAILED` style message, or retry the flag over the new version. Open the full conflict banner only when there is local text to keep.
-
-- [ ] **CR-5 | The German "Unpin" label differs from the web**
-    - File: `android/app/src/main/res/values-de/strings_notes.xml:50`
-    - Category: Quality
-    - Problem: `notes_unpin` is "Loslösen". The web translates the same action as "lösen" (`web/src/locale/messages.de.xlf:9821`, `notes.unpinAria`). "Loslösen" is an unusual word for this action.
-    - Why it matters: The task asks for web/Android parity, and the same action has a different label on each platform.
-    - Suggested fix: Use "Lösen" (as on the web) or "Nicht mehr anheften".
+    - Problem: `searchMessage` holds only the enum value (`OFFLINE`/`FAILED`), and the code removes the message with `it.message.takeUnless { m -> m == searchMessage }` (lines 161 and 192). It cannot tell a list-load message from a search message that has the same value. Example while offline: the list load fails (`message = OFFLINE`, `searchMessage = null`). The user then types a search, which also fails (`searchMessage = OFFLINE`). Clearing the search (line 161), or a later successful search (line 192), removes the `OFFLINE` banner, even though the list load still failed. If the first load failed (`loaded == false`), the screen ends up with no empty text, no banner and no Retry button (`NotesScreen.kt:195, 200`). The user has to switch view or filter, or leave the screen, to reload.
+    - Why it matters: A load failure that is still current loses its Retry banner. This touches the "every path leaves a recoverable screen" rule, but only in a narrow case: both requests fail with the same kind of error.
+    - Suggested fix: Keep the list's message and the search's message as separate values, for example private `listMessage` and `searchMessage`, and expose `message = listMessage ?: searchMessage`. A list load sets only `listMessage`. A search, or clearing it, sets only `searchMessage`. Add a unit test: the list load fails with `OFFLINE`, the search fails with `OFFLINE`, the search is cleared, and the message is still `OFFLINE`.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
 
-All four acceptance criteria are implemented in the production code. Search uses the server's `/api/v1/search?types=NOTE` (assumption #1). Pin, archive and delete are in the row menu and in the editor menu, and the Archived view is a segmented toggle. Delete goes to the Trash, and the snackbar's Undo calls `POST /api/v1/trash/NOTE/{id}/restore`, also after a delete from the editor. The new strings exist in `values/` and `values-de/`, with the same keys. CR-1 is a loading-state defect in a normal flow (clearing the search) and should be fixed. CR-2 to CR-5 are minor. Criterion 5 (tests, lint, `scripts/check.sh`) was not assessed: the test-writer adds the tests in parallel, and this review did not run the build.
+All five earlier findings are resolved in the current code, and each fix has a unit test (CR-1 to CR-3 in `NotesListViewModelTest.kt`; CR-4 per `fixes.md`). In the production code:
+- Criteria 1-4 are implemented. The search uses the server's search with `types=NOTE` (assumption #1). Pin, archive and delete are in both the row menu and the editor menu, and there is an Archived view. Delete moves the note to the Trash, and the list snackbar's Undo restores it, also after a delete from the editor. All new string keys exist in both `values/` and `values-de/`.
+- No secrets, note contents or bodies are logged. `NotesHttpFailure` carries only the HTTP status.
+
+The remaining P3 is a minor edge case in the message handling and does not block completion.
+
+Not verified by this review:
+- Criterion 5 (Gradle checks and `scripts/check.sh`): this review ran no build or test commands.
+- The recorded `tasks.py verify` evidence: Bash was not available to this reviewer, so it was not inspected. The parent worker must make sure every criterion has evidence from a real run, including `.taskcheck`. `fixes.md` reports that `scripts/check.sh` failed in the fixer's sandbox because Docker was not available.
