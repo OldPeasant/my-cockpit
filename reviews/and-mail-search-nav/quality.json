@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "and-mail-search-nav",
+  "reviewed_revision": "2a8b0703d651628f97da775a316dec1b9546dcb0",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-mail-search-nav/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-mail-search-nav/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-mail-search-nav/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "read view's next-page request skipped while a refresh ran; now retried when the load ends, no auto-retry after failure"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "missing tests for last-mail removal closing and busy-disabled previous/next; added by test-writer, confirmed by fixer and re-review"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintFormat testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.list.*' --tests 'ch.sonensei.cockpit.mail.read.*' --tests 'ch.sonensei.cockpit.ui.*' ktlintCheck lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}

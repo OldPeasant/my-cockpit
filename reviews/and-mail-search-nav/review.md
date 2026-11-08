@@ -4,31 +4,35 @@ Date: 2026-11-08
 
 Task: and-mail-search-nav - Android mail search kept on return, previous/next, back to origin
 
-Scope: `git diff 7fcf993cf..39e14ab44 -- android` (task commits 5139d2ef0 and 39e14ab44), committed changes only
+Scope: full task diff `git diff 7fcf993cf..a35993cf6 -- android` (commits 5139d2ef0, 39e14ab44, a43a49ca9, a35993cf6), committed changes only. Focus of this pass: `git diff 39e14ab44..a35993cf6` (the test-writer's tests and the CR-1 fix).
 
 Requirements:
 - tasks/and-mail-search-nav.md acceptance criteria and recorded assumptions (#1-#4)
 - SPEC.md, docs/ARCHITECTURE.md, docs/PARITY.md, docs/QUALITY.md, AGENTS.md project notes
+- Previous review of revision 39e14ab44 (CR-1, CR-2) and reviews/and-mail-search-nav/fixes.md
 - Existing Android conventions (MailListViewModel, MailReadViewModel, CockpitShell navigation)
 
 Git range:
 - Branch: main
-- HEAD: 39e14ab44691121750edec799e6e446f31c967c8
+- HEAD: a35993cf6
 - Base/start: 7fcf993cfcc5ad9dba77130366e0b352403f767a
-- Commits reviewed: 2
+- Commits reviewed: 4
 
-Summary: 0 P0, 0 P1, 0 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-Files reviewed in full or in their relevant context: `mail/list/MailScreen.kt` (MailRoute), `mail/list/MailListViewModel.kt` (loadMore, removed, markSeen, search state), `mail/read/MailReadScreen.kt`, `mail/read/MailReadViewModel.kt` (open/reset/session handling, act, busy), `ui/CockpitShell.kt` (item and task-detail routes, new `close(entry)`), `search/SearchItemScreen.kt` (why the double close happened), both `strings_mail.xml` files, and the three new test classes.
+Validation reported by the parent worker on a35993cf6 (Gradle cannot run in this sub-agent): `mail.list.*`, `mail.read.*` and `ui.*` unit tests -> 414 tests, 0 failures; `ktlintCheck` and `lintDebug` clean. I did not run them myself.
 
-Checked and found correct:
-- Removal flow: the `LaunchedEffect(state.removed)` block keeps the `navigation` from the composition where `removed` turned true, so `next` comes from the list before `onRemoved` filters it out. `open(next)` changes `id`, `MailReadViewModel.open` resets the state (`removed = false`, new session), and the effect does not fire twice.
-- Switching mails: `open(id)` moves the session forward, so late answers for the previous mail (load, act, images) are dropped. Previous/next are disabled while an action runs (`busy`), so a write for one mail cannot land while another mail is shown.
-- `MailListViewModel.removed` filters both the mailbox and the search results, so after a delete the neighbours and the "n of m" count stay correct in both lists.
-- Search kept on return and across rotation: the state lives in the Activity-retained `MailListViewModel` and the open mail in `rememberSaveable`. The tests cover the toolbar back, system back and recreation, and check that the search is not run again.
-- The shell guard `close(entry)` only pops when the entry is still the current one. This fixes the double pop that happened because `SearchItemScreen` passes `onRemoved = { onClose() }` and `close()` also calls `onClose`. It also stops a stale close from an item screen with a task detail above it from popping the wrong screen. `navigateUp` updates the back stack synchronously, so the second call sees the new current entry.
-- Strings: the en and de entries match (`mail_read_previous`, `mail_read_next`, `mail_read_position` with positional args).
-- The changes stay inside the task's `touches`. No new dependencies, no API changes, nothing sensitive logged, and test data is fictitious.
+## Status of earlier findings
+
+- CR-1 (next-page request from the read view runs only once): resolved. `MailRoute` (`android/app/src/main/java/ch/sonensei/cockpit/mail/list/MailScreen.kt:180-188`) now keys the effect on `atLoadedEnd` and the open mail, calls `loadMore()` once on opening (also after an earlier failure), and then collects `viewModel.uiState` mapped to `canLoadAfter(current)` with `distinctUntilChanged`, calling `loadMore()` each time it turns true. Checked:
+    - `MailListViewModel.loadMore` sets `loadingMore = true` synchronously before launching, so the first emission after the direct call is false and no duplicate request starts.
+    - A refresh (`load`) clears `message` on success and sets `loading = false`, so the condition flips to true once a refresh running at open time ends, which is the skipped case from the scenario. The new in-app test drives exactly this with a pending `CompletableDeferred` refresh started by STARTED to RESUMED and checks one page-2 call before and two after, plus "2 of 3" and a working Next.
+    - A failed page load sets `message` OFFLINE/FAILED, `pageFailed` keeps the condition false, so there is no retry loop while offline. The second new test checks exactly two page-2 calls and Next disabled. The user can still recover by leaving and reopening the last mail or by the list's Retry. This is a deliberate choice documented in the code comment, not a defect.
+    - `canLoadAfter` also requires `search == null` and the open mail to be the last loaded one, so the collector stays idle for search results and after the list grows. The effect is cancelled when `atLoadedEnd` or `current` changes or the read view closes.
+    - The `pageFailed` extension is shared with the list's own near-end loading in `Messages`, and the condition there is unchanged.
+- CR-2 (missing tests for closing after removing the last mail, and for previous/next disabled while busy): resolved. `MailReadNavigationInAppTest` has `deleting the last mail of the mailbox returns to the list` and `deleting the last search result returns to the same search`. `MailReadNavigationScreenTest` has `the last mail archived closes the view instead of showing the previous one`, `the only mail of the list deleted closes the view` and `previous and next wait while an action runs, the position stays shown` (busy = true, both buttons not enabled, clicks do nothing).
+
+Also reviewed in this pass: the new `MailReadNavigationTest`, `MailReadNavigationScreenTest` and `MailReadNavigationGermanTest` and the added in-app tests (spam shows the next mail, removal at the end). They assert user-visible behaviour (position text, enabled state, subject, list rows, repository call counts), use fictitious data and do not weaken existing tests. The previous review's checks of the production code from 5139d2ef0 and 39e14ab44 still hold, because only `MailScreen.kt` changed since then.
 
 ## P0 Critical
 
@@ -44,19 +48,7 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | The next-page request from the read view runs only once: if it fails or is skipped, Next stays disabled at the loaded end with no notice**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/mail/list/MailScreen.kt:177`
-    - Category: Correctness
-    - Problem: `LaunchedEffect(atLoadedEnd) { if (atLoadedEnd) viewModel.loadMore() }` runs only when `atLoadedEnd` turns true. `MailListViewModel.loadMore` (MailListViewModel.kt:132-153) returns without doing anything while `loading` (a refresh) or `loadingMore` is running. On failure it only sets the list's `message` (OFFLINE/FAILED), which the read view does not show. In both cases `atLoadedEnd` stays true, so the effect does not run again. Scenario: the Mail tab is shown again and `LifecycleResumeEffect` starts `refresh()`. While it runs, the user opens the last loaded mail, so `loadMore` is skipped. Or the device is briefly offline when the user reaches that mail. The read view then shows "50 of 50" with Next disabled, although `nextCursor` says more mail exists. The only recovery is to step Previous and then Next again, or to go back to the list.
-    - Why it matters: Next looks like the end of the mailbox when it is not, and nothing tells the user why. Assumption #3 ("Opening the last loaded mail of a mailbox fetches the next page so Next can go on") does not hold in these cases.
-    - Suggested fix: Also key the effect on the list's `loading`/`loadingMore` state (for example `LaunchedEffect(atLoadedEnd, state.loading, state.loadingMore)`), so it runs again once a refresh or an earlier page load ends. Optionally keep Next enabled while `nextCursor != null` and load on tap. Add a test where the first `loadMore` is skipped or fails while the read view is open.
-
-- [ ] **CR-2 | No test for "remove the last mail of the list closes the view", or for previous/next being disabled while an action runs**
-    - File: `android/app/src/test/java/ch/sonensei/cockpit/mail/list/MailReadNavigationInAppTest.kt:184-213`
-    - Category: Tests
-    - Problem: The tests cover delete and archive when a next mail exists. They do not cover the other branch of `MailReadScreen.kt:92` (`else close()`), which assumption #2 makes required behaviour: at the end of the list, archive/delete/spam returns to the list. They also do not cover the `enabled = !state.busy` gate in `MailReadContent` (MailReadScreen.kt:194). That gate keeps a pending archive/delete for mail A from being applied while mail B is shown.
-    - Why it matters: A regression in either branch (for example closing on every removal, or allowing navigation during an action) would not be caught by the suite.
-    - Suggested fix: Add an in-app test that deletes the last mailbox mail (or the last search result) and checks that the list shows without that mail. Add a `MailReadContent` Compose test with `busy = true` that checks PREVIOUS and NEXT are not enabled.
+None.
 
 ## Review conclusion
 
