@@ -7,6 +7,8 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTouchHeightIsEqualTo
+import androidx.compose.ui.test.assertTouchWidthIsEqualTo
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -15,6 +17,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.gtd.data.GtdProject
 import ch.sonensei.cockpit.gtd.data.GtdTask
@@ -119,6 +122,15 @@ class NextScreenPresetsTest {
         assertEquals(listOf("apply Other", "remove Soon"), calls)
         // The active preset is already saved: nothing new to save.
         composeRule.onNodeWithTag(NextTags.PRESET_SAVE).assertDoesNotExist()
+    }
+
+    @Test
+    fun `the delete button has a full touch target next to the chip and leaves the chip's taps to applying`() {
+        show(loaded.copy(presets = PresetsUiState(listOf(soon))))
+        composeRule.onNodeWithTag(NextTags.presetDelete(0)).assertTouchWidthIsEqualTo(48.dp).assertTouchHeightIsEqualTo(48.dp)
+        composeRule.onNodeWithTag(NextTags.preset(0)).performClick()
+        composeRule.onNodeWithTag(NextTags.presetDelete(0)).performClick()
+        assertEquals(listOf("apply Soon", "remove Soon"), calls)
     }
 
     @Test

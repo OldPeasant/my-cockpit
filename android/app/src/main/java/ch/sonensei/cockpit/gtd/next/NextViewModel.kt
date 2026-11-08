@@ -33,6 +33,8 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -191,6 +193,12 @@ class NextViewModel internal constructor(
     private val editor = MutableStateFlow<PresetEditor?>(null)
     private val presetMessage = MutableStateFlow<PresetMessage?>(null)
 
+    /** Serializes preset writes, so each change is made to the list the previous one stored. */
+    private val presetWrites = Mutex()
+
+    /** Counts the opened "save filter" dialogs, so a save finishing late leaves a dialog opened since alone. */
+    private var editorSession = 0
+
     private val references: Flow<References> =
         combine(
             contexts.observe(),
@@ -261,15 +269,17 @@ class NextViewModel internal constructor(
 
     fun clearFilter() = filter.update { NextFilter() }
 
-    /** Applies [preset]'s filter, or clears the filter when it is the active preset (like the web app). */
+    /** Applies [preset]'s filter, or clears the filter when it is the shown one, i.e. the active preset (like the web app). */
     fun applyPreset(preset: NextPreset) {
         presetMessage.value = null
-        filter.update { if (it == preset.filter) NextFilter() else preset.filter }
+        val clear = uiState.value.filter == preset.filter
+        filter.value = if (clear) NextFilter() else preset.filter
     }
 
     /** Opens the "save filter" dialog, with the active preset's name if there is one. */
     fun openSavePreset() {
         presetMessage.value = null
+        editorSession++
         editor.value =
             PresetEditor(
                 name =
@@ -282,10 +292,11 @@ class NextViewModel internal constructor(
     fun editPresetName(name: String) = editor.update { it?.copy(name = name.take(NextPresets.MAX_NAME), message = null) }
 
     fun cancelSavePreset() {
+        editorSession++
         editor.value = null
     }
 
-    /** Saves the current filter under the typed name; the dialog closes when it worked. */
+    /** Saves the shown filter under the typed name; the dialog closes when it worked. */
     fun savePreset() {
         val open = editor.value ?: return
         if (open.saving) return
@@ -295,17 +306,21 @@ class NextViewModel internal constructor(
             return
         }
         editor.value = open.copy(saving = true, message = null)
-        val current = filter.value
+        // The filter the screen shows: without a context deleted elsewhere.
+        val current = uiState.value.filter
+        val session = editorSession
         viewModelScope.launch {
             val message =
                 write { texts ->
                     val known = NextPresets.read(texts)
-                    if (known.size >= NextPresets.MAX_PRESETS && known.none { NextPresets.sameName(it.name, name) }) {
+                    // Unreadable texts are kept on write, so they count against the limit too.
+                    if (texts.size >= NextPresets.MAX_PRESETS && known.none { NextPresets.sameName(it.name, name) }) {
                         null
                     } else {
                         NextPresets.saved(texts, NextPreset(name, current))
                     }
                 }
+            if (session != editorSession) return@launch
             editor.update { if (message == null) null else it?.copy(saving = false, message = message) }
         }
     }
@@ -318,25 +333,28 @@ class NextViewModel internal constructor(
 
     /**
      * Writes the list [change] makes of the stored texts (`null`: too many presets). The settings are loaded first: a
-     * list built from unloaded settings would wipe the stored presets. Gives `null` when it worked.
+     * list built from unloaded settings would wipe the stored presets. One write at a time: a change read while another
+     * write runs would store the list without that write's change. Gives `null` when it worked.
      */
     private suspend fun write(change: (List<String>) -> List<String>?): PresetMessage? {
         var tooMany = false
         val result =
-            catching {
-                presetSettings.ensureLoaded()
-                val texts = presetSettings.current()
-                val updated = texts?.let(change)
-                when {
-                    texts == null -> SettingsUpdateResult.NotLoaded
-                    updated == null -> {
-                        tooMany = true
-                        SettingsUpdateResult.Rejected
+            presetWrites.withLock {
+                catching {
+                    presetSettings.ensureLoaded()
+                    val texts = presetSettings.current()
+                    val updated = texts?.let(change)
+                    when {
+                        texts == null -> SettingsUpdateResult.NotLoaded
+                        updated == null -> {
+                            tooMany = true
+                            SettingsUpdateResult.Rejected
+                        }
+                        updated == texts -> SettingsUpdateResult.Updated
+                        else -> presetSettings.store(updated)
                     }
-                    updated == texts -> SettingsUpdateResult.Updated
-                    else -> presetSettings.store(updated)
-                }
-            } ?: SettingsUpdateResult.Rejected
+                } ?: SettingsUpdateResult.Rejected
+            }
         return when {
             tooMany -> PresetMessage.TOO_MANY
             result == SettingsUpdateResult.Updated -> null

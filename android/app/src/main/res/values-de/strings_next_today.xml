@@ -62,7 +62,10 @@
     <string name="next_preset_cancel">Abbrechen</string>
     <string name="next_preset_delete">Vorlage „%1$s“ löschen</string>
     <string name="next_preset_name_required">Gib einen Namen für die Vorlage ein.</string>
-    <string name="next_preset_too_many">Du kannst höchstens %1$d Vorlagen speichern. Lösche zuerst eine.</string>
+    <plurals name="next_preset_too_many">
+        <item quantity="one">Du kannst höchstens %1$d Vorlage speichern. Lösche sie zuerst.</item>
+        <item quantity="other">Du kannst höchstens %1$d Vorlagen speichern. Lösche zuerst eine.</item>
+    </plurals>
     <string name="next_preset_conflict">Deine gespeicherten Filter wurden auf einem anderen Gerät geändert. Versuche es nochmals.</string>
     <string name="next_preset_offline">Gespeicherte Filter lassen sich nur online ändern. Versuche es nochmals, wenn du online bist.</string>
     <string name="next_preset_failed">Die gespeicherten Filter konnten nicht geändert werden. Versuche es nochmals.</string>

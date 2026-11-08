@@ -37,7 +37,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -233,7 +234,8 @@ private fun Filters(
 ) {
     val filter = state.filter
     // At most half the screen, scrolling, so the list stays in view on small or landscape screens.
-    val maxHeight = (LocalConfiguration.current.screenHeightDp / 2).dp
+    val windowHeight = LocalWindowInfo.current.containerSize.height
+    val maxHeight = with(LocalDensity.current) { (windowHeight / 2).toDp() }
     Column(
         Modifier
             .fillMaxWidth()

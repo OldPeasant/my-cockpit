@@ -200,11 +200,77 @@ class NextViewModelPresetEdgeCasesTest {
         }
 
     @Test
+    fun `a save that finishes after the dialog was cancelled and opened again leaves the new dialog open`() =
+        test { vm ->
+            val running = CompletableDeferred<Unit>()
+            gate = running
+            vm.toggleDue(DueWindow.TODAY)
+            vm.saveAs("Today")
+            vm.cancelSavePreset()
+            vm.openSavePreset()
+            vm.editPresetName("Other")
+            running.complete(Unit)
+            assertEquals(PresetEditor("Other"), vm.state.presets.editor)
+            assertEquals(
+                listOf("Today"),
+                vm.state.presets.presets
+                    .map { it.name },
+            )
+        }
+
+    @Test
+    fun `a failed save that finishes after the dialog was opened again does not annotate the new dialog`() =
+        test { vm ->
+            val running = CompletableDeferred<Unit>()
+            gate = running
+            answer = SettingsUpdateResult.Conflict
+            vm.toggleDue(DueWindow.TODAY)
+            vm.saveAs("Today")
+            vm.cancelSavePreset()
+            vm.openSavePreset()
+            running.complete(Unit)
+            assertEquals(PresetEditor(), vm.state.presets.editor)
+        }
+
+    @Test
+    fun `two deletes back to back both stay deleted`() =
+        test { vm ->
+            val a = NextPreset("A", NextFilter(due = DueWindow.TODAY))
+            val b = NextPreset("B", NextFilter(due = DueWindow.OVERDUE))
+            val c = NextPreset("C", NextFilter(energy = Energy.HIGH))
+            stored.value = listOf(a, b, c).map(NextPresets::encode)
+            val running = CompletableDeferred<Unit>()
+            gate = running
+            vm.removePreset(a)
+            vm.removePreset(b)
+            // The second delete waits for the first instead of reading the list the first has not changed yet.
+            assertEquals(1, storeCalls)
+            running.complete(Unit)
+            assertEquals(listOf(NextPresets.encode(c)), stored.value)
+            assertEquals(listOf(listOf(b, c), listOf(c)).map { it.map(NextPresets::encode) }, writes)
+            assertNull(vm.state.presets.message)
+        }
+
+    @Test
+    fun `unreadable stored texts count against the preset limit`() =
+        test { vm ->
+            val readable = (1 until NextPresets.MAX_PRESETS).map { NextPresets.encode(NextPreset("P$it", NextFilter())) }
+            stored.value = readable + "garbage"
+            vm.toggleDue(DueWindow.TODAY)
+            vm.saveAs("New")
+            assertEquals(PresetEditor("New", PresetMessage.TOO_MANY, saving = false), vm.state.presets.editor)
+            assertEquals(0, storeCalls)
+        }
+
+    @Test
     fun `settings that load only on the save keep the stored presets`() =
         test { vm ->
             // Not loaded at start (e.g. offline); loaded by the time the user saves.
             val existing = NextPresets.encode(NextPreset("Existing", NextFilter(energy = Energy.HIGH)))
-            assertTrue(vm.state.presets.presets.isEmpty())
+            assertTrue(
+                vm.state.presets.presets
+                    .isEmpty(),
+            )
             stored.value = null
             load = { if (stored.value == null) stored.value = listOf(existing) }
             vm.toggleDue(DueWindow.TODAY)
@@ -213,14 +279,21 @@ class NextViewModelPresetEdgeCasesTest {
             val written = writes.single()
             assertEquals(2, written.size)
             assertEquals(existing, written[0])
-            assertEquals(listOf("Existing", "Today"), vm.state.presets.presets.map { it.name })
+            assertEquals(
+                listOf("Existing", "Today"),
+                vm.state.presets.presets
+                    .map { it.name },
+            )
         }
 
     @Test
     fun `presets loaded after the screen opened are shown`() =
         test { vm ->
             stored.value = null
-            assertTrue(vm.state.presets.presets.isEmpty())
+            assertTrue(
+                vm.state.presets.presets
+                    .isEmpty(),
+            )
             val later = NextPreset("Later", NextFilter(due = DueWindow.OVERDUE))
             stored.value = listOf(NextPresets.encode(later))
             assertEquals(listOf(later), vm.state.presets.presets)
@@ -245,7 +318,10 @@ class NextViewModelPresetEdgeCasesTest {
             vm.toggleDue(DueWindow.TODAY)
             vm.saveAs("Today")
             assertEquals(PresetEditor("Today", PresetMessage.FAILED, saving = false), vm.state.presets.editor)
-            assertTrue(vm.state.presets.presets.isEmpty())
+            assertTrue(
+                vm.state.presets.presets
+                    .isEmpty(),
+            )
         }
 
     @Test
@@ -288,7 +364,11 @@ class NextViewModelPresetEdgeCasesTest {
         test { vm ->
             val webOnly = """{"name":"Web","filter":{"context":"not-a-uuid"}}"""
             stored.value = listOf("garbage", webOnly)
-            assertEquals(listOf("Web"), vm.state.presets.presets.map { it.name })
+            assertEquals(
+                listOf("Web"),
+                vm.state.presets.presets
+                    .map { it.name },
+            )
             vm.toggleDue(DueWindow.TODAY)
             vm.saveAs("Today")
             val written = writes.single()
@@ -304,7 +384,10 @@ class NextViewModelPresetEdgeCasesTest {
             vm.applyPreset(a)
             assertEquals(a, vm.state.presets.active)
             stored.value = emptyList()
-            assertTrue(vm.state.presets.presets.isEmpty())
+            assertTrue(
+                vm.state.presets.presets
+                    .isEmpty(),
+            )
             assertNull(vm.state.presets.active)
             // The filter itself stays: only the preset is gone.
             assertEquals(a.filter, vm.state.filter)
