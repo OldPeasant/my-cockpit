@@ -685,6 +685,80 @@ class HabitsViewModelManageTest {
         }
 
     @Test
+    fun `taps on a habit with a target of three count one more each time from the last answer, then reset`() =
+        runTest(dispatcher) {
+            val pushUps = habit(5, "Push-ups").copy(targetCount = 3)
+            coEvery { repo.list(false) } returns HabitsResult.Ok(listOf(pushUps))
+            val sent = mutableListOf<Int>()
+            coEvery { repo.check(any()) } coAnswers {
+                val tapped = firstArg<Habit>()
+                sent += tapped.nextCount
+                HabitsResult.Ok(
+                    tapped.copy(
+                        todayCount = tapped.nextCount,
+                        doneToday = tapped.nextCount >= tapped.targetCount,
+                        version = tapped.version + 1,
+                    ),
+                )
+            }
+            val vm = newViewModel()
+            runCurrent()
+
+            repeat(4) {
+                vm.toggle(pushUps.id)
+                advanceUntilIdle()
+            }
+
+            assertEquals(listOf(1, 2, 3, 0), sent)
+            val last =
+                vm.uiState.value.habits
+                    .single()
+            assertEquals(0, last.todayCount)
+            assertFalse(last.doneToday)
+        }
+
+    @Test
+    fun `a conflict reload that fails keeps the conflict message and the list on screen`() =
+        runTest(dispatcher) {
+            coEvery { repo.list(false) } returnsMany listOf(HabitsResult.Ok(listOf(water, stretch)), HabitsResult.Offline)
+            coEvery { repo.setArchived(water, true) } returns HabitsResult.Failed(412)
+            val vm = newViewModel()
+            runCurrent()
+
+            vm.toggleArchived(water.id)
+            advanceUntilIdle()
+
+            assertEquals(HabitsMessage.CONFLICT, vm.uiState.value.message)
+            assertEquals(listOf(water, stretch), vm.uiState.value.habits)
+            assertFalse(vm.uiState.value.loading)
+            assertTrue(vm.uiState.value.loaded)
+            coVerify(exactly = 2) { repo.list(false) }
+        }
+
+    @Test
+    fun `a save answered after a view switch closed the form changes neither the shown list nor the form`() =
+        runTest(dispatcher) {
+            val answer = CompletableDeferred<HabitsResult<Habit>>()
+            val draft = HabitDraft(name = "Read")
+            coEvery { repo.create(draft) } coAnswers { answer.await() }
+            val vm = newViewModel()
+            runCurrent()
+            vm.startCreate()
+            vm.updateDraft(draft)
+            vm.save()
+            runCurrent()
+
+            vm.showArchived(true)
+            runCurrent()
+            answer.complete(HabitsResult.Ok(habit(4, "Read")))
+            advanceUntilIdle()
+
+            assertTrue(vm.uiState.value.archived)
+            assertEquals(listOf(piano), vm.uiState.value.habits)
+            assertNull(vm.uiState.value.editor)
+        }
+
+    @Test
     fun `a second archive while the first is on its way is ignored, unknown habits are ignored`() =
         runTest(dispatcher) {
             val answer = CompletableDeferred<HabitsResult<Habit>>()

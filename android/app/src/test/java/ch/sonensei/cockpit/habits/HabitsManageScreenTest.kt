@@ -196,7 +196,46 @@ class HabitsManageScreenTest {
         composeRule.onNodeWithTag(HabitsTags.RETRY).assertDoesNotExist()
     }
 
+    @Test
+    fun `a failed archive without connection says so and can be dismissed, not retried`() {
+        show(list(water).copy(message = HabitsMessage.ARCHIVE_OFFLINE))
+
+        composeRule.onNodeWithText("Not changed: no connection.").assertIsDisplayed()
+        composeRule.onNodeWithTag(HabitsTags.RETRY).assertDoesNotExist()
+        composeRule.onNodeWithText("Dismiss").assertIsDisplayed()
+    }
+
+    @Test
+    fun `a refused archive says the server refused it`() {
+        show(list(water).copy(message = HabitsMessage.ARCHIVE_FAILED))
+
+        composeRule.onNodeWithText("Not changed: the server refused the change.").assertIsDisplayed()
+        composeRule.onNodeWithTag(HabitsTags.RETRY).assertDoesNotExist()
+    }
+
     // --- Editor dialog ---
+
+    @Test
+    fun `a save without connection says it was not saved`() {
+        show(editing(HabitDraft(name = "Water"), error = HabitEditorError.OFFLINE))
+
+        composeRule.onNodeWithTag(HabitEditorTags.ERROR).assertTextEquals("Not saved: no connection.")
+        composeRule.onNodeWithTag(HabitEditorTags.SAVE).assertIsEnabled()
+    }
+
+    @Test
+    fun `a refused save says the server refused it`() {
+        show(editing(HabitDraft(name = "Water"), error = HabitEditorError.FAILED))
+
+        composeRule.onNodeWithTag(HabitEditorTags.ERROR).assertTextEquals("Not saved: the server refused the change.")
+    }
+
+    @Test
+    fun `a tried form with a name over 200 characters says the limit`() {
+        show(editing(HabitDraft(name = "a".repeat(HabitDraft.MAX_NAME + 1)), tried = true))
+
+        composeRule.onNodeWithTag(HabitEditorTags.PROBLEM).assertTextEquals("The name can have at most 200 characters.")
+    }
 
     @Test
     fun `a new habit form has its title and add button, an edit its own`() {
