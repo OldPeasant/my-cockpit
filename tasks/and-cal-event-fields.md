@@ -18,7 +18,8 @@ The Android event editor lacks reminders, attendees, sending invitations, time z
   - verified (2026-11-08 15:28+0100 by dell26/agent-2): EventFormExtrasTest/EventEditorExtrasScreenTest/EventEditorViewModelExtrasTest reminder tests (presets, custom 0..40320 min, add/remove, save): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL, 3614 tests 0 failures (aa03d8eb)
 - [x] Attendees: add (contact autocomplete) / remove, show their participation status; on save offer to send invitations / cancellations like web (iTIP REQUEST/CANCEL)
   - verified (2026-11-08 15:28+0100 by dell26/agent-2): EventEditorViewModelExtrasTest guest/suggestion/invitation tests (contact autocomplete, remove, answer status, REQUEST/CANCEL prompt), EventExtrasRepositoryTest invitation POST, EventEditorExtrasScreenTest guest+prompt UI: cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL, 3614 tests 0 failures (aa03d8eb)
-- [ ] Time zone of the event editable
+- [x] Time zone of the event editable
+  - verified (2026-11-08 15:28+0100 by dell26/agent-2): EventEditorViewModelExtrasTest time zone change/new-event zone, EventEditorExtrasScreenTest time zone picker search/read-only: cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL, 3614 tests 0 failures (aa03d8eb)
 - [ ] Linked items panel (uses `LinkedItemsPanel` if and-links-panel is done, otherwise read-only list) and "Create task / note from event"
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
