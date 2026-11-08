@@ -18,7 +18,8 @@ On Android a task can only be added to a project as "next step" inside the choos
   - verified (2026-11-08 13:15+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests '*gtd.projects*' (HEAD e14b996c3) -> 228 tests, 0 failures; ProjectTaskListTest long-press drag tests (drag saves on drop only; cancelled/interrupted drags not saved), 'the move actions are offered where a task can move' (customActions on the focused clickable row node), ProjectsViewModelTest serialized order saves via orderProjectTasks like web. TalkBack on a device not checked (no device)
 - [x] A task row opens task detail; tasks of other lists (Waiting/Someday/Scheduled) keep their list label
   - verified (2026-11-08 13:15+0100 by dell26/agent-1): same run -> ProjectTaskListTest 'a task row opens task detail, and tasks of other lists keep their list label', ProjectsScreenTest 'project tasks on other lists say which list they are on' pass
-- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [x] New strings are in English and German (`res/values/` + `res/values-de/`)
+  - verified (2026-11-08 13:15+0100 by dell26/agent-1): new keys in android/app/src/main/res/values/strings_projects_lists.xml and values-de/ (8 each); same run -> 'labelled in English'/'labelled in German' and German snackbar tests pass
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
