@@ -11,7 +11,8 @@ lease_until: 2026-11-08T21:32:45Z
 SPEC.md §7.2: only a sync window is cached; `POST /api/v1/mail/folders/{id}/load-older` exists but no client calls it.
 
 ## Acceptance criteria
-- [ ] At the end of a folder list (web and Android), "Load older from server" calls the endpoint and shows the progress, then the newly cached messages
+- [x] At the end of a folder list (web and Android), "Load older from server" calls the endpoint and shows the progress, then the newly cached messages
+  - verified (2026-11-08 22:15+0100 by felix/agent-1): web: npm --prefix web run test:ci (mail-list-store.spec + mail-list-page.spec: loadOlder posts load-older, shows loadingOlder progress, then re-read list incl. older items) -> pass; android: ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.list.MailLoadOlder*' (progress, then newly cached messages) -> pass; full suites in sh scripts/check.sh -> all checks passed
 - [ ] Errors (connection, nothing older) are shown non-blocking
 - [ ] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
 - [ ] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
