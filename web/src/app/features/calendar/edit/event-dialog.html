@@ -270,6 +270,28 @@
         </section>
       }
 
+      @if (answerable()) {
+        <section class="group respond" aria-labelledby="calendar-respond-title">
+          <h3 id="calendar-respond-title" i18n="@@calendar.respond.title">Your answer</h3>
+          <div class="respond-actions" role="group" aria-labelledby="calendar-respond-title">
+            @for (choice of responses; track choice.value) {
+              <button
+                mat-stroked-button
+                type="button"
+                class="respond-choice"
+                [class.current]="ownStatus() === choice.value"
+                [attr.aria-pressed]="ownStatus() === choice.value"
+                [disabled]="busy() || conflict()"
+                (click)="respond(choice.value)"
+              >
+                <mat-icon>{{ choice.icon }}</mat-icon>
+                {{ choice.label }}
+              </button>
+            }
+          </div>
+        </section>
+      }
+
       @if (error(); as message) {
         <p class="error" role="alert">{{ message }}</p>
       }
@@ -286,7 +308,7 @@
         mat-button
         type="button"
         class="delete"
-        [disabled]="saving()"
+        [disabled]="busy()"
         (click)="delete()"
         i18n="@@calendar.edit.delete"
       >
@@ -298,7 +320,7 @@
         mat-button
         type="button"
         class="invite"
-        [disabled]="saving()"
+        [disabled]="busy()"
         (click)="sendInvitations()"
       >
         <mat-icon>send</mat-icon>
@@ -306,7 +328,12 @@
       </button>
     }
     <span class="spacer"></span>
-    <button mat-button type="button" [mat-dialog-close]="undefined" [disabled]="saving()">
+    <button
+      mat-button
+      type="button"
+      [mat-dialog-close]="answered() ? 'saved' : undefined"
+      [disabled]="busy()"
+    >
       @if (readOnly()) {
         <ng-container i18n="@@calendar.edit.close">Close</ng-container>
       } @else {
@@ -317,7 +344,7 @@
       <button
         mat-flat-button
         type="submit"
-        [disabled]="saving() || loading() || loadFailed() || conflict()"
+        [disabled]="busy() || loading() || loadFailed() || conflict()"
       >
         @if (data.mode === 'create') {
           <ng-container i18n="@@calendar.edit.create">Create event</ng-container>

@@ -21,6 +21,7 @@ import { EventLinks } from '../overlay/event-links';
 import {
   EditScope,
   EventEditService,
+  InvitationResponse,
   isConflict,
   isGenerated,
   isSeries,
@@ -105,6 +106,15 @@ export class EventDialog {
   protected readonly repeatPresets = REPEAT_PRESETS;
   protected readonly reminderPresets = REMINDER_PRESETS;
   protected readonly zones = timeZones();
+  protected readonly responses: readonly {
+    value: InvitationResponse;
+    icon: string;
+    label: string;
+  }[] = [
+    { value: 'ACCEPTED', icon: 'check', label: $localize`:@@calendar.respond.accept:Accept` },
+    { value: 'TENTATIVE', icon: 'help_outline', label: $localize`:@@calendar.respond.maybe:Maybe` },
+    { value: 'DECLINED', icon: 'close', label: $localize`:@@calendar.respond.decline:Decline` },
+  ];
 
   protected readonly form = new FormGroup({
     title: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -164,6 +174,29 @@ export class EventDialog {
       this.attendeesEditable() &&
       this.savedAttendees().length > 0,
   );
+  /** The addresses of the user's mail accounts (lower case): who the user is among the guests. */
+  private readonly ownAddresses = signal<readonly string[]>([]);
+  /** An answer to the invitation is being sent. */
+  protected readonly responding = signal(false);
+  /** An answer was sent: the event changed even if the dialog is just closed. */
+  protected readonly answered = signal(false);
+  /**
+   * The user can answer the invitation to an event of a writable Google or Microsoft calendar
+   * with guests; the server refuses (409) when the user organizes it or is not invited.
+   */
+  protected readonly answerable = computed(
+    () =>
+      this.data.mode === 'edit' &&
+      !this.virtual &&
+      !this.readOnly() &&
+      isProviderCalendar(this.calendar()) &&
+      this.savedAttendees().length > 0,
+  );
+  /** The user's current answer: the guest with one of the user's mail addresses. */
+  protected readonly ownStatus = computed(() => {
+    const own = this.ownAddresses();
+    return this.attendees().find((a) => own.includes(a.email.toLowerCase()))?.status;
+  });
   /** The calendars an event can be saved to. */
   protected readonly targetCalendars = computed(() => {
     const writable = this.data.calendars.filter((c) => !c.readOnly);
@@ -186,6 +219,16 @@ export class EventDialog {
       this.calendarId.set(this.virtual.calendarId);
     } else {
       void this.load();
+      const calendar = this.data.calendars.find((c) => c.id === occurrenceCalendar(this.data));
+      if (isProviderCalendar(calendar) && !calendar!.readOnly) void this.loadOwnAddresses();
+    }
+  }
+
+  private async loadOwnAddresses(): Promise<void> {
+    try {
+      this.ownAddresses.set(await this.events.ownAddresses());
+    } catch {
+      // Without them no answer is highlighted; answering still works.
     }
   }
 
@@ -308,7 +351,7 @@ export class EventDialog {
 
   protected async save(): Promise<void> {
     this.form.markAllAsTouched();
-    if (this.saving() || this.readOnly() || this.conflict()) return;
+    if (this.busy() || this.readOnly() || this.conflict()) return;
     const value = this.value();
     this.invalidTimes.set(!endsAfterStart(value));
     if (this.form.invalid || this.invalidTimes()) return;
@@ -341,7 +384,7 @@ export class EventDialog {
   }
 
   protected async delete(): Promise<void> {
-    if (this.data.mode !== 'edit' || this.saving() || this.readOnly()) return;
+    if (this.data.mode !== 'edit' || this.busy() || this.readOnly()) return;
     const occurrence = this.data.occurrence;
     let scope: EditScope | undefined;
     if (this.isSeries) {
@@ -356,7 +399,7 @@ export class EventDialog {
 
   /** Sends invitations or a cancellation for the saved event to its guests by mail. */
   protected async sendInvitations(): Promise<void> {
-    if (this.data.mode !== 'edit' || !this.invitable() || this.saving()) return;
+    if (this.data.mode !== 'edit' || !this.invitable() || this.busy()) return;
     this.error.set(null);
     if (Object.keys(patchRequest(this.initial!, this.value(), true)).length > 0) {
       this.error.set(
@@ -375,6 +418,40 @@ export class EventDialog {
         ? $localize`:@@calendar.invite.cancelSent:Cancellation sent to ${sent.recipients.length}:count: guest(s).`
         : $localize`:@@calendar.invite.requestSent:Invitation sent to ${sent.recipients.length}:count: guest(s).`,
     );
+  }
+
+  /** Answers the invitation at the provider; unsaved changes of the form stay. */
+  protected async respond(response: InvitationResponse): Promise<void> {
+    if (this.data.mode !== 'edit' || !this.answerable() || this.busy() || this.conflict()) return;
+    this.responding.set(true);
+    this.error.set(null);
+    this.ref.disableClose = true;
+    try {
+      const event = await this.events.respond(this.data.occurrence, response);
+      const attendees = event.attendees ?? [];
+      this.data = { ...this.data, occurrence: { ...this.data.occurrence, version: event.version } };
+      this.initial = { ...this.initial!, attendees };
+      this.attendees.set(attendees);
+      this.savedAttendees.set(attendees.map((a) => a.email));
+      this.answered.set(true);
+      this.notifications.info($localize`:@@calendar.respond.sent:Your answer was sent.`);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 412) this.conflict.set(true);
+      else
+        this.error.set(
+          error instanceof ApiError
+            ? (error.errors[0]?.message ?? error.userMessage)
+            : $localize`:@@calendar.respond.failed:Your answer could not be sent.`,
+        );
+    } finally {
+      this.ref.disableClose = false;
+      this.responding.set(false);
+    }
+  }
+
+  /** A save, delete or answer is running. */
+  protected busy(): boolean {
+    return this.saving() || this.responding();
   }
 
   private async run(action: () => Promise<EventDialogResult>): Promise<void> {
@@ -436,6 +513,16 @@ function virtualOccurrence(data: EventDialogData): OccurrenceResponse | undefine
   return isVirtual(data.calendars.find((c) => c.id === occurrence.calendarId))
     ? occurrence
     : undefined;
+}
+
+/** The calendar of the occurrence `data` edits. */
+function occurrenceCalendar(data: EventDialogData): string | undefined {
+  return data.mode === 'edit' ? data.occurrence.calendarId : undefined;
+}
+
+/** Whether `calendar` is synced with Google or Microsoft, whose invitations can be answered. */
+function isProviderCalendar(calendar: CalendarResponse | undefined): boolean {
+  return calendar?.sourceType === 'GOOGLE' || calendar?.sourceType === 'MICROSOFT';
 }
 
 /** The scopes a change can apply to: a new repeat rule or calendar is for the series only. */

@@ -10,13 +10,19 @@ import {
   EventResponse,
   getEvent,
   listEventOccurrences,
+  listMailAccounts,
   OccurrenceResponse,
+  respondToInvitation,
+  RespondToInvitationRequest,
   updateEvent,
 } from '../../../api/generated';
 import { ApiError, SILENT_ERRORS } from '../../../core/http';
 
 /** Which occurrences of a series a change applies to (SPEC.md §6.2). */
 export type EditScope = 'THIS' | 'FOLLOWING' | 'ALL';
+
+/** An answer to an invitation (SPEC.md §6.2). */
+export type InvitationResponse = RespondToInvitationRequest['response'];
 
 /** What a change addresses: the event id, its version and, for a series, scope and occurrence. */
 interface Target {
@@ -122,6 +128,24 @@ export class EventEditService {
       },
       silent(),
     );
+  }
+
+  /**
+   * Answers the invitation to `occurrence` at its provider: a generated occurrence answers its
+   * series (the server answers a series for all its occurrences), an override its occurrence.
+   */
+  respond(occurrence: OccurrenceResponse, response: InvitationResponse): Promise<EventResponse> {
+    return this.api.invoke(
+      respondToInvitation,
+      { id: occurrence.eventId, 'If-Match': etag(occurrence.version), body: { response } },
+      silent(),
+    );
+  }
+
+  /** The addresses of the user's mail accounts, lower case: who "me" is among the guests. */
+  async ownAddresses(): Promise<string[]> {
+    const { items } = await this.api.invoke(listMailAccounts, undefined, silent());
+    return items.map((account) => account.emailAddress.toLowerCase());
   }
 
   private target(occurrence: OccurrenceResponse, scope: EditScope | undefined): Target {

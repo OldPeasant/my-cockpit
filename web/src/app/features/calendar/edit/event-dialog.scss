@@ -80,6 +80,18 @@
   margin-left: auto;
 }
 
+.respond-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+}
+
+// The user's current answer stands out from the other choices.
+.respond-choice.current {
+  background: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
+}
+
 .add-attendee {
   display: flex;
   gap: var(--app-space-2);

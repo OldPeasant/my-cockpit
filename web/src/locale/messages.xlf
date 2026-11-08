@@ -1322,32 +1322,39 @@
           <context context-type="linenumber">267,270</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="calendar.respond.title" datatype="html">
+        <source>Your answer</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.html</context>
+          <context context-type="linenumber">275,276</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="calendar.edit.delete" datatype="html">
         <source> Delete </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.html</context>
-          <context context-type="linenumber">293,296</context>
+          <context context-type="linenumber">315,318</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.invite.open" datatype="html">
         <source>Send invitations</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.html</context>
-          <context context-type="linenumber">305,307</context>
+          <context context-type="linenumber">327,329</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.edit.close" datatype="html">
         <source>Close</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.html</context>
-          <context context-type="linenumber">311,313</context>
+          <context context-type="linenumber">338,340</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.cancel" datatype="html">
         <source>Cancel</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.html</context>
-          <context context-type="linenumber">313,315</context>
+          <context context-type="linenumber">340,342</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/invitation-dialog.ts</context>
@@ -1362,126 +1369,161 @@
         <source>Create event</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.html</context>
-          <context context-type="linenumber">323,325</context>
+          <context context-type="linenumber">350,352</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.edit.save" datatype="html">
         <source>Save changes</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.html</context>
-          <context context-type="linenumber">325,327</context>
+          <context context-type="linenumber">352,354</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.respond.accept" datatype="html">
+        <source>Accept</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
+          <context context-type="linenumber">114</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.respond.maybe" datatype="html">
+        <source>Maybe</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
+          <context context-type="linenumber">115</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.respond.decline" datatype="html">
+        <source>Decline</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
+          <context context-type="linenumber">116</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.reminder.atStart" datatype="html">
         <source>At start</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
-          <context context-type="linenumber">273</context>
+          <context context-type="linenumber">316</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.reminder.weeks" datatype="html">
         <source><x id="count" equiv-text="minutes / 10080"/> week(s) before</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
-          <context context-type="linenumber">275</context>
+          <context context-type="linenumber">318</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.reminder.days" datatype="html">
         <source><x id="count" equiv-text="minutes / 1440"/> day(s) before</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
-          <context context-type="linenumber">278</context>
+          <context context-type="linenumber">321</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.reminder.hours" datatype="html">
         <source><x id="count" equiv-text="minutes / 60"/> hour(s) before</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
-          <context context-type="linenumber">281</context>
+          <context context-type="linenumber">324</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.reminder.minutes" datatype="html">
         <source><x id="count" equiv-text="minutes"/> min before</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
-          <context context-type="linenumber">283</context>
+          <context context-type="linenumber">326</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.reminder.remove" datatype="html">
         <source>Remove reminder <x id="reminder" equiv-text="this.reminderLabel(minutes)"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
-          <context context-type="linenumber">287</context>
+          <context context-type="linenumber">330</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.attendee.remove" datatype="html">
         <source>Remove guest <x id="guest" equiv-text="attendee.name || attendee.email"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
-          <context context-type="linenumber">291</context>
+          <context context-type="linenumber">334</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.attendee.accepted" datatype="html">
         <source>Accepted</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
-          <context context-type="linenumber">297</context>
+          <context context-type="linenumber">340</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.attendee.declined" datatype="html">
         <source>Declined</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
-          <context context-type="linenumber">299</context>
+          <context context-type="linenumber">342</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.attendee.tentative" datatype="html">
         <source>Maybe</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
-          <context context-type="linenumber">301</context>
+          <context context-type="linenumber">344</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.attendee.delegated" datatype="html">
         <source>Delegated</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
-          <context context-type="linenumber">303</context>
+          <context context-type="linenumber">346</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.attendee.pending" datatype="html">
         <source>No answer yet</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
-          <context context-type="linenumber">305</context>
+          <context context-type="linenumber">348</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.invite.saveFirst" datatype="html">
         <source>Save your changes before sending invitations.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
-          <context context-type="linenumber">363</context>
+          <context context-type="linenumber">406</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.invite.cancelSent" datatype="html">
         <source>Cancellation sent to <x id="count" equiv-text="sent.recipients.length"/> guest(s).</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
-          <context context-type="linenumber">375</context>
+          <context context-type="linenumber">418</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.invite.requestSent" datatype="html">
         <source>Invitation sent to <x id="count" equiv-text="sent.recipients.length"/> guest(s).</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
-          <context context-type="linenumber">376</context>
+          <context context-type="linenumber">419</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.respond.sent" datatype="html">
+        <source>Your answer was sent.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
+          <context context-type="linenumber">437</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.respond.failed" datatype="html">
+        <source>Your answer could not be sent.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
+          <context context-type="linenumber">444</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.edit.failed" datatype="html">
         <source>The event could not be saved.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
-          <context context-type="linenumber">393</context>
+          <context context-type="linenumber">470</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.edit.noWritableCalendar" datatype="html">

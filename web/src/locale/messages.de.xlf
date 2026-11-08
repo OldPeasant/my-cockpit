@@ -1638,6 +1638,54 @@
           <context context-type="linenumber">292</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="calendar.respond.title" datatype="html">
+        <source>Your answer</source>
+        <target state="translated">Deine Antwort</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.html</context>
+          <context context-type="linenumber">1</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.respond.accept" datatype="html">
+        <source>Accept</source>
+        <target state="translated">Zusagen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
+          <context context-type="linenumber">1</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.respond.maybe" datatype="html">
+        <source>Maybe</source>
+        <target state="translated">Vielleicht</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
+          <context context-type="linenumber">1</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.respond.decline" datatype="html">
+        <source>Decline</source>
+        <target state="translated">Absagen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
+          <context context-type="linenumber">1</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.respond.sent" datatype="html">
+        <source>Your answer was sent.</source>
+        <target state="translated">Deine Antwort wurde gesendet.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
+          <context context-type="linenumber">1</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.respond.failed" datatype="html">
+        <source>Your answer could not be sent.</source>
+        <target state="translated">Deine Antwort konnte nicht gesendet werden.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/edit/event-dialog.ts</context>
+          <context context-type="linenumber">1</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="calendar.invite.saveFirst" datatype="html">
         <source>Save your changes before sending invitations.</source>
         <target state="translated">Speichere deine Änderungen, bevor du Einladungen sendest.</target>
