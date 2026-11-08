@@ -4,22 +4,21 @@ Date: 2026-11-08
 
 Task: and-cal-overlay-month - Android calendar: task overlay and month view
 
-Scope: `git diff caf3d9bd..HEAD -- android` (commits 4c48ce15 implementation, ec1ea2a0 tests); committed changes only
+Scope: re-review of the final code, `git diff e9ebce194ebba9853c0208589a890dc8c9741f24..7b1d6cc4 -- android` (commits 644a3015 implementation, 7160313a tests, 1bd7da5f more tests, 7b1d6cc4 review fixes). This covers committed changes only. The current HEAD 6bba43d7 has the same `android/` content as 7b1d6cc4 (`git diff 7b1d6cc4 6bba43d7 -- android` is empty).
 
 Requirements:
-- tasks/and-cal-overlay-month.md (acceptance criteria and recorded assumptions)
-- SPEC.md §6.3 (task overlay), docs/PARITY.md (calendar row)
-- docs/ARCHITECTURE.md, AGENTS.md project notes
-- Server contract: server/src/main/kotlin/ch/sonensei/cockpit/gtd/api/TaskController.kt (list filters, 366-day range), gtd/domain/TaskService.kt `releaseDue`
-- Web reference: web/src/app/features/calendar/overlay/task-overlay.ts
+- tasks/and-cal-overlay-month.md (acceptance criteria and recorded assumptions, including the CR-1/CR-2 assumption of 18:24)
+- Previous review CR-1..CR-3 and reviews/and-cal-overlay-month/fixes.md
+- SPEC.md §6.3, docs/PARITY.md (calendar row), docs/ARCHITECTURE.md, AGENTS.md project notes
+- Server contract: server/src/main/kotlin/ch/sonensei/cockpit/gtd/api/TaskController.kt (`scheduled=today` filter), gtd/domain/TaskService.kt (`scheduledToday` predicate, `releaseDue`)
 
 Git range:
 - Branch: main
-- HEAD: ec1ea2a0eb2106d50e4528babf11470fe8a20135
-- Base/start: caf3d9bd1b3b3008131b0143efa4f8448d4cb204
-- Commits reviewed: 2
+- HEAD: 6bba43d7ba0b8acea18d73febc70d59a9363f603 (android content identical to 7b1d6cc4)
+- Base/start: e9ebce194ebba9853c0208589a890dc8c9741f24
+- Commits reviewed: 4
 
-Summary: 0 P0, 0 P1, 2 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## P0 Critical
 
@@ -31,36 +30,25 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | A task scheduled for a day never shows on that day (today), only on future days**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/TaskOverlay.kt:118`
-    - Category: Correctness
-    - Problem: Scheduled marks come only from `GET /tasks?list=SCHEDULED` filtered by `scheduledDate`. Every task list read runs the tickler job first (`TaskController.list` calls `tickler.run()`), and `TaskService.releaseDue` (server `gtd/domain/TaskService.kt:239-244`) moves every task with `scheduledDate <= today` to NEXT, sets `scheduledDate = null` and `releasedOn = today`. So when the overlay loads, a task scheduled for today is no longer in the Scheduled list and has no `scheduledDate`. `taskMarks` (`TaskOverlay.kt:64`) therefore never produces a SCHEDULED mark on today; scheduled marks only ever appear on tomorrow and later. The day view of today, the most relevant day, is missing exactly the tasks the user scheduled for it.
-    - Why it matters: Criterion 1 asks for scheduled tasks in day/week/agenda. As built, the scheduled overlay covers every day except the one the task is actually scheduled for, and the gap is not recorded as an assumption. (Ticklers behave the same way on the server, but the web has the same limitation there and the criterion's new part here is "scheduled".)
-    - Suggested fix: Also mark tasks released into Next on a shown day. For example, when `today` is in [from, to), load `GET /tasks?today=true` (or list=NEXT filtered by `releasedOn`) and mark tasks with `releasedOn == today` as SCHEDULED on today, with a test. If this is left out on purpose, record it with `tasks.py assume`.
-
-- [ ] **CR-2 | The toolbar no longer fits four view segments plus two icon toggles on phone widths**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarScreen.kt:249-280`
-    - Category: Quality
-    - Problem: The toolbar row now holds a weighted `SingleChoiceSegmentedButtonRow` with four segments (MONTH added through `CalendarView.entries`), the "Today" `TextButton` and two 48dp `IconToggleButton`s (the new overlay toggle added). On a 360dp-wide phone the row has 340dp (16dp + 4dp padding). The fixed children take about 166dp (Today about 70dp, plus 2 x 48dp), which leaves about 174dp, or about 43dp per segment. That is below the Material 3 button min width (58dp) and below what labels like "Agenda" need (text about 48dp + 24dp content padding). Even at 411dp it is about 56dp per segment. The labels are `maxLines = 1` without an overflow strategy, so they get clipped. Before this change (three segments, one icon button) each segment had about 74dp. Screen tests don't catch this because clipped text still exists in the semantics tree. This estimate comes from the layout arithmetic. Nobody has rendered it on a device yet.
-    - Why it matters: The view switcher that the month view depends on becomes hard to read in normal phone use, in both English and German.
-    - Suggested fix: Check it on a 360dp emulator or in a Compose screenshot. Then free up width, e.g. move the overlay and calendars toggles into an overflow menu or a second row, use icon-only segments, or replace the "Today" text button with an icon.
+None.
 
 ## P3 Low
 
-- [ ] **CR-3 | Agenda task append is started before the extended range is written to the state**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarViewModel.kt:249-258`
-    - Category: Quality
-    - Problem: `loadMore` calls `loadTasks(from, to, append = true)` before the `state.update` that sets `to = to`. The append coroutine drops its answer when `to > it.to` (`CalendarViewModel.kt:223`). This works today only because `TaskOverlayRepository.tasks` always suspends on the network before it updates the state, so the outer update runs first under `Dispatchers.Main.immediate`. A source that answers without suspending (a cache, a short-circuit error path) would have its appended tasks silently dropped. The tests use `StandardTestDispatcher`, which queues the launch, so they don't exercise this ordering.
-    - Why it matters: This is a hidden ordering dependency between two state writers that could silently lose overlay tasks after a later change.
-    - Suggested fix: Call `loadTasks(from, to, append = true)` after the `state.update` that extends `to`, inside the `Ok` branch.
+None.
+
+## Status of the previous findings
+
+- **CR-1 (scheduled-today tasks missing): resolved.** When today is in [from, to), `TaskOverlayRepository.tasks` (`TaskOverlay.kt:135-139`) also pages `GET /tasks?scheduled=today` and keeps the tasks with `releasedOn == today`. I checked this against the server: `TaskService` line 475 onward returns NEXT tasks with `releasedOn = today()`, plus SCHEDULED tasks with a date up to today. `toOverlayTask` maps `releasedOn`. `taskMarks` (`TaskOverlay.kt:68-72`) adds a SCHEDULED mark on today only when there is no in-range `scheduledDate`, so a task never gets two marks. The view model passes `state.value.today`, which is in the synced zone. The default `NO_DATE` cannot match a range. Tests cover the marks, the repository (third request, `releasedOn` filter, completed tasks dropped, no extra call when today is outside the range) and the view model (the week with today has the mark, the next week has none). This is recorded as an assumption in the task file.
+- **CR-2 (toolbar too narrow on 360dp): resolved.** Today is now an `IconButton` with the existing `calendar_today` content description. The overlay and calendars toggles moved into a `MoreVert` overflow menu. Each menu item keeps its old tag and has `Role.Checkbox` plus `toggleableState`. The trailing `Checkbox` has `onCheckedChange = null`, so there is no second toggle node. Choosing an item closes the menu. The fixed toolbar width is now 2 x 48dp, which leaves about 61dp per segment on a 360dp phone. That is above the 58dp minimum width of a segmented button. Labels ellipsize instead of clipping. The new string `calendar_more_options` exists in EN and DE, and the string test covers it. The screen tests open the menu, then check the hidden-until-open behavior, the on/off state, the labels and that the menu closes. This is recorded as an assumption. As before, the width comes from layout arithmetic and was not rendered on a device (see notes).
+- **CR-3 (append started before the range update): resolved.** `loadMore` (`CalendarViewModel.kt:262-263`) now calls `loadTasks(from, to, append = true)` after the `state.update` that extends `to`, still only for `Ok`. The regression test sets Main to an inline executor dispatcher, which reproduces a source that does not suspend. `@After` resets Main. The fixer reports that this test fails with the old ordering.
 
 ## Notes (not findings)
 
-- I checked the integration and it holds. `LocalTaskOpener.open(id, snapshot)` matches `gtd/task/TaskNavigation.kt`. The server's `from`/`to` filter is inclusive and allows at most 366 days, and the client sends `partEnd - 1` in parts of 366 days. Completed tasks are filtered out on the client, as on the web. Non-2xx answers are mapped like the calendar repository maps them, and the exception messages carry only the status.
-- Lifecycle and coroutine handling look sound. Replace loads cancel the previous `tasksJob`. Stale replace or append answers are dropped by the overlay flag and range check. Switching the overlay off cancels the load and clears the tasks. There are tests for range change, toggle-off during a load, a stale append and a failed page.
-- i18n: all 12 new strings and the plural exist in `values/` and `values-de/`, and a test checks that.
-- No criterion has recorded evidence yet (`python tasks.py verify and-cal-overlay-month` shows all four unchecked). The parent worker must record it before `done`.
+- New code checked for new issues: the `TaskOverlaySource` signature change is applied at every implementer (`None`, the repository, the test fakes). The extra request only runs when today is shown: the day, the week or the month containing today, or the first agenda chunk. A failure of that request fails the whole overlay load the same way the other two requests do, so error handling stays consistent. No logging was added, and the exception messages still carry only the status.
+- I could not run Gradle in this review session (permission denied), so I did not re-run the test or lint results myself. The fixer reports `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passing. The parent worker should rely on its own final run.
+- No layout of the 360dp toolbar has been rendered on a device or in a screenshot. The parent worker should not claim device verification for it.
+- `python tasks.py verify and-cal-overlay-month` still shows all four criteria unchecked, and `reviews/and-cal-overlay-month/tests.md` does not exist yet. The parent worker must run test-writer, record evidence for every criterion and write `quality.json` before `done`. Criterion 4 also names `sh scripts/check.sh`, which the task notes say fails here in the server tests (no Docker). That has to be verified, or skipped with the reason, not claimed.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.

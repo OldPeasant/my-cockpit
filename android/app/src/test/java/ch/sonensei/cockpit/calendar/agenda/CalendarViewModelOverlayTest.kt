@@ -453,6 +453,57 @@ class CalendarViewModelOverlayTest {
         }
 
     @Test
+    fun `Today in the month view returns to today's month with its tasks and the released-today mark`() =
+        runTest(dispatcher) {
+            val released = OverlayTask(id(1), "Water the fictitious plants", releasedOn = today)
+            tasks.releasedToday = listOf(released)
+            tasks.all = listOf(task(2, LocalDate.parse("2026-10-05")))
+            val vm = viewModel(TaskOverlaySetting.InMemory(enabled = true))
+            vm.select(CalendarView.MONTH)
+            vm.move(2)
+            advanceUntilIdle()
+            assertEquals(LocalDate.parse("2026-12-21"), vm.uiState.value.anchor)
+            assertTrue(
+                vm.uiState.value.taskMarks
+                    .isEmpty(),
+            )
+
+            vm.goToToday()
+            advanceUntilIdle()
+
+            val state = vm.uiState.value
+            assertEquals(CalendarView.MONTH, state.view)
+            assertEquals(today, state.anchor)
+            val october = LocalDate.parse("2026-09-28") to LocalDate.parse("2026-11-02")
+            assertEquals(october, state.from to state.to)
+            assertEquals(october, tasks.calls.last())
+            assertEquals(today, tasks.todays.last())
+            assertEquals(listOf(LocalDate.parse("2026-10-05"), today), state.taskMarks.keys.toList())
+            assertEquals(
+                TaskMarkKind.SCHEDULED,
+                state.taskMarks
+                    .getValue(today)
+                    .single()
+                    .kind,
+            )
+        }
+
+    @Test
+    fun `moving does nothing in the agenda, also with the overlay on`() =
+        runTest(dispatcher) {
+            val vm = viewModel(TaskOverlaySetting.InMemory(enabled = true))
+            vm.refresh()
+            advanceUntilIdle()
+            val before = vm.uiState.value
+
+            vm.move(1)
+            advanceUntilIdle()
+
+            assertEquals(before.from to before.to, vm.uiState.value.let { it.from to it.to })
+            assertEquals(listOf(today to today.plusDays(30)), tasks.calls)
+        }
+
+    @Test
     fun `appended tasks are kept when the source answers without suspending`() =
         runTest(dispatcher) {
             // Every coroutine runs at once, inside the call that launches it: a task load started by loadMore answers

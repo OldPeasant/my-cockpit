@@ -259,4 +259,47 @@ class TaskOverlayRepositoryTest {
             assertEquals(listOf(id(1), id(2)), tasks.map { it.id })
             assertEquals(today, tasks[1].releasedOn)
         }
+
+    @Test
+    fun `today on the first day of the range asks for the released tasks, today on the exclusive end or before does not`() =
+        runBlocking {
+            // Today is the range's first day: included.
+            server.enqueue(page())
+            server.enqueue(page())
+            server.enqueue(page(taskJson(1, releasedOn = "2026-10-19")))
+            val first = repository.tasks(from, to, from)
+            assertEquals(3, server.requestCount)
+            assertEquals(listOf(id(1)), (first as CalendarResult.Ok).value.map { it.id })
+
+            // Today is the exclusive end (the range is in the past): no third request.
+            server.enqueue(page())
+            server.enqueue(page())
+            val end = repository.tasks(from, to, to)
+            assertEquals(5, server.requestCount)
+            assertEquals(emptyList<UUID>(), (end as CalendarResult.Ok).value.map { it.id })
+
+            // Today is before the range (a future week): no third request either.
+            server.enqueue(page())
+            server.enqueue(page())
+            repository.tasks(from, to, from.minusDays(1))
+            assertEquals(7, server.requestCount)
+            // The released-tasks filter was asked for exactly once, as the first call's third request.
+            val scheduledFilters = (1..7).map { server.takeRequest().url.queryParameter("scheduled") }
+            assertEquals(listOf(null, null, "today", null, null, null, null), scheduledFilters.map { it?.lowercase() })
+        }
+
+    @Test
+    fun `a failing released-today request fails the whole overlay load`() =
+        runBlocking {
+            val today = LocalDate.parse("2026-10-21")
+            server.enqueue(page(taskJson(1, due = "2026-10-20")))
+            server.enqueue(page())
+            server.enqueue(status(503))
+            assertEquals(CalendarResult.Offline, repository.tasks(from, to, today))
+
+            server.enqueue(page(taskJson(1, due = "2026-10-20")))
+            server.enqueue(page())
+            server.enqueue(status(403))
+            assertEquals(CalendarResult.Failed(403), repository.tasks(from, to, today))
+        }
 }

@@ -3,9 +3,11 @@ package ch.sonensei.cockpit.calendar.agenda
 import android.content.Context
 import android.content.res.Configuration
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -13,6 +15,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -251,6 +254,70 @@ class CalendarOverlayMonthScreensTest {
         composeRule.onNodeWithContentDescription("Wednesday, October 21, 2026, 0 entries").assertExists()
         composeRule.onNodeWithTag(CalendarTags.view(CalendarView.MONTH)).performClick()
         assertEquals(listOf("select MONTH"), calls)
+    }
+
+    @Test
+    @Config(qualifiers = "en-rUS-w360dp-h640dp")
+    fun `on a 360dp phone each of the four view segments keeps the Material minimum width`() {
+        show(state(view = CalendarView.MONTH))
+
+        for (view in CalendarView.entries) {
+            composeRule.onNodeWithTag(CalendarTags.view(view)).assertWidthIsAtLeast(58.dp)
+        }
+        composeRule.onNodeWithTag(CalendarTags.TODAY).assertIsDisplayed()
+        composeRule.onNodeWithTag(CalendarTags.MENU).assertIsDisplayed()
+    }
+
+    @Test
+    @Config(qualifiers = "de-rDE-w360dp-h640dp")
+    fun `on a 360dp phone the German view segments keep the Material minimum width`() {
+        show(state(view = CalendarView.MONTH))
+
+        for (view in CalendarView.entries) {
+            composeRule.onNodeWithTag(CalendarTags.view(view)).assertWidthIsAtLeast(58.dp)
+        }
+        composeRule.onNodeWithTag(CalendarTags.MENU).assertIsDisplayed()
+    }
+
+    @Test
+    fun `a task released to Next today shows as scheduled on today in the day and month views`() {
+        // The server cleared its scheduled date when it moved it to Next today.
+        val plumber = OverlayTask(id(13), "Call the fictitious plumber", releasedOn = today)
+        show(state(view = CalendarView.DAY, tasks = listOf(plumber)))
+
+        composeRule
+            .onNodeWithTag(tag(plumber, TaskMarkKind.SCHEDULED, today))
+            .assertTextContains("Call the fictitious plumber", substring = true)
+            .assertTextContains("Scheduled", substring = true)
+        composeRule.onNodeWithTag(tag(plumber, TaskMarkKind.SCHEDULED, today)).performClick()
+        assertEquals(listOf("task Call the fictitious plumber"), calls)
+    }
+
+    @Test
+    fun `a released-today task is listed in today's month cell`() {
+        val plumber = OverlayTask(id(13), "Call the fictitious plumber", releasedOn = today)
+        show(state(view = CalendarView.MONTH, tasks = listOf(plumber)))
+
+        composeRule.onNodeWithTag(CalendarTags.monthDay(today)).assertTextContains("Call the fictitious plumber", substring = true)
+        composeRule.onNodeWithContentDescription("Wednesday, October 21, 2026, 1 entry").assertExists()
+    }
+
+    @Test
+    fun `tapping a task title in the month view opens its day, not the task`() {
+        show(state(view = CalendarView.MONTH, tasks = listOf(dentist)))
+
+        composeRule.onNodeWithText("Book the dentist", useUnmergedTree = true).performClick()
+
+        assertEquals(listOf("day ${today.plusDays(1)}"), calls)
+    }
+
+    @Test
+    fun `the month view lists no task titles while the overlay is off`() {
+        show(state(view = CalendarView.MONTH, overlay = false, occurrences = listOf(allDay(1, "Holiday", today))))
+
+        composeRule.onNodeWithTag(CalendarTags.monthDay(today)).assertTextContains("Holiday", substring = true)
+        composeRule.onNodeWithText("Send the quarterly report", useUnmergedTree = true).assertDoesNotExist()
+        composeRule.onNodeWithText("Book the dentist", useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test
