@@ -71,6 +71,8 @@ export class ImageAllowlist {
   private change(next: (senders: readonly string[]) => readonly string[]): Promise<unknown> {
     const result = this.chain.then(async () => {
       await this.ready();
+      // Without loaded settings the list would be built from an empty one and replace the stored list.
+      if (!this.settings.settings()) throw new Error('The settings could not be loaded.');
       const current = this.senders();
       const changed = next(current);
       if (sameList(changed, current)) return;
@@ -123,11 +125,19 @@ function sameList(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((entry, i) => entry === b[i]);
 }
 
-/** The old per-browser list, or `null` when there is none (or storage is unavailable). */
+/**
+ * The old per-browser list, or `null` when there is none or storage cannot be read (then nothing
+ * is removed and the next page load tries again); `[]` when its content is not a list.
+ */
 function storedSenders(): string[] | null {
+  let text: string | null;
   try {
-    const text = localStorage.getItem(IMAGE_ALLOWLIST_KEY);
-    if (text === null) return null;
+    text = localStorage.getItem(IMAGE_ALLOWLIST_KEY);
+  } catch {
+    return null;
+  }
+  if (text === null) return null;
+  try {
     const value: unknown = JSON.parse(text);
     return Array.isArray(value)
       ? value

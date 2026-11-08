@@ -376,6 +376,18 @@ describe('MailReadPage', () => {
       expect(el().querySelector('.images:not(.quiet)')).toBeNull();
     });
 
+    it('do not offer "Stop" for an allowed sender when the policy is "allow"', async () => {
+      settings.current.update((s) => ({
+        ...s!,
+        mailImagePolicy: 'allow',
+        mailImageAllowedSenders: ['max.muster@example.test'],
+      }));
+      await create(proxied());
+      expect(iframe()!.srcdoc).toContain('image-proxy');
+      expect(el().querySelector('.images.quiet')).toBeNull();
+      expect(button('Stop')).toBeUndefined();
+    });
+
     it('stay blocked, and the message still shows, when the settings cannot be loaded', async () => {
       settings.current.set(null);
       settings.load = () => Promise.reject(new ApiError(503, 'Unavailable', 'Offline'));

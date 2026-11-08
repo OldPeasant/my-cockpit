@@ -108,7 +108,13 @@ export default class MailReadPage {
   protected readonly sender = computed<MailAddressResponse | null>(
     () => this.message()?.from?.[0] ?? null,
   );
-  protected readonly senderAllowed = computed(() => this.allowlist.has(this.sender()?.address));
+  /**
+   * Whether the images load only because the sender is listed: with the policy "allow" removing
+   * the sender would change nothing, so "Stop" is not offered then.
+   */
+  protected readonly senderAllowed = computed(
+    () => this.allowlist.policy() === 'block' && this.allowlist.has(this.sender()?.address),
+  );
   protected readonly ref = computed<ItemRefDto>(() => ({
     type: 'EMAIL',
     id: this.message()?.id ?? this.id(),

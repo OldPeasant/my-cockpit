@@ -197,12 +197,15 @@ describe('ImageAllowlist', () => {
     const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new Error('SecurityError');
     });
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem');
     try {
       await expect(list.ready()).resolves.toBeUndefined();
       expect(settings.patches).toEqual([]);
       expect(list.policy()).toBe('block');
+      expect(removeItem).not.toHaveBeenCalled();
     } finally {
       getItem.mockRestore();
+      removeItem.mockRestore();
     }
   });
 
@@ -220,6 +223,13 @@ describe('ImageAllowlist', () => {
     await list.add('max@example.test').catch(() => undefined);
     // Saving ['max@example.test'] would drop erika@example.test on the server.
     expect(settings.stored.mailImageAllowedSenders).toContain('erika@example.test');
+  });
+
+  it('rejects a change without saving when the settings cannot be loaded', async () => {
+    settings.loadError = new Error('offline');
+    await expect(list.add('max@example.test')).rejects.toThrow();
+    await expect(list.remove('max@example.test')).rejects.toThrow();
+    expect(settings.patches).toEqual([]);
   });
 
   it('keeps the old local list when merging fails and tries again next time', async () => {
