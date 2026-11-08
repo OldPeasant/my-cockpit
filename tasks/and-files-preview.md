@@ -13,7 +13,8 @@ releases: 1
 SPEC.md §8.2 asks for an in-app preview (PDF via Android `PdfRenderer`); Android only opens files in other apps.
 
 ## Acceptance criteria
-- [ ] Preview for images (zoom), PDF (`PdfRenderer`, page navigation), text; others fall back to "Open with"
+- [x] Preview for images (zoom), PDF (`PdfRenderer`, page navigation), text; others fall back to "Open with"
+  - verified (2026-11-08 16:42+0100 by dell26/agent-1): cd android && ./gradlew createDebugUnitTestCoverageReport (b521e71c9) -> FilePreviewScreenTest (image zoom pinch/double-tap, PDF pages prev/next via fake PdfPages, text + truncation notice, unsupported -> Open with card), FilePreviewViewModelTest, FilePreviewModelsTest pass, 0 failures; real PdfRenderer (PdfPages.kt RendererPdfPages) not exercised under Robolectric, no device run
 - [ ] Previous/next file in the folder; thumbnails in the list (server thumbnails)
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
