@@ -1,10 +1,11 @@
 ---
 title: Android weekly review: start, steps, resume, reflection
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [and-scheduled-list]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/review,android/app/src/test/java/ch/sonensei/cockpit/review,android/app/src/main/java/ch/sonensei/cockpit/ui/navigation,android/app/src/test/java/ch/sonensei/cockpit/ui/navigation,android/app/src/main/res/values/strings_review.xml,android/app/src/main/res/values-de/strings_review.xml]
 prio: 2
+lease_until: 2026-11-08T13:34:15Z
 ---
 ## Goal
 Android's weekly review is read-only (SPEC.md §9.2 said "read-only first"; the owner decided on 2026-11-08 that
