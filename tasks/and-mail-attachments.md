@@ -14,7 +14,8 @@ Android only lists attachment names in a header line (`MailReadScreen.kt:290`). 
 save to Files (`mail-read-page.html:219-279`, server `mail-attachment-to-files`).
 
 ## Acceptance criteria
-- [ ] An attachment list with name, size and type icon
+- [x] An attachment list with name, size and type icon
+  - verified (2026-11-08 15:24+0100 by rudi/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug at 6569b8ae -> pass; covered by MailAttachmentsScreenTest (name, formatted size, type icon incl. video/zip/pdf/image, content-type fallback) and MailReadRepositoryTest attachment mapping (test-writer: 280 mail.read tests pass)
 - [ ] Open (download to cache, open with another app via FileProvider) and Save to device (system create-document)
 - [ ] In-app preview for images and PDFs (reuse the preview from and-files-preview if done, else a simple one)
 - [ ] "Save to Files" (cockpit Files, folder picker)
