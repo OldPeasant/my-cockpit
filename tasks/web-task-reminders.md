@@ -12,7 +12,8 @@ Part of `task-reminders` (Reminders on tasks (web + Android)), which was split.
 Goal: web task detail lets the user add/remove reminders on a task via `POST/DELETE /api/v1/reminders` (itemType TASK), and lists existing ones (`GET /api/v1/reminders?itemId=...`), as SPEC.md §4.6 and the phase 3 demo step 5 expect. Stay inside `web/src/app/features/gtd/task-detail` and `web/src/locale`; reuse the calendar event dialog's reminder UI patterns (`features/calendar/edit`) and the existing `core/notifications` (no changes there needed).
 
 ## Acceptance criteria
-- [ ] Web task detail: add/remove reminders (presets relative to due/scheduled date, e.g. at time / 1 h / 1 day before, or an exact date/time); existing reminders listed
+- [x] Web task detail: add/remove reminders (presets relative to due/scheduled date, e.g. at time / 1 h / 1 day before, or an exact date/time); existing reminders listed
+  - verified (2026-11-09 00:55+0100 by dell26/agent-1): npm --prefix web run test:ci -- --include='src/app/features/gtd/task-detail/**/*.spec.ts' --include='src/locale/**/*.spec.ts' at 59fa207 -> 382 passed; task-reminders.spec.ts covers listing existing reminders (sorted, fired marked), preset add relative to due/scheduled (when due, 1 h, 1 day before, scheduled day), exact datetime add, past time refused, remove (404 = removed), errors/retry; task-detail.spec asserts app-task-reminders is rendered in the detail
 - [~] A reminder fires as a browser notification and opens the task (manually verified or skipped with reason)
   - skipped (2026-11-09 00:39+0100 by dell26/agent-1): No interactive browser in this agent session to grant notification permission and wait for a server-fired reminder; firing/opening is the unchanged core/notifications (ReminderNotificationsService opens item.deepLink /tasks/{id}, covered by its unit tests); this task only creates TASK reminders via POST /api/v1/reminders
 - [x] New strings in English and German (`web/src/locale`)
