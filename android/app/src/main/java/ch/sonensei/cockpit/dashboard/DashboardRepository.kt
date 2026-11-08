@@ -203,7 +203,7 @@ sealed interface DashboardResult<out T> {
 
 /**
  * Loads the dashboard from the endpoints the web dashboard uses (server unchanged), each widget on its own so a
- * failing module only breaks its widget. Read only: nothing here changes data.
+ * failing module only breaks its widget. Only the dashboard layout setting is written (by [saveLayout]).
  */
 @Singleton
 class DashboardRepository(
@@ -232,8 +232,15 @@ class DashboardRepository(
         notes: NotesApi,
     ) : this(settings, tasks, projects, calendars, mail, habits, reviews, bookmarks, notes, Clock.systemDefaultZone())
 
-    /** The ETag of the settings last read or written, for If-Match. */
-    @Volatile private var settingsEtag: String? = null
+    /** The ETag of the settings last read or written, for If-Match; guarded by [etagLock]. */
+    private var settingsEtag: String? = null
+
+    /** Counts the ETags saves returned: a read that started before one of them must not replace it with its older one. */
+    private var etagWrites = 0
+
+    private val etagLock = Any()
+
+    private fun etag(): String? = synchronized(etagLock) { settingsEtag }
 
     /** Every widget in its place, from the user settings the web dashboard writes too. */
     suspend fun layout(): DashboardResult<List<WidgetSlot>> = call { readSettings() }
@@ -246,13 +253,19 @@ class DashboardRepository(
     suspend fun saveLayout(layout: List<WidgetSlot>): DashboardResult<List<WidgetSlot>> =
         call {
             val change = JsonObject(mapOf(LAYOUT_SETTING to layout.toSetting()))
-            var response = settings.updateSettings(change, settingsEtag)
+            var response = settings.updateSettings(change, etag())
             if (response.code() in CONFLICTS) {
                 readSettings()
-                response = settings.updateSettings(change, settingsEtag)
+                response = settings.updateSettings(change, etag())
             }
             val stored = body(response)[LAYOUT_SETTING]
-            settingsEtag = response.headers()["ETag"] ?: settingsEtag
+            val written = response.headers()["ETag"]
+            if (written != null) {
+                synchronized(etagLock) {
+                    settingsEtag = written
+                    etagWrites++
+                }
+            }
             parseSlots(stored)
         }
 
@@ -260,9 +273,11 @@ class DashboardRepository(
     suspend fun calendars(): DashboardResult<List<CalendarInfo>> = call { body(calendars.listCalendars()).items.map { it.toCalendar() } }
 
     private suspend fun readSettings(): List<WidgetSlot> {
+        val writesBefore = synchronized(etagLock) { etagWrites }
         val response = settings.getSettings()
         val stored = body(response)[LAYOUT_SETTING]
-        settingsEtag = response.headers()["ETag"]
+        val read = response.headers()["ETag"]
+        synchronized(etagLock) { if (etagWrites == writesBefore) settingsEtag = read }
         return parseSlots(stored)
     }
 

@@ -11,6 +11,10 @@ import ch.sonensei.cockpit.core.network.generated.apis.TasksApi
 import ch.sonensei.cockpit.core.network.generated.apis.WeeklyReviewApi
 import ch.sonensei.cockpit.core.network.generated.infrastructure.Serializer
 import ch.sonensei.cockpit.mail.list.MailApi
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -144,6 +148,41 @@ class DashboardSaveLayoutTest {
 
             dashboard.saveLayout(edited)
             dashboard.saveLayout(DEFAULT_LAYOUT)
+
+            assertEquals(listOf("\"s1\"", "\"s2\""), sent("PATCH").map { it.headers["If-Match"] })
+        }
+
+    @Test
+    fun `a read that started before a save does not replace the save's ETag with its older one`() =
+        runBlocking {
+            val readStarted = CompletableDeferred<Unit>()
+            val saveDone = CompletableDeferred<Unit>()
+            answer("GET /api/v1/settings", json(settings(), etag = "\"s1\""))
+            answer("PATCH /api/v1/settings", json(settings(*editedKeys), etag = "\"s2\""))
+            dashboard.layout()
+            // The next read answers only after the save finished, with the ETag it had when it was sent.
+            answer("GET /api/v1/settings", json(settings(), etag = "\"s1\""))
+            server.dispatcher =
+                object : Dispatcher() {
+                    override fun dispatch(request: RecordedRequest): MockResponse {
+                        requests += request
+                        if (request.method == "GET") {
+                            readStarted.complete(Unit)
+                            runBlocking { saveDone.await() }
+                        }
+                        val queue = answers["${request.method} ${request.url.encodedPath}"] ?: return status(404)
+                        synchronized(queue) { return if (queue.size > 1) queue.removeAt(0) else queue.first() }
+                    }
+                }
+
+            coroutineScope {
+                val read = async(Dispatchers.IO) { dashboard.layout() }
+                readStarted.await()
+                dashboard.saveLayout(edited)
+                saveDone.complete(Unit)
+                read.await()
+            }
+            dashboard.saveLayout(edited)
 
             assertEquals(listOf("\"s1\"", "\"s2\""), sent("PATCH").map { it.headers["If-Match"] })
         }

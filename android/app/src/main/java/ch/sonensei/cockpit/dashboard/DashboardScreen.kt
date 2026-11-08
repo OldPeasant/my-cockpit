@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.text.format.DateFormat
 import androidx.activity.compose.LocalActivity
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -170,9 +171,7 @@ fun DashboardRoute(
         when (open) {
             is DashboardOpen.Event -> {
                 val birthday = open.occurrence.contactId(open.calendars)
-                if (birthday !=
-                    null
-                ) {
+                if (birthday != null) {
                     overlay = DashboardOverlay.Contact(birthday).encode()
                 } else {
                     editor.edit(open.occurrence, open.calendars)
@@ -214,13 +213,8 @@ fun DashboardRoute(
                             openBookmark = { item ->
                                 val url = item.url
                                 try {
-                                    if (url ==
-                                        null
-                                    ) {
-                                        onOpen(CockpitDestination.Bookmarks)
-                                    } else {
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
-                                    }
+                                    url?.let { context.startActivity(Intent(Intent.ACTION_VIEW, it.toUri())) }
+                                        ?: onOpen(CockpitDestination.Bookmarks)
                                 } catch (_: ActivityNotFoundException) {
                                     onOpen(CockpitDestination.Bookmarks)
                                 }
@@ -442,15 +436,7 @@ private fun CustomizePanel(
             )
             state.layoutError?.let { error ->
                 Text(
-                    stringResource(
-                        if (error ==
-                            WidgetError.OFFLINE
-                        ) {
-                            R.string.dashboard_layout_offline
-                        } else {
-                            R.string.dashboard_layout_failed
-                        },
-                    ),
+                    stringResource(layoutErrorText(error)),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag(DashboardTags.LAYOUT_ERROR),
@@ -494,18 +480,6 @@ private fun CustomizePanel(
                                     change.consume()
                                     dragOffset += amount.y
                                 }
-                            }.semantics {
-                                customActions =
-                                    listOfNotNull(
-                                        CustomAccessibilityAction(moveUp) { true.also { actions.move(slot.id, index - 1) } }.takeIf {
-                                            index >
-                                                0
-                                        },
-                                        CustomAccessibilityAction(moveDown) { true.also { actions.move(slot.id, index + 1) } }.takeIf {
-                                            index <
-                                                last
-                                        },
-                                    )
                             }.padding(horizontal = 8.dp)
                             .testTag(DashboardTags.slot(slot.id)),
                         verticalAlignment = Alignment.CenterVertically,
@@ -519,7 +493,12 @@ private fun CustomizePanel(
                         Checkbox(
                             checked = slot.visible,
                             onCheckedChange = { actions.setVisible(slot.id, it) },
-                            modifier = Modifier.testTag(DashboardTags.slotVisible(slot.id)).semantics { contentDescription = title },
+                            // TalkBack focuses the checkbox (it names the widget), so the move actions sit on it.
+                            modifier =
+                                Modifier.testTag(DashboardTags.slotVisible(slot.id)).semantics {
+                                    contentDescription = title
+                                    customActions = moveActions(index, last, moveUp, moveDown) { actions.move(slot.id, it) }
+                                },
                         )
                         Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                     }
@@ -750,4 +729,21 @@ private fun Line(
 @Composable
 private fun Muted(text: String) {
     Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@StringRes
+private fun layoutErrorText(error: WidgetError): Int =
+    if (error == WidgetError.OFFLINE) R.string.dashboard_layout_offline else R.string.dashboard_layout_failed
+
+/** "Move up" except for the first of [last] + 1 rows, "Move down" except for the last; [move] gets the new index. */
+private fun moveActions(
+    index: Int,
+    last: Int,
+    moveUp: String,
+    moveDown: String,
+    move: (Int) -> Unit,
+): List<CustomAccessibilityAction> {
+    val up = CustomAccessibilityAction(moveUp) { true.also { move(index - 1) } }
+    val down = CustomAccessibilityAction(moveDown) { true.also { move(index + 1) } }
+    return listOfNotNull(up.takeIf { index > 0 }, down.takeIf { index < last })
 }

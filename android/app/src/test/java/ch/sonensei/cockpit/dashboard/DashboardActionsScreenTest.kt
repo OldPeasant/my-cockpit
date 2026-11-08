@@ -1,7 +1,10 @@
 package ch.sonensei.cockpit.dashboard
 
+import android.content.Context
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -15,6 +18,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.ui.navigation.CockpitDestination
@@ -268,13 +272,21 @@ class DashboardActionsScreenTest {
         assertEquals(listOf("visible inbox false", "visible pinnedNotes true"), calls)
     }
 
-    private fun customActions(widget: WidgetId) =
-        composeRule
-            .onNodeWithTag(DashboardTags.slot(widget))
-            .fetchSemanticsNode()
-            .config
-            .getOrNull(SemanticsActions.CustomActions)
-            .orEmpty()
+    /** The move actions on the node TalkBack focuses for a row: its checkbox, which names the widget. */
+    private fun customActions(widget: WidgetId): List<CustomAccessibilityAction> {
+        val node = composeRule.onNodeWithTag(DashboardTags.slotVisible(widget)).fetchSemanticsNode()
+        val title =
+            mapOf(
+                WidgetId.INBOX to R.string.dashboard_inbox,
+                WidgetId.TODAY to R.string.dashboard_today,
+                WidgetId.PINNED_NOTES to R.string.dashboard_pinned_notes,
+            ).getValue(widget)
+        assertEquals(
+            listOf(ApplicationProvider.getApplicationContext<Context>().getString(title)),
+            node.config.getOrNull(SemanticsProperties.ContentDescription),
+        )
+        return node.config.getOrNull(SemanticsActions.CustomActions).orEmpty()
+    }
 
     @Test
     fun `each row can be moved with accessibility actions, the ends only one way`() {

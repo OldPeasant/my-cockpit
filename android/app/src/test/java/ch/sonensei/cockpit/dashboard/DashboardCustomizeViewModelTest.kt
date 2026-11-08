@@ -307,6 +307,54 @@ class DashboardCustomizeViewModelTest {
         }
 
     @Test
+    fun `a failed save drops only its own change, a later pending one is still shown and saved`() =
+        runTest(dispatcher) {
+            val vm = loaded()
+            val first = CompletableDeferred<DashboardResult<List<WidgetSlot>>>()
+            var calls = 0
+            coEvery { repo.saveLayout(any()) } coAnswers {
+                val sent = firstArg<List<WidgetSlot>>()
+                saved += sent
+                if (calls++ == 0) first.await() else DashboardResult.Ok(sent)
+            }
+
+            vm.move(WidgetId.WEEKLY_REVIEW, 0)
+            advanceUntilIdle()
+            vm.setVisible(WidgetId.PINNED_NOTES, true)
+            advanceUntilIdle()
+            first.complete(DashboardResult.Failed)
+            advanceUntilIdle()
+
+            // The refused move is gone; the later change is applied to the stored layout and saved.
+            val latest = layoutOf(WidgetId.INBOX, WidgetId.WEEKLY_REVIEW).withVisible(WidgetId.PINNED_NOTES, true)
+            assertEquals(listOf(layoutOf(WidgetId.WEEKLY_REVIEW, WidgetId.INBOX), latest), saved)
+            assertEquals(latest, vm.uiState.value.layout)
+            assertEquals(listOf(WidgetId.INBOX, WidgetId.WEEKLY_REVIEW, WidgetId.PINNED_NOTES), vm.uiState.value.widgets)
+            assertEquals(WidgetError.FAILED, vm.uiState.value.layoutError)
+        }
+
+    @Test
+    fun `right after an earlier save fails the later pending change stays shown`() =
+        runTest(dispatcher) {
+            val vm = loaded()
+            val first = CompletableDeferred<DashboardResult<List<WidgetSlot>>>()
+            val second = CompletableDeferred<DashboardResult<List<WidgetSlot>>>()
+            coEvery { repo.saveLayout(any()) } coAnswers { first.await() } coAndThen { second.await() }
+
+            vm.move(WidgetId.WEEKLY_REVIEW, 0)
+            vm.setVisible(WidgetId.INBOX, false)
+            advanceUntilIdle()
+            first.complete(DashboardResult.Offline)
+            advanceUntilIdle()
+
+            assertEquals(listOf(WidgetId.WEEKLY_REVIEW), vm.uiState.value.widgets)
+            assertEquals(WidgetError.OFFLINE, vm.uiState.value.layoutError)
+            second.complete(DashboardResult.Ok(layoutOf(WidgetId.INBOX, WidgetId.WEEKLY_REVIEW).withVisible(WidgetId.INBOX, false)))
+            advanceUntilIdle()
+            assertEquals(listOf(WidgetId.WEEKLY_REVIEW), vm.uiState.value.widgets)
+        }
+
+    @Test
     fun `a refresh during an unsaved change keeps the shown layout`() =
         runTest(dispatcher) {
             val vm = loaded()

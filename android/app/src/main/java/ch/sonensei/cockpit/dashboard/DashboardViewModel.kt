@@ -78,13 +78,19 @@ class DashboardViewModel
 
         private var loadJob: Job? = null
 
-        /** Layout saves run one after the other, each sending the layout shown when it starts. */
+        /** Layout saves run one after the other, each applying its change to the layout stored by then. */
         private val saving = Mutex()
 
-        /** Layout changes not stored yet: a refresh meanwhile keeps the shown layout instead of the stored one. */
-        private var unsaved = 0
+        /**
+         * Layout changes not stored yet, in order: the shown layout is them applied on top of [stored] (as on the web),
+         * so a refused change drops out without taking the later ones with it, and a refresh meanwhile keeps them.
+         */
+        private val pending = mutableListOf<LayoutEdit>()
 
-        /** The layout last confirmed by the server, which a failed save returns to. */
+        /** Counts layout changes and finished saves: a layout read that started before one of them is outdated. */
+        private var generation = 0
+
+        /** The layout last confirmed by the server, which pending changes apply to. */
         private var stored: List<WidgetSlot>? = null
 
         /**
@@ -96,13 +102,16 @@ class DashboardViewModel
             loadJob =
                 viewModelScope.launch {
                     state.update { it.copy(refreshing = pulled) }
+                    val readFrom = generation
                     val layout = (dashboard.layout() as? DashboardResult.Ok)?.value
-                    if (layout != null && unsaved == 0) stored = layout
-                    state.update { current ->
-                        val next = if (layout != null && unsaved == 0) current.withLayout(layout) else current
+                    // A change made or saved while it was read is newer than what the read returned.
+                    val fresh = layout?.takeIf { readFrom == generation && pending.isEmpty() }
+                    if (fresh != null) stored = fresh
+                    state.update { shown ->
+                        val next = fresh?.let { shown.withLayout(it) } ?: shown
                         next.copy(
-                            layoutLoaded = current.layoutLoaded || layout != null,
-                            states = next.widgets.associateWith { current.state(it).copy(loading = true) },
+                            layoutLoaded = shown.layoutLoaded || layout != null,
+                            states = next.widgets.associateWith { shown.state(it).copy(loading = true) },
                         )
                     }
                     state.value.widgets
@@ -135,15 +144,7 @@ class DashboardViewModel
             val occurrence = event.occurrence ?: return open(DashboardOpen.Screen(CockpitDestination.Calendar))
             viewModelScope.launch {
                 val calendars = (dashboard.calendars() as? DashboardResult.Ok)?.value
-                open(
-                    if (calendars !=
-                        null
-                    ) {
-                        DashboardOpen.Event(occurrence, calendars)
-                    } else {
-                        DashboardOpen.Screen(CockpitDestination.Calendar)
-                    },
-                )
+                open(calendars?.let { DashboardOpen.Event(occurrence, it) } ?: DashboardOpen.Screen(CockpitDestination.Calendar))
             }
         }
 
@@ -160,32 +161,38 @@ class DashboardViewModel
 
         private fun change(edit: (List<WidgetSlot>) -> List<WidgetSlot>) {
             if (!state.value.layoutLoaded) return
+            val change = LayoutEdit(edit)
             val before = state.value.widgets.toSet()
+            pending += change
+            generation++
             state.update { it.withLayout(edit(it.layout)).copy(layoutError = null) }
             val after = state.value.widgets
             after.filter { it !in before }.forEach { widget ->
                 state.update { it.copy(states = it.states + (widget to it.state(widget).copy(loading = true))) }
                 viewModelScope.launch { load(widget) }
             }
-            unsaved++
             viewModelScope.launch {
                 saving.withLock {
-                    val result = dashboard.saveLayout(state.value.layout)
-                    unsaved--
-                    when (result) {
-                        is DashboardResult.Ok -> {
-                            stored = result.value
-                            // A later change waits to be saved: keep showing it.
-                            if (unsaved == 0) state.update { it.withLayout(result.value) }
-                        }
-                        else -> {
-                            val error = if (result == DashboardResult.Offline) WidgetError.OFFLINE else WidgetError.FAILED
-                            state.update { current -> (stored?.let { current.withLayout(it) } ?: current).copy(layoutError = error) }
-                        }
+                    val base = stored ?: state.value.layout
+                    val result = dashboard.saveLayout(edit(base))
+                    pending -= change
+                    generation++
+                    if (result is DashboardResult.Ok) stored = result.value
+                    val error = result.layoutError()
+                    state.update { current ->
+                        val shown = stored?.let { pending.fold(it) { layout, later -> later.apply(layout) } }
+                        (shown?.let { current.withLayout(it) } ?: current).copy(layoutError = error ?: current.layoutError)
                     }
                 }
             }
         }
+
+        private fun DashboardResult<*>.layoutError(): WidgetError? =
+            when (this) {
+                is DashboardResult.Ok -> null
+                DashboardResult.Offline -> WidgetError.OFFLINE
+                DashboardResult.Failed -> WidgetError.FAILED
+            }
 
         private fun DashboardUiState.withLayout(layout: List<WidgetSlot>) = copy(layout = layout, widgets = layout.shown())
 
@@ -203,3 +210,8 @@ class DashboardViewModel
             }
         }
     }
+
+/** One layout change, applied to whatever layout is stored when its turn to be saved comes. */
+private class LayoutEdit(
+    val apply: (List<WidgetSlot>) -> List<WidgetSlot>,
+)
