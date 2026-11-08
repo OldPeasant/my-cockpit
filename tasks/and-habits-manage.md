@@ -21,7 +21,8 @@ target (`habits-page.ts:169`). The owner decided habits editing comes to Android
   - verified (2026-11-08 20:58+0100 by felix/agent-1): cd android && ./gradlew testDebugUnitTest on 9194c59d4 -> pass; Habit.nextCount tests (count up to target, then reset to 0 like web nextCount) and screen tests showing the best streak
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 20:58+0100 by felix/agent-1): values/strings_habits.xml and values-de/strings_habits.xml have identical keys, placeholders and plurals (code review), German Compose test, ./gradlew lintDebug (MissingTranslation) -> pass
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 20:58+0100 by felix/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport -> exit 0 (changed habits files 98.3% lines, 89.4% branches); sh scripts/check.sh -> all checks passed
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
