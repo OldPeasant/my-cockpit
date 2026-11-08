@@ -34,6 +34,7 @@ class TaskRepeatTest {
             RepeatDraft.of("FREQ=WEEKLY;INTERVAL=2", RecurrenceMode.AFTER_COMPLETION),
         )
         assertEquals(RepeatDraft(RepeatPreset.DAILY, "1"), RepeatDraft.of("FREQ=DAILY;INTERVAL=1", null))
+        assertEquals(RepeatDraft(RepeatPreset.DAILY, "999"), RepeatDraft.of("FREQ=DAILY;INTERVAL=999", null))
         assertEquals(RepeatDraft(RepeatPreset.WEEKDAYS, "3"), RepeatDraft.of("INTERVAL=3;BYDAY=MO,TU,WE,TH,FR;FREQ=WEEKLY", null))
     }
 
@@ -62,6 +63,8 @@ class TaskRepeatTest {
                 "FREQ=WEEKLY;FREQ=DAILY",
                 "FREQ=WEEKLY;INTERVAL=0",
                 "FREQ=WEEKLY;INTERVAL=x",
+                // An interval above what the editor accepts, so the task stays saveable.
+                "FREQ=DAILY;INTERVAL=1000",
             )
         rules.forEach { rule ->
             val draft = RepeatDraft.of(" $rule ", RecurrenceMode.AFTER_COMPLETION)

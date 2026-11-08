@@ -81,7 +81,7 @@ data class RepeatDraft(
             if (parts.any { it.size != 2 || it[0] !in SIMPLE_KEYS }) return custom
             val values = parts.associate { it[0] to it[1] }
             if (values.size != parts.size) return custom
-            val interval = values["INTERVAL"]?.let { text -> text.toIntOrNull()?.takeIf { it >= 1 } ?: return custom } ?: 1
+            val interval = values["INTERVAL"]?.let { text -> text.toIntOrNull()?.takeIf { it in 1..MAX_INTERVAL } ?: return custom } ?: 1
             val byDay = values["BYDAY"]
             val preset =
                 when {
