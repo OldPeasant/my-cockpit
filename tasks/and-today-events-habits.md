@@ -20,7 +20,8 @@ Web Today shows today's calendar events and due habits with one-tap check (`toda
   - verified (2026-11-08 22:56+0100 by dell26/agent-1): same run -> TodayExtrasTest empty-day tests: TodayTags.EMPTY shows 'Pick a next action' which calls openNext; CockpitShell wires openNext to onOpen(CockpitDestination.Next); TodayScreenTest 15/15, TodayRouteTest 2/2 still pass
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 22:56+0100 by dell26/agent-1): grep today_ android/app/src/main/res/values{,-de}/strings_next_today.xml -> 8 new keys (today_pick_next, today_events, today_event_all_day, today_habits, today_habit_check/uncheck/count/check_failed) present in both EN and DE; lintDebug (MissingTranslation) 0 errors
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 23:01+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL (Today suites 68 tests incl. TodayExtrasTest 21, TodayWithEditorTest 2; lint 0 errors); sh scripts/check.sh -> exit 0
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
