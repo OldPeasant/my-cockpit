@@ -2604,6 +2604,33 @@ describe('TaskDetail', () => {
       expect(undo.completed).not.toHaveBeenCalled();
     });
 
+    it('does not complete when edits are typed while saving the changes first', async () => {
+      let release!: () => void;
+      await render();
+      await type('#td-title', 'Mine');
+      answer = ((previous) => (fn: unknown, params: Record<string, unknown>) => {
+        if (fn === updateTask) {
+          return new Promise((resolve) => {
+            release = () => resolve(task({ title: 'Mine', version: 2 }));
+          });
+        }
+        return previous?.(fn, params);
+      })(answer);
+
+      await click(completeButton());
+      await type('#td-title', 'Mine, typed while saving');
+
+      release();
+      await refresh();
+
+      expect(callsOf(updateTask)).toHaveLength(1);
+      expect(callsOf(completeTask)).toHaveLength(0);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Mine, typed while saving');
+      expect(text()).toContain('Unsaved changes');
+      expect(label(completeButton())).toBe('Complete');
+      expect(undo.completed).not.toHaveBeenCalled();
+    });
+
     it('on a 412 while completing says the task changed elsewhere and reloads it', async () => {
       hold.complete = () => {
         server = task({ title: 'Theirs', version: 4 });

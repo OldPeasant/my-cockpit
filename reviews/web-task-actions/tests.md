@@ -4,109 +4,88 @@ Date: 2026-11-08
 
 Task: web-task-actions - Web task detail: complete, delete, undo, Markdown notes
 
-Scope: `git diff 4102a26a80c47af215943702c497901f6ee773a7..b28baf82e736921d2cc9dd234addb6e1d0583291 -- web/` (task commits eba1ef248, b28baf82e on branch main; base and commits supplied by the parent worker). Tests measured on HEAD b28baf82e plus the uncommitted test files listed below.
+Scope: `git diff 6871a30a616a9df59b921d877b9ed23119f78133..84f65350795165c8d1f44aec8dc630455cc67d4c -- web/` (final round on the final code). Task commits cf34e97a8, 77769e63b, 67fb1f56e, 6e9442aa8, 9f4905fcd, 84f653507, supplied by the parent worker and checked against `git log --oneline 6871a30a6..HEAD` (exactly these six commits). Measured on HEAD 84f653507 plus one uncommitted test addition in `task-detail.spec.ts` (below). Latest production change under test: `save()` returns a boolean, and `toggleDone` stops after a failed save (incl. 412) or a task switch during the save-first (commit 84f653507).
 
 Requirements:
-- `tasks/web-task-actions.md` acceptance criteria and the three recorded assumptions (undo in lists covers completing only; Complete saves valid changes first and stays; Delete confirms only when dirty, then navigates back via BackNavigation; rendered notes reuse projects' renderMarkdown, Edit/click/Enter switch to the textarea, links still open; checklist rename via pencil button, Enter/blur saves, Escape cancels)
-- Parent worker's summary of the change
+- `tasks/web-task-actions.md` acceptance criteria and its three recorded assumptions (list undo covers completing only; Complete saves valid changes first and stays; Delete confirms only when dirty, then navigates back via BackNavigation; rendered notes reuse projects' renderMarkdown, Edit/click/Enter switch to the textarea, links still open; checklist rename via pencil button, Enter/blur saves, Escape cancels)
+- Earlier rounds: `reviews/web-task-actions/tests.md` (previous version), `review.md`, `fixes.md`
 - `docs/ARCHITECTURE.md` "Coverage", `AGENTS.md`
 
 ## Test files changed
 
-- `web/src/app/features/gtd/ui/task-undo.spec.ts` (new)
-- `web/src/app/features/gtd/task-detail/task-detail.spec.ts`
-- `web/src/app/features/gtd/task-detail/task-detail-page.spec.ts`
-- `web/src/app/features/gtd/task-detail/task-detail.service.spec.ts`
-- `web/src/app/features/gtd/task-detail/task-checklist.spec.ts`
-- `web/src/app/features/gtd/lists/list-pages.spec.ts`
-- `web/src/app/features/gtd/next/next-view.spec.ts`
-- `web/src/app/features/gtd/today/today-view.spec.ts`
-- `web/src/app/features/gtd/projects/projects-pages.spec.ts`
-- `web/src/locale/messages-de.spec.ts`
+- `web/src/app/features/gtd/task-detail/task-detail.spec.ts` (this round, uncommitted)
+
+The task's committed test files (from earlier rounds, all in the measured suite): `gtd/ui/task-undo.spec.ts` (new), `gtd/task-detail/task-detail.spec.ts`, `task-detail-page.spec.ts`, `task-detail.service.spec.ts`, `task-checklist.spec.ts`, `gtd/lists/list-pages.spec.ts`, `gtd/next/next-view.spec.ts`, `gtd/today/today-view.spec.ts`, `gtd/projects/projects-pages.spec.ts`, `web/src/locale/messages-de.spec.ts`.
 
 ## Tests added or updated
 
-Count: 77 new tests (task-undo 8, task-detail 38 in "complete, reopen and delete" (25) and "rendered notes" (13), task-detail-page 1, task-detail.service 4, task-checklist 11, list-pages 5 incl. 3 parameterized, next-view 2, today-view 2, projects-pages 5, messages-de 1). No existing test was changed or weakened; `projects-pages.spec.ts` only gained an `uncompleteTask` answer and a `failComplete` switch in its shared API fake.
+Count: 1 added this round. No existing test was changed or weakened.
+
+- task-detail "complete, reopen and delete": "does not complete when edits are typed while saving the changes first". The save-first resolves after the user typed more; the toggle must stop (the `this.dirty()` part of the new guard in `toggleDone`): one PATCH, no complete call, the later text stays, "Unsaved changes" is shown, the button reads Complete, no Undo is offered. The other two exits of the new guard (failed save with 412, task switch during the save) were already covered by the tests added in 84f653507 ("does not complete when saving the changes first meets a 412", "does not complete the new task when the editor switches during the save first"); the 500 case by "does not complete when saving the changes first fails".
 
 ## Requirement coverage
 
-Focused command for each row: `cd web && npx ng test --watch=false --include='{spec path}'`; all rows were also re-run in `npx ng test --watch=false --include='src/app/features/gtd/**/*.spec.ts'` and `npm run test:ci`.
+Focused command: `cd web && npx ng test --watch=false --include='{spec path}'`. All rows also ran in `cd web && npm run test:ci` (190 files, 4429 tests passed) and in the coverage run below.
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1 Task detail has Complete/Reopen | task-detail "completes the task silently with If-Match, stays and offers Undo", "reopens a done task silently, without an undo snackbar", "saves unsaved valid changes first, then completes the saved version", "does not complete when the changes are invalid", "does not complete when saving the changes first fails", "shows the running action and starts nothing else meanwhile", "shows \"Reopening…\" and \"Deleting…\" while those run", "on a 412 while completing ...", "shows the error when completing fails and lets the user retry", "shows the error when reopening fails", "does not reload on a change event while completing", "drops a background reload that started before completing", "does not show the completion of the previous task in the new one"; task-detail.service "completes a task silently ...", "reopens a task silently by default" | focused task-detail.spec.ts, task-detail.service.spec.ts | Pass |
-| AC1 Delete (to Trash) and navigate back via the shared back helper | task-detail "deletes a task without unsaved changes at once, offers Undo and closes", "asks before deleting a task with unsaved changes and keeps them when cancelled", "deletes the saved version, without saving, when the user confirms dropping changes", "does not show \"moved to the Trash\" for its own deletion event", "still shows \"moved to the Trash\" when someone else deletes it during a completion", "on a 412 while deleting ...", "shows the error when deleting fails and stays", "does not close the new task when the deletion of the previous one answers late"; task-detail-page "goes back through the shared back navigation after deleting the task, offering Undo"; task-detail.service "moves a task to the Trash silently with If-Match" | focused task-detail.spec.ts, task-detail-page.spec.ts, task-detail.service.spec.ts | Pass |
-| AC2 Undo snackbar (service: message, Undo action, duration, reopen/restore, failure) | task-undo.spec.ts: 7 tests with a MatSnackBar double + 1 with the real MatSnackBar clicking "Undo" | focused ui/task-undo.spec.ts | Pass |
-| AC2 Undo in task detail | task-detail "Undo reopens the completed version with the HTTP layer showing errors, and shows it", "Undo reopens the newest version when the task was saved after completing", "Undo does not replace unsaved edits made after completing", "Undo after switching to another task reopens the old one without touching the new one"; task-detail.service "reopens a task with errors shown by the HTTP layer when asked to toast"; delete-undo offered in the delete tests above (restore itself: task-undo "offers to restore a deleted task from the Trash") | focused task-detail.spec.ts, task-detail.service.spec.ts | Pass |
-| AC2 Undo in lists: Next | next-view "undo after completing": "offers Undo, which reopens the completed version and shows the task again", "offers no Undo when completing fails" | focused next/next-view.spec.ts | Pass |
-| AC2 Undo in lists: Today | today-view "undo after completing": "offers Undo, which reopens the task into its section", "offers no Undo when completing fails" | focused today/today-view.spec.ts | Pass |
-| AC2 Undo in lists: project detail (incl. closing "Choose next step") | projects-pages "undo after completing": "Undo reopens the completed task, shows it again and closes \"Choose next step\"", "keeps \"Choose next step\" open when the snackbar goes away without Undo", "does not close a prompt that belongs to another completed task", "offers Undo also for a task that was not the next step, without a prompt", "offers no Undo when completing fails" | focused projects/projects-pages.spec.ts | Pass |
-| AC2 Undo in Waiting/Someday/Scheduled (ListPage) | list-pages "undo after completing": "%s offers Undo, which reopens the task" for Waiting For, Someday, Scheduled; "offers no Undo when completing fails"; "offers no Undo when reopening from the Logbook" | focused lists/list-pages.spec.ts | Pass |
-| AC3 Checklist items renamed inline | task-checklist "rename": focused input with text and aria-label, Enter saves trimmed text with item version, blur saves, Escape cancels and does not bubble, empty/blank/unchanged text does nothing, Enter+blur saves once, optimistic text and rollback on error, 412 reload with conflict message, no rename while another change saves, rename after toggle uses the saved version, task switch drops an open rename | focused task-detail/task-checklist.spec.ts | Pass |
-| AC4 Notes rendered as Markdown when not editing; click/Edit switch to the textarea | task-detail "rendered notes": blank notes show the textarea, rendered Markdown with Edit button, HTML is escaped (no img/script elements), Edit focuses the textarea, click and Enter on the view switch, a link click keeps the view, a text selection keeps the view, typing stays in source mode (also through empty notes), renders again after save, after discard, after switching task, a server error on notes keeps the source shown; existing "shows every field of the task" | focused task-detail.spec.ts | Pass |
-| AC5 New UI strings in web/src/locale (English + German) | messages-de "has the task actions, undo and notes messages in English and German (web-task-actions)" plus the existing generic completeness/placeholder checks | `npx ng test --watch=false --include='src/locale/messages-de.spec.ts'` | Pass |
-| AC6 Unit tests cover the new behavior; `npm run check` and `sh scripts/check.sh` pass | all of the above; `npm run test:ci` | `cd web && npm run test:ci` | Pass for the unit suite. `npm run check` (api:check, full lint, e2e typecheck, build) and `sh scripts/check.sh`: Not run: check.sh includes Gradle builds that this helper may not run and takes 6-10 min; the parent worker must run both. ESLint (`npx eslint --max-warnings=0` on the 10 changed spec files) and `npx prettier --check` on them pass. |
+| AC1 Task detail has Complete/Reopen (save-first, errors, 412, switching, busy states) | task-detail "completes the task silently with If-Match, stays and offers Undo", "reopens a done task silently ...", "saves unsaved valid changes first, then completes the saved version", "does not complete when the changes are invalid", "does not complete when saving the changes first fails", "does not complete when saving the changes first meets a 412", "does not complete the new task when the editor switches during the save first", "does not complete when edits are typed while saving the changes first" (new), "keeps edits typed while completing runs ...", "keeps edits typed while reopening runs", "on a 412 while completing ...", "shows the error when completing fails and lets the user retry", "shows the running action and starts nothing else meanwhile", "offers Undo for a completion that answers after switching to another task"; task-detail.service complete/uncomplete tests | `npx ng test --watch=false --include='src/app/features/gtd/task-detail/task-detail.spec.ts'` | Pass (148 passed) |
+| AC1 Delete (to Trash), navigate back via the shared back helper | task-detail delete tests (immediate delete with Undo and close, dirty confirm/cancel, own DELETED event before and after the answer, someone else's deletion, 412, failure, late answer after switch); task-detail-page "goes back through the shared back navigation after deleting the task, offering Undo"; task-detail.service "moves a task to the Trash silently with If-Match" | full suite `npm run test:ci` | Pass |
+| AC2 Undo snackbar service | ui/task-undo.spec.ts (8 tests, one with the real MatSnackBar) | `npm run test:ci` | Pass |
+| AC2 Undo in task detail | task-detail Undo tests (reopens the completed/newest version, keeps unsaved edits, after a switch) | focused task-detail.spec.ts | Pass |
+| AC2 Undo in lists: Next, Today, project detail, Waiting/Someday/Scheduled | next-view, today-view, projects-pages (incl. prompt closing by id), list-pages "undo after completing" | `npm run test:ci` | Pass |
+| AC3 Checklist items renamed inline | task-checklist "rename" group (Enter/blur/Escape, trimming, no-ops, optimistic + rollback, 412, busy, task switch), "strikes through only the done steps", "styles the rename input of an open step too" | `npm run test:ci` | Pass |
+| AC4 Notes rendered as Markdown when not editing; click/Edit switch | task-detail "rendered notes" group | focused task-detail.spec.ts | Pass |
+| AC5 New UI strings in English + German | messages-de "has the task actions, undo and notes messages in English and German (web-task-actions)" plus generic completeness checks | `npm run test:ci` | Pass |
+| AC6 Unit tests cover the new behavior; `npm run check` and `sh scripts/check.sh` pass | all of the above | `cd web && npm run test:ci` | Unit suite Pass. `npm run check` and `sh scripts/check.sh`: Not run: the parent worker runs them (check.sh runs Gradle, which this helper does not run). ESLint `--max-warnings=0` and `prettier --check` on the changed spec pass. |
 
 ## Focused test execution
 
-Commands (from `web/`), each Pass:
+Command:
 
-- `npx ng test --watch=false --include='src/app/features/gtd/ui/task-undo.spec.ts'` -> 8 passed
-- `npx ng test --watch=false --include='src/app/features/gtd/task-detail/task-checklist.spec.ts'` -> 42 passed
-- `npx ng test --watch=false --include='src/app/features/gtd/task-detail/task-detail.spec.ts'` -> 136 passed
-- `npx ng test --watch=false --include='src/app/features/gtd/lists/list-pages.spec.ts'` -> 42 passed
-- `npx ng test --watch=false --include='src/app/features/gtd/next/next-view.spec.ts'` -> 46 passed
-- `npx ng test --watch=false --include='src/app/features/gtd/today/today-view.spec.ts'` -> 25 passed
-- `npx ng test --watch=false --include='src/app/features/gtd/projects/projects-pages.spec.ts'` -> 21 passed
-- `npx ng test --watch=false --include='src/locale/messages-de.spec.ts' --include='.../task-detail.service.spec.ts' --include='.../task-detail-page.spec.ts'` -> 3 files, 37 passed
+`cd web && npx ng test --watch=false --include='src/app/features/gtd/task-detail/task-detail.spec.ts'`
 
 Result:
 
-Pass
+Pass (1 file, 148 tests). `npx prettier --check` and `npx eslint --max-warnings=0` on the spec: Pass.
 
 ## Full test execution
 
-Commands:
+Command:
 
-`cd web && npx ng test --watch=false --include='src/app/features/gtd/**/*.spec.ts'` -> 33 files, 859 tests passed (after the Prettier formatting of the new specs).
-
-`cd web && npm run test:ci` -> 190 files, 4414 tests passed (81 s).
+`cd web && npm run test:ci`
 
 Result:
 
-Pass
+Pass: 190 files, 4429 tests passed (started 15:30:14, 47 s).
 
 ## .taskcheck
 
 Result:
 
-Not run: `sh scripts/check.sh` runs the Gradle server and Android checks, which this helper is not permitted to run, and takes 6-10 minutes. The parent worker must run it.
+Not run: by instruction of the parent worker this helper runs neither Gradle nor `sh scripts/check.sh`; the parent runs `.taskcheck` and `npm run check`.
 
 ## Bugs found
 
-No production defect was found: every new test passes against b28baf82e.
-
-Low-severity observations for the parent (no failing test written, because no requirement says otherwise):
-
-- TW-1 (Low, consistency): in `task-detail.ts` `toggleDone`, when a Complete of task A answers after the editor switched to task B, the code returns before `undo.completed(...)`, so A is completed with no Undo snackbar. Delete in the same situation still offers Undo (`does not close the new task when the deletion of the previous one answers late` asserts this). The tests only assert that B is untouched (`does not show the completion of the previous task in the new one`). The parent may decide whether completing should also offer Undo there.
-- TW-2 (Low): `project-detail-page.ts` closes "Choose next step" after an undo when `prompt().done === task.title`, so the match uses the title, not the id. With two tasks of the same title in a project, undoing one could close the prompt of the other. The covered case (different titles) works.
+None. Every test passes against HEAD 84f653507. The earlier observations TW-1 and TW-2 were fixed in 6e9442aa8 (see fixes.md) and their tests pass.
 
 ## Coverage
 
-Status: verified (whole-file coverage of the task-changed production files; test selection = the gtd folder).
+Status: verified (whole-file coverage of the task-changed production files; test selection = all gtd specs plus messages-de.spec.ts).
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: not measured (the coverage tool has no changed-line mode; not reconstructed).
+Changed-line coverage: measured separately (method below): statements 185/194 (95.4%), branches starting on a changed line 128/135 (94.8%). Changed-branch coverage is approximated by branches whose start line is an added/modified line; it is not exact.
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: web-task-actions; base 4102a26a80c47af215943702c497901f6ee773a7; HEAD b28baf82e736921d2cc9dd234addb6e1d0583291; task commits eba1ef248 and b28baf82e from the parent worker, checked against `git diff --stat 4102a26a8..HEAD` (17 web files, no other commits in the range).
-- Source/test snapshot identifier (including uncommitted inputs): production = HEAD b28baf82e (no uncommitted production changes, `git diff --stat` shows only spec files). Uncommitted test files, sha256: list-pages.spec.ts 9444b800ce62..., next-view.spec.ts caba9f925281..., projects-pages.spec.ts d14a1c98f9a3..., task-checklist.spec.ts a1c2767b6e7b..., task-detail-page.spec.ts ff6e888a353f..., task-detail.service.spec.ts 4e56b6904394..., task-detail.spec.ts f6d9d40cf96f..., today-view.spec.ts 3de49ecb50ba..., messages-de.spec.ts f7284ede8268..., ui/task-undo.spec.ts be67bb215d68....
-- Exact included files: `web/src/app/features/gtd/lists/list-page.ts`, `next/next-view.ts`, `projects/project-detail-page.ts`, `task-detail/task-checklist.ts`, `task-detail/task-detail.service.ts`, `task-detail/task-detail.ts`, `today/today-view.ts`, `ui/task-undo.ts` (all under `web/src/app/features/gtd/`). Excluded: `ui/index.ts` (a re-export barrel with no executable statements of its own; the provider has no entry for it); the `.html` templates (`task-detail.html`, `task-checklist.html`), because v8 coverage measures the TypeScript sources, not the templates (the DOM tests exercise them); `.scss` files (styles); `web/src/locale/*.xlf` (data, checked by messages-de.spec.ts); spec files.
-- Provider/version, command, working directory, and test selection: Vitest v5.0.5 with `@vitest/coverage-v8`; `npm run coverage -- --include='src/app/features/gtd/**/*.spec.ts'` in `web/` (the project's coverage script, with the test selection narrowed to the gtd specs).
-- Run start/completion time and exit status: started 2026-11-08 15:10:10 (+01:00), about 10 s, all 33 files / 859 tests passed, the command exited without an error.
-- Generated report paths and report hashes/run identifier: `web/coverage/web/coverage-summary.json` (sha256 8e51ea34bffb...), `web/coverage/web/coverage-final.json` (sha256 d3888299d691...), `lcov.info`, `lcov-report/`; all written at 15:10.
-- Evidence outputs are fresh and inputs stayed unchanged: the report files are dated 15:10, after the last spec edit (Prettier at about 15:09). No spec or production file changed after the run (the hashes above were taken after it).
-- Final run after latest test additions and production fixes: yes for the tests on HEAD b28baf82e. No production fix was made. If the fixer changes production code, this coverage is stale.
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: web-task-actions; base 6871a30a616a9df59b921d877b9ed23119f78133; HEAD 84f65350795165c8d1f44aec8dc630455cc67d4c; the six task commits from the parent, equal to `git log 6871a30a6..HEAD`.
+- Source/test snapshot identifier (including uncommitted inputs): production = HEAD 84f653507, no uncommitted production change. Uncommitted test file: `task-detail.spec.ts` sha256 dcd47e9391f18effead791abca08f1d7d5d815995a5c32f02a2f77039ca3fb65 (taken after the run; no edit after the run). `reviews/web-task-actions/review.md` was also modified in the working tree, not by this helper (not a test input).
+- Exact included files (under `web/src/app/features/gtd/`): `lists/list-page.ts`, `next/next-view.ts`, `projects/project-detail-page.ts`, `task-detail/task-checklist.ts`, `task-detail/task-detail.service.ts`, `task-detail/task-detail.ts`, `today/today-view.ts`, `ui/task-undo.ts`. Excluded: `ui/index.ts` (re-export barrel, no coverage entry from the provider); `.html` templates (v8 measures TypeScript; the DOM tests exercise them); `.scss`; `web/src/locale/*.xlf` (data, checked by messages-de.spec.ts); spec files. No renames or deletions.
+- Provider/version, command, working directory, and test selection: Vitest 5.0.5 with `@vitest/coverage-v8` (node v24.21.0); `npm run coverage -- --include='src/app/features/gtd/**/*.spec.ts' --include='src/locale/messages-de.spec.ts'` in `web/`.
+- Run start/completion time and exit status: started 2026-11-08 15:31:09 +01:00, reports written 15:31:25; 34 files, 882 tests passed, no error.
+- Generated report paths and report hashes/run identifier: `web/coverage/web/coverage-final.json` (sha256 e629645f665ecd93c9d9c08ea4484dafd198978eb27714b4d05eec0649e31720), `web/coverage/web/coverage-summary.json` (sha256 817cec391a2b4a1c473441857e1264d6111a23070590d9cb4ec95ea64a2a832a).
+- Evidence outputs are fresh and inputs stayed unchanged: reports dated 15:31:25, after the last spec edit (about 15:29); Vitest rewrites `coverage/` per run.
+- Final run after latest test additions and production fixes: yes (HEAD 84f653507 contains the last production fix; the new test was added before the run).
+- Changed-line method: added lines from `git diff 6871a30a6..HEAD -U0 -- src/app/features/gtd/`, intersected with `statementMap` start lines and `branchMap` start lines of `coverage-final.json`.
 
 Values below use covered/total (percentage).
 
@@ -117,26 +96,26 @@ Values below use covered/total (percentage).
 | `gtd/projects/project-detail-page.ts` | 150/152 (98.7%) | 67/76 (88.2%) | 41/41 (100%) | 131/131 (100%) |
 | `gtd/task-detail/task-checklist.ts` | 113/114 (99.1%) | 49/50 (98.0%) | 34/35 (97.1%) | 88/89 (98.9%) |
 | `gtd/task-detail/task-detail.service.ts` | 17/17 (100%) | 8/8 (100%) | 13/13 (100%) | 15/15 (100%) |
-| `gtd/task-detail/task-detail.ts` | 288/292 (98.6%) | 190/203 (93.6%) | 65/65 (100%) | 237/237 (100%) |
+| `gtd/task-detail/task-detail.ts` | 303/307 (98.7%) | 202/215 (94.0%) | 64/64 (100%) | 248/248 (100%) |
 | `gtd/today/today-view.ts` | 48/51 (94.1%) | 19/21 (90.5%) | 18/19 (94.7%) | 39/41 (95.1%) |
 | `gtd/ui/task-undo.ts` | 23/23 (100%) | 7/7 (100%) | 7/7 (100%) | 18/18 (100%) |
-| Aggregate (8 measured files, summed counters; `ui/index.ts`, templates excluded as above) | 765/778 (98.3%) | 383/412 (93.0%) | 222/225 (98.7%) | 636/641 (99.2%) |
+| Aggregate (8 measured files, summed counters; `ui/index.ts` and templates excluded as above) | 780/793 (98.4%) | 395/424 (93.2%) | 221/224 (98.7%) | 647/652 (99.2%) |
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `next/next-view.ts:224-226`, `today/today-view.ts:113-115` (the `task.completedAt` reopen branch of `toggleDone`) | Reopening a done row from Next/Today | Left uncovered: these views list open tasks only and a completed row disappears at once, so a done row cannot be clicked there. The task only split this existing branch apart. Reopen without Undo is covered through the Logbook (ListPage). |
-| `task-detail/task-detail.ts:311` (`if (!task) return` after the save in `toggleDone`) | Defensive guard: the task cannot disappear between the save and the action | Not material. |
-| `task-detail/task-detail.ts:154` (`?? ''` of `notesHtml` without a draft) | No draft yet (loading state); the view is not rendered then | Not material. |
-| `task-detail/task-detail.ts:257, 392, 407` and branches 168, 226, 360, 362, 375, 412 | Code from before this task (setRepeat/convert guards, close label) | Outside the task's changed behavior. |
-| `projects/project-detail-page.ts:168, 264` and binary-expr branches | Code from before this task (makeNext without a project, etc.) | Outside the task's changed behavior. |
-| `task-detail/task-checklist.ts:134-135` (`drop`, CDK drag event) | Drag reorder, from before this task | Outside the task's changed behavior (reorder is covered through `reorder()` and the buttons). |
-| `lists/list-page.ts:13` binary-expr | Generated decorator branch | Not material. |
+| `next/next-view.ts:224-226`, `today/today-view.ts:113-115` (reopen branch of `toggleDone`) | Reopening a done row from Next/Today | Justified gap: these views list open tasks only and a completed row disappears at once. Reopen without Undo is covered through the Logbook (list-pages). |
+| `task-detail/task-detail.ts:315` (`if (!task) return` after the save-first) | Defensive guard: the shown task cannot vanish after a successful save of the same id | Not material. |
+| `task-detail/task-detail.ts:406, 421` (`this.busy()` guards of `toReference`/`toCalendar`) | Conversions while Complete/Delete runs | Not material: the buttons are disabled while busy ("shows the running action and starts nothing else meanwhile"); the guard is not reachable through the UI. |
+| `task-detail/task-detail.ts:197` (switch back to the id just deleted) | `deletedId` kept when the editor returns to the deleted task | Not material: after its own delete the page navigates away; the other branch is covered by "shows \"moved to the Trash\" when someone else deletes it after its own delete failed". |
+| `task-detail/task-detail.ts:154` (`?? ''` without a draft) | Loading state, notes view not rendered | Not material. |
+| `task-detail/task-detail.ts:168, 229, 260, 264, 389, 426`, branch 92 | Code from before this task | Outside the task's changed behavior. |
+| `projects/project-detail-page.ts:168, 264` and binary-expr branches; `task-checklist.ts:134-135` (`drop`) and branch 36; `list-page.ts:13` | Code from before this task, generated decorator branches | Outside the task's changed behavior. |
 
 ## Unable to test
 
-- Real browser behavior of focus/blur on removing the rename input (Chrome fires blur on removal). jsdom does not. The guard (`renaming` is cleared before saving) is covered by "saves only once when Enter is followed by a blur". No end-to-end (Playwright) test was run; the acceptance criteria name no e2e test.
-- `npm run check` (full lint, api:check, e2e typecheck, build) and `sh scripts/check.sh` were not run by this helper (see AC6). Follow-up: the parent worker runs them.
+- Real browser focus/blur when the rename input is removed (jsdom does not fire blur on removal); the guard is covered by "saves only once when Enter is followed by a blur". No Playwright test was run; the criteria name none.
+- `npm run check` and `sh scripts/check.sh` were not run by this helper (Gradle not allowed here); follow-up: the parent worker runs them.
 
 ## Summary
 
-Tests added and all validation passed (focused specs, the gtd folder, and the full web unit suite `npm run test:ci`). I found no production defect; the two low-severity observations TW-1 and TW-2 are for the parent to decide. `npm run check` and `.taskcheck` still need to be run by the parent worker.
+Tests added and all validation passed: one test added for the remaining exit of the new `toggleDone` guard (edits typed during the save-first); focused spec (148) and the full web unit suite (190 files, 4429 tests) pass; task-scoped coverage is fresh for HEAD 84f653507. No production defects found. `npm run check` and `.taskcheck` remain for the parent worker.
