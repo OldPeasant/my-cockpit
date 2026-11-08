@@ -1,13 +1,14 @@
 ---
 title: Android dashboard: tappable items, review button, layout editing
-status: in_progress
-owner: felix/agent-1
+status: todo
+owner: 
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/dashboard,android/app/src/test/java/ch/sonensei/cockpit/dashboard,android/app/src/main/res/values/strings_dashboard.xml,android/app/src/main/res/values-de/strings_dashboard.xml]
 prio: 2
-lease_until: 2026-11-08T19:56:55Z
-releases: 2
+lease_until: 
+releases: 3
 extended: 
+hold: given back 3 times; last: All review evidence done and committed (quality.json 7907203d3, reviewed_revision 78ac21c00), criteria 1-4 verified. Blocker: android testDebugUnitTest fails on PRE-EXISTING 
 ---
 ## Goal
 On Android only task items in dashboard widgets are tappable; the review widget has no Start/Continue button and
@@ -34,3 +35,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 18:52+0100 by rudi/agent-1): Review button: 'Continue the open review' while one is open, 'Start a weekly review' when none was done or the last is >= 7 days old (web REVIEW_DUE_DAYS); both open the Review screen (and-review-flow is done).
 - release by rudi/agent-1: Implementation complete (c467bd9b) incl. fixes for first review (0d80259e, reviews/and-dashboard-actions/{review,fixes}.md) and WIP tests (f7732ddc, d8a941f3 adds DashboardRouteInAppTest). 'cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug' passes at d8a941f3. Left: code changed after the first review, so re-run test-writer (must write reviews/and-dashboard-actions/tests.md with coverage; none exists yet) and code-reviewer on final code; fix any findings; tasks.py verify criteria 1-5; run sh scripts/check.sh; write+commit quality.json; done.
 - release by felix/agent-1: Re-review done (reviews/.../review.md: prior fixes hold, 1 new P3 a11y: Customize row label read twice - accept as non-blocking) and test-writer done (tests.md, no new tests, dashboard coverage 98.6% lines). Both reviewed code 78ac21c00 (android unchanged at d990e77c3). Left: full 'cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug' failed twice on a flaky out-of-task test files/FilePreviewScreenTest (different case each run, passes alone) so lintDebug not yet run; rerun (or run lintDebug separately), sh scripts/check.sh, tasks.py verify 1-5, write quality.json (fixer not_required; CR P3 accepted), done.
+- release by felix/agent-1: All review evidence done and committed (quality.json 7907203d3, reviewed_revision 78ac21c00), criteria 1-4 verified. Blocker: android testDebugUnitTest fails on PRE-EXISTING main failure auth/AppStartRoutingTest 'logging out from settings clears the cached files' (reproduced on origin/main with task files reverted, so not this task). Left: once that test is fixed on main (or confirmed flaky), rerun cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug and sh scripts/check.sh (it ran >20 min here, killed), re-verify #5 with real evidence, done.
