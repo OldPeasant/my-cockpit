@@ -18,7 +18,8 @@ and cannot complete/reopen it from task detail. Android has both, with undo.
   - verified (2026-11-08 15:35+0100 by dell26/agent-1): npx ng test --include ui/task-undo.spec.ts, next/next-view.spec.ts, today/today-view.spec.ts, projects/projects-pages.spec.ts, lists/list-pages.spec.ts, task-detail.spec.ts -> pass (undo snackbar after complete/delete in task detail; list undo in Next, Today, project detail, Waiting/Someday/Scheduled); part of npm run check -> 4429 passed
 - [x] Checklist items can be renamed inline
   - verified (2026-11-08 15:35+0100 by dell26/agent-1): npx ng test --include task-detail/task-checklist.spec.ts -> 44 passed ('rename': Enter/blur save, Escape cancels, empty/unchanged ignored, 412/error rollback); part of npm run check -> 4429 passed
-- [ ] Task notes are shown rendered as Markdown when not editing (click/Edit switches to the textarea)
+- [x] Task notes are shown rendered as Markdown when not editing (click/Edit switches to the textarea)
+  - verified (2026-11-08 15:35+0100 by dell26/agent-1): npx ng test --include task-detail.spec.ts 'rendered notes' -> pass (Markdown rendered when not editing, HTML escaped, Edit/click/Enter switch to textarea, link click keeps view, renders again after save/discard); part of npm run check -> 4429 passed
 - [ ] New UI strings are in `web/src/locale` (English + German)
 - [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
 
