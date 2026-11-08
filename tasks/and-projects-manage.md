@@ -1,12 +1,13 @@
 ---
 title: Android: create, edit, complete and drop projects
-status: in_progress
-owner: felix/agent-1
+status: todo
+owner: 
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/projects,android/app/src/test/java/ch/sonensei/cockpit/gtd/projects,android/app/src/main/res/values/strings_projects_lists.xml,android/app/src/main/res/values-de/strings_projects_lists.xml]
 prio: 1
-lease_until: 2026-11-08T11:26:54Z
-extended: felix/agent-1
+lease_until: 
+extended: 
+releases: 1
 ---
 ## Goal
 Android cannot create a project (only inside inbox "To project → New") nor edit one (SPEC.md §5.3; web:
@@ -28,3 +29,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 10:43+0100 by felix/agent-1): New project is an Add (+) icon action in the Projects list header, not a FAB: the app shell already places a global capture FAB (LocalFabClearance). New projects are created ACTIVE (status is editable afterwards), matching the criterion's field list.
 - ASSUMPTION (2026-11-08 10:43+0100 by felix/agent-1): 412 on save keeps the form open: projects are reloaded, the form is rebased on the current version keeping only the fields the user changed, and a banner + snackbar say so; the user saves again. 412 on status change/delete reloads and shows a snackbar.
 - extended by felix/agent-1: Implementation + review fixes committed (ef146b4a2): new-project action, edit form w/ status, markdown description edit/preview, delete w/ confirm, 412 handling, en/de strings, tests. fixes.md resolves CR-1..CR-3 from review.md (scoped android ktlint/test/lint passed per fixer). Left: code changed after review, so re-run test-writer + code-reviewer on final code, write quality.json, tasks.py verify #1-#7, run full scripts/check.sh (was slow >10min this session, server step, likely machine load), then done.
+- release by felix/agent-1: Done: implementation (7c90b1d04), first review + fixes (fixes.md, CR-1..3 of round 1), re-review of final code (review.md: 0 P0-P2, 3 P3) and extra tests, all committed (2fc0648f4). Left: (1) fixer for review.md P3 CR-1 (ProjectsViewModel.kt ~330: read currentProject(id) before the formSession check in the CONFLICT path) and CR-2 (ProjectsViewModel.kt ~311: confirm finishing status only if detail?.project?.id == id, else send PATCH so CONFLICT handling closes the form). The committed test 'finishing in the form after the project disappeared does not leave the save doing nothing' (ProjectsViewModelTest.kt:1143) FAILS until CR-2 is fixed. CR-3 (fixes.md:93 CHECK_RESULT_PLACEHOLDER): record the real check result in quality.json. (2) re-run test-writer (it never wrote reviews/and-projects-manage/tests.md, still missing) and code-reviewer on the final code. (3) quality.json, tasks.py verify #1-#7, sh scripts/check.sh, done. Note: AppStartRoutingTest 'logging out from settings clears the cached files' also failed once in the android run (auth, outside this task; looks like a timing flake under load).
