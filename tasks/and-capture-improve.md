@@ -12,7 +12,8 @@ Web capture shows a live preview of `#project @context !due ^waiting` and offers
 Android's capture sheet has neither and can only attach files that came from a share intent.
 
 ## Acceptance criteria
-- [ ] The sheet shows the parsed project/contexts/due/waiting as chips while typing (same parsing rules as web; offline-capable, no server call)
+- [x] The sheet shows the parsed project/contexts/due/waiting as chips while typing (same parsing rules as web; offline-capable, no server call)
+  - verified (2026-11-08 18:37+0100 by dell26/agent-3): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL, 4230 tests 0 failures; CaptureSyntaxTest (26, mirrors server CaptureParserTests), CaptureVocabularySourceTest (Room cache only), CaptureSheetCaptureTest syntax-chip tests, ShareViewModelCaptureTest 'the preview is local only and queues nothing', ShareAddAnotherActivityTest 'a project from the offline GTD cache is previewed as a chip while typing' pass
 - [ ] "Save and add another" keeps the sheet open, cleared
 - [ ] An attach button picks files/photos (system picker) and attachments can be removed before saving; works with the offline queue
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
