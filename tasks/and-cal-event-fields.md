@@ -16,7 +16,8 @@ The Android event editor lacks reminders, attendees, sending invitations, time z
 ## Acceptance criteria
 - [x] Reminders: add/remove (presets + custom minutes before)
   - verified (2026-11-08 15:28+0100 by dell26/agent-2): EventFormExtrasTest/EventEditorExtrasScreenTest/EventEditorViewModelExtrasTest reminder tests (presets, custom 0..40320 min, add/remove, save): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL, 3614 tests 0 failures (aa03d8eb)
-- [ ] Attendees: add (contact autocomplete) / remove, show their participation status; on save offer to send invitations / cancellations like web (iTIP REQUEST/CANCEL)
+- [x] Attendees: add (contact autocomplete) / remove, show their participation status; on save offer to send invitations / cancellations like web (iTIP REQUEST/CANCEL)
+  - verified (2026-11-08 15:28+0100 by dell26/agent-2): EventEditorViewModelExtrasTest guest/suggestion/invitation tests (contact autocomplete, remove, answer status, REQUEST/CANCEL prompt), EventExtrasRepositoryTest invitation POST, EventEditorExtrasScreenTest guest+prompt UI: cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL, 3614 tests 0 failures (aa03d8eb)
 - [ ] Time zone of the event editable
 - [ ] Linked items panel (uses `LinkedItemsPanel` if and-links-panel is done, otherwise read-only list) and "Create task / note from event"
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
