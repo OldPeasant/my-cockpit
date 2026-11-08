@@ -1,11 +1,11 @@
 ---
 title: Web mail read view: unread, flag, move, shortcuts r/a/f/c
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [web-mail-search-nav]
 touches: [web/src/app/features/mail/read,web/src/app/features/mail/list,web/src/locale]
 prio: 2
-lease_until: 2026-11-08T14:11:28Z
+lease_until: 
 ---
 ## Goal
 In the web read view mark unread, flag and move are missing (only reachable from list selection), and the SPEC
@@ -26,3 +26,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 14:28+0100 by dell26/agent-1): Shortcut help = the global ? overview: added a small root PageShortcuts registry in web/src/app/shell (outside the task's touches) so the mail list and read view show their keys there while open; no other mail shortcut help existed
 - ASSUMPTION (2026-11-08 14:28+0100 by dell26/agent-1): r/a/f only act in the read view (SPEC lists them generically); in the list they do nothing. c opens /mail/compose from the list and the read view; on the compose page itself it is not bound (it would only reopen the same page)
 - ASSUMPTION (2026-11-08 14:28+0100 by dell26/agent-1): Read view Move picks folders of the message's account via GET folders on demand (no folder store in the read page) and then behaves like Archive (next message of the list, else back); Star stays on the message; Mark unread waits for the pending mark-read request so they cannot cross
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 82s on 0f8e7508e; criteria verified 4/4
