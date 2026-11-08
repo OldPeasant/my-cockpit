@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/inbox,android/app/src/test/java/ch/sonensei/cockpit/gtd/inbox,android/app/src/main/java/ch/sonensei/cockpit/newitems,android/app/src/test/java/ch/sonensei/cockpit/newitems,android/app/src/main/res/values/strings_inbox.xml,android/app/src/main/res/values-de/strings_inbox.xml,android/app/src/main/res/values/strings_new.xml,android/app/src/main/res/values-de/strings_new.xml]
 prio: 1
-lease_until: 2026-11-08T10:22:05Z
+lease_until: 2026-11-08T10:27:11Z
 extended: dell26/agent-2
 ---
 ## Goal
