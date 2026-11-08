@@ -65,6 +65,8 @@ class MailReadScreenTest {
                         retry = { calls += "retry" },
                         gtd = { calls += "gtd $it" },
                         act = { calls += "act $it" },
+                        loadImages = { calls += "load images" },
+                        alwaysLoadImages = { calls += "always images" },
                     ),
                     zone = ZoneId.of("Europe/Zurich"),
                     body = { html, modifier ->
@@ -342,6 +344,95 @@ class MailReadScreenTest {
         composeRule.waitForIdle()
 
         assertEquals(listOf("seen ${id(1)}", "removed ${id(1)}", "close"), calls)
+    }
+
+    @Test
+    fun `blocked remote images show a banner with load images and always for this sender`() {
+        show(MailReadUiState(message = message.copy(remoteImagesBlocked = 2, fromAddress = "anna@example.org")))
+
+        composeRule.onNodeWithTag(MailReadTags.IMAGES_BANNER).assertIsDisplayed()
+        composeRule.onNodeWithTag(MailReadTags.IMAGES_BLOCKED).assertTextEquals("2 remote images were blocked.")
+        composeRule
+            .onNodeWithTag(MailReadTags.LOAD_IMAGES)
+            .assertTextEquals("Load images")
+            .assertIsEnabled()
+            .performClick()
+        composeRule
+            .onNodeWithTag(MailReadTags.ALWAYS_IMAGES)
+            .assertTextEquals("Always for this sender")
+            .assertIsEnabled()
+            .performClick()
+
+        assertEquals(listOf("load images", "always images"), calls)
+    }
+
+    @Test
+    fun `one blocked image is counted in the singular`() {
+        show(MailReadUiState(message = message.copy(remoteImagesBlocked = 1, fromAddress = "anna@example.org")))
+        composeRule.onNodeWithTag(MailReadTags.IMAGES_BLOCKED).assertTextEquals("1 remote image was blocked.")
+    }
+
+    @Test
+    fun `without a sender address the banner offers only load images`() {
+        show(MailReadUiState(message = message.copy(remoteImagesBlocked = 3, fromAddress = null)))
+
+        composeRule.onNodeWithTag(MailReadTags.LOAD_IMAGES).assertIsEnabled()
+        composeRule.onNodeWithTag(MailReadTags.ALWAYS_IMAGES).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a mail without blocked images has no banner`() {
+        show(MailReadUiState(message = message.copy(remoteImagesBlocked = 0, fromAddress = "anna@example.org")))
+
+        composeRule.onNodeWithTag(MailReadTags.IMAGES_BANNER).assertDoesNotExist()
+        composeRule.onNodeWithTag(MailReadTags.LOAD_IMAGES).assertDoesNotExist()
+        composeRule.onNodeWithTag(MailReadTags.ALWAYS_IMAGES).assertDoesNotExist()
+    }
+
+    @Test
+    fun `the banner buttons wait while an action runs`() {
+        show(MailReadUiState(message = message.copy(remoteImagesBlocked = 2, fromAddress = "anna@example.org"), busy = true))
+
+        composeRule.onNodeWithTag(MailReadTags.LOAD_IMAGES).assertIsNotEnabled().performClick()
+        composeRule.onNodeWithTag(MailReadTags.ALWAYS_IMAGES).assertIsNotEnabled().performClick()
+        assertEquals(emptyList<String>(), calls)
+    }
+
+    @Test
+    fun `failed images are reported`() {
+        show(MailReadUiState(message = message, notice = MailReadNotice.ImagesFailed))
+        composeRule.onNodeWithTag(MailReadTags.NOTICE).assertTextEquals("The images could not be loaded.")
+    }
+
+    @Test
+    fun `an unsaved sender is reported`() {
+        show(MailReadUiState(message = message, notice = MailReadNotice.SenderNotSaved))
+        composeRule
+            .onNodeWithTag(MailReadTags.NOTICE)
+            .assertTextEquals("The sender could not be saved; images are shown for this mail only.")
+    }
+
+    @Test
+    fun `the route's load images shows the mail with proxied images and the banner goes away`() {
+        val reader = mockk<MailReadRepository>()
+        val blocked = message.copy(remoteImagesBlocked = 2, fromAddress = "anna@example.org")
+        val proxied = blocked.copy(html = """<p>Hello</p><img src="/api/v1/mail/image-proxy?url=x">""", remoteImagesBlocked = 0)
+        coEvery { reader.message(id(1)) } returns MailResult.Ok(blocked)
+        coEvery { reader.message(id(1), true) } returns MailResult.Ok(proxied)
+        val vm = readViewModel(reader, mockk<MailRepository>())
+
+        composeRule.setContent {
+            CockpitTheme {
+                MailReadRoute(id = id(1), onClose = { calls += "close" }, viewModel = vm)
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(MailReadTags.LOAD_IMAGES).performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(MailReadTags.IMAGES_BANNER).assertDoesNotExist()
+        coVerify(exactly = 1) { reader.message(id(1), true) }
+        assertEquals(emptyList<String>(), calls)
     }
 
     @Test

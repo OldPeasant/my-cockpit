@@ -10,6 +10,7 @@ import mockwebserver3.MockWebServer
 import okhttp3.MediaType.Companion.toMediaType
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import retrofit2.Retrofit
@@ -107,6 +108,61 @@ class MailReadRepositoryTest {
             val plain = (repository.message(id(1)) as MailResult.Ok).value
             assertEquals("Plain", plain.text)
             assertEquals(0, plain.remoteImagesBlocked)
+        }
+
+    @Test
+    fun `remote images are asked for through the proxy only when wanted`() =
+        runBlocking {
+            val body =
+                """{"id":"${id(1)}","body":{"html":"<img src=\"/api/v1/mail/image-proxy?url=x\">","text":"",
+                |"remoteImageCount":1,"remoteImagesBlocked":false}}
+                """.trimMargin().replace("\n", "")
+            server.enqueue(json(body))
+            server.enqueue(json(body))
+            server.enqueue(json(body))
+
+            val proxied = (repository.message(id(1), proxyImages = true) as MailResult.Ok).value
+            val proxiedRequest = server.takeRequest()
+            assertEquals("/api/v1/mail/messages/${id(1)}", proxiedRequest.url.encodedPath)
+            assertEquals("PROXY", proxiedRequest.url.queryParameter("remoteImages"))
+            assertEquals(0, proxied.remoteImagesBlocked)
+            assertEquals("""<img src="/api/v1/mail/image-proxy?url=x">""", proxied.html)
+
+            // By default (and when not wanted) the server's own default applies: no remoteImages parameter at all.
+            repository.message(id(1))
+            assertNull(server.takeRequest().url.encodedQuery)
+            repository.message(id(1), proxyImages = false)
+            assertNull(server.takeRequest().url.encodedQuery)
+        }
+
+    @Test
+    fun `the sender address is the first non-blank From address, trimmed`() =
+        runBlocking {
+            server.enqueue(
+                json(
+                    """{"id":"${id(1)}","from":[{"name":"No Address","address":null},{"name":"Blank","address":"  "},
+                    |{"name":"Anna Example","address":" Anna@Example.org "},{"name":"Ben Example","address":"ben@example.org"}]}
+                    """.trimMargin().replace("\n", ""),
+                ),
+            )
+            server.enqueue(json("""{"id":"${id(1)}","from":[]}"""))
+            server.enqueue(json("""{"id":"${id(1)}"}"""))
+            server.enqueue(json("""{"id":"${id(1)}","from":[{"name":"Only A Name","address":null}]}"""))
+
+            assertEquals("Anna@Example.org", (repository.message(id(1)) as MailResult.Ok).value.fromAddress)
+            assertNull((repository.message(id(1)) as MailResult.Ok).value.fromAddress)
+            assertNull((repository.message(id(1)) as MailResult.Ok).value.fromAddress)
+            assertNull((repository.message(id(1)) as MailResult.Ok).value.fromAddress)
+        }
+
+    @Test
+    fun `a failed proxied load is reported like any other load`() =
+        runBlocking {
+            server.enqueue(status(404))
+            server.enqueue(status(503))
+
+            assertEquals(MailResult.Failed(404), repository.message(id(1), proxyImages = true))
+            assertEquals(MailResult.Offline, repository.message(id(1), proxyImages = true))
         }
 
     @Test

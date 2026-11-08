@@ -4,8 +4,11 @@ import android.net.Uri
 import android.webkit.WebResourceRequest
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.mockk.mockk
+import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -70,6 +73,70 @@ class MailWebViewTest {
         assertTrue(client.shouldOverrideUrlLoading(view, request("relative/path")))
 
         assertEquals(listOf("HTTPS://Example.org/Path", "MailTo:anna@example.org"), opened.map { it.toString() })
+    }
+
+    @Test
+    fun `the page's directives allow images only from the server origin and data, and nothing else`() {
+        val csp =
+            Regex("""http-equiv="Content-Security-Policy" content="([^"]*)"""")
+                .find(mailDocument("<p>Hello</p>"))
+                ?.groupValues
+                ?.get(1)
+        assertNotNull(csp)
+        val directives =
+            csp!!
+                .split(';')
+                .map { it.trim().split(' ').filter(String::isNotEmpty) }
+                .filter { it.isNotEmpty() }
+                .associate { it.first() to it.drop(1) }
+
+        assertEquals(setOf("default-src", "style-src", "img-src"), directives.keys)
+        assertEquals(listOf("'none'"), directives["default-src"])
+        assertEquals(listOf("'unsafe-inline'"), directives["style-src"])
+        assertEquals(listOf(MAIL_ORIGIN, "data:"), directives["img-src"])
+    }
+
+    @Test
+    fun `a request to another host is blocked, also with an image fetcher`() {
+        // A strict mock: any network call through the app's client would fail the test.
+        val fetcher = MailImageFetcher(mockk<OkHttpClient>())
+        val withImages = mailWebView(ApplicationProvider.getApplicationContext(), fetcher) { opened += it }
+        listOf(
+            "https://tracker.example.org/pixel.gif",
+            "https://cdn.example.org/api/v1/mail/image-proxy?url=x",
+            "http://server.invalid/api/v1/mail/image-proxy",
+            "https://server.invalid/api/v1/settings",
+            "https://server.invalid/style.css",
+            "file:///etc/hosts",
+            "data:image/png;base64,iVBORw0KGgo=",
+        ).forEach {
+            val response = withImages.webViewClient.shouldInterceptRequest(withImages, pageRequest(it))
+            assertNotNull(it, response)
+            assertEquals(it, 403, response!!.statusCode)
+            assertEquals(it, 0, response.data.readBytes().size)
+        }
+    }
+
+    @Test
+    fun `without an image fetcher every request is blocked, also the server's images`() {
+        listOf(
+            "https://server.invalid/api/v1/mail/messages/0190f3a2-0000-7000-8000-000000000001/attachments/2",
+            "https://server.invalid/api/v1/mail/image-proxy?url=x",
+            "https://tracker.example.org/pixel.gif",
+        ).forEach {
+            val response = view.webViewClient.shouldInterceptRequest(view, pageRequest(it))
+            assertEquals(it, 403, response?.statusCode)
+        }
+    }
+
+    @Test
+    fun `a tapped link to the server's stand-in origin is not opened`() {
+        val client = view.webViewClient
+        assertTrue(client.shouldOverrideUrlLoading(view, request("https://server.invalid/api/v1/mail/image-proxy?url=x")))
+        assertTrue(client.shouldOverrideUrlLoading(view, request("HTTPS://SERVER.INVALID/somewhere")))
+        assertTrue(client.shouldOverrideUrlLoading(view, request("http://server.invalid/")))
+
+        assertEquals(emptyList<Uri>(), opened)
     }
 
     private fun request(

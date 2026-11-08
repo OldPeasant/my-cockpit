@@ -60,7 +60,7 @@ class MailImageFetcher
                 return blockedResponse()
             }
             // The WebView reads and closes the stream (which closes the response).
-            return WebResourceResponse("${type.type}/${type.subtype}", null, response.body.byteStream())
+            return WebResourceResponse("${type.type}/${type.subtype}", null, OK, "OK", emptyMap(), response.body.byteStream())
         }
     }
 
@@ -85,6 +85,7 @@ internal fun blockedResponse() =
 
 private const val HTTPS_PORT = 443
 private const val FORBIDDEN = 403
+private const val OK = 200
 private const val IMAGE_PROXY_PATH = "/api/v1/mail/image-proxy"
 
 /** A message id (UUID) and an IMAP part id such as `2` or `1.2`; no escapes and no dot segments. */
