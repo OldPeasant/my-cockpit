@@ -83,6 +83,7 @@ class MailAttachmentsScreenTest {
             saveToFiles = { calls += "files ${it.partId}" },
             dismissNotice = { calls += "dismiss" },
             closePreview = { calls += "close preview" },
+            openPreviewed = { calls += "open previewed" },
             openFolder = { calls += "folder ${it.name}" },
             goToFolder = { calls += "go $it" },
             saveHere = { calls += "save here" },
@@ -269,7 +270,7 @@ class MailAttachmentsScreenTest {
         composeRule.onNodeWithTag(MailAttachmentTags.PREVIEW_OPEN).performClick()
         composeRule.onNodeWithTag(MailAttachmentTags.PREVIEW_CLOSE).performClick()
 
-        assertEquals(listOf("close preview", "open 2", "close preview"), calls)
+        assertEquals(listOf("open previewed", "close preview"), calls)
     }
 
     @Test

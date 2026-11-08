@@ -5,6 +5,9 @@ import ch.sonensei.cockpit.core.network.generated.infrastructure.Serializer
 import ch.sonensei.cockpit.core.network.generated.models.FileResponse
 import ch.sonensei.cockpit.mail.list.MailResult
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -222,6 +225,78 @@ class MailAttachmentRepositoryTest {
 
             assertEquals(MailResult.Offline, result)
             assertEquals("%PDF-1.4 first part", out.toString())
+            assertTrue("target not closed", targetClosed)
+            assertTrue("response body not closed", bodyClosed)
+        }
+
+    @Test
+    fun `a cancelled download stops streaming partway and closes target and body`() =
+        runBlocking {
+            val chunk = 1024
+            val maxReads = 10_000
+            var reads = 0
+            var bodyClosed = false
+            val streaming = CompletableDeferred<Unit>()
+            val endless =
+                object : Source {
+                    override fun read(
+                        sink: Buffer,
+                        byteCount: Long,
+                    ): Long {
+                        if (reads >= maxReads) return -1
+                        reads++
+                        if (reads == 5) streaming.complete(Unit)
+                        sink.write(ByteArray(chunk))
+                        return chunk.toLong()
+                    }
+
+                    override fun timeout() = Timeout.NONE
+
+                    override fun close() {
+                        bodyClosed = true
+                    }
+                }
+            val api =
+                object : MailAttachmentApi {
+                    override suspend fun download(
+                        id: String,
+                        partId: String,
+                    ): Response<ResponseBody> = Response.success(endless.buffer().asResponseBody("application/pdf".toMediaType()))
+
+                    override suspend fun saveToFiles(
+                        id: String,
+                        partId: String,
+                    ): Response<FileResponse> = error("not called")
+                }
+            var targetClosed = false
+            val cancelled = CompletableDeferred<Unit>()
+            val out =
+                object : OutputStream() {
+                    override fun write(b: Int) = Unit
+
+                    override fun write(
+                        b: ByteArray,
+                        off: Int,
+                        len: Int,
+                    ) {
+                        // Each chunk waits until the test has cancelled, once the transfer is under way.
+                        if (streaming.isCompleted) runBlocking { cancelled.await() }
+                    }
+
+                    override fun close() {
+                        targetClosed = true
+                    }
+                }
+
+            val download =
+                async(Dispatchers.Default) { MailAttachmentRepository(api, mockk()).download(id(1), "2", { out }) }
+            streaming.await()
+            download.cancel()
+            cancelled.complete(Unit)
+            runCatching { download.await() }
+
+            assertTrue("download not cancelled", download.isCancelled)
+            assertTrue("kept streaming after cancel: $reads reads", reads < maxReads)
             assertTrue("target not closed", targetClosed)
             assertTrue("response body not closed", bodyClosed)
         }

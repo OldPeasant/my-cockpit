@@ -247,6 +247,49 @@ class MailAttachmentsViewModelTest {
         assertNull(kind("README", null))
     }
 
+    @Test
+    fun `the cache file is chosen for the mail, so two mails never share one`() =
+        runTest(dispatcher) {
+            downloads()
+            val vm = viewModel()
+            var mail: UUID? = null
+
+            vm.open(pdf) {
+                mail = it
+                File(tmp.root, "report.pdf")
+            }
+            advanceUntilIdle()
+
+            assertEquals(id(1), mail)
+        }
+
+    @Test
+    fun `open from the preview hands over the file already downloaded, without downloading again`() =
+        runTest(dispatcher) {
+            downloads()
+            val vm = viewModel()
+            val cache = File(tmp.root, "report.pdf")
+            vm.preview(pdf) { cache }
+            advanceUntilIdle()
+
+            vm.openPreviewed()
+            advanceUntilIdle()
+
+            assertEquals(OpenAttachment(cache, "application/pdf"), vm.opens.first())
+            assertNull(vm.state.preview)
+            coVerify(exactly = 1) { repository.download(any(), any(), any()) }
+        }
+
+    @Test
+    fun `open from the preview without a preview does nothing`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+
+            vm.openPreviewed()
+
+            assertNull(withTimeoutOrNull(1) { vm.opens.first() })
+        }
+
     // Save to device
 
     @Test
@@ -305,6 +348,56 @@ class MailAttachmentsViewModelTest {
             advanceUntilIdle()
 
             assertTrue(discarded)
+            coVerify(exactly = 0) { repository.download(any(), any(), any()) }
+            assertEquals(AttachmentNotice.Failed(AttachmentAction.SAVE), vm.state.notice)
+        }
+
+    @Test
+    fun `a save answer that arrives before its mail is shown waits for that mail, then saves`() =
+        runTest(dispatcher) {
+            downloads()
+            val vm = viewModel(message = null)
+            val out = ByteArrayOutputStream()
+            var discarded = false
+
+            vm.save(pdf, { out }, id(1)) { discarded = true }
+            advanceUntilIdle()
+            coVerify(exactly = 0) { repository.download(any(), any(), any()) }
+
+            vm.show(id(1))
+            advanceUntilIdle()
+
+            assertEquals("%PDF-1.4", out.toString())
+            assertEquals(AttachmentNotice.SavedToDevice("report.pdf"), vm.state.notice)
+            assertFalse(discarded)
+        }
+
+    @Test
+    fun `a waiting save is discarded and says so when another mail is shown`() =
+        runTest(dispatcher) {
+            val vm = viewModel(message = null)
+            var discarded = false
+
+            vm.save(pdf, { ByteArrayOutputStream() }, id(1)) { discarded = true }
+            vm.show(id(2))
+            advanceUntilIdle()
+
+            assertTrue(discarded)
+            assertEquals(AttachmentNotice.Failed(AttachmentAction.SAVE), vm.state.notice)
+            coVerify(exactly = 0) { repository.download(any(), any(), any()) }
+        }
+
+    @Test
+    fun `a save for another mail than the one shown is discarded and says so`() =
+        runTest(dispatcher) {
+            val vm = viewModel(message = id(2))
+            var discarded = false
+
+            vm.save(pdf, { ByteArrayOutputStream() }, id(1)) { discarded = true }
+            advanceUntilIdle()
+
+            assertTrue(discarded)
+            assertEquals(AttachmentNotice.Failed(AttachmentAction.SAVE), vm.state.notice)
             coVerify(exactly = 0) { repository.download(any(), any(), any()) }
         }
 

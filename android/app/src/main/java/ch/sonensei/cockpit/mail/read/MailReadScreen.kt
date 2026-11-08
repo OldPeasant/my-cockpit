@@ -625,27 +625,31 @@ private fun rememberAttachmentCallbacks(viewModel: MailAttachmentsViewModel): Ma
         }
     }
     // Saveable: the activity may be recreated while the "save as" picker is open.
-    var saving by rememberSaveable(stateSaver = PendingAttachmentSaver) { mutableStateOf<MailAttachment?>(null) }
+    // With its mail: after the process was restored, the answer can come before the mail is shown again.
+    var saving by rememberSaveable(stateSaver = PendingSaveSaver) { mutableStateOf<PendingSave?>(null) }
     val pickSaveTarget =
         rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
-            val attachment = saving
+            val pending = saving
             saving = null
-            if (uri != null && attachment != null) {
-                viewModel.save(attachment, { openForWriting(resolver, uri) }) { discardDocument(resolver, uri) }
+            if (uri != null && pending != null) {
+                viewModel.save(pending.attachment, { openForWriting(resolver, uri) }, pending.mail) { discardDocument(resolver, uri) }
             }
         }
-    val target = { attachment: MailAttachment -> { OpenedFiles.target(app, cacheId(attachment), attachment.name) } }
+    val target = { attachment: MailAttachment ->
+        { mail: UUID -> OpenedFiles.target(app, cacheId(mail, attachment), attachment.name) }
+    }
     return remember(viewModel, pickSaveTarget) {
         MailAttachmentCallbacks(
             open = { viewModel.open(it, target(it)) },
             preview = { viewModel.preview(it, target(it)) },
             saveToDevice = {
-                saving = it
+                saving = PendingSave(it, viewModel.shown)
                 pickSaveTarget.launch(it.name)
             },
             saveToFiles = viewModel::pickFolder,
             dismissNotice = viewModel::dismissNotice,
             closePreview = viewModel::closePreview,
+            openPreviewed = viewModel::openPreviewed,
             openFolder = viewModel::openFolder,
             goToFolder = viewModel::goToFolder,
             saveHere = viewModel::saveToFiles,
@@ -662,16 +666,36 @@ private fun viewType(open: OpenAttachment): String =
 
 private const val OCTET_STREAM = "application/octet-stream"
 
-/** The attachment waiting for the "save as" picker's answer, kept as strings in the saved state. */
-private val PendingAttachmentSaver =
-    Saver<MailAttachment?, List<String>>(
-        save = { a -> a?.let { listOf(it.partId, it.name, it.sizeBytes?.toString().orEmpty(), it.contentType.orEmpty()) } },
-        restore = { MailAttachment(it[0], it[1], it[2].toLongOrNull(), it[3].ifEmpty { null }) },
+/** The attachment waiting for the "save as" picker's answer, and its [mail] (`null`: none was shown). */
+private data class PendingSave(
+    val attachment: MailAttachment,
+    val mail: UUID?,
+)
+
+/** A [PendingSave], kept as strings in the saved state. */
+private val PendingSaveSaver =
+    Saver<PendingSave?, List<String>>(
+        save = { p ->
+            p?.attachment?.let {
+                listOf(it.partId, it.name, it.sizeBytes?.toString().orEmpty(), it.contentType.orEmpty(), p.mail?.toString().orEmpty())
+            }
+        },
+        restore = {
+            PendingSave(
+                MailAttachment(it[0], it[1], it[2].toLongOrNull(), it[3].ifEmpty { null }),
+                it.getOrNull(4)?.takeIf(String::isNotEmpty)?.let(UUID::fromString),
+            )
+        },
     )
 
-/** The cache folder of an attachment opened in another app: one per part, so the name it is shown with stays its own. */
-private fun cacheId(attachment: MailAttachment): UUID =
-    UUID.nameUUIDFromBytes("mail-attachment/${attachment.partId}/${attachment.name}".toByteArray())
+/**
+ * The cache folder of an attachment opened in another app: one per mail and part, so the name it is shown with stays
+ * its own and two mails with the same part never share a file.
+ */
+private fun cacheId(
+    mail: UUID,
+    attachment: MailAttachment,
+): UUID = UUID.nameUUIDFromBytes("mail-attachment/$mail/${attachment.partId}/${attachment.name}".toByteArray())
 
 private fun formatFull(
     instant: Instant,

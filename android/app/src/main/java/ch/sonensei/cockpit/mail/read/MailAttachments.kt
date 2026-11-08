@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -60,12 +61,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.graphics.createBitmap
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.files.DriveEntry
 import ch.sonensei.cockpit.files.formatSize
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /** What the attachment list can ask for, so it can be tested without a view model. */
 data class MailAttachmentCallbacks(
@@ -75,6 +80,8 @@ data class MailAttachmentCallbacks(
     val saveToFiles: (MailAttachment) -> Unit = {},
     val dismissNotice: () -> Unit = {},
     val closePreview: () -> Unit = {},
+    /** Opens the previewed attachment in another app, from the file the preview already downloaded. */
+    val openPreviewed: () -> Unit = {},
     /** The picker shows [DriveEntry.Folder]. */
     val openFolder: (DriveEntry.Folder) -> Unit = {},
     /** The picker shows the folder at this depth of its path: 0 is the drive root. */
@@ -312,10 +319,7 @@ private fun AttachmentPreviewDialog(
                         modifier = Modifier.weight(1f),
                     )
                     IconButton(
-                        onClick = {
-                            callbacks.closePreview()
-                            callbacks.open(preview.attachment)
-                        },
+                        onClick = callbacks.openPreviewed,
                         modifier = Modifier.testTag(MailAttachmentTags.PREVIEW_OPEN),
                     ) {
                         Icon(
@@ -344,12 +348,71 @@ private fun ImagePreview(file: File) {
 
 @Composable
 private fun PdfPreview(file: File) {
-    val pages by produceState<Pages>(null, file) {
-        value = withContext(Dispatchers.IO) { renderPdf(file) }
-        // Pages leave memory with the preview.
-        awaitDispose { value?.forEach { it.recycle() } }
+    // null while the document opens; it is closed when the preview leaves.
+    val document by produceState<PdfDocument?>(null, file) {
+        var opened: PdfDocument? = null
+        try {
+            withContext(Dispatchers.IO) { opened = PdfDocument.open(file) }
+            value = opened
+            awaitCancellation()
+        } finally {
+            opened?.close()
+        }
     }
-    PreviewPages(pages)
+    when (val pdf = document) {
+        null -> PreviewPages(null)
+        PdfDocument.UNREADABLE -> PreviewPages(emptyList())
+        else ->
+            // Pages are rendered one at a time as they scroll into view and recycled when they leave it.
+            LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(pdf.pageRatios.size) { index -> PdfPage(pdf, index) }
+            }
+    }
+}
+
+@Composable
+private fun PdfPage(
+    pdf: PdfDocument,
+    index: Int,
+) {
+    val description = stringResource(R.string.mail_attachment_page, index + 1, pdf.pageRatios.size)
+    // null while it renders; a page that cannot be rendered (no memory for it) shows a note, the others still show.
+    val page by produceState<PdfPageImage?>(null, pdf, index) {
+        var bitmap: Bitmap? = null
+        try {
+            withContext(Dispatchers.IO) { bitmap = pdf.render(index) }
+            value = bitmap?.let { PdfPageImage.Rendered(it) } ?: PdfPageImage.Failed
+            awaitCancellation()
+        } finally {
+            bitmap?.recycle()
+        }
+    }
+    // The page keeps its shape while it renders, so the list composes only the pages in view.
+    Box(
+        Modifier.fillMaxWidth().aspectRatio(pdf.pageRatios[index]),
+        contentAlignment = Alignment.Center,
+    ) {
+        when (val shown = page) {
+            null -> CircularProgressIndicator()
+            PdfPageImage.Failed ->
+                Text(stringResource(R.string.mail_attachment_cannot_show), modifier = Modifier.padding(16.dp))
+            is PdfPageImage.Rendered ->
+                Image(
+                    shown.bitmap.asImageBitmap(),
+                    contentDescription = description,
+                    contentScale = ContentScale.FillWidth,
+                    modifier = Modifier.fillMaxSize(),
+                )
+        }
+    }
+}
+
+private sealed interface PdfPageImage {
+    class Rendered(
+        val bitmap: Bitmap,
+    ) : PdfPageImage
+
+    data object Failed : PdfPageImage
 }
 
 @Composable
@@ -386,31 +449,115 @@ private fun decodeImage(file: File): Bitmap? =
         BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
     }.getOrNull()
 
-/** The first [MAX_PDF_PAGES] pages of the PDF in [file], [PDF_PAGE_PX] wide; empty when it cannot be rendered. */
-private fun renderPdf(file: File): List<Bitmap> =
-    runCatching {
-        ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
-            PdfRenderer(descriptor).use { renderer ->
-                (0 until minOf(renderer.pageCount, MAX_PDF_PAGES)).map { index ->
+/**
+ * An open PDF whose first [MAX_PDF_PAGES] pages are rendered on demand, one at a time ([PdfRenderer] allows only one
+ * open page). [pageRatios] is each page's width / height. [close] can come from the main thread while a page renders:
+ * the document is then closed as soon as that page is done, without blocking the caller.
+ */
+private class PdfDocument private constructor(
+    private val descriptor: ParcelFileDescriptor?,
+    private val renderer: PdfRenderer?,
+    val pageRatios: List<Float>,
+) {
+    private val lock = ReentrantLock()
+
+    @Volatile private var closing = false
+    private var closed = false
+
+    /** Page [index], [PDF_PAGE_PX] wide; `null` when it cannot be rendered (e.g. no memory for it) or the document closed. */
+    fun render(index: Int): Bitmap? {
+        val bitmap =
+            lock.withLock {
+                if (closing || renderer == null) return@withLock null
+                var rendered: Bitmap? = null
+                try {
                     renderer.openPage(index).use { page ->
-                        val height =
-                            (PDF_PAGE_PX.toLong() * page.height / page.width.coerceAtLeast(1)).toInt().coerceIn(
-                                1,
-                                MAX_PREVIEW_PX * 2,
-                            )
-                        Bitmap.createBitmap(PDF_PAGE_PX, height, Bitmap.Config.ARGB_8888).apply {
-                            eraseColor(Color.WHITE)
-                            page.render(this, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                        val height = (PDF_PAGE_PX / pageRatios[index]).toInt().coerceIn(1, MAX_PDF_PAGE_HEIGHT_PX)
+                        createBitmap(PDF_PAGE_PX, height).also {
+                            rendered = it
+                            it.eraseColor(Color.WHITE)
+                            page.render(it, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                         }
                     }
+                } catch (_: OutOfMemoryError) {
+                    rendered?.recycle()
+                    null
+                } catch (_: RuntimeException) {
+                    rendered?.recycle()
+                    null
                 }
             }
+        if (closing) closeIfIdle()
+        return bitmap
+    }
+
+    fun close() {
+        closing = true
+        closeIfIdle()
+    }
+
+    private fun closeIfIdle() {
+        if (!lock.tryLock()) return
+        try {
+            if (!closed) {
+                closed = true
+                runCatching { renderer?.close() }
+                runCatching { descriptor?.close() }
+            }
+        } finally {
+            lock.unlock()
         }
-    }.getOrDefault(emptyList())
+    }
+
+    companion object {
+        /** A file that is not a readable PDF. */
+        val UNREADABLE = PdfDocument(null, null, emptyList())
+
+        /** Opens the PDF in [file] and reads its page sizes; [UNREADABLE] when it cannot be opened or has no pages. */
+        fun open(file: File): PdfDocument {
+            var descriptor: ParcelFileDescriptor? = null
+            var renderer: PdfRenderer? = null
+            return try {
+                descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+                renderer = PdfRenderer(descriptor)
+                val ratios =
+                    (0 until minOf(renderer.pageCount, MAX_PDF_PAGES)).map { index ->
+                        renderer.openPage(index).use { page ->
+                            (page.width.toFloat() / page.height.coerceAtLeast(1)).coerceIn(MIN_PAGE_RATIO, MAX_PAGE_RATIO)
+                        }
+                    }
+                if (ratios.isEmpty()) error("The PDF has no pages")
+                PdfDocument(descriptor, renderer, ratios)
+            } catch (_: Exception) {
+                closeQuietly(renderer, descriptor)
+                UNREADABLE
+            } catch (_: LinkageError) {
+                // A platform without a working PDF renderer: the user can still open the file in another app.
+                closeQuietly(renderer, descriptor)
+                UNREADABLE
+            }
+        }
+
+        private fun closeQuietly(
+            renderer: PdfRenderer?,
+            descriptor: ParcelFileDescriptor?,
+        ) {
+            runCatching { renderer?.close() }
+            runCatching { descriptor?.close() }
+        }
+    }
+}
 
 private const val MAX_PREVIEW_PX = 2048
 private const val PDF_PAGE_PX = 1080
 private const val MAX_PDF_PAGES = 30
+
+/** A page is at most twice the preview limit tall: about 17.7 MB at [PDF_PAGE_PX] wide, and only pages in view are kept. */
+private const val MAX_PDF_PAGE_HEIGHT_PX = MAX_PREVIEW_PX * 2
+
+/** The shapes a page is shown with: no taller than [MAX_PDF_PAGE_HEIGHT_PX] at full width, and no flatter than 4:1. */
+private val MIN_PAGE_RATIO = PDF_PAGE_PX.toFloat() / MAX_PDF_PAGE_HEIGHT_PX
+private const val MAX_PAGE_RATIO = 4f
 
 /** "Save to Files": the drive's folders, from the root down; "Save here" stores the attachment in the folder shown. */
 @Composable

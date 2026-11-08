@@ -11,6 +11,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.ResponseBody
 import retrofit2.Response
@@ -66,7 +67,8 @@ class MailAttachmentRepository
     ) {
         /**
          * Streams attachment [partId] of message [id] into what [target] opens; `Failed(null)` when it opens nothing or
-         * writing fails (a full disk is not a lost connection). Returns the bytes written.
+         * writing fails (a full disk is not a lost connection). Returns the bytes written. Cancelling stops the transfer
+         * after the current chunk and closes the response body, so an abandoned download does not keep streaming.
          */
         suspend fun download(
             id: UUID,
@@ -83,7 +85,7 @@ class MailAttachmentRepository
                                     unwritable = true
                                     throw IOException("The target cannot be written")
                                 }
-                            out.use { copy(body.byteStream(), it) { unwritable = true } }
+                            out.use { copy(body.byteStream(), it, { ensureActive() }) { unwritable = true } }
                         }
                     }
                 if (unwritable) MailResult.Failed(null) else result
@@ -114,15 +116,17 @@ class MailAttachmentRepository
 
 private fun FileResponse.toSaved() = SavedAttachment(id, name, folderId)
 
-/** Copies [input] to [out]; a failed write calls [writeFailed] first. */
+/** Copies [input] to [out], calling [checkActive] (throws when cancelled) before each chunk; a failed write calls [writeFailed] first. */
 private fun copy(
     input: InputStream,
     out: OutputStream,
+    checkActive: () -> Unit,
     writeFailed: () -> Unit,
 ): Long {
     val buffer = ByteArray(BUFFER_SIZE)
     var total = 0L
     while (true) {
+        checkActive()
         val read = input.read(buffer)
         if (read < 0) return total
         try {

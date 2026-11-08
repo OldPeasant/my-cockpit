@@ -9,6 +9,7 @@ import ch.sonensei.cockpit.files.FolderCrumb
 import ch.sonensei.cockpit.mail.list.MailResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -121,27 +122,57 @@ class MailAttachmentsViewModel internal constructor(
     private var job: Job? = null
     private var pickerJob: Job? = null
 
-    /** The attachments shown are those of [id] (`null`: no mail); what ran for another mail is dropped. */
+    /** A "save as" answer that arrived before its mail was shown (the app was restored while the picker was open). */
+    private var waitingSave: WaitingSave? = null
+
+    /** The mail whose attachments are shown, `null`: none. */
+    val shown: UUID? get() = messageId
+
+    /**
+     * The attachments shown are those of [id] (`null`: no mail); what ran for another mail is dropped. A save waiting
+     * for [id] starts now; one for another mail is discarded.
+     */
     fun show(id: UUID?) {
         if (id == messageId) return
         messageId = id
         job?.cancel()
         pickerJob?.cancel()
         state.value = MailAttachmentsUiState()
+        val waiting = waitingSave?.takeIf { id != null } ?: return
+        waitingSave = null
+        if (waiting.mail == id) {
+            startSave(id, waiting.attachment, waiting.target, waiting.discard)
+        } else {
+            discardLater(waiting.discard)
+            saveDropped()
+        }
     }
 
-    /** Downloads [attachment] into the cache file [target] chooses, then asks the screen to open it. */
+    /**
+     * Downloads [attachment] into the cache file [target] chooses (given the mail's id, so each mail has its own), then
+     * asks the screen to open it.
+     */
     fun open(
         attachment: MailAttachment,
-        target: () -> File,
+        target: (UUID) -> File,
     ) = toCache(attachment, AttachmentAction.OPEN, target) { file ->
         openChannel.send(OpenAttachment(file, attachment.contentType))
     }
 
-    /** Downloads [attachment] into the cache file [target] chooses and shows it in the app (images and PDFs). */
+    /** Opens the attachment shown in the preview in another app, from the file already downloaded for it. */
+    fun openPreviewed() {
+        val preview = state.value.preview ?: return
+        state.update { it.copy(preview = null) }
+        openChannel.trySend(OpenAttachment(preview.file, preview.attachment.contentType))
+    }
+
+    /**
+     * Downloads [attachment] into the cache file [target] chooses (given the mail's id) and shows it in the app (images
+     * and PDFs).
+     */
     fun preview(
         attachment: MailAttachment,
-        target: () -> File,
+        target: (UUID) -> File,
     ) {
         val kind = previewKind(attachment) ?: return
         toCache(attachment, AttachmentAction.PREVIEW, target) { file ->
@@ -157,19 +188,56 @@ class MailAttachmentsViewModel internal constructor(
     fun dismissNotice() = state.update { it.copy(notice = null) }
 
     /**
-     * Downloads [attachment] into the document [target] opens (the user picked where); a failed download, or a save
-     * ignored because another action runs, calls [discard] so no empty copy stays there.
+     * Downloads [attachment] of [mail] (`null`: the mail shown) into the document [target] opens (the user picked
+     * where); a failed download, or a save ignored because another action runs, calls [discard] so no empty copy stays
+     * there. When no mail is shown yet (the app was restored while the picker was open), the save waits for [mail] to be
+     * shown; a save for another mail than the one shown fails and says so.
      */
     fun save(
         attachment: MailAttachment,
         target: () -> OutputStream?,
+        mail: UUID? = null,
         discard: () -> Unit = {},
     ) {
-        val id = messageId
-        if (id == null || busy()) {
-            viewModelScope.launch(io) { runCatching { discard() } }
-            return
+        val shownId = messageId
+        val id = mail ?: shownId
+        when {
+            id == null -> {
+                discardLater(discard)
+                saveDropped()
+            }
+            shownId == null -> {
+                waitingSave?.let { discardLater(it.discard) }
+                waitingSave = WaitingSave(id, attachment, target, discard)
+            }
+            id != shownId -> {
+                discardLater(discard)
+                saveDropped()
+            }
+            busy() -> discardLater(discard)
+            else -> startSave(id, attachment, target, discard)
         }
+    }
+
+    override fun onCleared() {
+        // Not in viewModelScope: that is cancelled now.
+        waitingSave?.let { waiting -> CoroutineScope(io).launch { runCatching { waiting.discard() } } }
+        waitingSave = null
+    }
+
+    /** A save that could not run: other actions keep running, the user is told. */
+    private fun saveDropped() = state.update { it.copy(notice = AttachmentNotice.Failed(AttachmentAction.SAVE)) }
+
+    private fun discardLater(discard: () -> Unit) {
+        viewModelScope.launch(io) { runCatching { discard() } }
+    }
+
+    private fun startSave(
+        id: UUID,
+        attachment: MailAttachment,
+        target: () -> OutputStream?,
+        discard: () -> Unit,
+    ) {
         start(attachment) {
             var ok = false
             try {
@@ -258,7 +326,7 @@ class MailAttachmentsViewModel internal constructor(
     private fun toCache(
         attachment: MailAttachment,
         action: AttachmentAction,
-        target: () -> File,
+        target: (UUID) -> File,
         done: suspend (File) -> Unit,
     ) {
         val id = messageId ?: return
@@ -269,7 +337,7 @@ class MailAttachmentsViewModel internal constructor(
             try {
                 val result =
                     attachments.download(id, attachment.partId) {
-                        target().also { cache = it }.let(::openCache)
+                        target(id).also { cache = it }.let(::openCache)
                     }
                 ok = result is MailResult.Ok
                 finish(if (ok) null else result.failed(action))
@@ -292,6 +360,13 @@ class MailAttachmentsViewModel internal constructor(
 
     private fun finish(notice: AttachmentNotice?) = state.update { it.copy(working = null, notice = notice) }
 }
+
+private class WaitingSave(
+    val mail: UUID,
+    val attachment: MailAttachment,
+    val target: () -> OutputStream?,
+    val discard: () -> Unit,
+)
 
 private const val TOO_LARGE = 413
 
