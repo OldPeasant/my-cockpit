@@ -1,7 +1,7 @@
 ---
 title: Android compose: recipient autocomplete, attach from Files
-status: todo
-owner: 
+status: in_progress
+owner: Peter Gürtler
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/compose,android/app/src/test/java/ch/sonensei/cockpit/mail/compose,android/app/src/main/res/values/strings_mail_compose.xml,android/app/src/main/res/values-de/strings_mail_compose.xml]
 prio: 2
