@@ -135,3 +135,93 @@ private fun ContactsResult<*>.message() =
         ContactsResult.Offline -> ContactsMessage.OFFLINE
         is ContactsResult.Failed -> ContactsMessage.FAILED
     }
+
+/** Why saving or deleting did not work. */
+enum class ContactSaveError { OFFLINE, FAILED, CONFLICT, NOT_ALLOWED }
+
+data class ContactEditUiState(
+    val form: ContactForm = ContactForm.empty(),
+    /** The contact being edited; `null` for a new one. */
+    val base: Contact? = null,
+    val saving: Boolean = false,
+    /** Shown only after a save was tried, so an empty new form starts without errors. */
+    val problem: ContactFormProblem? = null,
+    val error: ContactSaveError? = null,
+    /** The saved (or, for a delete, the trashed) contact: the screen then closes the form. */
+    val saved: Contact? = null,
+    val deleted: Boolean = false,
+)
+
+/** Creates, edits and deletes (to the Trash) contacts, like the web's contact form. */
+@HiltViewModel
+class ContactEditViewModel
+    @Inject
+    constructor(
+        private val contacts: ContactsRepository,
+    ) : ViewModel() {
+        private val state = MutableStateFlow(ContactEditUiState())
+        val uiState: StateFlow<ContactEditUiState> = state.asStateFlow()
+
+        /** Starts editing [contact] (`null`: a new one), dropping any earlier form. */
+        fun start(contact: Contact?) {
+            state.value = ContactEditUiState(form = contact?.let(ContactForm::of) ?: ContactForm.empty(), base = contact)
+        }
+
+        fun change(form: ContactForm) {
+            state.update { it.copy(form = form, problem = if (it.problem != null) form.problem() else null) }
+        }
+
+        fun save() {
+            val current = state.value
+            if (current.saving) return
+            val problem = current.form.problem()
+            if (problem != null) {
+                state.update { it.copy(problem = problem) }
+                return
+            }
+            state.update { it.copy(saving = true, problem = null, error = null) }
+            viewModelScope.launch {
+                val request = current.form.toRequest()
+                val result = current.base?.let { contacts.update(it, request) } ?: contacts.create(request)
+                if (result is ContactsResult.Ok) {
+                    state.update { it.copy(saving = false, saved = result.value, base = result.value) }
+                    return@launch
+                }
+                val error = result.saveError()
+                // After a conflict the next Save goes against the current version; the form keeps the user's edits.
+                val reloaded = if (error == ContactSaveError.CONFLICT) current.base?.let { contacts.get(it.id) } else null
+                state.update {
+                    it.copy(saving = false, error = error, base = (reloaded as? ContactsResult.Ok)?.value ?: it.base)
+                }
+            }
+        }
+
+        /** Moves [contact] to the Trash (the screen asks first). */
+        fun delete(contact: Contact) {
+            if (state.value.saving) return
+            state.update { it.copy(base = contact, saving = true, error = null) }
+            viewModelScope.launch {
+                val result = contacts.delete(contact)
+                state.update { it.copy(saving = false, deleted = result is ContactsResult.Ok, error = if (result is ContactsResult.Ok) null else result.saveError()) }
+            }
+        }
+
+        fun dismissError() = state.update { it.copy(error = null) }
+    }
+
+private fun ContactsResult<*>.saveError() =
+    when (this) {
+        is ContactsResult.Ok -> null
+        ContactsResult.Offline -> ContactSaveError.OFFLINE
+        is ContactsResult.Failed ->
+            when (status) {
+                CONFLICT, PRECONDITION_FAILED -> ContactSaveError.CONFLICT
+                FORBIDDEN, METHOD_NOT_ALLOWED -> ContactSaveError.NOT_ALLOWED
+                else -> ContactSaveError.FAILED
+            }
+    }
+
+private const val FORBIDDEN = 403
+private const val METHOD_NOT_ALLOWED = 405
+private const val CONFLICT = 409
+private const val PRECONDITION_FAILED = 412

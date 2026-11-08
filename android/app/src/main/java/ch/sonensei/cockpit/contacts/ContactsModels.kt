@@ -23,6 +23,14 @@ data class Contact(
     val notesMd: String?,
     /** `LOCAL`, `GOOGLE`, `MICROSOFT` or `CARDDAV`. */
     val source: String,
+    /** Sent back as `If-Match` when the contact is changed or deleted. */
+    val version: Long = 0,
+    val givenName: String? = null,
+    val familyName: String? = null,
+    /** The addresses field by field, for the edit form. */
+    val addressFields: List<ContactAddressDto> = emptyList(),
+    /** Kept as is when the contact is saved from the form (which does not edit the photo). */
+    val photoFileId: UUID? = null,
 )
 
 /** A phone number, email or address with its free-text label (`mobile`, `work`, ...). */
@@ -73,6 +81,11 @@ internal fun ContactResponse.toContact() =
         birthday = birthday,
         notesMd = notesMd?.takeIf { it.isNotBlank() },
         source = source.value,
+        version = version,
+        givenName = givenName?.takeIf { it.isNotBlank() },
+        familyName = familyName?.takeIf { it.isNotBlank() },
+        addressFields = addresses,
+        photoFileId = photoFileId,
     )
 
 private fun ContactAddressDto.oneLine(): String? {

@@ -2,7 +2,7 @@
 <resources>
     <string name="contacts_search">Search contacts</string>
     <string name="contacts_clear_search">Clear search</string>
-    <string name="contacts_empty">No contacts yet. Add them on the web or import a vCard there.</string>
+    <string name="contacts_empty">No contacts yet. Add one with New contact, or import a vCard on the web.</string>
     <string name="contacts_empty_search">No contacts match \"%1$s\".</string>
     <string name="contacts_offline">Can\'t reach the server. Showing the last loaded contacts.</string>
     <string name="contacts_failed">The contacts could not be loaded.</string>
@@ -31,4 +31,38 @@
     <string name="contacts_related_offline_stale">Can\'t reach the server. Mail, events and Waiting For items may be out of date.</string>
     <string name="contacts_related_failed_stale">Mail, events and Waiting For items could not be reloaded and may be out of date.</string>
     <string name="contacts_not_loaded">This contact could not be loaded.</string>
+    <string name="contacts_new">New contact</string>
+    <string name="contacts_edit">Edit</string>
+    <string name="contacts_delete">Delete</string>
+    <string name="contacts_edit_title">Edit contact</string>
+    <string name="contacts_save">Save</string>
+    <string name="contacts_cancel">Cancel</string>
+    <string name="contacts_given_name">First name</string>
+    <string name="contacts_family_name">Last name</string>
+    <string name="contacts_display_name">Display name (optional)</string>
+    <string name="contacts_organization">Organization</string>
+    <string name="contacts_job_title">Job title</string>
+    <string name="contacts_label">Label</string>
+    <string name="contacts_street">Street</string>
+    <string name="contacts_postal_code">Postal code</string>
+    <string name="contacts_city">City</string>
+    <string name="contacts_region">Region</string>
+    <string name="contacts_country">Country</string>
+    <string name="contacts_birthday_hint">YYYY-MM-DD</string>
+    <string name="contacts_add_email">Add email</string>
+    <string name="contacts_add_phone">Add phone</string>
+    <string name="contacts_add_address">Add address</string>
+    <string name="contacts_remove_field">Remove</string>
+    <string name="contacts_name_required">Enter a name, an organization or an email address.</string>
+    <string name="contacts_invalid_birthday">Enter the birthday as YYYY-MM-DD.</string>
+    <string name="contacts_save_offline">Can\'t reach the server. Nothing was saved.</string>
+    <string name="contacts_save_failed">The contact could not be saved.</string>
+    <string name="contacts_save_conflict">It was changed elsewhere in the meantime. Your changes are kept: save again to replace that version.</string>
+    <string name="contacts_not_allowed">This contact comes from %1$s, which does not accept changes from the cockpit. Change it there.</string>
+    <string name="contacts_delete_title">Delete contact?</string>
+    <string name="contacts_delete_text">\"%1$s\" is moved to the Trash.</string>
+    <string name="contacts_trashed">Moved \"%1$s\" to the Trash</string>
+    <string name="contacts_delete_failed">The contact could not be deleted.</string>
+    <string name="contacts_source_local">Kept in the cockpit only</string>
+    <string name="contacts_source_synced">Synced with %1$s</string>
 </resources>

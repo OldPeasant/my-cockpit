@@ -2,7 +2,7 @@
 <resources>
     <string name="contacts_search">Kontakte suchen</string>
     <string name="contacts_clear_search">Suche löschen</string>
-    <string name="contacts_empty">Noch keine Kontakte. Füge sie im Web hinzu oder importiere dort eine vCard.</string>
+    <string name="contacts_empty">Noch keine Kontakte. Füge einen mit «Neuer Kontakt» hinzu oder importiere im Web eine vCard.</string>
     <string name="contacts_empty_search">Keine Kontakte passen zu „%1$s“.</string>
     <string name="contacts_offline">Server nicht erreichbar. Die zuletzt geladenen Kontakte werden angezeigt.</string>
     <string name="contacts_failed">Die Kontakte konnten nicht geladen werden.</string>
@@ -31,4 +31,38 @@
     <string name="contacts_related_offline_stale">Server nicht erreichbar. E-Mails, Termine und „Warten auf“-Einträge sind möglicherweise veraltet.</string>
     <string name="contacts_related_failed_stale">E-Mails, Termine und „Warten auf“-Einträge konnten nicht neu geladen werden und sind möglicherweise veraltet.</string>
     <string name="contacts_not_loaded">Dieser Kontakt konnte nicht geladen werden.</string>
+    <string name="contacts_new">Neuer Kontakt</string>
+    <string name="contacts_edit">Bearbeiten</string>
+    <string name="contacts_delete">Löschen</string>
+    <string name="contacts_edit_title">Kontakt bearbeiten</string>
+    <string name="contacts_save">Speichern</string>
+    <string name="contacts_cancel">Abbrechen</string>
+    <string name="contacts_given_name">Vorname</string>
+    <string name="contacts_family_name">Nachname</string>
+    <string name="contacts_display_name">Anzeigename (optional)</string>
+    <string name="contacts_organization">Organisation</string>
+    <string name="contacts_job_title">Funktion</string>
+    <string name="contacts_label">Bezeichnung</string>
+    <string name="contacts_street">Strasse</string>
+    <string name="contacts_postal_code">PLZ</string>
+    <string name="contacts_city">Ort</string>
+    <string name="contacts_region">Region</string>
+    <string name="contacts_country">Land</string>
+    <string name="contacts_birthday_hint">JJJJ-MM-TT</string>
+    <string name="contacts_add_email">E-Mail hinzufügen</string>
+    <string name="contacts_add_phone">Telefon hinzufügen</string>
+    <string name="contacts_add_address">Adresse hinzufügen</string>
+    <string name="contacts_remove_field">Entfernen</string>
+    <string name="contacts_name_required">Gib einen Namen, eine Organisation oder eine E-Mail-Adresse ein.</string>
+    <string name="contacts_invalid_birthday">Gib den Geburtstag als JJJJ-MM-TT ein.</string>
+    <string name="contacts_save_offline">Server nicht erreichbar. Es wurde nichts gespeichert.</string>
+    <string name="contacts_save_failed">Der Kontakt konnte nicht gespeichert werden.</string>
+    <string name="contacts_save_conflict">Er wurde inzwischen anderswo geändert. Deine Änderungen bleiben erhalten: Speichere erneut, um diese Version zu ersetzen.</string>
+    <string name="contacts_not_allowed">Dieser Kontakt stammt aus %1$s und kann im Cockpit nicht geändert werden. Ändere ihn dort.</string>
+    <string name="contacts_delete_title">Kontakt löschen?</string>
+    <string name="contacts_delete_text">«%1$s» wird in den Papierkorb verschoben.</string>
+    <string name="contacts_trashed">«%1$s» in den Papierkorb verschoben</string>
+    <string name="contacts_delete_failed">Der Kontakt konnte nicht gelöscht werden.</string>
+    <string name="contacts_source_local">Nur im Cockpit gespeichert</string>
+    <string name="contacts_source_synced">Synchronisiert mit %1$s</string>
 </resources>

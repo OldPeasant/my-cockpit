@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.contacts
 
 import ch.sonensei.cockpit.core.network.generated.apis.ContactsApi
+import ch.sonensei.cockpit.core.network.generated.models.ContactRequest
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -37,7 +38,7 @@ sealed interface ContactsResult<out T> {
     ) : ContactsResult<Nothing>
 }
 
-/** Contacts on the server (SPEC.md §8.3), read only: no local cache, every screen loads what it shows. */
+/** Contacts on the server (SPEC.md §8.3): no local cache, every screen loads what it shows. */
 @Singleton
 class ContactsRepository
     @Inject
@@ -62,6 +63,22 @@ class ContactsRepository
 
         /** The contact's Waiting For tasks, recent mails and upcoming events (its links are in the linked-items panel). */
         suspend fun related(id: UUID): ContactsResult<ContactRelated> = load { body(api.getContactRelated(id)).toRelated() }
+
+        /** Creates a LOCAL contact. */
+        suspend fun create(request: ContactRequest): ContactsResult<Contact> = load { body(api.createContact(request)).toContact() }
+
+        /** Replaces [base]'s fields with [request]; a change made elsewhere meanwhile fails with 409 or 412. */
+        suspend fun update(
+            base: Contact,
+            request: ContactRequest,
+        ): ContactsResult<Contact> = load { body(api.updateContact(base.id, request, etag(base.version))).toContact() }
+
+        /** Moves [base] to the Trash. */
+        suspend fun delete(base: Contact): ContactsResult<Unit> =
+            load {
+                val response = api.deleteContact(base.id, etag(base.version))
+                if (!response.isSuccessful) throw ContactsHttpFailure(response.code())
+            }
 
         private suspend fun <T> load(block: suspend () -> T): ContactsResult<T> =
             try {
@@ -91,6 +108,8 @@ class ContactsRepository
 private class ContactsHttpFailure(
     val status: Int,
 ) : Exception("HTTP $status")
+
+private fun etag(version: Long) = "\"$version\""
 
 private fun <T> body(response: Response<T>): T {
     val body = response.body()
