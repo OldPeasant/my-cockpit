@@ -32,3 +32,4 @@ the `cid:` image.
 Planned 2026-11-08. Related: the existing e2e stubs the image proxy, so it never caught this; the "ResizeObserver loop
 completed with undelivered notifications" errors the mail frame logs in the console may be silenced here if trivial
 (`fit()` in mail-frame.ts), otherwise leave them.
+- ASSUMPTION (2026-11-08 08:50+0100 by felix/agent-1): Firefox e2e project runs only e2e/mail-read (as the task names) and depends on phase-demos like chromium; the ResizeObserver console warning is left as is (not trivial without changing fit() timing)
