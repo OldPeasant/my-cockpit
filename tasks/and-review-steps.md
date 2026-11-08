@@ -24,7 +24,8 @@ The action steps of the weekly review on Android, matching web `steps/waiting-st
   - verified (2026-11-08 18:22+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.review.*' -> BUILD SUCCESSFUL, 0 failures; ReviewActionStepsTest 'someday - tasks and projects are activated, kept or deleted', ReviewDecisionsViewModelTest someday, ReviewActionsTest task vs project routing pass
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 18:22+0100 by dell26/agent-1): strings_review.xml in values/ and values-de/; ReviewActionStepsTest 'every review string has a German translation and no German string is orphaned' and 'in German the steps are translated' pass (gradlew testDebugUnitTest)
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 18:32+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> exit 0, 4200 tests 0 failures (test-writer run at 125c22729); sh scripts/check.sh -> exit 0, all checks passed; task tests ReviewActionsTest 19, ReviewDecisionsViewModelTest 24, ReviewActionStepsTest 17, ProjectOpenRequestsTest 5
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
