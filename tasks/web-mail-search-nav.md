@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [web-back-navigation,mail-images-web-settings]
 touches: [web/src/app/features/mail/list,web/src/app/features/mail/read,web/src/locale]
 prio: 1
-lease_until: 2026-11-08T12:53:43Z
+lease_until: 2026-11-08T12:58:47Z
 ---
 ## Goal
 The mail search lives only in a component signal (`mail-list-page.ts:56`), so opening a match and going back
