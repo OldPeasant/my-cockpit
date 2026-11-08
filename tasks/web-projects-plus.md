@@ -19,3 +19,4 @@ only open Next tasks while Android shows the project's waiting/someday/scheduled
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 16:48+0100 by dell26/agent-1): Delete lives in a 'More project actions' menu on project detail only (not on list rows), like Android's detail menu; after deleting, the page goes to /projects with an Undo snackbar that restores the project via POST /trash restore (type PROJECT).
