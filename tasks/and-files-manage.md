@@ -17,7 +17,8 @@ Android Files can browse, download and upload only (web: `files-page.html:76-200
   - verified (2026-11-08 14:07+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport at 4294509ec -> BUILD SUCCESSFUL, 3430 tests 0 failures; files.* tests (FilesViewModelTest 61, FilesScreenTest, FilesRepositoryTest, FilesRouteInAppTest) cover create folder, rename, move via folder picker (files+folders, root, subfolders), delete to Trash; code review reviews/and-files-manage/review.md: 0 P0-P2
 - [x] Long-press multi-select for move/delete
   - verified (2026-11-08 14:07+0100 by dell26/agent-1): same gradle run (3430 tests, 0 failures): FilesRouteInAppTest 'a folder and a file picked by long presses go to the Trash together, and the selection ends' and FilesViewModelTest selection move/delete tests (partial failures, back ends selection) pass
-- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [x] New strings are in English and German (`res/values/` + `res/values-de/`)
+  - verified (2026-11-08 14:07+0100 by dell26/agent-1): diffed res/values/strings_files.xml vs res/values-de/strings_files.xml: every new string/plural in both; ./gradlew lintDebug (MissingTranslation) -> BUILD SUCCESSFUL; reviewer confirmed same format args EN/DE
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
