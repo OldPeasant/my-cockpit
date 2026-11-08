@@ -1,11 +1,11 @@
 ---
 title: Web back buttons return to where the user came from
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [fix-mail-images-firefox]
 touches: [web/src/app/shared/navigation,web/src/app/features/mail/read,web/src/app/features/gtd/task-detail,web/src/app/features/notes/editor,web/src/app/features/contacts,web/src/app/features/gtd/projects]
 prio: 1
-lease_until: 2026-11-08T11:35:00Z
+lease_until: 
 extended: dell26/agent-1
 ---
 ## Goal
@@ -38,3 +38,4 @@ Android already returns to the origin for New → mail (`NewScreen.kt:118`); And
 - ASSUMPTION (2026-11-08 11:43+0100 by dell26/agent-1): Known limitation (review CR-1, P3): after a Back that a page refused (unsaved changes), pressing the browser's Forward is ignored by the Angular router (same URL), so the back-navigation mirror stays one step behind and the next back-button click seems to do nothing; the browser's own Back behaves the same. Rare sequence, accepted rather than adding more router special-casing.
 - extended by dell26/agent-1: Impl complete for all 7 criteria (service, back button, labels, used by mail/task/project/note/contact/bookmark, mail actions, i18n). Left: (1) fix or consciously descope skipped test 'goes to the parent route after a Back to an entry it never saw that another navigation took over' in back-navigation.spec.ts (previous() still returns left page); stop chasing further exotic history races, record as assumption; (2) re-run test-writer + code-reviewer on final code (reports are stale since 42661c14c); (3) verify criteria 1-7, write quality.json, sh scripts/check.sh, done.
 - ASSUMPTION (2026-11-08 12:12+0100 by dell26/agent-1): Known limitation (review CR-1, P3): a browser Forward right after a Back that was still loading leaves the back button pointing one page off for one step (router emits only NavigationSkipped); rare race, accepted rather than adding deferred mirror moves
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 82s on 5cfcb443a; criteria verified 7/7
