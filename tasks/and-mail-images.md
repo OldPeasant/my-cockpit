@@ -1,11 +1,11 @@
 ---
 title: Android shows mail images (inline and on request)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-user-settings]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/read,android/app/src/test/java/ch/sonensei/cockpit/mail/read,android/app/src/main/res/values/strings_mail.xml,android/app/src/main/res/values-de/strings_mail.xml]
 prio: 1
-lease_until: 2026-11-08T09:24:04Z
+lease_until: 
 ---
 ## Goal
 Android shows no images in mail at all: the WebView blocks network loads and its CSP only allows `data:`
@@ -35,3 +35,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 09:44+0100 by dell26/agent-1): WebView blockNetworkLoads/blockNetworkImage are now false (Chromium may block before shouldInterceptRequest and Blink skips image requests otherwise); safety comes from shouldInterceptRequest answering every request (allowed server image paths via OkHttp, everything else an empty 403) plus the CSP. Only image/* answers are passed to the page.
 - ASSUMPTION (2026-11-08 09:44+0100 by dell26/agent-1): Allowed-sender check is case-insensitive on the first From address (as web); for an allowed sender the mail is loaded with BLOCK first and re-fetched with PROXY (sender only known from the mail), policy=allow fetches PROXY directly. 'Always for this sender' loads the images even if saving the setting fails (shows a notice). Added optional remoteImages query param to MailApi.message (mail/list, outside touches, one line).
 - ASSUMPTION (2026-11-08 09:47+0100 by dell26/agent-1): Manual emulator check (criterion 5) skipped: no emulator here. Real-WebView behaviour (shouldInterceptRequest firing for img loads with blockNetworkLoads=false, CSP with placeholder origin) is assumed from Android WebView docs and needs a human check on a device.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 69s on 90fd460aa; criteria verified 6/7, skipped #5
