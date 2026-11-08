@@ -380,6 +380,36 @@ describe('ProjectDetailPage: delete and list labels', () => {
       expect(snackMessages).toEqual([]);
     });
 
+    it('sends one DELETE when two confirmations were open at the same time', async () => {
+      let confirmBoth!: () => void;
+      const bothOpen = new Promise<void>((resolve) => (confirmBoth = resolve));
+      whileDialogOpen = () => bothOpen;
+      await render();
+      const page = fixture.componentInstance as unknown as { remove(): Promise<void> };
+
+      const first = page.remove();
+      const second = page.remove();
+      expect(dialogOpens).toBe(2);
+      confirmBoth();
+      await Promise.all([first, second]);
+      await refresh();
+
+      expect(callsOf(deleteProject)).toHaveLength(1);
+      expect(snackMessages).toEqual(['Moved “Tax return” to the Trash']);
+    });
+
+    it('drops the kept copy after a successful delete (no stale project on its route)', async () => {
+      await render();
+      await chooseDelete();
+      // The route stub still says p1 after the navigation: the page must not keep the deleted copy.
+      await refresh();
+      fixture.detectChanges();
+
+      expect(callsOf(deleteProject)).toHaveLength(1);
+      expect(element.querySelector('h1')?.textContent ?? '').not.toContain('Tax return');
+      expect(element.querySelector('button[aria-label="More project actions"]')).toBeNull();
+    });
+
     it('opens the confirmation with the default focus (Cancel via cdkFocusInitial)', async () => {
       await render();
       confirmed = false;
