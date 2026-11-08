@@ -21,7 +21,8 @@ Android mail cannot mark read/unread, flag, or move, has spam only in the read v
   - verified (2026-11-08 12:23+0100 by dell26/agent-2): MailActionsViewModelTest swipe + optimistic update/undo tests (moveBack to original folder, inverse marks, no undo for trash delete, failure restores rows) via testDebugUnitTest -> pass
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 12:23+0100 by dell26/agent-2): compared keys of android/app/src/main/res/values/strings_mail.xml and values-de/strings_mail.xml -> 79 keys each, no difference; lintDebug (MissingTranslation) -> pass
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 12:23+0100 by dell26/agent-2): android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL (3173 tests, 0 failures); sh scripts/check.sh -> all checks passed; JaCoCo task-scoped: 477/477 changed lines covered
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
