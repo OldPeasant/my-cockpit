@@ -324,6 +324,8 @@ class FilesViewModel internal constructor(
             // Only a folder move can clash with a name or go into itself; for a file a 409 is a concurrent change.
             val messages = failures.map { (entry, result) -> result.actionMessage(conflict = entry.moveConflict()) }
             val problem = messages.firstOrNull()
+            // A 404 can mean the target folder is gone (in the Trash): browse from the origin again, where it can't be.
+            val targetGone = failures.any { (_, result) -> result is FilesResult.Failed && result.status == NOT_FOUND }
             state.update {
                 it.copy(
                     // Only what is left to move stays in the picker, so trying again does not move anything twice.
@@ -331,11 +333,17 @@ class FilesViewModel internal constructor(
                         if (problem == null) {
                             null
                         } else {
-                            picker.copy(entries = failures.map { (entry, _) -> entry }, moving = false, moveMessage = problem)
+                            picker.copy(
+                                entries = failures.map { (entry, _) -> entry },
+                                path = if (targetGone) picker.origin else picker.path,
+                                moving = false,
+                                moveMessage = problem,
+                            )
                         },
                     selected = if (problem == null) emptySet() else it.selected,
                 )
             }
+            if (targetGone) loadPicker()
             results.firstOrNull { (_, result) -> result is FilesResult.Ok }?.let { (first, _) ->
                 eventChannel.send(FilesEvent.Changed(FilesChange.MOVED, moved, first.name))
             }
@@ -506,22 +514,29 @@ private fun FilesResult<*>.actionMessage(conflict: ActionMessage) =
 
 /**
  * The open dialog and picker take the reloaded versions of their entries from [fresh], the contents of [folder], so
- * trying again sends the current `If-Match`. Entries gone from the folder the picker moves from are dropped; when none
- * is left, the picker closes and says why.
+ * trying again sends the current `If-Match`. A renamed entry gone from [folder] closes the dialog, and entries gone from
+ * the folder the picker moves from are dropped; when none is left, the picker closes. Both say why in the list.
  */
 private fun FilesUiState.withVersionsOf(
     fresh: List<DriveEntry>,
     folder: UUID?,
 ): FilesUiState {
     val byId = fresh.associateBy { it.id }
-    val dialog = nameDialog?.let { d -> d.copy(entry = d.entry?.let { byId[it.id] ?: it }) }
+    val renamed = nameDialog?.entry
+    val gone = nameDialog?.saving == false && renamed != null && renamed.id !in byId
+    val dialogState =
+        if (gone) {
+            copy(nameDialog = null, actionMessage = ActionMessage.CHANGED)
+        } else {
+            copy(nameDialog = nameDialog?.let { d -> d.copy(entry = d.entry?.let { byId[it.id] ?: it }) })
+        }
     val picker = movePicker
-    if (picker == null || picker.moving || picker.origin.lastOrNull()?.id != folder) return copy(nameDialog = dialog)
+    if (picker == null || picker.moving || picker.origin.lastOrNull()?.id != folder) return dialogState
     val left = picker.entries.mapNotNull { byId[it.id] }
     return if (left.isEmpty()) {
-        copy(nameDialog = dialog, movePicker = null, actionMessage = picker.moveMessage ?: ActionMessage.CHANGED)
+        dialogState.copy(movePicker = null, actionMessage = picker.moveMessage ?: ActionMessage.CHANGED)
     } else {
-        copy(nameDialog = dialog, movePicker = picker.copy(entries = left))
+        dialogState.copy(movePicker = picker.copy(entries = left))
     }
 }
 

@@ -623,6 +623,25 @@ class FilesViewModelTest {
             coVerify(exactly = 3) { repo.list(null) }
         }
 
+    /** Review 2 CR-1: a rename of something trashed elsewhere cannot work again, so the dialog closes once the reload lacks it. */
+    @Test
+    fun `a rename of something gone elsewhere closes the dialog once the reload no longer has it`() =
+        runTest(dispatcher) {
+            coEvery { repo.list(null) } returnsMany listOf(FilesResult.Ok(listOf(docs, pdf)), FilesResult.Ok(listOf(docs)))
+            coEvery { repo.rename(pdf, any()) } returns FilesResult.Failed(404)
+            val vm = FilesViewModel(repo, dispatcher)
+            vm.refresh()
+            advanceUntilIdle()
+
+            vm.startRename(pdf)
+            vm.saveName("2026.pdf")
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.nameDialog)
+            assertEquals(ActionMessage.CHANGED, vm.uiState.value.actionMessage)
+            assertEquals(listOf<DriveEntry>(docs), vm.uiState.value.entries)
+            coVerify(exactly = 1) { repo.rename(pdf, any()) }
+        }
+
     @Test
     fun `a successful rename confirms the new name, other refusals are a failure`() =
         runTest(dispatcher) {
@@ -943,6 +962,39 @@ class FilesViewModelTest {
             assertNull(vm.uiState.value.movePicker)
             assertEquals(ActionMessage.CHANGED, vm.uiState.value.actionMessage)
             assertEquals(listOf<DriveEntry>(docs), vm.uiState.value.entries)
+        }
+
+    /**
+     * Review 2 CR-1: a move into a folder trashed elsewhere is refused with 404 while the entry is still there. The picker
+     * goes back to where the entry is and reloads it, so the gone folder is no longer offered as the target.
+     */
+    @Test
+    fun `a move into a folder gone elsewhere sends the picker back to where the entries are`() =
+        runTest(dispatcher) {
+            coEvery { repo.list(null) } returnsMany
+                listOf(FilesResult.Ok(listOf(docs, tax, pdf)), FilesResult.Ok(listOf(docs, tax, pdf)), FilesResult.Ok(listOf(tax, pdf)))
+            coEvery { repo.list(docs.id) } returns FilesResult.Ok(emptyList())
+            coEvery { repo.move(pdf, docs.id) } returns FilesResult.Failed(404)
+            val vm = FilesViewModel(repo, dispatcher)
+            vm.refresh()
+            advanceUntilIdle()
+            vm.startMove(pdf)
+            advanceUntilIdle()
+            vm.pickerOpen(docs)
+            advanceUntilIdle()
+
+            vm.confirmMove()
+            advanceUntilIdle()
+            val picker = vm.uiState.value.movePicker!!
+            assertEquals(listOf<DriveEntry>(pdf), picker.entries)
+            assertEquals(emptyList<FolderCrumb>(), picker.path)
+            assertEquals(listOf(tax), picker.folders)
+            assertEquals(ActionMessage.CHANGED, picker.moveMessage)
+            // Back where the entry is, "Move here" would change nothing: another folder has to be chosen.
+            assertFalse(picker.canMove)
+            vm.confirmMove()
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.move(pdf, any()) }
         }
 
     /** TW-1: the confirmation of a partly failed move names an entry that was not moved. */

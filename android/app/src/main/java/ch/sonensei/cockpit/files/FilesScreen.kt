@@ -516,38 +516,23 @@ private fun MovePickerDialog(
                 }
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
                     items(picker.folders, key = { it.id }) { folder ->
-                        val open = picker.canOpen(folder) && !picker.moving
+                        val openable = picker.canOpen(folder)
+                        val kind = if (folder.special != null) FileKind.SPECIAL_FOLDER else FileKind.FOLDER
+                        val nameColor = if (openable) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
                         Row(
                             Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .clickable(enabled = open) { callbacks.pickerOpen(folder) }
+                                .clickable(enabled = openable && !picker.moving) { callbacks.pickerOpen(folder) }
                                 .padding(vertical = 8.dp, horizontal = 4.dp)
                                 .testTag(FilesTags.pickerFolder(folder.id)),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            KindTile(
-                                if (folder.special !=
-                                    null
-                                ) {
-                                    FileKind.SPECIAL_FOLDER
-                                } else {
-                                    FileKind.FOLDER
-                                },
-                                dimmed = !picker.canOpen(folder),
-                            )
+                            KindTile(kind, dimmed = !openable)
                             Text(
                                 folder.name,
                                 style = MaterialTheme.typography.bodyLarge,
-                                color =
-                                    if (picker.canOpen(
-                                            folder,
-                                        )
-                                    ) {
-                                        MaterialTheme.colorScheme.onSurface
-                                    } else {
-                                        MaterialTheme.colorScheme.outline
-                                    },
+                                color = nameColor,
                                 maxLines = 1,
                                 overflow = TextOverflow.MiddleEllipsis,
                                 modifier = Modifier.weight(1f).padding(start = 12.dp),
