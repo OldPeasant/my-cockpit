@@ -196,7 +196,7 @@ private fun CockpitNavHost(
             val type = entry.arguments?.getString(SearchRoutes.ARG_TYPE).orEmpty()
             val id = entry.arguments?.getString(SearchRoutes.ARG_ID)?.let { runCatching { UUID.fromString(it) }.getOrNull() }
             if (id != null) {
-                SearchItemScreen(type, id, onClose = { navController.navigateUp() })
+                SearchItemScreen(type, id, onClose = { navController.close(entry) })
             }
         }
         composable(TaskRoutes.DETAIL) { entry ->
@@ -206,7 +206,7 @@ private fun CockpitNavHost(
                     id = id,
                     navigation =
                         TaskDetailNavigation(
-                            close = { navController.navigateUp() },
+                            close = { navController.close(entry) },
                             openTask = { navController.navigate(TaskRoutes.detail(it)) },
                             openItem = { type, item -> navController.navigate(SearchRoutes.item(type, item)) },
                             openScreen = { navController.open(it) },
@@ -249,6 +249,14 @@ internal fun fabClearance(destination: CockpitDestination): Dp =
     } else {
         ShellFabClearance
     }
+
+/**
+ * Leaves [entry] back to the screen below, if it is still the one shown: a screen asking twice (a mail deleted from
+ * global search closes once for the delete, once for the view) must not also leave the screen it was opened from.
+ */
+private fun NavHostController.close(entry: NavBackStackEntry) {
+    if (currentBackStackEntry?.id == entry.id) navigateUp()
+}
 
 /** Opens [destination] (from a notification, the More list, a Dashboard card): as a tab, or a More screen on top of the current one. */
 private fun NavHostController.open(destination: CockpitDestination) {

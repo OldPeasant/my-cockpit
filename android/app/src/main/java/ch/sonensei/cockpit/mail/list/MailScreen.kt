@@ -80,6 +80,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.mail.compose.ComposeMode
 import ch.sonensei.cockpit.mail.compose.MailComposeRoute
+import ch.sonensei.cockpit.mail.read.MailReadNavigation
 import ch.sonensei.cockpit.mail.read.MailReadRoute
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
@@ -169,12 +170,19 @@ fun MailRoute(
             modifier = modifier,
         )
     } else {
+        // Previous/next step through the list the mail was opened from: the search results, or the mailbox.
+        val search = state.search
+        val ids = (search?.results ?: state.messages).map { it.id }
+        // The last loaded mail of a mailbox fetches the next page, so "next" can go on.
+        val atLoadedEnd = search == null && ids.lastOrNull() == current && state.nextCursor != null
+        LaunchedEffect(atLoadedEnd) { if (atLoadedEnd) viewModel.loadMore() }
         MailReadRoute(
             id = current,
             onClose = { open = null },
             onSeen = viewModel::markSeen,
             onRemoved = viewModel::removed,
             onCompose = { composing = it.encode() },
+            navigation = MailReadNavigation.of(ids, current) { open = it.toString() },
             modifier = modifier,
         )
     }

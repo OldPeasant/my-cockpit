@@ -24,6 +24,8 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.HideImage
 import androidx.compose.material.icons.outlined.HourglassEmpty
 import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Report
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -58,7 +60,8 @@ import java.util.UUID
 
 /**
  * One mail, opened from a list. [onSeen] runs once it is shown (opening marks it read), [onRemoved] when it was
- * archived, deleted or moved to spam here; the view is closed by [onClose].
+ * archived, deleted or moved to spam here; the view then shows the next mail of [navigation], or closes (by [onClose])
+ * when there is none. [navigation] (previous/next) is given when the mail was opened from a list of mails.
  */
 @Composable
 fun MailReadRoute(
@@ -68,6 +71,7 @@ fun MailReadRoute(
     onSeen: (UUID) -> Unit = {},
     onRemoved: (UUID) -> Unit = {},
     onCompose: (ComposeMode) -> Unit = {},
+    navigation: MailReadNavigation? = null,
     viewModel: MailReadViewModel = hiltViewModel(),
 ) {
     // One view model for all mails (cleared with the Mail screen); it drops the mail when the view closes.
@@ -81,8 +85,11 @@ fun MailReadRoute(
     LaunchedEffect(state.message?.id) { if (state.message != null) onSeen(id) }
     LaunchedEffect(state.removed) {
         if (state.removed) {
+            // The neighbours are those of the list before the mail left it.
+            val list = navigation
+            val next = list?.next
             onRemoved(id)
-            close()
+            if (list != null && next != null) list.open(next) else close()
         }
     }
     MailReadContent(
@@ -98,8 +105,34 @@ fun MailReadRoute(
                 alwaysLoadImages = viewModel::alwaysLoadImages,
             ),
         modifier = modifier,
+        navigation = navigation,
         body = { html, m -> MailBodyView(html, m, viewModel.images) },
     )
+}
+
+/**
+ * The list a mail was opened from (search results or a mailbox), in its order: the mail at [position] (from 0) of
+ * [count], its neighbours [previous] and [next] (`null` at the ends), and [open] to show one of them.
+ */
+data class MailReadNavigation(
+    val position: Int,
+    val count: Int,
+    val previous: UUID?,
+    val next: UUID?,
+    val open: (UUID) -> Unit,
+) {
+    companion object {
+        /** [id]'s place in [ids], `null` when it is not (or no longer) in the list. */
+        fun of(
+            ids: List<UUID>,
+            id: UUID,
+            open: (UUID) -> Unit,
+        ): MailReadNavigation? {
+            val index = ids.indexOf(id)
+            if (index < 0) return null
+            return MailReadNavigation(index, ids.size, ids.getOrNull(index - 1), ids.getOrNull(index + 1), open)
+        }
+    }
 }
 
 /** What the read view can ask for, so it can be tested without a view model. */
@@ -117,6 +150,10 @@ data class MailReadCallbacks(
 
 internal object MailReadTags {
     const val BACK = "mail-read-back"
+    const val NAVIGATION = "mail-read-navigation"
+    const val POSITION = "mail-read-position"
+    const val PREVIOUS = "mail-read-previous"
+    const val NEXT = "mail-read-next"
     const val SUBJECT = "mail-read-subject"
     const val HEADERS = "mail-read-headers"
     const val BODY = "mail-read-body"
@@ -139,8 +176,9 @@ internal object MailReadTags {
 }
 
 /**
- * The read view: toolbar (back, GTD actions, archive, delete, spam), headers, then the sanitized HTML in [body] (a locked-down
- * WebView; replaceable in tests) or the plain text of a text-only mail.
+ * The read view: toolbar (back, GTD actions, archive, delete, spam), previous/next through the list it was opened from
+ * ([navigation], when given), headers, then the sanitized HTML in [body] (a locked-down WebView; replaceable in tests)
+ * or the plain text of a text-only mail.
  */
 @Composable
 fun MailReadContent(
@@ -148,10 +186,12 @@ fun MailReadContent(
     callbacks: MailReadCallbacks,
     modifier: Modifier = Modifier,
     zone: ZoneId = ZoneId.systemDefault(),
+    navigation: MailReadNavigation? = null,
     body: @Composable (String, Modifier) -> Unit = { html, m -> MailBodyView(html, m) },
 ) {
     Column(modifier.fillMaxSize()) {
         Toolbar(state, callbacks)
+        navigation?.let { NavigationRow(it, enabled = !state.busy) }
         if (state.loading || state.busy) LinearProgressIndicator(Modifier.fillMaxWidth()) else Spacer(Modifier.height(4.dp))
         state.notice?.let { Notice(it) }
         val message = state.message
@@ -187,6 +227,36 @@ private fun Toolbar(
         }
         ToolbarButton(Icons.Outlined.Report, R.string.mail_spam, MailReadTags.action(MailListAction.SPAM), enabled) {
             callbacks.act(MailListAction.SPAM)
+        }
+    }
+}
+
+/** "3 of 12" with previous and next (disabled at the ends and while an action runs). */
+@Composable
+private fun NavigationRow(
+    navigation: MailReadNavigation,
+    enabled: Boolean,
+) {
+    Row(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp).testTag(MailReadTags.NAVIGATION),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            stringResource(R.string.mail_read_position, navigation.position + 1, navigation.count),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f).testTag(MailReadTags.POSITION),
+        )
+        ToolbarButton(
+            Icons.Outlined.KeyboardArrowUp,
+            R.string.mail_read_previous,
+            MailReadTags.PREVIOUS,
+            enabled && navigation.previous != null,
+        ) {
+            navigation.previous?.let(navigation.open)
+        }
+        ToolbarButton(Icons.Outlined.KeyboardArrowDown, R.string.mail_read_next, MailReadTags.NEXT, enabled && navigation.next != null) {
+            navigation.next?.let(navigation.open)
         }
     }
 }
