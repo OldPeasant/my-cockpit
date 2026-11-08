@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MAT_DIALOG_DATA, MatDialog } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import { BehaviorSubject, of, Subject } from 'rxjs';
@@ -57,6 +57,9 @@ describe('ProjectDetailPage: delete and list labels', () => {
   let projects: ProjectResponse[];
   let tasks: TaskResponse[];
   let deleteFails: boolean;
+  let deleteGate: Promise<void> | undefined;
+  let restoreFails: boolean;
+  let dialogOpens: number;
   let confirmed: boolean | undefined;
   let dialogData: unknown;
   let snackAction: Subject<void>;
@@ -112,6 +115,9 @@ describe('ProjectDetailPage: delete and list labels', () => {
     projects = [project()];
     tasks = [task('t1', { title: 'Collect receipts' }), task('t2', { title: 'Fill form' })];
     deleteFails = false;
+    deleteGate = undefined;
+    restoreFails = false;
+    dialogOpens = 0;
     confirmed = true;
     dialogData = undefined;
     snackAction = new Subject<void>();
@@ -124,11 +130,13 @@ describe('ProjectDetailPage: delete and list labels', () => {
         if (fn === listContexts) return { items: [] };
         if (fn === listTasks) return { items: tasks.filter((t) => t.projectId === p['projectId']) };
         if (fn === deleteProject) {
+          if (deleteGate) await deleteGate;
           if (deleteFails) throw new Error('412');
           projects = projects.filter((x) => x.id !== p['id']);
           return undefined;
         }
         if (fn === restoreTrashItem) {
+          if (restoreFails) throw new Error('404');
           projects = [project({ version: 4 })];
           return undefined;
         }
@@ -156,6 +164,7 @@ describe('ProjectDetailPage: delete and list labels', () => {
           useValue: {
             open: (_component: unknown, config: { data: unknown }) => {
               dialogData = config.data;
+              dialogOpens++;
               return { afterClosed: () => of(confirmed) };
             },
           },
@@ -260,6 +269,69 @@ describe('ProjectDetailPage: delete and list labels', () => {
       expect(callsOf(restoreTrashItem)[0].params).toEqual({ type: 'PROJECT', id: 'p1' });
       expect(callsOf(listProjects).length).toBeGreaterThan(1);
     });
+
+    it('does not ask or delete twice while the delete runs', async () => {
+      let release!: () => void;
+      deleteGate = new Promise<void>((resolve) => (release = resolve));
+      await render();
+
+      await chooseDelete();
+      fixture.detectChanges();
+      expect(callsOf(deleteProject)).toHaveLength(1);
+      // The store removes the project optimistically, so its menu is gone while the request runs.
+      expect(element.querySelector('button[aria-label="More project actions"]')).toBeNull();
+      expect(snackMessages).toEqual([]);
+
+      // A second request while the first is pending (e.g. a keyboard shortcut or a stale click).
+      await (fixture.componentInstance as unknown as { remove(): Promise<void> }).remove();
+      expect(dialogOpens).toBe(1);
+      expect(callsOf(deleteProject)).toHaveLength(1);
+
+      release();
+      await refresh();
+      fixture.detectChanges();
+      expect(callsOf(deleteProject)).toHaveLength(1);
+      expect(snackMessages).toEqual(['Moved “Tax return” to the Trash']);
+    });
+
+    it('enables the menu again after a refused delete so it can be retried', async () => {
+      deleteFails = true;
+      await render();
+      await chooseDelete();
+      fixture.detectChanges();
+
+      const trigger = element.querySelector<HTMLButtonElement>(
+        'button[aria-label="More project actions"]',
+      )!;
+      expect(trigger.disabled).toBe(false);
+
+      deleteFails = false;
+      await chooseDelete();
+      expect(callsOf(deleteProject)).toHaveLength(2);
+      expect(snackMessages).toEqual(['Moved “Tax return” to the Trash']);
+    });
+
+    it('passes zero open tasks to the confirmation of a project without tasks', async () => {
+      tasks = [];
+      projects = [project({ nextTaskId: undefined })];
+      await render();
+      await chooseDelete();
+
+      expect(dialogData).toEqual({ title: 'Tax return', openTasks: 0 });
+    });
+
+    it('a failing Undo is swallowed (the HTTP layer reports it) and does not refresh', async () => {
+      restoreFails = true;
+      await render();
+      await chooseDelete();
+      const listsBefore = callsOf(listProjects).length;
+
+      snackAction.next();
+      await refresh();
+
+      expect(callsOf(restoreTrashItem)).toHaveLength(1);
+      expect(callsOf(listProjects)).toHaveLength(listsBefore);
+    });
   });
 });
 
@@ -295,5 +367,19 @@ describe('DeleteProjectDialog', () => {
 
   it('says that several open tasks keep the project', () => {
     expect(paragraphs(render(4))[1]).toBe('Its 4 open tasks stay open and keep the project.');
+  });
+
+  it('closes with false on Cancel and true on Delete project', () => {
+    const close = vi.fn();
+    TestBed.configureTestingModule({
+      providers: [{ provide: MatDialogRef, useValue: { close } }],
+    });
+    const element = render(2);
+    const [cancel, confirm] = [...element.querySelectorAll('button')];
+
+    cancel.click();
+    confirm.click();
+
+    expect(close.mock.calls.map((call) => call[0])).toEqual([false, true]);
   });
 });
