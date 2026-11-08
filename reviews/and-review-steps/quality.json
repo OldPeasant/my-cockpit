@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "task": "and-review-steps",
+  "reviewed_revision": "125c227295ba07e573b0a8af91b2883169914871",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-review-steps/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-review-steps/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-review-steps/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "tests for ReviewActions, decision view model, Compose steps and ProjectOpenRequests added (4c24ba45b, 125c22729); confirmed by re-review"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "per-step decided set survives conflict reloads, including keeps"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "late decisions announced only in the step they belong to"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "specific NEXT_STEP_NOT_SET message (en/de) when the task was created but not set as next step"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "status stateDescription; project title Role.Button and 48 dp min height"},
+    {"id": "CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "an error banner of a decision that fails after the user moved to another step still shows there; rare, informative only, no data effect; reviewer rated it non-blocking"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
