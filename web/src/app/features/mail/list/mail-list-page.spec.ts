@@ -14,6 +14,7 @@ import { NotificationService } from '../../../core/http';
 import MailListPage, { senderName, THREADED_KEY } from './mail-list-page';
 import { FakeEvents, FakeMail, summary } from './mail-testing';
 import { ApiError } from '../../../core/http';
+import { MailListSession } from './mail-list-session';
 import { MAIL_FOLDER_EVENT, MailListStore, REFRESH_DEBOUNCE_MS } from './mail-list-store';
 import { MailPage, MailService, MailSummary } from './mail.service';
 
@@ -46,6 +47,7 @@ describe('MailListPage', () => {
   let events: FakeEvents;
   let errors: string[];
   let params: BehaviorSubject<ParamMap>;
+  let query: BehaviorSubject<ParamMap>;
   let dialogResult: string | undefined;
   let dialogOpened: unknown[];
   /** When set, the picker stays open until the test emits on it. */
@@ -58,6 +60,10 @@ describe('MailListPage', () => {
       setup?: (mail: FakeMail) => void;
       /** What the first page request answers: the default three items, a page, an error, or nothing yet. */
       firstPage?: MailPage | Error | 'pending';
+      /** The URL's query parameters (the search). */
+      queryParams?: Record<string, string>;
+      /** Adjusts the root providers (e.g. the saved list) before the page starts. */
+      before?: () => void;
     } = {},
   ) {
     mail = new FakeMail();
@@ -75,6 +81,7 @@ describe('MailListPage', () => {
           : [folder('inbox-2', 'acc-2', 'INBOX', 'INBOX')],
       );
     params = new BehaviorSubject(convertToParamMap(folderId ? { folderId } : {}));
+    query = new BehaviorSubject(convertToParamMap(options.queryParams ?? {}));
     dialogOpened = [];
     dialogResult = undefined;
     dialogClosed = undefined;
@@ -85,7 +92,16 @@ describe('MailListPage', () => {
       imports: [MailListPage],
       providers: [
         provideRouter([]),
-        { provide: ActivatedRoute, useValue: { paramMap: params } },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            paramMap: params,
+            queryParamMap: query,
+            get snapshot() {
+              return { paramMap: params.value, queryParamMap: query.value };
+            },
+          },
+        },
         { provide: MailService, useValue: mail },
         { provide: ChangeEventsService, useValue: events },
         {
@@ -104,6 +120,7 @@ describe('MailListPage', () => {
         },
       ],
     });
+    options.before?.();
     fixture = TestBed.createComponent(MailListPage);
     await flush();
     const first = options.firstPage;
@@ -1045,6 +1062,160 @@ describe('MailListPage', () => {
       expect(serverBox().checked).toBe(true);
       await submit('lunch');
       expect(mail.searches[1]).toMatchObject({ query: 'lunch', folderId: 'proj-1', server: true });
+    });
+
+    describe('in the URL', () => {
+      let navigated: { url: string; replaceUrl: boolean }[];
+      const spyRouter = () => {
+        navigated = [];
+        vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockImplementation((url, extras) => {
+          navigated.push({ url: String(url), replaceUrl: !!extras?.replaceUrl });
+          return Promise.resolve(true);
+        });
+      };
+
+      it('puts a submitted search and the server option into the URL', async () => {
+        await create('inbox-1', { before: spyRouter });
+        await submit('my report');
+        expect(navigated).toEqual([
+          { url: '/mail/folders/inbox-1?q=my%20report', replaceUrl: false },
+        ]);
+        await answer(found);
+        serverBox().click();
+        expect(navigated[1]).toEqual({
+          url: '/mail/folders/inbox-1?q=my%20report&server=1',
+          replaceUrl: true,
+        });
+        // The same search again searches again without a new history entry.
+        await submit('my report');
+        expect(mail.searches).toHaveLength(3);
+        expect(navigated).toHaveLength(2);
+      });
+
+      it('takes the search out of the URL when it is cleared', async () => {
+        await create(null, { before: spyRouter });
+        await submit('report');
+        await submit('');
+        expect(navigated.at(-1)).toEqual({ url: '/mail', replaceUrl: false });
+      });
+
+      it('shows the search of the URL in the field and searches for it', async () => {
+        await create(null, { queryParams: { q: 'report', server: '1' }, firstPage: 'pending' });
+        expect(mail.lists).toEqual([]);
+        expect(mail.searches).toEqual([
+          expect.objectContaining({ query: 'report', folderId: null, server: true }),
+        ]);
+        await answer(found);
+        expect(field().value).toBe('report');
+        expect(serverBox().checked).toBe(true);
+        expect(subjects()).toEqual(['Newer report', 'Older report']);
+      });
+
+      it('goes back to the list when the URL loses the search (browser Back)', async () => {
+        await create('inbox-1', { before: spyRouter });
+        await submit('report');
+        await answer(found);
+        // The router confirms the page's own URL change: nothing is searched again.
+        query.next(convertToParamMap({ q: 'report' }));
+        await flush();
+        expect(mail.searches).toHaveLength(1);
+        query.next(convertToParamMap({}));
+        await flush();
+        fixture.detectChanges();
+        expect(field().value).toBe('');
+        expect(info()).toBeNull();
+        expect(mail.lists.at(-1)?.scope).toEqual({ folderId: 'inbox-1', threaded: false });
+      });
+    });
+
+    describe('when the page is left and shown again', () => {
+      function leave() {
+        fixture.destroy();
+        return TestBed.inject(MailListSession).saved();
+      }
+
+      it('saves the shown list with its URL, cursor and search results', async () => {
+        await create(null, { queryParams: { q: 'report' }, firstPage: 'pending' });
+        await answer(found);
+        press('j');
+        const saved = leave();
+        expect(saved).toMatchObject({
+          url: '/mail?q=report',
+          cursorId: 'o',
+          scope: { folderId: null, search: { query: 'report', server: false } },
+          searchResult: { hasMore: false, failedAccountIds: [] },
+        });
+        expect(saved?.items.map((item) => item.id)).toEqual(['n', 'o']);
+      });
+
+      it('saves nothing while the list still loads', async () => {
+        await create('inbox-1', { firstPage: 'pending' });
+        expect(leave()).toBeNull();
+      });
+
+      it('shows saved search results again without searching again', async () => {
+        await create(null, {
+          queryParams: { q: 'report' },
+          firstPage: 'pending',
+          before: () =>
+            TestBed.inject(MailListSession).save({
+              url: '/mail?q=report',
+              scrollTop: 0,
+              scope: { folderId: null, threaded: false, search: { query: 'report', server: false } },
+              items: found,
+              nextCursor: null,
+              cursorId: 'o',
+              searchResult: { hasMore: true, failedAccountIds: [] },
+            }),
+        });
+        expect(mail.searches).toEqual([]);
+        expect(mail.lists).toEqual([]);
+        expect(field().value).toBe('report');
+        expect(subjects()).toEqual(['Newer report', 'Older report']);
+        expect(rows()[1].getAttribute('aria-current')).toBe('true');
+        expect(info()?.textContent).toContain('Only the newest results are listed.');
+      });
+
+      it('shows a saved folder list again and refetches it in the background', async () => {
+        await create('inbox-1', {
+          firstPage: 'pending',
+          before: () =>
+            TestBed.inject(MailListSession).save({
+              url: '/mail/folders/inbox-1',
+              scrollTop: 0,
+              scope: { folderId: 'inbox-1', threaded: false },
+              items: [summary('a'), summary('b')],
+              nextCursor: null,
+              cursorId: 'b',
+              searchResult: null,
+            }),
+        });
+        expect(rows().map((row) => row.dataset['id'])).toEqual(['a', 'b']);
+        expect(mail.lists).toEqual([expect.objectContaining({ cursor: undefined, limit: 50 })]);
+        mail.lists[0].resolve({ items: [summary('b'), summary('c')], nextCursor: null });
+        await flush();
+        fixture.detectChanges();
+        expect(rows().map((row) => row.dataset['id'])).toEqual(['b', 'c']);
+        expect(rows()[0].getAttribute('aria-current')).toBe('true');
+      });
+
+      it('loads anew when the saved list is another one', async () => {
+        await create('proj-1', {
+          firstPage: 'pending',
+          before: () =>
+            TestBed.inject(MailListSession).save({
+              url: '/mail/folders/inbox-1',
+              scrollTop: 0,
+              scope: { folderId: 'inbox-1', threaded: false },
+              items: [summary('a')],
+              nextCursor: null,
+              cursorId: 'a',
+              searchResult: null,
+            }),
+        });
+        expect(rows()).toEqual([]);
+        expect(mail.lists[0].scope).toEqual({ folderId: 'proj-1', threaded: false });
+      });
     });
 
     it('does not refetch results on a live change event', async () => {

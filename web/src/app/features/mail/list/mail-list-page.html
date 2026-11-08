@@ -123,6 +123,7 @@
         <input
           #searchInput
           type="search"
+          [value]="search()?.query ?? ''"
           name="q"
           maxlength="200"
           autocomplete="off"

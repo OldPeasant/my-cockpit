@@ -19,6 +19,17 @@
   gap: var(--app-space-2);
 }
 
+.steps {
+  align-items: center;
+}
+
+.step-count {
+  min-width: 5ch;
+  color: var(--app-fg-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
 .status {
   margin: 0;
   color: var(--app-fg-muted);

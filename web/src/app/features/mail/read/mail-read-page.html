@@ -1,6 +1,42 @@
 <div class="read">
   <nav class="bar">
     <app-back-button fallback="/mail" [fallbackLabel]="mailLabel" />
+    @if (position(); as pos) {
+      <div
+        class="actions steps"
+        role="group"
+        i18n-aria-label="@@mailRead.stepsAria"
+        aria-label="Messages of the list"
+      >
+        <button
+          mat-stroked-button
+          type="button"
+          class="previous"
+          [disabled]="!pos.previousId || stepping()"
+          (click)="step(-1)"
+          i18n-title="@@mailRead.previousTitle"
+          title="Previous message (k)"
+          i18n="@@mailRead.previous"
+        >
+          ‹ Previous
+        </button>
+        <span class="step-count" i18n="@@mailRead.position"
+          >{{ pos.index + 1 }} of {{ pos.total }}{{ pos.more ? '+' : '' }}</span
+        >
+        <button
+          mat-stroked-button
+          type="button"
+          class="next"
+          [disabled]="(!pos.nextId && !pos.more) || stepping()"
+          (click)="step(1)"
+          i18n-title="@@mailRead.nextTitle"
+          title="Next message (j)"
+          i18n="@@mailRead.next"
+        >
+          Next ›
+        </button>
+      </div>
+    }
     @if (state() === 'ready') {
       <div
         class="actions"

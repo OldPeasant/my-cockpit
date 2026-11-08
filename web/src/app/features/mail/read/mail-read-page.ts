@@ -13,7 +13,7 @@ import {
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { map } from 'rxjs';
 import {
   ItemRefDto,
@@ -24,6 +24,7 @@ import {
 import { ApiError, NotificationService } from '../../../core/http';
 import { LinkedItems } from '../../../shared/links';
 import { BackButton, BackNavigation } from '../../../shared/navigation';
+import { MailListSession } from '../list/mail-list-session';
 import { MailAction, MailService } from '../list/mail.service';
 import { MailShortcut, mailShortcutFor } from '../list/mail-shortcuts';
 import { formatBytes } from './format-bytes';
@@ -59,6 +60,10 @@ export const TEXT_PREVIEW_LIMIT = 100_000;
  * plain text), "load images" (once or always for the sender), attachments (download, preview, save
  * to Files), the GTD actions, Archive, Spam and Delete (buttons or `e`, `!`, `#`, then back to where
  * it was opened from) and the linked items. Opening an unread message marks it read.
+ *
+ * Opened from a mail list (a folder, the unified Inbox or search results), previous/next (buttons or
+ * `k`/`j`) step through that list in its order, and Archive, Spam and Delete move on to the next
+ * message of the list (back to it when none is left).
  */
 @Component({
   selector: 'app-mail-read-page',
@@ -75,6 +80,8 @@ export default class MailReadPage {
   private readonly mail = inject(MailService);
   private readonly backNavigation = inject(BackNavigation);
   private readonly dialog = inject(MatDialog);
+  private readonly session = inject(MailListSession);
+  private readonly router = inject(Router);
 
   /** The back button's destination when the message was not opened from a page of the app. */
   protected readonly mailLabel = $localize`:@@mailRead.back:Mail`;
@@ -98,6 +105,14 @@ export default class MailReadPage {
   protected readonly preview = signal<Preview | null>(null);
   /** The Archive, Spam or Delete request that runs (one at a time). */
   protected readonly triaging = signal<TriageAction | null>(null);
+
+  /** Where the message is in the list it was opened from; null when not opened from a list. */
+  protected readonly position = computed(() => {
+    const id = this.id();
+    return id ? this.session.position(id) : null;
+  });
+  /** A step to the previous or next message is looking for its target (loading more of the list). */
+  protected readonly stepping = signal(false);
 
   /** The linked items panel (by reference, so tests can stand in for it). */
   private readonly links = viewChild<{ reload(): Promise<void> }>('links');
@@ -212,8 +227,15 @@ export default class MailReadPage {
         this.notifications.error(triageFailed(action, reason));
         return;
       }
+      // The list it was opened from no longer shows it; the message to show instead, if any.
+      const following = this.session.remove(id);
       // The user may have left this message (or the page) while the request ran: stay there.
       if (this.destroyed || this.message()?.id !== id) return;
+      if (following) {
+        // On to the next message of the list, in place of this one: Back still returns to the list.
+        await this.router.navigate(['/mail/messages', following], { replaceUrl: true });
+        return;
+      }
       // Back to where the message was opened from (or to Mail, replacing the message in the history,
       // so Back does not open it again).
       await this.backNavigation.back('/mail', { replaceUrl: true });
@@ -225,12 +247,36 @@ export default class MailReadPage {
   }
 
   /**
-   * `e` archives, `!` marks as spam and `#` deletes, as in the list (never while typing or while a
-   * dialog is open).
+   * Shows the previous (`-1`) or next (`1`) message of the list the message was opened from, in
+   * place of this one (Back still returns to the list).
+   */
+  protected async step(direction: 1 | -1): Promise<void> {
+    const id = this.id();
+    if (!this.position() || this.stepping()) return;
+    this.stepping.set(true);
+    try {
+      const target = await this.session.step(id, direction);
+      // The user may have moved on (or left) while more of the list loaded.
+      if (!target || this.destroyed || this.id() !== id) return;
+      await this.router.navigate(['/mail/messages', target], { replaceUrl: true });
+    } finally {
+      this.stepping.set(false);
+    }
+  }
+
+  /**
+   * `e` archives, `!` marks as spam and `#` deletes, as in the list; `j`/`k` step to the next and
+   * previous message of the list it was opened from (never while typing or while a dialog is open).
    */
   protected onKeydown(event: KeyboardEvent): void {
-    if (this.dialog.openDialogs.length || this.state() !== 'ready') return;
+    if (this.dialog.openDialogs.length) return;
     const shortcut = mailShortcutFor(event);
+    if ((shortcut === 'next' || shortcut === 'previous') && this.position()) {
+      event.preventDefault();
+      void this.step(shortcut === 'next' ? 1 : -1);
+      return;
+    }
+    if (this.state() !== 'ready') return;
     const action = shortcut ? TRIAGE_SHORTCUTS.get(shortcut) : undefined;
     if (!action) return;
     event.preventDefault();
@@ -357,6 +403,7 @@ export default class MailReadPage {
       }
       this.message.set(message);
       this.state.set('ready');
+      this.session.visited(id);
       if (!message.seen && message.id) {
         // Best effort: the list shows the change through its events, a failure only keeps it unread.
         this.service.markRead(message.id).catch(() => undefined);

@@ -1,5 +1,6 @@
 import { DatePipe } from '@angular/common';
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
@@ -7,6 +8,7 @@ import {
   effect,
   ElementRef,
   inject,
+  Injector,
   signal,
   viewChild,
 } from '@angular/core';
@@ -14,10 +16,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, merge } from 'rxjs';
 import { MailAddressResponse } from '../../../api/generated';
 import { folderLabel, MailFolderTree } from './mail-folder-tree';
 import { MailFoldersStore } from './mail-folders-store';
+import { MailListSession } from './mail-list-session';
 import { MailListStore } from './mail-list-store';
 import { MailMoveDialog, MailMoveDialogData } from './mail-move-dialog';
 import { isTypingTarget } from '../../../shell/hotkeys';
@@ -32,7 +35,10 @@ export const THREADED_KEY = 'cockpit.mail.threaded';
  * beside the folder tree, flat or by conversation, loading older mail while scrolling. Items can be
  * selected; the toolbar and the Gmail-like keys act on the selection, else on the item under the
  * keyboard cursor. The search box (`/` focuses it) lists the matching messages of the folder, or of
- * all folders for the unified Inbox, optionally also searched on the mail servers.
+ * all folders for the unified Inbox, optionally also searched on the mail servers. The search is
+ * part of the URL (`?q=…&server=1`), and the list the user leaves for a message is kept
+ * ({@link MailListSession}): going back shows it again as it was (no second search, same scroll
+ * position and cursor), and the read view steps through it.
  */
 @Component({
   selector: 'app-mail-list-page',
@@ -48,7 +54,13 @@ export default class MailListPage {
   protected readonly folders = inject(MailFoldersStore);
   private readonly dialog = inject(MatDialog);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly session = inject(MailListSession);
+  private readonly injector = inject(Injector);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  /** How far the list is scrolled (kept while scrolling: it is gone when the page is left). */
+  private scrollTop = 0;
+  private routeApplied = false;
 
   protected readonly threaded = signal(storedThreaded());
   protected readonly folderId = signal<string | null>(null);
@@ -109,16 +121,19 @@ export default class MailListPage {
 
   constructor() {
     void this.folders.load();
-    inject(ActivatedRoute)
-      .paramMap.pipe(takeUntilDestroyed(inject(DestroyRef)))
-      .subscribe((params) => {
-        this.folderId.set(params.get('folderId'));
-        // Another folder starts from its list: a search was for the folder shown before.
-        this.search.set(null);
-        const input = this.searchInput()?.nativeElement;
-        if (input) input.value = '';
-        void this.store.load(this.scope());
-      });
+    const destroyRef = inject(DestroyRef);
+    // The route's snapshot is complete when either map emits: a navigation that changes the folder
+    // and the search is applied once.
+    merge(this.route.paramMap, this.route.queryParamMap)
+      .pipe(takeUntilDestroyed(destroyRef))
+      .subscribe(() => this.applyRoute());
+    destroyRef.onDestroy(() => {
+      const snapshot = this.store.snapshot();
+      this.session.save(
+        snapshot && { ...snapshot, url: this.listUrl(), scrollTop: this.scrollTop },
+      );
+    });
+    afterNextRender(() => this.trackScroll(destroyRef));
 
     // Infinite scroll: the next page loads when the end of the list comes into view.
     effect((onCleanup) => {
@@ -159,6 +174,71 @@ export default class MailListPage {
     void this.store.load(this.scope());
   }
 
+  /**
+   * Shows the folder and the search the URL names. The first time, a list saved when the user left
+   * it for a message is shown again as it was; a URL change that the page made itself (a submitted
+   * search) changes nothing.
+   */
+  private applyRoute(): void {
+    const { paramMap, queryParamMap } = this.route.snapshot;
+    const folderId = paramMap.get('folderId');
+    const query = queryParamMap.get('q')?.trim();
+    const search = query ? { query, server: queryParamMap.get('server') === '1' } : null;
+    const first = !this.routeApplied;
+    this.routeApplied = true;
+    if (!first && folderId === this.folderId() && sameSearch(search, this.search())) return;
+    this.folderId.set(folderId);
+    this.search.set(search);
+    if (search) this.serverSearch.set(search.server);
+    const input = this.searchInput()?.nativeElement;
+    if (input) input.value = search?.query ?? '';
+    const saved = first ? this.session.restorable(this.listUrl(), this.scope()) : null;
+    if (!saved) {
+      void this.store.load(this.scope());
+      return;
+    }
+    this.store.restore(saved);
+    // A folder list may have changed meanwhile; search results stay as they were found.
+    if (!saved.scope.search) void this.store.refresh();
+    afterNextRender(() => this.restoreScroll(saved.scrollTop), { injector: this.injector });
+  }
+
+  /** The URL of the shown list and search. */
+  private listUrl(): string {
+    const folderId = this.folderId();
+    const search = this.search();
+    const tree = this.router.createUrlTree(folderId ? ['/mail', 'folders', folderId] : ['/mail'], {
+      queryParams: search ? { q: search.query, server: search.server ? 1 : null } : {},
+    });
+    return this.router.serializeUrl(tree);
+  }
+
+  /** Shows `search` (null: the list), and puts it into the URL. */
+  private showSearch(search: MailSearch | null, replaceUrl = false): void {
+    this.search.set(search);
+    void this.store.load(this.scope());
+    this.router.navigateByUrl(this.listUrl(), { replaceUrl }).catch(() => undefined);
+  }
+
+  private trackScroll(destroyRef: DestroyRef): void {
+    const container = scrollContainer(this.host.nativeElement);
+    const target: EventTarget = container === document.scrollingElement ? window : container;
+    const onScroll = () => (this.scrollTop = container.scrollTop);
+    target.addEventListener('scroll', onScroll, { passive: true });
+    destroyRef.onDestroy(() => target.removeEventListener('scroll', onScroll));
+  }
+
+  private restoreScroll(scrollTop: number): void {
+    const container = scrollContainer(this.host.nativeElement);
+    container.scrollTop = scrollTop;
+    this.scrollTop = container.scrollTop;
+    const id = this.store.cursorId();
+    if (!id) return;
+    this.host.nativeElement
+      .querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`)
+      ?.scrollIntoView?.({ block: 'nearest' });
+  }
+
   private scope(): MailScope {
     const scope: MailScope = { folderId: this.folderId(), threaded: this.threaded() };
     const search = this.search();
@@ -170,8 +250,13 @@ export default class MailListPage {
     event.preventDefault();
     const query = text.trim();
     if (!query) return this.clearSearch();
-    this.search.set({ query, server: this.serverSearch() });
-    void this.store.load(this.scope());
+    const search = { query, server: this.serverSearch() };
+    // The same search again: searched again, the URL stays.
+    if (sameSearch(search, this.search())) {
+      void this.store.load(this.scope());
+      return;
+    }
+    this.showSearch(search);
   }
 
   /** An emptied search box (e.g. its clear button) shows the list again. */
@@ -191,14 +276,12 @@ export default class MailListPage {
     this.serverSearch.set(server);
     const search = this.search();
     if (!search || search.server === server) return;
-    this.search.set({ ...search, server });
-    void this.store.load(this.scope());
+    this.showSearch({ ...search, server }, true);
   }
 
   protected clearSearch(): void {
     if (!this.search()) return;
-    this.search.set(null);
-    void this.store.load(this.scope());
+    this.showSearch(null);
   }
 
   protected act(action: MailAction): void {
@@ -363,6 +446,19 @@ function isSearchKey(event: KeyboardEvent): boolean {
     !event.metaKey &&
     !isTypingTarget(event.target)
   );
+}
+
+function sameSearch(a: MailSearch | null, b: MailSearch | null): boolean {
+  return a === b || (!!a && !!b && a.query === b.query && a.server === b.server);
+}
+
+/** The element the list scrolls in: the closest scrolling ancestor, else the document. */
+function scrollContainer(element: HTMLElement): Element {
+  for (let node = element.parentElement; node; node = node.parentElement) {
+    const overflow = getComputedStyle(node).overflowY;
+    if (overflow === 'auto' || overflow === 'scroll') return node;
+  }
+  return document.scrollingElement ?? document.documentElement;
 }
 
 function storedThreaded(): boolean {

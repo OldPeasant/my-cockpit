@@ -23,6 +23,21 @@ export const REFRESH_DEBOUNCE_MS = 300;
 /** At most this many conversations of an action are looked up at the same time. */
 export const THREAD_LOOKUP_CONCURRENCY = 6;
 
+/** What a search found beyond its items. */
+export interface MailSearchExtras {
+  hasMore: boolean;
+  failedAccountIds: string[];
+}
+
+/** A loaded list as it is shown, to show it again without loading it (see `MailListSession`). */
+export interface MailListSnapshot {
+  readonly scope: MailScope;
+  readonly items: readonly MailSummary[];
+  readonly nextCursor: string | null;
+  readonly cursorId: string | null;
+  readonly searchResult: MailSearchExtras | null;
+}
+
 /** Actions after which a message is no longer in the shown folder. */
 const REMOVING: ReadonlySet<MailAction> = new Set(['MOVE', 'ARCHIVE', 'DELETE', 'SPAM']);
 /** The fields of an item each flag action changes (what its rollback puts back). */
@@ -67,7 +82,7 @@ export class MailListStore {
   readonly cursorId = signal<string | null>(null);
   readonly selectedIds = signal<ReadonlySet<string>>(new Set());
   /** What the shown search found beyond its items; null without a search or while it loads. */
-  readonly searchResult = signal<{ hasMore: boolean; failedAccountIds: string[] } | null>(null);
+  readonly searchResult = signal<MailSearchExtras | null>(null);
   /** A search on the server runs while the cached results of the same query are shown. */
   readonly searchingServer = signal(false);
 
@@ -186,6 +201,38 @@ export class MailListStore {
 
   reload(): Promise<void> {
     return this.load(this.scope());
+  }
+
+  /** The shown list, or null while it loads or after it failed. */
+  snapshot(): MailListSnapshot | null {
+    const items = this.items();
+    if (items === null || this.loadError() !== null || this.searchingServer()) return null;
+    return {
+      scope: this.scope(),
+      items,
+      nextCursor: this.nextCursor(),
+      cursorId: this.cursorId(),
+      searchResult: this.searchResult(),
+    };
+  }
+
+  /**
+   * Shows a list as it was taken by {@link snapshot}, without loading it, with nothing selected. A
+   * load or page still on its way is dropped.
+   */
+  restore(snapshot: MailListSnapshot): void {
+    this.loadSeq++;
+    this.listGeneration++;
+    this.mutationSeq++;
+    this.scope.set(snapshot.scope);
+    this.items.set([...snapshot.items]);
+    this.nextCursor.set(snapshot.nextCursor);
+    this.cursorId.set(snapshot.cursorId);
+    this.searchResult.set(snapshot.searchResult);
+    this.loadError.set(null);
+    this.moreError.set(null);
+    this.searchingServer.set(false);
+    this.selectedIds.set(new Set());
   }
 
   /** Appends the next page (infinite scroll). */

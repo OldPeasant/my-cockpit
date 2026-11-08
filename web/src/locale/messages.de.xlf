@@ -9036,6 +9036,54 @@
           <context context-type="linenumber">72</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="mailRead.stepsAria" datatype="html">
+        <source>Messages of the list</source>
+        <target state="translated">Nachrichten der Liste</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
+          <context context-type="linenumber">9,12</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailRead.previousTitle" datatype="html">
+        <source>Previous message (k)</source>
+        <target state="translated">Vorherige Nachricht (k)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
+          <context context-type="linenumber">18,19</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailRead.previous" datatype="html">
+        <source> ‹ Previous </source>
+        <target state="translated">‹ Vorherige</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
+          <context context-type="linenumber">21,23</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailRead.position" datatype="html">
+        <source><x id="INTERPOLATION" equiv-text="{{ pos.index + 1 }}"/> of <x id="INTERPOLATION_1" equiv-text="{{ pos.total }}"/><x id="INTERPOLATION_2" equiv-text="{{ pos.more ? &apos;+&apos; : &apos;&apos; }}"/></source>
+        <target state="translated"><x id="INTERPOLATION" equiv-text="{{ pos.index + 1 }}"/> von <x id="INTERPOLATION_1" equiv-text="{{ pos.total }}"/><x id="INTERPOLATION_2" equiv-text="{{ pos.more ? &apos;+&apos; : &apos;&apos; }}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
+          <context context-type="linenumber">24,26</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailRead.nextTitle" datatype="html">
+        <source>Next message (j)</source>
+        <target state="translated">Nächste Nachricht (j)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
+          <context context-type="linenumber">33,34</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mailRead.next" datatype="html">
+        <source> Next › </source>
+        <target state="translated">Nächste ›</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.html</context>
+          <context context-type="linenumber">36,38</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="mailRead.archiveTitle" datatype="html">
         <source>Archive (e)</source>
         <target state="translated">Archivieren (e)</target>
