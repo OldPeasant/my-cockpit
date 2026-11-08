@@ -1,11 +1,11 @@
 ---
 title: Respond to invitations in the web event dialog
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-cal-event-fields]
 prio: 2
 parent: cal-invitation-respond
-lease_until: 2026-11-08T22:59:14Z
+lease_until: 
 ---
 ## Goal
 Part of `cal-invitation-respond` (Accept, decline or tentatively accept invitations (web + Android)), which was split.
@@ -22,3 +22,4 @@ Goal: the web event dialog calls `POST /api/v1/calendar/events/{id}/respond` (SP
 ## Notes
 - Work done on `cal-invitation-respond` before the split is on `origin/wip/cal-invitation-respond` (if it exists): merge it first if your part builds on it.
 - ASSUMPTION (2026-11-08 23:25+0100 by dell26/agent-1): Answering shows a toast and keeps the dialog open (unsaved edits stay; ETag/version and guest statuses updated from the answer); closing afterwards returns 'saved' so the view refetches. 412 -> conflict banner with Reload; 409 and other errors -> the server's message inline. Choices are disabled during a conflict.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 70s on 73ec03502; criteria verified 3/3
