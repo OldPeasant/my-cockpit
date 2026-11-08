@@ -7,8 +7,8 @@ touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src
 prio: 2
 lease_until: 
 extended: 
-releases: 3
-hold: given back 3 times; last: Everything done except the final check: code, tests, review (0 findings), tests.md, quality.json (reviewed_revision 18ce008a = rebased 76244b1e) committed; criteria 1-5 verif
+releases: 0
+hold: 
 ---
 ## Goal
 Android task detail shows scheduled/tickler/recurrence read-only (`TaskDetailScreen.kt:553,554,574`) and can only
