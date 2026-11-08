@@ -704,6 +704,48 @@ class InboxViewModelTest {
         }
 
     @Test
+    fun `a refused undo reloads the inbox, an undo that failed offline does not`() =
+        test { vm ->
+            val firstDone = Completion(first.id, first.title, 2)
+            val secondDone = Completion(second.id, second.title, 2)
+            coEvery { completion.complete(first) } returns CompletionResult.Completed(firstDone)
+            coEvery { completion.complete(second) } returns CompletionResult.Completed(secondDone)
+            coEvery { completion.undo(firstDone) } returns CompletionResult.NotDone(CompletionMessage.CONFLICT)
+            coEvery { completion.undo(secondDone) } returns CompletionResult.NotDone(CompletionMessage.OFFLINE)
+            vm.complete(first)
+            vm.complete(second)
+            coVerify(exactly = 2) { tasks.refresh(TaskView.INBOX) }
+
+            vm.undo(CompletionSnackbar.Undo(firstDone))
+            coVerify(exactly = 3) { tasks.refresh(TaskView.INBOX) }
+            assertEquals(CompletionSnackbar.Failed(CompletionMessage.CONFLICT), vm.uiState.value.snackbar)
+
+            vm.undo(CompletionSnackbar.Undo(secondDone))
+            coVerify(exactly = 3) { tasks.refresh(TaskView.INBOX) }
+            assertEquals(CompletionSnackbar.Failed(CompletionMessage.OFFLINE), vm.uiState.value.snackbar)
+        }
+
+    @Test
+    fun `an undo is reloaded only once the server answered it`() =
+        test { vm ->
+            val done = Completion(first.id, first.title, 2)
+            val answer = CompletableDeferred<CompletionResult>()
+            coEvery { completion.complete(first) } returns CompletionResult.Completed(done)
+            coEvery { completion.undo(done) } coAnswers { answer.await() }
+            vm.complete(first)
+            coVerify(exactly = 1) { tasks.refresh(TaskView.INBOX) }
+
+            vm.undo(CompletionSnackbar.Undo(done))
+            // While the undo is on its way, the task stays hidden and nothing is reloaded yet.
+            assertEquals(listOf(second), vm.uiState.value.tasks)
+            coVerify(exactly = 1) { tasks.refresh(TaskView.INBOX) }
+
+            answer.complete(CompletionResult.Reopened)
+            coVerify(exactly = 2) { tasks.refresh(TaskView.INBOX) }
+            assertEquals(listOf(first, second), vm.uiState.value.tasks)
+        }
+
+    @Test
     fun `the inbox is reloaded only once the server answered`() =
         test { vm ->
             val answer = CompletableDeferred<CompletionResult>()
