@@ -490,6 +490,18 @@ class FilePreviewScreenTest {
     }
 
     @Test
+    fun `while a file downloads, the Open with of a PDF that cannot be shown is disabled`() {
+        val state = show(preview(1, PreviewContent.Pdf(File("fictitious/broken.pdf"))).copy(downloading = archive.id)) { null }
+        waitForTag(PreviewTags.PDF_FAILED)
+        composeRule.onNode(hasText("Open with…") and hasParentTag(PreviewTags.PDF_FAILED)).assertIsNotEnabled().performClick()
+        assertEquals(emptyList<String>(), calls)
+
+        state.value = state.value.copy(downloading = null)
+        composeRule.onNode(hasText("Open with…") and hasParentTag(PreviewTags.PDF_FAILED)).assertIsEnabled().performClick()
+        assertEquals(listOf("open 2025.pdf"), calls)
+    }
+
+    @Test
     fun `a PDF without pages cannot be shown, and is closed with the preview`() {
         val empty = FakePdf(pageCount = 0)
         val state = show(preview(1, PreviewContent.Pdf(File("fictitious/empty.pdf")))) { empty }
