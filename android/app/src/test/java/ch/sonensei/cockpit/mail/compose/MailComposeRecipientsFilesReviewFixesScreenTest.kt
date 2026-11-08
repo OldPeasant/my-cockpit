@@ -1,6 +1,8 @@
 package ch.sonensei.cockpit.mail.compose
 
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -8,7 +10,6 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.percentOffset
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.requestFocus
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -92,8 +93,11 @@ class MailComposeRecipientsFilesReviewFixesScreenTest {
 
         // A tap on the label side of the chip (the test text renders narrow, so its center is next to the close icon).
         composeRule.onNodeWithTag(MailComposeTags.recipient(RecipientField.TO, 0)).performTouchInput { click(percentOffset(0.1f, 0.5f)) }
-        // The chip's own click action does not remove either.
-        composeRule.onNodeWithTag(MailComposeTags.recipient(RecipientField.TO, 0)).performSemanticsAction(SemanticsActions.OnClick)
+        // The chip body has no click action at all (and-mail-chip-a11y), so TalkBack announces none.
+        composeRule
+            .onNodeWithTag(
+                MailComposeTags.recipient(RecipientField.TO, 0),
+            ).assert(SemanticsMatcher.keyNotDefined(SemanticsActions.OnClick))
 
         assertEquals(emptyList<String>(), calls)
     }

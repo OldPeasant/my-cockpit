@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.mail.compose
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,7 +18,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.Icon
-import androidx.compose.material3.InputChip
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -27,12 +28,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -136,32 +140,14 @@ internal fun RecipientInput(
             entry.tokens.forEachIndexed { index, token ->
                 val recipient = parseRecipients(token).recipients.singleOrNull()
                 val label = recipient?.let { it.name ?: it.address } ?: token
-                InputChip(
-                    selected = false,
-                    // Only the close icon removes: a stray tap on the chip keeps the recipient.
-                    onClick = {},
+                RecipientChip(
+                    label = label,
+                    removeDescription = "$removeLabel ${recipient?.address ?: token}",
+                    removeActionLabel = removeLabel,
+                    invalid = recipient == null,
                     enabled = enabled,
-                    label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    trailingIcon = {
-                        Icon(
-                            Icons.Outlined.Close,
-                            contentDescription = "$removeLabel ${recipient?.address ?: token}",
-                            modifier =
-                                Modifier
-                                    .size(InputChipDefaults.IconSize)
-                                    .clickable(enabled = enabled, role = Role.Button) { onChange(removeRecipient(value, index)) },
-                        )
-                    },
-                    colors =
-                        if (recipient == null) {
-                            InputChipDefaults.inputChipColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer,
-                                labelColor = MaterialTheme.colorScheme.onErrorContainer,
-                            )
-                        } else {
-                            InputChipDefaults.inputChipColors()
-                        },
-                    modifier = Modifier.testTag(MailComposeTags.recipient(field, index)),
+                    onRemove = { onChange(removeRecipient(value, index)) },
+                    modifier = Modifier.align(Alignment.CenterVertically).testTag(MailComposeTags.recipient(field, index)),
                 )
             }
             BasicTextField(
@@ -199,6 +185,69 @@ internal fun RecipientInput(
         }
     }
 }
+
+/**
+ * One finished recipient: its [label] and a remove button with a 48 dp touch target. The chip body is no action (a stray
+ * tap keeps the recipient); TalkBack reads the label and offers a "Remove" custom action besides the button.
+ */
+@Composable
+private fun RecipientChip(
+    label: String,
+    removeDescription: String,
+    removeActionLabel: String,
+    invalid: Boolean,
+    enabled: Boolean,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.colorScheme
+    val container = if (invalid) colors.errorContainer else colors.surface
+    val content = if (invalid) colors.onErrorContainer else colors.onSurfaceVariant
+    Surface(
+        shape = MaterialTheme.shapes.small,
+        color = container,
+        contentColor = content,
+        border = if (invalid) null else BorderStroke(1.dp, colors.outlineVariant),
+        modifier =
+            modifier
+                .alpha(if (enabled) 1f else DISABLED_ALPHA)
+                .semantics(mergeDescendants = true) {
+                    if (!enabled) {
+                        disabled()
+                    } else {
+                        customActions =
+                            listOf(
+                                CustomAccessibilityAction(removeActionLabel) {
+                                    onRemove()
+                                    true
+                                },
+                            )
+                    }
+                },
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 12.dp).widthIn(max = 240.dp),
+            )
+            IconButton(onClick = onRemove, enabled = enabled, modifier = Modifier.size(MIN_TOUCH_TARGET)) {
+                Icon(
+                    Icons.Outlined.Close,
+                    contentDescription = removeDescription,
+                    modifier = Modifier.size(InputChipDefaults.IconSize),
+                )
+            }
+        }
+    }
+}
+
+private const val DISABLED_ALPHA = 0.38f
+
+// The Material minimum touch target: the close icon is the only pointer way to remove a recipient.
+private val MIN_TOUCH_TARGET = 48.dp
 
 @Composable
 private fun SuggestionRow(
