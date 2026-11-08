@@ -66,7 +66,11 @@ class TaskReminderRepository
     ) : TaskReminderSource {
         override suspend fun list(taskId: UUID): Result<List<TaskReminder>> =
             call({ api.listReminders(ListItemType.TASK, taskId) }) { body ->
-                body?.items.orEmpty().mapNotNull { it.toReminder() }.sortedBy { it.remindAt }
+                body
+                    ?.items
+                    .orEmpty()
+                    .mapNotNull { it.toReminder() }
+                    .sortedBy { it.remindAt }
             }
 
         override suspend fun add(
@@ -119,8 +123,7 @@ class TaskReminderRepository
         }
     }
 
-private fun ReminderResponse.toReminder(): TaskReminder? =
-    remindAt?.let { TaskReminder(id, it.toInstant(), firedAt?.toInstant()) }
+private fun ReminderResponse.toReminder(): TaskReminder? = remindAt?.let { TaskReminder(id, it.toInstant(), firedAt?.toInstant()) }
 
 @Module
 @InstallIn(SingletonComponent::class)
