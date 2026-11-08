@@ -202,6 +202,37 @@ class NotesRouteInAppTest {
         coVerify(atLeast = 2) { repo.save(null, NoteDraft("", "Offline idea")) }
     }
 
+    @Test
+    fun `a note deleted in its editor is gone from the list, whose snackbar undoes it`() {
+        coEvery { repo.list(null) } answers {
+            events += "list"
+            NotesResult.Ok(if ("deleted" in events && "restored" !in events) emptyList() else listOf(loaded))
+        }
+        coEvery { repo.get(id) } returns NotesResult.Ok(loaded)
+        coEvery { repo.delete(loaded) } answers {
+            events += "deleted"
+            NotesResult.Ok(Unit)
+        }
+        coEvery { repo.restore(id) } answers {
+            events += "restored"
+            NotesResult.Ok(Unit)
+        }
+        openNotes()
+
+        composeRule.onNodeWithTag(NotesTags.note(id)).performClick()
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithTag(NoteEditorTags.MENU).fetchSemanticsNodes().isNotEmpty() }
+        composeRule.onNodeWithTag(NoteEditorTags.MENU).performClick()
+        composeRule.onNodeWithTag(NoteEditorTags.DELETE).performClick()
+
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithText("Moved “Shopping” to the Trash").fetchSemanticsNodes().isNotEmpty() }
+        composeRule.onNodeWithTag(NotesTags.note(id)).assertDoesNotExist()
+
+        composeRule.onNodeWithText("Undo").performClick()
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithTag(NotesTags.note(id)).fetchSemanticsNodes().isNotEmpty() }
+        coVerify(exactly = 1) { repo.restore(id) }
+        coVerify(exactly = 0) { repo.save(any(), any()) }
+    }
+
     private companion object {
         const val WAIT_MS = 5_000L
     }

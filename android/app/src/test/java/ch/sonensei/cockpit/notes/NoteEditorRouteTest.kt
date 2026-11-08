@@ -10,6 +10,7 @@ import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -243,6 +244,45 @@ class NoteEditorRouteTest {
         assertEquals(1, closed)
         composeRule.waitUntil(WAIT_MS) { saves.single()?.isCompleted == true }
         coVerify(exactly = 0) { repo.save(any(), any()) }
+    }
+
+    @Test
+    fun `deleting from the menu hands the note to onDeleted, then closes without a save`() {
+        coEvery { repo.delete(loaded) } returns NotesResult.Ok(Unit)
+        val vm = NoteEditorViewModel(repo, images)
+        val events = mutableListOf<String>()
+        composeRule.setContent {
+            CockpitTheme {
+                NoteEditorRoute(
+                    id = id,
+                    key = "test",
+                    onClose = { events += "close ${it == null}" },
+                    onDeleted = { events += "deleted ${it.id}" },
+                    viewModel = vm,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(NoteEditorTags.MENU).performClick()
+        composeRule.onNodeWithTag(NoteEditorTags.DELETE).performClick()
+
+        composeRule.waitUntil(WAIT_MS) { events.size == 2 }
+        assertEquals(listOf("deleted $id", "close true"), events)
+        coVerify(exactly = 0) { repo.save(any(), any()) }
+    }
+
+    @Test
+    fun `pinning from the menu shows Unpin afterwards`() {
+        coEvery { repo.setFlags(loaded, pinned = true, archived = null) } returns SaveResult.Saved(loaded.copy(pinned = true, version = 4))
+        show()
+        composeRule.onNodeWithTag(NoteEditorTags.MENU).performClick()
+        composeRule.onNodeWithTag(NoteEditorTags.PIN).performClick()
+        composeRule.waitUntil(WAIT_MS) { runCatching { coVerify { repo.setFlags(loaded, pinned = true, archived = null) } }.isSuccess }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(NoteEditorTags.MENU).performClick()
+        composeRule.onNodeWithTag(NoteEditorTags.PIN).assertTextContains("Unpin")
+        assertEquals(0, closed)
     }
 
     private companion object {

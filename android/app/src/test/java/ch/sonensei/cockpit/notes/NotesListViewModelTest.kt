@@ -8,6 +8,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
@@ -159,4 +161,340 @@ class NotesListViewModelTest {
             assertEquals(NotesListMessage.FAILED, vm.uiState.value.message)
             assertEquals(false, vm.uiState.value.loading)
         }
+
+    private fun TestScope.loadedWith(vararg shown: Note): NotesListViewModel {
+        coEvery { repo.list(null, false) } returns NotesResult.Ok(shown.toList())
+        val vm = NotesListViewModel(repo, images)
+        vm.refresh()
+        advanceUntilIdle()
+        return vm
+    }
+
+    @Test
+    fun `the Archived view loads the archived notes, and back to the notes`() =
+        runTest(dispatcher) {
+            val archived = note(5).copy(archived = true)
+            coEvery { repo.list(null, true) } returns NotesResult.Ok(listOf(archived))
+            val vm = loadedWith(note(1))
+
+            vm.showArchived(true)
+            assertEquals(emptyList<Note>(), vm.uiState.value.notes)
+            assertEquals(false, vm.uiState.value.loaded)
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.archived)
+            assertEquals(listOf(archived), vm.uiState.value.notes)
+
+            // Choosing the active view again does not reload.
+            vm.showArchived(true)
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.list(null, true) }
+
+            vm.showArchived(false)
+            advanceUntilIdle()
+            assertEquals(listOf(note(1)), vm.uiState.value.notes)
+            coVerify(exactly = 2) { repo.list(null, false) }
+        }
+
+    @Test
+    fun `the Archived view keeps the tag filter`() =
+        runTest(dispatcher) {
+            coEvery { repo.list("work", false) } returns NotesResult.Ok(listOf(note(3)))
+            coEvery { repo.list("work", true) } returns NotesResult.Ok(emptyList())
+            val vm = loadedWith(note(1))
+            vm.selectTag("work")
+            advanceUntilIdle()
+            vm.showArchived(true)
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.list("work", true) }
+            assertEquals("work", vm.uiState.value.tag)
+        }
+
+    @Test
+    fun `the search runs once the typing paused 300 ms and shows only the notes it found, in list order`() =
+        runTest(dispatcher) {
+            coEvery { repo.search("milk") } returns NotesResult.Ok(listOf(id(3), id(1)))
+            val vm = loadedWith(note(1), note(2), note(3))
+
+            vm.setQuery("m")
+            advanceTimeBy(200)
+            vm.setQuery("milk")
+            assertTrue(vm.uiState.value.searching)
+            // Nothing is shown before the search answered.
+            assertEquals(emptyList<Note>(), vm.uiState.value.shown)
+            advanceTimeBy(299)
+            runCurrent()
+            coVerify(exactly = 0) { repo.search(any()) }
+            advanceTimeBy(2)
+            runCurrent()
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { repo.search("milk") }
+            assertEquals(setOf(id(1), id(3)), vm.uiState.value.hits)
+            assertEquals(listOf(note(1), note(3)), vm.uiState.value.shown)
+            assertEquals(false, vm.uiState.value.loading)
+        }
+
+    @Test
+    fun `clearing the search shows every note again without asking the server`() =
+        runTest(dispatcher) {
+            coEvery { repo.search("milk") } returns NotesResult.Ok(listOf(id(1)))
+            val vm = loadedWith(note(1), note(2))
+            vm.setQuery("milk")
+            advanceUntilIdle()
+            assertEquals(listOf(note(1)), vm.uiState.value.shown)
+
+            vm.setQuery("")
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.hits)
+            assertEquals(listOf(note(1), note(2)), vm.uiState.value.shown)
+            coVerify(exactly = 1) { repo.search(any()) }
+
+            // Only spaces added: no new search.
+            vm.setQuery("milk")
+            advanceUntilIdle()
+            vm.setQuery("milk ")
+            advanceUntilIdle()
+            coVerify(exactly = 2) { repo.search("milk") }
+        }
+
+    @Test
+    fun `clearing the search while it waits for the server ends the loading`() =
+        runTest(dispatcher) {
+            val answer = CompletableDeferred<NotesResult<List<UUID>>>()
+            coEvery { repo.search("milk") } coAnswers { answer.await() }
+            val vm = loadedWith(note(1), note(2))
+            vm.setQuery("milk")
+            advanceTimeBy(NotesListViewModel.SEARCH_DELAY_MS + 1)
+            runCurrent()
+            assertTrue(vm.uiState.value.loading)
+
+            vm.setQuery("")
+            advanceUntilIdle()
+
+            assertEquals(listOf(note(1), note(2)), vm.uiState.value.shown)
+            assertEquals(false, vm.uiState.value.loading)
+        }
+
+    @Test
+    fun `an older search that answers after a newer one is dropped`() =
+        runTest(dispatcher) {
+            val old = CompletableDeferred<NotesResult<List<UUID>>>()
+            coEvery { repo.search("milk") } coAnswers { old.await() }
+            coEvery { repo.search("bread") } returns NotesResult.Ok(listOf(id(2)))
+            val vm = loadedWith(note(1), note(2))
+            vm.setQuery("milk")
+            advanceTimeBy(NotesListViewModel.SEARCH_DELAY_MS + 1)
+            runCurrent()
+            vm.setQuery("bread")
+            advanceUntilIdle()
+            old.complete(NotesResult.Ok(listOf(id(1))))
+            advanceUntilIdle()
+
+            assertEquals(listOf(note(2)), vm.uiState.value.shown)
+        }
+
+    @Test
+    fun `a failed search says why, and a reload searches again at once`() =
+        runTest(dispatcher) {
+            coEvery { repo.search("milk") } returns NotesResult.Offline andThen NotesResult.Ok(listOf(id(1)))
+            val vm = loadedWith(note(1), note(2))
+            vm.setQuery("milk")
+            advanceUntilIdle()
+            assertEquals(NotesListMessage.OFFLINE, vm.uiState.value.message)
+            assertNull(vm.uiState.value.hits)
+            assertEquals(emptyList<Note>(), vm.uiState.value.shown)
+            assertEquals(false, vm.uiState.value.loading)
+
+            vm.refresh()
+            advanceUntilIdle()
+            coVerify(exactly = 2) { repo.search("milk") }
+            assertEquals(listOf(note(1)), vm.uiState.value.shown)
+            assertNull(vm.uiState.value.message)
+            assertEquals(false, vm.uiState.value.loading)
+        }
+
+    @Test
+    fun `pinning replaces the note and keeps pinned notes first`() =
+        runTest(dispatcher) {
+            val vm = loadedWith(note(1), note(2))
+            val pinned = note(2).copy(pinned = true, version = 2)
+            coEvery { repo.setFlags(note(2), pinned = true, archived = null) } returns SaveResult.Saved(pinned)
+
+            vm.togglePin(note(2))
+            assertEquals(setOf(id(2)), vm.uiState.value.busy)
+            advanceUntilIdle()
+
+            assertEquals(listOf(pinned, note(1)), vm.uiState.value.notes)
+            assertEquals(emptySet<UUID>(), vm.uiState.value.busy)
+            assertNull(vm.uiState.value.snackbar)
+        }
+
+    @Test
+    fun `a change uses the latest shown version, and a second tap while it runs is ignored`() =
+        runTest(dispatcher) {
+            val newer = note(1).copy(version = 5)
+            val vm = loadedWith(newer)
+            val answer = CompletableDeferred<SaveResult>()
+            coEvery { repo.setFlags(newer, pinned = true, archived = null) } coAnswers { answer.await() }
+
+            // The row passed an older copy of the note.
+            vm.togglePin(note(1))
+            runCurrent()
+            vm.togglePin(note(1))
+            vm.delete(note(1))
+            answer.complete(SaveResult.Saved(newer.copy(pinned = true, version = 6)))
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { repo.setFlags(any(), any(), any()) }
+            coVerify(exactly = 0) { repo.delete(any()) }
+        }
+
+    @Test
+    fun `archiving removes the note from the view with a snackbar`() =
+        runTest(dispatcher) {
+            val vm = loadedWith(note(1), note(2))
+            val archived = note(1).copy(archived = true, version = 2)
+            coEvery { repo.setFlags(note(1), pinned = null, archived = true) } returns SaveResult.Saved(archived)
+
+            vm.toggleArchived(note(1))
+            advanceUntilIdle()
+
+            assertEquals(listOf(note(2)), vm.uiState.value.notes)
+            val snackbar = vm.uiState.value.snackbar as NotesSnackbar.Archived
+            assertEquals(archived, snackbar.note)
+        }
+
+    @Test
+    fun `unarchiving in the Archived view removes the note from it`() =
+        runTest(dispatcher) {
+            val archived = note(5).copy(archived = true)
+            coEvery { repo.list(null, true) } returns NotesResult.Ok(listOf(archived))
+            val vm = loadedWith(note(1))
+            vm.showArchived(true)
+            advanceUntilIdle()
+            coEvery { repo.setFlags(archived, pinned = null, archived = false) } returns SaveResult.Saved(note(5))
+
+            vm.toggleArchived(archived)
+            advanceUntilIdle()
+
+            assertEquals(emptyList<Note>(), vm.uiState.value.notes)
+            assertEquals(false, (vm.uiState.value.snackbar as NotesSnackbar.Archived).note.archived)
+        }
+
+    @Test
+    fun `a conflicting pin says so and reloads the list, other failures only say so`() =
+        runTest(dispatcher) {
+            val vm = loadedWith(note(1))
+            coEvery { repo.setFlags(note(1), pinned = true, archived = null) } returns
+                SaveResult.Conflict(note(1).copy(version = 9)) andThen SaveResult.Offline andThen SaveResult.Failed(400)
+
+            vm.togglePin(note(1))
+            advanceUntilIdle()
+            assertEquals(NoteChangeFailure.CONFLICT, (vm.uiState.value.snackbar as NotesSnackbar.Failed).failure)
+            coVerify(exactly = 2) { repo.list(null, false) }
+
+            vm.togglePin(note(1))
+            advanceUntilIdle()
+            assertEquals(NoteChangeFailure.OFFLINE, (vm.uiState.value.snackbar as NotesSnackbar.Failed).failure)
+            coEvery { repo.setFlags(note(1), pinned = null, archived = true) } returns SaveResult.Failed(400)
+            vm.toggleArchived(note(1))
+            advanceUntilIdle()
+            assertEquals(NoteChangeFailure.FAILED, (vm.uiState.value.snackbar as NotesSnackbar.Failed).failure)
+            coVerify(exactly = 2) { repo.list(null, false) }
+            assertEquals(listOf(note(1)), vm.uiState.value.notes)
+        }
+
+    @Test
+    fun `deleting removes the note, offers Undo and reloads the tags`() =
+        runTest(dispatcher) {
+            val vm = loadedWith(note(1), note(2))
+            coEvery { repo.delete(note(1)) } returns NotesResult.Ok(Unit)
+
+            vm.delete(note(1))
+            advanceUntilIdle()
+
+            assertEquals(listOf(note(2)), vm.uiState.value.notes)
+            assertEquals(note(1), (vm.uiState.value.snackbar as NotesSnackbar.Trashed).note)
+            coVerify(exactly = 2) { repo.tags() }
+        }
+
+    @Test
+    fun `Undo restores the note and loads the list again`() =
+        runTest(dispatcher) {
+            val vm = loadedWith(note(1), note(2))
+            coEvery { repo.delete(note(1)) } returns NotesResult.Ok(Unit)
+            coEvery { repo.restore(id(1)) } returns NotesResult.Ok(Unit)
+            vm.delete(note(1))
+            advanceUntilIdle()
+            val trashed = vm.uiState.value.snackbar as NotesSnackbar.Trashed
+
+            vm.undo(trashed)
+            assertNull(vm.uiState.value.snackbar)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { repo.restore(id(1)) }
+            coVerify(exactly = 2) { repo.list(null, false) }
+            assertEquals(listOf(note(1), note(2)), vm.uiState.value.notes)
+            assertNull(vm.uiState.value.snackbar)
+        }
+
+    @Test
+    fun `a failed Undo says so`() =
+        runTest(dispatcher) {
+            val vm = loadedWith(note(1))
+            coEvery { repo.restore(id(1)) } returns NotesResult.Offline andThen NotesResult.Failed(404)
+            vm.trashed(note(1))
+            vm.undo(vm.uiState.value.snackbar as NotesSnackbar.Trashed)
+            advanceUntilIdle()
+            assertEquals(NoteChangeFailure.OFFLINE, (vm.uiState.value.snackbar as NotesSnackbar.Failed).failure)
+
+            vm.undo(NotesSnackbar.Trashed(note(1)))
+            advanceUntilIdle()
+            assertEquals(NoteChangeFailure.FAILED, (vm.uiState.value.snackbar as NotesSnackbar.Failed).failure)
+            coVerify(exactly = 1) { repo.list(null, false) }
+        }
+
+    @Test
+    fun `a delete refused because the note changed or is gone reloads, offline and other refusals only say so`() =
+        runTest(dispatcher) {
+            val vm = loadedWith(note(1))
+            coEvery { repo.delete(note(1)) } returns NotesResult.Failed(412) andThen NotesResult.Failed(404) andThen
+                NotesResult.Offline andThen NotesResult.Failed(400)
+
+            vm.delete(note(1))
+            advanceUntilIdle()
+            assertEquals(NoteChangeFailure.CONFLICT, (vm.uiState.value.snackbar as NotesSnackbar.Failed).failure)
+            vm.delete(note(1))
+            advanceUntilIdle()
+            assertEquals(NoteChangeFailure.CONFLICT, (vm.uiState.value.snackbar as NotesSnackbar.Failed).failure)
+            coVerify(exactly = 3) { repo.list(null, false) }
+
+            vm.delete(note(1))
+            advanceUntilIdle()
+            assertEquals(NoteChangeFailure.OFFLINE, (vm.uiState.value.snackbar as NotesSnackbar.Failed).failure)
+            vm.delete(note(1))
+            advanceUntilIdle()
+            assertEquals(NoteChangeFailure.FAILED, (vm.uiState.value.snackbar as NotesSnackbar.Failed).failure)
+            coVerify(exactly = 3) { repo.list(null, false) }
+            assertEquals(listOf(note(1)), vm.uiState.value.notes)
+            assertEquals(emptySet<UUID>(), vm.uiState.value.busy)
+        }
+
+    @Test
+    fun `each snackbar is a new one, and dismissing an older one keeps the newer`() =
+        runTest(dispatcher) {
+            val vm = loadedWith(note(1))
+            vm.trashed(note(1))
+            val first = vm.uiState.value.snackbar!!
+            vm.trashed(note(1))
+            val second = vm.uiState.value.snackbar!!
+            assertTrue(first != second)
+
+            vm.dismiss(first)
+            assertEquals(second, vm.uiState.value.snackbar)
+            vm.dismiss(second)
+            assertNull(vm.uiState.value.snackbar)
+        }
+
+    private fun id(n: Int): UUID = UUID.fromString("00000000-0000-7000-8000-%012d".format(n))
 }

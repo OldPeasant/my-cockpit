@@ -321,4 +321,162 @@ class NotesRepositoryTest {
             server.enqueue(status(413))
             assertEquals(NotesResult.Failed(413), notes.uploadImage(id(1), NotePhoto(byteArrayOf(1), "image/png", "p.png")))
         }
+
+    private val base = Note(id(1), "Trip", "Trip", "Body", pinned = false, tags = listOf("home"), updatedAt = java.time.Instant.EPOCH, version = 3)
+
+    private fun searchJson(vararg hits: Pair<String, Int>) =
+        """{"groups":[${hits.groupBy({ it.first }, { it.second }).entries.joinToString(",") { (type, ns) ->
+            """{"type":"$type","items":[${ns.joinToString(",") { n ->
+                """{"id":"${id(n)}","title":"Hit $n","type":"$type","updatedAt":"2026-10-20T09:00:00Z"}"""
+            }}]}"""
+        }}]}"""
+
+    @Test
+    fun `the archived list asks the server for archived=true and reads the archived flag`() =
+        runBlocking {
+            server.enqueue(json("""{"items":[${noteJson(1).replace("\"archived\":false", "\"archived\":true")}],"nextCursor":null}"""))
+
+            val result = notes.list(tag = null, archived = true) as NotesResult.Ok
+
+            assertTrue(result.value.single().archived)
+            val url = server.takeRequest().url
+            assertEquals("true", url.queryParameter("archived"))
+            assertEquals(null, url.queryParameter("tag"))
+        }
+
+    @Test
+    fun `search asks for notes only, at most 50, with the trimmed text, and returns the note ids`() =
+        runBlocking {
+            server.enqueue(json(searchJson("NOTE" to 3, "NOTE" to 1, "NOTE" to 3)))
+
+            val result = notes.search("  milk  ")
+
+            assertEquals(NotesResult.Ok(listOf(id(3), id(1))), result)
+            val url = server.takeRequest().url
+            assertEquals("/api/v1/search", url.encodedPath)
+            assertEquals("milk", url.queryParameter("q"))
+            assertEquals(listOf("NOTE"), url.queryParameterValues("types"))
+            assertEquals("50", url.queryParameter("limit"))
+        }
+
+    @Test
+    fun `search ignores hits of other types`() =
+        runBlocking {
+            server.enqueue(json(searchJson("TASK" to 7, "NOTE" to 2)))
+            assertEquals(NotesResult.Ok(listOf(id(2))), notes.search("milk"))
+        }
+
+    @Test
+    fun `a blank search asks nothing, a long one is cut to the 200 characters the server accepts`() =
+        runBlocking {
+            assertEquals(NotesResult.Ok(emptyList<UUID>()), notes.search("   "))
+            assertEquals(0, server.requestCount)
+
+            server.enqueue(json("""{"groups":[]}"""))
+            assertEquals(NotesResult.Ok(emptyList<UUID>()), notes.search("x".repeat(250)))
+            assertEquals(200, server.takeRequest().url.queryParameter("q")!!.length)
+        }
+
+    @Test
+    fun `a failed search is offline or failed`() =
+        runBlocking {
+            server.enqueue(status(400))
+            assertEquals(NotesResult.Failed(400), notes.search("milk"))
+            server.enqueue(status(503))
+            assertEquals(NotesResult.Offline, notes.search("milk"))
+            server.enqueue(json("""{"groups":[{"type":"NOTE"}]}"""))
+            assertEquals(NotesResult.Failed(null), notes.search("milk"))
+        }
+
+    @Test
+    fun `pinning patches only pinned with the version as If-Match`() =
+        runBlocking {
+            server.enqueue(json(noteJson(1, pinned = true, version = 4)))
+
+            val result = notes.setFlags(base, pinned = true) as SaveResult.Saved
+
+            assertTrue(result.note.pinned)
+            assertEquals(4L, result.note.version)
+            val request = server.takeRequest()
+            assertEquals("PATCH", request.method)
+            assertEquals("/api/v1/notes/${id(1)}", request.url.encodedPath)
+            assertEquals("\"3\"", request.headers["If-Match"])
+            val sent = Json.parseToJsonElement(request.body!!.utf8()).jsonObject
+            assertEquals(setOf("pinned"), sent.keys)
+            assertEquals("true", sent["pinned"]!!.jsonPrimitive.content)
+        }
+
+    @Test
+    fun `archiving patches only archived`() =
+        runBlocking {
+            server.enqueue(json(noteJson(1, version = 4).replace("\"archived\":false", "\"archived\":true")))
+
+            val result = notes.setFlags(base.copy(archived = false), archived = true) as SaveResult.Saved
+
+            assertTrue(result.note.archived)
+            val sent = Json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+            assertEquals(setOf("archived"), sent.keys)
+            assertEquals("true", sent["archived"]!!.jsonPrimitive.content)
+        }
+
+    @Test
+    fun `a pin refused as outdated is a conflict with the current note, a gone note a conflict without one`() =
+        runBlocking {
+            server.enqueue(status(412))
+            server.enqueue(json(noteJson(1, version = 9, body = "Theirs")))
+            val conflict = notes.setFlags(base, pinned = true) as SaveResult.Conflict
+            assertEquals(9L, conflict.current!!.version)
+
+            server.enqueue(status(409))
+            server.enqueue(json(noteJson(1, version = 10)))
+            assertEquals(10L, (notes.setFlags(base, archived = true) as SaveResult.Conflict).current!!.version)
+
+            server.enqueue(status(404))
+            server.enqueue(status(404))
+            assertEquals(SaveResult.Conflict(null), notes.setFlags(base, pinned = true))
+        }
+
+    @Test
+    fun `other refusals of a pin are failures, a server error or no connection is offline`() =
+        runBlocking {
+            server.enqueue(status(400))
+            assertEquals(SaveResult.Failed(400), notes.setFlags(base, pinned = true))
+            server.enqueue(status(500))
+            assertEquals(SaveResult.Offline, notes.setFlags(base, pinned = true))
+            server.close()
+            assertEquals(SaveResult.Offline, notes.setFlags(base, archived = true))
+        }
+
+    @Test
+    fun `delete sends the version as If-Match and reports refusals with their status`() =
+        runBlocking {
+            server.enqueue(status(204))
+            assertEquals(NotesResult.Ok(Unit), notes.delete(base))
+            val request = server.takeRequest()
+            assertEquals("DELETE", request.method)
+            assertEquals("/api/v1/notes/${id(1)}", request.url.encodedPath)
+            assertEquals("\"3\"", request.headers["If-Match"])
+
+            server.enqueue(status(412))
+            assertEquals(NotesResult.Failed(412), notes.delete(base))
+            server.enqueue(status(404))
+            assertEquals(NotesResult.Failed(404), notes.delete(base))
+            server.enqueue(status(503))
+            assertEquals(NotesResult.Offline, notes.delete(base))
+        }
+
+    @Test
+    fun `restore takes the note out of the Trash`() =
+        runBlocking {
+            server.enqueue(status(204))
+            assertEquals(NotesResult.Ok(Unit), notes.restore(id(1)))
+            val request = server.takeRequest()
+            assertEquals("POST", request.method)
+            assertEquals("/api/v1/trash/NOTE/${id(1)}/restore", request.url.encodedPath)
+
+            server.enqueue(status(404))
+            assertEquals(NotesResult.Failed(404), notes.restore(id(1)))
+            server.close()
+            assertEquals(NotesResult.Offline, notes.restore(id(1)))
+        }
 }

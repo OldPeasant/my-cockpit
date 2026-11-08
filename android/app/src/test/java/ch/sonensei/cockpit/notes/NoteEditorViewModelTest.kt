@@ -824,4 +824,208 @@ class NoteEditorViewModelTest {
             assertNull(vm.uiState.value.message)
             assertTrue(vm.uiState.value.editable)
         }
+
+    @Test
+    fun `pin saves the typed text first, then pins over the saved version`() =
+        test { vm ->
+            val afterSave = saved("Shopping list", 4).note
+            val pinned = afterSave.copy(pinned = true, version = 5)
+            coEvery { repo.save(loaded, NoteDraft("", "Shopping list")) } returns SaveResult.Saved(afterSave)
+            coEvery { repo.setFlags(afterSave, pinned = true, archived = null) } returns SaveResult.Saved(pinned)
+            vm.open(id)
+            runCurrent()
+            vm.setBody("Shopping list")
+
+            vm.togglePin()
+            assertTrue(vm.uiState.value.changing)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { repo.save(any(), any()) }
+            coVerify(exactly = 1) { repo.setFlags(afterSave, pinned = true, archived = null) }
+            assertEquals(pinned, vm.uiState.value.note)
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+            assertEquals(false, vm.uiState.value.changing)
+        }
+
+    @Test
+    fun `archive and unarchive of a saved note patch only the flag`() =
+        test { vm ->
+            val archived = loaded.copy(archived = true, version = 4)
+            coEvery { repo.setFlags(loaded, pinned = null, archived = true) } returns SaveResult.Saved(archived)
+            coEvery { repo.setFlags(archived, pinned = null, archived = false) } returns SaveResult.Saved(loaded.copy(version = 5))
+            vm.open(id)
+            runCurrent()
+
+            vm.toggleArchived()
+            advanceUntilIdle()
+            assertEquals(archived, vm.uiState.value.note)
+            vm.toggleArchived()
+            advanceUntilIdle()
+
+            assertEquals(false, vm.uiState.value.note!!.archived)
+            coVerify(exactly = 0) { repo.save(any(), any()) }
+        }
+
+    @Test
+    fun `a pin refused because the note changed elsewhere opens the conflict`() =
+        test { vm ->
+            val theirs = loaded.copy(bodyMd = "Theirs", version = 7)
+            coEvery { repo.setFlags(loaded, pinned = true, archived = null) } returns SaveResult.Conflict(theirs)
+            vm.open(id)
+            runCurrent()
+            vm.setEditing(true)
+
+            vm.togglePin()
+            advanceUntilIdle()
+
+            assertEquals(NoteConflict(theirs), vm.uiState.value.conflict)
+            assertEquals(false, vm.uiState.value.editing)
+            assertEquals(false, vm.uiState.value.editable)
+            assertEquals(false, vm.uiState.value.changing)
+        }
+
+    @Test
+    fun `a pin or archive that did not get through says why and keeps the note`() =
+        test { vm ->
+            coEvery { repo.setFlags(loaded, pinned = true, archived = null) } returns SaveResult.Offline
+            coEvery { repo.setFlags(loaded, pinned = null, archived = true) } returns SaveResult.Failed(400)
+            vm.open(id)
+            runCurrent()
+
+            vm.togglePin()
+            advanceUntilIdle()
+            assertEquals(NoteEditorMessage.CHANGE_OFFLINE, vm.uiState.value.message)
+            vm.toggleArchived()
+            // A new change clears the old message.
+            assertNull(vm.uiState.value.message)
+            advanceUntilIdle()
+            assertEquals(NoteEditorMessage.CHANGE_FAILED, vm.uiState.value.message)
+            assertEquals(loaded, vm.uiState.value.note)
+            assertEquals(false, vm.uiState.value.changing)
+        }
+
+    @Test
+    fun `no pin when the typed text could not be saved`() =
+        test { vm ->
+            coEvery { repo.save(loaded, any()) } returns SaveResult.Offline
+            vm.open(id)
+            runCurrent()
+            vm.setBody("Mine")
+
+            vm.togglePin()
+            advanceUntilIdle()
+
+            coVerify(exactly = 0) { repo.setFlags(any(), any(), any()) }
+            assertEquals(SaveStatus.OFFLINE, vm.uiState.value.status)
+            assertEquals(false, vm.uiState.value.changing)
+        }
+
+    @Test
+    fun `pin, archive and delete do nothing for an unsaved new note, during a conflict, or while a change runs`() =
+        test { vm ->
+            vm.open(null)
+            runCurrent()
+            vm.togglePin()
+            vm.toggleArchived()
+            vm.delete()
+            advanceUntilIdle()
+            coVerify(exactly = 0) { repo.setFlags(any(), any(), any()) }
+            coVerify(exactly = 0) { repo.delete(any()) }
+            assertEquals(false, vm.uiState.value.changing)
+
+            val other = NoteEditorViewModel(repo, images)
+            val answer = CompletableDeferred<SaveResult>()
+            coEvery { repo.setFlags(loaded, pinned = true, archived = null) } coAnswers { answer.await() }
+            other.open(id)
+            runCurrent()
+            other.togglePin()
+            runCurrent()
+            other.togglePin()
+            other.toggleArchived()
+            other.delete()
+            answer.complete(SaveResult.Conflict(loaded.copy(version = 9)))
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.setFlags(any(), any(), any()) }
+
+            // Now in a conflict: nothing either.
+            other.togglePin()
+            other.delete()
+            advanceUntilIdle()
+            coVerify(exactly = 1) { repo.setFlags(any(), any(), any()) }
+            coVerify(exactly = 0) { repo.delete(any()) }
+        }
+
+    @Test
+    fun `delete moves the note to the Trash and closes, dropping the text that waited for its autosave`() =
+        test { vm ->
+            coEvery { repo.delete(loaded) } returns NotesResult.Ok(Unit)
+            vm.open(id)
+            runCurrent()
+            vm.setEditing(true)
+            vm.setBody("Unsaved")
+
+            vm.delete()
+            advanceUntilIdle()
+
+            assertTrue(vm.uiState.value.closed)
+            assertEquals(loaded, vm.uiState.value.deleted)
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+            assertEquals(false, vm.uiState.value.changing)
+            assertTrue(vm.settled)
+            coVerify(exactly = 0) { repo.save(any(), any()) }
+        }
+
+    @Test
+    fun `a note deleted elsewhere already closes too`() =
+        test { vm ->
+            coEvery { repo.delete(loaded) } returns NotesResult.Failed(404)
+            vm.open(id)
+            runCurrent()
+            vm.delete()
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.closed)
+            assertEquals(loaded, vm.uiState.value.deleted)
+        }
+
+    @Test
+    fun `a delete that did not get through says why and keeps the editor open`() =
+        test { vm ->
+            coEvery { repo.delete(loaded) } returns NotesResult.Offline andThen NotesResult.Failed(412)
+            vm.open(id)
+            runCurrent()
+
+            vm.delete()
+            advanceUntilIdle()
+            assertEquals(NoteEditorMessage.CHANGE_OFFLINE, vm.uiState.value.message)
+            assertEquals(false, vm.uiState.value.closed)
+            vm.delete()
+            advanceUntilIdle()
+            assertEquals(NoteEditorMessage.CHANGE_FAILED, vm.uiState.value.message)
+            assertEquals(false, vm.uiState.value.closed)
+            assertNull(vm.uiState.value.deleted)
+            assertTrue(vm.uiState.value.editable)
+        }
+
+    @Test
+    fun `delete waits for a running save and deletes the version it returned`() =
+        test { vm ->
+            val answer = CompletableDeferred<SaveResult>()
+            val afterSave = saved("A", 4).note
+            coEvery { repo.save(loaded, NoteDraft("", "A")) } coAnswers { answer.await() }
+            coEvery { repo.delete(afterSave) } returns NotesResult.Ok(Unit)
+            vm.open(id)
+            runCurrent()
+            vm.setBody("A")
+            advanceTimeBy(1_100)
+            assertEquals(SaveStatus.SAVING, vm.uiState.value.status)
+
+            vm.delete()
+            runCurrent()
+            coVerify(exactly = 0) { repo.delete(any()) }
+            answer.complete(SaveResult.Saved(afterSave))
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { repo.delete(afterSave) }
+            assertTrue(vm.uiState.value.closed)
+        }
 }
