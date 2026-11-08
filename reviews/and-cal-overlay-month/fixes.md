@@ -102,3 +102,107 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+# Round 2
+
+Date: 2026-11-08
+
+Task: and-cal-overlay-month - Android calendar: task overlay and month view
+
+Scope: the second-round findings CR-1, CR-2 and CR-3 in `reviews/and-cal-overlay-month/review.md` (review of 9ed341a7). Base commit 5566785171fec9656083bc55f4ef3b86d1cfa655. The parent worker committed a draft fix as 69436d20. The fixer checked that draft against each finding and added one hardening change (CR-2), which is left uncommitted in the working tree for the parent worker. All changes stay inside the task's `touches`.
+
+## Fixed findings
+
+### CR-1 — The event FAB covers the bottom-right month cells, so those days cannot be opened
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarOverlayMonth.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/CalendarMonthLayoutTest.kt` (new)
+
+Problem:
+The finding is valid. `CalendarWithEditor` always draws a 56dp FAB with a 16dp margin at `BottomEnd` over `CalendarRoute`. `MonthGrid` fills the height and does not scroll, so the FAB covered the last week's two rightmost cells.
+
+Fix (draft 69436d20, checked and kept):
+`MonthGrid` keeps `MONTH_FAB_SPACE = 72.dp` (56dp FAB plus 16dp margin) free at its bottom, so the grid ends where the FAB starts. The FAB is drawn in the same parent `Box` as the calendar and is always shown, so the space is always needed. The editor file (`calendar/edit`) is outside the task's touches and was not changed.
+
+Tests:
+- `CalendarMonthLayoutTest` "the floating button does not cover the last week's cells, so tapping them opens the day": 360x640dp, a 6-week month (November 2026, Monday start), the FAB placed as `CalendarWithEditor` places it. The last-row Saturday and Sunday cells are displayed, end above the FAB's top edge, and a tap opens the day.
+
+Validation:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` — Pass
+
+### CR-2 — The "+n" line can be clipped away in 5-6 week months
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarOverlayMonth.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/MonthTitlesShownTest.kt` (new)
+- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/CalendarMonthLayoutTest.kt` (new)
+- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/CalendarOverlayMonthScreensTest.kt` (the existing "three titles" test runs at 412x915dp, where three titles fit)
+
+Problem:
+The finding is valid. The cell column listed up to 3 titles without regard to its height, so the last child ("+n") lost its space first.
+
+Fix (draft 69436d20, checked, plus one hardening change):
+- `MonthDay` is a `BoxWithConstraints`. It computes how many lines fit under the 22dp day circle: (cell height - 22dp) / (max(labelSmall line height, 14dp event bar) + 1dp spacing). The line height is converted with the current density, so it follows the font scale.
+- `monthTitlesShown(count, lines)` lists all entries when they fit (at most 3). Otherwise it lists at most min(3, lines - 1) and keeps one line for "+n". With no room it lists none.
+- Fixer addition: `TextUnit.toDp()` throws for `TextUnit.Unspecified`. The app theme uses Material's default typography (labelSmall 16sp), so this does not happen today. The conversion now falls back to 16sp when a theme sets no line height, so a theme change cannot crash the month view.
+- Checked edge cases: unbounded height falls back to 3 titles plus "+n". A cell with 0 lines shows only "+n", which is clipped. This only happens in cells too low for a single line, and a tap still opens the day with everything listed.
+
+Tests:
+- `MonthTitlesShownTest`: high cells (up to 3 titles), low cells (fewer titles, one line kept for "+n"), all entries fit (no "+n"), no room or negative lines.
+- `CalendarMonthLayoutTest` "a busy day of a six-week month keeps its +n inside the cell…": 5 entries on the last day at 360x640dp. "+n" is displayed with a height above zero and inside the cell's bounds, the listed titles plus n add up to 5, and the cell description says "5 entries".
+
+Validation:
+- `cd android && ./gradlew ktlintFormat` then `./gradlew ktlintCheck testDebugUnitTest lintDebug` — Pass
+
+### CR-3 — The tasks error line stays after a range change and has no retry
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarViewModel.kt`
+- `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarScreen.kt`
+- `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarOverlayMonth.kt`
+- `android/app/src/main/res/values/strings_calendar_agenda.xml`
+- `android/app/src/main/res/values-de/strings_calendar_agenda.xml`
+- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/CalendarViewModelOverlayTest.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/CalendarMonthLayoutTest.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/CalendarOverlayMonthScreensTest.kt` (new string in the EN/DE string check)
+
+Problem:
+The finding is valid. `show()` kept `tasksFailed` when the range changed, and `TasksFailedLine` had no retry.
+
+Fix (draft 69436d20, checked and kept):
+- `show()` sets `tasksFailed = it.tasksFailed && sameRange`, so a new range starts without the old error. Showing the same range again keeps the error.
+- `CalendarViewModel.retryTasks()` reloads the shown range's tasks as a replace load. `loadTasks` returns early while the overlay is off, and it cancels a replace load that is still running. A failed append in the agenda is covered too, because the replace load reloads the whole [from, to).
+- `CalendarCallbacks.retryTasks` (default no-op) is wired in `CalendarRoute`. `TasksFailedLine` shows a "Retry" `TextButton` (the existing `calendar_retry` string) with the content description `calendar_tasks_retry` (EN "Load the tasks again", DE "Aufgaben erneut laden") and the test tag `CalendarTags.TASKS_RETRY`.
+
+Tests:
+- View model: a new range clears the failure as soon as it is shown, before its own answer arrives; the same range shown again keeps the failure; retry reloads only the shown range and clears the failure; retry does nothing while the overlay is off.
+- Compose: the retry button calls `retryTasks`; the German labels are shown.
+
+Validation:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` — Pass
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests (results of the full run below):
+- `CalendarMonthLayoutTest` 4/4, `MonthTitlesShownTest` 3/3, `CalendarViewModelOverlayTest` 23/23, `CalendarOverlayMonthScreensTest` 23/23 — Pass
+
+Full test suite:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` — BUILD SUCCESSFUL (4461 unit tests, 0 failures, 0 errors, 0 skipped)
+
+Lint/type-check/build:
+- ktlintCheck and lintDebug are included in the command above: Pass.
+
+`.taskcheck`:
+- Not run by the fixer. The task notes say `sh scripts/check.sh` fails in the server tests on this host because Docker is not available, which is unrelated to this task. The Android part of the check passes (see above).
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed.

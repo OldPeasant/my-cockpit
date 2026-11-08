@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import ch.sonensei.cockpit.R
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -274,11 +275,9 @@ private fun MonthDay(
             pluralStringResource(R.plurals.calendar_month_items, items.size, items.size),
         ).joinToString(", ")
     // The cells do not scroll: only as many title lines are listed as fit under the day number, so "+n" is never cut off.
-    val lineHeight =
-        with(LocalDensity.current) {
-            MaterialTheme.typography.labelSmall.lineHeight
-                .toDp()
-        }
+    val labelLineHeight = MaterialTheme.typography.labelSmall.lineHeight
+    // A theme without a line height (TextUnit.Unspecified) cannot be converted to dp: Material's 16sp is assumed then.
+    val lineHeight = with(LocalDensity.current) { (if (labelLineHeight.isSp) labelLineHeight else MONTH_LINE_HEIGHT).toDp() }
     BoxWithConstraints(
         modifier
             .clickable(onClick = onClick)
@@ -298,6 +297,7 @@ private fun MonthDay(
 
 private val MONTH_DAY_SIZE = 22.dp
 private val MONTH_SPACING = 1.dp
+private val MONTH_LINE_HEIGHT = 16.sp
 
 /** An event title has a 14dp color bar, so a title line is at least that high. */
 private val MONTH_TITLE_MIN_HEIGHT = 14.dp
