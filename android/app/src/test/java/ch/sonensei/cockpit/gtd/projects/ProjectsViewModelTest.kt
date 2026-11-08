@@ -1179,6 +1179,47 @@ class ProjectsViewModelTest {
         }
 
     @Test
+    fun `finishing in the form after the project left the cache is sent without asking, and the conflict closes the form`() =
+        test { vm ->
+            coEvery { work0.update(any(), any(), any()) } returns ActionOutcome.CONFLICT
+            vm.open(holiday)
+            vm.editProject()
+            projectFlow.value = projectFlow.value.copy(data = listOf(garden, report, move))
+            vm.editForm { it.copy(status = ProjectStatus.DROPPED) }
+            vm.saveForm()
+            assertNull(vm.uiState.value.confirm)
+            coVerify(exactly = 1) { work0.update(holiday.id, 2, status(ProjectStatus.DROPPED)) }
+            // The project is gone from the reloaded cache: nothing to rebase on, so the form closes and the user is told.
+            assertNull(vm.uiState.value.form)
+            assertEquals(
+                ProjectMessage(ProjectMessage.Kind.SAVED, "Plan holiday", ActionOutcome.CONFLICT),
+                vm.uiState.value.projectMessage,
+            )
+        }
+
+    @Test
+    fun `a delete runs once at a time, and one that returns after another project was opened leaves that project open`() =
+        test { vm ->
+            val answer = CompletableDeferred<ActionOutcome>()
+            coEvery { work0.delete(holiday) } coAnswers { answer.await() }
+            vm.open(holiday)
+            vm.requestDelete()
+            vm.confirm()
+            // A second confirmed delete while the first still runs is not sent again.
+            vm.requestDelete()
+            vm.confirm()
+            coVerify(exactly = 1) { work0.delete(holiday) }
+            vm.open(garden)
+            answer.complete(ActionOutcome.DONE)
+            assertEquals(
+                garden,
+                vm.uiState.value.detail
+                    ?.project,
+            )
+            assertEquals(ProjectMessage(ProjectMessage.Kind.DELETED, "Plan holiday", ActionOutcome.DONE), vm.uiState.value.projectMessage)
+        }
+
+    @Test
     fun `a completed task is hidden until a successful reload no longer holds it, then shows if reopened elsewhere`() =
         test { vm ->
             coEvery { work0.complete(hotel) } returns ProjectCompletion.Completed(needsNextStep = false)
