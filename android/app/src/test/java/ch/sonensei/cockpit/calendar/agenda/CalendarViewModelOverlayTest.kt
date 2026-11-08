@@ -358,6 +358,48 @@ class CalendarViewModelOverlayTest {
         }
 
     @Test
+    fun `appended tasks that answer after the overlay is switched off are not shown`() =
+        runTest(dispatcher) {
+            tasks.all = listOf(task(1, today), task(2, today.plusDays(40)))
+            val vm = viewModel(TaskOverlaySetting.InMemory(enabled = true))
+            vm.refresh()
+            advanceUntilIdle()
+            val gate = CompletableDeferred<Unit>()
+            tasks.gates[today.plusDays(30) to today.plusDays(60)] = gate
+
+            vm.loadMore()
+            advanceUntilIdle()
+            vm.setOverlay(false)
+            gate.complete(Unit)
+            advanceUntilIdle()
+
+            val state = vm.uiState.value
+            assertFalse(state.overlay)
+            assertTrue(state.tasks.isEmpty())
+            assertTrue(state.taskMarks.isEmpty())
+            // The agenda still covers the appended days.
+            assertEquals(today.plusDays(60), state.to)
+        }
+
+    @Test
+    fun `appended tasks that cannot be loaded keep the tasks shown so far and set the flag`() =
+        runTest(dispatcher) {
+            tasks.all = listOf(task(1, today), task(2, today.plusDays(40)))
+            val vm = viewModel(TaskOverlaySetting.InMemory(enabled = true))
+            vm.refresh()
+            advanceUntilIdle()
+
+            tasks.failure = CalendarResult.Offline
+            vm.loadMore()
+            advanceUntilIdle()
+
+            val state = vm.uiState.value
+            assertEquals(today.plusDays(60), state.to)
+            assertTrue(state.tasksFailed)
+            assertEquals(listOf(id(1)), state.tasks.map { it.id })
+        }
+
+    @Test
     fun `the month view loads the overlay's tasks of its whole weeks, and each moved month its own`() =
         runTest(dispatcher) {
             val september30 = LocalDate.parse("2026-09-30")
