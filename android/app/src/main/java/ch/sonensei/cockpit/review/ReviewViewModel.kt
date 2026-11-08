@@ -48,6 +48,9 @@ enum class ReviewMessage {
 
     /** The item was changed or removed elsewhere; the step was loaded again. */
     ITEM_CHANGED,
+
+    /** A project's next step was added as a next action, but making it the project's next step failed. */
+    NEXT_STEP_NOT_SET,
 }
 
 /** What happened to the item decided last in a step, announced above the step's list. */
@@ -134,8 +137,14 @@ class ReviewViewModel
         private var loadJob: Job? = null
         private val stepJobs = mutableMapOf<ReviewStep, Job>()
 
-        /** The items decided on the server while their step loads: the load may still hold them. */
-        private val decidedDuringLoad = mutableMapOf<ReviewStep, MutableSet<UUID>>()
+        /**
+         * The items decided since their step was last shown (kept ones too): a reload of the step (after a refused
+         * decision, or one running while they were decided) may still hold them, so they stay out of its result.
+         */
+        private val decided = mutableMapOf<ReviewStep, MutableSet<UUID>>()
+
+        /** The step last shown; a decision finishing after the user moved on is not announced in another step. */
+        private var shownStep: ReviewStep? = null
 
         /** Counts the saved starts, moves and completions; a load begun before the last one must not undo it. */
         private var saves = 0
@@ -318,8 +327,15 @@ class ReviewViewModel
 
         /** Loads what [step] shows (its events, items or the habits); called each time the step is shown and to retry. */
         fun loadStep(step: ReviewStep) {
-            // The last decision belongs to the step it was made in.
+            shownStep = step
+            // The last decision belongs to the step it was made in; a step shown again starts over.
             state.update { it.copy(decision = null) }
+            decided.remove(step)
+            reloadStep(step)
+        }
+
+        /** Loads [step] again, keeping its last decision and the items decided since it was shown. */
+        private fun reloadStep(step: ReviewStep) {
             when (step) {
                 ReviewStep.GET_CLEAR -> Unit
                 ReviewStep.PAST_CALENDAR -> loadEvents(step, upcoming = false)
@@ -399,10 +415,16 @@ class ReviewViewModel
                         state.update {
                             it.copy(
                                 projectList = it.projectList.map { list -> list.map { p -> if (p.id == project.id) result.value else p } },
-                                decision = ReviewDecision(ReviewDecision.Kind.NEXT_STEP_ADDED, title, project = project.title),
+                                decision =
+                                    ReviewDecision(ReviewDecision.Kind.NEXT_STEP_ADDED, title, project = project.title)
+                                        .takeIf { shownStep == ReviewStep.PROJECTS } ?: it.decision,
                             )
                         }
-                    else -> failed(ReviewStep.PROJECTS, result)
+                    else -> {
+                        failed(ReviewStep.PROJECTS, result)
+                        // Not "try again": that would add the next action a second time.
+                        if (outcome.taskCreated) state.update { it.copy(message = ReviewMessage.NEXT_STEP_NOT_SET) }
+                    }
                 }
             }
         }
@@ -442,6 +464,7 @@ class ReviewViewModel
         ) {
             if (id in state.value.busy) return
             if (action == null) {
+                decided.getOrPut(step) { mutableSetOf() }.add(id)
                 removeItem(step, id, decision)
                 return
             }
@@ -454,7 +477,7 @@ class ReviewViewModel
                         setBusy(id, false)
                     }
                 if (result is ReviewResult.Ok) {
-                    decidedDuringLoad[step]?.add(id)
+                    decided.getOrPut(step) { mutableSetOf() }.add(id)
                     removeItem(step, id, decision)
                 } else {
                     failed(step, result)
@@ -475,7 +498,8 @@ class ReviewViewModel
                     ReviewStep.SOMEDAY -> it.copy(someday = it.someday.map { list -> list.filterNot { i -> i.id == id } })
                     else -> it
                 }
-            shown.copy(decision = decision)
+            // Moved on to another step meanwhile: the decision does not belong there.
+            if (step == shownStep) shown.copy(decision = decision) else shown
         }
 
         /** A refused decision: changed or removed elsewhere loads the step again, other failures say why. */
@@ -489,11 +513,7 @@ class ReviewViewModel
                     result is ReviewResult.Failed && result.status in CONFLICTS -> ReviewMessage.ITEM_CHANGED
                     else -> ReviewMessage.ACTION_FAILED
                 }
-            if (message == ReviewMessage.ITEM_CHANGED) {
-                val decision = state.value.decision
-                loadStep(step)
-                state.update { it.copy(decision = decision) }
-            }
+            if (message == ReviewMessage.ITEM_CHANGED) reloadStep(step)
             state.update { it.copy(message = message) }
         }
 
@@ -502,15 +522,18 @@ class ReviewViewModel
             busy: Boolean,
         ) = state.update { it.copy(busy = if (busy) it.busy + id else it.busy - id) }
 
-        /** Loads the items of [step]; one decided while it loads is left out (the load may have read it before). */
+        /** Loads the items of [step]; one decided since the step was shown is left out (the load may still hold it). */
         private fun <T> loadItems(
             step: ReviewStep,
             load: suspend () -> ReviewResult<List<T>>,
             id: (T) -> UUID,
             field: (ReviewUiState, (StepData<List<T>>) -> StepData<List<T>>) -> ReviewUiState,
         ) = loadInto(step, {
-            val decided = mutableSetOf<UUID>().also { decidedDuringLoad[step] = it }
-            load().toStep()?.filterNot { id(it) in decided }
+            load().toStep()?.let { items ->
+                // Read when the result arrives: it includes the items decided while the load ran.
+                val left = decided[step].orEmpty()
+                items.filterNot { id(it) in left }
+            }
         }, field)
 
         private fun loadEvents(

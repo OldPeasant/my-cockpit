@@ -97,6 +97,7 @@
     <string name="review_someday_empty">Nothing on Someday/Maybe.</string>
     <string name="review_action_failed">The server refused the change. Try again.</string>
     <string name="review_item_changed">It was changed on another device, so this step was loaded again.</string>
+    <string name="review_next_step_not_set">The next action was added to the project, but not set as its next step. Open the project to set it.</string>
     <string name="review_decided_waiting">Still waiting for “%1$s”.</string>
     <string name="review_decided_followed_up">Added “%1$s” to Next.</string>
     <string name="review_decided_completed">Completed “%1$s”.</string>

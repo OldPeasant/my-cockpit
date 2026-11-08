@@ -97,6 +97,7 @@
     <string name="review_someday_empty">Nichts unter Irgendwann/Vielleicht.</string>
     <string name="review_action_failed">Der Server hat die Änderung abgelehnt. Versuch es noch einmal.</string>
     <string name="review_item_changed">Es wurde auf einem anderen Gerät geändert, daher wurde dieser Schritt neu geladen.</string>
+    <string name="review_next_step_not_set">Die nächste Aktion wurde zum Projekt hinzugefügt, aber nicht als nächster Schritt gesetzt. Öffne das Projekt, um ihn zu setzen.</string>
     <string name="review_decided_waiting">Warte weiter auf „%1$s“.</string>
     <string name="review_decided_followed_up">„%1$s“ zu Nächste hinzugefügt.</string>
     <string name="review_decided_completed">„%1$s“ erledigt.</string>

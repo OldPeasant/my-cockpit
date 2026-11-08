@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
@@ -38,9 +40,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -105,8 +109,12 @@ internal fun ProjectsStep(
                 overflow = TextOverflow.Ellipsis,
                 modifier =
                     Modifier
-                        .clickable(onClickLabel = stringResource(R.string.review_open_project)) { callbacks.openProject(project) }
-                        .padding(vertical = 4.dp)
+                        .clickable(
+                            onClickLabel = stringResource(R.string.review_open_project),
+                            role = Role.Button,
+                        ) { callbacks.openProject(project) }
+                        .heightIn(min = 48.dp)
+                        .wrapContentHeight(Alignment.CenterVertically)
                         .testTag(ReviewTags.OPEN_PROJECT),
             )
             Text(
@@ -279,13 +287,20 @@ private fun StatusChoice(
 ) {
     var open by remember { mutableStateOf(false) }
     val description = stringResource(R.string.review_project_status, project.title)
+    val current = statusName(project.status)
     Box {
         OutlinedButton(
             onClick = { open = true },
             enabled = enabled,
-            modifier = Modifier.semantics { contentDescription = description }.testTag(ReviewTags.STATUS),
+            modifier =
+                Modifier
+                    .semantics {
+                        contentDescription = description
+                        // The description replaces the visible text, so the current status is announced as the state.
+                        stateDescription = current
+                    }.testTag(ReviewTags.STATUS),
         ) {
-            Text(statusName(project.status))
+            Text(current)
             Icon(Icons.Outlined.ExpandMore, contentDescription = null, modifier = Modifier.padding(start = 4.dp).size(18.dp))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {

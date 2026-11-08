@@ -439,6 +439,7 @@ private fun Banner(
             ReviewMessage.CAPTURE_FAILED -> R.string.review_capture_failed
             ReviewMessage.ACTION_FAILED -> R.string.review_action_failed
             ReviewMessage.ITEM_CHANGED -> R.string.review_item_changed
+            ReviewMessage.NEXT_STEP_NOT_SET -> R.string.review_next_step_not_set
         }
     val offline = message == ReviewMessage.OFFLINE || message == ReviewMessage.SAVE_OFFLINE
     val color =
