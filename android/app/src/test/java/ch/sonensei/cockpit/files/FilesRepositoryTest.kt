@@ -380,4 +380,61 @@ class FilesRepositoryTest {
             server.enqueue(status(502))
             assertEquals(FilesResult.Offline, files.delete(file))
         }
+
+    private fun text(
+        body: String,
+        truncated: String?,
+    ) = MockResponse
+        .Builder()
+        .code(200)
+        .addHeader("Content-Type", "text/plain; charset=utf-8")
+        .apply { truncated?.let { addHeader("X-Preview-Truncated", it) } }
+        .body(body)
+        .build()
+
+    @Test
+    fun `a text preview is the start of the file as UTF-8, cut when the server says so`() =
+        runBlocking {
+            server.enqueue(text("Einkaufsliste: Äpfel, Brot", "false"))
+            assertEquals(FilesResult.Ok(TextPreview("Einkaufsliste: Äpfel, Brot", false)), files.previewText(id(3)))
+            val request = server.takeRequest()
+            assertEquals("GET", request.method)
+            assertEquals("/api/v1/files/${id(3)}/preview", request.url.encodedPath)
+
+            server.enqueue(text("Anfang", "true"))
+            assertEquals(FilesResult.Ok(TextPreview("Anfang", true)), files.previewText(id(3)))
+            server.enqueue(text("Anfang", "TRUE"))
+            assertEquals(FilesResult.Ok(TextPreview("Anfang", true)), files.previewText(id(3)))
+        }
+
+    @Test
+    fun `a text preview without the truncated header, or with garbage in it, is whole`() =
+        runBlocking {
+            server.enqueue(text("ganz", null))
+            assertEquals(FilesResult.Ok(TextPreview("ganz", false)), files.previewText(id(3)))
+            server.enqueue(text("ganz", "yes"))
+            assertEquals(FilesResult.Ok(TextPreview("ganz", false)), files.previewText(id(3)))
+            server.enqueue(text("", "false"))
+            assertEquals(FilesResult.Ok(TextPreview("", false)), files.previewText(id(3)))
+        }
+
+    @Test
+    fun `no text preview of the type is 415, other refusals keep their status, a server error or no server is offline`() =
+        runBlocking {
+            server.enqueue(
+                MockResponse
+                    .Builder()
+                    .code(415)
+                    .addHeader("Content-Type", "application/problem+json")
+                    .body("""{"status":415,"detail":"No preview for this file type"}""")
+                    .build(),
+            )
+            assertEquals(FilesResult.Failed(415), files.previewText(id(3)))
+            server.enqueue(status(404))
+            assertEquals(FilesResult.Failed(404), files.previewText(id(3)))
+            server.enqueue(status(503))
+            assertEquals(FilesResult.Offline, files.previewText(id(3)))
+            server.close()
+            assertEquals(FilesResult.Offline, files.previewText(id(3)))
+        }
 }

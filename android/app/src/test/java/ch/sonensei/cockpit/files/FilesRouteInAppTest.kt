@@ -109,12 +109,12 @@ class FilesRouteInAppTest {
     private fun waitForText(text: String) =
         composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
 
-    private fun openFiles() {
+    private fun openFiles(first: DriveEntry = pdf) {
         scenario = ActivityScenario.launch(MainActivity::class.java)
         composeRule.onNode(hasText("More") and isSelectable()).performClick()
         composeRule.onNodeWithTag(screenTag(CockpitDestination.More)).performScrollToNode(hasText("Files"))
         composeRule.onNodeWithText("Files").performClick()
-        waitForTag(FilesTags.entry(pdf.id))
+        waitForTag(FilesTags.entry(first.id))
     }
 
     /** "Open with" from the file's menu: a tap on the row previews it in the app instead. */
@@ -573,6 +573,72 @@ class FilesRouteInAppTest {
         composeRule.onNodeWithTag(FilesTags.PICKER).assertDoesNotExist()
         coVerify(exactly = 1) { repo.move(pdf, archive.id) }
         coVerify(exactly = 1) { repo.move(notes, archive.id) }
+    }
+
+    @Test
+    fun `a tap previews a file in the app, back closes the preview and stays in the folder, a tap opens it again`() {
+        val notes = DriveEntry.File(id(11), "Einkauf.txt", "text/plain", 20, Instant.parse("2026-09-01T09:00:00Z"))
+        coEvery { repo.list(null) } returns FilesResult.Ok(listOf(docs, pdf, notes))
+        coEvery { repo.previewText(notes.id) } returns FilesResult.Ok(TextPreview("Milch, Brot", truncated = false))
+        openFiles()
+
+        composeRule.onNodeWithTag(FilesTags.entry(notes.id)).performClick()
+        waitForTag(PreviewTags.TEXT)
+        composeRule.onNodeWithTag(PreviewTags.TEXT).assertTextEquals("Milch, Brot")
+        composeRule.onNodeWithTag(PreviewTags.NAME).assertTextEquals("Einkauf.txt")
+        composeRule.onNodeWithTag(PreviewTags.POSITION).assertTextEquals("2 of 2, 20 B")
+        // Nothing was handed to another app.
+        assertNull(shadowOf(activity()).peekNextStartedActivity())
+
+        back()
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithTag(PreviewTags.PREVIEW).fetchSemanticsNodes().isEmpty() }
+        composeRule.onNodeWithTag(screenTag(CockpitDestination.Files)).assertExists()
+        composeRule.onNodeWithTag(FilesTags.entry(notes.id)).assertExists()
+
+        composeRule.onNodeWithTag(FilesTags.entry(notes.id)).performClick()
+        waitForTag(PreviewTags.TEXT)
+        coVerify(exactly = 2) { repo.previewText(notes.id) }
+    }
+
+    @Test
+    fun `in a folder, back closes the preview first, then goes up`() {
+        coEvery { repo.previewText(inner.id) } returns FilesResult.Ok(TextPreview("Miete: 1000 CHF (fiktiv)", truncated = true))
+        openFiles()
+        composeRule.onNodeWithTag(FilesTags.entry(docs.id)).performClick()
+        waitForTag(FilesTags.entry(inner.id))
+
+        composeRule.onNodeWithTag(FilesTags.entry(inner.id)).performClick()
+        waitForTag(PreviewTags.TRUNCATED)
+
+        back()
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithTag(PreviewTags.PREVIEW).fetchSemanticsNodes().isEmpty() }
+        composeRule.onNodeWithTag(FilesTags.entry(inner.id)).assertExists()
+        composeRule.onNodeWithTag(FilesTags.crumb(1)).assertExists()
+
+        back()
+        waitForTag(FilesTags.entry(pdf.id))
+        composeRule.onNodeWithTag(FilesTags.crumb(1)).assertDoesNotExist()
+    }
+
+    @Test
+    fun `next and previous in the preview go through the folder's files`() {
+        val notes = DriveEntry.File(id(11), "Einkauf.txt", "text/plain", 20, Instant.parse("2026-09-01T09:00:00Z"))
+        val archive = DriveEntry.File(id(12), "Archiv.zip", "application/zip", 2048, Instant.parse("2026-09-01T09:00:00Z"))
+        coEvery { repo.list(null) } returns FilesResult.Ok(listOf(docs, notes, archive))
+        coEvery { repo.previewText(notes.id) } returns FilesResult.Ok(TextPreview("Milch, Brot", truncated = false))
+        openFiles(first = notes)
+
+        composeRule.onNodeWithTag(FilesTags.entry(notes.id)).performClick()
+        waitForTag(PreviewTags.TEXT)
+        composeRule.onNodeWithTag(PreviewTags.NEXT).performClick()
+        waitForTag(PreviewTags.UNSUPPORTED)
+        composeRule.onNodeWithTag(PreviewTags.NAME).assertTextEquals("Archiv.zip")
+        composeRule.onNodeWithTag(PreviewTags.PREVIOUS).performClick()
+        waitForTag(PreviewTags.TEXT)
+        composeRule.onNodeWithTag(PreviewTags.NAME).assertTextEquals("Einkauf.txt")
+
+        composeRule.onNodeWithTag(PreviewTags.CLOSE).performClick()
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithTag(PreviewTags.PREVIEW).fetchSemanticsNodes().isEmpty() }
     }
 
     private companion object {
