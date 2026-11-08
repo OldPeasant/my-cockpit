@@ -6,6 +6,7 @@ deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/compose,android/app/src/test/java/ch/sonensei/cockpit/mail/compose,android/app/src/main/res/values/strings_mail_compose.xml,android/app/src/main/res/values-de/strings_mail_compose.xml]
 prio: 2
 lease_until: 2026-11-08T15:47:16Z
+extended: rudi/agent-2
 ---
 ## Goal
 Android compose has plain recipient fields and can only attach device files; web suggests contacts and recent
@@ -22,3 +23,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 15:37+0100 by rudi/agent-2): Suggestions use GET /api/v1/contacts/autocomplete (contacts + recent correspondents merged server-side), like web recipient-input; /mail/correspondents is not called separately
 - ASSUMPTION (2026-11-08 15:37+0100 by rudi/agent-2): Recipient chips are rendered from the existing field strings (text up to the last , or ; outside quotes = chips, rest = typed text) so draft save/parse logic stays unchanged; reply/forward recipients get a trailing ', ' to show as chips
 - ASSUMPTION (2026-11-08 15:37+0100 by rudi/agent-2): Attach from Files adds the drive file via PUT draft attachments [{fileId}] (server copies it), browsing with FilesRepository.list; picker shows folders/files only, no search
+- extended by rudi/agent-2: Implementation, first test-writer + code-reviewer, and fixer (CR-1..CR-4 + quote bug) are done and committed (f7101796). Left: re-run test-writer and code-reviewer on the final code (fixes changed code, so first review is stale), tasks.py verify #1-#4, run sh scripts/check.sh (fixer saw a flaky unrelated server test PageFetcherSizeLimitTests; full check did not finish within 10 min this session), write+commit reviews/and-mail-compose-plus/quality.json, then done.
