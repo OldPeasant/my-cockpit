@@ -12,7 +12,8 @@ Part of `task-reminders` (Reminders on tasks (web + Android)), which was split.
 Goal: Android task detail offers the same as the web: add/remove reminders on a task (presets relative to due/scheduled date or an exact date/time), existing reminders listed, using `POST/DELETE/GET /api/v1/reminders` (itemType TASK). Local alarms are scheduled through the existing reminder sync (`android/.../cockpit/reminders/ReminderSync.kt`, `ReminderAlarms.kt`); trigger a sync after create/delete. Stay inside `android/.../cockpit/gtd/task`, its tests and `strings_task_detail.xml` (en + de).
 
 ## Acceptance criteria
-- [ ] Android task detail: add/remove reminders, existing reminders listed; local alarms scheduled through the existing reminder sync
+- [x] Android task detail: add/remove reminders, existing reminders listed; local alarms scheduled through the existing reminder sync
+  - verified (2026-11-09 00:27+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.task.*' --tests 'ch.sonensei.cockpit.reminders.*' --tests 'ch.sonensei.cockpit.ui.*' -> 527 tests, 0 failures (TaskRemindersContentTest: list/add presets/custom date+time/remove in task detail; TaskRemindersTest: POST/DELETE/GET /api/v1/reminders itemType TASK via MockWebServer, ReminderSync.sync() called once after each successful create/delete)
 - [~] A reminder fires as a notification and opens the task (manually verified or skipped with reason)
   - skipped (2026-11-09 00:03+0100 by dell26/agent-1): No emulator/device in this environment to fire a real notification; the tap path (OpenItemRequest.taskId -> TaskRoutes.detail in CockpitShell) is covered by unit tests only
 - [ ] New strings in English and German (`res/values{,-de}/strings_task_detail.xml`)
