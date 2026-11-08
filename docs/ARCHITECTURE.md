@@ -56,7 +56,8 @@ locally.
 | Docker or Podman | `sudo dnf install podman podman-docker` + `systemctl --user enable --now podman.socket`, or Docker Engine | Docker Desktop / Podman Desktop | Docker Desktop |
 
 Web libraries come from the lockfile (`cd web && npm ci`). Playwright browsers for the (slow, non-check)
-E2E suites: `cd web && npx playwright install --with-deps chromium`.
+E2E suites: `cd web && npx playwright install --with-deps chromium firefox` (Firefox runs `e2e/mail-read/`, project
+`firefox`).
 
 Gradle needs no separate install: the wrappers (`./gradlew`) download it. The JDK is found through
 `JAVA_HOME` or `PATH`.
@@ -133,7 +134,7 @@ pagination helpers live in `server/.../core/web` (summary in `api/README.md`).
 | `cd server && ./gradlew check` | server lint + `test` (unit tests + Spring tests against the shared Postgres Testcontainer; needs Docker/Podman) | ~12 s warm |
 | `cd server && ./gradlew integrationTest` | server tests tagged `external` (`@ExternalTest`: GreenMail, Radicale, WireMock, ...). Not part of `check`/`.taskcheck` | |
 | `cd server && ./gradlew integrationTest --tests '*PerfBaselineTests'` | performance baseline: seeds 10k tasks, 2k notes, 50k mail headers, 5k events and asserts p95 < 200 ms for list/search endpoints (`docs/perf.md`) | ~1.5 min |
-| `cd web && npm run e2e [-- <spec>]` | Playwright (chromium) against `deploy/docker-compose.e2e.yml` (server image in profile `e2e`, fresh Postgres, GreenMail 2.1.5): builds/starts the stack, waits for health, runs the specs in `web/e2e/`, tears down (`web/e2e/README.md`). Not part of `.taskcheck` | ~20 s for `support/smoke.spec.ts` with cached image layers (stack healthy after ~16 s, 2 tests ~2 s); a changed source rebuilds the image first |
+| `cd web && npm run e2e [-- <spec>]` | Playwright (chromium; also firefox for `e2e/mail-read/`) against `deploy/docker-compose.e2e.yml` (server image in profile `e2e`, fresh Postgres, GreenMail 2.1.5): builds/starts the stack, waits for health, runs the specs in `web/e2e/`, tears down (`web/e2e/README.md`). Not part of `.taskcheck` | ~20 s for `support/smoke.spec.ts` with cached image layers (stack healthy after ~16 s, 2 tests ~2 s); a changed source rebuilds the image first |
 | `cd web && npm run check` | web generated-client freshness check (`api:check`; `npm run api:gen` regenerates) + lint + tests + production build | |
 | `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` | android | |
 | `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.smoke.*' -Pe2eBaseUrl=http://127.0.0.1:<port>/` | Phase 3 demo (SPEC.md §13.2) on Robolectric against a running e2e stack; see "Android demo script". Excluded from `testDebugUnitTest` without `-Pe2eBaseUrl` | ~20–40 s with the stack up |
