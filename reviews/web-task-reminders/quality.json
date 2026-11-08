@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "task": "web-task-reminders",
+  "reviewed_revision": "c549e36b8f6503ce748a8d3f7fe96fa0eaa8b1d2",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-task-reminders/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-task-reminders/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-task-reminders/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: a stale initial load overwrote an add/remove; controls locked until the load finishes (fixes.md round 1)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: 'No reminders.' after a failed load and no retry; empty text only after success, Retry button added (round 1)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: task-switch guards untested; covered by the test-writer's late-answer specs, fixer verified"},
+    {"id": "CR-1 (re-review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "late load from an earlier visit of the same task applied; per-load sequence number (round 2)"},
+    {"id": "CR-2 (re-review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "Retry button not disabled while locked; [disabled]=locked() (round 2)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "same as CR-1 (re-review); the two failing specs pass after round 2"},
+    {"id": "CR-1 (final review)", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "a late add/remove result from an earlier visit of the same task (A to B to A while the POST is pending) can show a duplicate row until reload; display-only, and TaskDetail recreates the component on every task switch, so the real page cannot reach it"}
+  ],
+  "validation": [
+    {"command": "npm --prefix web run test:ci -- --include='src/app/features/gtd/task-detail/**/*.spec.ts' --include='src/locale/**/*.spec.ts'", "result": "pass"},
+    {"command": "npm --prefix web run coverage", "result": "pass"},
+    {"command": "npm --prefix web run lint", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
