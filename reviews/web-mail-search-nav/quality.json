@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "task": "web-mail-search-nav",
+  "reviewed_revision": "b2f43cd65c8cc2824002b531d544b99c3c27ca9c",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-mail-search-nav/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-mail-search-nav/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-mail-search-nav/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "archive/spam/delete at the end of a loaded folder page now loads the next page first (fixes.md CR-1)"},
+    {"id": "CR-2 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "restored folder lists longer than 200 items are not refetched and cut on return (fixes.md CR-2)"},
+    {"id": "CR-1 (final review, CR-3 of the first review)", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "the saved list is matched by its exact URL; hand-typed list URLs in another form show no previous/next. All URLs the app builds match; recorded as a task assumption"}
+  ],
+  "validation": [
+    {"command": "cd web && npx ng test --watch=false --include 'src/app/features/mail/**/*.spec.ts'", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "cd web && npm run coverage", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
