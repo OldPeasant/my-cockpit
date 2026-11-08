@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.mail.list.MailListAction
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
@@ -55,7 +56,8 @@ class MailReadSpamGermanTest {
     @Test
     fun `the spam button has a German TalkBack label`() {
         show()
-        composeRule.onNodeWithContentDescription("Als Spam verschieben").assertIsEnabled()
+        composeRule.onNodeWithContentDescription("Weitere Aktionen").performClick()
+        composeRule.onNodeWithText("Als Spam verschieben").assertIsEnabled()
     }
 
     @Test

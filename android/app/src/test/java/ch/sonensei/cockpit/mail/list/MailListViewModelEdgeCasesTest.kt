@@ -198,13 +198,13 @@ class MailListViewModelEdgeCasesTest {
             advanceUntilIdle()
 
             assertEquals(listOf(id(9)), ids(vm))
-            coVerify(exactly = 0) { repo.act(any(), any()) }
+            coVerify(exactly = 0) { repo.actAll(any(), any(), any()) }
         }
 
     @Test
     fun `the last mail refused by the server comes back at the end`() =
         runTest(dispatcher) {
-            coEvery { repo.act(id(3), MailListAction.DELETE) } returns MailResult.Failed(409)
+            coEvery { repo.actAll(listOf(id(3)), MailListAction.DELETE, null) } returns MailResult.Failed(409)
             val vm = MailListViewModel(repo)
             vm.refresh()
             advanceUntilIdle()
@@ -219,7 +219,7 @@ class MailListViewModelEdgeCasesTest {
     @Test
     fun `two mails swiped quickly, both refused, both come back`() =
         runTest(dispatcher) {
-            coEvery { repo.act(any(), MailListAction.DELETE) } returns MailResult.Ok(false)
+            coEvery { repo.actAll(any(), MailListAction.DELETE, null) } returns MailResult.Ok(emptySet())
             val vm = MailListViewModel(repo)
             vm.refresh()
             advanceUntilIdle()
@@ -236,8 +236,8 @@ class MailListViewModelEdgeCasesTest {
     @Test
     fun `a refused swipe does not bring the mail into a mailbox selected meanwhile`() =
         runTest(dispatcher) {
-            val answer = CompletableDeferred<MailResult<Boolean>>()
-            coEvery { repo.act(id(2), MailListAction.DELETE) } coAnswers { answer.await() }
+            val answer = CompletableDeferred<MailResult<Set<UUID>>>()
+            coEvery { repo.actAll(listOf(id(2)), MailListAction.DELETE, null) } coAnswers { answer.await() }
             coEvery { repo.messages(archiveBox, null) } returns MailResult.Ok(MailPage(listOf(mail(9)), null))
             val vm = MailListViewModel(repo)
             vm.refresh()
@@ -247,7 +247,7 @@ class MailListViewModelEdgeCasesTest {
             vm.act(id(2), MailListAction.DELETE)
             vm.select(archiveBox)
             advanceUntilIdle()
-            answer.complete(MailResult.Ok(false))
+            answer.complete(MailResult.Ok(emptySet()))
             advanceUntilIdle()
 
             assertEquals(MailListMessage.DELETE_FAILED, vm.uiState.value.message)
@@ -257,8 +257,8 @@ class MailListViewModelEdgeCasesTest {
     @Test
     fun `an archived mail stays gone even when a reload that started before brought it back`() =
         runTest(dispatcher) {
-            val answer = CompletableDeferred<MailResult<Boolean>>()
-            coEvery { repo.act(id(2), MailListAction.ARCHIVE) } coAnswers { answer.await() }
+            val answer = CompletableDeferred<MailResult<Set<UUID>>>()
+            coEvery { repo.actAll(listOf(id(2)), MailListAction.ARCHIVE, null) } coAnswers { answer.await() }
             val vm = MailListViewModel(repo)
             vm.refresh()
             advanceUntilIdle()
@@ -270,7 +270,7 @@ class MailListViewModelEdgeCasesTest {
             advanceUntilIdle()
             assertEquals(listOf(1, 2, 3).map(::id), ids(vm))
 
-            answer.complete(MailResult.Ok(true))
+            answer.complete(MailResult.Ok(setOf(id(2))))
             advanceUntilIdle()
             assertEquals(listOf(1, 3).map(::id), ids(vm))
         }
@@ -316,8 +316,8 @@ class MailListViewModelEdgeCasesTest {
     @Test
     fun `a refused swipe does not duplicate a mail that a reload already brought back`() =
         runTest(dispatcher) {
-            val answer = CompletableDeferred<MailResult<Boolean>>()
-            coEvery { repo.act(id(2), MailListAction.DELETE) } coAnswers { answer.await() }
+            val answer = CompletableDeferred<MailResult<Set<UUID>>>()
+            coEvery { repo.actAll(listOf(id(2)), MailListAction.DELETE, null) } coAnswers { answer.await() }
             val vm = MailListViewModel(repo)
             vm.refresh()
             advanceUntilIdle()

@@ -204,6 +204,7 @@ class MailReadNavigationInAppTest {
         openMail()
         read(2)
 
+        composeRule.onNodeWithTag(MailReadTags.MORE).performClick()
         composeRule.onNodeWithTag(MailReadTags.action(MailListAction.SPAM)).performClick()
         waitForSubject(3)
         composeRule.onNodeWithTag(MailReadTags.POSITION).assertTextEquals("2 of 2")

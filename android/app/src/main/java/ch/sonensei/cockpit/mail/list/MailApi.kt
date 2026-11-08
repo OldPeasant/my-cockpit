@@ -5,6 +5,8 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import retrofit2.Response
 import retrofit2.Retrofit
@@ -179,7 +181,9 @@ data class MailServerSearchFailureDto(
 data class MailActionRequestDto(
     val action: String,
     val ids: List<String>,
-    /** Only for MOVE: a folder of the messages' account. */
+    /** Only for MOVE: a folder of the messages' account; left out of the other requests. */
+    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
     val targetFolderId: String? = null,
 )
 

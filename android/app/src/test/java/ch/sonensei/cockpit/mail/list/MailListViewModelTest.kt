@@ -98,8 +98,8 @@ class MailListViewModelTest {
     @Test
     fun `a swiped mail leaves the list at once and stays gone when the server moved it`() =
         runTest(dispatcher) {
-            val answer = CompletableDeferred<MailResult<Boolean>>()
-            coEvery { repo.act(id(2), MailListAction.ARCHIVE) } coAnswers { answer.await() }
+            val answer = CompletableDeferred<MailResult<Set<UUID>>>()
+            coEvery { repo.actAll(listOf(id(2)), MailListAction.ARCHIVE, null) } coAnswers { answer.await() }
             val vm = loaded()
             advanceUntilIdle()
 
@@ -111,7 +111,7 @@ class MailListViewModelTest {
                     .map { it.id },
             )
 
-            answer.complete(MailResult.Ok(true))
+            answer.complete(MailResult.Ok(setOf(id(2))))
             advanceUntilIdle()
             assertEquals(
                 listOf(1, 3).map(::id),
@@ -124,8 +124,8 @@ class MailListViewModelTest {
     @Test
     fun `a refused or offline swipe puts the mail back in its place and says so`() =
         runTest(dispatcher) {
-            coEvery { repo.act(id(2), MailListAction.DELETE) } returns MailResult.Ok(false)
-            coEvery { repo.act(id(3), MailListAction.ARCHIVE) } returns MailResult.Offline
+            coEvery { repo.actAll(listOf(id(2)), MailListAction.DELETE, null) } returns MailResult.Ok(emptySet())
+            coEvery { repo.actAll(listOf(id(3)), MailListAction.ARCHIVE, null) } returns MailResult.Offline
             val vm = loaded()
             advanceUntilIdle()
 

@@ -235,6 +235,7 @@ class MailReadNavigationScreenTest {
         coEvery { reader.act(id(1), MailListAction.SPAM) } returns MailResult.Ok(MailActionOutcome(true))
         showRoute(1, ids, reader)
 
+        composeRule.onNodeWithTag(MailReadTags.MORE).performClick()
         composeRule.onNodeWithTag(MailReadTags.action(MailListAction.SPAM)).performClick()
         composeRule.waitForIdle()
 

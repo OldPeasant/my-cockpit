@@ -83,7 +83,7 @@ class MailReadScreenTest {
             MailReadTags.gtd(MailGtdAction.WAITING),
             MailReadTags.action(MailListAction.ARCHIVE),
             MailReadTags.action(MailListAction.DELETE),
-            MailReadTags.action(MailListAction.SPAM),
+            MailReadTags.MORE,
         )
 
     @Test
@@ -133,11 +133,13 @@ class MailReadScreenTest {
     }
 
     @Test
-    fun `the toolbar asks for back, the GTD actions, archive, delete and spam`() {
+    fun `the toolbar asks for back, the GTD actions, archive, delete and spam from its menu`() {
         show(MailReadUiState(message = message))
 
         composeRule.onNodeWithTag(MailReadTags.BACK).performClick()
+        // The last tag is the menu button: it opens the menu with spam.
         actionTags.forEach { composeRule.onNodeWithTag(it).assertIsEnabled().performClick() }
+        composeRule.onNodeWithTag(MailReadTags.action(MailListAction.SPAM)).performClick()
 
         assertEquals(listOf("back", "gtd TASK", "gtd WAITING", "act ARCHIVE", "act DELETE", "act SPAM"), calls)
     }
@@ -220,9 +222,10 @@ class MailReadScreenTest {
     }
 
     @Test
-    fun `the spam button has a TalkBack label`() {
+    fun `the spam menu item is labelled`() {
         show(MailReadUiState(message = message))
-        composeRule.onNodeWithContentDescription("Move to spam").assertIsEnabled()
+        composeRule.onNodeWithContentDescription("More actions").performClick()
+        composeRule.onNodeWithText("Move to spam").assertIsEnabled()
     }
 
     @Test
@@ -264,23 +267,23 @@ class MailReadScreenTest {
     }
 
     @Test
-    fun `the spam button comes after archive and delete`() {
+    fun `the menu button comes after archive and delete`() {
         show(MailReadUiState(message = message))
 
-        fun left(action: MailListAction) =
+        fun left(tag: String) =
             composeRule
-                .onNodeWithTag(MailReadTags.action(action))
+                .onNodeWithTag(tag)
                 .fetchSemanticsNode()
                 .boundsInRoot.left
-        assertTrue(left(MailListAction.ARCHIVE) < left(MailListAction.DELETE))
-        assertTrue(left(MailListAction.DELETE) < left(MailListAction.SPAM))
+        assertTrue(left(MailReadTags.action(MailListAction.ARCHIVE)) < left(MailReadTags.action(MailListAction.DELETE)))
+        assertTrue(left(MailReadTags.action(MailListAction.DELETE)) < left(MailReadTags.MORE))
     }
 
     @Test
-    fun `the spam button is disabled while an action runs`() {
+    fun `the menu is disabled while an action runs`() {
         show(MailReadUiState(message = message, busy = true))
-        composeRule.onNodeWithContentDescription("Move to spam").assertIsNotEnabled()
-        composeRule.onNodeWithTag(MailReadTags.action(MailListAction.SPAM)).performClick()
+        composeRule.onNodeWithContentDescription("More actions").assertIsNotEnabled().performClick()
+        composeRule.onNodeWithTag(MailReadTags.action(MailListAction.SPAM)).assertDoesNotExist()
         assertEquals(emptyList<String>(), calls)
     }
 
@@ -303,6 +306,7 @@ class MailReadScreenTest {
             }
         }
         composeRule.waitForIdle()
+        composeRule.onNodeWithTag(MailReadTags.MORE).performClick()
         composeRule.onNodeWithTag(MailReadTags.action(MailListAction.SPAM)).performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag(MailReadTags.NOTICE).assertTextContains("no Spam folder", substring = true)
@@ -310,6 +314,7 @@ class MailReadScreenTest {
         assertEquals(emptyList<String>(), calls)
 
         coEvery { reader.act(id(1), MailListAction.SPAM) } returns MailResult.Ok(MailActionOutcome(true))
+        composeRule.onNodeWithTag(MailReadTags.MORE).performClick()
         composeRule.onNodeWithTag(MailReadTags.action(MailListAction.SPAM)).performClick()
         composeRule.waitForIdle()
         assertEquals(listOf("removed ${id(1)}", "close"), calls)

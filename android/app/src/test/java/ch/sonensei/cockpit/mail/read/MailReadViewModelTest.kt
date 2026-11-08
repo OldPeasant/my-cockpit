@@ -229,7 +229,7 @@ class MailReadViewModelTest {
     @Test
     fun `archived or deleted on the server, the mail is removed and the view closes`() =
         runTest(dispatcher) {
-            MailListAction.entries.forEach { action ->
+            listOf(MailListAction.ARCHIVE, MailListAction.DELETE, MailListAction.SPAM).forEach { action ->
                 coEvery { reader.act(id(1), action) } returns MailResult.Ok(MailActionOutcome(true))
                 val vm = opened()
                 advanceUntilIdle()
