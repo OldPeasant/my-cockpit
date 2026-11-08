@@ -18,7 +18,8 @@ Decided behavior (owner, 2026-11-08): remote images blocked by default, same as 
 - [ ] The "N images blocked" line becomes a banner with "Load images" (reloads the message with `remoteImages=PROXY`) and "Always for this sender" (adds to `mailImageAllowedSenders`)
 - [ ] `mailImagePolicy = allow` or an allowed sender loads remote images through the proxy without asking
 - [ ] The CSP of the mail document allows images only from the server origin and `data:`; a test asserts a request to another host is blocked
-- [ ] Manually verified on an emulator or device against a running server with a mail containing a `cid:` image and a remote image (record what you ran); if no emulator is available, skip with reason
+- [~] Manually verified on an emulator or device against a running server with a mail containing a `cid:` image and a remote image (record what you ran); if no emulator is available, skip with reason
+  - skipped (2026-11-08 09:47+0100 by dell26/agent-1): No emulator/device or adb available to this agent (no adb/emulator on PATH, Android SDK dir outside the sandbox); WebView image loading through shouldInterceptRequest verified only by Robolectric unit tests
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
