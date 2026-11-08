@@ -20,3 +20,4 @@ Web converts a task to a note (reference) or an event from task detail and inbox
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 16:13+0100 by dell26/agent-3): Edited ui/CockpitShell.kt (outside touches, 10 lines): it provides LocalConvertedOpener so the Inbox can open a converted note (search item route, as global search does) or the Calendar tab; no other way for the Inbox to navigate.
