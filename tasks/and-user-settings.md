@@ -18,7 +18,8 @@ the basic ones.
   - verified (2026-11-08 09:23+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -q on c317d934e -> exit 0, 2940 tests, 0 failures; UserSettingsRepositoryTest (GET load, DataStore cache offline start, StateFlow, PATCH with If-Match, 412/409/428 reload), UserSettingsRepositoryEdgeCasesTest 11/11 on 8c228f06e (ordering/logout/errors), DataStoreUserSettingsStoreTest pass; Hilt @Singleton compiles in assembleDebug path of lintDebug
 - [x] The theme setting (light/dark/system) is applied app-wide (dynamic color stays for "system")
   - verified (2026-11-08 09:23+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest -> CockpitSettingsThemeTest (light/dark/system, dynamic color kept for system), AppearanceSectionTest, AppearanceViewModelTest pass (part of 2940 tests, 0 failures); theme wraps MainActivity/Share/Capture activities via CockpitSettingsTheme
-- [ ] The calendar week start and time zone come from the settings instead of the device locale (fallback to the locale when unset)
+- [x] The calendar week start and time zone come from the settings instead of the device locale (fallback to the locale when unset)
+  - verified (2026-11-08 09:23+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest -> CalendarViewModelSettingsTest (synced week start + zone, locale/device fallback when unset, reload on change) and EventEditorViewModelSettingsTest (synced zone for new/edited events) pass, 0 failures
 - [ ] Energy/creativity labels shown in inbox processing and task detail come from the settings
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
