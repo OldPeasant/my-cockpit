@@ -22,7 +22,8 @@ move to Next/Someday/Waiting. Web edits all of them (`task-detail.html:124-330`)
   - verified (2026-11-08 13:02+0100 by felix/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.task.*' (HEAD 0f8ca9e7a) -> 223 tests pass, incl. TaskRepeatTest (presets, interval 1..999, INTERVAL=1000 kept as custom text, FIXED/AFTER_COMPLETION) and TaskDetailListFieldsTest repeat editor cases
 - [x] Checklist items can be reordered (long-press drag + accessibility actions)
   - verified (2026-11-08 13:02+0100 by felix/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.task.*' (HEAD 0f8ca9e7a) -> 223 tests pass, incl. TaskDetailListFieldsTest long-press drag (Robolectric touch injection) and Move up/Move down accessibility action cases; not tried on a device
-- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [x] New strings are in English and German (`res/values/` + `res/values-de/`)
+  - verified (2026-11-08 13:02+0100 by felix/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> exit 0 (lint MissingTranslation clean); all 35 new keys present in values/ and values-de/ strings_task_detail.xml (code-reviewer diff check)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
