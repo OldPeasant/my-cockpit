@@ -44,6 +44,28 @@
     <string name="next_creativity_creative">Kreativ</string>
     <string name="next_empty">Keine nächsten Aktionen. Verarbeite deinen Eingang, um welche hinzuzufügen.</string>
     <string name="next_empty_filtered">Keine nächste Aktion passt zu diesen Filtern.</string>
+    <!-- Next actions: due, area/project filters and saved presets -->
+    <string name="next_filter_due">Fällig</string>
+    <string name="next_due_any">Alle</string>
+    <string name="next_due_overdue">Überfällig</string>
+    <string name="next_due_today">Heute</string>
+    <string name="next_due_week">Nächste 7 Tage</string>
+    <string name="next_filter_where">Bereich und Projekt</string>
+    <string name="next_filter_area">Bereich</string>
+    <string name="next_filter_project">Projekt</string>
+    <string name="next_filter_any_area">Alle Bereiche</string>
+    <string name="next_filter_any_project">Alle Projekte</string>
+    <string name="next_presets">Gespeicherte Filter</string>
+    <string name="next_preset_save">Filter speichern…</string>
+    <string name="next_preset_name">Name der Vorlage</string>
+    <string name="next_preset_save_button">Speichern</string>
+    <string name="next_preset_cancel">Abbrechen</string>
+    <string name="next_preset_delete">Vorlage „%1$s“ löschen</string>
+    <string name="next_preset_name_required">Gib einen Namen für die Vorlage ein.</string>
+    <string name="next_preset_too_many">Du kannst höchstens %1$d Vorlagen speichern. Lösche zuerst eine.</string>
+    <string name="next_preset_conflict">Deine gespeicherten Filter wurden auf einem anderen Gerät geändert. Versuche es nochmals.</string>
+    <string name="next_preset_offline">Gespeicherte Filter lassen sich nur online ändern. Versuche es nochmals, wenn du online bist.</string>
+    <string name="next_preset_failed">Die gespeicherten Filter konnten nicht geändert werden. Versuche es nochmals.</string>
 
     <!-- Heute -->
     <string name="today_overdue">Überfällig</string>

@@ -13,8 +13,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -34,6 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -81,19 +86,39 @@ data class NextCallbacks(
     val undo: (CompletionSnackbar.Undo) -> Unit = {},
     val dismiss: (CompletionSnackbar) -> Unit = {},
     val retry: () -> Unit = {},
+    val toggleDue: (DueWindow) -> Unit = {},
+    val clearDue: () -> Unit = {},
+    val chooseArea: (UUID?) -> Unit = {},
+    val chooseProject: (UUID?) -> Unit = {},
+    val applyPreset: (NextPreset) -> Unit = {},
+    val removePreset: (NextPreset) -> Unit = {},
+    val openSavePreset: () -> Unit = {},
+    val editPresetName: (String) -> Unit = {},
+    val savePreset: () -> Unit = {},
+    val cancelSavePreset: () -> Unit = {},
 ) {
     companion object {
         fun of(vm: NextViewModel) =
             NextCallbacks(
-                vm::toggleContext,
-                vm::toggleEnergy,
-                vm::toggleCreativity,
-                vm::toggleMaxMinutes,
-                vm::clearFilter,
-                vm::complete,
-                vm::undo,
-                vm::dismiss,
-                vm::retry,
+                toggleContext = vm::toggleContext,
+                toggleEnergy = vm::toggleEnergy,
+                toggleCreativity = vm::toggleCreativity,
+                toggleMaxMinutes = vm::toggleMaxMinutes,
+                clearFilter = vm::clearFilter,
+                complete = vm::complete,
+                undo = vm::undo,
+                dismiss = vm::dismiss,
+                retry = vm::retry,
+                toggleDue = vm::toggleDue,
+                clearDue = vm::clearDue,
+                chooseArea = vm::chooseArea,
+                chooseProject = vm::chooseProject,
+                applyPreset = vm::applyPreset,
+                removePreset = vm::removePreset,
+                openSavePreset = vm::openSavePreset,
+                editPresetName = vm::editPresetName,
+                savePreset = vm::savePreset,
+                cancelSavePreset = vm::cancelSavePreset,
             )
     }
 }
@@ -112,6 +137,32 @@ object NextTags {
     fun creativity(creativity: Creativity) = "next-filter-creativity-${creativity.name.lowercase()}"
 
     fun estimate(minutes: Int) = "next-filter-estimate-$minutes"
+
+    const val DUE_ANY = "next-filter-due-any"
+
+    fun due(due: DueWindow) = "next-filter-due-${due.wire}"
+
+    const val AREA = "next-filter-area"
+    const val PROJECT = "next-filter-project"
+    const val ANY_AREA = "next-filter-area-any"
+    const val ANY_PROJECT = "next-filter-project-any"
+
+    fun area(id: UUID) = "next-filter-area-$id"
+
+    fun project(id: UUID) = "next-filter-project-$id"
+
+    const val PRESETS = "next-presets"
+    const val PRESET_SAVE = "next-preset-save"
+    const val PRESET_MESSAGE = "next-preset-message"
+    const val PRESET_DIALOG = "next-preset-dialog"
+    const val PRESET_NAME = "next-preset-name"
+    const val PRESET_CONFIRM = "next-preset-confirm"
+    const val PRESET_CANCEL = "next-preset-cancel"
+    const val PRESET_DIALOG_MESSAGE = "next-preset-dialog-message"
+
+    fun preset(index: Int) = "next-preset-$index"
+
+    fun presetDelete(index: Int) = "next-preset-delete-$index"
 }
 
 @Composable
@@ -150,6 +201,7 @@ fun NextContent(
                     )
                 }
             }
+            Presets(state, callbacks)
             if (filtersOpen) Filters(state, callbacks)
             HorizontalDivider()
             when {
@@ -219,6 +271,44 @@ private fun Filters(
                 )
             }
         }
+        FilterGroup(stringResource(R.string.next_filter_due)) {
+            FilterChip(
+                selected = filter.due == null,
+                onClick = callbacks.clearDue,
+                label = { Text(stringResource(R.string.next_due_any)) },
+                modifier = Modifier.testTag(NextTags.DUE_ANY),
+            )
+            DueWindow.entries.forEach { due ->
+                FilterChip(
+                    selected = filter.due == due,
+                    onClick = { callbacks.toggleDue(due) },
+                    label = { Text(stringResource(dueLabel(due))) },
+                    modifier = Modifier.testTag(NextTags.due(due)),
+                )
+            }
+        }
+        FilterGroup(stringResource(R.string.next_filter_where)) {
+            ChoiceMenu(
+                title = stringResource(R.string.next_filter_area),
+                anyLabel = stringResource(R.string.next_filter_any_area),
+                choices = state.areas.map { it.id to it.title },
+                selected = filter.areaId,
+                tag = NextTags.AREA,
+                anyTag = NextTags.ANY_AREA,
+                choiceTag = NextTags::area,
+                onChoose = callbacks.chooseArea,
+            )
+            ChoiceMenu(
+                title = stringResource(R.string.next_filter_project),
+                anyLabel = stringResource(R.string.next_filter_any_project),
+                choices = state.projects.map { it.id to it.title },
+                selected = filter.projectId,
+                tag = NextTags.PROJECT,
+                anyTag = NextTags.ANY_PROJECT,
+                choiceTag = NextTags::project,
+                onChoose = callbacks.chooseProject,
+            )
+        }
         if (filter.activeCount > 0) {
             TextButton(onClick = callbacks.clearFilter, modifier = Modifier.testTag(NextTags.CLEAR)) {
                 Text(stringResource(R.string.next_filter_clear))
@@ -259,6 +349,65 @@ private fun Empty(
         }
     }
 }
+
+/**
+ * A button showing the chosen one of [choices] (id to title) that opens a menu to choose another or [anyLabel]. A chosen
+ * id that is not among the choices (not loaded, or of another area) shows only [title].
+ */
+@Composable
+private fun ChoiceMenu(
+    title: String,
+    anyLabel: String,
+    choices: List<Pair<UUID, String>>,
+    selected: UUID?,
+    tag: String,
+    anyTag: String,
+    choiceTag: (UUID) -> String,
+    onChoose: (UUID?) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        val shown =
+            when (selected) {
+                null -> anyLabel
+                else -> choices.firstOrNull { it.first == selected }?.second ?: title
+            }
+        FilterChip(
+            selected = selected != null,
+            onClick = { open = true },
+            label = { Text(shown) },
+            trailingIcon = { Icon(Icons.Outlined.ArrowDropDown, contentDescription = null) },
+            modifier = Modifier.testTag(tag).semantics { contentDescription = "$title: $shown" },
+        )
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text(anyLabel) },
+                onClick = {
+                    open = false
+                    onChoose(null)
+                },
+                modifier = Modifier.testTag(anyTag),
+            )
+            choices.forEach { (id, label) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = {
+                        open = false
+                        onChoose(id)
+                    },
+                    modifier = Modifier.testTag(choiceTag(id)),
+                )
+            }
+        }
+    }
+}
+
+private fun dueLabel(due: DueWindow) =
+    when (due) {
+        DueWindow.OVERDUE -> R.string.next_due_overdue
+        DueWindow.TODAY -> R.string.next_due_today
+        DueWindow.WEEK -> R.string.next_due_week
+    }
 
 private fun energyLabel(energy: Energy) =
     when (energy) {

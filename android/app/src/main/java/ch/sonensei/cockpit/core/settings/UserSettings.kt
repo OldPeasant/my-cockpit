@@ -53,6 +53,8 @@ data class UserSettings(
     val creativityLabels: Map<String, String> = emptyMap(),
     val mailImagePolicy: MailImagePolicy = MailImagePolicy.BLOCK,
     val mailImageAllowedSenders: List<String> = emptyList(),
+    /** The saved Next filters as the server keeps them: one JSON text each, read by the Next screen. */
+    val nextActionPresets: List<String> = emptyList(),
 ) {
     companion object {
         const val THEME = "theme"
@@ -62,6 +64,7 @@ data class UserSettings(
         const val CREATIVITY_LABELS = "creativityLabels"
         const val MAIL_IMAGE_POLICY = "mailImagePolicy"
         const val MAIL_IMAGE_ALLOWED_SENDERS = "mailImageAllowedSenders"
+        const val NEXT_ACTION_PRESETS = "nextActionPresets"
 
         /**
          * The server's English default labels (`CoreSettings` on the server). A label equal to its default counts as
@@ -83,7 +86,11 @@ data class UserSettings(
                         ?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content?.trim() }
                         ?.filter { it.isNotEmpty() }
                         .orEmpty(),
+                nextActionPresets = strings(json[NEXT_ACTION_PRESETS]),
             )
+
+        private fun strings(element: JsonElement?): List<String> =
+            (element as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content }.orEmpty()
 
         private fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
 
@@ -116,8 +123,11 @@ data class UserSettingsChange(
     val theme: ThemeSetting? = null,
     val mailImagePolicy: MailImagePolicy? = null,
     val mailImageAllowedSenders: List<String>? = null,
+    /** The whole list of saved Next filters (JSON texts), replacing the stored one. */
+    val nextActionPresets: List<String>? = null,
 ) {
-    val isEmpty: Boolean get() = theme == null && mailImagePolicy == null && mailImageAllowedSenders == null
+    val isEmpty: Boolean
+        get() = theme == null && mailImagePolicy == null && mailImageAllowedSenders == null && nextActionPresets == null
 
     fun toJson(): JsonObject =
         buildJsonObject {
@@ -125,6 +135,9 @@ data class UserSettingsChange(
             mailImagePolicy?.let { put(UserSettings.MAIL_IMAGE_POLICY, JsonPrimitive(it.wire)) }
             mailImageAllowedSenders?.let { senders ->
                 put(UserSettings.MAIL_IMAGE_ALLOWED_SENDERS, JsonArray(senders.map(::JsonPrimitive)))
+            }
+            nextActionPresets?.let { presets ->
+                put(UserSettings.NEXT_ACTION_PRESETS, JsonArray(presets.map(::JsonPrimitive)))
             }
         }
 }
