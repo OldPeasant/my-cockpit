@@ -23,7 +23,7 @@
           <button
             type="button"
             class="icon"
-            [disabled]="busy()"
+            [disabled]="locked()"
             (click)="remove(reminder)"
             [attr.aria-label]="removeLabel(reminder)"
           >
@@ -36,8 +36,13 @@
         </li>
       }
     </ul>
-  } @else {
+  } @else if (loadState() === 'loaded') {
     <p class="empty" i18n="@@taskDetail.reminder.none">No reminders.</p>
+  }
+  @if (loadState() === 'failed') {
+    <button type="button" class="quiet retry" (click)="retry()" i18n="@@taskDetail.reminder.retry">
+      Retry
+    </button>
   }
   @if (presets().length) {
     <div class="presets" role="group" [attr.aria-labelledby]="uid + '-presets'">
@@ -46,7 +51,7 @@
         <button
           type="button"
           class="quiet chip"
-          [disabled]="busy()"
+          [disabled]="locked()"
           [title]="when(option.at)"
           (click)="add(option.at)"
         >
@@ -67,7 +72,7 @@
     <button
       class="quiet"
       type="button"
-      [disabled]="!exact() || busy()"
+      [disabled]="!exact() || locked()"
       (click)="addExact($event)"
       i18n="@@taskDetail.reminder.addExact"
     >

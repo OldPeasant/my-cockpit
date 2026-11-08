@@ -115,6 +115,10 @@ export class TaskReminders {
   protected readonly reminders = signal<ReminderResponse[]>([]);
   protected readonly error = signal<string | null>(null);
   protected readonly busy = signal(false);
+  /** Whether the list of the current task is loading, loaded, or failed to load. */
+  protected readonly loadState = signal<'loading' | 'loaded' | 'failed'>('loading');
+  /** Changes wait for the load, so a late list cannot overwrite them. */
+  protected readonly locked = computed(() => this.busy() || this.loadState() === 'loading');
   /** The exact time typed so far (`yyyy-MM-ddTHH:mm`, local). */
   protected readonly exact = signal('');
 
@@ -165,7 +169,7 @@ export class TaskReminders {
 
   /** Adds a reminder at `at`; a time that has passed is refused with a hint. */
   async add(at: Date): Promise<void> {
-    if (this.busy()) return;
+    if (this.locked()) return;
     if (at.getTime() <= this.now().getTime()) {
       this.error.set(REMINDER_PAST);
       return;
@@ -188,7 +192,7 @@ export class TaskReminders {
   }
 
   async remove(reminder: ReminderResponse): Promise<void> {
-    if (this.busy()) return;
+    if (this.locked()) return;
     const before = this.reminders();
     this.reminders.update((all) => all.filter((other) => other.id !== reminder.id));
     await this.change(
@@ -221,12 +225,24 @@ export class TaskReminders {
     }
   }
 
+  /** Loads the list again after a failed load. */
+  protected retry(): void {
+    if (this.locked()) return;
+    this.error.set(null);
+    void this.load(this.taskId());
+  }
+
   private async load(taskId: string): Promise<void> {
+    this.loadState.set('loading');
     try {
       const reminders = await this.service.reminders(taskId);
-      if (taskId === this.taskId()) this.reminders.set(sortByTime(reminders));
+      if (taskId !== this.taskId()) return;
+      this.reminders.set(sortByTime(reminders));
+      this.loadState.set('loaded');
     } catch (error) {
-      if (taskId === this.taskId()) this.error.set(messageOf(error));
+      if (taskId !== this.taskId()) return;
+      this.error.set(messageOf(error));
+      this.loadState.set('failed');
     }
   }
 }

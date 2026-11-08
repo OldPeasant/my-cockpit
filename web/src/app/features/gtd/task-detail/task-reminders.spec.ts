@@ -489,6 +489,74 @@ describe('TaskReminders', () => {
     expect(rows().length).toBe(1);
   });
 
+  it('keeps the controls disabled until the list has loaded, so it cannot overwrite an add', async () => {
+    stored['t1'] = [reminder('r1', new Date(2026, 10, 21, 8, 0))];
+    const slow = deferred();
+    loadGate['t1'] = slow.promise;
+    await render();
+    expect(buttons('.chip').every((b) => b.disabled)).toBe(true);
+    typeExact('2026-11-15T07:45');
+    expect(exactButton().disabled).toBe(true);
+    exactInput().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    const component = fixture.debugElement.children[0].componentInstance as TaskReminders;
+    await component.add(new Date(2026, 10, 19, 8, 0));
+    expect(added).toEqual([]);
+    expect(element.querySelector('.empty')).toBeNull();
+    slow.resolve();
+    await refresh();
+    expect(rows().length).toBe(1);
+    expect(buttons('.chip').some((b) => b.disabled)).toBe(false);
+    exactButton().click();
+    await refresh();
+    expect(added.length).toBe(1);
+    expect(rows().length).toBe(2);
+  });
+
+  it('does not let a reloading list bring back a reminder removed meanwhile', async () => {
+    stored['t1'] = [reminder('r1', new Date(2026, 10, 21, 8, 0))];
+    failLoad = new Error('offline');
+    await render();
+    buttons('.chip')[0].click();
+    await refresh();
+    expect(rows().length).toBe(1);
+    failLoad = undefined;
+    const slow = deferred();
+    loadGate['t1'] = slow.promise;
+    buttons('.retry')[0].click();
+    await refresh();
+    expect(rows()[0].querySelector('button')!.disabled).toBe(true);
+    const component = fixture.debugElement.children[0].componentInstance as TaskReminders;
+    await component.remove(stored['t1'][0]);
+    expect(deleted).toEqual([]);
+    slow.resolve();
+    await refresh();
+    expect(rows().length).toBe(1);
+    rows()[0].querySelector('button')!.click();
+    await refresh();
+    expect(deleted).toEqual(['r1']);
+    expect(rows().length).toBe(0);
+  });
+
+  it('offers a retry instead of claiming there are none when loading fails', async () => {
+    stored['t1'] = [reminder('r1', new Date(2026, 10, 21, 8, 0))];
+    failLoad = new Error('offline');
+    await render();
+    expect(banner()).toBe('Something went wrong. Try again.');
+    expect(element.querySelector('.empty')).toBeNull();
+    expect(buttons('.retry').map((b) => b.textContent?.trim())).toEqual(['Retry']);
+    // A later successful add keeps the retry, since the other reminders are still unknown.
+    buttons('.chip')[0].click();
+    await refresh();
+    expect(banner()).toBeUndefined();
+    expect(buttons('.retry').length).toBe(1);
+    failLoad = undefined;
+    buttons('.retry')[0].click();
+    await refresh();
+    expect(buttons('.retry').length).toBe(0);
+    expect(banner()).toBeUndefined();
+    expect(rows().length).toBe(1);
+  });
+
   it('clears the typed time and the error when the task changes', async () => {
     await render();
     typeExact('2026-11-01T07:45');

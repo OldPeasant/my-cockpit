@@ -5663,7 +5663,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.ts</context>
-          <context context-type="linenumber">240</context>
+          <context context-type="linenumber">256</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.loading" datatype="html">
@@ -6201,28 +6201,35 @@
         <source>No reminders.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.html</context>
-          <context context-type="linenumber">40,43</context>
+          <context context-type="linenumber">40,42</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="taskDetail.reminder.retry" datatype="html">
+        <source> Retry </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.html</context>
+          <context context-type="linenumber">44,47</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.reminder.add" datatype="html">
         <source>Remind me</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.html</context>
-          <context context-type="linenumber">44,45</context>
+          <context context-type="linenumber">49,50</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.reminder.exact" datatype="html">
         <source>At</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.html</context>
-          <context context-type="linenumber">59,61</context>
+          <context context-type="linenumber">64,66</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.reminder.addExact" datatype="html">
         <source> Add reminder </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.html</context>
-          <context context-type="linenumber">74,78</context>
+          <context context-type="linenumber">79,83</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.reminderPast" datatype="html">
@@ -6236,35 +6243,35 @@
         <source>When due</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.ts</context>
-          <context context-type="linenumber">147</context>
+          <context context-type="linenumber">151</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.reminder.hourBefore" datatype="html">
         <source>1 hour before due</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.ts</context>
-          <context context-type="linenumber">149</context>
+          <context context-type="linenumber">153</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.reminder.dayBefore" datatype="html">
         <source>1 day before due</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.ts</context>
-          <context context-type="linenumber">151</context>
+          <context context-type="linenumber">155</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.reminder.atScheduled" datatype="html">
         <source>On the scheduled day</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.ts</context>
-          <context context-type="linenumber">153</context>
+          <context context-type="linenumber">157</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.reminder.remove" datatype="html">
         <source>Remove reminder <x id="time" equiv-text="this.when(reminder.remindAt)"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.ts</context>
-          <context context-type="linenumber">163</context>
+          <context context-type="linenumber">167</context>
         </context-group>
       </trans-unit>
       <trans-unit id="toCalendar.title" datatype="html">
