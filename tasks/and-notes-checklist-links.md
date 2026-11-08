@@ -1,11 +1,13 @@
 ---
 title: Note editor: checklist toggle in preview and [[ link autocomplete
-status: in_progress
-owner: felix/agent-1
+status: todo
+owner: 
 deps: [and-notes-list, and-links-panel]
 prio: 2
 parent: and-notes-editor
-lease_until: 2026-11-08T22:08:06Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 Part of `and-notes-editor` (Android note editor: tags, checklists, links, revisions), which was split.
@@ -21,3 +23,4 @@ Goal: Tapping a checklist item in the preview toggles it and saves like an edit;
 ## Notes
 - Work done on `and-notes-editor` before the split is on `origin/wip/and-notes-editor` (if it exists): merge it first if your part builds on it.
 - ASSUMPTION (2026-11-08 22:26+0100 by felix/agent-1): Android [[ autocomplete searches all item types via global search (250 ms debounce), shows up to 6 hits above the body field, inserts [[<lowercase type>:<id>]] like web/server; checklist tap in preview only when the note is editable (no conflict/loading).
+- release by felix/agent-1: Implementation done (commits 2e03999cf, 15be26a4d) + Markdown helper tests (dc174e159). Criterion 3 verified. WIP ViewModel/screen tests from an unfinished test-writer run committed in 04839b060 (unverified, may not compile/pass). reviews/.../review.md: only finding CR-1 = missing VM/screen tests. Left: finish/run those tests, re-run test-writer (tests.md with coverage) and code-reviewer on final code, verify #1 #2 #4, quality.json, done.
