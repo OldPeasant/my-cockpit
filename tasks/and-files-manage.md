@@ -5,7 +5,7 @@ owner: rudi/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/files,android/app/src/test/java/ch/sonensei/cockpit/files,android/app/src/main/res/values/strings_files.xml,android/app/src/main/res/values-de/strings_files.xml]
 prio: 2
-lease_until: 2026-11-08T10:55:33Z
+lease_until: 2026-11-08T11:00:37Z
 ---
 ## Goal
 Android Files can browse, download and upload only (web: `files-page.html:76-200`).
