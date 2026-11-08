@@ -67,6 +67,17 @@ data class EventEditorCallbacks(
     val delete: () -> Unit = {},
     val confirmDelete: () -> Unit = {},
     val dismissDelete: () -> Unit = {},
+    val setGuestQuery: (String) -> Unit = {},
+    /** Adds the picked suggestion, or (`null`) the typed address. */
+    val addGuest: (Attendee?) -> Unit = {},
+    val removeGuest: (String) -> Unit = {},
+    val invite: () -> Unit = {},
+    val updateInvitation: ((InvitationUiState) -> InvitationUiState) -> Unit = {},
+    val sendInvitation: () -> Unit = {},
+    val dismissInvitation: () -> Unit = {},
+    val retryAccounts: () -> Unit = {},
+    val createLinked: (LinkedKind) -> Unit = {},
+    val reloadLinks: () -> Unit = {},
 )
 
 internal object EventEditorTags {
@@ -91,6 +102,55 @@ internal object EventEditorTags {
     const val DELETE_DIALOG = "event-editor-delete-confirm"
     const val DELETE_CONFIRM = "event-editor-delete-confirm-ok"
     const val ADD = "calendar-add-event"
+    const val TIME_ZONE = "event-editor-time-zone"
+    const val TIME_ZONE_DIALOG = "event-editor-time-zone-dialog"
+    const val TIME_ZONE_SEARCH = "event-editor-time-zone-search"
+    const val REMINDER_ADD = "event-editor-reminder-add"
+    const val REMINDER_CUSTOM = "event-editor-reminder-custom"
+    const val REMINDER_CUSTOM_DIALOG = "event-editor-reminder-custom-dialog"
+    const val REMINDER_CUSTOM_MINUTES = "event-editor-reminder-custom-minutes"
+    const val REMINDER_CUSTOM_OK = "event-editor-reminder-custom-ok"
+    const val GUESTS = "event-editor-guests"
+    const val GUEST_INPUT = "event-editor-guest-input"
+    const val GUEST_ADD = "event-editor-guest-add"
+    const val INVITE = "event-editor-invite"
+    const val INVITE_SAVE_FIRST = "event-editor-invite-save-first"
+    const val INVITE_SENT = "event-editor-invite-sent"
+    const val INVITE_DIALOG = "event-editor-invite-dialog"
+    const val INVITE_TELL_REMOVED = "event-editor-invite-tell-removed"
+    const val INVITE_ACCOUNT = "event-editor-invite-account"
+    const val INVITE_NO_ACCOUNTS = "event-editor-invite-no-accounts"
+    const val INVITE_RETRY = "event-editor-invite-retry"
+    const val INVITE_FAILED = "event-editor-invite-failed"
+    const val INVITE_SEND = "event-editor-invite-send"
+    const val INVITE_SKIP = "event-editor-invite-skip"
+    const val LINKS = "event-editor-links"
+    const val LINKS_RETRY = "event-editor-links-retry"
+    const val LINKS_RESULT = "event-editor-links-result"
+    const val CREATE_TASK = "event-editor-create-task"
+    const val CREATE_NOTE = "event-editor-create-note"
+
+    fun zone(id: String) = "event-editor-zone:$id"
+
+    fun reminder(minutes: Int) = "event-editor-reminder:$minutes"
+
+    fun reminderRemove(minutes: Int) = "event-editor-reminder-remove:$minutes"
+
+    fun reminderPreset(minutes: Int) = "event-editor-reminder-preset:$minutes"
+
+    fun guest(email: String) = "event-editor-guest:$email"
+
+    fun guestStatus(email: String) = "event-editor-guest-status:$email"
+
+    fun guestRemove(email: String) = "event-editor-guest-remove:$email"
+
+    fun suggestion(email: String) = "event-editor-suggestion:$email"
+
+    fun inviteMethod(method: InvitationMethod) = "event-editor-invite-method:$method"
+
+    fun inviteAccount(id: String) = "event-editor-invite-account:$id"
+
+    fun link(id: String) = "event-editor-link:$id"
 
     fun repeat(repeat: Repeat) = "event-editor-repeat:$repeat"
 
@@ -137,10 +197,11 @@ fun EventEditorContent(
             }
             if (state.loading || state.saving) LinearProgressIndicator(Modifier.fillMaxWidth())
             state.message?.let { Message(it, callbacks.reload) }
-            state.form?.let { Form(state, it, callbacks.update) }
+            state.form?.let { Form(state, it, callbacks) }
         }
     }
     state.scopes?.let { ScopeDialog(it, state.deleting, callbacks.chooseScope, callbacks.dismissScope) }
+    state.invitation?.let { InvitationDialog(it, callbacks) }
     if (state.confirmingDelete) DeleteDialog(callbacks.confirmDelete, callbacks.dismissDelete)
 }
 
@@ -198,8 +259,9 @@ private fun Message(
 private fun Form(
     state: EventEditorUiState,
     form: EventForm,
-    update: ((EventForm) -> EventForm) -> Unit,
+    callbacks: EventEditorCallbacks,
 ) {
+    val update = callbacks.update
     val enabled = state.canSave
     val errors = state.errors
     val locale = LocalConfiguration.current.locales[0]
@@ -250,13 +312,7 @@ private fun Form(
                 modifier = Modifier.testTag(EventEditorTags.END_ERROR),
             )
         }
-        if (!form.allDay) {
-            Text(
-                stringResource(R.string.calendar_edit_time_zone, form.zone.id),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        if (!form.allDay) TimeZoneChoice(form, enabled, update)
         RepeatChoice(state, form, enabled, update)
         OutlinedTextField(
             value = form.location,
@@ -274,6 +330,9 @@ private fun Form(
             minLines = 3,
             modifier = Modifier.fillMaxWidth().testTag(EventEditorTags.DESCRIPTION),
         )
+        ReminderSection(form, enabled, update)
+        GuestSection(state, form, callbacks)
+        state.links?.let { LinksSection(it, canCreate = !state.loading && !state.saving, callbacks = callbacks) }
     }
 }
 

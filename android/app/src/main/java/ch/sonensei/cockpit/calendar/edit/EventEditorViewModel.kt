@@ -462,7 +462,12 @@ class EventEditorViewModel internal constructor(
                 delay(SUGGEST_DELAY_MS)
                 val found = (source.suggestions(query) as? CalendarResult.Ok)?.value.orEmpty()
                 state.update { s ->
-                    val invited = s.form?.attendees.orEmpty().map { it.email.lowercase() }.toSet()
+                    val invited =
+                        s.form
+                            ?.attendees
+                            .orEmpty()
+                            .map { it.email.lowercase() }
+                            .toSet()
                     s.copy(suggestions = found.filterNot { it.email.lowercase() in invited })
                 }
             }
