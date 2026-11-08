@@ -18,7 +18,8 @@ shortcuts `r`, `a`, `f`, `c` (SPEC.md §7.3) are not implemented.
   - verified (2026-11-08 14:49+0100 by dell26/agent-1): cd web && npx ng test --include mail-shortcuts/read page/list page/page-shortcuts/shell specs: r/a/f open /mail/compose?reply|replyAll|forward={id} in read view, c opens compose from list and read view, r/a/f ignored in list; MAIL_LIST_HELP/MAIL_READ_HELP shown in the ? overview via PageShortcuts (shell.spec checks ? dialog shows the section) -> 436 passed
 - [x] New UI strings are in `web/src/locale` (English + German)
   - verified (2026-11-08 14:49+0100 by dell26/agent-1): New units (mailShortcuts.*, mailRead.unread/flag/move/*Title/*Failed, mail.shortcutsTitle, mailRead.shortcutsTitle) added to web/src/locale/messages.xlf and messages.de.xlf; cd web && npx ng test --include src/locale/messages-de.spec.ts -> passed; npm run build:de reports none of this task's units missing (fails only on pre-existing calendar.invite.* units from another task)
-- [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+- [x] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 14:53+0100 by dell26/agent-1): 68 new/5 updated unit tests (read page, list page, list session, mail shortcuts, page-shortcuts, shell, folders store; tests.md); cd web && npm run check -> pass (189 files, 4337 tests, build ok); sh scripts/check.sh at 6f08b84ca -> all checks passed, exit 0
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
