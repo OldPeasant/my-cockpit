@@ -22,7 +22,8 @@ Android gets the full review). Web: `review-session.ts`, `steps/*`.
   - verified (2026-11-08 15:10+0100 by dell26/agent-2): ReviewWizardTest/ReviewWizardEdgeCasesTest: past/upcoming events grouped by local day, quick-add goes to CaptureQueue, retry per step, double-capture guard, via cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug at a51ef0aea -> pass, review package 130 tests 0 failures
 - [x] Step 8 reflection saved as a journal entry, with the habit stats shown
   - verified (2026-11-08 15:10+0100 by dell26/agent-2): ReflectionSaverTest + ReviewWizardTest: reflection appended as '## Weekly review' to today's journal entry (idempotent on retry), habit rate/streak shown, draft kept per review (ReviewDraftsTest), via cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug at a51ef0aea -> pass, review package 130 tests 0 failures
-- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [x] New strings are in English and German (`res/values/` + `res/values-de/`)
+  - verified (2026-11-08 15:10+0100 by dell26/agent-2): lintDebug (MissingTranslation) pass + test-writer key diff: values/strings_review.xml and values-de/strings_review.xml have the same 66 keys
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
