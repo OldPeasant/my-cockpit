@@ -19,3 +19,4 @@ Web Next has filters by due and area/project and saved presets synced via the `n
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 15:48+0100 by dell26/agent-1): Edited core/settings/UserSettings.kt (outside touches, small): UserSettings.nextActionPresets (raw JSON texts) and UserSettingsChange.nextActionPresets, because presets are stored through the shared UserSettingsRepository (PATCH with If-Match).
