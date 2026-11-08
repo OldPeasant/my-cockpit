@@ -71,7 +71,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
@@ -99,7 +98,6 @@ import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.gtd.next.TaskListTags
 import ch.sonensei.cockpit.notes.MarkdownView
 import ch.sonensei.cockpit.search.SearchTarget
-import ch.sonensei.cockpit.search.searchTypeStyle
 import ch.sonensei.cockpit.ui.navigation.CockpitDestination
 import coil3.ImageLoader
 import dagger.hilt.internal.GeneratedComponentManagerHolder
