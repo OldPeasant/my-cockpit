@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/core/settings,android/app/src/test/java/ch/sonensei/cockpit/core/settings,android/app/src/main/java/ch/sonensei/cockpit/settings,android/app/src/test/java/ch/sonensei/cockpit/settings,android/app/src/main/java/ch/sonensei/cockpit/ui/theme,android/app/src/test/java/ch/sonensei/cockpit/ui/theme,android/app/src/main/res/values/strings_settings.xml,android/app/src/main/res/values-de/strings_settings.xml]
 prio: 1
-lease_until: 2026-11-08T08:28:35Z
+lease_until: 2026-11-08T08:33:39Z
 ---
 ## Goal
 Android does not read `/api/v1/settings` at all (week start comes from the device locale, theme from the system,
