@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
-import { BehaviorSubject, of, Subject } from 'rxjs';
+import { BehaviorSubject, from, Subject } from 'rxjs';
 import {
   Api,
   ChangeEvent,
@@ -16,6 +16,7 @@ import {
   TaskResponse,
 } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
+import { ProjectStore } from '../data';
 import { DeleteProjectDialog } from './delete-project-dialog';
 import { ProjectDetailPage } from './project-detail-page';
 
@@ -62,6 +63,9 @@ describe('ProjectDetailPage: delete and list labels', () => {
   let dialogOpens: number;
   let confirmed: boolean | undefined;
   let dialogData: unknown;
+  let dialogConfig: Record<string, unknown> | undefined;
+  /** Runs while the confirmation is open, before it closes. */
+  let whileDialogOpen: (() => Promise<void>) | undefined;
   let snackAction: Subject<void>;
   let snackMessages: string[];
   let fixture: ComponentFixture<ProjectDetailPage>;
@@ -120,6 +124,8 @@ describe('ProjectDetailPage: delete and list labels', () => {
     dialogOpens = 0;
     confirmed = true;
     dialogData = undefined;
+    dialogConfig = undefined;
+    whileDialogOpen = undefined;
     snackAction = new Subject<void>();
     snackMessages = [];
     const api = {
@@ -162,10 +168,12 @@ describe('ProjectDetailPage: delete and list labels', () => {
         {
           provide: MatDialog,
           useValue: {
-            open: (_component: unknown, config: { data: unknown }) => {
+            open: (_component: unknown, config: { data: unknown } & Record<string, unknown>) => {
               dialogData = config.data;
+              dialogConfig = config;
               dialogOpens++;
-              return { afterClosed: () => of(confirmed) };
+              const closed = (whileDialogOpen?.() ?? Promise.resolve()).then(() => confirmed);
+              return { afterClosed: () => from(closed) };
             },
           },
         },
@@ -278,8 +286,12 @@ describe('ProjectDetailPage: delete and list labels', () => {
       await chooseDelete();
       fixture.detectChanges();
       expect(callsOf(deleteProject)).toHaveLength(1);
-      // The store removes the project optimistically, so its menu is gone while the request runs.
-      expect(element.querySelector('button[aria-label="More project actions"]')).toBeNull();
+      // The page keeps the project while the request runs, with its menu disabled.
+      expect(element.querySelector('h1')?.textContent).toContain('Tax return');
+      expect(
+        element.querySelector<HTMLButtonElement>('button[aria-label="More project actions"]')
+          ?.disabled,
+      ).toBe(true);
       expect(snackMessages).toEqual([]);
 
       // A second request while the first is pending (e.g. a keyboard shortcut or a stale click).
@@ -292,6 +304,88 @@ describe('ProjectDetailPage: delete and list labels', () => {
       fixture.detectChanges();
       expect(callsOf(deleteProject)).toHaveLength(1);
       expect(snackMessages).toEqual(['Moved “Tax return” to the Trash']);
+    });
+
+    it('keeps the page content while the delete runs instead of "Project not found"', async () => {
+      let release!: () => void;
+      deleteGate = new Promise<void>((resolve) => (release = resolve));
+      tasks = [task('t1', { title: 'Collect receipts' })];
+      await render();
+
+      await chooseDelete();
+      fixture.detectChanges();
+
+      expect(callsOf(deleteProject)).toHaveLength(1);
+      expect(element.querySelector('h1')?.textContent).toContain('Tax return');
+      expect(element.textContent).not.toContain('Project not found');
+      expect(element.textContent).toContain('Collect receipts');
+      const trigger = element.querySelector<HTMLButtonElement>(
+        'button[aria-label="More project actions"]',
+      );
+      expect(trigger?.disabled).toBe(true);
+
+      release();
+      await refresh();
+    });
+
+    it('moves the focus back to the menu button after a refused delete', async () => {
+      let release!: () => void;
+      deleteGate = new Promise<void>((resolve) => (release = resolve));
+      deleteFails = true;
+      await render();
+      await chooseDelete();
+      fixture.detectChanges();
+      // Browsers take the focus away from the disabled menu button while the request runs; jsdom
+      // does not, so move it elsewhere to see that the page brings it back.
+      const elsewhere = element.querySelector<HTMLElement>('app-back-button a')!;
+      elsewhere.focus();
+      expect(document.activeElement).toBe(elsewhere);
+
+      release();
+      await refresh();
+      fixture.detectChanges();
+      await refresh();
+
+      const trigger = element.querySelector<HTMLButtonElement>(
+        'button[aria-label="More project actions"]',
+      );
+      expect(trigger).toBeTruthy();
+      expect(document.activeElement).toBe(trigger);
+    });
+
+    it('deletes the version current when the confirmation closes (fresh If-Match)', async () => {
+      await render();
+      whileDialogOpen = async () => {
+        projects = [project({ version: 7 })];
+        await TestBed.inject(ProjectStore).refresh();
+      };
+
+      await chooseDelete();
+
+      expect(callsOf(deleteProject)).toHaveLength(1);
+      expect(callsOf(deleteProject)[0].params['If-Match']).toContain('7');
+      expect(callsOf(deleteProject)[0].params['If-Match']).not.toContain('3');
+    });
+
+    it('does not delete a project that disappeared while the confirmation was open', async () => {
+      await render();
+      whileDialogOpen = async () => {
+        projects = [];
+        await TestBed.inject(ProjectStore).refresh();
+      };
+
+      await chooseDelete();
+
+      expect(callsOf(deleteProject)).toHaveLength(0);
+      expect(snackMessages).toEqual([]);
+    });
+
+    it('opens the confirmation with the default focus (Cancel via cdkFocusInitial)', async () => {
+      await render();
+      confirmed = false;
+      await chooseDelete();
+
+      expect(dialogConfig?.['autoFocus']).toBeUndefined();
     });
 
     it('enables the menu again after a refused delete so it can be retried', async () => {

@@ -87,7 +87,16 @@ export class ProjectDetailPage {
     inject(ActivatedRoute).paramMap.pipe(map((params) => params.get('id') ?? '')),
     { initialValue: '' },
   );
-  protected readonly project = computed(() => this.projects.find(this.id()));
+  /**
+   * The project being moved to the Trash while the request runs: the store removes it at once, so
+   * the page keeps showing this copy instead of "Project not found".
+   */
+  private readonly deleting = signal<ProjectResponse | null>(null);
+  protected readonly project = computed(() => {
+    const id = this.id();
+    const deleting = this.deleting();
+    return this.projects.find(id) ?? (deleting?.id === id ? deleting : undefined);
+  });
   protected readonly area = computed(() => {
     const areaId = this.project()?.areaId;
     return areaId ? this.areas.byId().get(areaId) : undefined;
@@ -288,17 +297,28 @@ export class ProjectDetailPage {
    * goes to the projects list with an "Undo" snackbar that restores it.
    */
   protected async remove(): Promise<void> {
-    const project = this.project();
-    if (!project || this.busy().has('delete')) return;
-    const data: DeleteProjectData = { title: project.title, openTasks: this.openTasks().length };
+    const shown = this.project();
+    if (!shown || this.busy().has('delete')) return;
+    const data: DeleteProjectData = { title: shown.title, openTasks: this.openTasks().length };
     const ref = this.dialog.open<DeleteProjectDialog, DeleteProjectData, boolean>(
       DeleteProjectDialog,
-      { data, autoFocus: 'dialog' },
+      { data },
     );
     if (!(await firstValueFrom(ref.afterClosed()))) return;
+    // The project may have changed (or gone) while the dialog was open: delete its current version.
+    const project = this.projects.find(shown.id);
+    if (!project || this.busy().has('delete')) return;
+    this.deleting.set(project);
     const deleted = await this.run('delete', () => this.projects.remove(project));
-    if (!deleted) return;
-    void this.router.navigate(['/projects']);
+    if (!deleted) {
+      this.deleting.set(null);
+      afterNextRender(
+        () => this.host.nativeElement.querySelector<HTMLElement>('.head button.more')?.focus(),
+        { injector: this.injector },
+      );
+      return;
+    }
+    void this.router.navigate(['/projects']).finally(() => this.deleting.set(null));
     const undo = this.snackBar.open(
       $localize`:@@gtd.project.deleted:Moved “${project.title}:title:” to the Trash`,
       $localize`:@@gtd.undo.action:Undo`,
