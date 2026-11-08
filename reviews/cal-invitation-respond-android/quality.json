@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "cal-invitation-respond-android",
+  "reviewed_revision": "b663ca0dc567e0174ba4aae42606fd12245d616b",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/cal-invitation-respond-android/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/cal-invitation-respond-android/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/cal-invitation-respond-android/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (review 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "refusal text made neutral, Reload action added"},
+    {"id": "CR-2 (review 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "reload refetches sources after a failed first load"},
+    {"id": "CR-1 (review 2)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "KDoc of RESPOND_FAILED/STALE reworded"},
+    {"id": "CR-1 (final review)", "source": "code-reviewer", "severity": "P3", "disposition": "accepted", "note": "listMailAccounts fetched twice; one redundant call, no behavior impact"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.edit.*'", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck", "result": "pass"}
+  ]
+}
