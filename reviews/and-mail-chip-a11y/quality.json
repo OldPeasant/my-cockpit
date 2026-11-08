@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "task": "and-mail-chip-a11y",
+  "reviewed_revision": "be05d532bd487f75f63db4af6fc9caa795ab66d5",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-mail-chip-a11y/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-mail-chip-a11y/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-mail-chip-a11y/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (round 1)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "disabled chip close icon was dimmed twice (whole-chip alpha + IconButton disabled color); now label and border dimmed once, icon by IconButton"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck lintDebug -q", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest createDebugUnitTestCoverageReport -q", "result": "mail.compose tests pass; 1 unrelated failure auth.AppStartRoutingTest 'logging out from settings clears the cached files', which fails identically on clean origin/main"},
+    {"command": "sh scripts/check.sh", "result": "run by tasks.py done"}
+  ]
+}
