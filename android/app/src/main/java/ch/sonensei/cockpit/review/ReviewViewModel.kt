@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.sonensei.cockpit.capture.queue.CaptureQueue
 import ch.sonensei.cockpit.gtd.data.ProjectStatus
+import ch.sonensei.cockpit.gtd.projects.ProjectOpenRequests
 import ch.sonensei.cockpit.habits.Habit
 import ch.sonensei.cockpit.habits.HabitsRepository
 import ch.sonensei.cockpit.habits.HabitsResult
@@ -125,6 +126,7 @@ class ReviewViewModel
         private val reflections: ReflectionSaver,
         private val actions: ReviewActions,
         private val drafts: ReviewDrafts = ReviewDrafts(),
+        private val projectRequests: ProjectOpenRequests = ProjectOpenRequests(),
     ) : ViewModel() {
         private val state = MutableStateFlow(ReviewUiState())
         val uiState: StateFlow<ReviewUiState> = state.asStateFlow()
@@ -351,6 +353,9 @@ class ReviewViewModel
         /** Waiting for: it arrived, the task is completed. */
         fun completeWaiting(task: ReviewTask) =
             decide(ReviewStep.WAITING_FOR, task.id, ReviewDecision(ReviewDecision.Kind.COMPLETED, task.title)) { actions.complete(task) }
+
+        /** Projects: asks the Projects screen to show the project's detail; the caller then navigates there. */
+        fun openProject(project: ReviewProject) = projectRequests.request(project.id)
 
         /** Projects: the project looks good. */
         fun keepProject(project: ReviewProject) =

@@ -73,6 +73,8 @@ class ReviewWizardRouteInAppTest {
 
     @Inject lateinit var tokenStore: PersistentTokenStore
 
+    @Inject lateinit var projectRequests: ProjectOpenRequests
+
     private val reviewId = UUID.fromString("00000000-0000-7000-8000-000000000039")
 
     private fun open(step: ReviewStep) = OpenReview(reviewId, step, Instant.EPOCH, 1)
@@ -174,7 +176,7 @@ class ReviewWizardRouteInAppTest {
         waitForTag(screenTag(CockpitDestination.Projects))
         composeRule.onNodeWithTag(screenTag(CockpitDestination.Review)).assertDoesNotExist()
         // The Projects screen took the request, so it shows that project's detail.
-        composeRule.waitUntil(WAIT_MS) { ProjectOpenRequests.requests.value == null }
+        composeRule.waitUntil(WAIT_MS) { projectRequests.requests.value == null }
 
         systemBack()
         waitForTag(ReviewTags.WIZARD)

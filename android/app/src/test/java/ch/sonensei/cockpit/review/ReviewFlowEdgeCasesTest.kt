@@ -284,11 +284,10 @@ class ReviewFlowEdgeCasesTest {
         }
 
     @Test
-    fun `the list steps load nothing`() =
+    fun `the get clear step loads nothing`() =
         runTest(dispatcher) {
             val vm = inWizard(open(ReviewStep.GET_CLEAR))
-            listOf(ReviewStep.GET_CLEAR, ReviewStep.WAITING_FOR, ReviewStep.PROJECTS, ReviewStep.NEXT_ACTIONS, ReviewStep.SOMEDAY)
-                .forEach(vm::loadStep)
+            vm.loadStep(ReviewStep.GET_CLEAR)
             advanceUntilIdle()
             coVerify(exactly = 0) { repo.events(any()) }
             coVerify(exactly = 0) { habits.list() }

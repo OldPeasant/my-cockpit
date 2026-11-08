@@ -91,7 +91,7 @@ class ReviewRepositoryTest {
             assertEquals(OpenReview(id(9), ReviewStep.WAITING_FOR, Instant.parse("2026-10-20T18:00:00Z"), version = 3), overview.current)
             assertEquals(6L, overview.daysSinceLastReview)
             assertEquals(listOf("Move flat", "Tax return"), overview.projects.map { it.title })
-            assertEquals(listOf(ReviewProject(id(1), "Move flat", true)), overview.stalledProjects)
+            assertEquals(listOf(ReviewProject(id(1), "Move flat", true, version = 1)), overview.stalledProjects)
             val paths = List(2) { server.takeRequest().url.encodedPath }.toSet()
             assertEquals(setOf("/api/v1/weekly-reviews/status", "/api/v1/weekly-reviews/steps/projects"), paths)
         }

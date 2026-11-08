@@ -182,6 +182,8 @@ class ProjectsViewModel internal constructor(
     private val clock: Clock,
     /** Loads the drive images of the descriptions; `null` (tests) shows placeholders. */
     val imageLoader: ImageLoader? = null,
+    /** Projects other screens asked to open. */
+    private val openRequests: ProjectOpenRequests = ProjectOpenRequests(),
 ) : ViewModel() {
     @Inject
     constructor(
@@ -190,7 +192,8 @@ class ProjectsViewModel internal constructor(
         lists: TaskListsRepository,
         work: ProjectWorkRepository,
         images: NoteImages,
-    ) : this(projects, contexts, lists, work, Clock.systemDefaultZone(), images.loader)
+        openRequests: ProjectOpenRequests,
+    ) : this(projects, contexts, lists, work, Clock.systemDefaultZone(), images.loader, openRequests)
 
     private val selected = MutableStateFlow<UUID?>(null)
     private val showFinished = MutableStateFlow(false)
@@ -299,8 +302,8 @@ class ProjectsViewModel internal constructor(
     init {
         // A project another screen asked to open (the weekly review), also one asked for while this screen was kept.
         viewModelScope.launch {
-            ProjectOpenRequests.requests.collect { id ->
-                if (id != null && ProjectOpenRequests.take(id)) {
+            openRequests.requests.collect { id ->
+                if (id != null && openRequests.take(id)) {
                     prompt.value = null
                     confirm.value = null
                     selected.value = id

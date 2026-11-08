@@ -48,7 +48,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.gtd.data.ProjectStatus
 import ch.sonensei.cockpit.gtd.inbox.InboxRoute
-import ch.sonensei.cockpit.gtd.projects.ProjectOpenRequests
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import ch.sonensei.cockpit.ui.navigation.CockpitDestination
 import dagger.hilt.internal.GeneratedComponentManagerHolder
@@ -136,7 +135,7 @@ data class ReviewCallbacks(
             followUp = vm::followUp,
             completeWaiting = vm::completeWaiting,
             openProject = {
-                ProjectOpenRequests.request(it.id)
+                vm.openProject(it)
                 onOpen(CockpitDestination.Projects)
             },
             keepProject = vm::keepProject,
