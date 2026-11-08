@@ -1,11 +1,11 @@
 ---
 title: Mail images never load in Firefox (frame CSP 'self' in srcdoc)
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [web/src/app/features/mail/read/mail-frame.ts,web/src/app/features/mail/read/mail-frame.spec.ts,web/e2e/mail-read,web/playwright.config.ts]
 prio: 1
-lease_until: 
+lease_until: 2026-11-08T10:03:15Z
 extended: 
 releases: 1
 ---
