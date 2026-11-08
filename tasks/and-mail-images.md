@@ -26,7 +26,8 @@ Decided behavior (owner, 2026-11-08): remote images blocked by default, same as 
   - skipped (2026-11-08 09:47+0100 by dell26/agent-1): No emulator/device or adb available to this agent (no adb/emulator on PATH, Android SDK dir outside the sandbox); WebView image loading through shouldInterceptRequest verified only by Robolectric unit tests
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 10:02+0100 by dell26/agent-1): values/strings_mail.xml + values-de/strings_mail.xml contain mail_read_load_images, mail_read_always_images, mail_read_images_failed, mail_read_sender_not_saved; MailReadImagesGermanTest -> pass; lintDebug (MissingTranslation) -> pass
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-08 10:02+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck lintDebug testDebugUnitTest (via createDebugUnitTestCoverageReport, full suite) -> pass; sh scripts/check.sh -> exit 0
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
