@@ -281,6 +281,29 @@
       } @else {
         <p class="empty" i18n="@@mail.empty">No messages here.</p>
       }
+      @if (store.canLoadOlder()) {
+        <div class="more older">
+          @if (store.olderError(); as error) {
+            <p class="error" role="status" i18n="@@mail.olderFailed">
+              Nothing older loaded: {{ error }}
+            </p>
+          }
+          @if (store.loadingOlder()) {
+            <p class="note" role="status" i18n="@@mail.loadingOlder">
+              Loading older messages from the server…
+            </p>
+          }
+          <button
+            mat-stroked-button
+            type="button"
+            [disabled]="store.loadingOlder()"
+            (click)="store.loadOlder()"
+            i18n="@@mail.loadOlderFromServer"
+          >
+            Load older from server
+          </button>
+        </div>
+      }
     } @else {
       <p class="note" role="status" i18n="@@mail.loading">Loading messages…</p>
     }

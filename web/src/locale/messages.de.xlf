@@ -8892,6 +8892,38 @@
           <context context-type="linenumber">106,108</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="mail.olderFailed" datatype="html">
+        <source> Nothing older loaded: <x id="INTERPOLATION" equiv-text="{{ error }}"/> </source>
+        <target state="translated">Nichts Älteres geladen: <x id="INTERPOLATION" equiv-text="{{ error }}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
+          <context context-type="linenumber">288,290</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.loadingOlder" datatype="html">
+        <source> Loading older messages from the server… </source>
+        <target state="translated">Ältere Nachrichten werden vom Server geladen…</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
+          <context context-type="linenumber">293,295</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.loadOlderFromServer" datatype="html">
+        <source> Load older from server </source>
+        <target state="translated">Ältere vom Server laden</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
+          <context context-type="linenumber">303,305</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.list.nothingOlder" datatype="html">
+        <source>There are no older messages on the server.</source>
+        <target state="translated">Auf dem Server gibt es keine älteren Nachrichten.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-list-store.ts</context>
+          <context context-type="linenumber">271</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="mail.loadMore" datatype="html">
         <source> Load older messages </source>
         <target state="translated">Ältere Nachrichten laden</target>

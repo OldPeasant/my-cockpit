@@ -83,6 +83,10 @@ export class MailListStore {
   readonly selectedIds = signal<ReadonlySet<string>>(new Set());
   /** What the shown search found beyond its items; null without a search or while it loads. */
   readonly searchResult = signal<MailSearchExtras | null>(null);
+  /** Older messages are being loaded from the mail server ("load older from server"). */
+  readonly loadingOlder = signal(false);
+  /** Why loading older messages from the server failed or found nothing; null otherwise. */
+  readonly olderError = signal<string | null>(null);
   /** A search on the server runs while the cached results of the same query are shown. */
   readonly searchingServer = signal(false);
 
@@ -148,6 +152,7 @@ export class MailListStore {
     this.nextCursor.set(null);
     this.loadError.set(null);
     this.moreError.set(null);
+    this.olderError.set(null);
     this.selectedIds.set(new Set());
     this.searchingServer.set(keep);
     if (!keep) {
@@ -231,8 +236,73 @@ export class MailListStore {
     this.searchResult.set(snapshot.searchResult);
     this.loadError.set(null);
     this.moreError.set(null);
+    this.olderError.set(null);
     this.searchingServer.set(false);
     this.selectedIds.set(new Set());
+  }
+
+  /** Whether the end of the shown list is the end of a folder's cache ("load older from server"). */
+  readonly canLoadOlder = computed(
+    () =>
+      this.scope().folderId !== null &&
+      !this.scope().search &&
+      this.items() !== null &&
+      this.loadError() === null &&
+      this.nextCursor() === null,
+  );
+
+  /**
+   * Loads messages older than the sync window of the shown folder from the mail server (SPEC.md
+   * §7.2), then shows the newly cached ones at the end of the list. A failure, or nothing older on
+   * the server, is shown in {@link olderError}; the list stays as it is.
+   */
+  async loadOlder(): Promise<void> {
+    if (!this.canLoadOlder() || this.loadingOlder()) return;
+    const scope = this.scope();
+    const folderId = scope.folderId!;
+    const seq = this.loadSeq;
+    this.loadingOlder.set(true);
+    this.olderError.set(null);
+    try {
+      const result = await this.mail.loadOlder(folderId);
+      if (seq !== this.loadSeq) return;
+      if (result.loaded === 0) {
+        this.olderError.set(
+          $localize`:@@mail.list.nothingOlder:There are no older messages on the server.`,
+        );
+        return;
+      }
+      const wanted = (this.items() ?? []).length + result.loaded;
+      const page = await this.fetchUpTo(scope, wanted);
+      if (seq !== this.loadSeq) return;
+      const ids = new Set(page.items.map((item) => item.id));
+      this.selectedIds.update((selected) => new Set([...selected].filter((id) => ids.has(id))));
+      this.items.set(page.items);
+      this.nextCursor.set(page.nextCursor);
+      this.listGeneration++;
+      this.mutationSeq++;
+      const cursor = this.cursorId();
+      if (!cursor || !ids.has(cursor)) this.cursorId.set(page.items[0]?.id ?? null);
+    } catch (error) {
+      if (seq === this.loadSeq) this.olderError.set(errorMessage(error));
+    } finally {
+      if (seq === this.loadSeq) this.loadingOlder.set(false);
+    }
+  }
+
+  /** The first `wanted` items of a scope (fewer if it has fewer), in pages of the server's limit. */
+  private async fetchUpTo(scope: MailScope, wanted: number): Promise<MailPage> {
+    const items: MailSummary[] = [];
+    let cursor: string | undefined;
+    for (;;) {
+      const limit = Math.min(MAIL_MAX_PAGE_SIZE, Math.max(1, wanted - items.length));
+      const page = await this.mail.list(scope, cursor, limit);
+      const seen = new Set(items.map((item) => item.id));
+      items.push(...page.items.filter((item) => !seen.has(item.id)));
+      if (!page.nextCursor || items.length >= wanted || !page.items.length)
+        return { items, nextCursor: page.nextCursor };
+      cursor = page.nextCursor;
+    }
   }
 
   /** Appends the next page (infinite scroll). */

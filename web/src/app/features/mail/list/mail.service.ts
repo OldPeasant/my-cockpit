@@ -9,6 +9,7 @@ import {
   listMailAccounts,
   listMailFolders,
   listMailMessages,
+  loadOlderMail,
   MailAccountResponse,
   MailActionRequest,
   MailActionResultResponse,
@@ -23,6 +24,8 @@ import { SILENT_ERRORS } from '../../../core/http';
 export const MAIL_PAGE_SIZE = 50;
 /** The largest page the server returns (`CursorRequest.MAX_LIMIT`). */
 export const MAIL_MAX_PAGE_SIZE = 200;
+/** Messages one "load older from server" caches (the server's default). */
+export const MAIL_LOAD_OLDER_LIMIT = 100;
 /** The most ids one action request may carry (`MailActionRequest.ids`). */
 export const MAIL_MAX_ACTION_IDS = 1000;
 
@@ -132,6 +135,18 @@ export class MailService {
       items: (page.items ?? []).filter((item): item is MailSummary => !!item.id),
       nextCursor: page.nextCursor ?? null,
     };
+  }
+
+  /**
+   * Caches up to `limit` messages of the folder that are older than the sync window (SPEC.md §7.2).
+   * Tells how many were added and whether the server has even older ones.
+   */
+  async loadOlder(
+    folderId: string,
+    limit = MAIL_LOAD_OLDER_LIMIT,
+  ): Promise<{ loaded: number; hasMore: boolean }> {
+    const response = await this.api.invoke(loadOlderMail, { id: folderId, limit }, silent());
+    return { loaded: response.loaded ?? 0, hasMore: response.hasMore ?? false };
   }
 
   /**
