@@ -1,9 +1,6 @@
 package ch.sonensei.cockpit.gtd.task
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
 import android.content.res.Resources
-import android.widget.Toast
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -88,10 +85,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.core.links.ItemRef
+import ch.sonensei.cockpit.core.links.LinkedItemsSection
 import ch.sonensei.cockpit.core.settings.userCreativityLabel
 import ch.sonensei.cockpit.core.settings.userEnergyLabel
 import ch.sonensei.cockpit.gtd.data.Creativity
@@ -100,14 +98,11 @@ import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.gtd.next.TaskListTags
 import ch.sonensei.cockpit.notes.MarkdownView
-import ch.sonensei.cockpit.search.SearchHit
 import ch.sonensei.cockpit.search.SearchTarget
-import ch.sonensei.cockpit.search.searchTarget
 import ch.sonensei.cockpit.search.searchTypeStyle
 import ch.sonensei.cockpit.ui.navigation.CockpitDestination
 import coil3.ImageLoader
 import dagger.hilt.internal.GeneratedComponentManagerHolder
-import okhttp3.HttpUrl
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -145,8 +140,6 @@ fun TaskDetailRoute(
 ) {
     LaunchedEffect(id) { viewModel.open(id) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    val noBrowser = stringResource(R.string.task_detail_no_browser)
     TaskDetailContent(
         state = state,
         callbacks =
@@ -160,41 +153,20 @@ fun TaskDetailRoute(
                         ConvertedType.EVENT -> navigation.openScreen(CockpitDestination.Calendar)
                     }
                 },
-                openLink = { link ->
-                    when (val target = linkTarget(link, state.server)) {
-                        is SearchTarget.InApp ->
-                            if (target.type ==
-                                "TASK"
-                            ) {
-                                navigation.openTask(target.id)
-                            } else {
-                                navigation.openItem(target.type, target.id)
-                            }
-                        is SearchTarget.Screen -> navigation.openScreen(target.destination)
-                        is SearchTarget.Web ->
-                            try {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, target.url.toUri()))
-                            } catch (_: ActivityNotFoundException) {
-                                Toast.makeText(context, noBrowser, Toast.LENGTH_SHORT).show()
-                            }
-                    }
-                },
             ),
         imageLoader = viewModel.imageLoader,
         modifier = modifier,
+        linksPanel = {
+            LinkedItemsSection(ItemRef("TASK", id), open = { target ->
+                when (target) {
+                    is SearchTarget.InApp -> if (target.type == "TASK") navigation.openTask(target.id) else navigation.openItem(target.type, target.id)
+                    is SearchTarget.Screen -> navigation.openScreen(target.destination)
+                    is SearchTarget.Web -> Unit
+                }
+            })
+        },
     )
 }
-
-/** Where tapping a linked item leads: tasks and the items search opens in the app open here too, the rest on the web. */
-internal fun linkTarget(
-    link: TaskLink,
-    server: HttpUrl?,
-): SearchTarget =
-    if (link.type == "TASK") {
-        SearchTarget.InApp("TASK", link.itemId)
-    } else {
-        searchTarget(SearchHit(link.itemId, link.type, link.title.orEmpty(), link.subtitle, link.deepLink), server)
-    }
 
 /** What the screen can ask for, so it can be tested without a view model. */
 data class TaskDetailCallbacks(
@@ -215,7 +187,6 @@ data class TaskDetailCallbacks(
     val deleteItem: (ChecklistItem) -> Unit = {},
     /** Moves the item to the index of the checklist. */
     val moveItem: (ChecklistItem, Int) -> Unit = { _, _ -> },
-    val openLink: (TaskLink) -> Unit = {},
     val dismiss: (DetailMessage) -> Unit = {},
     val toReference: () -> Unit = {},
     val openToCalendar: () -> Unit = {},
@@ -290,7 +261,6 @@ object TaskDetailTags {
     const val ADD_ITEM = "task-detail-add-item"
     const val RENAME_INPUT = "task-detail-rename-input"
     const val RENAME_CONFIRM = "task-detail-rename-confirm"
-    const val LINKS = "task-detail-links"
 
     fun property(name: String) = "task-detail-property-$name"
 
@@ -312,7 +282,6 @@ object TaskDetailTags {
 
     fun itemDelete(id: UUID) = "task-detail-item-delete-$id"
 
-    fun link(id: UUID) = "task-detail-link-$id"
 }
 
 @Composable
@@ -321,6 +290,8 @@ fun TaskDetailContent(
     callbacks: TaskDetailCallbacks,
     modifier: Modifier = Modifier,
     imageLoader: ImageLoader? = null,
+    /** The linked-items panel below the checklist (the route passes [LinkedItemsSection]). */
+    linksPanel: @Composable () -> Unit = {},
 ) {
     val snackbarHost = remember { SnackbarHostState() }
     MessageEffect(state.message, snackbarHost, callbacks)
@@ -335,7 +306,7 @@ fun TaskDetailContent(
                     if (draft != null) {
                         EditForm(state, draft, callbacks)
                     } else {
-                        Details(state, detail, callbacks, imageLoader)
+                        Details(state, detail, callbacks, imageLoader, linksPanel)
                     }
                 }
                 state.loadFailed -> LoadFailed(state.offline, callbacks.retry)
@@ -423,6 +394,7 @@ private fun Details(
     detail: TaskDetail,
     callbacks: TaskDetailCallbacks,
     imageLoader: ImageLoader?,
+    linksPanel: @Composable () -> Unit,
 ) {
     val task = detail.task
     val enabled = !state.readOnly && !state.busy
@@ -450,7 +422,7 @@ private fun Details(
             MarkdownView(notes, imageLoader, Modifier.padding(horizontal = 16.dp).testTag(TaskDetailTags.NOTES))
         }
         Checklist(detail, callbacks, enabled)
-        if (detail.links.isNotEmpty()) Links(detail.links, callbacks.openLink)
+        linksPanel()
     }
 }
 
@@ -857,39 +829,6 @@ private fun RenameDialog(
         },
         dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.task_detail_cancel)) } },
     )
-}
-
-@Composable
-private fun Links(
-    links: List<TaskLink>,
-    open: (TaskLink) -> Unit,
-) {
-    SectionTitle(stringResource(R.string.task_detail_links))
-    Column(Modifier.testTag(TaskDetailTags.LINKS)) {
-        links.forEach { link ->
-            val title = link.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.task_detail_link_untitled)
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = link.available, onClickLabel = stringResource(R.string.task_detail_link_open)) { open(link) }
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
-                    .testTag(TaskDetailTags.link(link.itemId)),
-            ) {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = if (link.available) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                val subtitle =
-                    listOfNotNull(
-                        stringResource(searchTypeStyle(link.type).labelRes),
-                        link.subtitle?.takeIf { it.isNotBlank() },
-                        if (link.available) null else stringResource(R.string.task_detail_link_unavailable),
-                    ).joinToString(" · ")
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-    }
 }
 
 @Composable
