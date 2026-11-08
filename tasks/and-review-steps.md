@@ -22,7 +22,8 @@ The action steps of the weekly review on Android, matching web `steps/waiting-st
   - verified (2026-11-08 18:22+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.review.*' -> BUILD SUCCESSFUL, 0 failures; ReviewActionStepsTest 'next actions - keeps, moves to someday or deletes it', ReviewDecisionsViewModelTest next actions keep/someday/delete pass
 - [x] Someday (tasks and projects): activate / keep / delete
   - verified (2026-11-08 18:22+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.review.*' -> BUILD SUCCESSFUL, 0 failures; ReviewActionStepsTest 'someday - tasks and projects are activated, kept or deleted', ReviewDecisionsViewModelTest someday, ReviewActionsTest task vs project routing pass
-- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [x] New strings are in English and German (`res/values/` + `res/values-de/`)
+  - verified (2026-11-08 18:22+0100 by dell26/agent-1): strings_review.xml in values/ and values-de/; ReviewActionStepsTest 'every review string has a German translation and no German string is orphaned' and 'in German the steps are translated' pass (gradlew testDebugUnitTest)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
