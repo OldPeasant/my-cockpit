@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "task": "and-dashboard-actions",
+  "reviewed_revision": "78ac21c002c5f7f127adcbd0a34b0ad592ec300e",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-dashboard-actions/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-dashboard-actions/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-dashboard-actions/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed", "note": "first round: no tests; tests added (DashboardActionsScreenTest, DashboardCustomizeViewModelTest, DashboardSaveLayoutTest, DashboardSlotsTest, DashboardRouteInAppTest), confirmed resolved in re-review"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "first round: a11y custom actions moved to the focusable checkbox node; fixes.md"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "first round: stale refresh no longer overwrites saved layout/ETag; fixes.md"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "first round: failed save keeps later pending changes; fixes.md"},
+    {"id": "R1-CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "first round: stale KDoc; fixes.md"},
+    {"id": "R1-CR-6", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "first round: wrapped conditions; fixes.md"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted", "note": "Customize row label read twice by TalkBack and name not tappable; behaviour correct, non-blocking polish"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck lintDebug", "result": "pass"},
+    {"command": "cd android && ./gradlew testDebugUnitTest (dashboard tests; only failure auth/AppStartRoutingTest also fails on origin/main without this task)", "result": "pass"}
+  ]
+}
