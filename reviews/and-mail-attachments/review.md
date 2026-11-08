@@ -4,7 +4,7 @@ Date: 2026-11-08
 
 Task: and-mail-attachments - Android mail attachments: open, download, preview, save to Files
 
-Scope: `git diff origin/main...HEAD` (base ee9f70ad150555013844607818b0ca328ec39d10). Task commits: 6e56f8ec (implementation), b81c2614, 90380b84, 58ef7b0b (tests and the earlier review), fa45dcdb (fixes for CR-1 to CR-5). Committed changes only; the working tree was clean when the review started.
+Scope: `git diff origin/main...HEAD` (base ee9f70ad150555013844607818b0ca328ec39d10), final revision 6569b8ae1ef596c27a214f18092cd0368f5ea5a1. Task commits: 6e56f8ec (implementation), b81c2614, 90380b84, 58ef7b0b (tests and the earlier review), fa45dcdb (fixes for CR-1 to CR-5), merged in 7fe87f8e, then 8d0c15a0 (this review) and 6569b8ae (test-writer: test-only changes and tests.md). Committed changes only; the working tree was clean when the review started.
 
 Requirements:
 - tasks/and-mail-attachments.md (6 acceptance criteria and the two recorded assumptions: moving the file into the picked folder after the save, and a simple in-app preview with no new library)
@@ -15,9 +15,9 @@ Requirements:
 
 Git range:
 - Branch: main
-- HEAD: 7fe87f8e2cc1b80b5c1bd7ec357b11020d8cb3e2 (merge of origin/wip/and-mail-attachments)
+- HEAD: 6569b8ae1ef596c27a214f18092cd0368f5ea5a1 (first pass at 7fe87f8e2cc1b80b5c1bd7ec357b11020d8cb3e2, the merge of origin/wip/and-mail-attachments; delta 7fe87f8e..6569b8ae reviewed afterwards)
 - Base/start: ee9f70ad150555013844607818b0ca328ec39d10
-- Commits reviewed: 5
+- Commits reviewed: 7 (5 task commits, plus 8d0c15a0 and 6569b8ae)
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
@@ -39,6 +39,13 @@ Files read in full: `MailAttachmentRepository.kt`, `MailAttachmentsViewModel.kt`
 - Attachment names from mail go through `OpenedFiles.safeName` before they become a cache path. No secrets or mail content are logged.
 - Architecture: the feature stays inside `mail/read` and reuses the Files helpers. It adds no new library, no manifest change and no server or API contract change.
 - Tests: there are repository, view model, Compose screen, route (Robolectric, with intents and the activity result) and German-locale tests for the new behaviour. Most tests check results that users or callers can see. The one exception is the lazy rendering of a valid PDF, which needs an instrumented test or a manual check on a device; see the conclusion.
+
+## Delta 7fe87f8e..6569b8ae (test-only)
+
+`git diff 7fe87f8e 6569b8ae` changes no production code. It touches only `MailReadRepositoryTest.kt` (+20), `MailAttachmentsScreenTest.kt` (+2), and the review and tests.md reports under `reviews/`.
+- `MailReadRepositoryTest`: the new test `an attachment without a content type, or with a blank one, is listed without a type` checks that a missing `contentType` and a blank one (`"  "`) both become `null`, and that a missing `sizeBytes` also becomes `null`. This matches `MailReadRepository.kt:129` (`contentType?.takeIf { it.isNotBlank() }`) and the `MailAttachment(partId, name, sizeBytes, contentType)` field order. The JSON is built with `trimMargin` and newline removal, and it is valid. The test checks a result callers can see.
+- `MailAttachmentsScreenTest`: two new icon assertions (`video/mp4` gives `VideoFile`, `application/x-7z-compressed` gives `FolderZip`). They match the content-type branches at `MailAttachments.kt:244-245`. Before this change, only the file-extension branch was covered for video.
+- No test was weakened, removed or skipped. The delta raises no new findings, and the evidence for this revision is current.
 
 ## P0 Critical
 
@@ -64,4 +71,4 @@ CR-1 to CR-5 from the earlier review are resolved in the current code. The paren
 - When I reviewed the task, no `tasks.py verify` evidence was recorded yet: all 6 criteria were still unticked. Criterion 6 needs a real run of `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh`. An earlier note in the task file says that `scripts/check.sh` once did not finish within 10 minutes.
 - The lazy, per-page PDF rendering (the CR-2 fix) has no automated test, because Robolectric cannot run `PdfRenderer`. Either record this as a limitation in the criterion 3 and 6 evidence, or check it on a device or emulator.
 
-I did not run Gradle myself, because a test-writer helper was working in the same clone at the same time.
+I did not run Gradle myself: in the first pass, a test-writer helper was working in the same clone, and in the delta pass the parent was running Gradle in parallel. The two new tests were checked by reading them against the production code, not by running them. Their pass/fail result comes from the test-writer's run (tests.md) and from the parent's final validation.
