@@ -16,7 +16,8 @@ and cannot complete/reopen it from task detail. Android has both, with undo.
   - verified (2026-11-08 15:35+0100 by dell26/agent-1): cd web && npx ng test --watch=false --include='src/app/features/gtd/task-detail/task-detail.spec.ts' (+ task-detail-page.spec.ts, task-detail.service.spec.ts) at c2b8a9e48 -> 148 task-detail tests passed incl. 'complete, reopen and delete' (complete/reopen with If-Match, delete to Trash, 'goes back through the shared back navigation after deleting'); full npm run check -> 4429 passed
 - [x] An undo snackbar after completing or deleting, in task detail and in the lists (Next, Today, project detail)
   - verified (2026-11-08 15:35+0100 by dell26/agent-1): npx ng test --include ui/task-undo.spec.ts, next/next-view.spec.ts, today/today-view.spec.ts, projects/projects-pages.spec.ts, lists/list-pages.spec.ts, task-detail.spec.ts -> pass (undo snackbar after complete/delete in task detail; list undo in Next, Today, project detail, Waiting/Someday/Scheduled); part of npm run check -> 4429 passed
-- [ ] Checklist items can be renamed inline
+- [x] Checklist items can be renamed inline
+  - verified (2026-11-08 15:35+0100 by dell26/agent-1): npx ng test --include task-detail/task-checklist.spec.ts -> 44 passed ('rename': Enter/blur save, Escape cancels, empty/unchanged ignored, 412/error rollback); part of npm run check -> 4429 passed
 - [ ] Task notes are shown rendered as Markdown when not editing (click/Edit switches to the textarea)
 - [ ] New UI strings are in `web/src/locale` (English + German)
 - [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
