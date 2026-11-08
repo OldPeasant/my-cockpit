@@ -15,7 +15,8 @@ Goal: the Android event view/editor calls `POST /api/v1/calendar/events/{id}/res
 
 ## Acceptance criteria
 - [ ] Android event view/editor: Accept / Maybe / Decline with the current status; sending updates the status
-- [ ] New strings in English and German (`res/values{,-de}/strings_calendar_edit.xml`)
+- [x] New strings in English and German (`res/values{,-de}/strings_calendar_edit.xml`)
+  - verified (2026-11-08 23:23+0100 by felix/agent-1): git diff 0cec3b4ba HEAD -- android/app/src/main/res/ -> 7 new calendar_edit_respond_* strings in values/ and values-de/strings_calendar_edit.xml (same keys, German uses du); lintDebug (MissingTranslation) passes in the helper run
 - [ ] Unit tests cover the new behavior; `sh scripts/check.sh` passes
 
 ## Notes
