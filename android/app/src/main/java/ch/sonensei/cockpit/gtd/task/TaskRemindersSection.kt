@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.gtd.task
 
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import dagger.hilt.internal.GeneratedComponentManagerHolder
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -63,7 +65,19 @@ fun TaskRemindersSection(
     taskId: UUID,
     anchors: ReminderAnchors,
     enabled: Boolean,
-    viewModel: TaskRemindersViewModel = hiltViewModel(),
+    viewModel: TaskRemindersViewModel? = null,
+) {
+    // Without Hilt (screen tests with fake view models) there is no view model to show the section with.
+    if (viewModel == null && LocalActivity.current !is GeneratedComponentManagerHolder) return
+    TaskRemindersSectionContent(taskId, anchors, enabled, viewModel ?: hiltViewModel())
+}
+
+@Composable
+private fun TaskRemindersSectionContent(
+    taskId: UUID,
+    anchors: ReminderAnchors,
+    enabled: Boolean,
+    viewModel: TaskRemindersViewModel,
 ) {
     LaunchedEffect(taskId) { viewModel.open(taskId) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
