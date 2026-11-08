@@ -235,6 +235,20 @@ class TaskConversionRepositoryTest {
         }
 
     @Test
+    fun `an event without a known zone is dated on the device clock`() =
+        runBlocking {
+            // Midday UTC is the same day in every zone the device could plausibly be in.
+            listOf("", ""","timeZone":"Not/AZone"""").forEachIndexed { i, zone ->
+                val times = """"start":"2026-10-22T12:00:00Z","end":"2026-10-22T13:00:00Z"$zone"""
+                dispatcher.enqueue(eventPath, json(eventJson(74 + i, "Call", times)))
+
+                val result = repository.convertToEvent(task, timedPlan().request(zurich))
+
+                assertEquals(zone, LocalDate.of(2026, 10, 22), (result as TaskResult.Ok).value.day)
+            }
+        }
+
+    @Test
     fun `a refused event request with problem details gives the field messages`() =
         runBlocking {
             dispatcher.enqueue(

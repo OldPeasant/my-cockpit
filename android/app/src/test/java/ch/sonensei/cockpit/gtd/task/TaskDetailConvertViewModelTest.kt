@@ -446,6 +446,101 @@ class TaskDetailConvertViewModelTest {
             assertTrue(vm.uiState.value.readOnly)
         }
 
+    @Test
+    fun `a second tap while a conversion runs converts only once`() =
+        runTest {
+            val pending = CompletableDeferred<TaskResult<ConvertedItem>>()
+            val slow =
+                object : TaskDetailSource by source {
+                    override suspend fun convertToNote(task: GtdTask): TaskResult<ConvertedItem> {
+                        source.calls += "toNote"
+                        return pending.await()
+                    }
+
+                    override suspend fun convertToEvent(
+                        task: GtdTask,
+                        request: ConvertToEventRequest,
+                    ): TaskResult<ConvertedItem> {
+                        source.calls += "toEvent"
+                        return pending.await()
+                    }
+                }
+            val vm = viewModel(slow)
+            collect(vm)
+
+            vm.toReference()
+            assertTrue(vm.uiState.value.busy)
+            vm.toReference()
+            vm.openToCalendar()
+            vm.confirmToCalendar()
+
+            assertEquals(listOf("toNote"), source.calls)
+            assertNull(vm.uiState.value.calendarDialog)
+
+            pending.complete(TaskResult.Ok(note))
+            assertEquals(note, vm.uiState.value.converted)
+            assertFalse(vm.uiState.value.busy)
+        }
+
+    @Test
+    fun `confirming the dialog twice while the request runs sends one event`() =
+        runTest {
+            val pending = CompletableDeferred<TaskResult<ConvertedItem>>()
+            val slow =
+                object : TaskDetailSource by source {
+                    override suspend fun convertToEvent(
+                        task: GtdTask,
+                        request: ConvertToEventRequest,
+                    ): TaskResult<ConvertedItem> {
+                        source.eventRequests += request
+                        return pending.await()
+                    }
+                }
+            val vm = viewModel(slow)
+            collect(vm)
+            vm.openToCalendar()
+
+            vm.confirmToCalendar()
+            // The dialog stays open (disabled) until the server answered.
+            assertTrue(vm.uiState.value.busy)
+            assertEquals(
+                home.id,
+                vm.uiState.value.calendarDialog
+                    ?.plan
+                    ?.calendarId,
+            )
+            vm.confirmToCalendar()
+
+            assertEquals(1, source.eventRequests.size)
+            pending.complete(TaskResult.Ok(event))
+            assertNull(vm.uiState.value.calendarDialog)
+            assertEquals(event, vm.uiState.value.converted)
+        }
+
+    @Test
+    fun `calendars of an earlier dialog answering last do not replace those of the reopened one`() =
+        runTest {
+            val first = CompletableDeferred<TaskResult<List<TargetCalendar>>>()
+            val second = CompletableDeferred<TaskResult<List<TargetCalendar>>>()
+            val answers = ArrayDeque(listOf(first, second))
+            val slow =
+                object : TaskDetailSource by source {
+                    override suspend fun calendars(): TaskResult<List<TargetCalendar>> = answers.removeFirst().await()
+                }
+            val vm = viewModel(slow)
+            collect(vm)
+            vm.openToCalendar()
+            vm.cancelToCalendar()
+            vm.openToCalendar()
+
+            second.complete(TaskResult.Ok(listOf(work)))
+            first.complete(TaskResult.Offline)
+
+            val dialog = vm.uiState.value.calendarDialog!!
+            assertEquals(CalendarChoice(listOf(work)), dialog.choice)
+            assertEquals(work.id, dialog.plan.calendarId)
+        }
+
     /** [source], but the calendars answer only once [pending] completes. */
     private fun slowCalendars(pending: CompletableDeferred<TaskResult<List<TargetCalendar>>>): TaskDetailSource =
         object : TaskDetailSource by source {

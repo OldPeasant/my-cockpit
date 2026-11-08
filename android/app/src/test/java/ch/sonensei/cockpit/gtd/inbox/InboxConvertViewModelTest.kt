@@ -237,6 +237,41 @@ class InboxConvertViewModelTest {
         }
 
     @Test
+    fun `calendars of an earlier prompt answering last do not replace those of the reopened one`() =
+        test { vm ->
+            val older = CompletableDeferred<List<TargetCalendar>?>()
+            val newer = CompletableDeferred<List<TargetCalendar>?>()
+            val answers = ArrayDeque(listOf(older, newer))
+            coEvery { inbox.calendars() } coAnswers { answers.removeFirst().await() }
+            vm.startProcessing()
+            vm.choose(first.id, InboxActionKind.CALENDAR)
+            vm.cancelPrompt()
+            vm.choose(first.id, InboxActionKind.CALENDAR)
+
+            newer.complete(listOf(work))
+            older.complete(null)
+
+            val prompt = vm.uiState.value.prompt!!
+            assertEquals(CalendarChoice(listOf(work)), prompt.calendars)
+            assertEquals(work.id, prompt.plan?.calendarId)
+        }
+
+    @Test
+    fun `a double tap on To reference converts the item once`() =
+        test { vm ->
+            val pending = CompletableDeferred<ProcessResult>()
+            coEvery { inbox.process(any(), any(), any()) } coAnswers { pending.await() }
+            vm.startProcessing()
+
+            vm.choose(first.id, InboxActionKind.REFERENCE)
+            vm.choose(first.id, InboxActionKind.REFERENCE)
+            pending.complete(ProcessResult.Converted(note))
+
+            coVerify(exactly = 1) { inbox.process(any(), any(), any()) }
+            assertEquals(note, vm.uiState.value.converted)
+        }
+
+    @Test
     fun `retrying without an open prompt loads nothing`() =
         test { vm ->
             vm.retryCalendars()
