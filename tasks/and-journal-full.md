@@ -1,10 +1,11 @@
 ---
 title: Android journal: other days, mood, tags, calendar, on this day
-status: todo
-owner:
+status: in_progress
+owner: rudi/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/journal,android/app/src/test/java/ch/sonensei/cockpit/journal,android/app/src/main/res/values/strings_journal.xml,android/app/src/main/res/values-de/strings_journal.xml]
 prio: 2
+lease_until: 2026-11-08T19:01:37Z
 ---
 ## Goal
 Android's journal is fixed to today (`JournalViewModel.kt:86`); web has previous/next day, mood, tags, a heatmap
