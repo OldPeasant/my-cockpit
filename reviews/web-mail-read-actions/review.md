@@ -4,21 +4,22 @@ Date: 2026-11-08
 
 Task: web-mail-read-actions - Web mail read view: unread, flag, move, shortcuts r/a/f/c
 
-Scope: committed task changes `git diff 8e7ae960e..a62f12729` (one commit, a62f12729); working tree clean at review time
+Scope: full committed task diff `git diff 8e7ae960e..bfe1687b4` (implementation a62f12729, tests 5c306bd13, review fixes bfe1687b4); second pass on the final code. Working tree was clean at review time; only committed code was reviewed.
 
 Requirements:
 - tasks/web-mail-read-actions.md (acceptance criteria and recorded assumptions)
 - SPEC.md section 7.3 (mail read view, Gmail-like keys)
 - AGENTS.md "Project notes", docs/ARCHITECTURE.md conventions
-- Parent instructions (focus: races, keyboard handling, i18n, accessibility, tests)
+- Previous review (this file, revision a62f12729) and reviews/web-mail-read-actions/fixes.md
+- Parent instructions (verify earlier findings; look for new issues in criteria, races, keyboard handling, i18n English and German incl. messages-de.spec.ts, accessibility, maintainability)
 
 Git range:
 - Branch: main
-- HEAD: a62f12729
+- HEAD: bfe1687b4
 - Base/start: 8e7ae960e4811726fafaaa1970a6e86b9b4f0a1a
-- Commits reviewed: 1
+- Commits reviewed: 3
 
-Summary: 0 P0, 1 P1, 0 P2, 3 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3 (open findings; the four findings of the first pass are resolved, see below)
 
 ## P0 Critical
 
@@ -26,12 +27,12 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | New read-view behavior and the shortcut help registry have no unit tests in the committed change**
-    - File: `web/src/app/features/mail/read/mail-read-page.spec.ts:1428`
+None open.
+
+- [x] **CR-1 | New read-view behavior and the shortcut help registry had no unit tests** - Resolved
+    - File: `web/src/app/features/mail/read/mail-read-page.spec.ts`, `web/src/app/features/mail/list/mail-list-page.spec.ts`, `web/src/app/features/mail/list/mail-list-session.spec.ts`, `web/src/app/features/mail/list/mail-shortcuts.spec.ts`, `web/src/app/shell/page-shortcuts.spec.ts`, `web/src/app/shell/shell.spec.ts`
     - Category: Tests
-    - Problem: The commit's only test changes are the button-order expectation in `mail-read-page.spec.ts` (three new labels) and the key-mapping table in `mail-shortcuts.spec.ts`. Nothing exercises: `markUnread()` (waits for the pending mark-read, calls `session.markedUnread`, navigates back with `replaceUrl`, failure keeps the message open), `toggleFlag()` (FLAG vs UNFLAG, message and session updated, failure toast), `move()` (folders loaded per account, current folder excluded, dialog cancel, target passed to `apply`, then the `leave` path, failure while loading folders resets `triaging`), the read-view keys `r`/`a`/`f`/`c`/`u`/`s`/`v` (including that they do nothing while a dialog is open or before the message is ready), `c` in the list and `r`/`a`/`f` being ignored there, `MailListSession.markedUnread`/`flagged`, `PageShortcuts.register` (removal on destroy) and the new sections in `ShortcutsDialog`. Focused run `npx ng test --include` on the read page, list page and shortcuts specs: 276 passed, i.e. the suite is green without covering the new behavior.
-    - Why it matters: Acceptance criterion 4 ("Unit tests cover the new behavior") is not met by the reviewed commit; the mark-read/mark-unread ordering and the move busy state are exactly the regression-prone parts.
-    - Suggested fix: The concurrent test-writer pass should add these tests (read page, list page, session, `page-shortcuts`, `shortcuts-dialog`); this finding is resolved once they are committed and pass.
+    - Status: Commit 5c306bd13 adds tests for Mark unread (waits for the pending mark-read, session update, back with replaceUrl, failure keeps the message open), Star/Unstar (FLAG vs UNFLAG, failure toasts, message changed while running), Move (per-account folders, current folder excluded, cancel, target passed, failure while loading folders), the read-view keys r/a/f/c/u/s/v with the dialog-open and not-ready guards, `c` in the list with r/a/f ignored there, `MailListSession.markedUnread`/`flagged`, `PageShortcuts` registration and removal, and the new sections of the ? overview. Commit bfe1687b4 adds a `moveTargetsOf` unit test and an accessible-label test for the Star toggle. Existing assertions were only adapted to the changed Star label, not weakened. Focused run by the reviewer: `cd web && npx ng test --watch=false --include` on the read page, folders store, list page, list session, mail shortcuts, page-shortcuts, shell and messages-de specs -> 8 files, 435 tests passed.
 
 ## P2 Medium
 
@@ -39,29 +40,31 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-2 | German star wording diverges from the existing translations**
-    - File: `web/src/locale/messages.de.xlf` (units `mailRead.flag`, `mailRead.unflag`, `mailRead.flagTitle`, `mailRead.flagFailed`, `mailRead.unflagFailed`, `mailShortcuts.flag`)
-    - Category: Quality
-    - Problem: The existing German units for the same concept use "Mit Stern markieren" (Star), "Stern entfernen" (Unstar) and "Mit Stern" (Starred). The new units use "Markieren", "Markiert", "Markierung entfernen" and "Markieren oder Markierung entfernen". In German "Markieren" also means selecting/highlighting, and the list uses "auswählen" for selection, so the same action has two names.
-    - Why it matters: Inconsistent, ambiguous wording between the list and the read view for the same action.
-    - Suggested fix: Reuse the existing vocabulary, e.g. "☆ Mit Stern markieren", "★ Mit Stern", "Mit Stern markieren oder Stern entfernen", "Die Nachricht konnte nicht mit Stern markiert werden: {reason}", "Der Stern konnte nicht entfernt werden: {reason}".
+None open.
 
-- [ ] **CR-3 | Star toggle changes its label while also exposing aria-pressed**
-    - File: `web/src/app/features/mail/read/mail-read-page.html:315`
+- [x] **CR-2 | German star wording diverged from the existing translations** - Resolved
+    - File: `web/src/locale/messages.de.xlf` (units `mailShortcuts.flag`, `mailRead.flag`, `mailRead.flagTitle`, `mailRead.flagFailed`, `mailRead.unflagFailed`)
+    - Category: Quality
+    - Status: The units now use the list's vocabulary ("Mit Stern markieren", "Mit Stern markieren oder Stern entfernen", "Die Nachricht konnte nicht mit Stern markiert werden: {reason}", "Der Stern konnte nicht entfernt werden: {reason}"), matching the existing units "Mit Stern markieren" / "Stern entfernen" / "Mit Stern". Placeholders unchanged; messages-de.spec.ts passes (no missing, stale or duplicate units, placeholders match).
+
+- [x] **CR-3 | Star toggle changed its label while also exposing aria-pressed** - Resolved
+    - File: `web/src/app/features/mail/read/mail-read-page.html:117`
     - Category: Quality (accessibility)
-    - Problem: The button sets `aria-pressed` and at the same time switches its text between "☆ Star" and "★ Starred"; the `title` stays "Star (s)" in both states. A screen reader announces e.g. "Starred, toggle button, pressed", and the pressed state and the label both encode the state, so the label no longer names the action.
-    - Why it matters: WAI-ARIA toggle-button guidance: a toggle keeps a constant label when `aria-pressed` conveys the state; the current combination is confusing for assistive tech users.
-    - Suggested fix: Either keep a constant accessible label ("Star") with `aria-pressed` and change only the icon, or drop `aria-pressed` and keep the action-style label ("Star" / "Remove star").
+    - Status: The button keeps one translated label ("Star" / "Mit Stern markieren"); the state glyph sits in an `aria-hidden` span, so `aria-pressed` alone conveys the state. The unused unit `mailRead.unflag` was removed from both xlf files, and the source of `mailRead.flag` changed to "Star" in both. The hand-edited location line numbers (html 128,129; ts 576 and 578) match the committed sources. No other code or e2e test references the removed "★ Starred" text (the list's `aria-label="Starred"` row icon is a different unit).
 
-- [ ] **CR-4 | Move-target filtering duplicated from MailFoldersStore.moveTargets**
-    - File: `web/src/app/features/mail/read/mail-read-page.ts:299`
+- [x] **CR-4 | Move-target filtering duplicated from MailFoldersStore.moveTargets** - Resolved
+    - File: `web/src/app/features/mail/list/mail-folders-store.ts:150`, `web/src/app/features/mail/read/mail-read-page.ts:280`
     - Category: Quality
-    - Problem: `move()` re-implements `selectable && id !== currentFolder` over `folderTree(...)`, the same rule as `MailFoldersStore.moveTargets` (`web/src/app/features/mail/list/mail-folders-store.ts:143`).
-    - Why it matters: If the list's notion of a valid move target changes (e.g. excluding a role), the read view silently diverges.
-    - Suggested fix: Extract a small pure helper (e.g. `moveTargets(nodes, exceptId)`) next to `folderTree` and use it from both places.
+    - Status: A pure exported `moveTargetsOf(nodes, exceptId)` next to `folderTree` is now used by both `MailFoldersStore.moveTargets` and `MailReadPage.move()`; behavior unchanged and unit-tested.
 
-Checked without findings: modifier, typing-target, composing and repeat handling (all through `mailShortcutFor`, so Ctrl+R/Ctrl+F/Ctrl+A/Ctrl+C keep their browser meaning); no conflict with the shell keys (`q`, `?`, Ctrl+K); dialog-open guard on both pages; `triaging` stays set across folder loading and the move dialog and is handed to `run()` synchronously after the dialog closes, so no second action can slip in; navigation or destroy during the folder load or the action is guarded by the id/destroyed checks (the dialog closes on navigation); mark unread awaits the pending mark-read; every new UI string has English and German units with matching `reason` placeholders and no duplicate ids.
+## Checked without new findings
+
+- Races: `run()` sets `triaging` synchronously before its first await, so double clicks or repeated `s`/`u`/`v` cannot start a second action; `move()` clears `triaging` in `finally` and hands over to `run()` without an intervening await; Mark unread awaits the pending mark-read; navigation or destroy during folder loading, the dialog or the action is guarded by the id/destroyed checks.
+- Keyboard handling: all keys go through `mailShortcutFor`, so modifier combinations (Ctrl+R/F/A/C), typing targets, IME composition and repeats keep their browser meaning; dialog-open guard on both pages; r/a/f/u/s/v require the ready state; `c` works on the list and the read view.
+- i18n: every new UI string has English and German units; `npm run lint` -> "All files pass linting."; messages-de.spec.ts passes.
+- Accessibility: Star toggle label and `aria-pressed` as above; the action group has a translated `aria-label`.
+- Maintainability: no dead code or debug output introduced by the tests or fixes; the fixer's edits stay inside the task's touches (mail list/read, locale) plus the shell registry recorded as an assumption.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task (CR-1: the committed change lacks the unit tests the acceptance criteria require; expected to be closed by the test-writer pass).
+No material issues found.
