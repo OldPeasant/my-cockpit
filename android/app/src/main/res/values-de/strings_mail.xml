@@ -139,4 +139,9 @@
         <item quantity="one">Markierung von %1$d E-Mail entfernt</item>
         <item quantity="other">Markierung von %1$d E-Mails entfernt</item>
     </plurals>
+    <string name="mail_load_older">Ältere vom Server laden</string>
+    <string name="mail_loading_older">Ältere Nachrichten werden vom Server geladen…</string>
+    <string name="mail_nothing_older">Auf dem Server gibt es keine älteren Nachrichten.</string>
+    <string name="mail_older_offline">Keine Verbindung: Nichts Älteres geladen.</string>
+    <string name="mail_older_failed">Die älteren Nachrichten konnten nicht geladen werden.</string>
 </resources>

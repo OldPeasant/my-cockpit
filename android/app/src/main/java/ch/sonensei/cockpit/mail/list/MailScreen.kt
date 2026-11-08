@@ -51,6 +51,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -161,6 +162,7 @@ fun MailRoute(
                     select = viewModel::select,
                     act = viewModel::act,
                     loadMore = viewModel::loadMore,
+                    loadOlder = viewModel::loadOlder,
                     retry = viewModel::refresh,
                     compose = { composing = ComposeMode.New(state.folder?.accountId).encode() },
                     search =
@@ -230,6 +232,8 @@ data class MailListCallbacks(
     val select: (Mailbox) -> Unit = {},
     val act: (UUID, MailListAction) -> Unit = { _, _ -> },
     val loadMore: () -> Unit = {},
+    /** "Load older from server" at the end of a folder. */
+    val loadOlder: () -> Unit = {},
     val retry: () -> Unit = {},
     val compose: () -> Unit = {},
     val folders: FolderCallbacks = FolderCallbacks(),
@@ -279,6 +283,9 @@ internal object MailListTags {
     const val MESSAGE = "mail-message"
     const val RETRY = "mail-retry"
     const val LOADING_MORE = "mail-loading-more"
+    const val LOAD_OLDER = "mail-load-older"
+    const val LOADING_OLDER = "mail-loading-older"
+    const val OLDER_MESSAGE = "mail-older-message"
     const val COMPOSE = "mail-compose"
     const val SEARCH_OPEN = "mail-search-open"
     const val SEARCH_FIELD = "mail-search-field"
@@ -432,12 +439,15 @@ private fun MailboxContent(
         if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth()) else Spacer(Modifier.height(4.dp))
         when {
             state.loaded && state.messages.isEmpty() ->
-                Text(
-                    stringResource(if (state.accounts.isEmpty()) R.string.mail_no_accounts else R.string.mail_empty),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(24.dp).testTag(MailListTags.EMPTY),
-                )
+                Column {
+                    Text(
+                        stringResource(if (state.accounts.isEmpty()) R.string.mail_no_accounts else R.string.mail_empty),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(24.dp).testTag(MailListTags.EMPTY),
+                    )
+                    if (state.canLoadOlder) LoadOlder(state, callbacks.loadOlder)
+                }
             else -> Messages(state, callbacks, listState, clock)
         }
     }
@@ -578,6 +588,54 @@ private fun Messages(
             item(key = MailListTags.LOADING_MORE) {
                 LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp).testTag(MailListTags.LOADING_MORE))
             }
+        }
+        if (state.canLoadOlder) {
+            item(key = MailListTags.LOAD_OLDER) { LoadOlder(state, callbacks.loadOlder) }
+        }
+    }
+}
+
+/**
+ * The end of a folder's cached mail: "Load older from server" (SPEC.md §7.2), its progress, and why the last attempt
+ * added nothing. The message does not block anything; the button tries again.
+ */
+@Composable
+private fun LoadOlder(
+    state: MailListUiState,
+    loadOlder: () -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        state.olderMessage?.let { message ->
+            val text =
+                when (message) {
+                    OlderMessage.OFFLINE -> R.string.mail_older_offline
+                    OlderMessage.FAILED -> R.string.mail_older_failed
+                    OlderMessage.NOTHING_OLDER -> R.string.mail_nothing_older
+                }
+            Text(
+                stringResource(text),
+                style = MaterialTheme.typography.bodyMedium,
+                color =
+                    if (message ==
+                        OlderMessage.NOTHING_OLDER
+                    ) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
+                modifier = Modifier.padding(bottom = 8.dp).testTag(MailListTags.OLDER_MESSAGE),
+            )
+        }
+        if (state.loadingOlder) {
+            Text(
+                stringResource(R.string.mail_loading_older),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            LinearProgressIndicator(Modifier.fillMaxWidth().padding(bottom = 8.dp).testTag(MailListTags.LOADING_OLDER))
+        }
+        OutlinedButton(onClick = loadOlder, enabled = !state.loadingOlder, modifier = Modifier.testTag(MailListTags.LOAD_OLDER)) {
+            Text(stringResource(R.string.mail_load_older))
         }
     }
 }

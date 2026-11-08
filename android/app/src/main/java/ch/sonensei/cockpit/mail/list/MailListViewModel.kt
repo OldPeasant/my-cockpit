@@ -25,6 +25,9 @@ enum class MailListMessage {
     UNDO_FAILED,
 }
 
+/** Why "load older from server" showed nothing new: no connection, a refusal, or nothing older on the server. */
+enum class OlderMessage { OFFLINE, FAILED, NOTHING_OLDER }
+
 /**
  * What [action] just did to [mails] (as they were before), offered to undo: a marking action by its inverse, a move
  * (also archive, delete and spam) by moving each mail back to its folder. [positions] are the mails' places in the list
@@ -85,6 +88,10 @@ data class MailListUiState(
     val nextCursor: String? = null,
     val loading: Boolean = false,
     val loadingMore: Boolean = false,
+    /** Older messages are being loaded from the mail server ("load older from server"). */
+    val loadingOlder: Boolean = false,
+    /** Why the last "load older from server" added nothing; shown at the end of the list, `null` otherwise. */
+    val olderMessage: OlderMessage? = null,
     /** The mailbox was loaded at least once. */
     val loaded: Boolean = false,
     val message: MailListMessage? = null,
@@ -135,6 +142,17 @@ data class MailListUiState(
     /** Names the account of each search result when all accounts are searched and there is more than one. */
     val showSearchAccounts: Boolean get() = search?.mailbox == Mailbox.Unified && accounts.size > 1
 
+    /** The end of a folder's cached mail is shown: "load older from server" is offered there (SPEC.md §7.2). */
+    val canLoadOlder: Boolean
+        get() =
+            mailbox is Mailbox.Folder &&
+                search == null &&
+                loaded &&
+                !loading &&
+                nextCursor == null &&
+                message != MailListMessage.OFFLINE &&
+                message != MailListMessage.FAILED
+
     fun account(id: UUID?): MailAccount? = accounts.firstOrNull { it.account.id == id }?.account
 }
 
@@ -176,7 +194,16 @@ class MailListViewModel
         /** Shows [mailbox] from its newest mail. */
         fun select(mailbox: Mailbox) {
             if (mailbox == state.value.mailbox && state.value.loaded) return
-            state.update { it.copy(mailbox = mailbox, messages = emptyList(), nextCursor = null, loaded = false, selected = emptySet()) }
+            state.update {
+                it.copy(
+                    mailbox = mailbox,
+                    messages = emptyList(),
+                    nextCursor = null,
+                    loaded = false,
+                    selected = emptySet(),
+                    olderMessage = null,
+                )
+            }
             load(mailbox)
         }
 
@@ -200,6 +227,49 @@ class MailListViewModel
                                 )
                             MailResult.Offline -> it.copy(loadingMore = false, message = MailListMessage.OFFLINE)
                             is MailResult.Failed -> it.copy(loadingMore = false, message = MailListMessage.FAILED)
+                        }
+                    }
+                }
+        }
+
+        /**
+         * Loads mail older than the sync window of the folder shown from the mail server, then shows the newly cached
+         * mails at the end of the list. A failure, or nothing older, is shown at the end of the list; the list stays.
+         */
+        fun loadOlder() {
+            val current = state.value
+            val folder = current.mailbox as? Mailbox.Folder ?: return
+            if (!current.canLoadOlder || current.loadingOlder || current.loadingMore) return
+            state.update { it.copy(loadingOlder = true, olderMessage = null) }
+            loadJob =
+                viewModelScope.launch {
+                    val added = repository.loadOlder(folder)
+                    val result =
+                        when (added) {
+                            is MailResult.Ok ->
+                                if (added.value >
+                                    0
+                                ) {
+                                    repository.messagesUpTo(folder, current.messages.size + added.value)
+                                } else {
+                                    null
+                                }
+                            else -> null
+                        }
+                    state.update { s ->
+                        if (s.mailbox != folder) return@update s.copy(loadingOlder = false)
+                        val failure = olderFailure(added, result)
+                        if (failure != null || result !is MailResult.Ok) {
+                            s.copy(loadingOlder = false, olderMessage = failure)
+                        } else {
+                            val messages = result.value.items
+                            s.copy(
+                                messages = messages,
+                                nextCursor = result.value.nextCursor,
+                                selected = s.selected.filterTo(HashSet()) { id -> messages.any { it.id == id } },
+                                loadingOlder = false,
+                                olderMessage = null,
+                            )
                         }
                     }
                 }
@@ -581,7 +651,7 @@ class MailListViewModel
             message: MailListMessage? = null,
         ) {
             loadJob?.cancel()
-            state.update { it.copy(loading = true, loadingMore = false) }
+            state.update { it.copy(loading = true, loadingMore = false, loadingOlder = false, olderMessage = null) }
             loadJob =
                 viewModelScope.launch {
                     val generation = ++folderGeneration
@@ -629,6 +699,18 @@ class MailListViewModel
             val older = current.messages.drop(at + 1).filterNot { it.id in ids }
             return if (older.isEmpty()) page.items to page.nextCursor else (page.items + older) to current.nextCursor
         }
+    }
+
+/** Why "load older" added nothing: [added] failed or was zero, or reading the list afterwards ([listed]) failed. */
+private fun olderFailure(
+    added: MailResult<Int>,
+    listed: MailResult<MailPage>?,
+): OlderMessage? =
+    when {
+        added is MailResult.Offline || listed is MailResult.Offline -> OlderMessage.OFFLINE
+        added is MailResult.Failed || listed is MailResult.Failed -> OlderMessage.FAILED
+        added is MailResult.Ok && added.value == 0 -> OlderMessage.NOTHING_OLDER
+        else -> null
     }
 
 /** The message shown when the server could not do [action]. */

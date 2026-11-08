@@ -62,6 +62,13 @@ interface MailApi {
         @Query("limit") limit: Int?,
     ): Response<MailSearchDto>
 
+    /** Caches up to [limit] messages of the folder older than the sync window (SPEC.md §7.2). */
+    @POST("api/v1/mail/folders/{id}/load-older")
+    suspend fun loadOlder(
+        @Path("id") folderId: String,
+        @Query("limit") limit: Int?,
+    ): Response<MailLoadOlderDto>
+
     @POST("api/v1/mail/messages/actions")
     suspend fun act(
         @Body request: MailActionRequestDto,
@@ -139,6 +146,12 @@ data class RenameMailFolderDto(
 data class MailAddressDto(
     val name: String? = null,
     val address: String? = null,
+)
+
+@Serializable
+data class MailLoadOlderDto(
+    val loaded: Int = 0,
+    val hasMore: Boolean = false,
 )
 
 @Serializable

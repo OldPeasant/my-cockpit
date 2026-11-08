@@ -93,6 +93,32 @@ class MailRepository
                 )
             }
 
+        /**
+         * Caches up to [LOAD_OLDER_LIMIT] messages of [folder] older than the sync window from the mail server (SPEC.md
+         * §7.2); the result tells how many were added.
+         */
+        suspend fun loadOlder(folder: Mailbox.Folder): MailResult<Int> =
+            mailCall { mailBody(api.loadOlder(folder.folderId.toString(), LOAD_OLDER_LIMIT)).loaded }
+
+        /** The newest [wanted] mails of [mailbox] (fewer if it has fewer), read page by page, with the cursor after them. */
+        suspend fun messagesUpTo(
+            mailbox: Mailbox,
+            wanted: Int,
+        ): MailResult<MailPage> =
+            mailCall {
+                val folder = mailbox as? Mailbox.Folder
+                val items = LinkedHashMap<UUID, MailSummary>()
+                var cursor: String? = null
+                do {
+                    val limit = (wanted - items.size).coerceIn(1, MAX_PAGE_SIZE)
+                    val page =
+                        mailBody(api.messages(folder?.accountId?.toString(), folder?.folderId?.toString(), cursor, limit))
+                    page.items.map { it.toSummary() }.forEach { items.putIfAbsent(it.id, it) }
+                    cursor = page.nextCursor?.takeIf { it.isNotEmpty() }
+                } while (cursor != null && items.size < wanted && page.items.isNotEmpty())
+                MailPage(items.values.toList(), cursor)
+            }
+
         /** Archives or deletes [id] on the mail server; `Ok(false)` when the server could not do it for this message. */
         suspend fun act(
             id: UUID,
@@ -161,6 +187,12 @@ class MailRepository
 
         internal companion object {
             const val PAGE_SIZE = 50
+
+            /** The largest page the server returns. */
+            const val MAX_PAGE_SIZE = 200
+
+            /** Messages one "load older from server" caches (the server's default). */
+            const val LOAD_OLDER_LIMIT = 100
 
             /** The most ids the server takes in one action request. */
             const val MAX_ACTION_IDS = 1000

@@ -139,4 +139,9 @@
         <item quantity="one">Flag removed from %1$d mail</item>
         <item quantity="other">Flag removed from %1$d mails</item>
     </plurals>
+    <string name="mail_load_older">Load older from server</string>
+    <string name="mail_loading_older">Loading older messages from the server…</string>
+    <string name="mail_nothing_older">There are no older messages on the server.</string>
+    <string name="mail_older_offline">No connection: nothing older was loaded.</string>
+    <string name="mail_older_failed">The older messages could not be loaded.</string>
 </resources>
