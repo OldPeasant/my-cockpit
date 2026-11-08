@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "task": "server-check-speed",
+  "reviewed_revision": "e3d119b97a492e09b3b7d038a71bb463e6c4815d",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/server-check-speed/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/server-check-speed/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/server-check-speed/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "no test guarded the production backup KDF default once Spring tests lower it; test-writer commit 568abb8b0 added an isolated-classloader test, confirmed resolved in re-review"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "per-fork build/test-data dirs piled up across runs; fixer commit clears build/test-data in doFirst of every Test task, verified by 3 runs"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew --quiet cleanTest check (3 consecutive runs, 4 forks)", "result": "pass"},
+    {"command": "cd server && ./gradlew test jacocoTestReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}

@@ -39,7 +39,7 @@ Summary: 0 P0, 0 P1, 0 P2, 0 P3 open (CR-1 and CR-2 resolved)
 
 ## Review of the CR-2 fix
 
-- Safe for all Test tasks. The deletion is in `tasks.withType<Test>().configureEach`, so `test`, `integrationTest`
+- Safe for all Test tasks. The deletion is in the shared configureEach block for every Test task, so `test`, `integrationTest`
   and `updateOpenApi` each clear `build/test-data` in `doFirst`, which runs before the task's fork JVMs start, so it
   cannot delete data under a running fork of the same task. All three tasks run in the same project; neither
   `org.gradle.parallel` nor the configuration cache is enabled (`server/gradle.properties`), so two Test tasks of
