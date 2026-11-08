@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "task": "web-small-gaps",
+  "reviewed_revision": "f3e36cde7ab434c35281da9f349228348af12bb8",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-small-gaps/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-small-gaps/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-small-gaps/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "type: word naming an inherited object key (constructor) was dropped; alias lookup uses Object.hasOwn"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "dev proxy did not forward /download; added to web/proxy.conf.json and docs/ARCHITECTURE.md"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "type: filter not discoverable in the palette (shell/); follow-up task web-palette-type-hint"}
+  ],
+  "validation": [
+    {"command": "npm --prefix web run check", "result": "pass"},
+    {"command": "npm --prefix web run coverage", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}

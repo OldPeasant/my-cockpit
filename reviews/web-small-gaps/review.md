@@ -4,21 +4,22 @@ Date: 2026-11-08
 
 Task: web-small-gaps - Web: search type filter, read-later capture, Android download link
 
-Scope: `git diff 9c93d3e59..HEAD -- web/` (committed changes only; the test-writer's uncommitted spec edits in the working tree were not reviewed)
+Scope: `git diff 9c93d3e59..HEAD -- web/ docs/ARCHITECTURE.md`, final revision (committed changes only). The task's own commits are the ones prefixed "web-small-gaps:". The other commits in the range come from main (heartbeats, claims, the `tasks/web-palette-type-hint.md` follow-up) and were not reviewed as part of this task.
 
 Requirements:
 - tasks/web-small-gaps.md acceptance criteria and recorded assumptions
 - SPEC.md §4.2, §4.3 (ItemType), §4.4 search, §4.5 capture, §8.4 bookmarks / read-later, §11 Android APK download
 - docs/ARCHITECTURE.md (run/dev proxy, conventions), AGENTS.md project notes
 - Server contract: AndroidDownloadController, SecurityConfiguration, SpaWebConfiguration; generated client (`search`, `createBookmark`, `getAndroidAppVersion`, `downloadAndroidApp`)
+- reviews/web-small-gaps/tests.md (TW-1) and reviews/web-small-gaps/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: 371c178e9c5bee7e438f4706ec2c00f5917ceb6f
+- HEAD: f3e36cde7ab434c35281da9f349228348af12bb8
 - Base/start: 9c93d3e5934bb1c693330376255cd441e90621fb
-- Commits reviewed: 4 (024c5158f, d493ad24b, 8b1ce8a67, 371c178e9; the same changes the parent called 4112cac74, 1691c01ca, 99d783940, cdfd6112f before a rebase)
+- Commits reviewed: 6 task commits (bce39e09f, 5a5dc8211, b4b9d7b43, 70e14275a, 672a4b918, f3e36cde7). The first review covered the first four, before a rebase (then 024c5158f, d493ad24b, 8b1ce8a67, 371c178e9). This review adds the test-writer commit 672a4b918 and the fix commit f3e36cde7.
 
-Summary: 0 P0, 0 P1, 0 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3 open (2 P3 from the first review: CR-1 fixed, CR-2 deferred to a follow-up task)
 
 ## P0 Critical
 
@@ -34,27 +35,34 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | The dev proxy does not forward `/download`, so the new Android app row cannot work under `npm start`**
-    - File: `web/proxy.conf.json:1` (used by `web/src/app/features/settings/general/android-app-download.ts:113,129`)
+- [x] **CR-1 | The dev proxy does not forward `/download`, so the new Android app row cannot work under `npm start`** (status: fixed in f3e36cde7, verified)
+    - File: `web/proxy.conf.json:12` (used by `web/src/app/features/settings/general/android-app-download.ts`)
     - Category: Integration
-    - Problem: The new component calls `GET /download/android/version` and links `/download/android`, both relative to the web origin. `web/proxy.conf.json` forwards only `/api` and `/actuator` to `localhost:8080`, and docs/ARCHITECTURE.md line 95 says the same. With the documented dev setup (`npm start` on :4200), the version request never reaches the server. The row then shows "No Android app is available" or the failure message, and the download link would hit the Angular dev server instead of the APK. Production is fine: Caddy proxies everything to the server, and the server keeps `/download/**` out of the SPA fallback and behind login.
-    - Why it matters: Anyone checking this feature by hand in the documented dev setup sees a wrong state, which looks like a bug in the feature or the server.
-    - Suggested fix: Add a `/download` entry (same target and options) to `web/proxy.conf.json` and update the dev-proxy sentence in docs/ARCHITECTURE.md. That file is outside this task's `touches`, so the change has to be small, or it can go in a follow-up task.
+    - Problem: The component calls `GET /download/android/version` and links `/download/android` relative to the web origin. The dev proxy used to forward only `/api` and `/actuator`.
+    - Why it matters: Under the documented dev setup the row showed a wrong state and the link reached the Angular dev server instead of the APK.
+    - Suggested fix: Add a `/download` proxy entry and update docs/ARCHITECTURE.md.
+    - Verification: `web/proxy.conf.json` now has a `/download` entry with the same target and options as `/api` and `/actuator`. docs/ARCHITECTURE.md line 95 now names `/download` too. No Angular route starts with `download`, so the prefix proxy hides no SPA page. Backup downloads go through `/api/...` and are not affected. Production behavior (Caddy, server SPA fallback) is unchanged.
 
-- [ ] **CR-2 | The `type:` filter cannot be discovered in the UI**
-    - File: `web/src/app/features/search/search-query.ts:36` (palette input: `web/src/app/shell/command-palette.html:13`)
+- [ ] **CR-2 | The `type:` filter cannot be discovered in the UI** (status: deferred to task `web-palette-type-hint`, accepted)
+    - File: `web/src/app/features/search/search-query.ts:40` (palette input: `web/src/app/shell/command-palette.html:13`)
     - Category: Quality
-    - Problem: The criterion allows "chips or `type:` prefix", and the prefix works as specified (ids, localized labels, aliases, plurals; an unknown word stays search text). But no string in the palette or anywhere else tells the user the syntax exists. The placeholder still reads "Search or type a command". The parity gap it closes (Android has visible type chips) stays a gap for users who don't already know the syntax.
-    - Why it matters: A filter that users cannot find is close to no filter for the parity goal in docs/PARITY.md.
-    - Suggested fix: Add a short hint, e.g. extend the palette placeholder or an empty-state line with "type:note". This touches `shell/`, so a follow-up or a recorded assumption is acceptable.
+    - Problem: The `type:` prefix works as specified, but no string in the palette tells the user the syntax exists.
+    - Why it matters: A filter users cannot find does little for the parity goal in docs/PARITY.md.
+    - Suggested fix: A hint or chips in the palette. The palette lives in `shell/`, outside this task's `touches`.
+    - Disposition check: `tasks/web-palette-type-hint.md` exists, depends on `web-small-gaps`, touches `web/src/app/shell`, and its criteria (hint or chips, English and German strings, unit tests) cover this finding. The criterion "chips or `type:` prefix" is met by the prefix, so deferring this does not leave a criterion unmet.
 
-## Notes on what was checked (no findings)
+## Notes on what was checked in the final revision (no new findings)
 
-- Search: `parseSearchQuery` sends `types` only when given, and in the server's order. `SEARCH_TYPES` matches the generated `types` union and SPEC §4.3. The min-length check applies to the text left after the filter. Out-of-order safety (switchMap / dropped subscription) is unchanged. The palette does not filter provider rows again by the raw query, so the stripped `type:` word causes no hidden rows.
-- Capture: Read later is offered only for exactly one trimmed http(s) URL with no files. `javascript:`, `mailto:`, `ftp:` and multi-word input are rejected and tested. The destination is captured before the await. Double submits are guarded by `saving`. A failed save keeps the text and the choice. Shift+Enter clears only what was saved. The request body matches `CreateBookmarkRequest` (`url`, `readLater`, optional `description`). The duplicate-on-retry risk is documented in the code and recorded as an assumption. The preview region stays `aria-live`. The radios are native inputs in a labelled `radiogroup` with a visible focus ring.
-- Android row: the request is silent (SILENT_ERRORS). 404 shows "none" without a link. Other errors show an in-place `role="alert"` with Try again. Loading uses `role="status"`. The link is a same-origin `download` anchor built from `downloadAndroidApp.PATH` (rootUrl is `''` in `provideHttp`), and the server requires a login for `/download/**`. Nothing sensitive is logged or exposed.
-- i18n: 15 new units are in both `messages.xlf` and `messages.de.xlf`. The German targets keep the `INTERPOLATION` / `INTERPOLATION_1` placeholders. "Eingang" matches the existing Inbox wording. `settings.retry` is reused. The `capture.save` id is unchanged, so its existing translation still applies.
-- Tests: the committed specs cover parser cases (aliases, plurals, comma lists, unknown words kept), the provider sending `types`, the capture destination flows (default Inbox, bookmark body, notes as description, switching back, Shift+Enter persistence, files disable the choice, retry after failure), and the Android row's states (loading, ready, unknown version, 404, error with retry) plus its embedding in General settings. Parent-reported `npm --prefix web run check` passed. I did not re-run it in this review.
+- TW-1 fix (`search-query.ts:79`): `Object.hasOwn(ALIASES, key)` now guards the alias lookup, so inherited keys (`constructor`, `toString`, `__proto__`, and the plural fallback `constructors`) no longer resolve to a function and no longer leak a non-ItemType value into `types`. The fallback `SEARCH_TYPES.find(...)` was not affected. `Object.hasOwn` is available for the project's `ES2022` target (web/tsconfig.json). The new spec cases `constructor`, `constructors` and `note,constructor` check that the whole `type:` word stays as text and `types` stays empty. This matches the documented rule that a list with one unknown name is kept as text.
+- New tests from the test-writer (672a4b918) were read in full:
+  - `search-query.spec.ts`: dash-written labels and plurals, prefix case, an empty query, and German UI labels loaded with `loadTranslations` and cleared in `afterEach`, so no state leaks into other specs. The result order follows `SEARCH_TYPES` (`type:termin,note` gives `['NOTE', 'EVENT']`), which matches the parser.
+  - `capture.service.spec.ts`: `readLater` request body, a missing or empty description left out, no client id, errors not silenced (the interceptor toast is the user's error message), and a 400 rejecting with `ApiError`.
+  - `capture-dialog.spec.ts`: Ctrl+Enter from the notes goes to Read later and not to `/api/v1/capture`. A double submit (Enter, Enter, click) sends one bookmark and closes once. Shift+Enter keeps notes typed during the save. `https://[::1` is rejected by `isSingleUrl`.
+  - `android-app-download.spec.ts`: a status-0 network failure is shown as a failure (not "no app"), with no link and no toast. A 404 after Try again shows the "none" state.
+  - `messages-de.spec.ts`: every new unit has a non-empty German target that differs from the English text (the version string is excluded on purpose), and the interpolation placeholders are kept.
+  - The tests check behavior through the DOM and HTTP, not internals. No existing test was removed, skipped or weakened. The only line removed in 672a4b918 is a changed import.
+- From the first review, still true for the final code: `types` is sent only when given and in the server's order. The min-length check applies to the text left after the filter. Out-of-order safety in the palette is unchanged. Read later is offered only for exactly one http(s) URL with no files. Double submits are guarded. A failed save keeps the input. The Android row request is silent and handles 404, other errors with Try again, and loading. The download link is a same-origin anchor behind the server's login. 15 new i18n units are in both locale files.
+- Validation: the parent reported `npm --prefix web run check` on HEAD f3e36cde7 -> exit 0 (lint clean, 193 files / 4520 tests, build ok). I did not re-run it in this review (read-only inspection). `sh scripts/check.sh` is for the parent to run and record.
 
 ## Review conclusion
 
