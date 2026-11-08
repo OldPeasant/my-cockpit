@@ -4,10 +4,13 @@ import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -18,6 +21,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.pinch
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.R
@@ -186,6 +191,11 @@ class FilePreviewScreenTest {
         composeRule
             .onNode(hasText("Offline. The file could not be downloaded.") and hasParentTag(PreviewTags.PREVIEW))
             .assertExists()
+
+        state.value = state.value.copy(downloadMessage = FilesMessage.FAILED)
+        composeRule
+            .onNode(hasText("The file could not be downloaded.") and hasParentTag(PreviewTags.PREVIEW))
+            .assertExists()
     }
 
     @Test
@@ -280,6 +290,98 @@ class FilePreviewScreenTest {
         composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithTag(PreviewTags.PROBLEM).fetchSemanticsNodes().isEmpty() }
         composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithContentDescription("Strand.png").fetchSemanticsNodes().isNotEmpty() }
         assertEquals(2, requests())
+    }
+
+    /**
+     * How far the content inside the zoom frame tagged [frameTag] is scaled: the frame scales around its center, so the
+     * content's left edge moves out from the center by the scale.
+     */
+    private fun zoomOf(
+        content: SemanticsNodeInteraction,
+        frameTag: String,
+    ): Float {
+        val frame = composeRule.onNodeWithTag(frameTag).fetchSemanticsNode()
+        val left = frame.positionInRoot.x
+        val center = left + frame.size.width / 2f
+        return (center - content.fetchSemanticsNode().positionInRoot.x) / (center - left)
+    }
+
+    private fun showZoomableImage(list: List<DriveEntry.File> = listOf(photo)): MutableState<FilesUiState> {
+        val (loader, _) = images()
+        val state = show(preview(0, PreviewContent.Image, list).copy(entries = emptyList()), imageLoader = loader)
+        composeRule.waitUntil(WAIT_MS) {
+            composeRule.onAllNodesWithContentDescription(list[0].name, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        return state
+    }
+
+    @Test
+    fun `a double tap zooms an image in, and another one back out`() {
+        showZoomableImage()
+        val image = composeRule.onNodeWithContentDescription("Ferien.jpg", useUnmergedTree = true)
+        assertEquals(1f, zoomOf(image, PreviewTags.IMAGE), 0.01f)
+
+        composeRule.onNodeWithTag(PreviewTags.IMAGE).performTouchInput { doubleClick() }
+        composeRule.waitForIdle()
+        assertEquals(2.5f, zoomOf(image, PreviewTags.IMAGE), 0.01f)
+
+        composeRule.onNodeWithTag(PreviewTags.IMAGE).performTouchInput { doubleClick() }
+        composeRule.waitForIdle()
+        assertEquals(1f, zoomOf(image, PreviewTags.IMAGE), 0.01f)
+    }
+
+    @Test
+    fun `pinching an image zooms it, at most five times, and never below the fitted view`() {
+        showZoomableImage()
+        val image = composeRule.onNodeWithContentDescription("Ferien.jpg", useUnmergedTree = true)
+
+        // Fingers spread far apart: far more than 5x, capped.
+        composeRule.onNodeWithTag(PreviewTags.IMAGE).performTouchInput {
+            pinch(center - Offset(10f, 0f), center - Offset(150f, 0f), center + Offset(10f, 0f), center + Offset(150f, 0f))
+        }
+        composeRule.waitForIdle()
+        assertEquals(MAX_ZOOM, zoomOf(image, PreviewTags.IMAGE), 0.05f)
+
+        // Fingers pinched together: back to the fitted view, not smaller.
+        composeRule.onNodeWithTag(PreviewTags.IMAGE).performTouchInput {
+            pinch(center - Offset(150f, 0f), center - Offset(5f, 0f), center + Offset(150f, 0f), center + Offset(5f, 0f))
+        }
+        composeRule.waitForIdle()
+        assertEquals(1f, zoomOf(image, PreviewTags.IMAGE), 0.01f)
+    }
+
+    @Test
+    fun `the next image starts unzoomed`() {
+        val beach = DriveEntry.File(id(6), "Strand.png", "image/png", 2048, at)
+        val list = listOf(photo, beach)
+        val state = showZoomableImage(list)
+        composeRule.onNodeWithTag(PreviewTags.IMAGE).performTouchInput { doubleClick() }
+        composeRule.waitForIdle()
+        assertEquals(2.5f, zoomOf(composeRule.onNodeWithContentDescription("Ferien.jpg", useUnmergedTree = true), PreviewTags.IMAGE), 0.01f)
+
+        state.value = preview(1, PreviewContent.Image, list).copy(entries = emptyList())
+        composeRule.waitUntil(WAIT_MS) {
+            composeRule.onAllNodesWithContentDescription("Strand.png", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        assertEquals(1f, zoomOf(composeRule.onNodeWithContentDescription("Strand.png", useUnmergedTree = true), PreviewTags.IMAGE), 0.01f)
+    }
+
+    @Test
+    fun `a double tap zooms a PDF page in and back out`() {
+        show(preview(1, PreviewContent.Pdf(File("fictitious/2025.pdf")))) { FakePdf(pageCount = 2) }
+        waitForTag(PreviewTags.PDF_PAGE)
+        val page = composeRule.onNodeWithTag(PreviewTags.PDF_PAGE)
+        val fitted = page.fetchSemanticsNode().positionInRoot
+
+        page.performTouchInput { doubleClick() }
+        composeRule.waitForIdle()
+        val zoomed = page.fetchSemanticsNode().positionInRoot
+        assertTrue("the page did not grow out from the center: $fitted -> $zoomed", zoomed.x < fitted.x - 1f && zoomed.y < fitted.y - 1f)
+
+        page.performTouchInput { doubleClick() }
+        composeRule.waitForIdle()
+        assertEquals(fitted.x, page.fetchSemanticsNode().positionInRoot.x, 0.5f)
+        assertEquals(fitted.y, page.fetchSemanticsNode().positionInRoot.y, 0.5f)
     }
 
     @Test
