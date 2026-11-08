@@ -3,6 +3,7 @@ import { computed, DestroyRef, inject, Injectable, signal } from '@angular/core'
 import {
   ActivatedRouteSnapshot,
   NavigationCancel,
+  NavigationCancellationCode,
   NavigationEnd,
   NavigationError,
   NavigationSkipped,
@@ -54,6 +55,8 @@ export class BackNavigation {
   private readonly labels = signal<ReadonlyMap<string, string>>(new Map());
   /** The `popstate` navigation that runs: the `navigationId` it restores. */
   private restoring: { id: number; restoredId: number | null } | null = null;
+  /** The Back that {@link back} started and that has not finished yet. */
+  private goingBack: Promise<void> | null = null;
 
   /** The app page before the current one in the browser history, if the app knows it. */
   readonly previous = computed<Entry | null>(() => {
@@ -72,6 +75,11 @@ export class BackNavigation {
             : { id: event.id, restoredId: event.restoredState?.navigationId ?? null };
       } else if (event instanceof NavigationEnd) {
         this.record(event);
+      } else if (
+        event instanceof NavigationError ||
+        (event instanceof NavigationCancel && !isRedirecting(event))
+      ) {
+        this.restoreCancelled(event.id);
       }
     });
     inject(DestroyRef).onDestroy(() => subscription.unsubscribe());
@@ -88,9 +96,11 @@ export class BackNavigation {
    * path (e.g. after the shown item was archived, so Back does not open it again).
    *
    * Resolves once the resulting navigation has finished (or after a short safety timeout, should
-   * the browser never report the Back), so a caller can stay busy until its page is left.
+   * the browser never report the Back), so a caller can stay busy until its page is left. A second
+   * call while that Back still runs (a double click) does not go back once more.
    */
   async back(fallback: string, options: { replaceUrl?: boolean } = {}): Promise<void> {
+    if (this.goingBack) return this.goingBack;
     if (this.canGoBack()) {
       const finished = firstValueFrom(
         this.router.events.pipe(
@@ -105,8 +115,13 @@ export class BackNavigation {
           timeout({ first: BACK_TIMEOUT_MS, with: () => of(undefined) }),
         ),
       );
+      this.goingBack = finished;
       this.location.back();
-      await finished;
+      try {
+        await finished;
+      } finally {
+        this.goingBack = null;
+      }
       return;
     }
     await this.router.navigateByUrl(fallback, { replaceUrl: !!options.replaceUrl });
@@ -128,6 +143,26 @@ export class BackNavigation {
       // Keeps the most recent names only.
       while (next.size > MAX_LABELS) next.delete(next.keys().next().value!);
       return next;
+    });
+  }
+
+  /**
+   * A Back or Forward that was cancelled (e.g. a page with unsaved changes refused to be left) or
+   * failed: the browser stays on the entry it moved to, and the router (`canceledNavigationResolution`
+   * 'replace') rewrites that entry with the current page.
+   */
+  private restoreCancelled(id: number): void {
+    const restoring = this.restoring?.id === id ? this.restoring : null;
+    if (!restoring) return;
+    this.restoring = null;
+    this.history.update(({ entries, index }) => {
+      const current = entries[index];
+      if (!current) return { entries, index };
+      const found = entries.findIndex((known) => known.id === restoring.restoredId);
+      if (found < 0) return { entries: [current], index: 0 };
+      const next = [...entries];
+      next[found] = current;
+      return { entries: next, index: found };
     });
   }
 
@@ -161,6 +196,14 @@ export class BackNavigation {
       return { entries: [...entries.slice(0, index + 1), entry], index: index + 1 };
     });
   }
+}
+
+/** Whether another navigation takes over from the cancelled one (a guard's redirect, a newer one). */
+function isRedirecting(event: NavigationCancel): boolean {
+  return (
+    event.code === NavigationCancellationCode.Redirect ||
+    event.code === NavigationCancellationCode.SupersededByNewNavigation
+  );
 }
 
 /** The path of a URL, without query and fragment. */

@@ -129,6 +129,52 @@ describe('BackNavigation', () => {
     }
   });
 
+  describe('when the page refuses to be left (e.g. unsaved changes)', () => {
+    let mayLeave: boolean;
+
+    beforeEach(() => {
+      mayLeave = true;
+      router.resetConfig([
+        ...router.config,
+        {
+          path: 'editing',
+          title: 'Editing',
+          component: StubDetail,
+          canDeactivate: [() => mayLeave],
+        },
+      ]);
+    });
+
+    it('resolves back() as soon as the Back navigation is cancelled', async () => {
+      await go('/new');
+      await go('/editing');
+      mayLeave = false;
+      let resolved = false;
+      void navigation.back('/mail').then(() => (resolved = true));
+      // A few macrotasks, far below the 1.5 s safety timeout.
+      await settle();
+      expect(resolved).toBe(true);
+      expect(router.url).toBe('/editing');
+    });
+
+    it('leads to the page its back button names after a cancelled Back', async () => {
+      await go('/today');
+      await go('/new');
+      await go('/editing');
+      mayLeave = false;
+      await navigation.back('/mail');
+      await settle();
+      expect(router.url).toBe('/editing');
+      mayLeave = true;
+      const named = navigation.previous();
+      await navigation.back('/mail');
+      await settle();
+      // The router replaced the history entry behind with /editing when it cancelled the Back
+      // (canceledNavigationResolution 'replace'): whatever the button names, it must lead there.
+      expect(router.url).toBe(named?.url ?? '/mail');
+    });
+  });
+
   it('goes to the parent route on a deep link, adding it to the history', async () => {
     await go('/mail/messages/m1');
     await navigation.back('/mail');
@@ -344,6 +390,20 @@ describe('BackNavigation', () => {
       await settle();
       expect(event.defaultPrevented).toBe(false);
       expect(router.url).toBe('/mail/messages/m1');
+    });
+
+    it('goes back only once on a second click while the first Back is still running', async () => {
+      await go('/today');
+      await go('/new');
+      await go('/mail/messages/m1');
+      harness.detectChanges();
+      // A double click: the router handles the first popstate in a later task, so the message is
+      // still shown when the second click arrives.
+      backLink().click();
+      backLink().click();
+      await settle();
+      await settle();
+      expect(router.url).toBe('/new');
     });
 
     it('takes over a plain click', async () => {
