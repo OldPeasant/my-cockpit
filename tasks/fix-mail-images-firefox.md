@@ -1,12 +1,13 @@
 ---
 title: Mail images never load in Firefox (frame CSP 'self' in srcdoc)
-status: in_progress
-owner: felix/agent-1
+status: todo
+owner: 
 deps: []
 touches: [web/src/app/features/mail/read/mail-frame.ts,web/src/app/features/mail/read/mail-frame.spec.ts,web/e2e/mail-read,web/playwright.config.ts]
 prio: 1
-lease_until: 2026-11-08T09:50:51Z
-extended: felix/agent-1
+lease_until: 
+extended: 
+releases: 1
 ---
 ## Goal
 In Firefox no mail image ever shows, neither inline `cid:` images nor remote images after "Load images": the image
@@ -38,3 +39,4 @@ completed with undelivered notifications" errors the mail frame logs in the cons
 (`fit()` in mail-frame.ts), otherwise leave them.
 - ASSUMPTION (2026-11-08 08:50+0100 by felix/agent-1): Firefox e2e project runs only e2e/mail-read (as the task names) and depends on phase-demos like chromium; the ResizeObserver console warning is left as is (not trivial without changing fit() timing)
 - extended by felix/agent-1: Done: CSP fix (mail-frame.ts names location.origin in img-src/font-src), unit specs pinning all directives (commit 263ae7f2), Firefox Playwright project + docs, cid: e2e assertion; criteria 2+3 verified (37 e2e passed chromium+firefox). code-reviewer report committed (reviewed older range 87ddb981..616ec692, now stale). Left: (1) fixer for CR-1 (inbox-exclusive deps ['chromium','firefox'] in web/playwright.config.ts) and CR-2 (web/e2e/README.md install chromium firefox); (2) run test-writer (tests.md missing) and re-run code-reviewer on final code; (3) verify criterion 1 (npm run check mail-frame.spec) and 4; (4) write quality.json; (5) sh scripts/check.sh - my last run stalled >20 min in 'server: ktlint + tests' (server untouched by this task, likely host load/gradle lock) - rerun, investigate if it hangs again; then done.
+- release by felix/agent-1: over budget after 3 sessions (~80 min) and a review that decided nothing; still resumable: continue from wip/fix-mail-images-firefox (see git log)
