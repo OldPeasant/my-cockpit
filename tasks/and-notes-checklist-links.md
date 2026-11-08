@@ -1,10 +1,11 @@
 ---
 title: Note editor: checklist toggle in preview and [[ link autocomplete
-status: todo
-owner:
+status: in_progress
+owner: felix/agent-1
 deps: [and-notes-list, and-links-panel]
 prio: 2
 parent: and-notes-editor
+lease_until: 2026-11-08T21:44:04Z
 ---
 ## Goal
 Part of `and-notes-editor` (Android note editor: tags, checklists, links, revisions), which was split.
