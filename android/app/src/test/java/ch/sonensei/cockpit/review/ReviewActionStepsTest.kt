@@ -165,6 +165,23 @@ class ReviewActionStepsTest {
     }
 
     @Test
+    fun `a step still loading its first list shows neither the empty text nor a retry`() {
+        show(wizard(ReviewStep.SOMEDAY, ReviewUiState(someday = StepData(loading = true))))
+
+        composeRule.onNodeWithTag(ReviewTags.ITEMS_EMPTY).assertDoesNotExist()
+        composeRule.onNodeWithTag(ReviewTags.STEP_FAILED).assertDoesNotExist()
+        composeRule.onNodeWithTag(ReviewTags.STEP_RETRY).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a failed reload keeps the items shown instead of the retry`() {
+        show(wizard(ReviewStep.NEXT_ACTIONS, ReviewUiState(staleNext = StepData(listOf(bike), failed = true))))
+
+        shows(bike.id, "Fix the bike")
+        composeRule.onNodeWithTag(ReviewTags.STEP_FAILED).assertDoesNotExist()
+    }
+
+    @Test
     fun `each step has its own empty text`() {
         var state by mutableStateOf(wizard(ReviewStep.PROJECTS, ReviewUiState(projectList = StepData(emptyList()))))
         composeRule.setContent { CockpitTheme { ReviewContent(state, callbacks, inbox = { Box(it) }) } }

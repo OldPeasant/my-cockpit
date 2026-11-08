@@ -431,6 +431,107 @@ class ReviewDecisionsViewModelTest {
         }
 
     @Test
+    fun `a keep tapped while the item's decision is still saved is ignored, so a refused save leaves it to decide again`() =
+        runTest(dispatcher) {
+            val vm = waitingVm(parcel, quote)
+            val pending = CompletableDeferred<ReviewResult<Unit>>()
+            coEvery { actions.complete(parcel) } coAnswers { pending.await() }
+
+            vm.completeWaiting(parcel)
+            runCurrent()
+            vm.keepWaiting(parcel)
+            assertEquals(listOf(parcel, quote), vm.state.waiting.value)
+            assertNull(vm.state.decision)
+
+            pending.complete(ReviewResult.Failed(403))
+            advanceUntilIdle()
+            assertEquals(listOf(parcel, quote), vm.state.waiting.value)
+            assertEquals(ReviewMessage.ACTION_FAILED, vm.state.message)
+        }
+
+    @Test
+    fun `add next step - a second tap while it is saved does not add it twice`() =
+        runTest(dispatcher) {
+            val vm = projectsVm(garden)
+            val pending = CompletableDeferred<NextStepOutcome>()
+            coEvery { actions.addNextStep(garden, "Buy seeds") } coAnswers { pending.await() }
+            vm.setNextStepDraft(garden, "Buy seeds")
+
+            vm.addNextStep(garden)
+            runCurrent()
+            vm.addNextStep(garden)
+            runCurrent()
+            pending.complete(NextStepOutcome(ReviewResult.Ok(garden.copy(stalled = false, version = 10)), taskCreated = true))
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { actions.addNextStep(any(), any()) }
+        }
+
+    @Test
+    fun `add next step finishing after the user moved on updates the project but is not announced in the new step`() =
+        runTest(dispatcher) {
+            val vm = projectsVm(garden)
+            val updated = garden.copy(stalled = false, version = 10)
+            val pending = CompletableDeferred<NextStepOutcome>()
+            coEvery { actions.addNextStep(garden, "Buy seeds") } coAnswers { pending.await() }
+            coEvery { actions.staleNextActions() } returns ReviewResult.Ok(listOf(bike))
+            vm.setNextStepDraft(garden, "Buy seeds")
+
+            vm.addNextStep(garden)
+            runCurrent()
+            vm.loadStep(ReviewStep.NEXT_ACTIONS)
+            pending.complete(NextStepOutcome(ReviewResult.Ok(updated), taskCreated = true))
+            advanceUntilIdle()
+
+            assertNull(vm.state.decision)
+            assertEquals(listOf(updated), vm.state.projectList.value)
+            assertEquals(listOf(bike), vm.state.staleNext.value)
+        }
+
+    @Test
+    fun `a conflict in the projects, next actions or someday step loads that step again and keeps kept items out`() =
+        runTest(dispatcher) {
+            val keptProject = report
+            coEvery { actions.projects() } returns ReviewResult.Ok(listOf(garden, keptProject))
+            coEvery { actions.setStatus(garden, ProjectStatus.DROPPED) } returns ReviewResult.Failed(409)
+            val oldTask = ReviewTask(id(5), "Call the fictitious insurer", version = 1)
+            coEvery { actions.staleNextActions() } returns ReviewResult.Ok(listOf(bike, oldTask))
+            coEvery { actions.moveToSomeday(oldTask) } returns ReviewResult.Failed(412)
+            coEvery { actions.someday() } returns ReviewResult.Ok(listOf(lisbon, italian))
+            coEvery { actions.delete(italian) } returns ReviewResult.Failed(404)
+            val vm = vm()
+
+            vm.loadStep(ReviewStep.PROJECTS)
+            advanceUntilIdle()
+            vm.keepProject(keptProject)
+            vm.setProjectStatus(garden, ProjectStatus.DROPPED)
+            advanceUntilIdle()
+            assertEquals(ReviewMessage.ITEM_CHANGED, vm.state.message)
+            assertEquals(listOf(garden), vm.state.projectList.value)
+            coVerify(exactly = 2) { actions.projects() }
+
+            vm.loadStep(ReviewStep.NEXT_ACTIONS)
+            advanceUntilIdle()
+            vm.keepNextAction(bike)
+            vm.moveToSomeday(oldTask)
+            advanceUntilIdle()
+            assertEquals(ReviewMessage.ITEM_CHANGED, vm.state.message)
+            assertEquals(listOf(oldTask), vm.state.staleNext.value)
+            coVerify(exactly = 2) { actions.staleNextActions() }
+
+            vm.loadStep(ReviewStep.SOMEDAY)
+            advanceUntilIdle()
+            vm.keepSomeday(lisbon)
+            vm.deleteSomeday(italian)
+            advanceUntilIdle()
+            assertEquals(ReviewMessage.ITEM_CHANGED, vm.state.message)
+            assertEquals(listOf(italian), vm.state.someday.value)
+            coVerify(exactly = 2) { actions.someday() }
+            // Other steps were not loaded again.
+            coVerify(exactly = 0) { actions.waitingFor() }
+        }
+
+    @Test
     fun `someday - a refused activation keeps the item`() =
         runTest(dispatcher) {
             coEvery { actions.someday() } returns ReviewResult.Ok(listOf(italian))

@@ -170,6 +170,45 @@ class ReviewActionsTest {
         }
 
     @Test
+    fun `follow up of a waiting task outside any project creates it without a project, and a refusal is reported`() =
+        runTest {
+            val loose = parcel.copy(projectId = null)
+            coEvery { tasks.createTask(any()) } returns Response.success(taskResponse(31, "Follow up: Parcel")) andThen error(422)
+
+            assertEquals(ReviewResult.Ok(Unit), actions.followUp(loose, "Follow up: Parcel"))
+            assertEquals(ReviewResult.Failed(422), actions.followUp(loose, "Follow up: Parcel"))
+            coVerify(exactly = 2) {
+                tasks.createTask(CreateTaskRequest("Follow up: Parcel", list = CreateTaskRequest.List.NEXT, projectId = null))
+            }
+        }
+
+    @Test
+    fun `every project status is sent as the same patch status and read back from a project`() =
+        runTest {
+            for (status in ProjectStatus.entries) {
+                val patch = ProjectPatchRequest(status = ProjectPatchRequest.Status.valueOf(status.name))
+                val response = projectResponse(10, "Redo the garden", ProjectResponse.Status.valueOf(status.name))
+                coEvery { projects.updateProject(id(10), patch, "\"9\"") } returns Response.success(response)
+                coEvery { reviews.getReviewProjects() } returns Response.success(ReviewProjectListResponse(listOf(response)))
+
+                assertEquals(status.name, ReviewResult.Ok(Unit), actions.setStatus(garden, status))
+                coVerify(exactly = 1) { projects.updateProject(id(10), patch, "\"9\"") }
+                assertEquals(status.name, status, (actions.projects() as ReviewResult.Ok).value.single().status)
+            }
+        }
+
+    @Test
+    fun `activating a someday project that changed elsewhere is refused with its status`() =
+        runTest {
+            coEvery { projects.updateProject(any(), any(), any()) } returns error(412)
+            coEvery { tasks.moveTask(any(), any(), any()) } throws IOException("no network")
+
+            assertEquals(ReviewResult.Failed(412), actions.activate(SomedayItem(id(20), project = true, "Learn Italian", 2)))
+            assertEquals(ReviewResult.Offline, actions.activate(SomedayItem(id(3), project = false, "Visit Lisbon", 4)))
+            coVerify(exactly = 0) { tasks.deleteTask(any(), any()) }
+        }
+
+    @Test
     fun `complete sends the task's version as If-Match`() =
         runTest {
             coEvery { tasks.completeTask(id(1), "\"7\"") } returns Response.success(completed(1))
