@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "task": "and-files-manage",
+  "reviewed_revision": "e48467de5463f0cb593e39bddb3db143b156eef3",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-files-manage/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-files-manage/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-files-manage/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: retry after 412 from open rename dialog/move picker failed again; fixed by the fixer (fixes.md CR-1)"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: 409 mapped to wrong messages for files and delete; fixed by the fixer (fixes.md CR-2)"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: partial move/delete confirmation named the failed entry; fixed by the fixer (fixes.md CR-3)"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: name check missed control characters; fixed by the fixer (fixes.md CR-4)"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "second review: 404 retry dead end in rename dialog/move picker; fixed by the parent worker, verified by the fixer (fixes.md Review 2 CR-1) and the third review"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "second review: move picker row formatting; fixed by the parent worker, verified by the fixer (fixes.md Review 2 CR-2) and the third review"},
+    {"id": "R3-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "third review: a failed move after a picker load finished mid-move restores loading=true; rare race, recoverable via breadcrumb, no data loss"},
+    {"id": "R3-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "third review: new folder inside a folder trashed elsewhere keeps the dialog open with a retry message; rare, Cancel exits, no data loss"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
