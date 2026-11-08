@@ -52,7 +52,7 @@ class ContactsRepositoryTest {
                 .baseUrl(server.url("/"))
                 .addConverterFactory(Serializer.kotlinxSerializationJson.asConverterFactory("application/json".toMediaType()))
                 .build()
-        contacts = ContactsRepository(retrofit.create(ContactsApi::class.java), retrofit.create(ContactLinksApi::class.java))
+        contacts = ContactsRepository(retrofit.create(ContactsApi::class.java))
     }
 
     @After
@@ -87,26 +87,19 @@ class ContactsRepositoryTest {
         }
 
     @Test
-    fun `related combines the contact's related items and its links`() =
+    fun `related reads the contact's related items, without its links (the linked-items panel loads them)`() =
         runBlocking {
-            // Both calls run at once, so the answer is picked by path, not by arrival order.
             val relatedBody =
                 """{"contactId":"${id(1)}","waitingFor":[{"id":"${id(2)}","title":"Send the offer","waitingSince":"2026-10-01"}],
                 |"mails":[{"id":"${id(3)}","accountId":"${id(9)}","direction":"FROM","from":[],"to":[],"seen":true,
                 |"subject":"Hello","receivedAt":"2026-10-20T08:00:00Z"}],
                 |"events":[{"eventId":"${id(4)}","calendarId":"${id(9)}","title":"Lunch","allDay":true,"startDate":"2026-11-02"}]}
                 """.trimMargin().replace("\n", "")
-            val linksBody =
-                """{"items":[{"id":"${id(5)}","direction":"INCOMING","origin":"MANUAL","createdAt":"2026-10-01T09:00:00Z",
-                |"source":{"type":"NOTE","id":"${id(6)}","title":"Meeting notes","available":true},
-                |"target":{"type":"CONTACT","id":"${id(1)}","title":"Anna","available":true}}]}
-                """.trimMargin().replace("\n", "")
             server.dispatcher =
                 object : Dispatcher() {
                     override fun dispatch(request: RecordedRequest): MockResponse =
                         when (request.url.encodedPath) {
                             "/api/v1/contacts/${id(1)}/related" -> json(relatedBody)
-                            "/api/v1/links" -> json(linksBody)
                             else -> status(404)
                         }
                 }
@@ -115,9 +108,8 @@ class ContactsRepositoryTest {
             assertEquals("Send the offer", related.waitingFor.single().title)
             assertEquals(true, related.mails.single().fromContact)
             assertEquals(LocalDate.of(2026, 11, 2), related.events.single().startDate)
-            assertEquals(RelatedLink(id(5), "NOTE", "Meeting notes", null, true), related.links.single())
-            val paths = listOf(server.takeRequest().url, server.takeRequest().url).map { it.encodedPath + "?" + it.encodedQuery }
-            assertEquals(setOf("/api/v1/contacts/${id(1)}/related?null", "/api/v1/links?type=CONTACT&id=${id(1)}"), paths.toSet())
+            assertEquals("/api/v1/contacts/${id(1)}/related", server.takeRequest().url.encodedPath)
+            assertEquals(1, server.requestCount)
         }
 
     @Test

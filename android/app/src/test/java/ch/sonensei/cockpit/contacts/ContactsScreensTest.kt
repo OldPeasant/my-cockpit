@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.contacts
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
@@ -59,22 +60,24 @@ class ContactsScreensTest {
             }
         }
 
-    private fun showDetail(state: ContactDetailUiState) =
-        composeRule.setContent {
-            CockpitTheme {
-                ContactDetailContent(
-                    state,
-                    ContactDetailCallbacks(
-                        back = { calls += "back" },
-                        call = { calls += "call $it" },
-                        mail = { calls += "mail $it" },
-                        retry = { calls += "retry" },
-                        openRelated = { type, itemId -> calls += "open $type $itemId" },
-                    ),
-                    linksPanel = { Text("Linked items slot", Modifier.testTag("links-slot")) },
-                )
-            }
+    private fun showDetail(
+        state: ContactDetailUiState,
+        openable: Boolean = true,
+    ) = composeRule.setContent {
+        CockpitTheme {
+            ContactDetailContent(
+                state,
+                ContactDetailCallbacks(
+                    back = { calls += "back" },
+                    call = { calls += "call $it" },
+                    mail = { calls += "mail $it" },
+                    retry = { calls += "retry" },
+                    openRelated = { type: String, itemId: UUID -> calls += "open $type $itemId" }.takeIf { openable },
+                ),
+                linksPanel = { Text("Linked items slot", Modifier.testTag("links-slot")) },
+            )
         }
+    }
 
     @Test
     fun `the list shows contacts in order and opens one`() {
@@ -111,7 +114,7 @@ class ContactsScreensTest {
 
     @Test
     fun `the detail calls and mails from the header and from each number and address`() {
-        showDetail(ContactDetailUiState(contact = anna, related = ContactRelated(emptyList(), emptyList(), emptyList(), emptyList())))
+        showDetail(ContactDetailUiState(contact = anna, related = ContactRelated(emptyList(), emptyList(), emptyList())))
 
         composeRule.onNodeWithText("Engineer, Beispiel AG").assertIsDisplayed()
         composeRule.onNodeWithTag(ContactsTags.CALL).performClick()
@@ -143,7 +146,6 @@ class ContactsScreensTest {
                 waitingFor = listOf(RelatedWaiting(id(10), "Send the offer", LocalDate.of(2026, 10, 1))),
                 mails = listOf(RelatedMail(id(11), null, fromContact = true, at = null)),
                 events = listOf(RelatedEvent(id(12), "Lunch", null, LocalDate.of(2026, 11, 2))),
-                links = listOf(RelatedLink(id(13), "NOTE", "Meeting notes", null, true), RelatedLink(id(14), "TASK", null, null, false)),
             )
         showDetail(ContactDetailUiState(contact = bert, related = related))
 
@@ -161,9 +163,15 @@ class ContactsScreensTest {
         detail.performScrollToNode(hasTestTag(ContactsTags.related(id(10))))
         composeRule.onNodeWithTag(ContactsTags.related(id(10))).performClick()
         assertEquals(listOf("open EVENT ${id(12)}", "open EMAIL ${id(11)}", "open TASK ${id(10)}"), calls)
-        // The old read-only link rows are gone: the shared panel shows the links instead.
-        composeRule.onNodeWithTag(ContactsTags.related(id(13))).assertDoesNotExist()
         detail.performScrollToNode(hasTestTag("links-slot"))
+    }
+
+    @Test
+    fun `without a way to open them the related rows are not tappable`() {
+        val related = ContactRelated(listOf(RelatedWaiting(id(10), "Send the offer", null)), emptyList(), emptyList())
+        showDetail(ContactDetailUiState(contact = anna, related = related), openable = false)
+        composeRule.onNodeWithTag(ContactsTags.DETAIL).performScrollToNode(hasTestTag(ContactsTags.related(id(10))))
+        composeRule.onNodeWithTag(ContactsTags.related(id(10))).assertHasNoClickAction()
     }
 
     @Test
@@ -182,7 +190,6 @@ class ContactsScreensTest {
                 waitingFor = emptyList(),
                 mails = listOf(RelatedMail(id(20), "Offer v2", fromContact = false, at = Instant.parse("2026-10-03T12:00:00Z"))),
                 events = listOf(RelatedEvent(id(21), "Workshop", Instant.parse("2026-11-02T12:00:00Z"), null)),
-                links = emptyList(),
             )
         showDetail(ContactDetailUiState(contact = bert, related = related))
 
@@ -208,7 +215,7 @@ class ContactsScreensTest {
 
     @Test
     fun `related items kept from an earlier load are marked as possibly out of date`() {
-        val related = ContactRelated(listOf(RelatedWaiting(id(10), "Send the offer", null)), emptyList(), emptyList(), emptyList())
+        val related = ContactRelated(listOf(RelatedWaiting(id(10), "Send the offer", null)), emptyList(), emptyList())
         showDetail(ContactDetailUiState(contact = anna, related = related, relatedMessage = ContactsMessage.OFFLINE))
         val detail = composeRule.onNodeWithTag(ContactsTags.DETAIL)
         detail.performScrollToNode(hasTestTag(ContactsTags.RELATED_MESSAGE))
@@ -220,7 +227,7 @@ class ContactsScreensTest {
 
     @Test
     fun `related items kept from an earlier load whose reload failed say they may be out of date`() {
-        val related = ContactRelated(listOf(RelatedWaiting(id(10), "Send the offer", null)), emptyList(), emptyList(), emptyList())
+        val related = ContactRelated(listOf(RelatedWaiting(id(10), "Send the offer", null)), emptyList(), emptyList())
         showDetail(ContactDetailUiState(contact = anna, related = related, relatedMessage = ContactsMessage.FAILED))
         val detail = composeRule.onNodeWithTag(ContactsTags.DETAIL)
         detail.performScrollToNode(hasTestTag(ContactsTags.RELATED_MESSAGE))

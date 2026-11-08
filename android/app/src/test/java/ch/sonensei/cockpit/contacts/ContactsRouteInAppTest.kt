@@ -88,7 +88,6 @@ class ContactsRouteInAppTest {
             waitingFor = listOf(RelatedWaiting(waitingId, "Send the offer", LocalDate.of(2026, 10, 1))),
             mails = emptyList(),
             events = emptyList(),
-            links = emptyList(),
         )
 
     private var scenario: ActivityScenario<MainActivity>? = null

@@ -5,7 +5,6 @@ import ch.sonensei.cockpit.core.network.generated.models.ContactEventDto
 import ch.sonensei.cockpit.core.network.generated.models.ContactMailDto
 import ch.sonensei.cockpit.core.network.generated.models.ContactRelatedResponse
 import ch.sonensei.cockpit.core.network.generated.models.ContactResponse
-import ch.sonensei.cockpit.core.network.generated.models.LinkResponse
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
@@ -37,7 +36,6 @@ data class ContactRelated(
     val waitingFor: List<RelatedWaiting>,
     val mails: List<RelatedMail>,
     val events: List<RelatedEvent>,
-    val links: List<RelatedLink>,
 )
 
 /** An open Waiting For task for the contact. */
@@ -63,17 +61,6 @@ data class RelatedEvent(
     val startDate: LocalDate?,
 )
 
-/** An item linked to the contact by hand or by sync. */
-data class RelatedLink(
-    val id: UUID,
-    /** The item type, e.g. `NOTE` or `TASK`. */
-    val type: String,
-    val title: String?,
-    val subtitle: String?,
-    /** `false` when the item was deleted. */
-    val available: Boolean,
-)
-
 internal fun ContactResponse.toContact() =
     Contact(
         id = id,
@@ -97,12 +84,11 @@ private fun ContactAddressDto.oneLine(): String? {
         .ifEmpty { null }
 }
 
-internal fun ContactRelatedResponse.toRelated(links: List<LinkResponse>) =
+internal fun ContactRelatedResponse.toRelated() =
     ContactRelated(
         waitingFor = waitingFor.map { RelatedWaiting(it.id, it.title, it.waitingSince) },
         mails = mails.map { it.toRelatedMail() },
         events = events.map { it.toRelatedEvent() },
-        links = links.map { it.toRelatedLink() },
     )
 
 private fun ContactMailDto.toRelatedMail() =
@@ -114,9 +100,3 @@ private fun ContactMailDto.toRelatedMail() =
     )
 
 private fun ContactEventDto.toRelatedEvent() = RelatedEvent(eventId, title, start?.toInstant(), startDate)
-
-/** The other end of [this] link, seen from the contact. */
-private fun LinkResponse.toRelatedLink(): RelatedLink {
-    val other = if (direction == LinkResponse.Direction.OUTGOING) target else source
-    return RelatedLink(id, other.type.value, other.title, other.subtitle, other.available)
-}

@@ -3,16 +3,14 @@ package ch.sonensei.cockpit.contacts
 import ch.sonensei.cockpit.core.network.generated.infrastructure.Serializer
 import ch.sonensei.cockpit.core.network.generated.models.ContactRelatedResponse
 import ch.sonensei.cockpit.core.network.generated.models.ContactResponse
-import ch.sonensei.cockpit.core.network.generated.models.LinkListResponse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 
-/** How server answers become what the contacts screens show: blank fields, addresses, mail and link directions. */
+/** How server answers become what the contacts screens show: blank fields, addresses and mail directions. */
 class ContactsModelsTest {
     private fun id(n: Int): UUID = UUID.fromString("00000000-0000-7000-8000-%012d".format(n))
 
@@ -25,15 +23,10 @@ class ContactsModelsTest {
                 """.trimMargin().replace("\n", ""),
             ).toContact()
 
-    private fun related(
-        related: String,
-        links: String = "[]",
-    ): ContactRelated {
-        val json = Serializer.kotlinxSerializationJson
-        val response = json.decodeFromString(ContactRelatedResponse.serializer(), related.trimMargin().replace("\n", ""))
-        val linkList = json.decodeFromString(LinkListResponse.serializer(), """{"items":${links.trimMargin().replace("\n", "")}}""")
-        return response.toRelated(linkList.items)
-    }
+    private fun related(related: String): ContactRelated =
+        Serializer.kotlinxSerializationJson
+            .decodeFromString(ContactRelatedResponse.serializer(), related.trimMargin().replace("\n", ""))
+            .toRelated()
 
     @Test
     fun `addresses become one line each, skipping blank parts, and an address with nothing in it is dropped`() {
@@ -125,32 +118,8 @@ class ContactsModelsTest {
     }
 
     @Test
-    fun `a link shows its other end, the target when outgoing, the source when incoming`() {
-        val result =
-            related(
-                """{"contactId":"${id(1)}","waitingFor":[],"mails":[],"events":[]}""",
-                """[{"id":"${id(10)}","direction":"OUTGOING","origin":"MANUAL","createdAt":"2026-10-01T09:00:00Z",
-                |"source":{"type":"CONTACT","id":"${id(1)}","title":"Anna Muster","available":true},
-                |"target":{"type":"TASK","id":"${id(11)}","title":"Send the offer","subtitle":"Next action","available":true}},
-                |{"id":"${id(12)}","direction":"INCOMING","origin":"SYNC","createdAt":"2026-10-01T09:00:00Z",
-                |"source":{"type":"JOURNAL_ENTRY","id":"${id(13)}","available":false},
-                |"target":{"type":"CONTACT","id":"${id(1)}","title":"Anna Muster","available":true}}]
-                """,
-            )
-        assertEquals(
-            listOf(
-                RelatedLink(id(10), "TASK", "Send the offer", "Next action", true),
-                RelatedLink(id(12), "JOURNAL_ENTRY", null, null, false),
-            ),
-            result.links,
-        )
-        // The contact's own end never shows up as a linked item.
-        assertTrue(result.links.none { it.type == "CONTACT" })
-    }
-
-    @Test
     fun `nothing related maps to empty lists`() {
         val result = related("""{"contactId":"${id(1)}","waitingFor":[],"mails":[],"events":[]}""")
-        assertEquals(ContactRelated(emptyList(), emptyList(), emptyList(), emptyList()), result)
+        assertEquals(ContactRelated(emptyList(), emptyList(), emptyList()), result)
     }
 }

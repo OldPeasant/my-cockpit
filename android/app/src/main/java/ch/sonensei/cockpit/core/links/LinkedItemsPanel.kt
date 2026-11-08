@@ -42,6 +42,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -310,7 +311,12 @@ private fun SearchDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().focusRequester(focus).testTag(LinkedItemsTags.SEARCH_FIELD),
                 )
-                if (state.searching || state.busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 8.dp))
+                if (state.searching) {
+                    val searching = stringResource(R.string.links_searching)
+                    LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 8.dp).semantics { contentDescription = searching })
+                } else if (state.busy) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 8.dp))
+                }
                 state.searchError?.let { error ->
                     Text(
                         stringResource(if (error == LinksError.Offline) R.string.links_offline else R.string.links_failed),

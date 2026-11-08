@@ -138,8 +138,9 @@ class LinkedItemsViewModel internal constructor(
     fun search(query: String) {
         state.update { it.copy(query = query) }
         val q = query.trim()
-        if (q == state.value.resultsQuery && state.value.searchError == null) return
+        // Cancelled first: a search for a query typed meanwhile must not overwrite the results shown again.
         searchJob?.cancel()
+        if (q == state.value.resultsQuery && state.value.searchError == null) return
         if (q.isEmpty()) {
             rawResults = emptyList()
             state.update { it.copy(resultsQuery = "", results = emptyList(), searchError = null) }

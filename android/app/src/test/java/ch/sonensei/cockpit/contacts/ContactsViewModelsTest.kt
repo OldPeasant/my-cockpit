@@ -29,7 +29,7 @@ class ContactsViewModelsTest {
 
     private fun contact(n: Int) = Contact(id(n), "Contact $n", null, null, emptyList(), emptyList(), emptyList(), null, null, "LOCAL")
 
-    private val nothing = ContactRelated(emptyList(), emptyList(), emptyList(), emptyList())
+    private val nothing = ContactRelated(emptyList(), emptyList(), emptyList())
 
     @Before
     fun setUp() = Dispatchers.setMain(dispatcher)

@@ -1,41 +1,25 @@
 package ch.sonensei.cockpit.contacts
 
 import ch.sonensei.cockpit.core.network.generated.apis.ContactsApi
-import ch.sonensei.cockpit.core.network.generated.models.LinkListResponse
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.SerializationException
 import retrofit2.Response
 import retrofit2.Retrofit
-import retrofit2.http.GET
-import retrofit2.http.Query
 import java.io.IOException
 import java.time.DateTimeException
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** The links of a contact; its own interface, so the generated `LinksApi` stays free for the links feature to bind. */
-interface ContactLinksApi {
-    @GET("api/v1/links?type=CONTACT")
-    suspend fun listContactLinks(
-        @Query("id") id: UUID,
-    ): Response<LinkListResponse>
-}
-
 @Module
 @InstallIn(SingletonComponent::class)
 object ContactsModule {
     @Provides
     fun contactsApi(retrofit: Retrofit): ContactsApi = retrofit.create(ContactsApi::class.java)
-
-    @Provides
-    fun contactLinksApi(retrofit: Retrofit): ContactLinksApi = retrofit.create(ContactLinksApi::class.java)
 }
 
 /** The outcome of a load. */
@@ -59,7 +43,6 @@ class ContactsRepository
     @Inject
     constructor(
         private val api: ContactsApi,
-        private val links: ContactLinksApi,
     ) {
         /** Every contact matching [query] (blank: all), in the server's order: by display name. */
         suspend fun list(query: String?): ContactsResult<List<Contact>> =
@@ -77,14 +60,8 @@ class ContactsRepository
 
         suspend fun get(id: UUID): ContactsResult<Contact> = load { body(api.getContact(id)).toContact() }
 
-        /** The contact's Waiting For tasks, recent mails, upcoming events and linked items. */
-        suspend fun related(id: UUID): ContactsResult<ContactRelated> =
-            load {
-                coroutineScope {
-                    val linked = async { body(links.listContactLinks(id)).items }
-                    body(api.getContactRelated(id)).toRelated(linked.await())
-                }
-            }
+        /** The contact's Waiting For tasks, recent mails and upcoming events (its links are in the linked-items panel). */
+        suspend fun related(id: UUID): ContactsResult<ContactRelated> = load { body(api.getContactRelated(id)).toRelated() }
 
         private suspend fun <T> load(block: suspend () -> T): ContactsResult<T> =
             try {

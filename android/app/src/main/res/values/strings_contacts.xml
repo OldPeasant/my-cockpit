@@ -25,9 +25,6 @@
     <string name="contacts_mail_to">To them, %1$s</string>
     <string name="contacts_no_subject">(no subject)</string>
     <string name="contacts_events">Upcoming events</string>
-    <string name="contacts_links">Linked items</string>
-    <string name="contacts_link_deleted">Deleted</string>
-    <string name="contacts_untitled">Untitled</string>
     <string name="contacts_nothing_related">No open Waiting For items, mail, events or links with this contact.</string>
     <string name="contacts_related_offline">Can\'t reach the server. Mail, events and Waiting For items are not shown.</string>
     <string name="contacts_related_failed">Mail, events and Waiting For items could not be loaded.</string>

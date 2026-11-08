@@ -5,8 +5,6 @@ import ch.sonensei.cockpit.core.network.generated.apis.TasksApi
 import ch.sonensei.cockpit.core.network.generated.models.ChecklistItemResponse
 import ch.sonensei.cockpit.core.network.generated.models.ConvertToEventRequest
 import ch.sonensei.cockpit.core.network.generated.models.CreateChecklistItemRequest
-import ch.sonensei.cockpit.core.network.generated.models.LinkListResponse
-import ch.sonensei.cockpit.core.network.generated.models.LinkResponse
 import ch.sonensei.cockpit.core.network.generated.models.MoveTaskRequest
 import ch.sonensei.cockpit.core.network.generated.models.TaskResponse
 import ch.sonensei.cockpit.gtd.data.GtdCacheDao
@@ -40,12 +38,10 @@ import kotlinx.serialization.json.jsonPrimitive
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.http.Body
-import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
-import retrofit2.http.Query
 import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
@@ -55,8 +51,7 @@ import javax.inject.Singleton
 
 /**
  * Task writes with hand-built bodies: the generated request classes send every field, and a PATCH treats `null` as
- * "clear", so changing the title would wipe the due date. Also the Trash's restore (undo of a delete) and the task's
- * links, so the generated `LinksApi` stays free for the links feature to bind.
+ * "clear", so changing the title would wipe the due date. Also the Trash's restore (undo of a delete).
  */
 interface TaskWriteApi {
     @PATCH("api/v1/tasks/{id}")
@@ -78,11 +73,6 @@ interface TaskWriteApi {
     suspend fun restoreTask(
         @Path("id") id: UUID,
     ): Response<Unit>
-
-    @GET("api/v1/links?type=TASK")
-    suspend fun listTaskLinks(
-        @Query("id") id: UUID,
-    ): Response<LinkListResponse>
 }
 
 @Module
@@ -106,23 +96,10 @@ data class ChecklistItem(
     val version: Long,
 )
 
-/** An item linked to the task (the other end of the link). */
-data class TaskLink(
-    val linkId: UUID,
-    val type: String,
-    val itemId: UUID,
-    val title: String?,
-    val subtitle: String?,
-    val deepLink: String?,
-    /** `false` when the item is in the Trash or gone. */
-    val available: Boolean,
-)
-
 /** Everything the detail screen shows of a task. */
 data class TaskDetail(
     val task: GtdTask,
     val checklist: List<ChecklistItem> = emptyList(),
-    val links: List<TaskLink> = emptyList(),
     /** When it was completed; `null` while open. */
     val completedAt: Instant? = null,
     /** The tickler date of a Someday task (it comes back to the Inbox then). */
@@ -251,7 +228,7 @@ data class CachedTask(
     val completedAt: Instant? = null,
 )
 
-/** The task detail screen's server calls (SPEC.md §5): one task with its checklist and links, and changes to it. */
+/** The task detail screen's server calls (SPEC.md §5): one task with its checklist, and changes to it. */
 @Singleton
 class TaskDetailRepository
     @Inject
@@ -266,32 +243,18 @@ class TaskDetailRepository
         override suspend fun load(id: UUID): TaskResult<TaskDetail> =
             coroutineScope {
                 val checklist = async { checklist(id) }
-                // Links are extra: when they cannot be loaded, the task still shows. Their request does not go through
-                // call(), so a failing one cannot mark the GTD screens offline while the task itself loaded.
-                val links = async { links(id) }
                 when (val task = call({ api.getTask(id) }) { it!! }) {
-                    is TaskResult.Ok -> {
-                        val items = checklist.await()
-                        val linked = links.await()
-                        when (items) {
-                            is TaskResult.Ok -> TaskResult.Ok(task.value.toDetail(items.value, linked))
+                    is TaskResult.Ok ->
+                        when (val items = checklist.await()) {
+                            is TaskResult.Ok -> TaskResult.Ok(task.value.toDetail(items.value))
                             else -> items.mapFailure()
                         }
-                    }
                     else -> {
                         checklist.cancel()
-                        links.cancel()
                         task.mapFailure()
                     }
                 }
             }
-
-        /** The other ends of the task's links; none when they cannot be loaded (without touching the offline state). */
-        private suspend fun links(id: UUID): List<TaskLink> =
-            runCatching {
-                val response = writeApi.listTaskLinks(id)
-                if (response.isSuccessful) response.body()?.items?.mapNotNull { it.otherEnd(id) } else null
-            }.getOrNull().orEmpty()
 
         override suspend fun cached(id: UUID): CachedTask? {
             TaskSnapshots.cached(id)?.let { return it }
@@ -457,27 +420,17 @@ internal fun problem(body: String?): TaskResult.Invalid? =
         TaskResult.Invalid(fields.toMap(), root["detail"]?.jsonPrimitive?.contentOrNull)
     }.getOrNull()
 
-private fun TaskResponse.toDetail(
-    checklist: List<ChecklistItem>,
-    links: List<TaskLink>,
-) = TaskDetail(
-    task = toTask(),
-    checklist = checklist,
-    links = links,
-    completedAt = completedAt?.toInstant(),
-    ticklerDate = ticklerDate,
-    recurrenceRule = recurrenceRule,
-    recurrenceMode = recurrenceMode?.let { RecurrenceMode.valueOf(it.name) },
-)
+private fun TaskResponse.toDetail(checklist: List<ChecklistItem>) =
+    TaskDetail(
+        task = toTask(),
+        checklist = checklist,
+        completedAt = completedAt?.toInstant(),
+        ticklerDate = ticklerDate,
+        recurrenceRule = recurrenceRule,
+        recurrenceMode = recurrenceMode?.let { RecurrenceMode.valueOf(it.name) },
+    )
 
 private fun ChecklistItemResponse.toItem() = ChecklistItem(id, text, done, position, version)
-
-/** The end of the link that is not the task [taskId]; `null` for a link of the task to itself. */
-private fun LinkResponse.otherEnd(taskId: UUID): TaskLink? {
-    val other = if (source.id == taskId && source.type.name == "TASK") target else source
-    if (other.id == taskId && other.type.name == "TASK") return null
-    return TaskLink(id, other.type.name, other.id, other.title, other.subtitle, other.deepLink, other.available)
-}
 
 /** A JSON value for a PATCH body. */
 internal fun jsonOf(value: Any?): JsonElement =

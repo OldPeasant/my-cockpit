@@ -10,7 +10,6 @@
     <string name="task_detail_retry">Retry</string>
     <string name="task_detail_offline">Offline: showing the copy from the list. Changes need a connection.</string>
     <string name="task_detail_offline_from">Offline: showing the copy from %1$s. Changes need a connection.</string>
-    <string name="task_detail_no_browser">No app can open this link.</string>
 
     <string name="task_detail_status_done">Done</string>
     <string name="task_detail_status_done_on">Done on %1$s</string>
@@ -57,11 +56,6 @@
     <string name="task_detail_item_delete">Delete %1$s</string>
     <string name="task_detail_item_new">New item</string>
     <string name="task_detail_item_add">Add</string>
-
-    <string name="task_detail_links">Linked items</string>
-    <string name="task_detail_link_open">Open linked item</string>
-    <string name="task_detail_link_untitled">Untitled</string>
-    <string name="task_detail_link_unavailable">in the Trash</string>
 
     <string name="task_detail_title_label">Title</string>
     <string name="task_detail_estimate_label">Estimate (minutes)</string>

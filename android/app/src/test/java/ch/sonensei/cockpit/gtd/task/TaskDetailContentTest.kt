@@ -63,8 +63,6 @@ class TaskDetailContentTest {
         )
     private val contract =
         GtdTask(id(2), "Contract", TaskList.WAITING, 0, 1, waitingForText = "Anna Example", waitingSince = LocalDate.of(2026, 10, 17))
-    private val noteLink = TaskLink(id(60), "NOTE", id(70), "Seed list", null, "/notes/${id(70)}", available = true)
-    private val trashedLink = TaskLink(id(61), "EMAIL", id(71), "Order confirmation", null, null, available = false)
 
     private val calls = mutableListOf<String>()
     private val callbacks =
@@ -96,7 +94,7 @@ class TaskDetailContentTest {
 
     @Test
     fun `shows the task's fields, notes rendered as Markdown, and checklist`() {
-        show(loaded(TaskDetail(seeds, checklist = listOf(tick), links = listOf(noteLink, trashedLink), recurrenceRule = "FREQ=WEEKLY")))
+        show(loaded(TaskDetail(seeds, checklist = listOf(tick), recurrenceRule = "FREQ=WEEKLY")))
         composeRule.onNodeWithTag(TaskDetailTags.TITLE).assertIsDisplayed()
         property("project", "Garden")
         property("contexts", "@home")

@@ -25,9 +25,6 @@
     <string name="contacts_mail_to">An diese Person, %1$s</string>
     <string name="contacts_no_subject">(kein Betreff)</string>
     <string name="contacts_events">Kommende Termine</string>
-    <string name="contacts_links">Verknüpfte Einträge</string>
-    <string name="contacts_link_deleted">Gelöscht</string>
-    <string name="contacts_untitled">Ohne Titel</string>
     <string name="contacts_nothing_related">Keine offenen „Warten auf“-Einträge, E-Mails, Termine oder Verknüpfungen mit diesem Kontakt.</string>
     <string name="contacts_related_offline">Server nicht erreichbar. E-Mails, Termine und „Warten auf“-Einträge werden nicht angezeigt.</string>
     <string name="contacts_related_failed">E-Mails, Termine und „Warten auf“-Einträge konnten nicht geladen werden.</string>

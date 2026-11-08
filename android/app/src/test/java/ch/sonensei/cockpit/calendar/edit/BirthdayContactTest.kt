@@ -52,7 +52,7 @@ class BirthdayContactTest {
             notesMd = null,
             source = "LOCAL",
         )
-    private val nothing = ContactRelated(emptyList(), emptyList(), emptyList(), emptyList())
+    private val nothing = ContactRelated(emptyList(), emptyList(), emptyList())
 
     private val repo = mockk<ContactsRepository>()
     private var backs = 0

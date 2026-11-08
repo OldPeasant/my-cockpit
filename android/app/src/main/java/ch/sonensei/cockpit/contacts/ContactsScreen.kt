@@ -123,6 +123,7 @@ fun ContactDetailRoute(
     id: UUID,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    viewModel: ContactDetailViewModel = hiltViewModel(),
 ) {
     var opened by rememberSaveable(id) { mutableStateOf<String?>(null) }
     val item = opened?.split(':')?.let { (type, itemId) -> type to UUID.fromString(itemId) }
@@ -131,10 +132,20 @@ fun ContactDetailRoute(
         SearchItemScreen(item.first, item.second, onClose = { opened = null }, modifier = modifier)
         return
     }
-    val viewModel: ContactDetailViewModel = hiltViewModel()
-    val links: LinkedItemsViewModel = hiltViewModel(key = linksViewModelKey(ItemRef("CONTACT", id)))
+    // Without Hilt (screen tests with a fake contact view model) there is no links panel; events then open without a server.
+    val links: LinkedItemsViewModel? =
+        if (LocalActivity.current is GeneratedComponentManagerHolder) {
+            hiltViewModel(key = linksViewModelKey(ItemRef("CONTACT", id)))
+        } else {
+            null
+        }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val linkState by links.uiState.collectAsStateWithLifecycle()
+    val server =
+        links
+            ?.uiState
+            ?.collectAsStateWithLifecycle()
+            ?.value
+            ?.server
     LaunchedEffect(id) { viewModel.open(id) }
     BackHandler(onBack = onClose)
     val context = LocalContext.current
@@ -162,10 +173,10 @@ fun ContactDetailRoute(
                 call = { launch(ContactIntents.dial(it)) },
                 mail = { launch(ContactIntents.mail(it)) },
                 retry = viewModel::refresh,
-                openRelated = { type, itemId -> openTarget(relatedTarget(type, itemId, linkState.server)) },
+                openRelated = { type, itemId -> openTarget(relatedTarget(type, itemId, server)) },
             ),
         modifier = modifier,
-        linksPanel = { LinkedItemsSection(ItemRef("CONTACT", id), open = openTarget, viewModel = links) },
+        linksPanel = { links?.let { LinkedItemsSection(ItemRef("CONTACT", id), open = openTarget, viewModel = it) } },
     )
 }
 
@@ -193,8 +204,11 @@ data class ContactDetailCallbacks(
     val call: (String) -> Unit = {},
     val mail: (String) -> Unit = {},
     val retry: () -> Unit = {},
-    /** Opens a related item (waiting-for task `TASK`, mail `EMAIL`, event `EVENT`) by its type and id. */
-    val openRelated: (String, UUID) -> Unit = { _, _ -> },
+    /**
+     * Opens a related item (waiting-for task `TASK`, mail `EMAIL`, event `EVENT`) by its type and id; without it the
+     * related rows are not tappable.
+     */
+    val openRelated: ((String, UUID) -> Unit)? = null,
 )
 
 internal object ContactsTags {
@@ -468,7 +482,7 @@ private fun LazyListScope.details(
 
 private fun LazyListScope.related(
     related: ContactRelated,
-    open: (String, UUID) -> Unit,
+    open: ((String, UUID) -> Unit)?,
 ) {
     if (related.waitingFor.isEmpty() && related.mails.isEmpty() && related.events.isEmpty()) {
         item {
@@ -484,9 +498,12 @@ private fun LazyListScope.related(
     if (related.waitingFor.isNotEmpty()) {
         section(R.string.contacts_waiting_for)
         items(related.waitingFor, key = { "w${it.id}" }) { task ->
-            RelatedRow(task.id, task.title, task.waitingSince?.let { stringResource(R.string.contacts_waiting_since, formatDate(it)) }) {
-                open("TASK", task.id)
-            }
+            RelatedRow(
+                task.id,
+                task.title,
+                task.waitingSince?.let { stringResource(R.string.contacts_waiting_since, formatDate(it)) },
+                open?.let { { it("TASK", task.id) } },
+            )
         }
     }
     if (related.mails.isNotEmpty()) {
@@ -497,15 +514,19 @@ private fun LazyListScope.related(
                 mail.id,
                 mail.subject ?: stringResource(R.string.contacts_no_subject),
                 stringResource(if (mail.fromContact) R.string.contacts_mail_from else R.string.contacts_mail_to, at).trimEnd(',', ' '),
-            ) { open("EMAIL", mail.id) }
+                open?.let { { it("EMAIL", mail.id) } },
+            )
         }
     }
     if (related.events.isNotEmpty()) {
         section(R.string.contacts_events)
         items(related.events, key = { "e${it.eventId}${it.start}${it.startDate}" }) { event ->
-            RelatedRow(event.eventId, event.title, event.start?.let(::formatInstant) ?: event.startDate?.let(::formatDate)) {
-                open("EVENT", event.eventId)
-            }
+            RelatedRow(
+                event.eventId,
+                event.title,
+                event.start?.let(::formatInstant) ?: event.startDate?.let(::formatDate),
+                open?.let { { it("EVENT", event.eventId) } },
+            )
         }
     }
 }
@@ -568,12 +589,12 @@ private fun RelatedRow(
     id: UUID,
     title: String,
     subtitle: String?,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)?,
 ) {
     Column(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .semantics(mergeDescendants = true) {}
             .padding(horizontal = 24.dp, vertical = 8.dp)
             .testTag(ContactsTags.related(id)),

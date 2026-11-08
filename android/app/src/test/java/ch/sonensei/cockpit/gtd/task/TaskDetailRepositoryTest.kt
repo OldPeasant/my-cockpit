@@ -112,47 +112,15 @@ class TaskDetailRepositoryTest {
         version: Int = 1,
     ) = """{"id":"${uuid(n)}","taskId":"${uuid(1)}","text":"$text","done":$done,"position":$position,"version":$version}"""
 
-    private fun end(
-        n: Int,
-        type: String,
-        title: String? = null,
-        available: Boolean = true,
-        deepLink: String? = null,
-    ): String {
-        val optional = listOfNotNull(title?.let { ""","title":"$it"""" }, deepLink?.let { ""","deepLink":"$it"""" })
-        return """{"id":"${uuid(n)}","type":"$type","available":$available${optional.joinToString("")}}"""
-    }
-
-    private fun linkJson(
-        n: Int,
-        source: String,
-        target: String,
-    ): String {
-        val head = """{"id":"${uuid(n)}","createdAt":"2026-10-01T08:00:00Z","direction":"OUTGOING","origin":"MANUAL""""
-        return """$head,"source":$source,"target":$target}"""
-    }
-
     // --- load ---
 
     @Test
-    fun `loads the task with its checklist in order and the other end of each link`() =
+    fun `loads the task with its checklist in order, without its links (the linked-items panel loads them)`() =
         runBlocking {
             val extra = ""","completedAt":"2026-10-19T08:00:00Z","ticklerDate":"2026-12-01","recurrenceRule":"FREQ=WEEKLY;BYDAY=SA""""
             dispatcher.enqueue(taskPath, json(taskJson(1, "Buy seeds", "SOMEDAY", extra = extra)))
             val items = listOf(itemJson(41, "Basil", 1), itemJson(40, "Tomatoes", 0, done = true))
             dispatcher.enqueue(checklistPath, json("""{"items":[${items.joinToString(",")}]}"""))
-            val links =
-                listOf(
-                    // The task as the source: the target is the linked item.
-                    linkJson(60, end(1, "TASK"), end(70, "NOTE", "Seed list", deepLink = "/notes/${uuid(70)}")),
-                    // The task as the target: the source is the linked item.
-                    linkJson(61, end(71, "EMAIL", "Order confirmation", available = false), end(1, "TASK")),
-                    // A link of the task to itself is not shown.
-                    linkJson(62, end(1, "TASK"), end(1, "TASK")),
-                    // Another task linking to this one.
-                    linkJson(63, end(72, "TASK", "Prepare the beds"), end(1, "TASK")),
-                )
-            dispatcher.enqueue(linksPath, json("""{"items":[${links.joinToString(",")}]}"""))
 
             val detail = (repository.load(taskId) as TaskResult.Ok).value
 
@@ -164,44 +132,7 @@ class TaskDetailRepositoryTest {
             assertEquals("FREQ=WEEKLY;BYDAY=SA", detail.recurrenceRule)
             assertEquals(listOf("Tomatoes", "Basil"), detail.checklist.map { it.text })
             assertEquals(true, detail.checklist.first().done)
-            assertEquals(
-                listOf(
-                    TaskLink(UUID.fromString(uuid(60)), "NOTE", UUID.fromString(uuid(70)), "Seed list", null, "/notes/${uuid(70)}", true),
-                    TaskLink(UUID.fromString(uuid(61)), "EMAIL", UUID.fromString(uuid(71)), "Order confirmation", null, null, false),
-                    TaskLink(UUID.fromString(uuid(63)), "TASK", UUID.fromString(uuid(72)), "Prepare the beds", null, null, true),
-                ),
-                detail.links,
-            )
-            val linksRequest = request("GET", linksPath)
-            assertEquals("TASK", linksRequest.url.queryParameter("type"))
-            assertEquals(uuid(1), linksRequest.url.queryParameter("id"))
-        }
-
-    @Test
-    fun `the task still shows when its links cannot be loaded`() =
-        runBlocking {
-            dispatcher.enqueue(taskPath, json(taskJson(1, "Buy seeds", "NEXT")))
-            dispatcher.enqueue(checklistPath, json("""{"items":[]}"""))
-            dispatcher.enqueue(linksPath, status(403))
-
-            val detail = (repository.load(taskId) as TaskResult.Ok).value
-
-            assertEquals("Buy seeds", detail.task.title)
-            assertTrue(detail.links.isEmpty())
-            assertTrue(detail.checklist.isEmpty())
-        }
-
-    @Test
-    fun `links that fail on the server side leave the shared offline state alone`() =
-        runBlocking {
-            dispatcher.enqueue(taskPath, json(taskJson(1, "Buy seeds", "NEXT")))
-            dispatcher.enqueue(checklistPath, json("""{"items":[]}"""))
-            dispatcher.enqueue(linksPath, status(503))
-
-            val detail = (repository.load(taskId) as TaskResult.Ok).value
-
-            assertTrue(detail.links.isEmpty())
-            assertEquals(false, harness.connectivity.offline.value)
+            assertTrue(dispatcher.requests.none { it.url.encodedPath == linksPath })
         }
 
     @Test
@@ -218,7 +149,6 @@ class TaskDetailRepositoryTest {
         runBlocking {
             dispatcher.enqueue(taskPath, status(503))
             dispatcher.enqueue(checklistPath, status(503))
-            dispatcher.enqueue(linksPath, status(503))
 
             assertEquals(TaskResult.Offline, repository.load(taskId))
             assertEquals(true, harness.connectivity.offline.value)
@@ -229,7 +159,6 @@ class TaskDetailRepositoryTest {
         runBlocking {
             dispatcher.enqueue(taskPath, json(taskJson(1, "Buy seeds", "NEXT")))
             dispatcher.enqueue(checklistPath, status(500))
-            dispatcher.enqueue(linksPath, json("""{"items":[]}"""))
 
             assertEquals(TaskResult.Offline, repository.load(taskId))
         }
@@ -428,7 +357,6 @@ class TaskDetailRepositoryTest {
             val extra = ""","recurrenceRule":"FREQ=DAILY","recurrenceMode":"AFTER_COMPLETION""""
             dispatcher.enqueue(taskPath, json(taskJson(1, "Water the plants", "NEXT", extra = extra)))
             dispatcher.enqueue(checklistPath, json("""{"items":[]}"""))
-            dispatcher.enqueue(linksPath, json("""{"items":[]}"""))
 
             val detail = (repository.load(taskId) as TaskResult.Ok).value
 
