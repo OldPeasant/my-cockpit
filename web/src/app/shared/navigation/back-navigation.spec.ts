@@ -1,6 +1,6 @@
 import { Location } from '@angular/common';
 import { provideLocationMocks } from '@angular/common/testing';
-import { Component } from '@angular/core';
+import { Component, ErrorHandler, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
@@ -166,12 +166,12 @@ describe('BackNavigation', () => {
       await settle();
       expect(router.url).toBe('/editing');
       mayLeave = true;
-      const named = navigation.previous();
+      // The router replaced the history entry of /new with /editing when it cancelled the Back
+      // (canceledNavigationResolution 'replace'): the page behind is Today, not the parent route.
+      expect(navigation.previous()?.url).toBe('/today');
       await navigation.back('/mail');
       await settle();
-      // The router replaced the history entry behind with /editing when it cancelled the Back
-      // (canceledNavigationResolution 'replace'): whatever the button names, it must lead there.
-      expect(router.url).toBe(named?.url ?? '/mail');
+      expect(router.url).toBe('/today');
     });
   });
 
@@ -464,5 +464,146 @@ describe('BackNavigation', () => {
       expect(event.defaultPrevented).toBe(false);
       expect(router.url).toBe('/mail/messages/m1');
     });
+  });
+});
+
+describe('BackNavigation when a Back does not reach its page', () => {
+  let harness: RouterTestingHarness;
+  let router: Router;
+  let location: Location;
+  let navigation: BackNavigation;
+  let errors: unknown[];
+  let failing: boolean;
+  let redirecting: boolean;
+  let mayLeave: boolean;
+
+  beforeEach(async () => {
+    errors = [];
+    failing = false;
+    redirecting = false;
+    mayLeave = true;
+    TestBed.configureTestingModule({
+      // A failed popstate navigation is reported to the ErrorHandler; keep it there.
+      rethrowApplicationErrors: false,
+      providers: [
+        provideRouter([
+          { path: 'new', title: 'New', component: StubPage },
+          { path: 'today', title: 'Today', component: StubPage },
+          { path: 'mail', title: 'Mail', component: StubPage },
+          { path: 'login', title: 'Login', component: StubPage },
+          { path: 'mail/messages/:id', title: 'Message', component: StubDetail },
+          {
+            path: 'broken',
+            title: 'Broken',
+            component: StubPage,
+            canActivate: [
+              () => {
+                if (failing) throw new Error('Fictitious failure while opening the page');
+                return true;
+              },
+            ],
+          },
+          {
+            path: 'guarded',
+            title: 'Guarded',
+            component: StubPage,
+            // E.g. the session expired meanwhile: the page sends the user to the login.
+            canActivate: [() => (redirecting ? inject(Router).parseUrl('/login') : true)],
+          },
+          {
+            path: 'editing',
+            title: 'Editing',
+            component: StubDetail,
+            canDeactivate: [() => mayLeave],
+          },
+        ]),
+        provideLocationMocks(),
+        provideBackNavigation(),
+        { provide: ErrorHandler, useValue: { handleError: (e: unknown) => errors.push(e) } },
+      ],
+    });
+    harness = await RouterTestingHarness.create();
+    router = TestBed.inject(Router);
+    router.setUpLocationChangeListener();
+    location = TestBed.inject(Location);
+    navigation = TestBed.inject(BackNavigation);
+  });
+
+  const go = (url: string) => harness.navigateByUrl(url);
+
+  it('stays on the page and leads to the right page after a Back that failed', async () => {
+    await go('/today');
+    await go('/broken');
+    await go('/mail/messages/m1');
+    failing = true;
+    await navigation.back('/mail');
+    await settle();
+    expect(errors).toHaveLength(1);
+    expect(router.url).toBe('/mail/messages/m1');
+    // The router rewrote the entry of /broken with the message: behind it lies Today.
+    expect(navigation.previous()).toEqual(
+      expect.objectContaining({ url: '/today', label: 'Today' }),
+    );
+    await navigation.back('/mail');
+    await settle();
+    expect(router.url).toBe('/today');
+    expect(navigation.canGoBack()).toBe(false);
+  });
+
+  it('goes to the parent route after a refused Back to an entry it never saw', async () => {
+    await go('/new');
+    // E.g. a history entry from before a reload: its navigation id is unknown.
+    location.go('/today', '', { navigationId: 999 });
+    await go('/editing');
+    expect(navigation.previous()?.url).toBe('/new');
+    mayLeave = false;
+    location.back();
+    await settle();
+    expect(router.url).toBe('/editing');
+    expect(navigation.canGoBack()).toBe(false);
+    mayLeave = true;
+    await navigation.back('/mail');
+    expect(router.url).toBe('/mail');
+  });
+
+  it('leads to the page its back button names after a Back a guard redirected', async () => {
+    await go('/today');
+    await go('/guarded');
+    await go('/mail/messages/m1');
+    redirecting = true;
+    await navigation.back('/mail');
+    await settle();
+    // The router replaced the entry of /guarded with /login: behind it lies Today.
+    expect(router.url).toBe('/login');
+    expect(navigation.previous()?.url).toBe('/today');
+    await navigation.back('/mail');
+    await settle();
+    expect(router.url).toBe('/today');
+  });
+
+  it('goes back only once when back() is called again while the Back runs', async () => {
+    await go('/today');
+    await go('/new');
+    await go('/mail/messages/m1');
+    const back = vi.spyOn(location, 'back');
+    const navigate = vi.spyOn(router, 'navigateByUrl');
+    const first = navigation.back('/mail');
+    const second = navigation.back('/mail');
+    await Promise.all([first, second]);
+    await settle();
+    expect(back).toHaveBeenCalledTimes(1);
+    expect(navigate).not.toHaveBeenCalled();
+    expect(router.url).toBe('/new');
+    expect(navigation.previous()?.url).toBe('/today');
+  });
+
+  it('starts a new Back once the previous one has finished', async () => {
+    await go('/today');
+    await go('/new');
+    await go('/mail/messages/m1');
+    await navigation.back('/mail');
+    await navigation.back('/mail');
+    await settle();
+    expect(router.url).toBe('/today');
   });
 });
