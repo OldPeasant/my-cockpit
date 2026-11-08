@@ -22,3 +22,4 @@ and cannot complete/reopen it from task detail. Android has both, with undo.
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 - ASSUMPTION (2026-11-08 15:01+0100 by dell26/agent-1): Undo in the lists also needed small edits in gtd/next, gtd/today, gtd/projects (outside touches) and a shared TaskUndo snackbar service in gtd/ui; the lists have no row delete, so their undo covers completing only
+- ASSUMPTION (2026-11-08 15:01+0100 by dell26/agent-1): Task detail Complete saves unsaved valid changes first, then completes and stays on the page (Reopen replaces the button); Delete asks only when there are unsaved changes (Undo snackbar restores from Trash), then navigates back via the shared BackNavigation
