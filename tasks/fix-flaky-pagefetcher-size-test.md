@@ -16,7 +16,8 @@ fetcher uses a 1 s timeout in the test; find out whether cancelling at the limit
 
 ## Acceptance criteria
 - [ ] Root cause found and fixed (PageFetcher or test), not just retried
-- [ ] `cd server && ./gradlew test --tests '*PageFetcherSizeLimitTests*'` passes 10 runs in a row
+- [x] `cd server && ./gradlew test --tests '*PageFetcherSizeLimitTests*'` passes 10 runs in a row
+  - verified (2026-11-08 23:45+0100 by dell26/agent-1): sh .tmp/loop.sh (cd server; 10x ./gradlew test --tests '*PageFetcherSizeLimitTests*' --rerun -q, REPEATS=200) at 85d491a81 -> passed 10/10
 - [ ] `sh scripts/check.sh` passes
 
 ## Notes
