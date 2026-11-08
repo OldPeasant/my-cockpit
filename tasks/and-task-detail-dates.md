@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/test/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml]
 prio: 2
-lease_until: 2026-11-08T12:17:18Z
+lease_until: 2026-11-08T12:22:20Z
 extended: 
 releases: 1
 ---
