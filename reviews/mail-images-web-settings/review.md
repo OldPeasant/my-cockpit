@@ -4,21 +4,32 @@ Date: 2026-11-08
 
 Task: mail-images-web-settings - Web mail images follow the synced image settings
 
-Scope: the committed task changes `git diff 20422f99a..HEAD`. These are the task commits 16a83eda8, e33e622c9 and 2572a9f91, rebased from 8e96e6038, 055a84c7b and b106f5a06. `git diff b106f5a06 2572a9f91 -- web` is empty, so the code is the same. The review skipped the PNG screenshots, and also skipped the uncommitted spec changes the test-writer had in the working tree during the review.
+Scope: final pass over the whole task diff `git diff 55b1f084e..c3e2f199a`, with the focus on c3e2f199a. The task commits are 04d1cc7b2, 22154836b, fecd57e88, e36d59980, fb91dc29e and c3e2f199a. 07bd17d10 only adds `tasks/web-de-invite-translations.md`, which belongs to another task, so it was skipped. The PNG screenshots were also skipped. The earlier passes reviewed the same production code before a rebase, and it has not changed since then. c3e2f199a changes only tests (`image-allowlist.spec.ts`, `mail-read-page.spec.ts`) and `reviews/mail-images-web-settings/tests.md`. No production file changed after fb91dc29e. The only uncommitted change is this report.
 
 Requirements:
-- tasks/mail-images-web-settings.md (acceptance criteria 1-6, notes, the 3 recorded assumptions)
+- tasks/mail-images-web-settings.md (acceptance criteria 1-6, notes, the 3 recorded assumptions, recorded evidence)
 - SPEC.md §4.1, §4.7 (mailImagePolicy / mailImageAllowedSenders)
-- AGENTS.md project notes, docs/ARCHITECTURE.md (i18n workflow, conventions)
-- Server contract: server/.../core/settings/domain/SettingDefinition.kt, api/SettingsSchemas.kt (TextList: distinct, non-blank, max 1000 x 320)
+- AGENTS.md project notes, docs/ARCHITECTURE.md, docs/QUALITY.md
+- Earlier review passes and reviews/mail-images-web-settings/fixes.md, tests.md
 
 Git range:
 - Branch: main
-- HEAD: 26b40f11b215c66b813762c1db4cb49f85bc5835 (last task code commit 2572a9f91659d290607f0efbfe64a9bd998110a0)
-- Base/start: 20422f99a5de45eb8259d3e7168c3866bf499dac
-- Commits reviewed: 3 task commits (the other commits in the range only touch tasks/ or belong to other tasks)
+- HEAD: c3e2f199ad3d911c2559037b43edc273027683be
+- Base/start: 55b1f084e1e81823df801048b6019d5ef465dad6
+- Commits reviewed: 6 task commits. The last one, c3e2f199a, changes only tests and the test report.
 
-Summary: 0 P0, 0 P1, 1 P2, 3 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
+
+## Status of the earlier findings
+
+- [x] **CR-1 (P2) | A sender change built while the settings were not loaded could replace the whole synced list**: fixed in fb91dc29e and still correct at HEAD.
+  If `settings.settings()` is still `null` after `ready()`, `ImageAllowlist.change()` throws (`web/src/app/features/mail/read/image-allowlist.ts:75`). Nothing is PATCHed, and the chain stays usable through `result.catch` (line 81). c3e2f199a adds two regression tests. The first checks that `removeEntry` rejects without a PATCH, and that the next `add` starts from the stored list once the settings load. The second, at page level, checks that "Always load" with settings that cannot load still loads the images of this mail once, sends no PATCH and offers no "Stop". Both match the code: `mail-read-page.ts:166` swallows the rejection and `showImages()` still runs.
+- [x] **CR-2 (P3) | "Stop" offered under policy "allow"**: fixed in fb91dc29e and still correct at HEAD.
+  `senderAllowed` (`mail-read-page.ts:115-117`) requires `policy() === 'block'`. The new test changes the policy to "allow" while the mail is open and checks that "Stop" disappears and the proxied body stays. This works because `senderAllowed` is a `computed` over the settings signal.
+- [x] **CR-3 (P3) | `storedSenders()` doc comment vs behaviour**: fixed in fb91dc29e and still correct at HEAD.
+  If `getItem` throws, the function returns `null` (`image-allowlist.ts:134-138`), so `migrate()` removes nothing. The new test checks that the key stays. It then checks that a new instance, which stands for the next page load, merges the list with one PATCH and removes the key. The spy is restored in `finally`, so it cannot leak into other tests.
+- [x] **CR-4 (P3) | Criterion 4 evidence overstated the Playwright run**: resolved in the evidence.
+  The second evidence entry for criterion 4 says that `page.route` answers the image-proxy request. It also records a separate check of the real server proxy (200 image/png).
 
 ## P0 Critical
 
@@ -30,38 +41,18 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | A sender change built while the settings are not loaded can replace the whole synced sender list**
-    - File: `web/src/app/features/mail/read/image-allowlist.ts:72-77`
-    - Category: Correctness
-    - Problem: `change()` calls `await this.ready()`. `ready()` swallows a failed settings load and returns. Then `change()` builds the new list from `this.senders()`, which is `[]` while the settings are `null`, and sends `settings.update({ mailImageAllowedSenders: [address] })`. `SettingsService.save()` loads the settings again when none are cached (`this.current() ?? (await this.load())`). If that second load succeeds, for example after a short network blip, the PATCH carries a fresh ETag. So it is accepted, and the stored list becomes just `[address]`, dropping every other entry saved from web or Android. The read view reaches this path when the user clicks "Always load from this sender" after the settings could not be loaded. The test-writer's uncommitted spec "does not replace the stored senders with a list built before the settings were loaded" covers this exact case.
-    - Why it matters: `mailImageAllowedSenders` is synced across devices, so this would silently delete the user's allowed senders. The timing window is narrow, but the result is data loss with no error shown.
-    - Suggested fix: in `change()`, after `ready()`, stop when `this.settings.settings()` is still `null`. Throw or reject so the caller's existing `.catch` handles it, and never compute a full replacement list from the empty fallback. Keep the regression test.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | With policy "allow", the read view still offers "Stop" for a listed sender, which no longer stops anything**
-    - File: `web/src/app/features/mail/read/mail-read-page.ts:333`, `web/src/app/features/mail/read/mail-read-page.html:185`
-    - Category: Correctness
-    - Problem: under `allowAll`, `loadImages` is set to `true`. If the sender is also in `mailImageAllowedSenders`, the template shows "Images from this sender load automatically. Stop". "Stop" removes the sender, but images keep loading because of the policy.
-    - Why it matters: the control looks like it works but does nothing the user can see, which is confusing. It is not a data problem.
-    - Suggested fix: show the "allowed sender" row only when `policy() !== 'allow'`, or show different text that points to the setting.
+None.
 
-- [ ] **CR-3 | `storedSenders()` doc comment does not match its behaviour**
-    - File: `web/src/app/features/mail/read/image-allowlist.ts:126-140`
-    - Category: Quality
-    - Problem: the comment says it returns `null` "when there is none (or storage is unavailable)". When `localStorage.getItem` throws, the `catch` returns `[]`, not `null`. `migrate()` then calls `removeItem`, which throws again and is caught. The `this.migration = null` reset runs synchronously, before `ready()`'s `??=` stores the promise, so the retry described in the catch comment never happens on that path. The behaviour itself is harmless.
-    - Why it matters: future changes to the migration retry logic could be based on the wrong comment.
-    - Suggested fix: return `null` from the `catch` when reading fails, or correct the comment.
+## Notes on the final revision
 
-- [ ] **CR-4 | Evidence for criterion 4 overstates what the Playwright run exercised**
-    - File: `web/e2e/mail-images/image-settings.spec.ts:69-72`; recorded evidence for criterion #4 in `tasks/mail-images-web-settings.md`
-    - Category: Tests
-    - Problem: the evidence says "image proxy upstream stubbed via page.route". In fact `page.route('**/api/v1/mail/image-proxy**')` answers the browser's request to the Cockpit proxy endpoint itself, so the server's `/api/v1/mail/image-proxy` is never called. The run does verify that the read view requests `remoteImages=PROXY`, that the frame renders proxied and `cid:` images, and that the settings flow works. It does not show that the real proxy serves the image. The disclosure exists but describes the stub inaccurately.
-    - Why it matters: the task notes ask to fix "Load images" for real mails (proxy errors, CSP). A proxy failure would not show up in this run.
-    - Suggested fix: reword the evidence to "the browser request to /api/v1/mail/image-proxy is fulfilled by page.route (no internet)". If possible, point to where the server proxy itself is tested (server tests or the fix-mail-images-firefox evidence).
+- The new tests check behaviour (PATCH payloads, the localStorage contents, the rendered buttons and the iframe `srcdoc`) and match the current code. No existing test was weakened or removed.
+- This reviewer did not run the tests. Results come from `reviews/mail-images-web-settings/tests.md`: the focused `ng test`, `npm run check` and `sh scripts/check.sh` passed. Its Scope line names HEAD fb91dc29e "plus the uncommitted test additions". Those additions are what c3e2f199a committed, so the report still describes the final revision.
+- Criterion 6 ("Unit tests cover the new behavior; `npm run check` and `sh scripts/check.sh` pass") is still unticked in the task file. The parent has to record it with `tasks.py verify` before `done`.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
-
-Criteria 1, 2, 3, 5 and 6 are implemented as specified, including the recorded assumptions: domain matching, "Stop" removing both address and domain entries, and a single PROXY load when the policy is "allow". Hand-added xlf units use custom ids that match the templates, with German targets. Moving the spec to the `inbox-exclusive` project is consistent with the other specs that change the shared account. CR-1 should be fixed (and its regression test committed) before `done`. CR-2 to CR-4 are optional cleanups.
+No material issues found.

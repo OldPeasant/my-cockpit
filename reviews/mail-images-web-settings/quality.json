@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "task": "mail-images-web-settings",
+  "reviewed_revision": "c3e2f199ad3d911c2559037b43edc273027683be",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/mail-images-web-settings/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-images-web-settings/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/mail-images-web-settings/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "change() rejects without saving when the settings are not loaded, so the synced sender list is never replaced from the empty fallback (fb91dc29e, regression tests in c3e2f199a)"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "same defect as CR-1; the test-writer's failing regression test passes since fb91dc29e"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "'Stop' banner shown only under policy block (fb91dc29e)"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "storedSenders() returns null when storage cannot be read, the old key is kept for a later load; comment matches (fb91dc29e)"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "criterion 4 evidence re-recorded: page.route answers the browser's image-proxy request; real server proxy checked separately with a node fetch through ng serve to bootRun"}
+  ],
+  "validation": [
+    {"command": "npm --prefix web run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"},
+    {"command": "E2E_BASE_URL=http://localhost:24200 npx playwright test --project=inbox-exclusive --no-deps mail-images/ (against bootRun + ng serve)", "result": "pass"}
+  ]
+}
