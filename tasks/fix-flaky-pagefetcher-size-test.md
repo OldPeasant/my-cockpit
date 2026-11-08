@@ -1,11 +1,11 @@
 ---
 title: Flaky test: PageFetcherSizeLimitTests HTTP/2 reuse case gets TIMEOUT for some of 50 fetches
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [server/src/test/kotlin/ch/sonensei/cockpit/bookmarks,server/src/main/kotlin/ch/sonensei/cockpit/bookmarks]
 prio: 2
-lease_until: 2026-11-08T23:14:27Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -28,3 +28,4 @@ fetcher uses a 1 s timeout in the test; find out whether cancelling at the limit
 ## Notes
 - ASSUMPTION (2026-11-08 23:45+0100 by dell26/agent-1): PageFetcher now forces HTTP/1.1: with HTTP/2 the per-fetch stream cancel on the shared connection made ~1 in 500 fetches fail (EOF reproduced at REPEATS=1000; TIMEOUT seen under load). Exact JDK-vs-Jetty mechanism not pinned down; HTTP/1.1 costs a new connection per truncated page, irrelevant for bookmark metadata
 - release by dell26/agent-1: Fix done: PageFetcher forces HTTP/1.1 (HTTP/2 stream cancel on shared conn broke ~1/500 fetches; EOF reproduced at REPEATS=1000, 1000/1000 after fix). Criteria 1+2 verified at 85d491a81. review.md (0 findings above P3; CR-1 P3) and tests.md committed. Test-writer then changed the protocol test (two fetches, addresses CR-1), so: optionally confirm it fails without .version(HTTP_1_1), rerun 10x loop, rerun code-reviewer on final code (test-writer evidence is at final code), record CR-1 fixed => needs fixer report (fixer may just verify), run sh scripts/check.sh, verify #3, write quality.json, done.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 71s on 2f4f5f012; criteria verified 3/3
