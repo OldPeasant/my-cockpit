@@ -18,3 +18,4 @@ SPEC.md §7.2: only a sync window is cached; `POST /api/v1/mail/folders/{id}/loa
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 21:30+0100 by felix/agent-1): The 'Load older from server' button is offered at the end of every folder list (not the unified Inbox, not search) regardless of the list response's hasOlder hint (it only says 'may'); a click that finds nothing shows 'no older messages' inline next to the button. Newly cached mails are shown by re-reading the folder's first (shown + loaded) messages.
