@@ -4,6 +4,7 @@ import android.net.Uri
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import ch.sonensei.cockpit.core.network.PLACEHOLDER_BASE_URL
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.ByteArrayInputStream
@@ -18,6 +19,9 @@ import javax.inject.Singleton
  * resolves (RFC 2606), so nothing the WebView would load by itself could reach the network.
  */
 val MAIL_ORIGIN: String = PLACEHOLDER_BASE_URL.removeSuffix("/")
+
+/** The host of [MAIL_ORIGIN]. */
+val MAIL_HOST: String = PLACEHOLDER_BASE_URL.toHttpUrl().host
 
 /**
  * Answers every resource request of a mail page (`WebViewClient.shouldInterceptRequest`): the images of the Cockpit
@@ -65,10 +69,9 @@ class MailImageFetcher
  * (`/api/v1/mail/messages/{id}/attachments/{partId}`) or the image proxy (`/api/v1/mail/image-proxy`), on [MAIL_ORIGIN].
  */
 fun isServerImage(url: Uri): Boolean {
-    val origin = Uri.parse(MAIL_ORIGIN)
     val sameOrigin =
-        url.scheme.equals(origin.scheme, ignoreCase = true) &&
-            url.host.equals(origin.host, ignoreCase = true) &&
+        url.scheme.equals("https", ignoreCase = true) &&
+            url.host.equals(MAIL_HOST, ignoreCase = true) &&
             (url.port == -1 || url.port == HTTPS_PORT) &&
             url.encodedUserInfo == null
     if (!sameOrigin) return false

@@ -66,7 +66,6 @@ class MailWebViewClient(
 
     private companion object {
         val EXTERNAL_SCHEMES = setOf("http", "https", "mailto")
-        val MAIL_HOST: String? = Uri.parse(MAIL_ORIGIN).host
     }
 }
 
