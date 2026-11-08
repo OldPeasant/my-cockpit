@@ -13,7 +13,8 @@ Android inbox list rows have no checkbox and no click (`InboxScreen.kt:234-240`)
 read-only sheet (`NewScreen.kt:488-536`) although SPEC.md §5.3 says it opens the task detail.
 
 ## Acceptance criteria
-- [ ] Inbox list rows have a complete checkbox (with the existing undo snackbar from Next) and tapping a row opens task detail
+- [x] Inbox list rows have a complete checkbox (with the existing undo snackbar from Next) and tapping a row opens task detail
+  - verified (2026-11-08 11:06+0100 by dell26/agent-2): InboxScreenTest/InboxRouteTest/InboxViewModelTest (Robolectric Compose) via ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.inbox.*' -> pass: checkbox completes via shared TaskCompleter with Next's undo snackbar, row tap opens task detail
 - [ ] A task row in the New view opens task detail (back returns to New with its filter and scroll position); the read-only `NewTaskView` is removed
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
