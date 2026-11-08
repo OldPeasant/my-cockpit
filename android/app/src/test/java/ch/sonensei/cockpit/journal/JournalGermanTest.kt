@@ -88,8 +88,9 @@ class JournalGermanTest {
         composeRule.onNodeWithText("2023, vor 3 Jahren").performScrollTo().assertIsDisplayed()
 
         composeRule.onNodeWithContentDescription("Kalender anzeigen").performClick()
-        composeRule.onNodeWithText("Oktober 2026").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("mit Eintrag", substring = true).assertIsDisplayed()
+        // The calendar opens above the earlier years scrolled to before.
+        composeRule.onNodeWithText("Oktober 2026").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("mit Eintrag", substring = true).performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Vorheriger Monat").assertIsDisplayed()
         composeRule.onNodeWithTag(JournalTags.CALENDAR_TOGGLE).performClick()
         composeRule.onNodeWithTag(JournalTags.CALENDAR).assertDoesNotExist()

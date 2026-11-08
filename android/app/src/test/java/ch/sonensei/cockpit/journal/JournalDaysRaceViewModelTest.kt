@@ -206,7 +206,10 @@ class JournalDaysRaceViewModelTest {
 
             upload.complete(JournalResult.Ok(image))
             advanceUntilIdle()
-            assertTrue(vm.uiState.value.body.contains(image))
+            assertTrue(
+                vm.uiState.value.body
+                    .contains(image),
+            )
             assertEquals(today, vm.uiState.value.date)
         }
     }
@@ -247,6 +250,67 @@ class JournalDaysRaceViewModelTest {
                 assertEquals(today, state.date)
                 assertTrue(state.body.contains(image))
             }
+        }
+    }
+
+    @Test
+    fun `a photo picked while another day is being opened is not uploaded and the user is told`() {
+        val save = CompletableDeferred<JournalSaveResult>()
+        test(stub = { coEvery { repo.saveEntry(today, todays, any()) } coAnswers { save.await() } }) { vm ->
+            vm.setBody("Ferry to the island, windy")
+            vm.previousDay()
+            runCurrent()
+
+            vm.addPhoto(photo)
+            runCurrent()
+            assertFalse(vm.uiState.value.uploading)
+            assertEquals(JournalMessage.PHOTO_DAY_CHANGED, vm.uiState.value.message)
+            coVerify(exactly = 0) { repo.uploadImage(any()) }
+
+            save.complete(JournalSaveResult.Saved(todays.copy(bodyMd = "Ferry to the island, windy", version = 2)))
+            advanceUntilIdle()
+            assertEquals(yesterday, vm.uiState.value.date)
+            assertEquals("Packed the bags", vm.uiState.value.body)
+        }
+    }
+
+    @Test
+    fun `a photo read for a day that is no longer shown is not added to the shown day`() =
+        test { vm ->
+            vm.previousDay()
+            advanceUntilIdle()
+            assertEquals(yesterday, vm.uiState.value.date)
+
+            vm.addPhoto(photo, at = 3, date = today)
+            advanceUntilIdle()
+
+            assertEquals("Packed the bags", vm.uiState.value.body)
+            assertEquals(JournalMessage.PHOTO_DAY_CHANGED, vm.uiState.value.message)
+            coVerify(exactly = 0) { repo.uploadImage(any()) }
+            coVerify(exactly = 0) { repo.saveEntry(any(), any(), any()) }
+        }
+
+    @Test
+    fun `an entry saved while the month loads stays marked when the month answers without it`() {
+        val november = YearMonth.of(2026, 11)
+        val monthLoad = CompletableDeferred<JournalResult<Map<LocalDate, Int?>>>()
+        test(stub = {
+            coEvery { repo.get(today) } returns JournalResult.Ok(null)
+            coEvery { repo.days(november.atDay(1), november.atEndOfMonth()) } coAnswers { monthLoad.await() }
+            coEvery { repo.saveEntry(today, null, any()) } answers
+                { JournalSaveResult.Saved(entry(today, "", mood = thirdArg<JournalDraft>().mood)) }
+        }) { vm ->
+            assertTrue(vm.uiState.value.monthLoading)
+            vm.setMood(4)
+            advanceUntilIdle()
+            assertEquals(4, vm.uiState.value.monthDays[today])
+
+            // The server computed the month before the save.
+            monthLoad.complete(JournalResult.Ok(emptyMap()))
+            advanceUntilIdle()
+
+            assertEquals(mapOf(today to 4), vm.uiState.value.monthDays)
+            assertFalse(vm.uiState.value.monthLoading)
         }
     }
 

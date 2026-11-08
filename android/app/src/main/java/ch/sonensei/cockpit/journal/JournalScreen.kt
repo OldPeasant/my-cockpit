@@ -182,7 +182,9 @@ fun JournalRoute(
     var cameraUri by rememberSaveable { mutableStateOf<String?>(null) }
 
     fun upload(uri: Uri) {
-        scope.launch { viewModel.addPhoto(NotePhotoFiles.read(context, uri), insertAt) }
+        // The day the photo was picked for: reading the file takes a moment, and another day may open meanwhile.
+        val date = viewModel.uiState.value.date
+        scope.launch { viewModel.addPhoto(NotePhotoFiles.read(context, uri), insertAt, date) }
     }
     val camera =
         rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { taken ->
@@ -380,7 +382,7 @@ private fun DayHeading(state: JournalUiState) {
             )
         }
         Text(
-            state.date.format(dateFormat),
+            state.date.format(dateFormat.withLocale(LocalLocale.current.platformLocale)),
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.semantics { heading() }.testTag(JournalTags.DATE),
         )
@@ -515,7 +517,10 @@ private fun CalendarDay(
     val future = date > state.today
     val shown = date == state.date
     val colors = MaterialTheme.colorScheme
-    val label = date.format(dateFormat).let { if (hasEntry) stringResource(R.string.journal_day_with_entry, it) else it }
+    val label =
+        date.format(dateFormat.withLocale(LocalLocale.current.platformLocale)).let {
+            if (hasEntry) stringResource(R.string.journal_day_with_entry, it) else it
+        }
     val alpha = moodAlpha(state.monthDays[date])
     var cell =
         Modifier
@@ -756,6 +761,7 @@ private fun MessageBanner(
             JournalMessage.PHOTO_UNREADABLE -> R.string.journal_photo_unreadable
             JournalMessage.PHOTO_OFFLINE -> R.string.journal_photo_offline
             JournalMessage.PHOTO_FAILED -> R.string.journal_photo_failed
+            JournalMessage.PHOTO_DAY_CHANGED -> R.string.journal_photo_day_changed
             JournalMessage.DAY_NOT_SAVED -> R.string.journal_day_not_saved
         }
     val load = message == JournalMessage.LOAD_OFFLINE || message == JournalMessage.LOAD_FAILED

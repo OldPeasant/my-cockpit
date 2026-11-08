@@ -39,6 +39,9 @@ enum class JournalMessage {
     PHOTO_OFFLINE,
     PHOTO_FAILED,
 
+    /** A photo was not added because another day was opened (or was being opened) while it was read or uploaded. */
+    PHOTO_DAY_CHANGED,
+
     /** Another day was asked for, but the shown one could not be saved: it stays open so nothing is lost. */
     DAY_NOT_SAVED,
 }
@@ -130,7 +133,14 @@ class JournalViewModel internal constructor(
     private var autosave: Job? = null
     private var loadJob: Job? = null
     private var monthJob: Job? = null
+    private var onThisDayJob: Job? = null
     private var navigation: Job? = null
+
+    /**
+     * Entries saved since the newest month request started: its answer may have been computed before them, so they
+     * are marked again on it (like `savedSince` on the web).
+     */
+    private val savedSince = mutableMapOf<LocalDate, JournalEntry>()
 
     /** Image Markdown uploaded while a conflict came up: added once the user decided. */
     private var pendingImage: Pair<String, Int?>? = null
@@ -150,7 +160,9 @@ class JournalViewModel internal constructor(
     /** The shown day's entry and its earlier years. */
     private suspend fun load() {
         val date = state.value.date
-        viewModelScope.launch { loadOnThisDay(date) }
+        // Only the newest request counts: the same day asked for again must not get an older, late answer.
+        onThisDayJob?.cancel()
+        onThisDayJob = viewModelScope.launch { loadOnThisDay(date) }
         val result = journal.get(date)
         state.update {
             if (it.date != date) return@update it
@@ -198,13 +210,18 @@ class JournalViewModel internal constructor(
         val month = state.value.month
         state.update { it.copy(monthLoading = true, monthFailed = false) }
         monthJob?.cancel()
+        savedSince.clear()
         monthJob =
             viewModelScope.launch {
                 val result = journal.days(month.atDay(1), month.atEndOfMonth())
+                val saved =
+                    savedSince.values
+                        .filter { YearMonth.from(it.date) == month }
+                        .associate { it.date to it.mood }
                 state.update {
                     when {
                         it.month != month -> it
-                        result is JournalResult.Ok -> it.copy(monthDays = result.value, monthLoading = false)
+                        result is JournalResult.Ok -> it.copy(monthDays = result.value + saved, monthLoading = false)
                         else -> it.copy(monthLoading = false, monthFailed = true)
                     }
                 }
@@ -320,6 +337,7 @@ class JournalViewModel internal constructor(
             if (before.conflict != null || before.loading || before.unloaded || before.isSaved()) return@withLock
             state.update { if (it.date == before.date) it.copy(status = SaveStatus.SAVING) else it }
             val result = journal.saveEntry(before.date, before.entry, before.draft)
+            if (result is JournalSaveResult.Saved) savedSince[result.entry.date] = result.entry
             state.update {
                 if (it.date != before.date) return@update it
                 when (result) {
@@ -368,20 +386,31 @@ class JournalViewModel internal constructor(
 
     /**
      * Uploads [photo] (`null`: it could not be read) and inserts its Markdown image at [at] in the body (the end when
-     * `null`), on a line of its own; the entry is then saved.
+     * `null`), on a line of its own; the entry is then saved. The photo belongs to [date], the day it was picked for:
+     * while another day is shown or being opened it is not added, and [JournalMessage.PHOTO_DAY_CHANGED] says so.
      */
     fun addPhoto(
         photo: NotePhoto?,
         at: Int? = null,
+        date: LocalDate = state.value.date,
     ) {
         if (photo == null) {
             state.update { it.copy(message = JournalMessage.PHOTO_UNREADABLE) }
             return
         }
+        if (date != state.value.date || navigation?.isActive == true) {
+            state.update { it.copy(message = JournalMessage.PHOTO_DAY_CHANGED) }
+            return
+        }
         if (!state.value.editable || state.value.uploading) return
         state.update { it.copy(uploading = true, message = null) }
         viewModelScope.launch {
-            when (val result = journal.uploadImage(photo)) {
+            val result = journal.uploadImage(photo)
+            if (state.value.date != date) {
+                state.update { it.copy(message = JournalMessage.PHOTO_DAY_CHANGED) }
+                return@launch
+            }
+            when (result) {
                 is JournalResult.Ok -> {
                     state.update { it.copy(uploading = false) }
                     when {

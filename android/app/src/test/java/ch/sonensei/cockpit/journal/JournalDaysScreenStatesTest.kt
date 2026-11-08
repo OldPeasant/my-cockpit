@@ -1,5 +1,8 @@
 package ch.sonensei.cockpit.journal
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -70,7 +73,14 @@ class JournalDaysScreenStatesTest {
 
     @Test
     fun `leaving the tags field for the text tidies the tags`() {
-        show(loaded(editing = true))
+        // The field shows what was typed, as the view model does; a frozen state would make the field reset it.
+        var state by mutableStateOf(loaded(editing = true))
+        val typing =
+            callbacks.copy(setTags = {
+                calls += "tags $it"
+                state = state.copy(tagsText = it)
+            })
+        composeRule.setContent { CockpitTheme { JournalContent(state, typing, imageLoader = null) } }
 
         composeRule.onNodeWithTag(JournalTags.TAGS).performScrollTo().performTextReplacement("sport,,  sea")
         composeRule.onNodeWithTag(JournalTags.BODY).performScrollTo().performClick()
