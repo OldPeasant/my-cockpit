@@ -1,11 +1,11 @@
 ---
 title: Android: shared linked-items panel with add, remove, create linked
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [and-task-convert]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/core/links,android/app/src/test/java/ch/sonensei/cockpit/core/links,android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/test/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/java/ch/sonensei/cockpit/contacts,android/app/src/test/java/ch/sonensei/cockpit/contacts,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml,android/app/src/main/res/values/strings_contacts.xml,android/app/src/main/res/values-de/strings_contacts.xml,android/app/src/main/res/values/strings_links.xml,android/app/src/main/res/values-de/strings_links.xml]
 prio: 2
-lease_until: 
+lease_until: 2026-11-08T20:02:29Z
 releases: 2
 extended: 
 ---
