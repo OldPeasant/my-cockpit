@@ -14,7 +14,8 @@ only open Next tasks while Android shows the project's waiting/someday/scheduled
 ## Acceptance criteria
 - [x] Delete project (menu, confirmation, server delete-reassign rules)
   - verified (2026-11-08 17:02+0100 by dell26/agent-1): project-detail-delete.spec.ts (npx ng test --include src/app/features/gtd/projects -> 122 passed): menu 'More project actions' > 'Delete project' opens DeleteProjectDialog (title, Trash text, open-task count 0/1/n), confirm sends DELETE /projects/p1 with current If-Match, navigates to /projects, Undo snackbar restores via restoreTrashItem PROJECT; cancel/dismiss/refused delete keep the project; server rule (tasks keep their project) stated in the dialog
-- [ ] Project detail shows all open tasks of the project with a list label for non-Next ones (Waiting, Someday, Scheduled)
+- [x] Project detail shows all open tasks of the project with a list label for non-Next ones (Waiting, Someday, Scheduled)
+  - verified (2026-11-08 17:02+0100 by dell26/agent-1): project-detail-delete.spec.ts 'list labels' tests -> pass: tasks in WAITING/SOMEDAY/SCHEDULED/INBOX of the project show 'Waiting'/'Someday'/'Scheduled'/'Inbox', NEXT tasks no label, next-step marker kept on a non-Next next step (GET /tasks?projectId= returns all open lists)
 - [ ] New UI strings are in `web/src/locale` (English + German)
 - [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
 
