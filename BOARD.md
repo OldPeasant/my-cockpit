@@ -130,6 +130,7 @@ graph LR
   fix_flaky_bookmark_patch_test["Flaky test: BookmarkWebTests PATCH races the background metadata fetch (409)<br/>@Peter Gürtler"]:::done
   fix_flaky_caldav_dropped_chunk_test["Flaky test: CalDavClientTests 'a connection that fails after the answer started is not repeated' sometimes retries<br/>@Peter Gürtler"]:::done
   fix_flaky_clock_test["Fix flaky ClockConfigurationTests (micro- vs nanosecond Instant compare)"]:::dropped
+  fix_mail_images_firefox["Mail images never load in Firefox (frame CSP 'self' in srcdoc)"]:::todo
   gtd_capture_api["Quick capture endpoint and syntax parser<br/>@dell26/agent-6"]:::done
   gtd_convert_event["Convert task to calendar event<br/>@dell26/agent-1"]:::done
   gtd_convert_note["Convert task to reference note<br/>@dell26/agent-1"]:::done
@@ -551,6 +552,7 @@ graph LR
   mail_header_sync --> mail_idle
   p0_events_sse --> mail_idle
   web_back_navigation --> mail_images_web_settings
+  fix_mail_images_firefox --> mail_images_web_settings
   mail_model --> mail_imap
   oauth_connections --> mail_imap
   web_mail_read_actions --> mail_load_older_ui
@@ -702,6 +704,7 @@ graph LR
   unifiedpush_android_client --> unifiedpush_android
   and_reminders --> unifiedpush_server
   contacts_birthdays --> web_and_birthday_occurrences
+  fix_mail_images_firefox --> web_back_navigation
   p0_web_shell --> web_bookmarks
   bookmarks_api --> web_bookmarks
   p0_e2e_harness --> web_bookmarks
@@ -842,7 +845,8 @@ graph LR
 | Task | Status | Owner | Unblocks | Ready |
 |---|---|---|---|---|
 | and-user-settings | todo |  | 14 | yes |
-| web-back-navigation | todo |  | 12 | yes |
+| fix-mail-images-firefox | todo |  | 13 | yes |
+| web-back-navigation | todo |  | 12 |  |
 | and-mail-images | todo |  | 11 |  |
 | and-mail-search-nav | todo |  | 10 |  |
 | and-inbox-rows | todo |  | 9 | yes |

@@ -2,7 +2,7 @@
 title: Web mail images follow the synced image settings
 status: todo
 owner:
-deps: [web-back-navigation]
+deps: [web-back-navigation,fix-mail-images-firefox]
 touches: [web/src/app/features/mail/read,web/src/app/features/settings/general,web/src/locale]
 prio: 1
 ---

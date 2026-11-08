@@ -2,7 +2,7 @@
 title: Web back buttons return to where the user came from
 status: todo
 owner:
-deps: []
+deps: [fix-mail-images-firefox]
 touches: [web/src/app/shared/navigation,web/src/app/features/mail/read,web/src/app/features/gtd/task-detail,web/src/app/features/notes/editor,web/src/app/features/contacts,web/src/app/features/gtd/projects]
 prio: 1
 ---
