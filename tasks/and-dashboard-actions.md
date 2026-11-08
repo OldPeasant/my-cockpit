@@ -21,3 +21,4 @@ the layout cannot be edited (web: `dashboard-page.html`).
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 - ASSUMPTION (2026-11-08 18:51+0100 by rudi/agent-1): Mails: the dashboard lists no individual mails (web neither); the Inbox card's 'unread emails' line opens Mail and its 'tasks to process' line the GTD Inbox, as the web readouts do.
+- ASSUMPTION (2026-11-08 18:52+0100 by rudi/agent-1): Events open the event editor on top of the dashboard (birthdays their contact), more than the web's link to /calendar; without calendars (offline) the Calendar screen opens. Projects open via ProjectOpenRequests in the Projects screen; read-later bookmarks open their URL in the browser like the Bookmarks screen (Bookmarks screen if no browser); pinned notes open the note editor on top of the dashboard.
