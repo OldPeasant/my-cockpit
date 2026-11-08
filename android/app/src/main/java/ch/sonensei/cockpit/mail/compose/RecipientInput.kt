@@ -28,7 +28,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
@@ -203,31 +202,33 @@ private fun RecipientChip(
     val colors = MaterialTheme.colorScheme
     val container = if (invalid) colors.errorContainer else colors.surface
     val content = if (invalid) colors.onErrorContainer else colors.onSurfaceVariant
+    // Dim once: label and border here; the disabled IconButton dims its own icon.
+    val dim = if (enabled) 1f else DISABLED_ALPHA
     Surface(
         shape = MaterialTheme.shapes.small,
         color = container,
         contentColor = content,
-        border = if (invalid) null else BorderStroke(1.dp, colors.outlineVariant),
+        border =
+            if (invalid) null else BorderStroke(1.dp, colors.outlineVariant.copy(alpha = colors.outlineVariant.alpha * dim)),
         modifier =
-            modifier
-                .alpha(if (enabled) 1f else DISABLED_ALPHA)
-                .semantics(mergeDescendants = true) {
-                    if (!enabled) {
-                        disabled()
-                    } else {
-                        customActions =
-                            listOf(
-                                CustomAccessibilityAction(removeActionLabel) {
-                                    onRemove()
-                                    true
-                                },
-                            )
-                    }
-                },
+            modifier.semantics(mergeDescendants = true) {
+                if (!enabled) {
+                    disabled()
+                } else {
+                    customActions =
+                        listOf(
+                            CustomAccessibilityAction(removeActionLabel) {
+                                onRemove()
+                                true
+                            },
+                        )
+                }
+            },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 label,
+                color = content.copy(alpha = content.alpha * dim),
                 style = MaterialTheme.typography.labelLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

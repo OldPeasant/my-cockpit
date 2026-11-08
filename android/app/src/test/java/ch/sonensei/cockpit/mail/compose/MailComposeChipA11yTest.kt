@@ -1,12 +1,14 @@
 package ch.sonensei.cockpit.mail.compose
 
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -78,6 +80,15 @@ class MailComposeChipA11yTest {
         show(editing.copy(to = "Ann Example <ann@example.org>, "))
 
         chip(0).assert(SemanticsMatcher.keyNotDefined(SemanticsActions.OnClick))
+    }
+
+    @Test
+    fun `TalkBack reads the chip label on the chip node, which is not announced as a button`() {
+        show(editing.copy(to = "Ann Example <ann@example.org>, "))
+
+        chip(0)
+            .assertTextEquals("Ann Example")
+            .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.Role))
     }
 
     @Test
