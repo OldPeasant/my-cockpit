@@ -1,11 +1,11 @@
 ---
 title: Android Today shows events and habits
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-next-filters]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/today,android/app/src/test/java/ch/sonensei/cockpit/gtd/today,android/app/src/main/res/values/strings_next_today.xml,android/app/src/main/res/values-de/strings_next_today.xml]
 prio: 2
-lease_until: 2026-11-08T22:18:58Z
+lease_until: 
 ---
 ## Goal
 Web Today shows today's calendar events and due habits with one-tap check (`today-view.html:7`,
@@ -27,3 +27,4 @@ Web Today shows today's calendar events and due habits with one-tap check (`toda
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 - ASSUMPTION (2026-11-08 22:41+0100 by dell26/agent-1): Today: events above the task sections, habits below (as on web today-view); events/habits load when Today opens and again whenever the event editor closes, a failed load keeps what was shown (no own error banner); only habits with dueToday are listed, done ones stay with an undo tap
 - ASSUMPTION (2026-11-08 22:41+0100 by dell26/agent-1): Pick a next action needs navigation: one-line change in ui/CockpitShell.kt (outside touches) passes openNext to TodayScreen; event editor callbacks are duplicated in gtd/today/TodayWithEditor.kt instead of refactoring calendar/edit (outside touches)
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 72s on b9f3d2de8; criteria verified 5/5
