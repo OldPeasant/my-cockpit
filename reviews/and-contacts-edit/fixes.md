@@ -230,3 +230,64 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+## Round 2
+
+Date: 2026-11-08
+
+Scope: the re-review finding in reviews/and-contacts-edit/review.md (round 2) and one lint fix in a test. No production code changed in this round.
+
+### CR-1 (round 2) — no test checks that a delete conflict (409/412) reloads the contact
+
+Severity: P3
+
+Files changed:
+- `android/app/src/test/java/ch/sonensei/cockpit/contacts/ContactsRouteInAppTest.kt` (test-writer, commit df6952c67)
+
+Problem:
+The CR-5 code reloads the detail after a delete conflict (ContactsScreen.kt:205-207), but no test covered it.
+
+Fix:
+The test-writer added the test `a delete that hit a change made elsewhere reloads the contact, and Delete again uses its current version`. The fixer read it and confirmed it covers the finding:
+- `repo.get(annaId)` returns `anna` first, then `reloaded` (title "CEO", version 5). `repo.delete` returns `Failed(412)` first, then `Ok(Unit)`.
+- First Delete and confirm: the test waits for the conflict message ("It was changed elsewhere in the meantime. The contact was reloaded: check it and delete again."), then for the reloaded detail ("CEO, Beispiel AG"), and checks `coVerify(exactly = 2) { repo.get(annaId) }`. So the reload really happened.
+- Second Delete and confirm: the test waits for the list row `ContactsTags.contact(annaId)`, so the screen went back to the list. It checks `repo.delete(anna)` once and `repo.delete(reloaded)` once, so the second delete sent the new version.
+The fixer changed no code for this finding.
+
+Validation:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport --continue` (run by the parent) — Pass (BUILD SUCCESSFUL, 4783 tests, 0 failures)
+
+### Lint — ViewModelConstructorInComposable in ContactEditScreenTest
+
+Files changed:
+- `android/app/src/test/java/ch/sonensei/cockpit/contacts/ContactEditScreenTest.kt` (parent, commit 6e40c2dd5)
+
+Problem:
+`lintDebug` reported ViewModelConstructorInComposable at ContactEditScreenTest.kt:331. A new test built `ContactDetailViewModel(repo)` inside `setContent`.
+
+Fix:
+The view model is now built before `setContent` and passed in as `viewModel = viewModel`. The test does the same thing, and the warning was fixed, not suppressed. The fixer checked the diff.
+
+Validation:
+- Same parent run as above — Pass (lintDebug clean)
+
+### Round 2 validation summary
+
+Focused tests:
+- Covered by the parent's full Android run below.
+
+Full test suite:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport --continue` — Pass (4783 tests, 0 failures), run by the parent
+
+Lint/type-check/build:
+- ktlintCheck, lintDebug — Pass (same run)
+
+`.taskcheck`:
+- Not run by the fixer in this round. The parent runs it before `done`.
+
+Remaining unresolved findings:
+0
+
+### Round 2 final status
+
+All validated findings fixed and validation passed.
