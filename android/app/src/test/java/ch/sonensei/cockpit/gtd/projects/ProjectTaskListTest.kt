@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -31,9 +32,11 @@ import ch.sonensei.cockpit.gtd.task.LocalTaskOpener
 import ch.sonensei.cockpit.gtd.task.TaskOpener
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 import java.time.LocalDate
 import java.util.UUID
 
@@ -221,6 +224,163 @@ class ProjectTaskListTest {
         composeRule.waitForIdle()
         assertEquals(emptyList<String>(), calls.filter { it.startsWith("reorder") })
     }
+
+    @Test
+    fun `a blank title adds nothing`() {
+        show(detail(holiday, listOf(book, hotel)))
+        composeRule.onNodeWithTag(ProjectTaskTags.ADD).performTextInput("   ")
+        composeRule.onNodeWithTag(ProjectTaskTags.ADD_BUTTON).assertIsNotEnabled()
+        composeRule.onNodeWithTag(ProjectTaskTags.ADD).performImeAction()
+        assertEquals(emptyList<String>(), calls)
+    }
+
+    @Test
+    fun `the first task of a project without tasks is added from the field`() {
+        show(detail(garden, emptyList()))
+        composeRule.onNodeWithTag(LiveListTags.EMPTY).assertExists()
+        composeRule.onNodeWithTag(ProjectTaskTags.ADD).performTextInput("Buy seeds")
+        composeRule.onNodeWithTag(ProjectTaskTags.ADD_BUTTON).performClick()
+        assertEquals(listOf("add Buy seeds next=false"), calls)
+    }
+
+    @Test
+    fun `the typed text belongs to the open project`() {
+        show(detail(holiday, listOf(book, hotel)))
+        composeRule.onNodeWithTag(ProjectTaskTags.ADD).performTextInput("Pack the bags")
+        composeRule.onNodeWithTag(ProjectTaskTags.ADD_BUTTON).assertIsEnabled()
+        state = detail(garden, listOf(hotel))
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(ProjectTaskTags.ADD_BUTTON).assertIsNotEnabled()
+    }
+
+    @Test
+    fun `a single task can neither be dragged nor moved`() {
+        show(detail(holiday, listOf(book)))
+        assertEquals(emptyList<String>(), actions(book))
+        composeRule.onNodeWithTag(ProjectTaskTags.item(book.id)).performTouchInput {
+            down(center)
+            advanceEventTime(viewConfiguration.longPressTimeoutMillis + 100)
+            repeat(6) { moveBy(Offset(0f, height * 0.15f)) }
+            up()
+        }
+        composeRule.waitForIdle()
+        assertEquals(emptyList<String>(), calls.filter { it.startsWith("reorder") })
+    }
+
+    @Test
+    fun `a task dragged back to its place saves nothing`() {
+        show(detail(holiday, listOf(book, hotel, visa)))
+        val rowHeight = height(book)
+        val list = composeRule.onNodeWithTag(LiveListTags.LIST)
+        // Down past the middle of the next row (the rows swap), then back up to where it started.
+        pickUpFirstAndDragDownOneRow()
+        repeat(6) {
+            list.performTouchInput { moveBy(Offset(0f, -rowHeight * 0.15f)) }
+            composeRule.waitForIdle()
+        }
+        list.performTouchInput { up() }
+        composeRule.waitForIdle()
+        assertEquals(emptyList<String>(), calls)
+        assertTrue(top(book) < top(hotel))
+    }
+
+    @Test
+    fun `a dropped order stays in the list, and a refused one goes back`() {
+        show(detail(holiday, listOf(book, hotel, visa)))
+        composeRule.onNodeWithTag(ProjectTaskTags.item(book.id)).performTouchInput {
+            down(center)
+            advanceEventTime(viewConfiguration.longPressTimeoutMillis + 100)
+            repeat(6) { moveBy(Offset(0f, height * 0.15f)) }
+            up()
+        }
+        composeRule.waitForIdle()
+        assertEquals(listOf("reorder [Compare hotels, Book the flights, Visa from the embassy]"), calls)
+        // Before the state has the new order the row does not jump back, and the move actions follow the new order.
+        assertTrue(top(hotel) < top(book))
+        assertEquals(listOf("Move down"), actions(hotel))
+        assertEquals(listOf("Move up", "Move down"), actions(book))
+        // The view model shows the order while saving it ...
+        state = detail(holiday, listOf(hotel, book, visa))
+        composeRule.waitForIdle()
+        assertTrue(top(hotel) < top(book))
+        // ... and the server's order when the save was refused.
+        state = detail(holiday, listOf(book, hotel, visa))
+        composeRule.waitForIdle()
+        assertTrue(top(book) < top(hotel))
+        assertEquals(listOf("Move down"), actions(book))
+    }
+
+    /** Picks the first row up on the list and drags it past the middle of the second row, one frame per step. */
+    private fun pickUpFirstAndDragDownOneRow() {
+        val rowHeight = height(book)
+        val list = composeRule.onNodeWithTag(LiveListTags.LIST)
+        list.performTouchInput {
+            down(Offset(centerX, rowHeight / 2))
+            advanceEventTime(viewConfiguration.longPressTimeoutMillis + 100)
+            moveBy(Offset(0f, 1f))
+        }
+        repeat(6) {
+            list.performTouchInput { moveBy(Offset(0f, rowHeight * 0.15f)) }
+            composeRule.waitForIdle()
+        }
+    }
+
+    @Test
+    fun `a drag interrupted by a change of the tasks is not saved`() {
+        show(detail(holiday, listOf(book, hotel, visa)))
+        pickUpFirstAndDragDownOneRow()
+        // A task completed elsewhere arrives while the finger is still down: the drag ends without a drop.
+        state = detail(holiday, listOf(book, hotel))
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(LiveListTags.LIST).performTouchInput { up() }
+        composeRule.waitForIdle()
+        assertEquals(emptyList<String>(), calls.filter { it.startsWith("reorder") })
+        assertTrue(top(book) < top(hotel))
+    }
+
+    @Test
+    fun `a drag interrupted by going read-only is not saved and the list keeps the state's order`() {
+        show(detail(holiday, listOf(book, hotel, visa)))
+        pickUpFirstAndDragDownOneRow()
+        state = state.copy(offline = true)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(LiveListTags.LIST).performTouchInput { up() }
+        composeRule.waitForIdle()
+        assertEquals(emptyList<String>(), calls.filter { it.startsWith("reorder") })
+        assertTrue(top(book) < top(hotel))
+    }
+
+    @Test
+    fun `the add field and the move actions are labelled in English`() {
+        show(detail(holiday, listOf(book, hotel)))
+        composeRule.onNodeWithText("New task", useUnmergedTree = true).assertExists()
+        composeRule.onNodeWithContentDescription("Add task", useUnmergedTree = true).assertExists()
+        composeRule.onNodeWithTag(ProjectTaskTags.ADD_MAKE_NEXT).assertTextContains("Make it the next step")
+        assertEquals(listOf("Move up"), actions(hotel))
+    }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `the add field and the move actions are labelled in German`() {
+        show(detail(holiday, listOf(book, hotel, visa)))
+        composeRule.onNodeWithText("Neue Aufgabe", useUnmergedTree = true).assertExists()
+        composeRule.onNodeWithContentDescription("Aufgabe hinzufügen", useUnmergedTree = true).assertExists()
+        composeRule.onNodeWithTag(ProjectTaskTags.ADD_MAKE_NEXT).assertTextContains("Zum nächsten Schritt machen")
+        assertEquals(listOf("Nach oben verschieben", "Nach unten verschieben"), actions(hotel))
+    }
+
+    private fun height(task: GtdTask): Float =
+        composeRule
+            .onNodeWithTag(ProjectTaskTags.item(task.id))
+            .fetchSemanticsNode()
+            .size.height
+            .toFloat()
+
+    private fun top(task: GtdTask): Float =
+        composeRule
+            .onNodeWithTag(ProjectTaskTags.item(task.id))
+            .fetchSemanticsNode()
+            .boundsInRoot.top
 
     private fun actions(task: GtdTask): List<String> =
         composeRule

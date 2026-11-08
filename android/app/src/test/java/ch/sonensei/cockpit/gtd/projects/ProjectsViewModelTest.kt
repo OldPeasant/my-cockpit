@@ -1413,4 +1413,127 @@ class ProjectsViewModelTest {
                 vm.uiState.value.projectMessage,
             )
         }
+
+    private fun ProjectsViewModel.shownTasks(): List<GtdTask> = uiState.value.detail!!.tasks
+
+    private fun ProjectsViewModel.addedTask(): AddedTask? = uiState.value.detail!!.added
+
+    @Test
+    fun `adding a task without an open project does nothing`() =
+        test { vm ->
+            vm.addTask("Pack the bags", false)
+            coVerify(exactly = 0) { work0.addTask(any(), any(), any()) }
+            assertNull(vm.uiState.value.projectMessage)
+        }
+
+    @Test
+    fun `two tasks added with the same title are told apart, so the field clears for each`() =
+        test { vm ->
+            val answers = listOf(NextStepAdded(ActionOutcome.DONE, id(5)), NextStepAdded(ActionOutcome.DONE, id(6)))
+            coEvery { work0.addTask(holiday, "Pack the bags", false) } returnsMany answers
+            vm.open(holiday)
+            vm.addTask("Pack the bags", false)
+            val first = vm.addedTask()
+            vm.addTask("Pack the bags", false)
+            val second = vm.addedTask()
+            assertEquals(AddedTask(holiday.id, "Pack the bags", 1), first)
+            assertEquals(AddedTask(holiday.id, "Pack the bags", 2), second)
+            coVerify(exactly = 2) { work0.addTask(holiday, "Pack the bags", false) }
+        }
+
+    @Test
+    fun `an order being saved for one project does not reorder another project's tasks`() =
+        test { vm ->
+            val answer = CompletableDeferred<ActionOutcome>()
+            coEvery { work0.reorder(holiday.id, listOf(hotel.id, book.id)) } coAnswers { answer.await() }
+            vm.open(holiday)
+            vm.reorder(listOf(hotel.id, book.id))
+            assertEquals(listOf(hotel, book), vm.shownTasks())
+            // The fake serves the same tasks for every project: only the project the order is for shows it.
+            vm.open(garden)
+            assertEquals(listOf(book, hotel), vm.shownTasks())
+            vm.open(holiday)
+            assertEquals(listOf(hotel, book), vm.shownTasks())
+            answer.complete(ActionOutcome.DONE)
+        }
+
+    @Test
+    fun `a load that answers while the order is being saved keeps the new order, tasks not in it go last`() =
+        test { vm ->
+            val answer = CompletableDeferred<ActionOutcome>()
+            coEvery { work0.reorder(holiday.id, listOf(hotel.id, book.id)) } coAnswers { answer.await() }
+            vm.open(holiday)
+            vm.reorder(listOf(hotel.id, book.id))
+            // A load started before the save answers meanwhile, in the old order and with a task added elsewhere.
+            taskFlow.value = Live(listOf(book, hotel, visa))
+            assertEquals(listOf(hotel, book, visa), vm.shownTasks())
+            answer.complete(ActionOutcome.DONE)
+            assertEquals(listOf(hotel, book, visa), vm.shownTasks())
+            // The first load after saving: the server's order from now on.
+            taskFlow.value = Live(listOf(visa, hotel, book))
+            assertEquals(listOf(visa, hotel, book), vm.shownTasks())
+        }
+
+    @Test
+    fun `a failed load after saving keeps the saved order`() =
+        test { vm ->
+            coEvery { work0.reorder(holiday.id, listOf(hotel.id, book.id)) } returns ActionOutcome.DONE
+            vm.open(holiday)
+            vm.reorder(listOf(hotel.id, book.id))
+            taskFlow.value = Live(listOf(book, hotel), LoadError.FAILED)
+            assertEquals(listOf(hotel, book), vm.shownTasks())
+        }
+
+    @Test
+    fun `an older save that fails while a newer one runs does not undo the newer order`() =
+        test { vm ->
+            val first = CompletableDeferred<ActionOutcome>()
+            val second = CompletableDeferred<ActionOutcome>()
+            coEvery { work0.reorder(holiday.id, listOf(hotel.id, book.id, visa.id)) } coAnswers { first.await() }
+            coEvery { work0.reorder(holiday.id, listOf(hotel.id, visa.id, book.id)) } coAnswers { second.await() }
+            taskFlow.value = Live(listOf(book, hotel, visa))
+            vm.open(holiday)
+            vm.reorder(listOf(hotel.id, book.id, visa.id))
+            vm.reorder(listOf(hotel.id, visa.id, book.id))
+            first.complete(ActionOutcome.CONFLICT)
+            assertEquals(listOf(hotel, visa, book), vm.shownTasks())
+            assertEquals(
+                ProjectMessage(ProjectMessage.Kind.MOVED, "Plan holiday", ActionOutcome.CONFLICT, 0, 3),
+                vm.uiState.value.projectMessage,
+            )
+            second.complete(ActionOutcome.DONE)
+            assertEquals(listOf(hotel, visa, book), vm.shownTasks())
+        }
+
+    @Test
+    fun `an older save answering after a newer one was saved does not undo the newer order`() =
+        test { vm ->
+            val first = CompletableDeferred<ActionOutcome>()
+            val second = CompletableDeferred<ActionOutcome>()
+            coEvery { work0.reorder(holiday.id, listOf(hotel.id, book.id, visa.id)) } coAnswers { first.await() }
+            coEvery { work0.reorder(holiday.id, listOf(hotel.id, visa.id, book.id)) } coAnswers { second.await() }
+            taskFlow.value = Live(listOf(book, hotel, visa))
+            vm.open(holiday)
+            vm.reorder(listOf(hotel.id, book.id, visa.id))
+            vm.reorder(listOf(hotel.id, visa.id, book.id))
+            second.complete(ActionOutcome.DONE)
+            first.complete(ActionOutcome.FAILED)
+            assertEquals(listOf(hotel, visa, book), vm.shownTasks())
+            // The newer order was saved: the next load ends it.
+            taskFlow.value = Live(listOf(visa, book, hotel))
+            assertEquals(listOf(visa, book, hotel), vm.shownTasks())
+        }
+
+    @Test
+    fun `a move that cannot be saved offline goes back and says which task it was`() =
+        test { vm ->
+            coEvery { work0.reorder(holiday.id, listOf(hotel.id, book.id)) } returns ActionOutcome.OFFLINE
+            vm.open(holiday)
+            vm.move(hotel, -1)
+            assertEquals(listOf(book, hotel), vm.shownTasks())
+            assertEquals(
+                ProjectMessage(ProjectMessage.Kind.MOVED, "Compare hotels", ActionOutcome.OFFLINE, 1, 2),
+                vm.uiState.value.projectMessage,
+            )
+        }
 }

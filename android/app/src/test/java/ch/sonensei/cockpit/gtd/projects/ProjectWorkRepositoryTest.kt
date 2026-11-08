@@ -506,6 +506,43 @@ class ProjectWorkRepositoryTest {
             assertEquals(ActionOutcome.FAILED, repository.reorder(project.id, ids))
         }
 
+    @Test
+    fun `a saved order reloads only the projects, offline it reloads nothing`() =
+        runBlocking {
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}/order", json(taskPage(taskJson(1, "Book", "NEXT"))))
+            enqueueCacheReloads()
+            assertEquals(ActionOutcome.DONE, repository.reorder(project.id, listOf(book.id)))
+            assertEquals(1, requests("GET", PROJECTS).size)
+            assertTrue(requests("GET", TASKS).isEmpty())
+
+            dispatcher.requests.clear()
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}/order", status(503))
+            assertEquals(ActionOutcome.OFFLINE, repository.reorder(project.id, listOf(book.id)))
+            assertTrue(requests("GET", PROJECTS).isEmpty())
+        }
+
+    @Test
+    fun `adding a task offline creates nothing and reloads nothing`() =
+        runBlocking {
+            dispatcher.enqueue(TASKS, status(503))
+            assertEquals(NextStepAdded(ActionOutcome.OFFLINE, null), repository.addTask(project, "Pack the bags", true))
+            assertTrue(requests("GET", "$PROJECTS/${uuid(10)}").isEmpty())
+            assertTrue(requests("POST", "$PROJECTS/${uuid(10)}/next-step").isEmpty())
+            assertTrue(requests("GET", PROJECTS).isEmpty())
+        }
+
+    @Test
+    fun `a task created just before the server became unreachable is still reported, without a next step`() =
+        runBlocking {
+            dispatcher.enqueue(TASKS, json(taskJson(7, "Pack the bags", "NEXT")))
+            dispatcher.enqueue("$PROJECTS/${uuid(10)}", status(503))
+            assertEquals(
+                NextStepAdded(ActionOutcome.OFFLINE, UUID.fromString(uuid(7))),
+                repository.addTask(project, "Pack the bags", true),
+            )
+            assertTrue(requests("POST", "$PROJECTS/${uuid(10)}/next-step").isEmpty())
+        }
+
     private companion object {
         const val TIMEOUT = 10_000L
     }

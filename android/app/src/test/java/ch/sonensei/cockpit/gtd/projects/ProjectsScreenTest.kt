@@ -35,6 +35,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
@@ -679,6 +680,53 @@ class ProjectsScreenTest {
         show(list.copy(projectMessage = ProjectMessage(ProjectMessage.Kind.DROPPED, "Plan holiday", ActionOutcome.OFFLINE)))
         val text = "Not saved: the server is unreachable. Try again when you are online."
         composeRule.waitUntil(TIMEOUT) { composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    private fun waitForText(text: String) =
+        composeRule.waitUntil(TIMEOUT) { composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
+
+    private val taskAdded = ProjectMessage(ProjectMessage.Kind.TASK_ADDED, "Pack the bags", ActionOutcome.DONE)
+    private val taskMoved = ProjectMessage(ProjectMessage.Kind.MOVED, "Book the flights", ActionOutcome.DONE, 2, 3)
+
+    @Test
+    fun `a task added on the detail is confirmed in a snackbar, then dismissed`() {
+        show(detail(holiday, listOf(book)).copy(projectMessage = taskAdded))
+        waitForText("Added Pack the bags")
+        composeRule.waitUntil(TIMEOUT) { "dismiss project Pack the bags" in calls }
+    }
+
+    @Test
+    fun `a moved task says where it went`() {
+        show(detail(holiday, listOf(hotel, book, visa)).copy(projectMessage = taskMoved))
+        waitForText("Moved “Book the flights” to position 2 of 3.")
+    }
+
+    @Test
+    fun `an order that could not be saved offline says so`() {
+        val offline = ProjectMessage(ProjectMessage.Kind.MOVED, "Plan holiday", ActionOutcome.OFFLINE, 0, 2)
+        show(detail(holiday, listOf(book, hotel)).copy(projectMessage = offline))
+        waitForText("Not saved: the server is unreachable. Try again when you are online.")
+    }
+
+    @Test
+    fun `an order refused because the project changed elsewhere says it was reloaded`() {
+        val conflict = ProjectMessage(ProjectMessage.Kind.MOVED, "Plan holiday", ActionOutcome.CONFLICT, 0, 2)
+        show(detail(holiday, listOf(book, hotel)).copy(projectMessage = conflict))
+        waitForText("Plan holiday was changed elsewhere and has been reloaded. Try again.")
+    }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `an added task is confirmed in German`() {
+        show(detail(holiday, listOf(book)).copy(projectMessage = taskAdded))
+        waitForText("Pack the bags hinzugefügt")
+    }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `a moved task says where it went in German`() {
+        show(detail(holiday, listOf(hotel, book, visa)).copy(projectMessage = taskMoved))
+        waitForText("„Book the flights“ an Position 2 von 3 verschoben.")
     }
 
     private companion object {
