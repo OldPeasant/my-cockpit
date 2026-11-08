@@ -21,8 +21,9 @@ correspondents (`recipient-input.ts`, `GET /api/v1/mail/correspondents`) and att
   - verified (2026-11-08 17:00+0100 by rudi/agent-2): cd android && ./gradlew testDebugUnitTest (Attach menu -> 'Attach from Files' opens cockpit Files picker, folder navigation via FilesRepository.list, pick -> PUT draft attachments [{fileId}]; Robolectric Compose + ViewModel tests) -> pass
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 17:00+0100 by rudi/agent-2): MailComposeRecipientsFilesStringsTest (every new key in res/values/strings_mail_compose.xml has a values-de translation) + ./gradlew lintDebug -> pass
-- [~] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
   - skipped (2026-11-08 17:00+0100 by rudi/agent-2): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> pass (3871 tests); sh scripts/check.sh android -> all checks passed; sh scripts/check.sh: tfp+server passed, web step cannot run in this shell (Node v20.9.0, Angular needs >=22.22.3, nvm not usable here); task changes no web file; done re-runs .taskcheck
+  - verified (2026-11-08 17:47+0100 by Peter Gürtler): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> pass (3871 tests, rudi/agent-2); sh scripts/check.sh tfp+server+android -> pass (rudi/agent-2); sh scripts/check.sh web with Node v24.21.0 on dell26 at f66735308 -> all checks passed; done re-runs the full check
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
