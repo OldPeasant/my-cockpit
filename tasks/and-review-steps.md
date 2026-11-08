@@ -1,11 +1,11 @@
 ---
 title: Android weekly review: waiting, projects, next, someday steps
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [and-review-flow]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/review,android/app/src/test/java/ch/sonensei/cockpit/review,android/app/src/main/res/values/strings_review.xml,android/app/src/main/res/values-de/strings_review.xml]
 prio: 2
-lease_until: 
+lease_until: 2026-11-08T17:27:33Z
 releases: 1
 extended: 
 ---
