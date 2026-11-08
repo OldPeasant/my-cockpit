@@ -21,3 +21,4 @@ fetcher uses a 1 s timeout in the test; find out whether cancelling at the limit
 - [ ] `sh scripts/check.sh` passes
 
 ## Notes
+- ASSUMPTION (2026-11-08 23:45+0100 by dell26/agent-1): PageFetcher now forces HTTP/1.1: with HTTP/2 the per-fetch stream cancel on the shared connection made ~1 in 500 fetches fail (EOF reproduced at REPEATS=1000; TIMEOUT seen under load). Exact JDK-vs-Jetty mechanism not pinned down; HTTP/1.1 costs a new connection per truncated page, irrelevant for bookmark metadata
