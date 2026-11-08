@@ -12,7 +12,8 @@ Android's weekly review is read-only (SPEC.md §9.2 said "read-only first"; the 
 Android gets the full review). Web: `review-session.ts`, `steps/*`.
 
 ## Acceptance criteria
-- [ ] Start review / continue an open review (same server review session as web, resumable across devices)
+- [x] Start review / continue an open review (same server review session as web, resumable across devices)
+  - verified (2026-11-08 15:09+0100 by dell26/agent-2): ReviewFlowEdgeCasesTest/ReviewRepositoryFlowTest/ReviewWizardRouteInAppTest (start POSTs startWeeklyReview, Continue resumes the server's open review without start, step from server) via cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug at a51ef0aea -> pass, review package 130 tests 0 failures
 - [ ] Step navigation: next/previous, jump to a step, mark complete; progress shown
 - [ ] Step 1 Get clear: embedded inbox processing (reuse the Android inbox processing UI) plus a link to Mail
 - [ ] Steps 2/3 past/upcoming calendar with quick-add capture
