@@ -1,11 +1,11 @@
 ---
 title: Web mail images follow the synced image settings
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [web-back-navigation,fix-mail-images-firefox]
 touches: [web/src/app/features/mail/read,web/src/app/features/settings/general,web/src/locale]
 prio: 1
-lease_until: 2026-11-08T12:28:30Z
+lease_until: 
 ---
 ## Goal
 The server already stores `mailImagePolicy` (`block`|`allow`, default `block`) and `mailImageAllowedSenders`
@@ -35,3 +35,4 @@ Out of scope: Android (task and-mail-images). If "Load images" turns out not to 
 - ASSUMPTION (2026-11-08 12:30+0100 by dell26/agent-2): mailImageAllowedSenders entries match a sender by exact address (case-insensitive) or, when the entry has no local part (example.test or @example.test), by exact domain (no subdomains), as the API describes 'addresses or domains'. 'Stop' in the read view removes every entry that allows that sender (address and domain), so images are asked for again.
 - ASSUMPTION (2026-11-08 12:30+0100 by dell26/agent-2): The image settings live in Settings > General (rows 'Remote images in mail: Ask / Always load' and 'Always load images from' with Remove buttons); no add-sender field there, senders are added from the read view. The old localStorage list is merged when the read view first opens.
 - ASSUMPTION (2026-11-08 12:30+0100 by dell26/agent-2): With mailImagePolicy=allow the read view requests remoteImages=PROXY in its first load; if that load fails the page shows the normal error state (no fallback to a blocked load).
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 96s on d9b7613c9; criteria verified 6/6
