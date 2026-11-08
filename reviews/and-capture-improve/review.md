@@ -4,31 +4,34 @@ Date: 2026-11-08
 
 Task: and-capture-improve - Android capture: syntax preview, save and add another, attachments
 
-Scope: implementation commit e7c926f1f on top of base 9911c0d97 (`git diff 9911c0d..e7c926f1f -- android`), production code under `android/app/src/main/java/ch/sonensei/cockpit/capture/` and `res/values{,-de}/strings_share.xml`. Tests were being added at the same time by the test-writer and are not part of this review.
+Scope: the full task diff `git diff 7adc3abf4..016ce641d` (merge base with origin/main to HEAD). It covers production code under `android/app/src/main/java/ch/sonensei/cockpit/capture/{share,entry}`, `res/values{,-de}/strings_share.xml`, the five new test classes under `android/app/src/test/java/ch/sonensei/cockpit/capture/share/`, and the earlier review, fix and test reports. This is a re-review of the final code. It checks the fixes for CR-1..3 from the first review (done at a different commit hash before the rebase) and looks for new issues. No uncommitted changes.
 
 Requirements:
-- tasks/and-capture-improve.md (acceptance criteria 1-5, and the three recorded assumptions)
-- SPEC.md §4.5 (capture syntax), §9.3
+- tasks/and-capture-improve.md (acceptance criteria 1-5 and the three recorded assumptions)
+- SPEC.md §4.5 (quick capture, light syntax)
 - docs/ARCHITECTURE.md, docs/QUALITY.md, AGENTS.md project notes
-- Reference implementation: server/src/main/kotlin/ch/sonensei/cockpit/gtd/domain/CaptureParser.kt and CaptureService.parse
+- Reference for "same parsing rules": server/src/main/kotlin/ch/sonensei/cockpit/gtd/domain/CaptureParser.kt
+- reviews/and-capture-improve/fixes.md, reviews/and-capture-improve/tests.md
 
 Git range:
 - Branch: main
-- HEAD: e7c926f1f
-- Base/start: 9911c0d97130e1888803c2b9647ec982a80581b8
-- Commits reviewed: 1
+- HEAD: 016ce641d6c362ea47bcc928299b0ca658528ee5
+- Base/start: 7adc3abf42d567c81db59173e481e988a4d835ce
+- Commits reviewed: 4 (623e18915 implementation, 8a31f6fc7 WIP tests + first review, 6e73a222d fixes CR-1..3, 016ce641d final tests + test report)
 
-Summary: 0 P0, 0 P1, 0 P2, 3 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
 ## What was checked
 
-- **Parser parity:** `CaptureSyntax.parse` matches `CaptureParser.parse` line by line: the token regex, trailing punctuation, the rule that the first `#`/`!`/`^` wins, contexts accumulating (deduplicated by id), the `-`/`_` normalization for project titles, context names with or without the leading `@`, the `!today`/`!tomorrow`/ISO date rules, and the fallback to the next line when the title line holds only tokens. `splitLines` differs (it does not drop blank lines around the rest), but the result is the same because the fallback looks for the next non-blank line again. Title cutting is left out, and that is fine because the preview never displays the title.
-- **Project ordering:** the server filters ACTIVE, ON_HOLD and SOMEDAY projects that are not deleted, orders them by id in SQL (Postgres uuid order is byte order), then sorts them stably by status. `CaptureVocabularySource` sorts by the same status index and then by the id string. The ids are lowercase hex UUIDs, so string order equals byte order. Contexts are sorted by position and then id, as `findAllByOrderByPositionAscIdAsc` does on the server. The offline-cache limitation is recorded as an assumption.
-- **Due dates:** the preview uses the device date. `CaptureQueue` pins `!today`/`!tomorrow` with the device zone when it stores the capture (`RelativeDueDates`), so the chip shows the date the server will store.
-- **ViewModel concurrency:** `canSave` requires `!loadingFiles`, and `addFiles`/`removeFile` do nothing while `saving || saved`. So a save never starts while file names are still being read, and the reset to `ShareUiState(...)` after "save and add another" cannot discard a running file load (the `fileLoads` counter is 0 at that point). The text, notes, attach and remove controls are disabled while saving, so nothing typed during a save is lost by the reset. `lastSavedReadLater` is read from the unchanged in-flight state.
-- **URI grant lifetime:** `OpenMultipleDocuments` grants are owned by the receiving activity record. The record survives configuration changes, and `CaptureQueue.capture` copies the files synchronously inside the save, before `saved` is set and the activity finishes. Display names are read right away on IO. The copy into the offline queue therefore always happens while the grant is still valid.
-- **i18n:** all 7 new strings exist in `values/` and `values-de/`, with matching format arguments. The due date uses a locale-aware skeleton (`EEEMMMd`).
-- **Accessibility:** the attach IconButton has a content description and a 48 dp target. The remove icon carries "Remove <name>". The preview chips' text is readable, and their icons are decorative (`contentDescription = null`).
+- **CR-1 fix (ASCII whitespace):** `CaptureSyntax.TOKEN` and `WHITESPACE` now use `[ \t\n\u000B\f\r]`, which is exactly OpenJDK's `\s`. ICU's `\s` is `[\t\n\f\r\p{Z}]`, so the fix removes U+00A0/U+202F and also adds VT to match the server. That is correct. `ISO_DATE` still uses `\d` (Unicode digits under ICU), but `LocalDate.parse` uses `DecimalStyle.STANDARD`, which rejects non-ASCII digits. The result is therefore the same as on the server. Other than this, a line-by-line comparison with `CaptureParser.parse` shows parity: first `#`/`!`/`^` wins, contexts accumulate and are deduplicated, punctuation takes the token's place, and the next line is used when the title line holds only tokens. The `splitLines` difference does not change the preview.
+- **CR-2 fix (remove only via close button):** `FileChip` is now a non-clickable `Surface`. Only the 48 dp `IconButton` (`share:remove-file`, "Remove %1$s", disabled while saving) removes a file. The test "a tap on the attachment's name does not remove it, only its close button does" asserts that the chip has no `OnClick` action and that a tap on the name removes nothing.
+- **CR-3 fix (toast after process death):** `SavedAndClearedToast` uses plain `remember { mutableIntStateOf(state.savedAndCleared) }`. On a rotation the ViewModel survives and the counter restarts at the current count, so no toast repeats. After process death both sides start at 0. The two `StateRestorationTester` tests check both paths, and the process-death test would fail with the former `rememberSaveable`.
+- **ViewModel state:** `canSave` requires `!loadingFiles`. `addFiles`/`removeFile`/`onDestinationChange` do nothing while `saving || saved`. The `fileLoads` counter is 0 when `finish(addAnother = true)` replaces the state, so the reset cannot drop a file-name load that is still running. `lastSavedReadLater` is read from the in-flight state, whose destination cannot change during a save. A failed add-another save keeps the form and shows the error. The TOO_MANY_FILES error is set on pick, cleared when enough files are removed, and checked again in `save`.
+- **Offline vocabulary:** `CaptureVocabularySource` reads only the Room GTD cache, filters ACTIVE/ON_HOLD/SOMEDAY, and orders projects by status index and then by id string. Lowercase UUID strings sort like Postgres uuid byte order. Contexts are ordered by position and then id. A cache error degrades to an empty vocabulary. The stale-cache limitation is recorded as an assumption.
+- **Attach picker:** `OpenMultipleDocuments` with `*/*`. A cancelled pick (empty list) is ignored. The button is hidden for read-later, and attaching files hides the read-later choice (`offersReadLater`). Picked files take the same path into `CaptureQueue.capture` as shared files, so they are copied into the offline queue on save (covered by "picked files are copied into the offline queue on save and survive the source going away").
+- **i18n:** all 7 new strings exist in `values/` and `values-de/` with matching `%1$s` arguments. German rendering is tested with `@Config(qualifiers = "de")`.
+- **Tests:** the five test classes test behavior through public APIs and the real Hilt/Room/activity stack (`ShareAddAnotherActivityTest`). They contain no sleeps, ignores or weakened assertions. The two assertions the test-writer changed (`EditableText` instead of `assertTextEquals("")`) are correct, because an empty field's `Text` semantics contain the placeholder.
+- **Security/privacy:** the change adds no logging and no network calls. File names are read from the provider only for display.
 
 ## P0 Critical
 
@@ -44,27 +47,17 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | `\s`/`\S` in CaptureSyntax are Unicode-aware on the Android runtime but not on the server JVM**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/capture/share/CaptureSyntax.kt:62`
-    - Category: Correctness
-    - Problem: `TOKEN = Regex("""(^|\s)([#@!^])(\S+)""")` (and `WHITESPACE`) is copied from the server. On the server (OpenJDK `java.util.regex`) `\s` is only `[ \t\n\x0B\f\r]`. Android's regex engine is ICU-based, and there `\s` also matches Unicode spaces such as U+00A0 (no-break space) and U+202F. For a title like `Call @phone` the device shows an `@phone` chip, but the server treats the text as one word and creates no context. The JVM unit tests run on OpenJDK, so they cannot catch this.
-    - Why it matters: criterion 1 asks for "same parsing rules as web". The difference only appears with pasted or shared text that contains no-break spaces, so the impact is small.
-    - Suggested fix: use explicit ASCII classes in `TOKEN` and `WHITESPACE` (for example `[ \t\n\u000B\f\r]` and its negation) so both runtimes behave the same. `RelativeDueDates` has the same pattern from before this task.
+- [ ] **CR-1 | The widget/tile capture sheet's new wiring has no activity-level test**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/capture/entry/CaptureActivity.kt:43-53`
+    - Category: Tests
+    - Problem: the task's third assumption says both capture sheets (share target and widget/tile/shortcut) get "save and add another", the confirmation toast and the attach picker. `ShareActivity` has an end-to-end test of this wiring (`ShareAddAnotherActivityTest`). For `CaptureActivity`, no test uses `SAVE_ANOTHER`, `ATTACH` or `SavedAndClearedToast`: `CaptureEntryPointsTest` covers only the existing behavior. If someone deleted the three new lambdas or the toast call in `CaptureActivity`, every test would still pass.
+    - Why it matters: criterion 5 asks for tests that cover the new behavior. The wiring is trivial and shares the tested composable and ViewModel, so the risk is low.
+    - Suggested fix: add one Robolectric test to `CaptureEntryPointsTest` (or a sibling test in `capture/share`, to stay inside the task's touches) that launches `CaptureActivity`, types a title, taps "Save and add another", and then asserts that the activity stays open, the field is empty, one capture is queued and "Saved to Inbox" is toasted.
 
-- [ ] **CR-2 | Tapping anywhere on an attachment chip removes it immediately**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/capture/share/CaptureSheet.kt:279-283`
-    - Category: Quality
-    - Problem: `FileChip` wires `onClick = { onRemove?.invoke(file.uri) }` on the whole `InputChip`. Only the trailing close icon looks like a remove action, but a tap on the file name removes the file too, with no undo. With TalkBack the whole chip is a single "activate" action. Before this change the chips were inert (`enabled = false`).
-    - Why it matters: an accidental tap drops an attachment, and with a shared file there is no way to pick it again from the sheet's original source.
-    - Suggested fix: make only the trailing icon remove the file (a small clickable or IconButton with the existing "Remove %1$s" description), and keep the chip body without an action, or add an undo.
+## Notes (not findings)
 
-- [ ] **CR-3 | No "Saved" toast after process death once "save and add another" has been used**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/capture/share/ShareActivity.kt:76-83`
-    - Category: Correctness
-    - Problem: `shown` is kept in `rememberSaveable`, but `ShareUiState.savedAndCleared` lives only in the ViewModel. After process death the ViewModel starts again at 0 while `shown` comes back as N. The next N saves with "save and add another" then fail `savedAndCleared > shown` and show no confirmation.
-    - Why it matters: the user gets no feedback that the capture was queued, although the sheet clears. This is rare (the process has to be killed while the sheet is open), and no data is lost.
-    - Suggested fix: keep `shown` in plain `remember`, or store the counter in `SavedStateHandle` so that both sides survive together.
+- `capture/queue/RelativeDueDates.kt:15` still uses `\s`/`\S`. On a device, a `!today` that follows a no-break space is therefore pinned to a date in the queued text, while the preview, which now matches the server, does not treat it as a token. This existed before the task, the file is outside the task's `touches`, and fixes.md already records it. A follow-up task could align it.
 
 ## Review conclusion
 
-No material issues found. The three P3 findings are optional improvements. Criterion 5 (tests, plus `ktlintCheck testDebugUnitTest lintDebug` and `scripts/check.sh`) was outside this review because the test-writer was still adding tests, and `tasks.py verify` showed no criterion verified yet at review time.
+No material issues found. All three findings of the first review are fixed correctly and covered by regression tests. CR-1's regression test is limited by the JVM, as tests.md states. The only new finding is an optional P3 test gap.
