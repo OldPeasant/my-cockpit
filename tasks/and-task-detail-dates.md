@@ -1,11 +1,11 @@
 ---
 title: Android task detail: scheduled, tickler, recurrence, all lists
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-3
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/test/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml]
 prio: 2
-lease_until: 
+lease_until: 2026-11-08T14:44:05Z
 extended: 
 releases: 0
 hold: 
