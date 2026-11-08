@@ -4,56 +4,77 @@ Date: 2026-11-08
 
 Task: and-journal-full - Android journal: other days, mood, tags, calendar, on this day
 
-Scope: `git diff 97b3c6e6537cffaa9dc5c94b8bffc7c6d35c4295 6d24e9619cb22a8b11bd6b5db8f85515c732e9af -- android/` (commits 9a25ac62, 2050e337, 3de61858, 6d24e961). Only committed code at 6d24e961 was reviewed. Uncommitted test files a test-writer may be adding in the working tree were ignored. This is a re-review: it checks the fixes for CR-1 to CR-4 of the previous review (described in `reviews/and-journal-full/fixes.md`) and looks for new issues.
+Scope: `git diff 3a37b31d..62026e6a` (base = `git merge-base HEAD origin/main`), the whole task diff. This is the final re-review. It checks the fixes for the two P3 findings of the previous round (CR-1: a camera photo goes to today after process death; CR-2: on this day says "none" while loading, fixed in bc8e86ff) and the date picker tests added in 62026e6a. Only committed code was reviewed, and the working tree was clean.
 
 Requirements:
-- `tasks/and-journal-full.md`: acceptance criteria and the three recorded assumptions (save before navigating, with DAY_NOT_SAVED and no navigation during an upload; the week starts on the device locale's first day; the `save`/`saveEntry` split)
-- SPEC.md §8.5 (journal), docs/PARITY.md, AGENTS.md project notes (EN and DE strings, lint, conventions)
-- Web reference `web/src/app/features/journal/journal-page.ts` (`savedSince`)
-- The previous review and the fix report in `reviews/and-journal-full/`
+- `tasks/and-journal-full.md`: the six acceptance criteria and three recorded assumptions (save before navigating, with DAY_NOT_SAVED and no navigation during an upload; the week starts on the device locale's first day; the `save`/`saveEntry` split)
+- SPEC.md §8.5 (journal: "Today", calendar heatmap, on this day), docs/ARCHITECTURE.md, AGENTS.md project notes (EN and DE strings, lint, conventions)
+- Previous rounds in `reviews/and-journal-full/` (`review.md`, `fixes.md`, `tests.md`)
 
 Git range:
 - Branch: main
-- HEAD: 6d24e9619cb22a8b11bd6b5db8f85515c732e9af
-- Base/start: 97b3c6e6537cffaa9dc5c94b8bffc7c6d35c4295
-- Commits reviewed: 4 (9a25ac62, 2050e337, 3de61858, 6d24e961)
+- HEAD: 62026e6a9c73c9db0f8a0dbd346fb2b33d3e920c
+- Base/start: 3a37b31d (merge-base with origin/main)
+- Commits reviewed: 7 (9cb2c85d, 75ffde56, 60018728, 41597913, 4ef85c16, bc8e86ff, 62026e6a)
+
+Commands run by the reviewer:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug --console=plain`: BUILD SUCCESSFUL. All tasks were up to date for HEAD 62026e6a. The test results add up to 4584 tests, with 0 failures, 0 errors and 0 skipped.
+- `python tasks.py verify and-journal-full` (listing only): all 6 criteria are still unverified.
+- `sh scripts/check.sh` was not run. Its server part needs Docker for Testcontainers, and Docker is not available here.
 
 Summary: 0 P0, 0 P1, 0 P2, 2 P3
 
 ## Verification of previous findings
 
-- **CR-1 (photo goes into the wrong day): fixed.**
-    - `JournalRoute.upload` (`JournalScreen.kt:184-188`) reads the shown day before `NotePhotoFiles.read` runs.
-    - `addPhoto` (`JournalViewModel.kt:392-428`) refuses with PHOTO_DAY_CHANGED when that day is no longer shown or a navigation is active.
-    - The upload result is checked against the captured date again. In practice this cannot fail, because `openDay` refuses while `uploading` is set.
-    - Three tests cover it: a photo during the navigation's save, a photo picked during a navigation, and a photo read for a day that is no longer shown (`JournalDaysRaceViewModelTest.kt:223`, `:257`, `:278`).
-    - EN and DE strings were added and are mapped in `MessageBanner`.
-- **CR-2 (missing tests for out-of-order answers and the navigation guards): fixed.**
-    - `JournalDaysRaceViewModelTest` holds answers back with `CompletableDeferred` for:
-        - a late load of the day that was left;
-        - a late month answer;
-        - navigation while a save runs;
-        - Today cancelling a running navigation;
-        - no navigation during an upload;
-        - a stale on-this-day answer.
-    - The production bug these tests exposed is fixed: a late on-this-day answer for the same day replaced the newer one. Each request now cancels the previous one through `onThisDayJob` (`JournalViewModel.kt:164-165`).
-- **CR-3 (a save during a month load loses its mark): fixed.**
-    - This mirrors the web: `savedSince` is cleared when a month request starts (`:213`), filled on each successful save (`:340`), and merged over the server answer (`:217-224`).
-    - The merge set is read after the answer arrives, so saves that complete while the request runs are included.
-    - Covered by the test at `:294`.
-- **CR-4 (date labels in the default locale): fixed.** The heading (`JournalScreen.kt:385`) and each calendar day's label (`:521`) now use `dateFormat.withLocale(LocalLocale.current.platformLocale)`.
-- **The two test changes in 6d24e961 are corrections, not weakenings.**
-    - The tags test now uses a state that follows `setTags`, like the view model.
-    - The German test scrolls to the calendar before checking that it is displayed.
-    - Both keep their original assertions.
+- **CR-1 (camera photo after process death): fixed.**
+    - `JournalRoute` stores the day the camera or gallery was opened for in a `rememberSaveable` `photoDay` (`JournalScreen.kt:187`, set at `:215`).
+    - `upload` passes that day to `addPhoto` (`:191-193`).
+    - `addPhoto` refuses a day that is not shown with PHOTO_DAY_CHANGED (`JournalViewModel.kt:404-407`).
+    - `JournalPhotoAfterRestoreRouteTest` covers both sides with `StateRestorationTester` and a stand-in result registry:
+        - recreated on today: the photo is refused;
+        - the same day is still shown: the photo is added.
+    - When the camera or gallery is cancelled, `photoDay` is left stale. This does no harm, because every launch overwrites it before a result can arrive.
+- **CR-2 (on-this-day loading state): fixed.**
+    - `onThisDayLoading` is set in `load()` for the requested day (`JournalViewModel.kt:167`).
+    - Success and failure both clear it, but only for the shown day (`:193-201`). Earlier requests are cancelled through `onThisDayJob`.
+    - `OnThisDay` shows a labelled progress indicator before it checks for failure or no entries (`JournalScreen.kt:650-658`).
+    - The view-model tests in `JournalLateAnswersViewModelTest` cover the loading flag, a failed answer, and a late answer for a day already left. The screen tests are in `JournalDaysScreenStatesTest`.
+    - The new EN and DE string exists in both files.
+- **62026e6a**: `JournalDatePickerScreenTest` checks that:
+    - choosing a different day in the picker opens that day;
+    - days after today are disabled.
+  This fills the gap noted in `tests.md`.
+
+## Whole-diff check against the criteria
+
+1. **Previous/next day, Today, date picker; other days editable.** `openDay` limits navigation to today. It saves pending changes in the app-wide `saves` scope before showing another day; a cancelled navigation does not cancel that save. If the save fails or a conflict waits, the day stays open with DAY_NOT_SAVED, as the recorded assumption says. It ignores clicks while a photo uploads. `show()` resets the per-day state, and `loadJob` plus the date guards drop late answers. Met.
+2. **Mood and tags.**
+    - The mood can be set, changed and cleared.
+    - The tags are parsed as a comma list, with no duplicates (case ignored) and a leading `#` removed. They are compared without regard to order or case.
+    - A conflict resolution keeps or replaces mood and tags together with the text.
+    - `saveEntry` sends mood and tags.
+    - `save(date, base, text)` keeps `ReflectionSaver`'s behavior: it keeps the base's mood and tags.
+   Met.
+3. **Month calendar.**
+    - Each new request cancels the previous one through `monthJob`, and an answer for a different month is ignored.
+    - Saves made after a month request starts are merged into its answer through `savedSince`, as on the web.
+    - Days after today are not clickable, and the next-month button stops at the current month.
+    - Weekday names, the month title and each day's label use the composition locale.
+   Met.
+4. **On this day.** The repository keeps only earlier dates. The list shows the year, how many years ago (as a plural), and an excerpt. A tap opens that day. Met.
+5. **EN and DE strings.** Every new key, including the plural and the loading text, is in both `values/` and `values-de/`. `JournalGermanTest` checks that each language has the same keys, and lint `MissingTranslation` passes. Met.
+6. **Tests and checks.**
+    - The new behavior is covered in depth, including race, late-answer, locale and process-death tests.
+    - The changes to the existing `JournalViewModelTest` and `JournalRouteInAppTest` only move them from `save(...)` to `saveEntry(...)`. They match the draft by its text and keep their assertions.
+    - The Android command passes (see above).
+    - `sh scripts/check.sh` could not be run here because Docker is missing. The parent must record that part as skipped with this reason, not as passed.
 
 Also checked and found sound:
-- **Navigation.** A save is joined in the `saves` scope, so cancelling a navigation never cancels the save. The `saving` mutex makes the second save a no-op. Going back to the shown day during a navigation cancels that navigation and stays on the day.
-- **Stale answers.** The `loadJob`, `monthJob` and `onThisDayJob` cancellations and the date and month guards keep a late answer from replacing a newer one.
-- **Conflicts.** Resolving a conflict keeps or replaces mood and tags together with the text.
-- **Tags.** Tags are compared ignoring case and order, like the server.
-- **Date picker and calendar.** Neither allows a day after today.
-- **Strings.** Every new key exists in `values/` and `values-de/`, including the plural.
+- Only one owner changes each piece of state: the view model.
+- The `saving` mutex and `isSaved()` prevent duplicate saves.
+- `savedSince` and `state` are only touched on the main dispatcher.
+- No secrets and no logging of note contents.
+- The changes stay inside the task's `touches`.
 
 ## P0 Critical
 
@@ -69,25 +90,30 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | A camera photo returned after process death is added to today, not to the day it was taken for**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/journal/JournalScreen.kt:184-193` (with `JournalViewModel.kt:129`)
+- [ ] **CR-1 | "Today" goes stale when the screen stays open past midnight**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/journal/JournalViewModel.kt:131` and `:246-247` (used in `JournalScreen.kt:358` and `:379-384`)
     - Category: Correctness
-    - Problem: `cameraUri` and `insertAt` are kept in `rememberSaveable`, so a camera result still arrives after Android killed the process while the camera app was open. The shown day is not saved, though. The view model has no `SavedStateHandle` and starts again on `LocalDate.now(clock)`. `upload()` reads the day when the result arrives, not when the camera was launched. The recreated view model therefore accepts the photo as today's and inserts it into today's entry, at a cursor index taken from the other day's body, and saves it. Before this task the journal only showed today, so this could not happen.
-    - Why it matters: the CR-1 fix guarantees that a photo is added to the day it was taken for or not at all. This path breaks that guarantee and puts a photo into another day's saved entry. It is rare (process death during a camera capture), and the photo appears in the visible entry, so the user can see what happened.
-    - Suggested fix: remember the day the photo is for when the camera or gallery is launched, in `rememberSaveable` next to `cameraUri`/`insertAt`, and pass that day to `addPhoto`. `addPhoto` then refuses with PHOTO_DAY_CHANGED. Optionally, also keep the shown day in a `SavedStateHandle`.
+    - Problem: `JournalUiState.today` is set when the view model is created and is only refreshed in `openDay`. The view model is scoped to the navigation entry, so it can live overnight. After midnight, until the user navigates:
+        - the heading still labels the previous day "Today";
+        - `isToday` stays true, so the Today button is hidden;
+        - the next-day button stays disabled (`canGoForward`);
+        - the date picker and the calendar refuse the new day.
+      Getting there takes a detour: go to the previous day, then tap Today. The test `after midnight Today opens the new day...` calls `openToday()` on the view model directly, so it does not catch that the screen hides that button.
+    - Why it matters: a confusing label and navigation for anyone who keeps the app open overnight. No data is lost.
+    - Suggested fix: refresh `today` from the clock when the screen resumes, or derive `isToday`/`canGoForward` from the clock each time state is emitted. Any lifecycle-resume hook works.
 
-- [ ] **CR-2 | "No entries from this day in earlier years" shows while the earlier years are still loading**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/journal/JournalScreen.kt:318` and `:643` (state in `JournalViewModel.kt:86-87`, `:164-165`)
+- [ ] **CR-2 | `JournalDraft.isEmpty` is unused in production code**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/journal/JournalRepository.kt:45-46`
     - Category: Quality
-    - Problem: `OnThisDay` is shown as soon as the entry has loaded (`!state.loading`). `JournalUiState` has no loading flag for on-this-day, and `show()` starts every day with `onThisDay = emptyList()`. When `get` answers before `onThisDay`, the section says there are no earlier entries, and then entries appear. On a slow connection this can last seconds.
-    - Why it matters: the section briefly claims something false. A user who opens a day and reads "none" may navigate away before the real entries appear.
-    - Suggested fix: add an `onThisDayLoading` flag. Set it in `load()`, clear it in `loadOnThisDay`, and while it is set show nothing (or a small progress indicator) instead of the "none" text.
+    - Problem: the property's doc says "a day without an entry stays without one", but no production code reads it. That rule is actually enforced by `isSaved()`, which compares the draft with `null.draft`. `isEmpty` is only exercised by `JournalTextTest`. `tests.md` noted the same.
+    - Why it matters: dead API with a doc that claims a behavior it does not enforce. That misleads the next person who changes the "create only with content" rule.
+    - Suggested fix: remove `isEmpty` and its test, or use it in `isSaved()` for the `entry == null` case.
 
 ## Notes for the parent worker (not findings)
 
-- `python tasks.py verify and-journal-full` shows all six criteria as not yet verified. Evidence still has to be recorded.
-- According to `fixes.md`, `sh scripts/check.sh` fails here because Docker is missing for the server's Testcontainers tests. Criterion 6 names that command, so it has to pass, or the criterion has to be recorded as skipped with that reason. It cannot be claimed as passed.
+- All six criteria are still unverified in `tasks.py verify`. Record evidence for each.
+- For criterion 6, record the Android command result as passed. Record the `sh scripts/check.sh` part as skipped, with Docker missing for the server Testcontainers as the reason, unless it can be run somewhere with Docker.
 
 ## Review conclusion
 
-No material issues found. All four earlier findings are correctly fixed and have regression tests. The two remaining P3 items are minor and may be fixed or accepted at the parent worker's discretion.
+No material issues found. The previous round's CR-1 and CR-2 are correctly fixed and have regression tests, and the date picker tests close the remaining test gap. The two new P3 items are optional cleanups that the parent worker may fix or accept.
