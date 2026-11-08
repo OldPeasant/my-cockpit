@@ -4,7 +4,13 @@ Date: 2026-11-08
 
 Task: and-cal-event-fields - Android events: reminders, attendees, invitations, time zone, links
 
-Scope: committed changes eb07e0e35..1490f8a043e72fee7d8e1bb4ded35f4f200b5d9a (task commits 474eae4b6, 07d8a3f9c, bdff4e363, 1b2466dd1, 85fad8305, merged in 1490f8a04). This covers Android only: `android/app/src/main/java/ch/sonensei/cockpit/calendar/edit`, its tests, and `res/values{,-de}/strings_calendar_edit.xml`. Uncommitted changes: none (working tree clean). Reviewed revision: 1490f8a043e72fee7d8e1bb4ded35f4f200b5d9a.
+Scope: committed changes eb07e0e35..aa03d8eb8f3802def2d8fbc65dc821a227779e58. This includes:
+- task commits 474eae4b6, 07d8a3f9c, bdff4e363, 1b2466dd1 and 85fad8305, merged in 1490f8a04;
+- test-writer commit aa03d8eb8, which changes only test files and `reviews/`.
+
+The history was later rebased. The current HEAD 29785efa8b4c025023c531efa602080c7e3eea63 has the same code: `git diff --stat aa03d8eb HEAD -- android api server web` is empty.
+
+It covers Android only: `android/app/src/main/java/ch/sonensei/cockpit/calendar/edit`, its tests, and `res/values{,-de}/strings_calendar_edit.xml`. Uncommitted changes: none apart from this report. Reviewed revision: aa03d8eb8f3802def2d8fbc65dc821a227779e58.
 
 Requirements:
 - tasks/and-cal-event-fields.md (six acceptance criteria and the four recorded assumptions in Notes)
@@ -15,19 +21,20 @@ Requirements:
 
 Git range:
 - Branch: main
-- HEAD: 1490f8a043e72fee7d8e1bb4ded35f4f200b5d9a
+- HEAD: aa03d8eb8f3802def2d8fbc65dc821a227779e58 (code-identical rebased HEAD: 29785efa8b4c025023c531efa602080c7e3eea63)
 - Base/start: eb07e0e35
-- Commits reviewed: 6 (5 task commits and 1 merge)
+- Commits reviewed: 7 (6 task commits and 1 merge)
 
 Commands run (read-only):
-- `git log --oneline eb07e0e3..HEAD`, `git diff --stat eb07e0e3 HEAD` -> 16 files, +3640/-43
-- `git diff eb07e0e3 HEAD -- CalendarWithEditor.kt EventEditRepository.kt EventEditorScreen.kt`
-- Full read of EventEditorViewModel.kt, EventExtrasRepository.kt, EventEditorExtrasState.kt, EventForm.kt, EventEditorSections.kt and EventEditorScreen.kt at HEAD
+- `git log --oneline eb07e0e3..1490f8a04`, `git diff --stat eb07e0e3 1490f8a04` -> 16 files, +3640/-43
+- `git diff eb07e0e3 1490f8a04 -- CalendarWithEditor.kt EventEditRepository.kt EventEditorScreen.kt`
+- Full read of EventEditorViewModel.kt, EventExtrasRepository.kt, EventEditorExtrasState.kt, EventForm.kt, EventEditorSections.kt and EventEditorScreen.kt
 - `git grep` of api/openapi.yaml for the invitations and links endpoints. The client request shapes match: method REQUEST/CANCEL, accountId, optional recipients; listLinks `type`/`id` query.
 - `git grep` of the test names. EventEditorViewModelExtrasTest.kt has 36 tests, including:
     - the two links-race regression tests (`an older links answer arriving last does not hide a newly created task`, `a links reload while one is pending shows the newer answer`);
     - the late-answer tests for suggestions, accounts and a closed editor.
 - CalendarEditStringsTest.kt has 4 tests, covering EN/DE presence, placeholders and real translations.
+- `git show aa03d8eb -- android`, `git diff --stat 1490f8a04 aa03d8eb` -> 2 test files changed (+39 lines), no production code changed
 - I did not run Gradle in the reviewer session. The parent must run and record the criterion 6 commands itself.
 
 Summary: 0 P0, 0 P1, 0 P2, 4 P3
@@ -37,6 +44,14 @@ Re-validation of the previous review (f4822f89): all four P3 findings are still 
 - `reset()` also cancels the pending load (:306), so an answer cannot leak into the next editor session.
 - `createLinked` uses a separate `linksJob`, so a running create is not cancelled by a reload.
 - The reload that follows a create cancels any older load that is still pending.
+
+Test-writer delta (aa03d8eb8): no findings.
+- `EventFormExtrasTest` `the invitation prompt sends only over a loaded account, with someone to tell, and not twice` checks every condition of `InvitationUiState.canSend`: account picked, accounts loaded and containing it, not sending, and someone to send to (guests, or removed guests with `tellRemoved`). Each negative case changes one condition at a time.
+- `EventEditorExtrasScreenTest` `a links reload keeps the shown items, and nothing is created while the event saves` checks two things against `LinksSection`:
+    - During a reload, the existing items stay visible and no loading note is shown (the `links.loading && links.items.isEmpty()` branch).
+    - The create buttons are disabled while saving (`canCreate = !state.loading && !state.saving`).
+  The asserted text "Loading linked items…" matches `calendar_edit_links_loading` in `res/values/strings_calendar_edit.xml:111`.
+- Neither test covers CR-1 (what a retry sends after a partial failure). CR-1 stays open.
 
 ## P0 Critical
 
@@ -90,7 +105,7 @@ All six acceptance criteria are covered in code:
 - An editable time zone, sent as `timeZone` with recalculated `start`/`end`.
 - A read-only list of linked items (and-links-panel is not done). Create task (INBOX) and Create note each create the item, then link it to the event, as the web does.
 - EN and DE strings, checked by `CalendarEditStringsTest`.
-- Unit and Compose tests, including the race and late-answer cases.
+- Unit and Compose tests, including the race and late-answer cases and the two test-writer tests from aa03d8eb8.
 
 Architecture: the new API access goes through `EventExtrasRepository` with the shared `calendarCall` mapping. No secrets or message bodies are logged. All code changes are under `calendar/edit` and its tests and string files, inside the task's `touches`.
 

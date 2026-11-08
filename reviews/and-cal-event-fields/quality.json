@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "task": "and-cal-event-fields",
+  "reviewed_revision": "29785efa8b4c025023c531efa602080c7e3eea63",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-cal-event-fields/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-cal-event-fields/review.md"},
+    "fixer":         {"status": "not_required", "reason": "No P0-P2 findings and no production bugs; the 4 P3 review findings are accepted as non-blocking (see notes)"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "Retry after a partial send (guests invited, cancellation to removed guests failed) re-sends the invitation to guests; rare double mail of an idempotent iTIP REQUEST, not worth another fix/review round"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "No client-side stop at the server's 20-reminder limit; the server rejects and the editor shows the generic save error, nothing is lost"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "'Save your changes first' hint and guest input linger after undo/failed save/reload; cosmetic, cleared when the editor closes"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "Date in 'Create task/note from event' title uses the event's time zone instead of the user's; differs only for timed events near midnight in another zone, title is editable"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
