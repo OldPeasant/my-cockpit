@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "and-task-reminders",
+  "reviewed_revision": "4be818e65e48e61f0a11a60151fa4619b7478c23",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-task-reminders/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-task-reminders/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-task-reminders/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "no unit tests; test-writer added TaskRemindersTest, TaskRemindersContentTest, OpenItemRequestTaskTest, ReminderUiTest case; fixer verified coverage of the listed gaps"},
+    {"id": "TW-1", "source": "test-writer", "severity": "High", "disposition": "fixed",
+     "note": "TaskRemindersSection crashed outside Hilt; fixer added the LinkedItemsSection-style guard, test added"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.task.*' --tests 'ch.sonensei.cockpit.reminders.*' --tests 'ch.sonensei.cockpit.ui.*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
