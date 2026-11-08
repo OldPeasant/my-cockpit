@@ -6,6 +6,8 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import okhttp3.MultipartBody
 import retrofit2.Response
@@ -103,10 +105,12 @@ data class AddressRequestDto(
 )
 
 /** Keeps an attachment of the current version (`partId`) or adds a file of the drive (`fileId`): exactly one is set. */
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class AttachmentRefDto(
-    val partId: String? = null,
-    val fileId: String? = null,
+    // Left out when unset: the server takes exactly one of them, and the API's Json writes defaults.
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val partId: String? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val fileId: String? = null,
 )
 
 @Serializable
