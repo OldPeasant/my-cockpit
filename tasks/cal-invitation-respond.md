@@ -20,3 +20,4 @@ but neither client calls it.
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 23:05+0100 by felix/agent-1): EventResponse has no 'self attendee' flag: clients show Accept/Maybe/Decline for events of GOOGLE/MICROSOFT calendars that are not read-only and have attendees; the current status is the attendee whose email matches one of the user's mail account addresses (none -> no status highlighted). Server answers 409 when the user organizes/is not invited; the client shows that error. No server change.
