@@ -6,11 +6,12 @@ import { Api, search, SearchGroupResponse } from '../../api/generated';
 import { SILENT_ERRORS } from '../../core/http';
 import { itemTypeLabel } from '../../shared/links/item-type';
 import { PaletteItem, PaletteProvider } from '../../shell/shell-tokens';
+import { parseSearchQuery } from './search-query';
 
 /** Wait after the last keystroke before asking the server. */
 export const SEARCH_DEBOUNCE_MS = 200;
 
-/** Shorter queries (trimmed) find too much to be useful and are not sent. */
+/** Shorter queries (trimmed, without a `type:` filter) find too much to be useful and are not sent. */
 export const SEARCH_MIN_LENGTH = 2;
 
 /** Maximum results of one palette search (all groups together). */
@@ -19,6 +20,7 @@ export const SEARCH_LIMIT = 20;
 /**
  * Global search rows of the command palette (SPEC.md §4.4): `GET /api/v1/search`, one palette group
  * per item type in the server's order, best match first. Choosing a row opens its deep link.
+ * A `type:` word limits the search to those types (`type:note passport`, see `parseSearchQuery`).
  *
  * Out-of-order safe: the palette drops the subscription of the previous query, which cancels its
  * pending debounce timer or HTTP request, so an older answer can never replace a newer one.
@@ -30,14 +32,19 @@ export class SearchPaletteProvider implements PaletteProvider {
   private readonly router = inject(Router);
 
   items(query: string): Observable<readonly PaletteItem[]> {
-    const q = query.trim();
+    const { text: q, types } = parseSearchQuery(query);
     if (q.length < SEARCH_MIN_LENGTH) {
       return of([]);
     }
     // Errors are not toasted: the palette keeps its other rows (e.g. the commands) instead.
     const context = new HttpContext().set(SILENT_ERRORS, true);
     return timer(SEARCH_DEBOUNCE_MS).pipe(
-      switchMap(() => search(this.http, this.api.rootUrl, { q, limit: SEARCH_LIMIT }, context)),
+      switchMap(() => search(
+          this.http,
+          this.api.rootUrl,
+          { q, limit: SEARCH_LIMIT, ...(types.length ? { types: [...types] } : {}) },
+          context,
+        ),),
       map((response) => response.body.groups.flatMap((group) => this.rows(group))),
     );
   }

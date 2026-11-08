@@ -119,6 +119,21 @@ describe('SearchPaletteProvider', () => {
     req.flush(PASSPORT);
   });
 
+  it('limits the search to the types of a type: filter and sends the rest as the text', () => {
+    collect('type:note,Tasks  passport');
+    vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS);
+    const req = http.expectOne(isSearch('passport'));
+    expect(req.request.params.getAll('types')).toEqual(['TASK', 'NOTE']);
+    req.flush(PASSPORT);
+  });
+
+  it('does not search when only a type: filter and a too short text are typed', () => {
+    const result = collect('type:note p');
+    expect(result.rows).toEqual([]);
+    vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS);
+    http.expectNone('/api/v1/search');
+  });
+
   it('groups the results by item type in the server order and skips items without a deep link', () => {
     const result = collect('passport');
     vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS);
