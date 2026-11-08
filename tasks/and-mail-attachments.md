@@ -19,7 +19,8 @@ save to Files (`mail-read-page.html:219-279`, server `mail-attachment-to-files`)
 - [x] Open (download to cache, open with another app via FileProvider) and Save to device (system create-document)
   - verified (2026-11-08 15:25+0100 by rudi/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug at 6569b8ae -> pass; MailAttachmentsViewModelTest + MailAttachmentsRouteTest (Robolectric): open downloads to the FileProvider cache and fires ACTION_VIEW with a content:// URI and read grant; save to device launches CreateDocument and copies into the chosen URI, incl. cancellation/restore cases. Not run on a real device (no adb/emulator here)
 - [ ] In-app preview for images and PDFs (reuse the preview from and-files-preview if done, else a simple one)
-- [ ] "Save to Files" (cockpit Files, folder picker)
+- [x] "Save to Files" (cockpit Files, folder picker)
+  - verified (2026-11-08 15:25+0100 by rudi/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug at 6569b8ae -> pass; MailAttachmentsViewModelTest/RouteTest/GermanTest: Save to Files stores via server into /Attachments/Mail, folder picker, then PATCH folderId to the picked folder; failed move keeps the file and says so
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
