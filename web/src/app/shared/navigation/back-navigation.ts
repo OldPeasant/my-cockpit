@@ -75,15 +75,9 @@ export class BackNavigation {
             : { id: event.id, restoredId: event.restoredState?.navigationId ?? null };
       } else if (event instanceof NavigationEnd) {
         this.record(event);
-      } else if (
-        event instanceof NavigationCancel &&
-        event.code === NavigationCancellationCode.Redirect
-      ) {
-        this.followRedirect(event.id);
-      } else if (
-        event instanceof NavigationError ||
-        (event instanceof NavigationCancel && !isRedirecting(event))
-      ) {
+      } else if (event instanceof NavigationCancel && isRedirecting(event)) {
+        this.followTakenOver(event.id);
+      } else if (event instanceof NavigationError || event instanceof NavigationCancel) {
         this.restoreCancelled(event.id);
       }
     });
@@ -174,11 +168,13 @@ export class BackNavigation {
   }
 
   /**
-   * A Back or Forward that a guard redirected (e.g. to the login): the browser stays on the entry
-   * it moved to, and the router's follow-up navigation replaces that entry (`replaceUrl`), which
-   * {@link record} then does on the mirror too.
+   * A Back or Forward that another navigation took over: a guard's redirect (e.g. to the login) or
+   * a newer navigation the user started while it still ran. The browser stays on the entry it moved
+   * to, so the mirror moves there too; the navigation that takes over then replaces that entry (a
+   * redirect is `replaceUrl`) or pushes after it, which {@link record} does on the mirror too. The
+   * router emits this cancel before the newer navigation's `NavigationStart`.
    */
-  private followRedirect(id: number): void {
+  private followTakenOver(id: number): void {
     const restoring = this.restoring?.id === id ? this.restoring : null;
     if (!restoring) return;
     this.restoring = null;
@@ -214,7 +210,8 @@ export class BackNavigation {
       }
       const current = entries[index];
       if (current && (navigation?.extras.replaceUrl || current.url === entry.url)) {
-        const next = entries.slice(0, index + 1);
+        // Like the browser's replaceState: the forward entries stay.
+        const next = [...entries];
         next[index] = entry;
         return { entries: next, index };
       }

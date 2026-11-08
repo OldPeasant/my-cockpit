@@ -659,6 +659,26 @@ describe('BackNavigation when a Back does not reach its page', () => {
     expect(router.url).toBe('/today');
   });
 
+  it('keeps the page ahead after a Back a guard redirected, as the browser does', async () => {
+    await go('/today');
+    await go('/guarded');
+    await go('/mail/messages/m1');
+    redirecting = true;
+    await navigation.back('/mail');
+    expect(router.url).toBe('/login');
+    // The redirect replaced the entry of /guarded; the message still lies ahead.
+    location.forward();
+    await settle();
+    expect(router.url).toBe('/mail/messages/m1');
+    expect(navigation.previous()).toEqual(
+      expect.objectContaining({ url: '/login', label: 'Login' }),
+    );
+    redirecting = false;
+    await navigation.back('/mail');
+    expect(router.url).toBe('/login');
+    expect(navigation.previous()?.url).toBe('/today');
+  });
+
   it('leads to the page its back button names after a Back another navigation took over', async () => {
     await go('/today');
     await go('/waiting');
