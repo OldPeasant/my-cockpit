@@ -21,3 +21,4 @@ The Android event editor lacks reminders, attendees, sending invitations, time z
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-08 13:55+0100 by rudi/agent-1): Linked items panel is read-only (and-links-panel not done): items listed with type/subtitle, no tap navigation (the editor has no navigation callbacks); Create task/note use the web's title '<title> (<yyyy-MM-dd>)', task goes to INBOX, then linked item->event.
