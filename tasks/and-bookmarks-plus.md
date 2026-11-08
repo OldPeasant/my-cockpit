@@ -1,10 +1,11 @@
 ---
 title: Android bookmarks: add, read-later toggle, reader, to inbox
-status: todo
-owner:
+status: in_progress
+owner: rudi/agent-2
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/bookmarks,android/app/src/test/java/ch/sonensei/cockpit/bookmarks,android/app/src/main/res/values/strings_bookmarks.xml,android/app/src/main/res/values-de/strings_bookmarks.xml]
 prio: 2
+lease_until: 2026-11-08T16:22:03Z
 ---
 ## Goal
 Android can add bookmarks only through the share sheet and has no snapshot reader (web: `bookmarks-page.html:25-56`,
