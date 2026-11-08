@@ -6,8 +6,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.core.settings.UserSettingsRepository
@@ -45,15 +50,36 @@ class ShareActivity : ComponentActivity() {
                         finish()
                     }
                 }
+                SavedAndClearedToast(state)
                 CaptureSheet(
                     state = state,
                     onTextChange = viewModel::onTextChange,
                     onNotesChange = viewModel::onNotesChange,
-                    onSave = viewModel::save,
+                    onSave = { viewModel.save() },
                     onCancel = ::finish,
                     onDestinationChange = viewModel::onDestinationChange,
+                    onSaveAndAddAnother = { viewModel.save(addAnother = true) },
+                    onAddFiles = viewModel::addFiles,
+                    onRemoveFile = viewModel::removeFile,
                 )
             }
+        }
+    }
+}
+
+/**
+ * Confirms each capture saved with "save and add another" ([ShareUiState.savedAndCleared] counts them), as closing the
+ * sheet confirms a plain save. A recreated activity does not repeat the last confirmation.
+ */
+@Composable
+fun SavedAndClearedToast(state: ShareUiState) {
+    val context = LocalContext.current
+    var shown by rememberSaveable { mutableIntStateOf(state.savedAndCleared) }
+    LaunchedEffect(state.savedAndCleared) {
+        if (state.savedAndCleared > shown) {
+            shown = state.savedAndCleared
+            val saved = if (state.lastSavedReadLater) R.string.share_saved_read_later else R.string.share_saved
+            Toast.makeText(context, saved, Toast.LENGTH_SHORT).show()
         }
     }
 }

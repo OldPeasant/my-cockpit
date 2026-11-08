@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.capture.share.CaptureSheet
+import ch.sonensei.cockpit.capture.share.SavedAndClearedToast
 import ch.sonensei.cockpit.capture.share.ShareViewModel
 import ch.sonensei.cockpit.core.settings.UserSettingsRepository
 import ch.sonensei.cockpit.ui.theme.CockpitSettingsTheme
@@ -39,13 +40,17 @@ class CaptureActivity : ComponentActivity() {
                         finish()
                     }
                 }
+                SavedAndClearedToast(state)
                 CaptureSheet(
                     state = state,
                     onTextChange = viewModel::onTextChange,
                     onNotesChange = viewModel::onNotesChange,
-                    onSave = viewModel::save,
+                    onSave = { viewModel.save() },
                     onCancel = ::finish,
                     autoFocus = true,
+                    onSaveAndAddAnother = { viewModel.save(addAnother = true) },
+                    onAddFiles = viewModel::addFiles,
+                    onRemoveFile = viewModel::removeFile,
                 )
             }
         }

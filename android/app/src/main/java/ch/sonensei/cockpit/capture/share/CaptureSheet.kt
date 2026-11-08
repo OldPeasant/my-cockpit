@@ -1,6 +1,10 @@
 package ch.sonensei.cockpit.capture.share
 
+import android.net.Uri
+import android.text.format.DateFormat
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -24,12 +28,19 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
+import androidx.compose.material.icons.outlined.AccountTree
+import androidx.compose.material.icons.outlined.AlternateEmail
+import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Event
+import androidx.compose.material.icons.outlined.HourglassEmpty
 import androidx.compose.material.icons.outlined.Inbox
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -47,7 +58,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -61,6 +74,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.capture.queue.CaptureQueue
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 object ShareTags {
     const val SHEET = "share:sheet"
@@ -73,7 +88,18 @@ object ShareTags {
     const val URL = "share:url"
     const val DESTINATION_INBOX = "share:destination:inbox"
     const val DESTINATION_READ_LATER = "share:destination:read-later"
+    const val SAVE_ANOTHER = "share:save-another"
+    const val ATTACH = "share:attach"
+    const val REMOVE_FILE = "share:remove-file"
+    const val PREVIEW = "share:preview"
+    const val PREVIEW_PROJECT = "share:preview:project"
+    const val PREVIEW_CONTEXT = "share:preview:context"
+    const val PREVIEW_DUE = "share:preview:due"
+    const val PREVIEW_WAITING = "share:preview:waiting"
 }
+
+/** The system picker's MIME filter: any file, photos included. */
+private val PICKABLE_TYPES = arrayOf("*/*")
 
 /** The compact capture sheet over the sending app: the title is the one big element, everything else stays quiet. */
 @Composable
@@ -86,9 +112,17 @@ fun CaptureSheet(
     onDestinationChange: (ShareDestination) -> Unit = {},
     /** Focus the title (and so open the keyboard) on open: for an empty capture, not for a share to review. */
     autoFocus: Boolean = false,
+    /** Saves and keeps the sheet open, cleared, for the next capture; null hides the button. */
+    onSaveAndAddAnother: (() -> Unit)? = null,
+    /** Attaches files picked with the system picker; null hides the attach button. */
+    onAddFiles: ((List<Uri>) -> Unit)? = null,
+    /** Removes an attachment; null shows the attachments without a remove action. */
+    onRemoveFile: ((Uri) -> Unit)? = null,
 ) {
     val titleFocus = remember { FocusRequester() }
     if (autoFocus) LaunchedEffect(Unit) { titleFocus.requestFocus() }
+    // After "save and add another" the cleared title takes the focus again for the next capture.
+    LaunchedEffect(state.savedAndCleared) { if (state.savedAndCleared > 0) titleFocus.requestFocus() }
     // A save cannot be interrupted: leaving would cancel the copy of the shared files and drop the capture.
     BackHandler(enabled = state.saving) {}
     Box(
@@ -118,7 +152,7 @@ fun CaptureSheet(
                     .verticalScroll(rememberScrollState())
                     .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 16.dp),
             ) {
-                if (state.url != null) {
+                if (state.offersReadLater) {
                     DestinationChoice(state, onDestinationChange)
                 } else {
                     Heading()
@@ -138,6 +172,7 @@ fun CaptureSheet(
                     keyboardActions = KeyboardActions(onDone = { onSave() }),
                     colors = quietFieldColors(),
                 )
+                if (!state.readLater) state.preview?.takeIf { it.hasTokens }?.let { SyntaxPreview(it) }
                 // A bookmark has no notes: the URL and the page's description stand for them.
                 if (state.readLater) {
                     Text(
@@ -165,17 +200,7 @@ fun CaptureSheet(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.padding(horizontal = 4.dp),
                     ) {
-                        state.files.forEach { file ->
-                            AssistChip(
-                                onClick = {},
-                                enabled = false,
-                                label = { Text(file.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                leadingIcon = {
-                                    Icon(Icons.AutoMirrored.Outlined.InsertDriveFile, contentDescription = null, Modifier.size(18.dp))
-                                },
-                                modifier = Modifier.widthIn(max = 240.dp).testTag(ShareTags.FILE),
-                            )
-                        }
+                        state.files.forEach { file -> FileChip(file, enabled = !state.saving, onRemove = onRemoveFile) }
                     }
                 }
                 state.error?.let { error ->
@@ -192,22 +217,145 @@ fun CaptureSheet(
                 }
                 Row(
                     Modifier.fillMaxWidth().padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    TextButton(onClick = onCancel, enabled = !state.saving, modifier = Modifier.testTag(ShareTags.CANCEL)) {
-                        Text(stringResource(R.string.share_cancel))
+                    // A bookmark has no attachments.
+                    if (onAddFiles != null && !state.readLater) {
+                        AttachButton(enabled = !state.saving, onAddFiles = onAddFiles)
                     }
-                    Spacer(Modifier.size(8.dp))
-                    Button(onClick = onSave, enabled = state.canSave, modifier = Modifier.testTag(ShareTags.SAVE)) {
-                        if (state.saving || state.loadingFiles) {
-                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.size(8.dp))
+                    FlowRow(
+                        Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                        itemVerticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        TextButton(onClick = onCancel, enabled = !state.saving, modifier = Modifier.testTag(ShareTags.CANCEL)) {
+                            Text(stringResource(R.string.share_cancel))
                         }
-                        Text(stringResource(if (state.readLater) R.string.share_save_read_later else R.string.share_save))
+                        if (onSaveAndAddAnother != null) {
+                            TextButton(
+                                onClick = onSaveAndAddAnother,
+                                enabled = state.canSave,
+                                modifier = Modifier.testTag(ShareTags.SAVE_ANOTHER),
+                            ) {
+                                Text(stringResource(R.string.share_save_add_another))
+                            }
+                        }
+                        Button(onClick = onSave, enabled = state.canSave, modifier = Modifier.testTag(ShareTags.SAVE)) {
+                            if (state.saving || state.loadingFiles) {
+                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.size(8.dp))
+                            }
+                            Text(stringResource(if (state.readLater) R.string.share_save_read_later else R.string.share_save))
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+/** Opens the system picker (files and photos, several at once) and hands the picked files to [onAddFiles]. */
+@Composable
+private fun AttachButton(
+    enabled: Boolean,
+    onAddFiles: (List<Uri>) -> Unit,
+) {
+    val picker =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+            if (uris.isNotEmpty()) onAddFiles(uris)
+        }
+    IconButton(onClick = { picker.launch(PICKABLE_TYPES) }, enabled = enabled, modifier = Modifier.testTag(ShareTags.ATTACH)) {
+        Icon(Icons.Outlined.AttachFile, contentDescription = stringResource(R.string.share_attach))
+    }
+}
+
+@Composable
+private fun FileChip(
+    file: SharedFile,
+    enabled: Boolean,
+    onRemove: ((Uri) -> Unit)?,
+) {
+    InputChip(
+        selected = false,
+        onClick = { onRemove?.invoke(file.uri) },
+        enabled = enabled && onRemove != null,
+        label = { Text(file.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        leadingIcon = { Icon(Icons.AutoMirrored.Outlined.InsertDriveFile, contentDescription = null, Modifier.size(18.dp)) },
+        trailingIcon =
+            onRemove?.let {
+                {
+                    Icon(
+                        Icons.Outlined.Close,
+                        contentDescription = stringResource(R.string.share_remove_attachment, file.name),
+                        modifier = Modifier.size(18.dp).testTag(ShareTags.REMOVE_FILE),
+                    )
+                }
+            },
+        modifier = Modifier.widthIn(max = 240.dp).testTag(ShareTags.FILE),
+    )
+}
+
+/** What the capture syntax in the title will create, as quiet chips under it (SPEC.md §4.5). */
+@Composable
+private fun SyntaxPreview(preview: CapturePreview) {
+    val label = stringResource(R.string.share_preview_label)
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier =
+            Modifier
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .semantics {
+                    contentDescription = label
+                    liveRegion = LiveRegionMode.Polite
+                }.testTag(ShareTags.PREVIEW),
+    ) {
+        if (preview.waiting) {
+            val text =
+                preview.waitingFor?.let { stringResource(R.string.share_preview_waiting_for, it) }
+                    ?: stringResource(R.string.share_preview_waiting)
+            TokenChip(Icons.Outlined.HourglassEmpty, text, ShareTags.PREVIEW_WAITING)
+        }
+        preview.project?.let { TokenChip(Icons.Outlined.AccountTree, it.title, ShareTags.PREVIEW_PROJECT) }
+        preview.contexts.forEach { TokenChip(Icons.Outlined.AlternateEmail, it.name.trim().removePrefix("@"), ShareTags.PREVIEW_CONTEXT) }
+        preview.dueDate?.let {
+            TokenChip(
+                Icons.Outlined.Event,
+                stringResource(R.string.share_preview_due, dueText(it)),
+                ShareTags.PREVIEW_DUE,
+            )
+        }
+    }
+}
+
+@Composable
+private fun dueText(date: LocalDate): String {
+    val locale = LocalConfiguration.current.locales[0]
+    val formatter = remember(locale) { DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, "EEEMMMd"), locale) }
+    return date.format(formatter)
+}
+
+@Composable
+private fun TokenChip(
+    icon: ImageVector,
+    text: String,
+    tag: String,
+) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        modifier = Modifier.testTag(tag),
+    ) {
+        Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp))
+            Text(
+                text,
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 4.dp).widthIn(max = 200.dp),
+            )
         }
     }
 }

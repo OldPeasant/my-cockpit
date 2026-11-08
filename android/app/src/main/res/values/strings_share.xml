@@ -26,4 +26,11 @@
     <string name="share_title_hint_read_later">Title (optional)</string>
     <string name="share_save_read_later">Save to read later</string>
     <string name="share_saved_read_later">Saved to read later</string>
+    <string name="share_save_add_another">Save and add another</string>
+    <string name="share_attach">Attach files or photos</string>
+    <string name="share_remove_attachment">Remove %1$s</string>
+    <string name="share_preview_label">Recognized</string>
+    <string name="share_preview_due">Due %1$s</string>
+    <string name="share_preview_waiting">Waiting</string>
+    <string name="share_preview_waiting_for">Waiting for %1$s</string>
 </resources>
