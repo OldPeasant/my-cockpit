@@ -14,7 +14,8 @@ coming back, and the read view needs previous/next through the matches. Back mus
 ## Acceptance criteria
 - [x] Opening a search result and returning (back gesture or toolbar) shows the same query and results (state in the ViewModel/SavedStateHandle; also survives rotation)
   - verified (2026-11-08 10:26+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests '*MailSearchRouteInAppTest' --tests '*MailReadNavigationInAppTest' (Hilt/Robolectric MainActivity, Mail tab) -> pass: system back and toolbar back from a result show the same query + results, search not re-run (coVerify exactly 1), scenario.recreate() on the open result and on the results keeps both (state in MailListViewModel, open id rememberSaveable)
-- [ ] The read view has previous/next actions stepping through the list it was opened from (search results, or the folder list), disabled at the ends; archive/delete moves to the next one
+- [x] The read view has previous/next actions stepping through the list it was opened from (search results, or the folder list), disabled at the ends; archive/delete moves to the next one
+  - verified (2026-11-08 10:26+0100 by dell26/agent-1): ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.read.MailReadNavigation*' --tests '*MailReadNavigationInAppTest' -> 7+14+2+11 passed: prev/next through mailbox and search results ('2 of 3'), disabled at ends and while busy, delete/archive/spam open the next mail, last mail closes to the list, last loaded mail fetches the next page (also after a running refresh)
 - [ ] Back from a mail returns to its origin for every entry point (New, Mail list, search results, global search, dashboard, contact, task links); add a test per entry point that has its own navigation code
 - [ ] Manually verified on an emulator or device (or skipped with reason)
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
