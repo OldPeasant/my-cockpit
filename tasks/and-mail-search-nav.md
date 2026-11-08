@@ -1,11 +1,11 @@
 ---
 title: Android mail search kept on return, previous/next, back to origin
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-mail-images]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/list,android/app/src/test/java/ch/sonensei/cockpit/mail/list,android/app/src/main/java/ch/sonensei/cockpit/mail/read,android/app/src/test/java/ch/sonensei/cockpit/mail/read,android/app/src/main/java/ch/sonensei/cockpit/ui,android/app/src/test/java/ch/sonensei/cockpit/ui,android/app/src/main/res/values/strings_mail.xml,android/app/src/main/res/values-de/strings_mail.xml]
 prio: 1
-lease_until: 2026-11-08T09:59:23Z
+lease_until: 
 ---
 ## Goal
 Same needs as web-mail-search-nav for Android: the search term and results must survive opening a match and
@@ -31,3 +31,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-08 10:13+0100 by dell26/agent-1): Archive/delete/spam in the read view shows the next mail of the list; at the end of the list it returns to the list (as web-mail-search-nav: next, else back to the list), not to the previous mail.
 - ASSUMPTION (2026-11-08 10:13+0100 by dell26/agent-1): Previous/next sit in a slim row below the read toolbar ('3 of 12' + up/down arrows) because the toolbar already holds 6 icons and has no room on a 320-360 dp phone. Opening the last loaded mail of a mailbox fetches the next page so Next can go on; search results are not paged.
 - ASSUMPTION (2026-11-08 10:13+0100 by dell26/agent-1): Entry points: Dashboard has no own mail-opening code (its Inbox card opens the Mail tab), contacts open mail in the phone's mail app (no in-app mail), task links use the shell's item route like global search; each is tested at the code that navigates. Shell item screens now close only if still shown, so deleting a mail opened from global search no longer pops the search screen too (pre-existing double close).
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 84s on 90f03fa3f; criteria verified 5/6, skipped #4
