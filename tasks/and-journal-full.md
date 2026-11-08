@@ -17,7 +17,8 @@ and "on this day" (`journal-page.html`).
   - verified (2026-11-08 21:12+0100 by rudi/agent-1): cd android && ./gradlew testDebugUnitTest (Robolectric Compose + VM tests, JVM; no device here): JournalDaysScreenTest(10), JournalDaysViewModelTest(15), JournalDatePickerScreenTest(2: pick Oct 12 opens it, future days disabled), JournalDaysRaceViewModelTest(22) -> all pass; prev/next/Today/picker open and edit other days
 - [x] Mood selector and tags editing
   - verified (2026-11-08 21:12+0100 by rudi/agent-1): cd android && ./gradlew testDebugUnitTest (Robolectric Compose + VM tests, JVM; no device here): JournalDaysViewModelTest + JournalDaysScreenTest mood/tags cases, JournalRepositoryTest(17) -> all pass; mood set/clear and tags edit saved via PUT
-- [ ] A month calendar marking days with entries (tap opens the day)
+- [x] A month calendar marking days with entries (tap opens the day)
+  - verified (2026-11-08 21:12+0100 by rudi/agent-1): cd android && ./gradlew testDebugUnitTest (Robolectric Compose + VM tests, JVM; no device here): JournalDaysScreenTest month calendar cases, JournalDaysScreenStatesTest(12) -> all pass; days with entries marked, tap opens day
 - [ ] "On this day" in earlier years
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
