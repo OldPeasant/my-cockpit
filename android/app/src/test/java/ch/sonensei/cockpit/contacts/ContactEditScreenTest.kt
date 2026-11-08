@@ -327,8 +327,9 @@ class ContactEditScreenTest {
         val repo = mockk<ContactsRepository>()
         coEvery { repo.get(anna.id) } returns ContactsResult.Ok(anna)
         coEvery { repo.related(anna.id) } returns ContactsResult.Ok(ContactRelated(emptyList(), emptyList(), emptyList()))
+        val viewModel = ContactDetailViewModel(repo)
         composeRule.setContent {
-            CockpitTheme { ContactDetailRoute(anna.id, onClose = {}, viewModel = ContactDetailViewModel(repo)) }
+            CockpitTheme { ContactDetailRoute(anna.id, onClose = {}, viewModel = viewModel) }
         }
         composeRule.waitUntil(5_000) { composeRule.onAllNodesWithTag(ContactsTags.SOURCE).fetchSemanticsNodes().isNotEmpty() }
         composeRule.onNodeWithText("Anna Muster").assertExists()
