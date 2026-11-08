@@ -62,6 +62,18 @@ Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
    This review did not run `./gradlew ktlintCheck testDebugUnitTest lintDebug` or `sh scripts/check.sh`. The fixer's Round 2 ran only `ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.*'`, not lintDebug and not check.sh. The parent must record a full run of both commands on the final code before it verifies criterion 5.
 
+## Re-review of final revision c24989938
+
+Scope: `git diff cb53cfb86 c24989938` (task base 8e3ba22c1b346ce55c9c59404028e1c3edd068de, task commits 333f2da75..c24989938, HEAD c24989938df096a9436bd22fbb1701c427a00aca on main, no uncommitted changes).
+
+- Production code is unchanged since the reviewed revision cb53cfb86: `git diff cb53cfb86 c24989938 --stat` lists only `android/app/src/test/java/ch/sonensei/cockpit/gtd/inbox/InboxConvertViewModelTest.kt` (+37, commit 5a5b14f0d) and `reviews/and-task-convert/tests.md` (c24989938). `git diff --stat cb53cfb86 c24989938 -- android/app/src/main server web` is empty.
+- The two added tests match `InboxViewModel.run()` (InboxViewModel.kt:310-337):
+  - "a conversion answering after a newer plain action started is not shown, as on the web": the first item's REFERENCE is held open, the second item's NEXT answers `Processed` at once (default mock, line 78), so `processed` is 1. When the older conversion then answers, its `seq` (1) is not `runSeq` (2), so `converted` stays null, and `processed` becomes 2. Before the CR-1 fix `converted` would have been the note, so the test guards the fix.
+  - "an older conversion answering after the newer one was refused shows nothing and keeps the refusal": the newer REFERENCE answers `Conflict` (message CONFLICT, `processed` unchanged). The older conversion then answers: `converted` stays null (stale seq), `message = null ?: it.message` keeps CONFLICT, `processed` becomes 1. All three assertions follow from the code.
+  - Both use `CompletableDeferred` with `UnconfinedTestDispatcher`, so the ordering is deterministic. Neither test is `@Ignore`d or disabled, and the final revision has no `TEMP-COVERAGE` marker.
+- The tests support acceptance criteria 3 (only the latest action's destination is shown) and 5 (tests cover the new behavior). This re-review did not run Gradle. Test results are those reported in reviews/and-task-convert/tests.md (measured at 5a5b14f0d, the same code as c24989938).
+- No new findings. The summary above (0 P0, 0 P1, 0 P2, 0 P3) applies to final revision c24989938.
+
 ## P0 Critical
 
 None.
