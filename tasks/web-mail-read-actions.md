@@ -16,7 +16,8 @@ shortcuts `r`, `a`, `f`, `c` (SPEC.md §7.3) are not implemented.
   - verified (2026-11-08 14:49+0100 by dell26/agent-1): cd web && npx ng test --include read/mail-read-page.spec.ts (Mark unread: waits for read-on-open, UNREAD then back('/mail',replaceUrl); Star/Unstar FLAG/UNFLAG with aria-pressed; Move: folder picker without current/non-selectable folders, MOVE with targetFolderId then next message or back; failures toasted) -> part of 436 focused tests passed at bfe1687b4
 - [x] Shortcuts: `r` reply, `a` reply all, `f` forward in the read view; `c` compose everywhere in mail; listed in the shortcut help
   - verified (2026-11-08 14:49+0100 by dell26/agent-1): cd web && npx ng test --include mail-shortcuts/read page/list page/page-shortcuts/shell specs: r/a/f open /mail/compose?reply|replyAll|forward={id} in read view, c opens compose from list and read view, r/a/f ignored in list; MAIL_LIST_HELP/MAIL_READ_HELP shown in the ? overview via PageShortcuts (shell.spec checks ? dialog shows the section) -> 436 passed
-- [ ] New UI strings are in `web/src/locale` (English + German)
+- [x] New UI strings are in `web/src/locale` (English + German)
+  - verified (2026-11-08 14:49+0100 by dell26/agent-1): New units (mailShortcuts.*, mailRead.unread/flag/move/*Title/*Failed, mail.shortcutsTitle, mailRead.shortcutsTitle) added to web/src/locale/messages.xlf and messages.de.xlf; cd web && npx ng test --include src/locale/messages-de.spec.ts -> passed; npm run build:de reports none of this task's units missing (fails only on pre-existing calendar.invite.* units from another task)
 - [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
 
 ## Notes
