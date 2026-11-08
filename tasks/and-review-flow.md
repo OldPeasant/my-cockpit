@@ -29,3 +29,4 @@ Steps 4-7 come in and-review-steps.
 - ASSUMPTION (2026-11-08 14:28+0100 by dell26/agent-2): ReviewScreen now takes onOpen for the Mail/list links: one-line change in ui/CockpitShell.kt, outside the task's touches.
 - ASSUMPTION (2026-11-08 14:28+0100 by dell26/agent-2): Calendar quick-add goes through the offline capture queue (CaptureQueue), so it works offline, unlike the web's direct createTask.
 - ASSUMPTION (2026-11-08 14:58+0100 by dell26/agent-2): Links from the Review screen (step 1 Mail, steps 4-7 lists) push the target on top of Review instead of switching tabs, so system back returns to the wizard (PARITY decision 6); bottom bar then highlights Mail, without an app-bar back arrow
+- ASSUMPTION (2026-11-08 14:58+0100 by dell26/agent-2): Correction of the earlier draft assumption: the reflection draft and the open wizard survive tab switches via an in-memory @Singleton ReviewDrafts holder keyed by review id, but not app death (web uses localStorage)
