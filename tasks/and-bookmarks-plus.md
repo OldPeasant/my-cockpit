@@ -1,11 +1,11 @@
 ---
 title: Android bookmarks: add, read-later toggle, reader, to inbox
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-3
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/bookmarks,android/app/src/test/java/ch/sonensei/cockpit/bookmarks,android/app/src/main/res/values/strings_bookmarks.xml,android/app/src/main/res/values-de/strings_bookmarks.xml]
 prio: 2
-lease_until: 
+lease_until: 2026-11-08T18:08:18Z
 extended: 
 releases: 1
 ---
