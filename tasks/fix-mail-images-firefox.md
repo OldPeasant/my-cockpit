@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [web/src/app/features/mail/read/mail-frame.ts,web/src/app/features/mail/read/mail-frame.spec.ts,web/e2e/mail-read,web/playwright.config.ts]
 prio: 1
-lease_until: 2026-11-08T10:04:24Z
+lease_until: 2026-11-08T10:09:23Z
 extended: 
 releases: 1
 ---
