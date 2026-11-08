@@ -871,6 +871,31 @@ class NoteEditorViewModelTest {
         }
 
     @Test
+    fun `unpin of a pinned note sends pinned false over its version, and pin then pins it again`() =
+        test { vm ->
+            val pinned = loaded.copy(pinned = true)
+            val unpinned = pinned.copy(pinned = false, version = 4)
+            val pinnedAgain = unpinned.copy(pinned = true, version = 5)
+            coEvery { repo.get(id) } returns NotesResult.Ok(pinned)
+            coEvery { repo.setFlags(pinned, pinned = false, archived = null) } returns SaveResult.Saved(unpinned)
+            coEvery { repo.setFlags(unpinned, pinned = true, archived = null) } returns SaveResult.Saved(pinnedAgain)
+            vm.open(id)
+            runCurrent()
+
+            vm.togglePin()
+            advanceUntilIdle()
+            assertEquals(unpinned, vm.uiState.value.note)
+            assertEquals(false, vm.uiState.value.changing)
+            vm.togglePin()
+            advanceUntilIdle()
+
+            assertEquals(pinnedAgain, vm.uiState.value.note)
+            coVerify(exactly = 1) { repo.setFlags(pinned, pinned = false, archived = null) }
+            coVerify(exactly = 1) { repo.setFlags(unpinned, pinned = true, archived = null) }
+            coVerify(exactly = 0) { repo.save(any(), any()) }
+        }
+
+    @Test
     fun `a pin refused because the note changed elsewhere shows the other version and says so, without a conflict`() =
         test { vm ->
             val theirs = loaded.copy(title = "Groceries", bodyMd = "Theirs", version = 7)

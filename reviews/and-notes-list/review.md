@@ -4,25 +4,25 @@ Date: 2026-11-08
 
 Task: and-notes-list - Android notes list: search, pin, archive, delete
 
-Scope: `git diff 85e8706445f51b80f5260d234fd74a34dfa2ac06..ff66edb6` (commits cdf98beb implementation, 5338db19 test-writer tests and the first review, 3d414400 fixes for CR-1 to CR-5, 0ab21e7c re-review, ff66edb6 fix for the re-review's P3). This review is on the final code. It checks the latest fix (ff66edb6) in detail and looks again for new issues. Read in full: `NotesListViewModel.kt` and the ff66edb6 diff with its test. Read through the task diff: `NotesRepository.kt`, `NotesModels.kt`, `NoteEditorViewModel.kt`, and the list/message parts of `NotesScreen.kt`. Uncommitted test changes from a parallel test-writer were ignored.
+Scope: `git diff 6fbabadfbafe865bbdba739d8dc5de77cb446065..52c0e918537a05ff9b12de6d0dec808173c949ca`, without `tasks/` and `reviews/`. This covers the whole task: the implementation, the test-writer tests, the fixes for review CR-1 to CR-5 and re-review CR-1, and the last commit 52c0e918, which fixes the previous re-review's P3. I read in full: `NotesListViewModel.kt`, the 52c0e918 diff and its new test. I read the task diff of `NotesRepository.kt`, `NotesModels.kt`, `NoteEditorViewModel.kt`, `NoteEditorScreen.kt`, `NotesScreen.kt` and both `strings_notes.xml` files.
 
 Requirements:
 - tasks/and-notes-list.md (acceptance criteria 1-5, assumptions #1-#4)
-- AGENTS.md project notes (en/de strings, no secrets or note contents in logs, conventions)
-- Reviewer checklist: async ordering, loading and error states leave a recoverable screen
+- AGENTS.md project notes (en/de strings, no secrets or note contents in logs, stay inside `touches`)
+- Reviewer checklist: async ordering, loading and error states end in a screen the user can recover from
 - reviews/and-notes-list/review.md (previous re-review), reviews/and-notes-list/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: ff66edb6a2572d1b5841b470f1bcd48d6502fc28
-- Base/start: 85e8706445f51b80f5260d234fd74a34dfa2ac06
-- Commits reviewed: 5
+- HEAD: 52c0e918537a05ff9b12de6d0dec808173c949ca
+- Base/start: 6fbabadfbafe865bbdba739d8dc5de77cb446065
+- Commits reviewed: 8 (including the merge 699f800c of origin/wip/and-notes-list)
 
-Summary: 0 P0, 0 P1, 0 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## Status of the previous re-review finding
 
-- Previous CR-1 (search message matched by value): resolved. The list and the search now keep their own messages (`listMessage`, `searchMessage`), and the screen shows `listMessage ?: searchMessage` (`NotesListViewModel.kt:103-110`). A list load sets only `listMessage` (line 125). A search sets only `searchMessage` (line 193), and clearing the search resets only `searchMessage` (line 168). A failed list load's banner and its Retry therefore stay when a search with the same error is cleared or redone. The new test `clearing or redoing a search that failed like the list load keeps the load's message and its Retry` (`NotesListViewModelTest.kt:353`) covers exactly this case, and its last step checks that Retry clears the message. The earlier tests for search messages (lines 327, 388, 440) are consistent with the new logic.
+- Previous CR-1 (P3: a finished list load cleared a search failure that had answered first): resolved. 52c0e918 removes `searchMessage = null` from the list load's completion. `searchMessage` is now written in only two places: the search result (`NotesListViewModel.kt:192`) and clearing the search text (`NotesListViewModel.kt:167`). This matches the field's comment (line 106). Nothing stale can remain. Every `refresh()` with a search text runs `search(0)` again, which sets `searchMessage` itself. Without a search text, `searchMessage` is already null, because clearing the text resets it. The new test `a reload whose search fails before the list answers keeps the search's message` (`NotesListViewModelTest.kt:388`) holds `repo.list` on a `CompletableDeferred`, so the failed search answers first. It checks that `FAILED` is shown while loading. After the list answers, it checks that `FAILED` is still shown, loading has ended and the notes are present. With the removed line, this test would fail.
 
 ## P0 Critical
 
@@ -38,24 +38,19 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | A finished list load clears a search failure that answered first in the same reload**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NotesListViewModel.kt:126`
-    - Category: Correctness
-    - Problem: When a list load finishes, `refresh()` still sets `searchMessage = null` (line 126). This contradicts the field's own comment ("only a search (or clearing it) changes it", line 106). `refresh()` starts the list load and `search(0)` at the same time (line 137), so either can answer first. Suppose the search fails (offline, or the search endpoint returns 5xx) and answers before the list load, which also waits for `tags()` and every list page. Then the list load's success wipes out the search's message. If the search had no hits yet (`hits == null`), `NotesScreen.kt:195,200` shows no banner, no Retry and no empty text: only a blank list under the search field. This reload happens every time the list is shown again (`NotesScreen.kt:106`), on Retry, and after a conflict or a change during a load (`reloadIfLoading`). The behavior is older than ff66edb6 (the old code replaced the whole message). The new split makes the line unnecessary, because every refresh with a search text runs the search again, and that search sets `searchMessage` itself.
-    - Why it matters: In this case the user is not told that the search failed, and has no Retry. They have to edit or clear the search text to recover. It only happens when the search fails, the list load succeeds, and the search answers first, so the impact is small.
-    - Suggested fix: Remove `searchMessage = null` from the list load's completion (line 126). Only `search()` and `setQuery("")` should change `searchMessage`. Add a unit test in which the reload's search fails and answers before the list (for example, hold `repo.list` on a `CompletableDeferred`), and check that the message is still the search's message after the list answers.
+None.
 
 ## Review conclusion
 
 No material issues found.
 
-The latest fix (ff66edb6) is correct and has a test. In the production code, criteria 1-4 are implemented as the previous reviews describe:
-- server search with `types=NOTE` (assumption #1);
-- pin and archive from the row menu and the editor menu, and an Archived view through a hand-written `archived=true/false` query (assumption #3);
-- delete to the Trash, with Undo through `POST /api/v1/trash/NOTE/{id}/restore`, also after a delete from the editor;
-- strings in `values/` and `values-de/`.
+The production code implements criteria 1-4:
+- Criterion 1: server search over `GET /api/v1/search` with `types=NOTE` and limit 50, trimmed and capped at 200 characters (assumption #1). The search waits 300 ms after typing stops. The previous text's hits are dropped at once. A newer search or a cleared text cancels a running one, and `loading` ends in every path.
+- Criterion 2: pin/unpin and archive/unarchive from the row menu and the editor menu. The Archived view uses a hand-written `archived=true/false` query (assumption #3). Conflicts are handled as recorded in assumptions #2 and #4.
+- Criterion 3: delete moves the note to the Trash with `If-Match`, and Undo restores it through `POST /api/v1/trash/NOTE/{id}/restore`. Undo also works after a delete from the editor, through `onDeleted`.
+- Criterion 4: all 22 new strings exist in `values/` and `values-de/`.
 
-No secrets or note contents are logged. The remaining P3 is a narrow edge case in the message handling and does not block completion.
+The changes stay inside the task's `touches`. No secrets or note contents are logged.
 
 Not verified by this review:
-- Criterion 5 (`./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh`): this review ran no builds or tests. The task notes say `scripts/check.sh` fails in this sandbox only because Docker is not available for the server's Testcontainers tests. The parent worker must record real evidence or a skip with a reason through `tasks.py verify`.
+- Criterion 5: this review ran no builds or tests, because Gradle cannot run in this sandbox. According to the parent worker, `ktlintCheck`, the notes unit tests and the full Android unit suite pass on HEAD. `lintDebug` and `sh scripts/check.sh` must be recorded by the parent worker through `tasks.py verify`, either as evidence or as a skip with a reason.
