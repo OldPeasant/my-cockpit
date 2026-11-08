@@ -13,7 +13,8 @@ releases: 2
 SPEC.md §6.3 and the phase 4 demo want the task/tickler overlay on Android too; web also has a month view.
 
 ## Acceptance criteria
-- [ ] Day/week/agenda show due and scheduled tasks and ticklers as an overlay (toggle), tap opens the task
+- [x] Day/week/agenda show due and scheduled tasks and ticklers as an overlay (toggle), tap opens the task
+  - verified (2026-11-08 20:55+0100 by rudi/agent-2): sh scripts/check.sh tfp android (ktlint + testDebugUnitTest + lintDebug) at final HEAD -> all checks passed; CalendarViewModelOverlayTest (26), CalendarOverlayMonthScreensTest (28) and overlay repository/marks tests cover day/week/agenda marks, overflow-menu toggle persisted off by default, tap opens task via LocalTaskOpener -> 0 failures
 - [ ] A month view (dots or compact titles per day; tap a day opens the day view)
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
