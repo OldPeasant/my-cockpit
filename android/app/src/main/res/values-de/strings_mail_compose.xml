@@ -5,6 +5,7 @@
     <string name="mail_compose_title_reply">Antworten</string>
     <string name="mail_compose_title_reply_all">Allen antworten</string>
     <string name="mail_compose_title_forward">Weiterleiten</string>
+    <string name="mail_compose_title_draft">Entwurf</string>
     <string name="mail_compose_back">Schließen (Entwurf bleibt erhalten)</string>
     <string name="mail_compose_attach">Datei anhängen</string>
     <string name="mail_compose_send">Senden</string>

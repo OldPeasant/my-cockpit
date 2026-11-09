@@ -57,6 +57,7 @@ class MailComposeRepository
                     is ComposeMode.Reply -> draft(api.reply(mode.messageId.toString()))
                     is ComposeMode.ReplyAll -> draft(api.replyAll(mode.messageId.toString()))
                     is ComposeMode.Forward -> draft(api.forward(mode.messageId.toString()))
+                    is ComposeMode.Draft -> draft(api.get(mode.draftId.toString()))
                     is ComposeMode.New -> throw IllegalArgumentException("A new mail has no draft to start from")
                 }
             }

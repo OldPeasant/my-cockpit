@@ -5,6 +5,7 @@
     <string name="mail_compose_title_reply">Reply</string>
     <string name="mail_compose_title_reply_all">Reply all</string>
     <string name="mail_compose_title_forward">Forward</string>
+    <string name="mail_compose_title_draft">Draft</string>
     <string name="mail_compose_back">Close (keeps the draft)</string>
     <string name="mail_compose_attach">Attach file</string>
     <string name="mail_compose_send">Send</string>

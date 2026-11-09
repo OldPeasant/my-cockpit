@@ -244,6 +244,7 @@ private fun Toolbar(
             is ComposeMode.Reply -> R.string.mail_compose_title_reply
             is ComposeMode.ReplyAll -> R.string.mail_compose_title_reply_all
             is ComposeMode.Forward -> R.string.mail_compose_title_forward
+            is ComposeMode.Draft -> R.string.mail_compose_title_draft
             is ComposeMode.New, null -> R.string.mail_compose_title_new
         }
     Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {

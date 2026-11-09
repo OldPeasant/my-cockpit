@@ -158,7 +158,9 @@ fun MailRoute(
             state = state,
             callbacks =
                 MailListCallbacks(
-                    open = { open = it.toString() },
+                    open = {
+                        if (state.isDraft(it)) composing = ComposeMode.Draft(it).encode() else open = it.toString()
+                    },
                     select = viewModel::select,
                     act = viewModel::act,
                     loadMore = viewModel::loadMore,

@@ -23,6 +23,11 @@ sealed interface ComposeMode {
         val messageId: UUID,
     ) : ComposeMode
 
+    /** A stored draft (a message of a Drafts folder) to continue; saving updates it. */
+    data class Draft(
+        val draftId: UUID,
+    ) : ComposeMode
+
     /** A string that survives configuration changes (`rememberSaveable`), read back by [parse]. */
     fun encode(): String =
         when (this) {
@@ -30,6 +35,7 @@ sealed interface ComposeMode {
             is Reply -> "reply:$messageId"
             is ReplyAll -> "reply-all:$messageId"
             is Forward -> "forward:$messageId"
+            is Draft -> "draft:$draftId"
         }
 
     companion object {
@@ -41,6 +47,7 @@ sealed interface ComposeMode {
                 "reply" -> id?.let(::Reply)
                 "reply-all" -> id?.let(::ReplyAll)
                 "forward" -> id?.let(::Forward)
+                "draft" -> id?.let(::Draft)
                 else -> null
             }
         }

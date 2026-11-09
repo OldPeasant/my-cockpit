@@ -452,7 +452,8 @@ internal class ComposeSession(
         // Locked while the draft is saved: a send or an edit meanwhile would be closed away unseen.
         update { it.copy(leaving = true, leaveBlocked = false) }
         scope.launch {
-            if (!touched && stored != null && mode !is ComposeMode.New) {
+            // An untouched reply/forward started here is dropped; an opened draft stays as it was.
+            if (!touched && stored != null && mode !is ComposeMode.New && mode !is ComposeMode.Draft) {
                 writes.withLock { stored?.let { discardStored(it) } }
                 update { it.copy(phase = ComposePhase.CLOSED, leaving = false) }
                 return@launch

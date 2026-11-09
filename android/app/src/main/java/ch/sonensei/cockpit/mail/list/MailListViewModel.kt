@@ -105,6 +105,13 @@ data class MailListUiState(
 ) {
     val selecting: Boolean get() = selected.isNotEmpty()
 
+    /** Whether mail [id] (listed or found) lies in a Drafts folder: opening it continues the draft in compose. */
+    fun isDraft(id: UUID): Boolean {
+        val mail = messages.firstOrNull { it.id == id } ?: search?.results?.firstOrNull { it.id == id } ?: return false
+        val folderId = mail.folderId ?: return false
+        return accounts.any { a -> a.folders.any { it.id == folderId && it.role == FolderRole.DRAFTS } }
+    }
+
     /** The selected mails, in list order. */
     val selection: List<MailSummary> get() = messages.filter { it.id in selected }
 
