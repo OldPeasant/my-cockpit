@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.notes
 import android.content.ActivityNotFoundException
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -60,11 +61,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.core.links.ItemRef
 import ch.sonensei.cockpit.core.links.LinkedItemsSection
+import ch.sonensei.cockpit.core.links.LinkedItemsViewModel
+import ch.sonensei.cockpit.core.links.linksViewModelKey
 import ch.sonensei.cockpit.search.SearchHit
 import ch.sonensei.cockpit.search.SearchItemScreen
 import ch.sonensei.cockpit.search.SearchTarget
 import ch.sonensei.cockpit.search.searchTypeStyle
 import coil3.ImageLoader
+import dagger.hilt.internal.GeneratedComponentManagerHolder
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -150,6 +154,13 @@ fun NoteEditorRoute(
         }
     }
     val close = { onClose(viewModel.saveNow()) }
+    val links = noteLinks(state.note?.id)
+    // The server syncs the note's inline links on each save, so a new version (and this note opened again) loads the panel's
+    // links again; while the panel has not shown this note yet, its first open loads them.
+    LaunchedEffect(links, state.note?.version) {
+        val note = state.note ?: return@LaunchedEffect
+        links?.takeIf { it.uiState.value.item == ItemRef(NOTE_ITEM_TYPE, note.id) }?.reload()
+    }
     // A linked item opened from the links panel ("<type>:<id>"), shown in place of the note until it is closed.
     var opened by rememberSaveable { mutableStateOf<String?>(null) }
     val item = opened?.split(':')?.let { (type, itemId) -> type to UUID.fromString(itemId) }
@@ -229,23 +240,34 @@ fun NoteEditorRoute(
             ),
         modifier = modifier,
         linksPanel = { noteId ->
-            LinkedItemsSection(ItemRef(NOTE_ITEM_TYPE, noteId), open = { target ->
-                when (target) {
-                    is SearchTarget.InApp -> {
-                        // Whatever is not saved yet goes to the server before the note is left for the linked item.
-                        viewModel.saveNow()
-                        opened = "${target.type}:${target.id}"
+            links?.let {
+                LinkedItemsSection(ItemRef(NOTE_ITEM_TYPE, noteId), viewModel = it, open = { target ->
+                    when (target) {
+                        is SearchTarget.InApp -> {
+                            // Whatever is not saved yet goes to the server before the note is left for the linked item.
+                            viewModel.saveNow()
+                            opened = "${target.type}:${target.id}"
+                        }
+                        // The note editor has no navigation to other screens; such items have a web link instead.
+                        is SearchTarget.Screen, is SearchTarget.Web -> Unit
                     }
-                    // The note editor has no navigation to other screens; such items have a web link instead.
-                    is SearchTarget.Screen, is SearchTarget.Web -> Unit
-                }
-            })
+                })
+            }
         },
     )
 }
 
 /** The type of notes in the link system. */
 private const val NOTE_ITEM_TYPE = "NOTE"
+
+/** The links panel's view model of the saved note; `null` for a new note or without Hilt (screen tests with fake view models). */
+@Composable
+private fun noteLinks(noteId: UUID?): LinkedItemsViewModel? =
+    if (noteId != null && LocalActivity.current is GeneratedComponentManagerHolder) {
+        hiltViewModel(key = linksViewModelKey(ItemRef(NOTE_ITEM_TYPE, noteId)))
+    } else {
+        null
+    }
 
 /** The note's tags, editable as chips when the note is. */
 @Composable

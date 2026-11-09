@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.testing.WorkManagerTestInitHelper
@@ -199,6 +200,43 @@ class NoteEditorLinksRouteInAppTest {
         composeRule.onNodeWithTag(NoteEditorTags.VIEW).assertExists()
         composeRule.onNodeWithText("Pack the bags", substring = true).assertExists()
         coVerify(exactly = 0) { repo.get(packing.id) }
+    }
+
+    /** A task the note links to inline once its body has `[[task:…]]`. */
+    private val toTask = LinkedItem(id(12), "TASK", id(4), "Book the flight", null, "/tasks/${id(4)}", true, manual = false)
+
+    @Test
+    fun `a new version of the note saved with an inline link loads the panel's links again`() {
+        val linked = "Trip\n\n- [ ] Pack the bags\n\n[[task:${id(4)}]]"
+        val saved = trip.copy(bodyMd = linked, version = 4)
+        coEvery { repo.save(trip, NoteDraft("", linked)) } returns SaveResult.Saved(saved)
+        coEvery { links.list(ItemRef("NOTE", trip.id)) } returnsMany
+            listOf(LinksResult.Ok(listOf(toPacking, toEvent)), LinksResult.Ok(listOf(toPacking, toEvent, toTask)))
+        openTrip()
+        composeRule.onNodeWithTag(LinkedItemsTags.link(toTask)).assertDoesNotExist()
+
+        // Edit the body, then back to the view: that saves the note, and the server syncs its inline links.
+        composeRule.onNodeWithTag(NoteEditorTags.TOGGLE).performClick()
+        composeRule.onNodeWithTag(NoteEditorTags.BODY).performTextReplacement(linked)
+        composeRule.onNodeWithTag(NoteEditorTags.TOGGLE).performClick()
+        waitForTag(LinkedItemsTags.link(toTask))
+
+        coVerify(exactly = 1) { repo.save(trip, NoteDraft("", linked)) }
+        coVerify(exactly = 2) { links.list(ItemRef("NOTE", trip.id)) }
+    }
+
+    @Test
+    fun `the note opened again loads its links again`() {
+        coEvery { links.list(ItemRef("NOTE", trip.id)) } returnsMany
+            listOf(LinksResult.Ok(listOf(toPacking, toEvent)), LinksResult.Ok(listOf(toPacking, toEvent, toTask)))
+        openTrip()
+
+        composeRule.onNodeWithContentDescription("Back to notes").performClick()
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithTag(NotesTags.note(trip.id)).fetchSemanticsNodes().isNotEmpty() }
+        composeRule.onNodeWithTag(NotesTags.note(trip.id)).performClick()
+        waitForTag(LinkedItemsTags.link(toTask))
+
+        coVerify(exactly = 2) { links.list(ItemRef("NOTE", trip.id)) }
     }
 
     private companion object {
