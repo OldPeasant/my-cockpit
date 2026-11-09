@@ -18,7 +18,8 @@ the Drafts folder to continue it.
   - verified (2026-11-09 02:54+0100 by dell26/agent-1): Rev 4cbbdf631: web MailComposeService.identities + mail-compose-page senders specs (npm --prefix web run coverage -> 4751 passed); Android MailComposeIdentityScreenTest/IdentityDraftTest/IdentityRepositoryTest (gradlew -p android ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.*' -> 906 tests, 0 failures); server unchanged: API already accepts identityId (see assumption)
 - [x] Opening a message in the Drafts folder (web and Android) opens it in compose; saving updates that draft
   - verified (2026-11-09 02:55+0100 by dell26/agent-1): Web mail-list spec opens Drafts-folder mail in /mail/compose?draft= and compose spec saves into that draft; Android MailListDraftTest + MailComposeIdentityDraftTest (ComposeMode.Draft loads editable body, save updates the same draft) -> all pass (906 mail tests, 4751 web tests)
-- [ ] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
+- [x] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
+  - verified (2026-11-09 02:55+0100 by dell26/agent-1): New strings: web/src/locale messages en/de for From picker/draft, Android strings_mail_compose.xml values + values-de (Draft/Entwurf title); sh scripts/check.sh (web i18n + Android lintDebug) -> all checks passed
 - [ ] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
 
 ## Notes
