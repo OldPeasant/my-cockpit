@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [web-small-gaps]
 touches: [web/src/app/shell]
 prio: 2
-lease_until: 2026-11-09T00:39:26Z
+lease_until: 2026-11-09T00:44:34Z
 ---
 ## Goal
 web-small-gaps added a `type:` prefix to the Ctrl+K search (`type:note passport`, parsed in
