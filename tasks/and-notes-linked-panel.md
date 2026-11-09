@@ -16,7 +16,8 @@ Goal: Show the shared `LinkedItemsPanel` (from `and-links-panel`) for the open n
   - verified (2026-11-09 08:31+0100 by dell26/agent-1): NoteEditorLinksPanelScreenTest (5) + NoteEditorLinksRouteInAppTest (8, MainActivity/Hilt, fake LinksRepository) via ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*' -> 340 tests pass; saved note shows LinkedItemsPanel for ItemRef(NOTE,id) in view mode, linked items open in place, panel reloads on new version
 - [x] New strings (if any) are in English and German (`res/values/strings_notes.xml` + `res/values-de/strings_notes.xml`)
   - verified (2026-11-09 08:31+0100 by dell26/agent-1): git diff 9fd07318f..HEAD -- android/app/src/main/res -> no changes; the panel reuses the existing links_* strings (en+de), no new strings needed
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-09 08:31+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> exit 0; sh scripts/check.sh -> all checks passed (on e07cfb3b5 + reports)
 
 ## Notes
 - Work done on `and-notes-editor` before the split is on `origin/wip/and-notes-editor` (if it exists): merge it first if your part builds on it.
