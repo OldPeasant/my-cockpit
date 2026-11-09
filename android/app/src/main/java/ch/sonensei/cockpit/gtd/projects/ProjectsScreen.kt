@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AccountTree
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
@@ -38,6 +39,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -398,6 +400,18 @@ private fun ProjectDetail(
                     )
                 }
             }
+            // A compact toggle in the header, so the tasks keep their place below.
+            IconToggleButton(
+                checked = showLinks,
+                onCheckedChange = { showLinks = it },
+                modifier = Modifier.testTag(ProjectsTags.LINKS_TOGGLE),
+            ) {
+                Icon(
+                    Icons.Outlined.Link,
+                    contentDescription =
+                        stringResource(if (showLinks) R.string.projects_links_hide else R.string.projects_links_show),
+                )
+            }
             ProjectMenu(state, detail, callbacks)
         }
         project.descriptionMd?.takeIf { it.isNotBlank() }?.let {
@@ -414,12 +428,6 @@ private fun ProjectDetail(
             )
         }
         NextStepLine(state, detail, callbacks)
-        TextButton(
-            onClick = { showLinks = !showLinks },
-            modifier = Modifier.padding(horizontal = 8.dp).testTag(ProjectsTags.LINKS_TOGGLE),
-        ) {
-            Text(stringResource(if (showLinks) R.string.projects_links_hide else R.string.projects_links_show))
-        }
         if (showLinks) {
             // The panel scrolls on its own, so the tasks stay in view.
             Column(Modifier.fillMaxWidth().heightIn(max = LINKS_MAX_HEIGHT).verticalScroll(rememberScrollState())) {

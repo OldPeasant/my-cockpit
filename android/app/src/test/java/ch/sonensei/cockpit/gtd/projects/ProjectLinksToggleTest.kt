@@ -4,7 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -72,15 +72,15 @@ class ProjectLinksToggleTest {
     @Test
     fun `the project detail offers its linked items, and the toggle switches between show and hide`() {
         show(detail(holiday, listOf(book)))
-        composeRule.onNodeWithTag(ProjectsTags.LINKS_TOGGLE).assertIsDisplayed().assertTextEquals("Linked items")
+        composeRule.onNodeWithTag(ProjectsTags.LINKS_TOGGLE).assertIsDisplayed().assertContentDescriptionEquals("Linked items")
 
         composeRule.onNodeWithTag(ProjectsTags.LINKS_TOGGLE).performClick()
-        composeRule.onNodeWithTag(ProjectsTags.LINKS_TOGGLE).assertTextEquals("Hide linked items")
+        composeRule.onNodeWithTag(ProjectsTags.LINKS_TOGGLE).assertContentDescriptionEquals("Hide linked items")
         // The tasks stay in view below the panel.
         composeRule.onNodeWithText("Next step: Book the flights").assertIsDisplayed()
 
         composeRule.onNodeWithTag(ProjectsTags.LINKS_TOGGLE).performClick()
-        composeRule.onNodeWithTag(ProjectsTags.LINKS_TOGGLE).assertTextEquals("Linked items")
+        composeRule.onNodeWithTag(ProjectsTags.LINKS_TOGGLE).assertContentDescriptionEquals("Linked items")
         assertEquals(emptyList<String>(), calls)
     }
 
@@ -97,11 +97,11 @@ class ProjectLinksToggleTest {
     fun `another project opens with its linked items hidden`() {
         show(detail(holiday, listOf(book)))
         composeRule.onNodeWithTag(ProjectsTags.LINKS_TOGGLE).performClick()
-        composeRule.onNodeWithTag(ProjectsTags.LINKS_TOGGLE).assertTextEquals("Hide linked items")
+        composeRule.onNodeWithTag(ProjectsTags.LINKS_TOGGLE).assertContentDescriptionEquals("Hide linked items")
 
         state = detail(garden, listOf(seeds))
         composeRule.onNodeWithText("Next step: Buy seeds").assertIsDisplayed()
-        composeRule.onNodeWithTag(ProjectsTags.LINKS_TOGGLE).assertTextEquals("Linked items")
+        composeRule.onNodeWithTag(ProjectsTags.LINKS_TOGGLE).assertContentDescriptionEquals("Linked items")
     }
 
     @Test
@@ -114,8 +114,8 @@ class ProjectLinksToggleTest {
     @Config(qualifiers = "de")
     fun `in German, the toggle is German`() {
         show(detail(holiday, listOf(book)))
-        composeRule.onNodeWithTag(ProjectsTags.LINKS_TOGGLE).assertTextEquals("Verknüpfte Elemente")
+        composeRule.onNodeWithTag(ProjectsTags.LINKS_TOGGLE).assertContentDescriptionEquals("Verknüpfte Elemente")
         composeRule.onNodeWithTag(ProjectsTags.LINKS_TOGGLE).performClick()
-        composeRule.onNodeWithTag(ProjectsTags.LINKS_TOGGLE).assertTextEquals("Verknüpfte Elemente ausblenden")
+        composeRule.onNodeWithTag(ProjectsTags.LINKS_TOGGLE).assertContentDescriptionEquals("Verknüpfte Elemente ausblenden")
     }
 }

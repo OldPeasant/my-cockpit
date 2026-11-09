@@ -1,7 +1,6 @@
 package ch.sonensei.cockpit.gtd.lists
 
 import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Row
@@ -18,6 +17,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.core.net.toUri
 import androidx.compose.ui.semantics.semantics
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -111,7 +111,7 @@ object WaitingTags {
     fun draftMail(id: UUID) = "waiting-draft-mail-$id"
 }
 
-private val EMAIL = Regex("[^\\s<>\"',;]+@[^\\s<>\"',;]+\\.[^\\s<>\"',;]+")
+private val EMAIL = Regex("[^\\s<>\"',;()\\[\\]]+@[^\\s<>\"',;()\\[\\]]+\\.[^\\s<>\"',;()\\[\\]]+")
 
 /** The first email address written in [text], e.g. `anna@example.org` in "Anna (anna@example.org)". */
 internal fun emailIn(text: String?): String? = text?.let { EMAIL.find(it)?.value }
@@ -122,7 +122,7 @@ internal fun followUpMailUri(task: GtdTask): String =
 
 /** Opens a mail app (only mail apps answer `ACTION_SENDTO`) with the follow-up prefilled. */
 internal fun followUpMailIntent(task: GtdTask): Intent {
-    val intent = Intent(Intent.ACTION_SENDTO, Uri.parse(followUpMailUri(task))).putExtra(Intent.EXTRA_SUBJECT, task.title)
+    val intent = Intent(Intent.ACTION_SENDTO, followUpMailUri(task).toUri()).putExtra(Intent.EXTRA_SUBJECT, task.title)
     emailIn(task.waitingForText)?.let { intent.putExtra(Intent.EXTRA_EMAIL, arrayOf(it)) }
     return intent
 }
