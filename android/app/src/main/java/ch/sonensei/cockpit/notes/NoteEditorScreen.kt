@@ -253,7 +253,9 @@ fun NoteEditorContent(
         body = TextFieldValue(state.body, TextRange(cursor))
     }
 
-    state.revisions?.takeIf { state.editable }?.let { NoteRevisionsDialog(it, imageLoader, callbacks.revisions) }
+    state.revisions?.takeIf { state.editable }?.let {
+        NoteRevisionsDialog(it, imageLoader, callbacks.revisions, canRestore = !state.changing && !state.uploading)
+    }
     Column(modifier.fillMaxSize()) {
         EditorBar(state, callbacks, insertAt = body.selection.start)
         state.conflict?.let { ConflictBanner(it, callbacks) }

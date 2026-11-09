@@ -133,6 +133,19 @@ class NoteRevisionsDialogTest {
     }
 
     @Test
+    fun `Restore is disabled while a pin, archive or delete runs, or a photo uploads`() {
+        val list = NoteRevisionsState(listOf(v3), selected = 3)
+        showEditor(NoteEditorUiState(note = note, body = note.bodyMd, changing = true, revisions = list))
+        composeRule.onNodeWithTag(NoteRevisionsTags.RESTORE).assertIsNotEnabled()
+
+        editor = editor.copy(changing = false, uploading = true)
+        composeRule.onNodeWithTag(NoteRevisionsTags.RESTORE).assertIsNotEnabled()
+
+        editor = editor.copy(uploading = false)
+        composeRule.onNodeWithTag(NoteRevisionsTags.RESTORE).assertIsEnabled()
+    }
+
+    @Test
     fun `while loading there is a loading text and neither Restore nor Retry`() {
         showList(NoteRevisionsState())
         composeRule.onNodeWithText("Loading versions…").assertExists()

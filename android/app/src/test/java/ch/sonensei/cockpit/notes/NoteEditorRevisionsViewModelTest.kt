@@ -21,6 +21,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -437,5 +438,125 @@ class NoteEditorRevisionsViewModelTest {
             pin.complete(SaveResult.Saved(loaded.copy(pinned = false, version = 4)))
             advanceUntilIdle()
             coVerify(exactly = 0) { repo.restoreRevision(any(), any()) }
+        }
+
+    @Test
+    fun `while a restore runs the text cannot be edited, so nothing typed is replaced by the restored version`() =
+        test { vm ->
+            val answer = CompletableDeferred<SaveResult>()
+            val restored = loaded.copy(title = "Trip v3", displayTitle = "Trip v3", bodyMd = "Passport, tickets", version = 4)
+            coEvery { repo.restoreRevision(loaded, 3) } coAnswers { answer.await() }
+            opened(vm)
+            vm.setEditing(true)
+            vm.openRevisions()
+            runCurrent()
+
+            vm.restoreRevision()
+            runCurrent()
+            assertTrue(vm.uiState.value.restoring)
+            assertFalse("no editing while the restore runs", vm.uiState.value.editable)
+
+            vm.setBody("Typed meanwhile")
+            vm.setTitle("Typed title")
+            assertFalse("a tag is refused too", vm.addTag("later"))
+            vm.toggleChecklist(0)
+            assertEquals("the edit is refused, not kept to be lost", "Passport", vm.uiState.value.body)
+            assertEquals("Trip", vm.uiState.value.title)
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+
+            answer.complete(SaveResult.Saved(restored))
+            advanceUntilIdle()
+
+            val s = vm.uiState.value
+            assertEquals("Passport, tickets", s.body)
+            assertEquals("Trip v3", s.title)
+            assertFalse(s.restoring)
+            assertFalse(s.changing)
+            assertTrue("editable again once restored", s.editable)
+            coVerify(exactly = 0) { repo.save(any(), any()) }
+            coEvery { repo.save(restored, any()) } returns SaveResult.Saved(restored.copy(bodyMd = "After", version = 5))
+            vm.setBody("After")
+            assertEquals("After", vm.uiState.value.body)
+            advanceUntilIdle()
+        }
+
+    @Test
+    fun `a restore that fails makes the text editable again`() =
+        test { vm ->
+            coEvery { repo.restoreRevision(loaded, 3) } returns SaveResult.Offline
+            opened(vm)
+            vm.openRevisions()
+            runCurrent()
+            vm.restoreRevision()
+            advanceUntilIdle()
+
+            assertFalse(vm.uiState.value.restoring)
+            assertTrue(vm.uiState.value.editable)
+        }
+
+    @Test
+    fun `a pin does not block editing, unlike a restore`() =
+        test { vm ->
+            val pin = CompletableDeferred<SaveResult>()
+            coEvery { repo.setFlags(loaded, pinned = false) } coAnswers { pin.await() }
+            opened(vm)
+            vm.togglePin()
+            runCurrent()
+
+            assertTrue(vm.uiState.value.changing)
+            assertFalse(vm.uiState.value.restoring)
+            assertTrue(vm.uiState.value.editable)
+            pin.complete(SaveResult.Saved(loaded.copy(pinned = false, version = 4)))
+            advanceUntilIdle()
+        }
+
+    @Test
+    fun `restore is ignored while a photo uploads, as the restored version would drop its image`() =
+        test { vm ->
+            val upload = CompletableDeferred<NotesResult<String>>()
+            coEvery { repo.uploadImage(id, any()) } coAnswers { upload.await() }
+            opened(vm)
+            vm.openRevisions()
+            runCurrent()
+            vm.addPhoto(NotePhoto(byteArrayOf(1), "image/png", "photo.png"))
+            runCurrent()
+            assertTrue(vm.uiState.value.uploading)
+
+            vm.restoreRevision()
+            runCurrent()
+            coVerify(exactly = 0) { repo.restoreRevision(any(), any()) }
+            assertEquals("the list stays open", 3, vm.revisions?.selected)
+            upload.complete(NotesResult.Failed(500))
+            advanceUntilIdle()
+        }
+
+    @Test
+    fun `a list hidden by a conflict is closed when the conflict is resolved, so it does not come back stale`() =
+        test { vm ->
+            val theirs = loaded.copy(bodyMd = "Theirs", version = 9)
+            coEvery { repo.save(loaded, any()) } returns SaveResult.Conflict(theirs)
+            opened(vm)
+            vm.openRevisions()
+            runCurrent()
+            vm.setBody("Mine")
+            advanceUntilIdle()
+            assertEquals(NoteConflict(theirs), vm.uiState.value.conflict)
+
+            vm.useTheirs()
+            assertNull("use theirs closes the list", vm.revisions)
+
+            vm.openRevisions()
+            runCurrent()
+            assertEquals(3, vm.revisions?.selected)
+            coEvery { repo.save(theirs, any()) } returns SaveResult.Conflict(theirs.copy(version = 10))
+            vm.setBody("Mine again")
+            advanceUntilIdle()
+            assertEquals(NoteConflict(theirs.copy(version = 10)), vm.uiState.value.conflict)
+            coEvery { repo.save(theirs.copy(version = 10), any()) } returns SaveResult.Saved(theirs.copy(version = 11))
+
+            vm.keepMine()
+            assertNull("keep mine closes the list", vm.revisions)
+            advanceUntilIdle()
+            assertNull(vm.revisions)
         }
 }

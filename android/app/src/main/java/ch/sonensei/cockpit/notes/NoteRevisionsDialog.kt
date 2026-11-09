@@ -47,13 +47,15 @@ data class NoteRevisionsCallbacks(
 
 /**
  * A note's earlier versions (SPEC.md §8.1, the last 20), newest first: tap one to see it, restore the one shown. The
- * web shows the same in its revisions dialog.
+ * web shows the same in its revisions dialog. Restore is disabled while [canRestore] is false (a pin, archive or delete
+ * runs, or a photo uploads), as the editor would not restore then.
  */
 @Composable
 fun NoteRevisionsDialog(
     state: NoteRevisionsState,
     imageLoader: ImageLoader?,
     callbacks: NoteRevisionsCallbacks,
+    canRestore: Boolean = true,
 ) {
     AlertDialog(
         onDismissRequest = callbacks.close,
@@ -94,7 +96,7 @@ fun NoteRevisionsDialog(
                 !state.revisions.isNullOrEmpty() ->
                     Button(
                         onClick = callbacks.restore,
-                        enabled = state.selectedRevision != null,
+                        enabled = canRestore && state.selectedRevision != null,
                         modifier = Modifier.testTag(NoteRevisionsTags.RESTORE),
                     ) {
                         Text(stringResource(R.string.notes_revisions_restore))

@@ -110,8 +110,13 @@ data class NoteEditorUiState(
     val closed: Boolean = false,
     /** The note moved to the Trash from this editor (the list offers to undo it). */
     val deleted: Note? = null,
-    /** A pin, archive or delete is running. */
+    /** A pin, archive, delete or restore is running. */
     val changing: Boolean = false,
+    /**
+     * A revision is being restored: the text is not editable until it is done, as the restored version replaces it
+     * (anything typed meanwhile would be lost).
+     */
+    val restoring: Boolean = false,
     /** An inline link `[[` is being typed: items it may link to; `null` otherwise. */
     val links: LinkSuggestions? = null,
     /** The earlier versions are shown; `null` otherwise. */
@@ -122,8 +127,11 @@ data class NoteEditorUiState(
     /** The known tags not on the note yet. */
     val tagSuggestions: List<String> get() = knownTags.filter { known -> tags.none { it.equals(known, ignoreCase = true) } }
 
-    /** Editing is possible: the note is loaded and no conflict waits for a decision. */
-    val editable: Boolean get() = !loading && !unloaded && conflict == null && !closed
+    /** The note is loaded, still open and no conflict waits for a decision: a pin, archive or restore can go through. */
+    val changeable: Boolean get() = !loading && !unloaded && conflict == null && !closed
+
+    /** Editing is possible: the note is [changeable] and no revision is being restored. */
+    val editable: Boolean get() = changeable && !restoring
 }
 
 /**
@@ -388,6 +396,7 @@ class NoteEditorViewModel
         /** Resolves the conflict with the text written here: it is saved over the server's version (or as a new note). */
         fun keepMine() {
             val conflict = state.value.conflict ?: return
+            closeRevisions()
             state.update { it.copy(note = conflict.current, conflict = null, status = SaveStatus.UNSAVED) }
             insertPendingImage(atCursor = true)
             saveSoon(0)
@@ -396,6 +405,7 @@ class NoteEditorViewModel
         /** Resolves the conflict with the server's version: the text written here is dropped. */
         fun useTheirs() {
             val conflict = state.value.conflict ?: return
+            closeRevisions()
             val current = conflict.current
             state.update {
                 if (current == null) {
@@ -499,16 +509,17 @@ class NoteEditorViewModel
          * archive it again); otherwise, or when the note was deleted elsewhere, it is a conflict, as for a save.
          */
         private fun changeFlags(
+            restoring: Boolean = false,
             onSaved: (NoteEditorUiState, Note) -> NoteEditorUiState = { s, note -> s.copy(note = note) },
             action: suspend (Note) -> SaveResult,
         ) {
             if (!state.value.editable || state.value.note == null || state.value.changing) return
-            state.update { it.copy(changing = true, message = null) }
+            state.update { it.copy(changing = true, restoring = restoring, message = null) }
             saves.launch {
                 if (save()) {
                     saving.withLock {
                         val note = state.value.note
-                        if (note != null && state.value.editable) {
+                        if (note != null && state.value.changeable) {
                             val result = action(note)
                             state.update {
                                 when (result) {
@@ -534,7 +545,7 @@ class NoteEditorViewModel
                         }
                     }
                 }
-                state.update { it.copy(changing = false) }
+                state.update { it.copy(changing = false, restoring = false) }
             }
         }
 
@@ -587,16 +598,20 @@ class NoteEditorViewModel
         /**
          * Restores the selected revision: the note's title and body become the revision's (tags, pin and archive stay).
          * The text written here is saved first, so it becomes a revision too and the restore can be undone. The list
-         * closes. A refusal because the note changed elsewhere is handled as for a pin (see [changeFlags]).
+         * closes. Until the restore is done the text cannot be edited ([NoteEditorUiState.restoring]), so nothing typed
+         * meanwhile is replaced by the restored version; for the same reason nothing is restored while a photo uploads.
+         * A refusal because the note changed elsewhere is handled as for a pin (see [changeFlags]).
          */
         fun restoreRevision() {
             val number =
                 state.value.revisions
                     ?.selectedRevision
                     ?.number ?: return
-            if (!state.value.editable || state.value.note == null || state.value.changing) return
+            val now = state.value
+            if (!now.editable || now.note == null || now.changing || now.uploading) return
             closeRevisions()
             changeFlags(
+                restoring = true,
                 onSaved = { s, note ->
                     s.copy(note = note, title = note.title.orEmpty(), body = note.bodyMd, tags = note.tags, status = SaveStatus.SAVED)
                 },
