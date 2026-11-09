@@ -1012,4 +1012,503 @@ describe('BookmarksPage', () => {
       expect(ids()).toEqual([NEW.id, ESSAY.id]);
     });
   });
+
+  describe('search, edit, undo and to inbox', () => {
+    const TASKS = '/api/v1/tasks';
+    const LINKS = '/api/v1/links';
+    const NOTED = bookmark('0192f0c4-0000-7000-8000-000000000006', {
+      title: 'Kotlin coroutines in practice',
+      displayTitle: 'Kotlin coroutines in practice',
+      url: 'https://blog.example.net/coroutines',
+      description: 'Structured concurrency explained with fictitious examples.',
+      tags: ['kotlin', 'Async'],
+      createdAt: '2026-10-19T08:00:00Z',
+    });
+
+    function problem(status: number, title: string, detail?: string) {
+      return [
+        { type: 'about:blank', title, status, ...(detail ? { detail } : {}) },
+        { status, statusText: title },
+      ] as const;
+    }
+
+    function ids(): (string | null)[] {
+      return [...root.querySelectorAll('.bookmark')].map((el) => el.getAttribute('data-id'));
+    }
+
+    function search(query: string): void {
+      type('.search input', query);
+    }
+
+    function editField(b: BookmarkResponse, cls: string): HTMLInputElement {
+      return row(b).querySelector(`.edit .${cls}`) as HTMLInputElement;
+    }
+
+    function typeInto(input: HTMLInputElement, value: string): void {
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+      harness.detectChanges();
+    }
+
+    async function deleteAndSettle(b: BookmarkResponse): Promise<void> {
+      button(b, 'delete').click();
+      http
+        .expectOne((r) => r.method === 'DELETE' && r.url === `${LIST}/${b.id}`)
+        .flush(null, { status: 204, statusText: 'No Content' });
+      await settle();
+      flushTags();
+      await settle();
+    }
+
+    describe('search', () => {
+      beforeEach(async () => {
+        await open('/bookmarks?view=all', [ESSAY, GUIDE, NOTED]);
+      });
+
+      it('filters the loaded bookmarks by title, ignoring case', () => {
+        search('SLOW');
+        expect(ids()).toEqual([ESSAY.id]);
+        // Without a title, the shown title (the host) counts.
+        search('docs.example');
+        expect(ids()).toEqual([GUIDE.id]);
+      });
+
+      it('filters by URL, notes and tag', () => {
+        search('blog.example.net/coroutines');
+        expect(ids()).toEqual([NOTED.id]);
+        search('structured concurrency');
+        expect(ids()).toEqual([NOTED.id]);
+        search('#essays');
+        expect(ids()).toEqual([ESSAY.id]);
+        search('#async');
+        expect(ids()).toEqual([NOTED.id]);
+      });
+
+      it('needs every word to match', () => {
+        search('example');
+        expect(ids()).toEqual([ESSAY.id, GUIDE.id, NOTED.id]);
+        search('example #kotlin');
+        expect(ids()).toEqual([NOTED.id]);
+        search('example #kotlin slow');
+        expect(ids()).toEqual([]);
+      });
+
+      it('says that nothing matches, then shows all again when the search is cleared', () => {
+        search('  quantum  ');
+        expect(ids()).toEqual([]);
+        const empty = root.querySelector('.empty') as HTMLElement;
+        expect(text(empty)).toBe('No loaded bookmark matches “quantum”.');
+        expect(empty.getAttribute('role')).toBe('status');
+
+        search('   ');
+        expect(ids()).toEqual([ESSAY.id, GUIDE.id, NOTED.id]);
+        expect(root.querySelector('.empty')).toBeNull();
+      });
+
+      it('clears the search with Escape', () => {
+        search('slow');
+        expect(ids()).toEqual([ESSAY.id]);
+        const input = root.querySelector('.search input') as HTMLInputElement;
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+        harness.detectChanges();
+        expect(input.value).toBe('');
+        expect(ids()).toEqual([ESSAY.id, GUIDE.id, NOTED.id]);
+      });
+    });
+
+    it('keeps the search when a bookmark it hides arrives from the server', async () => {
+      await open('/bookmarks?view=all', [ESSAY]);
+      search('slow');
+      changes.next({ type: 'BOOKMARK', op: 'UPDATED', id: NOTED.id, at: '2026-10-22T09:00:00Z' });
+      http
+        .expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${NOTED.id}`)
+        .flush({ ...NOTED, version: 2 });
+      await settle();
+      expect(ids()).toEqual([ESSAY.id]);
+      search('');
+      expect(ids()).toEqual([ESSAY.id, NOTED.id]);
+    });
+
+    describe('edit', () => {
+      it('opens the editor with the current title, tags and notes', async () => {
+        await open('/bookmarks?view=all', [NOTED, GUIDE]);
+        expect(row(NOTED).querySelector('.edit')).toBeNull();
+        button(NOTED, 'edit-open').click();
+        harness.detectChanges();
+        expect(editField(NOTED, 'edit-title').value).toBe('Kotlin coroutines in practice');
+        expect(editField(NOTED, 'edit-tags').value).toBe('kotlin, Async');
+        expect(editField(NOTED, 'edit-notes').value).toBe(
+          'Structured concurrency explained with fictitious examples.',
+        );
+        expect(button(NOTED, 'edit-open').disabled).toBe(true);
+        // Only one editor at a time.
+        expect(row(GUIDE).querySelector('.edit')).toBeNull();
+
+        button(GUIDE, 'edit-open').click();
+        harness.detectChanges();
+        expect(row(NOTED).querySelector('.edit')).toBeNull();
+        // No title: an empty field with the host as placeholder.
+        expect(editField(GUIDE, 'edit-title').value).toBe('');
+        expect(editField(GUIDE, 'edit-title').placeholder).toBe('docs.example.com');
+        expect(editField(GUIDE, 'edit-notes').value).toBe('');
+        expect(editField(GUIDE, 'edit-tags').value).toBe('');
+      });
+
+      it('saves title, tags and notes with the version and shows the result', async () => {
+        await open('/bookmarks?view=all', [NOTED]);
+        button(NOTED, 'edit-open').click();
+        harness.detectChanges();
+        typeInto(editField(NOTED, 'edit-title'), '  Coroutines, revisited  ');
+        typeInto(editField(NOTED, 'edit-tags'), '#kotlin, concurrency kotlin');
+        typeInto(editField(NOTED, 'edit-notes'), ' Read again later. ');
+        (row(NOTED).querySelector('.edit') as HTMLFormElement).dispatchEvent(new Event('submit'));
+        harness.detectChanges();
+        expect(button(NOTED, 'edit-save').disabled).toBe(true);
+
+        const req = http.expectOne((r) => r.method === 'PATCH' && r.url === `${LIST}/${NOTED.id}`);
+        expect(req.request.headers.get('If-Match')).toBe('"1"');
+        expect(req.request.body).toEqual({
+          title: 'Coroutines, revisited',
+          description: 'Read again later.',
+          tags: ['kotlin', 'concurrency'],
+        });
+        req.flush({
+          ...NOTED,
+          title: 'Coroutines, revisited',
+          displayTitle: 'Coroutines, revisited',
+          description: 'Read again later.',
+          tags: ['kotlin', 'concurrency'],
+          version: 2,
+        });
+        await settle();
+        flushTags([{ tag: 'concurrency', count: 1 }]);
+        await settle();
+
+        expect(row(NOTED).querySelector('.edit')).toBeNull();
+        expect(text(row(NOTED).querySelector('.title'))).toBe('Coroutines, revisited');
+        expect(text(row(NOTED).querySelector('.description'))).toBe('Read again later.');
+        expect([...row(NOTED).querySelectorAll('.tags .tag')].map(text)).toEqual([
+          '#kotlin',
+          '#concurrency',
+        ]);
+      });
+
+      it('sends a blank title and blank notes as null, to clear them', async () => {
+        await open('/bookmarks?view=all', [NOTED]);
+        button(NOTED, 'edit-open').click();
+        harness.detectChanges();
+        typeInto(editField(NOTED, 'edit-title'), '   ');
+        typeInto(editField(NOTED, 'edit-tags'), '');
+        typeInto(editField(NOTED, 'edit-notes'), '\n  \n');
+        (row(NOTED).querySelector('.edit') as HTMLFormElement).dispatchEvent(new Event('submit'));
+        const req = http.expectOne((r) => r.method === 'PATCH');
+        expect(req.request.body).toEqual({ title: null, description: null, tags: [] });
+        req.flush({
+          ...NOTED,
+          title: undefined,
+          displayTitle: 'blog.example.net',
+          description: undefined,
+          tags: [],
+          version: 2,
+        });
+        await settle();
+        flushTags();
+        await settle();
+        expect(text(row(NOTED).querySelector('.title'))).toBe('blog.example.net');
+        expect(row(NOTED).querySelector('.description')).toBeNull();
+        expect(row(NOTED).querySelector('.tags')).toBeNull();
+      });
+
+      it('cancels without saving, with the button and with Escape', async () => {
+        await open('/bookmarks?view=all', [NOTED]);
+        button(NOTED, 'edit-open').click();
+        harness.detectChanges();
+        typeInto(editField(NOTED, 'edit-title'), 'Discarded');
+        (row(NOTED).querySelector('.edit-cancel') as HTMLButtonElement).click();
+        harness.detectChanges();
+        expect(row(NOTED).querySelector('.edit')).toBeNull();
+        expect(text(row(NOTED).querySelector('.title'))).toBe('Kotlin coroutines in practice');
+
+        // Reopened: the discarded value is gone.
+        button(NOTED, 'edit-open').click();
+        harness.detectChanges();
+        expect(editField(NOTED, 'edit-title').value).toBe('Kotlin coroutines in practice');
+        (row(NOTED).querySelector('.edit') as HTMLFormElement).dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Escape' }),
+        );
+        harness.detectChanges();
+        expect(row(NOTED).querySelector('.edit')).toBeNull();
+        http.expectNone((r) => r.method === 'PATCH');
+      });
+
+      it('keeps the editor and its values when saving fails, and saves on the next try', async () => {
+        await open('/bookmarks?view=all', [NOTED]);
+        button(NOTED, 'edit-open').click();
+        harness.detectChanges();
+        typeInto(editField(NOTED, 'edit-title'), 'Coroutines, revisited');
+        (row(NOTED).querySelector('.edit') as HTMLFormElement).dispatchEvent(new Event('submit'));
+        http
+          .expectOne((r) => r.method === 'PATCH')
+          .flush(...problem(500, 'Server error', 'Storage is unavailable.'));
+        await settle();
+
+        expect(text(row(NOTED).querySelector('.error'))).toBe(
+          '“Kotlin coroutines in practice” could not be changed: Storage is unavailable.',
+        );
+        expect(row(NOTED).querySelector('.edit')).toBeTruthy();
+        expect(editField(NOTED, 'edit-title').value).toBe('Coroutines, revisited');
+        expect(button(NOTED, 'edit-save').disabled).toBe(false);
+
+        (row(NOTED).querySelector('.edit') as HTMLFormElement).dispatchEvent(new Event('submit'));
+        harness.detectChanges();
+        expect(row(NOTED).querySelector('.error')).toBeNull();
+        const retry = http.expectOne((r) => r.method === 'PATCH');
+        expect(retry.request.body.title).toBe('Coroutines, revisited');
+        retry.flush({ ...NOTED, displayTitle: 'Coroutines, revisited', version: 2 });
+        await settle();
+        flushTags();
+        await settle();
+        expect(row(NOTED).querySelector('.edit')).toBeNull();
+      });
+
+      it('keeps the editor after a conflict and loads the current version', async () => {
+        await open('/bookmarks?view=all', [NOTED]);
+        button(NOTED, 'edit-open').click();
+        harness.detectChanges();
+        (row(NOTED).querySelector('.edit') as HTMLFormElement).dispatchEvent(new Event('submit'));
+        http.expectOne((r) => r.method === 'PATCH').flush(...problem(412, 'Precondition Failed'));
+        await settle();
+        http
+          .expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${NOTED.id}`)
+          .flush({ ...NOTED, version: 5 });
+        await settle();
+        expect(row(NOTED).querySelector('.edit')).toBeTruthy();
+
+        (row(NOTED).querySelector('.edit') as HTMLFormElement).dispatchEvent(new Event('submit'));
+        const retry = http.expectOne((r) => r.method === 'PATCH');
+        expect(retry.request.headers.get('If-Match')).toBe('"5"');
+        retry.flush({ ...NOTED, version: 6 });
+        await settle();
+        flushTags();
+        await settle();
+      });
+
+      it('keeps the editor of another bookmark opened while a save was running', async () => {
+        await open('/bookmarks?view=all', [NOTED, ESSAY]);
+        button(NOTED, 'edit-open').click();
+        harness.detectChanges();
+        (row(NOTED).querySelector('.edit') as HTMLFormElement).dispatchEvent(new Event('submit'));
+        const save = http.expectOne((r) => r.method === 'PATCH');
+        button(ESSAY, 'edit-open').click();
+        harness.detectChanges();
+        typeInto(editField(ESSAY, 'edit-title'), 'Unsaved draft');
+        save.flush({ ...NOTED, version: 2 });
+        await settle();
+        flushTags();
+        await settle();
+        expect(row(NOTED).querySelector('.edit')).toBeNull();
+        expect(editField(ESSAY, 'edit-title').value).toBe('Unsaved draft');
+      });
+
+      it('drops an edited bookmark that leaves the queue, and closes the editor of a deleted one', async () => {
+        await open('/bookmarks', [NOTED, ESSAY]);
+        button(NOTED, 'edit-open').click();
+        harness.detectChanges();
+        (row(NOTED).querySelector('.edit') as HTMLFormElement).dispatchEvent(new Event('submit'));
+        // Read on another device meanwhile: the answer is no longer in the queue.
+        http
+          .expectOne((r) => r.method === 'PATCH')
+          .flush({ ...NOTED, readAt: '2026-10-22T09:00:00Z', version: 2 });
+        await settle();
+        flushTags();
+        await settle();
+        expect(ids()).toEqual([ESSAY.id]);
+
+        button(ESSAY, 'edit-open').click();
+        harness.detectChanges();
+        expect(row(ESSAY).querySelector('.edit')).toBeTruthy();
+        await deleteAndSettle(ESSAY);
+        expect(root.querySelector('.edit')).toBeNull();
+        snackBar.opened[0].dismiss();
+        await settle();
+      });
+    });
+
+    describe('undo after delete', () => {
+      it('restores the bookmark from the Trash and shows it again', async () => {
+        await open();
+        await deleteAndSettle(ESSAY);
+        expect(ids()).toEqual([GUIDE.id]);
+        const undo = snackBar.opened[0];
+        expect(undo.action).toBe('Undo');
+
+        undo.act();
+        await settle();
+        const restore = http.expectOne(`/api/v1/trash/BOOKMARK/${ESSAY.id}/restore`);
+        expect(restore.request.method).toBe('POST');
+        restore.flush(null, { status: 204, statusText: 'No Content' });
+        await settle();
+        http
+          .expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${ESSAY.id}`)
+          // Newer than GUIDE (same createdAt in the fixtures would order it by id, after GUIDE).
+          .flush({ ...ESSAY, createdAt: '2026-10-20T09:00:00Z', version: 2 });
+        await settle();
+        flushTags();
+        await settle();
+
+        expect(ids()).toEqual([ESSAY.id, GUIDE.id]);
+        expect(notifications.error).not.toHaveBeenCalled();
+      });
+
+      it('restores nothing when the snackbar is dismissed', async () => {
+        await open();
+        await deleteAndSettle(ESSAY);
+        snackBar.opened[0].dismiss();
+        await settle();
+        http.expectNone((r) => r.url.includes('/trash/'));
+        expect(ids()).toEqual([GUIDE.id]);
+      });
+
+      it('toasts a failed restore and leaves the bookmark out of the list', async () => {
+        await open();
+        await deleteAndSettle(ESSAY);
+        snackBar.opened[0].act();
+        await settle();
+        http
+          .expectOne(`/api/v1/trash/BOOKMARK/${ESSAY.id}/restore`)
+          .flush(...problem(404, 'Not Found', 'The item is no longer in the Trash.'));
+        await settle();
+        expect(notifications.error).toHaveBeenCalledWith(
+          '“On slow software” could not be restored: The item is no longer in the Trash.',
+        );
+        http.expectNone((r) => r.method === 'GET' && r.url === `${LIST}/${ESSAY.id}`);
+        expect(ids()).toEqual([GUIDE.id]);
+      });
+
+      it('offers no undo when the delete fails', async () => {
+        await open();
+        button(ESSAY, 'delete').click();
+        http
+          .expectOne((r) => r.method === 'DELETE')
+          .flush(...problem(500, 'Server error', 'Storage is unavailable.'));
+        await settle();
+        expect(snackBar.opened).toEqual([]);
+        expect(row(ESSAY)).toBeTruthy();
+      });
+    });
+
+    describe('to Inbox task', () => {
+      const UUIDV7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+      it('creates an Inbox task linked to the bookmark', async () => {
+        await open();
+        button(ESSAY, 'to-inbox').click();
+        harness.detectChanges();
+        expect(button(ESSAY, 'to-inbox').disabled).toBe(true);
+        const create = http.expectOne((r) => r.method === 'POST' && r.url === TASKS);
+        const id = create.request.body.id as string;
+        expect(id).toMatch(UUIDV7);
+        expect(create.request.body).toEqual({
+          id,
+          title: 'On slow software',
+          notesMd: ESSAY.url,
+          list: 'INBOX',
+        });
+        create.flush({ id, title: 'On slow software' }, { status: 201, statusText: 'Created' });
+        await settle();
+        const link = http.expectOne((r) => r.method === 'POST' && r.url === LINKS);
+        expect(link.request.body).toEqual({
+          source: { type: 'TASK', id },
+          target: { type: 'BOOKMARK', id: ESSAY.id },
+          label: 'origin',
+        });
+        link.flush({}, { status: 201, statusText: 'Created' });
+        await settle();
+
+        expect(notifications.info).toHaveBeenCalledWith('Added to Inbox: On slow software');
+        expect(button(ESSAY, 'to-inbox').disabled).toBe(false);
+        // The bookmark stays where it was.
+        expect(ids()).toEqual([ESSAY.id, GUIDE.id]);
+      });
+
+      it('says when the task was created but the link failed', async () => {
+        await open();
+        button(GUIDE, 'to-inbox').click();
+        const create = http.expectOne((r) => r.method === 'POST' && r.url === TASKS);
+        expect(create.request.body.title).toBe('docs.example.com');
+        create.flush(
+          { id: create.request.body.id, title: 'docs.example.com' },
+          { status: 201, statusText: 'Created' },
+        );
+        await settle();
+        http.expectOne((r) => r.url === LINKS).flush(...problem(500, 'Server error'));
+        await settle();
+        expect(notifications.info).toHaveBeenCalledWith(
+          'Added to Inbox: docs.example.com (the link to the bookmark could not be made)',
+        );
+        expect(row(GUIDE).querySelector('.error')).toBeNull();
+      });
+
+      it('retries with the same task id after a failure, and a new one after success', async () => {
+        await open();
+        button(ESSAY, 'to-inbox').click();
+        const first = http.expectOne((r) => r.method === 'POST' && r.url === TASKS);
+        const id = first.request.body.id as string;
+        first.flush(...problem(503, 'Service Unavailable', 'Try again in a moment.'));
+        await settle();
+        expect(text(row(ESSAY).querySelector('.error'))).toBe(
+          '“On slow software” could not be changed: Try again in a moment.',
+        );
+        expect(notifications.info).not.toHaveBeenCalled();
+        http.expectNone((r) => r.url === LINKS);
+
+        button(ESSAY, 'to-inbox').click();
+        harness.detectChanges();
+        expect(row(ESSAY).querySelector('.error')).toBeNull();
+        const retry = http.expectOne((r) => r.method === 'POST' && r.url === TASKS);
+        expect(retry.request.body.id).toBe(id);
+        retry.flush({ id, title: 'On slow software' }, { status: 201, statusText: 'Created' });
+        await settle();
+        http.expectOne((r) => r.url === LINKS).flush({}, { status: 201, statusText: '' });
+        await settle();
+
+        // Another task for the same bookmark later: a new id.
+        button(ESSAY, 'to-inbox').click();
+        const again = http.expectOne((r) => r.method === 'POST' && r.url === TASKS);
+        expect(again.request.body.id).toMatch(UUIDV7);
+        expect(again.request.body.id).not.toBe(id);
+        again.flush(
+          { id: again.request.body.id, title: 'On slow software' },
+          { status: 201, statusText: 'Created' },
+        );
+        await settle();
+        http.expectOne((r) => r.url === LINKS).flush({}, { status: 201, statusText: '' });
+        await settle();
+      });
+
+      it('uses a separate task id per bookmark', async () => {
+        await open();
+        button(ESSAY, 'to-inbox').click();
+        button(GUIDE, 'to-inbox').click();
+        const [a, b] = http.match((r) => r.method === 'POST' && r.url === TASKS);
+        expect(a.request.body.id).not.toBe(b.request.body.id);
+        a.flush(...problem(500, 'Server error'));
+        b.flush(...problem(500, 'Server error'));
+        await settle();
+      });
+
+      it('does not create a second task while one is being created', async () => {
+        await open();
+        button(ESSAY, 'to-inbox').click();
+        harness.detectChanges();
+        // The button is disabled; a programmatic second click must not start another request.
+        button(ESSAY, 'to-inbox').disabled = false;
+        button(ESSAY, 'to-inbox').click();
+        const reqs = http.match((r) => r.method === 'POST' && r.url === TASKS);
+        expect(reqs).toHaveLength(1);
+        reqs[0].flush(...problem(500, 'Server error'));
+        await settle();
+      });
+    });
+  });
 });

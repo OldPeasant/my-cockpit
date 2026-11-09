@@ -103,6 +103,103 @@ describe('BookmarksService', () => {
     await expect(snapshot).resolves.toEqual({ text: '', markdown: false, truncated: false });
   });
 
+  describe('restore and to inbox', () => {
+    const TASK_ID = '0192f0c4-0000-7000-8000-0000000000a1';
+    const ARTICLE = bookmark('0192f0c4-0000-7000-8000-000000000001', {
+      displayTitle: 'On slow software',
+      url: 'https://example.org/slow',
+    });
+
+    function problem(status: number, title: string) {
+      return [
+        { type: 'about:blank', title, status },
+        { status, statusText: title },
+      ] as const;
+    }
+
+    it('restores a bookmark from the Trash without toasting errors', async () => {
+      const restored = service.restore({ id: ARTICLE.id });
+      const req = http.expectOne(`/api/v1/trash/BOOKMARK/${ARTICLE.id}/restore`);
+      expect(req.request.method).toBe('POST');
+      expect(req.request.context.get(SILENT_ERRORS)).toBe(true);
+      req.flush(null, { status: 204, statusText: 'No Content' });
+      await expect(restored).resolves.toBeUndefined();
+    });
+
+    it('rejects when the restore fails', async () => {
+      const restored = service.restore(ARTICLE);
+      http
+        .expectOne(`/api/v1/trash/BOOKMARK/${ARTICLE.id}/restore`)
+        .flush(...problem(404, 'Not Found'));
+      await expect(restored).rejects.toMatchObject({ status: 404 });
+    });
+
+    it('creates an Inbox task with the given id and links the bookmark as its origin', async () => {
+      const result = service.toInbox(ARTICLE, TASK_ID);
+      const create = http.expectOne((r) => r.method === 'POST' && r.url === '/api/v1/tasks');
+      expect(create.request.body).toEqual({
+        id: TASK_ID,
+        title: 'On slow software',
+        notesMd: 'https://example.org/slow',
+        list: 'INBOX',
+      });
+      expect(create.request.context.get(SILENT_ERRORS)).toBe(true);
+      const task = { id: TASK_ID, title: 'On slow software', list: 'INBOX' };
+      create.flush(task, { status: 201, statusText: 'Created' });
+      await new Promise((resolve) => setTimeout(resolve));
+
+      const link = http.expectOne((r) => r.method === 'POST' && r.url === '/api/v1/links');
+      expect(link.request.body).toEqual({
+        source: { type: 'TASK', id: TASK_ID },
+        target: { type: 'BOOKMARK', id: ARTICLE.id },
+        label: 'origin',
+      });
+      expect(link.request.context.get(SILENT_ERRORS)).toBe(true);
+      link.flush({ id: '0192f0c4-0000-7000-8000-0000000000b1' }, { status: 201, statusText: '' });
+      await expect(result).resolves.toEqual({ task, linked: true });
+    });
+
+    it('links to the id of the task the server answered with', async () => {
+      const result = service.toInbox(ARTICLE, TASK_ID);
+      const other = '0192f0c4-0000-7000-8000-0000000000a9';
+      http
+        .expectOne((r) => r.url === '/api/v1/tasks')
+        .flush({ id: other, title: 'On slow software' }, { status: 201, statusText: '' });
+      await new Promise((resolve) => setTimeout(resolve));
+      const link = http.expectOne((r) => r.url === '/api/v1/links');
+      expect(link.request.body.source).toEqual({ type: 'TASK', id: other });
+      link.flush({}, { status: 201, statusText: '' });
+      await expect(result).resolves.toMatchObject({ linked: true });
+    });
+
+    it('caps the task title at the server limit', async () => {
+      const long = { ...ARTICLE, displayTitle: 'x'.repeat(600) };
+      const result = service.toInbox(long, TASK_ID);
+      const create = http.expectOne((r) => r.url === '/api/v1/tasks');
+      expect(create.request.body.title).toBe('x'.repeat(500));
+      create.flush({ id: TASK_ID, title: 'x'.repeat(500) }, { status: 201, statusText: '' });
+      await new Promise((resolve) => setTimeout(resolve));
+      http.expectOne((r) => r.url === '/api/v1/links').flush({}, { status: 201, statusText: '' });
+      await result;
+    });
+
+    it('reports the task as unlinked when the link fails', async () => {
+      const result = service.toInbox(ARTICLE, TASK_ID);
+      const task = { id: TASK_ID, title: 'On slow software' };
+      http.expectOne((r) => r.url === '/api/v1/tasks').flush(task, { status: 201, statusText: '' });
+      await new Promise((resolve) => setTimeout(resolve));
+      http.expectOne((r) => r.url === '/api/v1/links').flush(...problem(500, 'Server error'));
+      await expect(result).resolves.toEqual({ task, linked: false });
+    });
+
+    it('rejects without linking when the task cannot be created', async () => {
+      const result = service.toInbox(ARTICLE, TASK_ID);
+      http.expectOne((r) => r.url === '/api/v1/tasks').flush(...problem(500, 'Server error'));
+      await expect(result).rejects.toMatchObject({ status: 500 });
+      http.expectNone((r) => r.url === '/api/v1/links');
+    });
+  });
+
   it('loads one bookmark without toasting errors', async () => {
     const one = service.get('01');
     const req = http.expectOne((r) => r.method === 'GET' && r.url === `${LIST}/01`);
