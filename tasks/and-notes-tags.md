@@ -19,7 +19,8 @@ Goal: Edit a note's tags in the Android editor as chips, with suggestions from e
   - verified (2026-11-09 07:18+0100 by dell26/agent-1): NoteTagsEditor (chips + suggestions from tags in use) and NoteEditorViewModel tag save; android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*' -> 277 tests pass incl. NoteTagsEditorTest (add/remove/suggest Compose tests) and NoteEditorTagsViewModelTest (tags sent in PATCH/POST)
 - [x] New strings are in English and German (`res/values/strings_notes.xml` + `res/values-de/strings_notes.xml`)
   - verified (2026-11-09 07:10+0100 by dell26/agent-1): git diff 1bf4ebbbe HEAD -- android/**/strings*.xml -> notes_tag_add + notes_tag_remove added to values/strings_notes.xml (en) and values-de/strings_notes.xml (de), no other new strings; lintDebug (MissingTranslation) passes
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-09 07:18+0100 by dell26/agent-1): android/gradlew -p android ktlintCheck createDebugUnitTestCoverageReport lintDebug -> 5294 tests 0 failures, lint pass; sh scripts/check.sh -> exit 0 all checks passed (on final code 9f8ba2a2f, reviews/and-notes-tags/tests.md)
 
 ## Notes
 - Work done on `and-notes-editor` before the split is on `origin/wip/and-notes-editor` (if it exists): merge it first if your part builds on it.
