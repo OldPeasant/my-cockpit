@@ -19,3 +19,4 @@ SPEC.md §5.3: waiting "Follow up" → "Draft email" prefills To from the linked
 - [ ] Unit tests cover both cases; `sh scripts/check.sh` passes
 
 ## Notes
+- ASSUMPTION (2026-11-09 10:25+0100 by dell26/agent-1): Android Draft email: if the linked contact cannot be loaded (offline, deleted, no address) the To falls back to an address in the waiting-for text; the contact is fetched live when the button is pressed (contacts have no Android cache). GtdCacheDatabase bumped to v3 with destructive fallback (cache only).
