@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -97,6 +99,8 @@ internal object PreviewTags {
     const val PDF_NEXT_PAGE = "files-preview-pdf-next"
     const val PDF_FAILED = "files-preview-pdf-failed"
     const val DOWNLOADING = "files-preview-downloading"
+    const val LINKS_TOGGLE = "files-preview-links-toggle"
+    const val LINKS = "files-preview-links"
 }
 
 /**
@@ -104,6 +108,8 @@ internal object PreviewTags {
  * the start of text files; other types offer to open them in another app. The bar at the bottom names the files before
  * and after it in the folder. [downloading]: this file is being downloaded (a spinner replaces Save and "Open with");
  * [busy]: any file is, so Save and "Open with" are disabled, as in the list (one download at a time).
+ * [linksPanel]: the file's linked items (SPEC.md §4.3), shown instead of the content while toggled on; `null` hides
+ * the toggle.
  */
 @Composable
 internal fun FilePreviewView(
@@ -114,11 +120,14 @@ internal fun FilePreviewView(
     callbacks: FilesCallbacks,
     imageLoader: ImageLoader?,
     pdfOpener: (File) -> PdfPages?,
+    linksPanel: (@Composable (DriveEntry.File) -> Unit)? = null,
 ) {
-    val file = preview.file
+    var showLinks by rememberSaveable { mutableStateOf(false) }
     Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxSize().testTag(PreviewTags.PREVIEW)) {
         Column(Modifier.fillMaxSize()) {
-            PreviewTopBar(preview, downloading, busy, callbacks)
+            PreviewTopBar(preview, downloading, busy, callbacks, linksShown = showLinks.takeIf { linksPanel != null }) {
+                showLinks = !showLinks
+            }
             downloadMessage?.let {
                 Text(
                     stringResource(if (it == FilesMessage.OFFLINE) R.string.files_download_offline else R.string.files_download_failed),
@@ -131,33 +140,19 @@ internal fun FilePreviewView(
                             .padding(horizontal = 16.dp, vertical = 10.dp),
                 )
             }
-            Box(
-                Modifier.weight(1f).fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHighest),
-                contentAlignment = Alignment.Center,
-            ) {
-                // A new file starts unzoomed, on its first page.
-                key(file.id) {
-                    when (val content = preview.content) {
-                        PreviewContent.Loading ->
-                            CircularProgressIndicator(Modifier.testTag(PreviewTags.LOADING))
-                        PreviewContent.Image -> ImagePreview(file, imageLoader, callbacks)
-                        is PreviewContent.Pdf -> PdfPreview(content.file, pdfOpener, busy, callbacks, file)
-                        is PreviewContent.Text -> TextPreview(content)
-                        PreviewContent.Unsupported ->
-                            Notice(file, R.string.files_preview_unsupported, PreviewTags.UNSUPPORTED, error = false) {
-                                OpenWithButton(file, busy, callbacks)
-                            }
-                        is PreviewContent.Problem -> {
-                            val offline = content.message == FilesMessage.OFFLINE
-                            val text = if (offline) R.string.files_preview_offline else R.string.files_preview_failed
-                            Notice(file, text, PreviewTags.PROBLEM, error = true) {
-                                FilledTonalButton(onClick = callbacks.retryPreview, modifier = Modifier.testTag(PreviewTags.RETRY)) {
-                                    Text(stringResource(R.string.files_retry))
-                                }
-                            }
-                        }
-                    }
+            if (showLinks && linksPanel != null) {
+                // Keyed by file, so stepping to the next file shows its links.
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .testTag(PreviewTags.LINKS),
+                ) {
+                    key(preview.file.id) { linksPanel(preview.file) }
                 }
+            } else {
+                PreviewContentBox(preview, busy, callbacks, imageLoader, pdfOpener)
             }
             HorizontalDivider()
             NeighbourBar(preview, callbacks.previewStep)
@@ -166,11 +161,53 @@ internal fun FilePreviewView(
 }
 
 @Composable
+private fun ColumnScope.PreviewContentBox(
+    preview: FilePreview,
+    busy: Boolean,
+    callbacks: FilesCallbacks,
+    imageLoader: ImageLoader?,
+    pdfOpener: (File) -> PdfPages?,
+) {
+    val file = preview.file
+    Box(
+        Modifier.weight(1f).fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHighest),
+        contentAlignment = Alignment.Center,
+    ) {
+        // A new file starts unzoomed, on its first page.
+        key(file.id) {
+            when (val content = preview.content) {
+                PreviewContent.Loading ->
+                    CircularProgressIndicator(Modifier.testTag(PreviewTags.LOADING))
+                PreviewContent.Image -> ImagePreview(file, imageLoader, callbacks)
+                is PreviewContent.Pdf -> PdfPreview(content.file, pdfOpener, busy, callbacks, file)
+                is PreviewContent.Text -> TextPreview(content)
+                PreviewContent.Unsupported ->
+                    Notice(file, R.string.files_preview_unsupported, PreviewTags.UNSUPPORTED, error = false) {
+                        OpenWithButton(file, busy, callbacks)
+                    }
+                is PreviewContent.Problem -> {
+                    val offline = content.message == FilesMessage.OFFLINE
+                    val text = if (offline) R.string.files_preview_offline else R.string.files_preview_failed
+                    Notice(file, text, PreviewTags.PROBLEM, error = true) {
+                        FilledTonalButton(onClick = callbacks.retryPreview, modifier = Modifier.testTag(PreviewTags.RETRY)) {
+                            Text(stringResource(R.string.files_retry))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** [linksShown]: whether the linked items are shown, `null` without a links panel (no toggle). */
+@Composable
 private fun PreviewTopBar(
     preview: FilePreview,
     downloading: Boolean,
     busy: Boolean,
     callbacks: FilesCallbacks,
+    linksShown: Boolean?,
+    toggleLinks: () -> Unit,
 ) {
     val file = preview.file
     Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -191,6 +228,15 @@ private fun PreviewTopBar(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.testTag(PreviewTags.POSITION),
             )
+        }
+        if (linksShown != null) {
+            IconButton(onClick = toggleLinks, modifier = Modifier.testTag(PreviewTags.LINKS_TOGGLE)) {
+                Icon(
+                    Icons.Outlined.Link,
+                    contentDescription = stringResource(if (linksShown) R.string.files_links_hide else R.string.files_links_show),
+                    tint = if (linksShown) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         if (downloading) {
             CircularProgressIndicator(Modifier.padding(12.dp).size(24.dp).testTag(PreviewTags.DOWNLOADING), strokeWidth = 2.dp)

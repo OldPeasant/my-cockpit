@@ -74,4 +74,6 @@
         <item quantity="one">Moved %1$d item to the Trash</item>
         <item quantity="other">Moved %1$d items to the Trash</item>
     </plurals>
+    <string name="files_links_show">Show linked items</string>
+    <string name="files_links_hide">Hide linked items</string>
 </resources>
