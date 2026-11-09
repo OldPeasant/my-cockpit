@@ -1,10 +1,11 @@
 ---
 title: Web bookmarks: search, edit, undo, to inbox
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [web/src/app/features/bookmarks,web/src/locale]
 prio: 2
+lease_until: 2026-11-09T00:28:47Z
 ---
 ## Goal
 Android bookmarks have search and editing; web has neither (SPEC.md §8.4 lists search). SPEC.md §4.5 wants
