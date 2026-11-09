@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "cal-invitation-respond-android",
-  "reviewed_revision": "b663ca0dc567e0174ba4aae42606fd12245d616b",
+  "reviewed_revision": "521f51e3897cadf38f05bf1dffcb52aadc78bdaa",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/cal-invitation-respond-android/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/cal-invitation-respond-android/review.md"},
@@ -12,10 +12,12 @@
     {"id": "CR-1 (review 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "refusal text made neutral, Reload action added"},
     {"id": "CR-2 (review 1)", "source": "code-reviewer", "severity": "P2", "disposition": "fixed", "note": "reload refetches sources after a failed first load"},
     {"id": "CR-1 (review 2)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "KDoc of RESPOND_FAILED/STALE reworded"},
-    {"id": "CR-1 (final review)", "source": "code-reviewer", "severity": "P3", "disposition": "accepted", "note": "listMailAccounts fetched twice; one redundant call, no behavior impact"}
+    {"id": "CR-1 (review 3, b663ca0dc)", "source": "code-reviewer", "severity": "P3", "disposition": "accepted", "note": "listMailAccounts fetched twice; one redundant call, no behavior impact"},
+    {"id": "CR-1 (review after main merge, bf4361ac5)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed", "note": "test-writer added CalendarWithEditorTest/TodayWithEditorTest wiring tests through EventEditorCallbacks.of; final review at 521f51e38 confirms resolved"},
+    {"id": "CR-2 (final review, 521f51e38)", "source": "code-reviewer", "severity": "P3", "disposition": "accepted", "note": "TodayWithEditor.editorCallbacks only forwards to EventEditorCallbacks.of; harmless one-line wrapper, left to avoid another review cycle"}
   ],
   "validation": [
-    {"command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.edit.*'", "result": "pass"},
-    {"command": "cd android && ./gradlew ktlintCheck", "result": "pass"}
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.edit.*' --tests 'ch.sonensei.cockpit.gtd.today.*' --tests 'ch.sonensei.cockpit.dashboard.*' createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.edit.CalendarWithEditorTest' --tests 'ch.sonensei.cockpit.gtd.today.TodayWithEditorTest'", "result": "pass"}
   ]
 }
