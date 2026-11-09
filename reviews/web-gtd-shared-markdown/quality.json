@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "task": "web-gtd-shared-markdown",
+  "reviewed_revision": "03c090ae62e171febf6aec2308d2ee7e623b1cea",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-gtd-shared-markdown/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-gtd-shared-markdown/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-gtd-shared-markdown/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "styleUrls line over Prettier print width; wrapped one entry per line (dfc05f7c6)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "renderMarkdown comments still said project-description only; reworded (dfc05f7c6)"}
+  ],
+  "validation": [
+    {"command": "npm --prefix web run check", "result": "pass"},
+    {"command": "npm --prefix web run coverage", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
