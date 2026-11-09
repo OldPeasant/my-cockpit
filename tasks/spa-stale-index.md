@@ -1,11 +1,11 @@
 ---
 title: SPA: deploys leave browsers on a stale index.html (constant 1980 Last-Modified)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/spa,server/src/test/kotlin/ch/sonensei/cockpit/core/spa]
 prio: 1
-lease_until: 2026-11-09T10:29:51Z
+lease_until: 
 ---
 ## Goal
 After a deploy, browsers that opened My Cockpit before keep their cached `index.html`, which points at hashed
@@ -40,3 +40,4 @@ with `Cache-Control: no-store`. Hashed bundles may keep revalidating or get a lo
 - Users already stuck on the stale page recover with Ctrl+Shift+R or "Clear site data"; no migration needed.
 - ASSUMPTION (2026-11-09 10:52+0100 by dell26/agent-1): SPA caching: kept Cache-Control no-cache for all SPA files (index.html, fallback, hashed bundles) and replaced Last-Modified with a strong SHA-256 content ETag (setUseLastModified(false) + setEtagGenerator); no no-store/max-age split, so unchanged files cost a 304 and hashed bundles stay cacheable with revalidation. Digests are cached per URL for jar entries only; files on disk are hashed per request.
 - ASSUMPTION (2026-11-09 11:00+0100 by dell26/agent-1): Correction to the caching assumption: ETag digests are cached per URL when cockpit.spa.location is a classpath: location (production, also with the unpacked jar of the Docker image), and recomputed per request for a file: location (dev/tests), since the classpath never changes while the server runs.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 74s on da2f74961; criteria verified 4/4
