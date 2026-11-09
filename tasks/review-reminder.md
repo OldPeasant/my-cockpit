@@ -23,7 +23,8 @@ SPEC.md §8.6: a weekly review reminder on a configurable weekday; today web onl
   - verified (2026-11-09 05:27+0100 by felix/agent-1): Server WeeklyReviewItemResolver deepLink '/review' matches web route path 'review' (app.routes.ts:59). cd web && npx ng test --watch=false --include reminder-notifications.service.spec.ts (+general-settings) -> 92 passed incl. WEEKLY_REVIEW click/toast navigateByUrl('/review'). cd android && ./gradlew testDebugUnitTest --tests '*ReminderUiTest' --tests '*ReminderAlarmsNotifierTest' --tests '*PushReminderDeliveryTest' -> BUILD SUCCESSFUL, 23+16+24 tests, 0 failures (WEEKLY_REVIEW -> CockpitDestination.Review for alarm and UnifiedPush taps)
 - [x] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
   - verified (2026-11-09 05:25+0100 by felix/agent-1): grep: web/src/locale/messages.xlf and messages.de.xlf each have 5 settings.reviewReminder* units (de targets present); android res/values/strings_review.xml review_reminder_title='Weekly review', values-de='Wochenrückblick'; web general-settings spec 92 passed incl. messages; Android German/English title tests in ReminderAlarmsNotifierTest (see #3 run)
-- [ ] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
+- [x] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
+  - verified (2026-11-09 09:45+0100 by dell26/agent-1): Unit tests: server WeeklyReview*/ItemResolverRegistry*/SettingsService* tests, web general-settings/reminder-notifications/push-sw specs, android ReminderUiTest/ReminderAlarmsNotifierTest/PushReminderDeliveryTest (see quality.json, tests.md); sh scripts/check.sh at 926a12e8b -> exit 0, all checks passed
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
