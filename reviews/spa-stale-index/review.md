@@ -4,21 +4,22 @@ Date: 2026-11-09
 
 Task: spa-stale-index - SPA: deploys leave browsers on a stale index.html (constant 1980 Last-Modified)
 
-Scope: git diff 28ee9f350..7e9827424 (task commit 7e9827424, SpaWebConfiguration.kt and SpaFallbackTests.kt). Static review only. Gradle was not run, at the parent's request, because a test-writer was running it in parallel. The parent reports that ktlintCheck and the spa tests pass, and that the new tests fail with the main change reverted.
+Scope: git diff 28ee9f350a33ab55fabf30c99c20c2ef4ddcecff..fd99730285abab394a69eb6fc7a24be2cef6d16e. The production change is in SpaWebConfiguration.kt. The tests are ContentEtagsTests.kt and SpaFallbackTests.kt. This is the re-review of the final revision after the fixes for CR-1 and CR-2 from the first review. HEAD (01a447513) differs from fd9973028 only in tasks/spa-stale-index.md. This was a static review: the parent asked that Gradle not be run because a test-writer runs it in parallel. fixes.md reports that `./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.core.spa.*'` passed (ContentEtagsTests 10/10, SpaFallbackTests 19/19).
 
 Requirements:
-- tasks/spa-stale-index.md acceptance criteria and recorded assumption
+- tasks/spa-stale-index.md: acceptance criteria and the two recorded assumptions, including the corrected one about caching digests for classpath: locations
 - AGENTS.md project notes
-- Dockerfile (production run layout)
-- Spring Framework 7 / Boot 4.1.1 ResourceHttpRequestHandler semantics (setUseLastModified, setEtagGenerator, checkNotModified)
+- Dockerfile (unpacked boot jar in production)
+- reviews/spa-stale-index/fixes.md
+- Spring ResourceHttpRequestHandler semantics (setUseLastModified, setEtagGenerator, checkNotModified)
 
 Git range:
 - Branch: main
-- HEAD: 2a1edb2ce (task commit 7e9827424 reviewed)
+- HEAD: 01a447513 (reviewed code revision fd9973028; the commits after it change only tasks/)
 - Base/start: 28ee9f350a33ab55fabf30c99c20c2ef4ddcecff
-- Commits reviewed: 1
+- Commits reviewed: 5 (3 code/test commits plus 2 board commits)
 
-Summary: 0 P0, 0 P1, 1 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
 ## P0 Critical
 
@@ -30,29 +31,30 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Production image re-hashes every SPA file on every request; the digest cache and KDoc assume a packed jar the image never uses**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/core/spa/SpaWebConfiguration.kt:81-93`
-    - Category: Correctness (performance) / Quality
-    - Problem: `ContentEtags.etag` caches digests only when `!resource.isFile`. The KDoc says that cached case covers "files inside the boot jar" and that files on disk are only "a dev `cockpit.spa.location`". But the production `Dockerfile` (lines 27 and 37-46) extracts the boot jar (`-Djarmode=tools extract --layers --launcher`) and runs `JarLauncher` from the exploded directory. In production, `classpath:/static/` therefore resolves to real files under `/app/BOOT-INF/classes/static/`, and `isFile` is true. Each request for `index.html`, a client route, or a hashed `main-*.js`/`chunk-*.js` bundle reads the whole file once to compute SHA-256, then reads it again to serve it (including on 304 responses). The cache branch is only used with `java -jar app.jar`, which this deployment never runs. The recorded assumption ("Digests are cached per URL for jar entries only") has the same mistaken premise.
-    - Why it matters: Behaviour is still correct, so the stale-index bug is fixed. But every page load costs the server a full read plus SHA-256 of all bundles, often several MB, and the "cheap 304" still reads the whole file. Also, the documentation of the caching behaviour (criterion 3 is about exactly this) gives the wrong picture of production.
-    - Suggested fix: Choose whether to cache from the configured location, not from `Resource.isFile`. Cache digests for `classpath:` locations: classpath content never changes while the server runs, whether packed or exploded. Hash per request only for a `file:` `cockpit.spa.location`. An alternative is to key the cache on URL + `lastModified()` + `contentLength()` and to state the dev limitation. Then update the ContentEtags KDoc and the recorded assumption so they name the exploded Docker layout.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | The digest cache path has no test**
-    - File: `server/src/test/kotlin/ch/sonensei/cockpit/core/spa/SpaFallbackTests.kt:221-310`
+- [ ] **CR-3 | No test covers how the location prefix selects digest caching**
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/core/spa/SpaWebConfiguration.kt:46`
     - Category: Tests
-    - Problem: Every test serves the fixture from a temp directory (`file:` location), so only the hash-per-request branch of `ContentEtags.etag` runs. The `computeIfAbsent` cache branch is never run. If CR-1 is fixed by caching classpath resources, the test should show two things: a cached digest is reused, and it stays content-based (the ETag differs between files and matches for `/inbox` and `/index.html`).
-    - Why it matters: Nothing verifies the code path that is meant to carry the production load.
-    - Suggested fix: Add a small unit test for `ContentEtags` with a `ClassPathResource` or `UrlResource` (or whatever resource type the fixed code caches): two calls return the same value, and two different contents give different values.
+    - Problem: `cacheDigests = location.startsWith(ResourceUtils.CLASSPATH_URL_PREFIX)` is the only thing that turns caching on for production. ContentEtagsTests test both modes of `ContentEtags` directly. SpaFallbackTests always use a `file:` location. So no test fails if this condition is inverted or dropped. If it is inverted, production goes back to the CR-1 per-request hashing, and dev/test serves stale ETags for edited files.
+    - Why it matters: This is a low-risk one-liner, but it decides the production performance behaviour that CR-1 was about. Today only review protects it.
+    - Suggested fix: This is optional. Move the decision into a small function (for example `ContentEtags.forLocation(location)` or an internal `cachesDigests(location)`), and unit-test it for `classpath:/static/` (true) and a `file:` URI (false).
+
+## Previous findings
+
+- CR-1 (P2, production re-hashes on every request): Resolved. Caching no longer depends on `Resource.isFile`. A constructor flag, set from the configured location, decides it (SpaWebConfiguration.kt:46). `classpath:/static/` is the default and is not overridden anywhere in the repository (`git grep` finds `cockpit.spa.location` only in the test). Production therefore caches digests for the unpacked jar the Dockerfile runs. The cache key is the resource URL, and the map is bounded by the number of build files, because client routes resolve to `index.html`. The KDoc of `SpaWebConfiguration` (lines 23-34) and of `ContentEtags` (lines 83-92) now describes the unpacked-jar case correctly. The corrected assumption (2026-11-09 11:00) matches the code.
+- CR-2 (P3, cache path untested): Resolved. ContentEtagsTests now cover four cases. A real file with caching (`isFile` true, the unpacked-jar case) is read once and stays content-based. A jar-URL resource is cached per URL, and a new instance sees new content. Without caching, a resource is read on every request (file and non-file). A read error propagates and is not cached. A failed `computeIfAbsent` stores no mapping, which matches the test.
 
 Verified without findings:
-- Criterion 1: `setUseLastModified(false)` makes Spring pass `lastModified = -1` to `checkNotModified`, so `If-Modified-Since: 1980` is ignored. An old `If-None-Match` does not match the new SHA-256 ETag, so the server answers 200. The test covers `/index.html`, `/inbox` and a nested client route with both validators and with the date alone. The fixture uses same-length content and the 1980 mtime, so with the fix reverted the server would answer 304. `/` is covered as a forward to `/index.html`, and MockMvc does not follow forwards, which is acceptable.
-- Criterion 2: The test covers a 304 for a matching `If-None-Match` on index, fallback and bundle. `Cache-Control: no-cache` is kept on hashed bundles (they stay cacheable with revalidation). A missing `/main-GONE.js` stays 404, and the fallback logic was not changed.
-- The ETag value is unquoted hex, and Spring's `ServletWebRequest` adds the quotes. It is a strong ETag.
-- No security-relevant change. `/api/`, `/actuator/` and `/download/` are unaffected: the download is served by a controller. Nothing new is logged.
-- Tests that change `index.html` restore it in `finally`. Test classes run in separate forks, and the methods of one class run one after another, so the shared fixture is safe.
+- Criterion 1: `setUseLastModified(false)` stops `If-Modified-Since: 1980` from producing a 304, and an old `If-None-Match` does not match the new SHA-256 ETag. The SpaFallbackTests test runs against a fixture with the same length and the 1980 mtime. It sends both validators, and the date alone, to `/index.html`, `/inbox` and a nested client route, and expects 200 with the new content. It would get 304 with the fix reverted: the `oldEtag` fallback still leaves the date check to reproduce the bug. `/` is covered as a forward to `/index.html`.
+- Criterion 2: a 304 for a matching `If-None-Match` on the index, the fallback and the bundle. No `Last-Modified` header. `Cache-Control: no-cache` is kept on hashed bundles. The fallback and the bundle get different ETags, and `/inbox` gets the same ETag as `/index.html`. `/main-GONE.js` stays 404. The fallback resolver did not change.
+- Criterion 3: the KDoc matches the code (`no-cache`, content ETag, `Last-Modified` disabled, caching for classpath: locations and hashing per request for other locations).
+- `computeIfAbsent` holds the map bin lock while one file is hashed. This happens once per file per server lifetime, so it is negligible.
+- Security: no new input handling, no logging, and no change to which paths are served. `/api/`, `/actuator/` and `/download/` still never fall back.
+- Tests use fictitious data, restore the shared fixture in `finally`, and no assertion was weakened.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. The functional fix is correct and the acceptance tests are meaningful. CR-1 is a non-blocking but real production inefficiency, and the KDoc and assumption describe production wrongly. Fix it or consciously accept it, and record the decision.
+No material issues found. CR-1 and CR-2 are resolved. The only new finding, CR-3, is an optional low-priority test gap and does not block completing the task.
