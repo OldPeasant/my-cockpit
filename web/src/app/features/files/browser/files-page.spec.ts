@@ -1076,6 +1076,33 @@ describe('FilesPage', () => {
       expect(preview.querySelector('#preview-title')?.textContent?.trim()).toBe('Sunset.jpg');
     });
 
+    it('opens a file without a preview alone in the dialog, with its download and linked items', async () => {
+      drive.file(BEACH, 'Beach.png', 4096, PHOTOS, 'image/png');
+      drive.file(ARCHIVE, 'Cards.zip', 2048, PHOTOS, 'application/zip');
+      drive.file(SUNSET, 'Sunset.jpg', 4096, PHOTOS, 'image/jpeg');
+      await open(PHOTOS);
+
+      byLabel('Open Cards.zip').click();
+      const preview = await dialog('app-preview-dialog');
+      expect(preview.querySelector('#preview-title')?.textContent?.trim()).toBe('Cards.zip');
+      // Shown alone: no paging to the folder's images.
+      expect(preview.querySelector('.position')).toBeNull();
+      expect(preview.querySelector('button.step')).toBeNull();
+      preview.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }),
+      );
+      await settle();
+      expect(preview.querySelector('#preview-title')?.textContent?.trim()).toBe('Cards.zip');
+      const notice = preview.querySelector('.unsupported')!;
+      expect(notice.textContent).toContain('There is no preview for this type of file.');
+      expect(notice.querySelector('a[download]')?.getAttribute('href')).toBe(
+        `/api/v1/files/${ARCHIVE}/content`,
+      );
+      expect(button('Linked items', preview)).toBeTruthy();
+      // Opening it downloads nothing and requests no preview.
+      expect(http.match((r) => r.url.startsWith(`/api/v1/files/${ARCHIVE}`))).toEqual([]);
+    });
+
     it('pages the preview only through the files of a folder that also holds subfolders', async () => {
       const SUMMER = '0192f0c4-0000-7000-8000-000000000010';
       drive.folder(SUMMER, 'Summer', PHOTOS);

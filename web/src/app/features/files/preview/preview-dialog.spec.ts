@@ -320,6 +320,42 @@ describe('PreviewDialog', () => {
     await render();
   });
 
+  it('shows a Word document without a preview with its notice, both downloads and Close', async () => {
+    const DOCX = file(
+      8,
+      'Contract.docx',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    );
+    await open([DOCX, IMAGE, PDF], DOCX.id);
+    expect(title()).toBe('Contract.docx');
+    expect(kind()).toBeNull();
+    expect(position()).toBe('');
+    // No viewer and no request for a preview (http.verify in afterEach).
+    expect(el().querySelector('img, app-pdf-viewer, audio, video')).toBeNull();
+    const downloads = [...el().querySelectorAll('a[download]')].map((a) => a.getAttribute('href'));
+    expect(downloads).toEqual([
+      `/api/v1/files/${DOCX.id}/content`,
+      `/api/v1/files/${DOCX.id}/content`,
+    ]);
+    await key('ArrowLeft');
+    expect(title()).toBe('Contract.docx');
+    [...el().querySelectorAll<HTMLButtonElement>('button')]
+      .find((b) => b.textContent?.trim() === 'Close')!
+      .click();
+    expect(close).toHaveBeenCalled();
+  });
+
+  it('pages only through the previewable files when opened on one of them, skipping the zip', async () => {
+    await open([ZIP, IMAGE, PDF], PDF.id);
+    expect(title()).toBe('Invoice.pdf');
+    expect(position()).toBe('2 of 2');
+    await key('ArrowLeft');
+    expect(title()).toBe('Beach.png');
+    await key('ArrowLeft');
+    expect(title()).toBe('Beach.png');
+    expect(el().querySelector('.unsupported')).toBeNull();
+  });
+
   it('shows no position nor side buttons for a single file', async () => {
     await open([ZIP, PDF], PDF.id);
     expect(kind()).toBe('pdf');

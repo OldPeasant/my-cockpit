@@ -199,6 +199,26 @@ describe('German translations (messages.de.xlf)', () => {
     expect(english.get('mail.olderFailed')?.placeholders).toEqual(['INTERPOLATION']);
   });
 
+  it('has the messages of files without a preview in English and German (web-file-links-nopreview)', () => {
+    const expected: Record<string, string> = {
+      'files.openFile': 'Open <name>',
+      'files.preview.unsupported': 'There is no preview for this type of file.',
+      'files.preview.downloadFile': 'Download the file',
+    };
+    expect(
+      Object.fromEntries(Object.keys(expected).map((id) => [id, english.get(id)?.source.trim()])),
+    ).toEqual(expected);
+    expect(
+      Object.fromEntries(Object.keys(expected).map((id) => [id, german.get(id)?.target?.trim()])),
+    ).toEqual({
+      'files.openFile': '<name> öffnen',
+      'files.preview.unsupported': 'Für diesen Dateityp gibt es keine Vorschau.',
+      'files.preview.downloadFile': 'Datei herunterladen',
+    });
+    // The row of such a file opens the dialog now; it is no download link any more.
+    expect(english.has('files.downloadFile')).toBe(false);
+  });
+
   it('keeps the quick-capture due keywords the parser accepts (SPEC.md: !today, !tomorrow)', () => {
     // The parser (server CaptureParser) only understands the English keywords, so a hint that
     // shows a translated keyword teaches syntax that silently does nothing.
