@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.auth
 
 import android.content.Context
+import android.os.Looper
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasText
@@ -37,6 +38,7 @@ import org.junit.Test
 import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.io.File
 import javax.inject.Inject
@@ -164,7 +166,7 @@ class AppStartRoutingTest {
         composeRule.onNodeWithText("Log out").performScrollTo().performClick()
         composeRule.onNodeWithTag(LoginTags.SCREEN).assertIsDisplayed()
 
-        composeRule.waitUntil(CACHE_CLEAR_WAIT_MS) { !cached.exists() }
+        awaitDeleted(cached)
         assertFalse(cached.exists())
     }
 
@@ -178,9 +180,35 @@ class AppStartRoutingTest {
         session.logout(LogoutReason.REFRESH_REJECTED)
 
         composeRule.onNodeWithTag(LoginTags.SCREEN).assertIsDisplayed()
-        composeRule.waitUntil(CACHE_CLEAR_WAIT_MS) { !cached.exists() }
+        awaitDeleted(cached)
         assertFalse(cached.exists())
     }
+
+    /**
+     * Waits for the logout to delete [file]. A user logout runs on the main dispatcher, and every cache it clears hops to
+     * IO and back, so each step needs a turn of Robolectric's paused main looper. `composeRule.waitUntil` only runs the
+     * looper as a side effect of compose frames, which is slow or stalls on a loaded host; this runs it explicitly. On a
+     * timeout the app's threads are dumped, so the step the logout is stuck in shows in the failure.
+     */
+    private fun awaitDeleted(file: File) {
+        val deadline = System.nanoTime() + CACHE_CLEAR_WAIT_MS * NANOS_PER_MS
+        while (file.exists()) {
+            if (System.nanoTime() > deadline) {
+                throw AssertionError("The logout did not delete ${file.name} within ${CACHE_CLEAR_WAIT_MS}ms\n${appThreads()}")
+            }
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(POLL_MS)
+        }
+    }
+
+    private fun appThreads(): String =
+        Thread
+            .getAllStackTraces()
+            .filterValues { stack -> stack.any { it.className.startsWith("ch.sonensei.cockpit") } }
+            .entries
+            .joinToString("\n\n") { (thread, stack) ->
+                "${thread.name}:\n" + stack.take(STACK_DEPTH).joinToString("\n") { "    at $it" }
+            }
 
     private fun cachedFile(): File {
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -198,5 +226,8 @@ class AppStartRoutingTest {
          * cache directory, so on a loaded host the file goes away much later than the login screen shows.
          */
         const val CACHE_CLEAR_WAIT_MS = 30_000L
+        const val POLL_MS = 10L
+        const val NANOS_PER_MS = 1_000_000L
+        const val STACK_DEPTH = 40
     }
 }
