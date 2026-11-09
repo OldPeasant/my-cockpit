@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -52,15 +53,23 @@ fun WaitingRoute(
     val context = LocalContext.current
     val noMailApp = stringResource(R.string.waiting_no_mail_app)
     val scope = rememberCoroutineScope()
+    // Tasks whose draft still waits for the contact lookup: further taps on them open no second mail.
+    val drafting = remember { mutableSetOf<UUID>() }
     WaitingContent(
         state,
         LiveListCallbacks.of(viewModel),
         viewModel::followUp,
         modifier,
         draftMail = { task ->
-            scope.launch {
-                if (!ContactIntents.launch(context, followUpMailIntent(task, viewModel.mailRecipient(task)))) {
-                    Toast.makeText(context, noMailApp, Toast.LENGTH_SHORT).show()
+            if (drafting.add(task.id)) {
+                scope.launch {
+                    try {
+                        if (!ContactIntents.launch(context, followUpMailIntent(task, viewModel.mailRecipient(task)))) {
+                            Toast.makeText(context, noMailApp, Toast.LENGTH_SHORT).show()
+                        }
+                    } finally {
+                        drafting.remove(task.id)
+                    }
                 }
             }
         },

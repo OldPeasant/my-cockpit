@@ -14,8 +14,10 @@ import ch.sonensei.cockpit.gtd.next.TaskCompletionRepository
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -83,5 +85,35 @@ class WaitingRouteDraftMailTest {
 
         assertEquals(listOf("anna.old@example.org"), started.getStringArrayExtra(Intent.EXTRA_EMAIL)?.toList())
         assertEquals("anna.old@example.org", started.data?.schemeSpecificPart?.substringBefore('?'))
+    }
+
+    @Test
+    fun `taps while the contact is still loading open a single mail`() {
+        val lookup = CompletableDeferred<String?>()
+        var asked = 0
+        val viewModel =
+            WaitingViewModel(repository, contexts, completion, Clock.fixed(now, ZoneOffset.UTC)) {
+                asked++
+                lookup.await()
+            }
+        composeRule.setContent { CockpitTheme { WaitingRoute(viewModel = viewModel) } }
+        val button = composeRule.onNodeWithTag(WaitingTags.draftMail(contract.id))
+
+        button.performClick()
+        button.performClick()
+        composeRule.waitForIdle()
+        assertNull(shadowOf(composeRule.activity).nextStartedActivity)
+
+        lookup.complete("anna@example.com")
+        composeRule.waitForIdle()
+        val started = shadowOf(composeRule.activity).nextStartedActivity
+        assertEquals(listOf("anna@example.com"), started.getStringArrayExtra(Intent.EXTRA_EMAIL)?.toList())
+        assertNull(shadowOf(composeRule.activity).nextStartedActivity)
+        assertEquals(1, asked)
+
+        // Once the draft is open, the button drafts again.
+        button.performClick()
+        composeRule.waitForIdle()
+        assertEquals(Intent.ACTION_SENDTO, shadowOf(composeRule.activity).nextStartedActivity.action)
     }
 }
