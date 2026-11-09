@@ -2053,6 +2053,42 @@ describe('NoteEditorPage', () => {
       http.expectNone((r) => r.method === 'PATCH');
     });
 
+    it('suggests a tag added here on the next note opened', async () => {
+      await open(note({ tags: [] }));
+      http.expectOne((r) => r.url === TAGS).flush({ items: [{ tag: 'Travel', count: 1 }] });
+      await settle();
+      addTag('Lisbon');
+      await tick();
+      http.expectOne((r) => r.method === 'PATCH').flush(note({ tags: ['Lisbon'], version: 2 }));
+      await settle();
+
+      void harness.navigateByUrl(`/notes/${OTHER_ID}`);
+      await settle();
+      http
+        .expectOne((r) => r.url === `/api/v1/notes/${OTHER_ID}` && r.method === 'GET')
+        .flush(note({ id: OTHER_ID, title: 'Recipes', bodyMd: 'Soup', version: 9 }));
+      // Until the reload answers, the tag added before is already known.
+      await settle();
+      flushLinks();
+      await settle();
+      let options = [...root.querySelectorAll<HTMLOptionElement>('datalist option')];
+      expect(options.map((o) => o.value)).toEqual(['Travel', 'Lisbon']);
+
+      // The tags in use are loaded again for the other note.
+      http
+        .expectOne((r) => r.url === TAGS)
+        .flush({
+          items: [
+            { tag: 'Lisbon', count: 1 },
+            { tag: 'Travel', count: 1 },
+            { tag: 'Soup', count: 2 },
+          ],
+        });
+      await settle();
+      options = [...root.querySelectorAll<HTMLOptionElement>('datalist option')];
+      expect(options.map((o) => o.value)).toEqual(['Lisbon', 'Travel', 'Soup']);
+    });
+
     it('disables the tags while the note is in conflict', async () => {
       await open(note({ tags: ['Holiday'] }));
       vi.useFakeTimers();
@@ -2186,6 +2222,40 @@ describe('NoteEditorPage', () => {
       expect(more).toHaveLength(0);
       req.flush(null, { status: 204, statusText: 'No Content' });
       await settle();
+    });
+
+    it('does not delete when the edits could not be saved', async () => {
+      await openForDelete();
+      type('Unsaved edit');
+      button('Delete').click();
+      await tick();
+      http
+        .expectOne((r) => r.method === 'PATCH')
+        .flush(null, { status: 503, statusText: 'Service Unavailable' });
+      await settle();
+      http.expectNone((r) => r.method === 'DELETE');
+      expect(root.querySelector('.banner[role=alert]')?.textContent).toContain(
+        'Save or discard your edits before deleting the note.',
+      );
+      expect(navigate).not.toHaveBeenCalled();
+      expect(offerUndo).not.toHaveBeenCalled();
+      expect(button('Delete').disabled).toBe(false);
+      expect(editor().value()).toBe('Unsaved edit');
+    });
+
+    it('disables the title while the delete runs', async () => {
+      await openForDelete();
+      const title = root.querySelector<HTMLInputElement>('.title')!;
+      expect(title.disabled).toBe(false);
+      button('Delete').click();
+      await settle();
+      expect(title.disabled).toBe(true);
+      deleteRequest().flush(
+        { title: 'Server Error', status: 500, detail: 'Try later.' },
+        { status: 500, statusText: 'Server Error' },
+      );
+      await settle();
+      expect(title.disabled).toBe(false);
     });
 
     function tagFieldDisabled(): boolean {

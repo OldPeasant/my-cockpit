@@ -126,6 +126,7 @@
           type="text"
           [value]="title()"
           (input)="onTitle($event)"
+          [disabled]="deleting()"
           [placeholder]="current.displayTitle"
           i18n-aria-label="@@notes.new.title"
           aria-label="Title"

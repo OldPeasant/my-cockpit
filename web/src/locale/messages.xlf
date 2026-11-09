@@ -9496,7 +9496,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.html</context>
-          <context context-type="linenumber">159,160</context>
+          <context context-type="linenumber">160,161</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.editor.revisions" datatype="html">
@@ -9538,7 +9538,7 @@
         <source>Title</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.html</context>
-          <context context-type="linenumber">132,133</context>
+          <context context-type="linenumber">133,134</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/list/notes-page.html</context>
@@ -9553,7 +9553,7 @@
         <source>Text</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.html</context>
-          <context context-type="linenumber">148</context>
+          <context context-type="linenumber">149</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/list/notes-page.html</context>
@@ -9564,21 +9564,21 @@
         <source>Write in Markdown. Paste or drop images, type [[ to link an item.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.html</context>
-          <context context-type="linenumber">149,150</context>
+          <context context-type="linenumber">150,151</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.editor.emptyPreview" datatype="html">
         <source>Nothing to preview yet.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.html</context>
-          <context context-type="linenumber">167,169</context>
+          <context context-type="linenumber">168,170</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.editor.loading" datatype="html">
         <source>Loading note…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.html</context>
-          <context context-type="linenumber">179,181</context>
+          <context context-type="linenumber">180,182</context>
         </context-group>
       </trans-unit>
       <trans-unit id="nav.notes" datatype="html">
@@ -9600,32 +9600,39 @@
           <context context-type="linenumber">51</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="notes.editor.deleteUnsaved" datatype="html">
+        <source>Save or discard your edits before deleting the note.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.ts</context>
+          <context context-type="linenumber">269</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="notes.editor.deleteFailed" datatype="html">
         <source>The note could not be moved to the Trash: <x id="message" equiv-text="message(error)"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.ts</context>
-          <context context-type="linenumber">276</context>
+          <context context-type="linenumber">283</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.editor.uploadFailed" datatype="html">
         <source>The image could not be uploaded: <x id="message" equiv-text="message(error)"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.ts</context>
-          <context context-type="linenumber">293</context>
+          <context context-type="linenumber">301</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.editor.restoreFailed" datatype="html">
         <source>The version could not be restored: <x id="message" equiv-text="message(error)"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.ts</context>
-          <context context-type="linenumber">374</context>
+          <context context-type="linenumber">382</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.error" datatype="html">
         <source>Something went wrong.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.ts</context>
-          <context context-type="linenumber">533</context>
+          <context context-type="linenumber">550</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-revisions-dialog.ts</context>

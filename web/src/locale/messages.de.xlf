@@ -16192,6 +16192,14 @@
           <context context-type="linenumber">53</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="notes.editor.deleteUnsaved" datatype="html">
+        <source>Save or discard your edits before deleting the note.</source>
+        <target state="translated">Speichere oder verwirf deine Änderungen, bevor du die Notiz löschst.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.ts</context>
+          <context context-type="linenumber">269</context>
+        </context-group>
+      </trans-unit>
     </body>
   </file>
 </xliff>

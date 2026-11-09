@@ -140,7 +140,6 @@ export default class NoteEditorPage {
     inject(ActivatedRoute)
       .paramMap.pipe(takeUntilDestroyed())
       .subscribe((params) => void this.open(params.get('id') ?? ''));
-    void this.loadKnownTags();
     inject(DestroyRef).onDestroy(() => {
       this.destroyed = true;
       void this.leave();
@@ -179,6 +178,8 @@ export default class NoteEditorPage {
     this.id.set(id);
     this.note.set(null);
     this.linkInfo.set(new Map());
+    // Tags added to the note shown before are suggested on this one too.
+    void this.loadKnownTags();
     await this.load();
   }
 
@@ -246,7 +247,6 @@ export default class NoteEditorPage {
     this.schedule();
   }
 
-  /** A checkbox in the preview: the change is saved right away. */
   /** A tag was added or removed: the change is saved right away. */
   protected onTags(tags: string[]): void {
     this.tags.set(tags);
@@ -263,6 +263,13 @@ export default class NoteEditorPage {
     this.deleting.set(true);
     try {
       await this.flushAll();
+      // Edits that could not be saved would be lost: undo brings back the note as last saved.
+      if (this.dirty() || this.saveState() === 'error' || this.saveState() === 'conflict') {
+        this.saveError.set(
+          $localize`:@@notes.editor.deleteUnsaved:Save or discard your edits before deleting the note.`,
+        );
+        return;
+      }
       const note = this.note();
       if (!note || this.deleted) return;
       await this.trash.remove(note);
@@ -280,6 +287,7 @@ export default class NoteEditorPage {
     }
   }
 
+  /** A checkbox in the preview: the change is saved right away. */
   protected onToggle(line: number): void {
     const body = toggleChecklistItem(this.body(), line);
     if (body === this.body()) return;
@@ -406,6 +414,8 @@ export default class NoteEditorPage {
       if (draft.tags && sameTags(this.tags(), draft.tags) && !sameTags(saved.tags, draft.tags)) {
         this.tags.set([...saved.tags]);
       }
+      // Tags new to the app are suggested from now on.
+      if (draft.tags) this.addKnownTags(saved.tags);
       if (!sameLinks(note.bodyMd, saved.bodyMd)) void this.reloadLinks();
       // Edits made while saving wait for their own debounce (or are saved now when leaving).
       if (!changes(saved, this.draft())) this.saveState.set('saved');
@@ -444,6 +454,13 @@ export default class NoteEditorPage {
     } catch {
       // Without them the tag input just has no suggestions.
     }
+  }
+
+  /** Adds the tags not known yet (compared case-insensitively) to the suggestions. */
+  private addKnownTags(tags: readonly string[]): void {
+    const known = new Set(this.knownTags().map((t) => t.toLowerCase()));
+    const added = tags.filter((t) => !known.has(t.toLowerCase()));
+    if (added.length) this.knownTags.update((all) => [...all, ...added]);
   }
 
   private async reloadLinks(): Promise<void> {
