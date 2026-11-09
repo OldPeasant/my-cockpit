@@ -21,3 +21,4 @@ bookmark → Inbox task.
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 - ASSUMPTION (2026-11-09 01:12+0100 by dell26/agent-1): Bookmark 'notes' are the server's description field (no separate notes field in the API), as on Android; search filters only the loaded bookmarks client-side (API has no q param), as Android does
+- ASSUMPTION (2026-11-09 01:12+0100 by dell26/agent-1): To Inbox task: title = displayTitle (max 500), notesMd = URL, plus a link TASK->BOOKMARK labelled origin, same as Android; web reuses features/capture/uuidv7 for the idempotent task id
