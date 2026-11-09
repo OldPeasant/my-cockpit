@@ -17,7 +17,8 @@ SPEC.md §8.6: a weekly review reminder on a configurable weekday; today web onl
 ## Acceptance criteria
 - [x] A setting "weekly review reminder: weekday + time / off" (server setting definition + web settings control)
   - verified (2026-11-09 05:25+0100 by felix/agent-1): On main 8a340b6b0: cd server && ./gradlew test --tests '*WeeklyReview*' --tests '*SettingsService*' -> WeeklyReviewScheduleTests 20, EdgeCase 27, WeeklyReviewWebTests 9 (setting weeklyReviewReminder off|DAY@HH:mm, invalid -> 400), SettingsServiceTests 6, 0 failures; cd web && npx ng test --watch=false --include general-settings.spec.ts --include reminder-notifications.service.spec.ts -> 92 passed (General settings reminder control load/save off/save day+time)
-- [ ] The server creates the reminder notification at that time (existing reminder delivery: web push, UnifiedPush/alarms)
+- [x] The server creates the reminder notification at that time (existing reminder delivery: web push, UnifiedPush/alarms)
+  - verified (2026-11-09 05:25+0100 by felix/agent-1): On main 8a340b6b0: cd server && ./gradlew test --tests '*WeeklyReviewReminderTests' (Spring + Postgres testcontainer) -> 15 passed, 0 failures: pending reminder row (ItemType.WEEKLY_REVIEW) created at next weekday/time in user timezone, replaced/removed on change, re-armed after fireDue, overdue kept at startup; delivery uses the existing reminder table/fireDue pipeline (SSE/web push/UnifiedPush/Android alarms unchanged); ItemResolverRegistryTests 5 passed
 - [ ] Tapping it opens the review on web and Android
 - [ ] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
 - [ ] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
