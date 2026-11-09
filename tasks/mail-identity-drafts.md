@@ -20,3 +20,4 @@ the Drafts folder to continue it.
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 - ASSUMPTION (2026-11-09 02:09+0100 by dell26/agent-1): From picker lists the account address only when the account has no default identity: the server sends identityId=null from the default identity, so the address cannot be chosen explicitly then (no server change made; the API already accepts identityId)
+- ASSUMPTION (2026-11-09 02:10+0100 by dell26/agent-1): Opening an untouched draft from the Drafts folder and leaving keeps it (Android does not discard it like an untouched reply); identities that fail to load leave only the account address in the web picker
