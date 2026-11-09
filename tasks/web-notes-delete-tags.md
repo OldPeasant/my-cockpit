@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [web-back-navigation]
 touches: [web/src/app/features/notes,web/src/locale]
 prio: 2
-lease_until: 2026-11-09T01:05:30Z
+lease_until: 2026-11-09T01:10:33Z
 ---
 ## Goal
 Web notes have no delete (API `deleteNote` unused) and tags can only be set when creating a note.
