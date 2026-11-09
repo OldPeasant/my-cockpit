@@ -1,10 +1,11 @@
 ---
 title: Note editor: revisions list and restore
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [and-notes-list, and-links-panel, and-notes-tags]
 prio: 2
 parent: and-notes-editor
+lease_until: 2026-11-09T06:52:56Z
 ---
 ## Goal
 Part of `and-notes-editor` (Android note editor: tags, checklists, links, revisions), which was split.
