@@ -1,11 +1,13 @@
 ---
 title: Linked items on projects and files; follow-up by mail (web + Android)
-status: in_progress
-owner: felix/agent-1
+status: todo
+owner: 
 deps: [and-links-panel,web-projects-plus,and-project-tasks,and-files-preview,and-scheduled-list,web-task-actions]
 touches: [web/src/app/features/gtd/projects,web/src/app/features/files,web/src/app/features/gtd/lists,android/app/src/main/java/ch/sonensei/cockpit/gtd/projects,android/app/src/test/java/ch/sonensei/cockpit/gtd/projects,android/app/src/main/java/ch/sonensei/cockpit/files,android/app/src/test/java/ch/sonensei/cockpit/files,android/app/src/main/java/ch/sonensei/cockpit/gtd/lists,android/app/src/test/java/ch/sonensei/cockpit/gtd/lists,web/src/locale,android/app/src/main/res/values/strings_projects_lists.xml,android/app/src/main/res/values-de/strings_projects_lists.xml,android/app/src/main/res/values/strings_files.xml,android/app/src/main/res/values-de/strings_files.xml]
 prio: 3
-lease_until: 2026-11-09T01:29:54Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 SPEC.md §4.3 wants the linked-items panel on every detail view; projects and files have none on either client.
@@ -22,3 +24,4 @@ SPEC.md §5.3 also wants waiting "follow up" to be able to draft an email to the
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 - ASSUMPTION (2026-11-09 02:12+0100 by felix/agent-1): Web 'Draft email' opens /mail/compose?to=&subject=; added minimal ?to/?subject prefill to the compose page (outside touches, 5 lines) since no prefill existed. To = first email of waitingForContactId's contact, else an address found in waitingForText, else empty (a plain name is not a usable address).
 - ASSUMPTION (2026-11-09 02:12+0100 by felix/agent-1): Web file preview: linked items shown in a toggleable side panel ('Linked items' button) of the full-window preview; Android project detail: collapsible 'Linked items' section under the next-step line, linked items open via SearchItemScreen.
+- release by felix/agent-1: Done (commit b8eddca01, NOT yet compiled/tested): web project detail <app-linked-items PROJECT>; web file preview dialog 'Linked items' toggle + side panel (FILE), arrow keys ignored inside .links; web waiting 'Draft email' (followUpMail/emailIn in list-views.ts, getContact for waitingForContactId) -> /mail/compose?to=&subject= with small prefill in mail-compose-page.ts open(); xlf extracted + de targets; Android ProjectsScreen collapsible LinkedItemsSection(PROJECT) + strings en/de. LEFT: Android file preview panel (files/FilePreviewView.kt / FilesScreen.kt, strings_files.xml), Android waiting 'Draft email' (gtd/lists/WaitingScreen.kt; how does Android compose accept prefill?), unit tests (web: waiting-page/list-views/preview-dialog/project-detail/compose prefill; Android: projects/files/waiting), run npm run check + android checks, test-writer/code-reviewer quality gate, verify + done.
