@@ -5772,7 +5772,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.ts</context>
-          <context context-type="linenumber">610</context>
+          <context context-type="linenumber">615</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.ts</context>
@@ -6191,7 +6191,7 @@
         <source>Back to <x id="destination" equiv-text="destination"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.ts</context>
-          <context context-type="linenumber">118</context>
+          <context context-type="linenumber">123</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/navigation/back-button.ts</context>
@@ -6202,42 +6202,42 @@
         <source>Close</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.ts</context>
-          <context context-type="linenumber">119</context>
+          <context context-type="linenumber">124</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.repeatMode" datatype="html">
         <source>Next occurrence</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.ts</context>
-          <context context-type="linenumber">127</context>
+          <context context-type="linenumber">132</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.referenceConfirm" datatype="html">
         <source>Move this task to reference? It becomes a note and the task goes to the Trash.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.ts</context>
-          <context context-type="linenumber">578</context>
+          <context context-type="linenumber">583</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.referenceDirtyConfirm" datatype="html">
         <source>Move this task to reference? Your unsaved changes are discarded; the note gets the saved version.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.ts</context>
-          <context context-type="linenumber">579</context>
+          <context context-type="linenumber">584</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.deleteDirtyConfirm" datatype="html">
         <source>Move this task to the Trash? Your unsaved changes are discarded.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.ts</context>
-          <context context-type="linenumber">580</context>
+          <context context-type="linenumber">585</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.discardConfirm" datatype="html">
         <source>Discard your unsaved changes?</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.ts</context>
-          <context context-type="linenumber">581</context>
+          <context context-type="linenumber">586</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.error.titleRequired" datatype="html">
@@ -7718,7 +7718,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.ts</context>
-          <context context-type="linenumber">502</context>
+          <context context-type="linenumber">601</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.backAria" datatype="html">
@@ -7823,126 +7823,126 @@
         <source>To</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.html</context>
-          <context context-type="linenumber">87</context>
+          <context context-type="linenumber">89</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.ccBcc" datatype="html">
         <source> Cc/Bcc </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.html</context>
-          <context context-type="linenumber">97,98</context>
+          <context context-type="linenumber">99,100</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.cc" datatype="html">
         <source>Cc</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.html</context>
-          <context context-type="linenumber">104</context>
+          <context context-type="linenumber">106</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.bcc" datatype="html">
         <source>Bcc</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.html</context>
-          <context context-type="linenumber">110</context>
+          <context context-type="linenumber">112</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.subject" datatype="html">
         <source>Subject</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.html</context>
-          <context context-type="linenumber">115,117</context>
+          <context context-type="linenumber">117,119</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.body" datatype="html">
         <source>Message</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.html</context>
-          <context context-type="linenumber">130</context>
+          <context context-type="linenumber">132</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.attachments" datatype="html">
         <source>Attachments</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.html</context>
-          <context context-type="linenumber">138,140</context>
+          <context context-type="linenumber">140,142</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.removeAttachment" datatype="html">
         <source> Remove </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.html</context>
-          <context context-type="linenumber">151,152</context>
+          <context context-type="linenumber">153,154</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.send" datatype="html">
         <source> Send </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.html</context>
-          <context context-type="linenumber">170,171</context>
+          <context context-type="linenumber">172,173</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.attachUpload" datatype="html">
         <source> Attach file </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.html</context>
-          <context context-type="linenumber">188,190</context>
+          <context context-type="linenumber">190,192</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.attachFiles" datatype="html">
         <source> From Files </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.html</context>
-          <context context-type="linenumber">197,199</context>
+          <context context-type="linenumber">199,201</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.attaching" datatype="html">
         <source>Attaching…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.html</context>
-          <context context-type="linenumber">200,202</context>
+          <context context-type="linenumber">202,204</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.discard" datatype="html">
         <source> Discard </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.html</context>
-          <context context-type="linenumber">210,212</context>
+          <context context-type="linenumber">212,214</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.sent" datatype="html">
         <source>Message sent</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.ts</context>
-          <context context-type="linenumber">246</context>
+          <context context-type="linenumber">324</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.sentNoCopy" datatype="html">
         <source>Message sent, but no copy was saved in Sent</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.ts</context>
-          <context context-type="linenumber">247</context>
+          <context context-type="linenumber">325</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.discarded" datatype="html">
         <source>Draft discarded</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.ts</context>
-          <context context-type="linenumber">266</context>
+          <context context-type="linenumber">344</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.invalidRecipient" datatype="html">
         <source><x id="address" equiv-text="address"/> is not a valid email address.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.ts</context>
-          <context context-type="linenumber">460</context>
+          <context context-type="linenumber">555</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.noRecipient" datatype="html">
         <source>Add a recipient in To.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.ts</context>
-          <context context-type="linenumber">462</context>
+          <context context-type="linenumber">557</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.invalidAddress" datatype="html">
@@ -8479,28 +8479,28 @@
         <source>Has attachments</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
-          <context context-type="linenumber">230,232</context>
+          <context context-type="linenumber">231,233</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.starred" datatype="html">
         <source>Starred</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
-          <context context-type="linenumber">244,245</context>
+          <context context-type="linenumber">245,246</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.unread" datatype="html">
         <source>Unread</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
-          <context context-type="linenumber">251,252</context>
+          <context context-type="linenumber">252,253</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.moreFailed" datatype="html">
         <source> Older messages could not be loaded: <x id="INTERPOLATION" equiv-text="{{ error }}"/> </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
-          <context context-type="linenumber">265,266</context>
+          <context context-type="linenumber">266,267</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/new/new-page.html</context>
@@ -8511,7 +8511,7 @@
         <source> Load older messages </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
-          <context context-type="linenumber">275,276</context>
+          <context context-type="linenumber">276,277</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/new/new-page.html</context>
@@ -8522,49 +8522,49 @@
         <source>No messages found</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
-          <context context-type="linenumber">280,282</context>
+          <context context-type="linenumber">281,283</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.empty" datatype="html">
         <source>No messages here.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
-          <context context-type="linenumber">282,284</context>
+          <context context-type="linenumber">283,285</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.olderFailed" datatype="html">
         <source> Nothing older loaded: <x id="INTERPOLATION" equiv-text="{{ error }}"/> </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
-          <context context-type="linenumber">288,290</context>
+          <context context-type="linenumber">289,291</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.loadingOlder" datatype="html">
         <source> Loading older messages from the server… </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
-          <context context-type="linenumber">296,298</context>
+          <context context-type="linenumber">297,299</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.loadOlderFromServer" datatype="html">
         <source> Load older from server </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
-          <context context-type="linenumber">306,308</context>
+          <context context-type="linenumber">307,309</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.loading" datatype="html">
         <source>Loading messages…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
-          <context context-type="linenumber">311,314</context>
+          <context context-type="linenumber">312,315</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.keysHint" datatype="html">
         <source> Keys: j/k next/previous, o or click open, x select, e archive, # delete, Shift+I read, u unread, s star, v move, ! spam, / search </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.html</context>
-          <context context-type="linenumber">315,318</context>
+          <context context-type="linenumber">316,319</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.search.unknownAccount" datatype="html">
@@ -8592,7 +8592,7 @@
         <source>(no subject)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.ts</context>
-          <context context-type="linenumber">420</context>
+          <context context-type="linenumber">440</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/new/new-page.ts</context>
@@ -8603,14 +8603,14 @@
         <source>Select “<x id="subject" equiv-text="subject"/>” from <x id="sender" equiv-text="sender"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.ts</context>
-          <context context-type="linenumber">438</context>
+          <context context-type="linenumber">458</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.unknownSender" datatype="html">
         <source>(unknown sender)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.ts</context>
-          <context context-type="linenumber">447</context>
+          <context context-type="linenumber">467</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.list.nothingOlder" datatype="html">
@@ -11540,172 +11540,200 @@
           <context context-type="linenumber">89,91</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="settings.reviewReminder" datatype="html">
+        <source> Weekly review reminder </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
+          <context context-type="linenumber">99,101</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.reviewReminder.hint" datatype="html">
+        <source> A nudge to do your weekly review, in your time zone. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
+          <context context-type="linenumber">102,105</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.reviewReminder.off" datatype="html">
+        <source>Off</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
+          <context context-type="linenumber">114,116</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.reviewReminder.time" datatype="html">
+        <source>Reminder time</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
+          <context context-type="linenumber">127,128</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="settings.energyLabels" datatype="html">
         <source>Energy levels</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">98,99</context>
+          <context context-type="linenumber">142,143</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.energyLabels.hint" datatype="html">
         <source> How tasks are labelled when you pick them by energy, from lowest to highest. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">100,102</context>
+          <context context-type="linenumber">144,146</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.creativityLabels" datatype="html">
         <source>Creativity levels</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">127,128</context>
+          <context context-type="linenumber">171,172</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.creativityLabels.hint" datatype="html">
         <source> From routine work to work that needs fresh ideas. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">129,132</context>
+          <context context-type="linenumber">173,176</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.mailImages" datatype="html">
         <source>Remote images in mail</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">158,159</context>
+          <context context-type="linenumber">202,203</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.mailImages.hint" datatype="html">
         <source> Loading them lets senders see when you open a message. Images attached to the message always show. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">160,163</context>
+          <context context-type="linenumber">204,207</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.mailImageSenders" datatype="html">
         <source> Always load images from </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">184,186</context>
+          <context context-type="linenumber">228,230</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.mailImageSenders.hint" datatype="html">
         <source> Add a sender with &quot;Always load from this sender&quot; when reading a message. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">187,190</context>
+          <context context-type="linenumber">231,234</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.mailImageSenders.remove" datatype="html">
         <source> Remove </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">204,205</context>
+          <context context-type="linenumber">248,249</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.mailImageSenders.none" datatype="html">
         <source>No senders yet.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">210,214</context>
+          <context context-type="linenumber">254,258</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.androidApp" datatype="html">
         <source>Android app</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">217,218</context>
+          <context context-type="linenumber">261,262</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.androidApp.hint" datatype="html">
         <source> Install it on your phone from this server; no app store needed. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">219,221</context>
+          <context context-type="linenumber">263,265</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.invalid" datatype="html">
         <source>Each label needs 1 to 40 characters.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">232,236</context>
+          <context context-type="linenumber">276,280</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.saving" datatype="html">
         <source>Saving…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">240,242</context>
+          <context context-type="linenumber">284,286</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.saved" datatype="html">
         <source>Saved</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">243,245</context>
+          <context context-type="linenumber">287,289</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.notSaved" datatype="html">
         <source>Not saved, previous value restored</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">246,249</context>
+          <context context-type="linenumber">290,293</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.weekStart.monday" datatype="html">
         <source>Monday</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
-          <context context-type="linenumber">102</context>
+          <context context-type="linenumber">128</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.weekStart.tuesday" datatype="html">
         <source>Tuesday</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
-          <context context-type="linenumber">103</context>
+          <context context-type="linenumber">129</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.weekStart.wednesday" datatype="html">
         <source>Wednesday</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
-          <context context-type="linenumber">104</context>
+          <context context-type="linenumber">130</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.weekStart.thursday" datatype="html">
         <source>Thursday</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
-          <context context-type="linenumber">105</context>
+          <context context-type="linenumber">131</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.weekStart.friday" datatype="html">
         <source>Friday</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
-          <context context-type="linenumber">106</context>
+          <context context-type="linenumber">132</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.weekStart.saturday" datatype="html">
         <source>Saturday</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
-          <context context-type="linenumber">107</context>
+          <context context-type="linenumber">133</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.weekStart.sunday" datatype="html">
         <source>Sunday</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
-          <context context-type="linenumber">108</context>
+          <context context-type="linenumber">134</context>
         </context-group>
       </trans-unit>
       <trans-unit id="theme.light" datatype="html">
         <source>Light</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
-          <context context-type="linenumber">111</context>
+          <context context-type="linenumber">137</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
@@ -11716,7 +11744,7 @@
         <source>Dark</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
-          <context context-type="linenumber">112</context>
+          <context context-type="linenumber">138</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
@@ -11727,7 +11755,7 @@
         <source>System</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
-          <context context-type="linenumber">113</context>
+          <context context-type="linenumber">139</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
@@ -11738,63 +11766,63 @@
         <source>Ask</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
-          <context context-type="linenumber">116</context>
+          <context context-type="linenumber">142</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.mailImages.allow" datatype="html">
         <source>Always load</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
-          <context context-type="linenumber">117</context>
+          <context context-type="linenumber">143</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.energy.low" datatype="html">
         <source>Label for low energy</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
-          <context context-type="linenumber">121</context>
+          <context context-type="linenumber">147</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.energy.medium" datatype="html">
         <source>Label for medium energy</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
-          <context context-type="linenumber">122</context>
+          <context context-type="linenumber">148</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.energy.high" datatype="html">
         <source>Label for high energy</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
-          <context context-type="linenumber">123</context>
+          <context context-type="linenumber">149</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.creativity.routine" datatype="html">
         <source>Label for routine work</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
-          <context context-type="linenumber">126</context>
+          <context context-type="linenumber">152</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.creativity.mixed" datatype="html">
         <source>Label for mixed work</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
-          <context context-type="linenumber">127</context>
+          <context context-type="linenumber">153</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.creativity.creative" datatype="html">
         <source>Label for creative work</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
-          <context context-type="linenumber">128</context>
+          <context context-type="linenumber">154</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.mailImageSenders.removeAria" datatype="html">
         <source>Remove <x id="sender" equiv-text="sender"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
-          <context context-type="linenumber">231</context>
+          <context context-type="linenumber">294</context>
         </context-group>
       </trans-unit>
       <trans-unit id="gtdSettings.delete.title" datatype="html">
@@ -13922,84 +13950,84 @@
         <source>Task</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/links/item-type.ts</context>
-          <context context-type="linenumber">28</context>
+          <context context-type="linenumber">30</context>
         </context-group>
       </trans-unit>
       <trans-unit id="itemType.project" datatype="html">
         <source>Project</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/links/item-type.ts</context>
-          <context context-type="linenumber">30</context>
+          <context context-type="linenumber">32</context>
         </context-group>
       </trans-unit>
       <trans-unit id="itemType.note" datatype="html">
         <source>Note</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/links/item-type.ts</context>
-          <context context-type="linenumber">32</context>
+          <context context-type="linenumber">34</context>
         </context-group>
       </trans-unit>
       <trans-unit id="itemType.event" datatype="html">
         <source>Event</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/links/item-type.ts</context>
-          <context context-type="linenumber">34</context>
+          <context context-type="linenumber">36</context>
         </context-group>
       </trans-unit>
       <trans-unit id="itemType.email" datatype="html">
         <source>Email</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/links/item-type.ts</context>
-          <context context-type="linenumber">36</context>
+          <context context-type="linenumber">38</context>
         </context-group>
       </trans-unit>
       <trans-unit id="itemType.file" datatype="html">
         <source>File</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/links/item-type.ts</context>
-          <context context-type="linenumber">38</context>
+          <context context-type="linenumber">40</context>
         </context-group>
       </trans-unit>
       <trans-unit id="itemType.folder" datatype="html">
         <source>Folder</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/links/item-type.ts</context>
-          <context context-type="linenumber">40</context>
+          <context context-type="linenumber">42</context>
         </context-group>
       </trans-unit>
       <trans-unit id="itemType.contact" datatype="html">
         <source>Contact</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/links/item-type.ts</context>
-          <context context-type="linenumber">42</context>
+          <context context-type="linenumber">44</context>
         </context-group>
       </trans-unit>
       <trans-unit id="itemType.bookmark" datatype="html">
         <source>Bookmark</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/links/item-type.ts</context>
-          <context context-type="linenumber">44</context>
+          <context context-type="linenumber">46</context>
         </context-group>
       </trans-unit>
       <trans-unit id="itemType.journalEntry" datatype="html">
         <source>Journal entry</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/links/item-type.ts</context>
-          <context context-type="linenumber">46</context>
+          <context context-type="linenumber">48</context>
         </context-group>
       </trans-unit>
       <trans-unit id="itemType.habit" datatype="html">
         <source>Habit</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/links/item-type.ts</context>
-          <context context-type="linenumber">48</context>
+          <context context-type="linenumber">50</context>
         </context-group>
       </trans-unit>
       <trans-unit id="itemType.weeklyReview" datatype="html">
         <source>Weekly review</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shared/links/item-type.ts</context>
-          <context context-type="linenumber">51</context>
+          <context context-type="linenumber">52</context>
         </context-group>
       </trans-unit>
       <trans-unit id="links.heading" datatype="html">

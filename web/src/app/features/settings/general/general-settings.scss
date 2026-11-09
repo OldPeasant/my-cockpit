@@ -44,6 +44,21 @@ h3 {
   width: min(100%, 20rem);
 }
 
+// Weekly review reminder: the day, and its time once a day is picked.
+.reminder {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+
+  mat-form-field {
+    width: 12rem;
+  }
+
+  .time {
+    width: 8rem;
+  }
+}
+
 .scale {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

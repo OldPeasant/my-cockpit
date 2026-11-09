@@ -15916,6 +15916,34 @@
           <context context-type="linenumber">217,218</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="settings.reviewReminder" datatype="html">
+        <source> Weekly review reminder </source>
+        <target state="translated">Erinnerung an den Wochenrückblick</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.reviewReminder.hint" datatype="html">
+        <source> A nudge to do your weekly review, in your time zone. </source>
+        <target state="translated">Ein Anstoss für deinen Wochenrückblick, in deiner Zeitzone.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.reviewReminder.off" datatype="html">
+        <source>Off</source>
+        <target state="translated">Aus</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.reviewReminder.time" datatype="html">
+        <source>Reminder time</source>
+        <target state="translated">Uhrzeit der Erinnerung</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="settings.androidApp.hint" datatype="html">
         <source> Install it on your phone from this server; no app store needed. </source>
         <target state="translated">Direkt von diesem Server aufs Telefon installieren, ohne App-Store.</target>

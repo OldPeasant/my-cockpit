@@ -43,12 +43,38 @@ const LABEL_MAX_LENGTH = 40;
 export type GeneralField =
   'timeZone' | 'weekStart' | 'theme' | 'energyLabels' | 'creativityLabels' | 'mailImagePolicy';
 
+/** The weekly review reminder row; saved on its own, outside the generic rows. */
+const REMINDER_FIELD = 'weeklyReviewReminder';
+
+/** `off`, or a weekday and time such as `SUNDAY@18:00` (setting of review-reminder-server). */
+export const REMINDER_OFF = 'off';
+/** The time offered when the weekly review reminder is switched on for the first time. */
+export const DEFAULT_REMINDER_TIME = '18:00';
+const REMINDER_PATTERN = /^([A-Z]+)@((?:[01]\d|2[0-3]):[0-5]\d)$/;
+const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
+type WeekDay = Settings['weekStart'];
+export type ReminderDay = WeekDay | typeof REMINDER_OFF;
+
+/** The day and time of a `weeklyReviewReminder` value; null for `off` and unknown values. */
+export function parseReminder(value: unknown): { day: WeekDay; time: string } | null {
+  const match = typeof value === 'string' ? REMINDER_PATTERN.exec(value) : null;
+  if (!match || !(WEEK_DAYS as readonly string[]).includes(match[1])) return null;
+  return { day: match[1] as WeekDay, time: match[2] };
+}
+
+/** The `weeklyReviewReminder` value of a day (or off) and a time. */
+export function formatReminder(day: ReminderDay, time: string): string {
+  return day === REMINDER_OFF ? REMINDER_OFF : `${day}@${time}`;
+}
+
 export const MAIL_IMAGE_POLICIES = [
   'block',
   'allow',
 ] as const satisfies readonly Settings['mailImagePolicy'][];
 
 type SaveState = 'saving' | 'saved' | 'failed';
+type RowKey = GeneralField | typeof REMINDER_FIELD;
 
 /** IANA zones known to this browser, plus UTC (which `supportedValuesOf` may leave out). */
 export function timeZones(): string[] {
@@ -59,8 +85,8 @@ export function timeZones(): string[] {
 
 /**
  * Settings → General (SPEC.md §4.7): time zone, week start, theme, the energy/creativity labels and
- * remote images in mail (ask or always load, and the senders whose images always load), plus the
- * Android app download (read-only). Each row
+ * remote images in mail (ask or always load, and the senders whose images always load), the weekly
+ * review reminder (off, or a weekday and time), plus the Android app download (read-only). Each row
  * saves as soon as it changes (labels and time zone when the field is left); the change shows at
  * once and is undone when the server refuses it.
  */
@@ -153,7 +179,17 @@ export default class GeneralSettings {
 
   protected readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
-  protected readonly state = signal<Partial<Record<GeneralField, SaveState>>>({});
+  protected readonly state = signal<Partial<Record<RowKey, SaveState>>>({});
+
+  /** The weekly review reminder: off or a weekday, and the time (kept while off). */
+  protected readonly reminderForm = this.fb.group({
+    day: this.fb.control<ReminderDay>(REMINDER_OFF),
+    time: [DEFAULT_REMINDER_TIME, [Validators.required, Validators.pattern(TIME_PATTERN)]],
+  });
+  protected readonly reminderOff = REMINDER_OFF;
+  /** Weekly review reminder saves that have not answered yet, and the value of the latest one. */
+  private reminderPending = 0;
+  private reminderSent = REMINDER_OFF;
 
   /** Per input (`timeZone`, `energyLabels.LOW`, ...): the value it got from the server or sent. */
   private readonly baseline = new Map<string, unknown>();
@@ -216,6 +252,33 @@ export default class GeneralSettings {
     if (current) this.refresh(current);
   }
 
+  /**
+   * Saves the weekly review reminder when the day or a valid time changed: `off`, or the day and
+   * time. A refused save shows the value the server holds again.
+   */
+  protected async saveReminder(): Promise<void> {
+    const saved = this.service.settings();
+    const { day, time } = this.reminderForm.getRawValue();
+    if (!saved || (day !== REMINDER_OFF && this.reminderForm.controls.time.invalid)) return;
+    const value = formatReminder(day, time);
+    const latest = this.reminderPending ? this.reminderSent : reminderValue(saved);
+    if (value === latest) return;
+
+    this.setState(REMINDER_FIELD, 'saving');
+    this.reminderSent = value;
+    this.reminderPending++;
+    try {
+      await this.service.update({ [REMINDER_FIELD]: value });
+      this.setState(REMINDER_FIELD, 'saved');
+    } catch {
+      // The service rolled back (and reloaded after a 412); the interceptor showed the error.
+      this.setState(REMINDER_FIELD, 'failed');
+    }
+    this.reminderPending--;
+    const current = this.service.settings();
+    if (current && !this.reminderPending) this.showReminder(current);
+  }
+
   /** Leaving the time zone field with a partial name puts the saved zone back. */
   protected timeZoneBlur(): void {
     const control = this.form.controls.timeZone;
@@ -248,16 +311,27 @@ export default class GeneralSettings {
     }
   }
 
-  protected stateOf(field: GeneralField): SaveState | undefined {
+  protected stateOf(field: RowKey): SaveState | undefined {
     return this.state()[field];
   }
 
-  private setState(field: GeneralField, state: SaveState): void {
+  private setState(field: RowKey, state: SaveState): void {
     this.state.update((states) => ({ ...states, [field]: state }));
   }
 
   private show(settings: Settings): void {
     for (const field of this.fields()) this.showField(field, settings);
+    this.showReminder(settings);
+  }
+
+  /** Shows the stored reminder; while it is off, the time chosen last stays for switching on. */
+  private showReminder(settings: Settings): void {
+    const reminder = parseReminder(settings[REMINDER_FIELD]);
+    const time = reminder?.time ?? this.reminderForm.controls.time.value;
+    this.reminderForm.reset({
+      day: reminder?.day ?? REMINDER_OFF,
+      time: TIME_PATTERN.test(time) ? time : DEFAULT_REMINDER_TIME,
+    });
   }
 
   /**
@@ -312,6 +386,12 @@ function oneOf(
 ): (control: AbstractControl<string>) => ValidationErrors | null {
   const allowed = new Set(values);
   return (control) => (!control.value || allowed.has(control.value) ? null : { unknownZone: true });
+}
+
+/** The stored reminder, normalized: anything that is not a day and time counts as off. */
+function reminderValue(settings: Settings): string {
+  const reminder = parseReminder(settings[REMINDER_FIELD]);
+  return reminder ? formatReminder(reminder.day, reminder.time) : REMINDER_OFF;
 }
 
 /** Labels are saved without surrounding spaces. */

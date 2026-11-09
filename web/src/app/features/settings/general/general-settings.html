@@ -93,6 +93,50 @@
         </div>
       </div>
 
+      <div class="row" [formGroup]="reminderForm">
+        <div class="describe">
+          <h3 id="review-reminder-label" i18n="@@settings.reviewReminder">
+            Weekly review reminder
+          </h3>
+          <p i18n="@@settings.reviewReminder.hint">
+            A nudge to do your weekly review, in your time zone.
+          </p>
+        </div>
+        <div class="control">
+          <div class="reminder">
+            <mat-form-field subscriptSizing="dynamic">
+              <mat-select
+                formControlName="day"
+                aria-labelledby="review-reminder-label"
+                (selectionChange)="saveReminder()"
+              >
+                <mat-option [value]="reminderOff" i18n="@@settings.reviewReminder.off"
+                  >Off</mat-option
+                >
+                @for (day of weekDays; track day) {
+                  <mat-option [value]="day">{{ weekDayLabels[day] }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            @if (reminderForm.controls.day.value !== reminderOff) {
+              <mat-form-field subscriptSizing="dynamic" class="time">
+                <input
+                  matInput
+                  type="time"
+                  formControlName="time"
+                  aria-label="Reminder time"
+                  i18n-aria-label="@@settings.reviewReminder.time"
+                  (change)="saveReminder()"
+                />
+              </mat-form-field>
+            }
+          </div>
+          <ng-container
+            *ngTemplateOutlet="status; context: { $implicit: 'weeklyReviewReminder' }"
+          />
+        </div>
+      </div>
+
       <div class="row">
         <div class="describe">
           <h3 i18n="@@settings.energyLabels">Energy levels</h3>

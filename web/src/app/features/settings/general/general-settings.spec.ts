@@ -733,4 +733,114 @@ describe('GeneralSettings', () => {
       // The switch is per browser: no PATCH to /api/v1/settings (verified in afterEach).
     });
   });
+
+  describe('weekly review reminder', () => {
+    function daySelect(): HTMLElement {
+      return root.querySelector('.reminder mat-select') as HTMLElement;
+    }
+
+    function timeInput(): HTMLInputElement | null {
+      return root.querySelector('input[aria-label="Reminder time"]');
+    }
+
+    async function pickDay(text: string): Promise<void> {
+      (daySelect().querySelector('.mat-mdc-select-trigger') as HTMLElement).click();
+      await fixture.whenStable();
+      const option = [...document.querySelectorAll<HTMLElement>('mat-option')].find(
+        (o) => o.textContent?.trim() === text,
+      ) as HTMLElement;
+      option.click();
+      await tick();
+    }
+
+    async function flushPatch(body: unknown, settings: Settings): Promise<void> {
+      const req = http.expectOne({ method: 'PATCH', url: PATH });
+      expect(req.request.body).toEqual(body);
+      req.flush(settings, { headers: { ETag: '"2"' } });
+      await tick();
+      await fixture.whenStable();
+    }
+
+    it('shows a stored day and time', async () => {
+      await setup([], fakeSettings({ weeklyReviewReminder: 'FRIDAY@16:30' }));
+
+      expect(daySelect().textContent).toContain('Friday');
+      expect(timeInput()?.value).toBe('16:30');
+    });
+
+    it('shows off without a time field when the reminder is off or unset', async () => {
+      await setup([], fakeSettings({ weeklyReviewReminder: 'off' }));
+
+      expect(daySelect().textContent).toContain('Off');
+      expect(timeInput()).toBeNull();
+    });
+
+    it('saves off', async () => {
+      await setup([], fakeSettings({ weeklyReviewReminder: 'SUNDAY@18:00' }));
+
+      await pickDay('Off');
+      await flushPatch(
+        { weeklyReviewReminder: 'off' },
+        fakeSettings({ weeklyReviewReminder: 'off' }),
+      );
+
+      expect(daySelect().textContent).toContain('Off');
+      expect(timeInput()).toBeNull();
+      expect(root.textContent).toContain('Saved');
+    });
+
+    it('saves a day with the default time, then a changed time', async () => {
+      await setup();
+
+      await pickDay('Sunday');
+      await flushPatch(
+        { weeklyReviewReminder: 'SUNDAY@18:00' },
+        fakeSettings({ weeklyReviewReminder: 'SUNDAY@18:00' }),
+      );
+      expect(timeInput()?.value).toBe('18:00');
+
+      const time = timeInput() as HTMLInputElement;
+      time.value = '09:15';
+      time.dispatchEvent(new Event('input'));
+      time.dispatchEvent(new Event('change'));
+      await tick();
+      await flushPatch(
+        { weeklyReviewReminder: 'SUNDAY@09:15' },
+        fakeSettings({ weeklyReviewReminder: 'SUNDAY@09:15' }),
+      );
+
+      expect(daySelect().textContent).toContain('Sunday');
+      expect(timeInput()?.value).toBe('09:15');
+      expect(root.textContent).toContain('Saved');
+    });
+
+    it('does not save an empty time', async () => {
+      await setup([], fakeSettings({ weeklyReviewReminder: 'SUNDAY@18:00' }));
+
+      const time = timeInput() as HTMLInputElement;
+      time.value = '';
+      time.dispatchEvent(new Event('input'));
+      time.dispatchEvent(new Event('change'));
+      await tick();
+
+      http.expectNone({ method: 'PATCH', url: PATH });
+    });
+
+    it('puts the stored reminder back when the server refuses the save', async () => {
+      await setup([], fakeSettings({ weeklyReviewReminder: 'SUNDAY@18:00' }));
+
+      await pickDay('Monday');
+      http
+        .expectOne({ method: 'PATCH', url: PATH })
+        .flush(
+          { status: 400, title: 'Bad Request', detail: 'Invalid.' },
+          { status: 400, statusText: 'Bad Request' },
+        );
+      await tick();
+      await fixture.whenStable();
+
+      expect(daySelect().textContent).toContain('Sunday');
+      expect(root.textContent).toContain('Not saved, previous value restored');
+    });
+  });
 });

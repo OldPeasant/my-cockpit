@@ -175,6 +175,44 @@ describe('ReminderNotificationsService', () => {
     expect(navigate).toHaveBeenCalledWith('/tasks/0190a5c8-0000-7000-8000-000000000001');
   });
 
+  describe('weekly review reminder', () => {
+    const weeklyReview = {
+      type: 'WEEKLY_REVIEW',
+      id: '0190a5c8-0000-7000-8000-00000000wr01',
+      title: 'Weekly review',
+      deepLink: '/review',
+    } as const;
+
+    it('opens the weekly review when its browser notification is clicked', () => {
+      localStorage.setItem(REMINDER_NOTIFICATIONS_STORAGE_KEY, 'on');
+      create('granted');
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+      vi.spyOn(window, 'focus').mockImplementation(() => undefined);
+
+      fired.next(reminder(weeklyReview));
+
+      const [{ title, notification }] = browser.shown;
+      expect(title).toBe('Weekly review');
+      notification.onclick?.(new Event('click'));
+      expect(navigate).toHaveBeenCalledWith('/review');
+    });
+
+    it('opens the weekly review from the toast while notifications are off', () => {
+      create('granted');
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+
+      fired.next(reminder(weeklyReview));
+
+      expect(snackBar.open).toHaveBeenCalledWith(
+        'Reminder: Weekly review',
+        'Open',
+        expect.anything(),
+      );
+      action.next();
+      expect(navigate).toHaveBeenCalledWith('/review');
+    });
+  });
+
   it('falls back to a toast when the permission was revoked in the browser meanwhile', () => {
     localStorage.setItem(REMINDER_NOTIFICATIONS_STORAGE_KEY, 'on');
     const service = create('granted');
