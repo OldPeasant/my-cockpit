@@ -15,7 +15,8 @@ The settings-logout cache test must not time out on a loaded host.
   - verified (2026-11-09 05:00+0100 by dell26/agent-2): Read AppStartRoutingTest.kt at a60ec23da: both cache waits use awaitDeleted, which calls shadowOf(Looper.getMainLooper()).idle() every 10ms until a 30s deadline, then throws an AssertionError with the app thread stacks; code-reviewer confirmed it
 - [x] AppStartRoutingTest passes repeatedly while every CPU core is busy with other work
   - verified (2026-11-09 05:00+0100 by dell26/agent-2): sh .tmp/load.sh 3 (16 busy-loop processes on a 16-core host, then gradlew testDebugUnitTest --tests AppStartRoutingTest --rerun 3 times) -> 3 of 3 runs had 9 tests and 0 failures; the settings-logout cache test took 1.2-1.8s (0.29s without load)
-- [ ] `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+- [x] `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+  - verified (2026-11-09 05:06+0100 by dell26/agent-2): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -q at a60ec23da -> exit 0
 
 ## Notes
 - ASSUMPTION (2026-11-09 04:56+0100 by dell26/agent-2): The task had no acceptance criteria; I added three: explicit main-looper pumping plus a thread dump on timeout, passing under CPU load, and the android check. Root cause assumed: the user logout runs on Dispatchers.Main, and compose waitUntil only runs Robolectric's paused looper as a side effect of frames
