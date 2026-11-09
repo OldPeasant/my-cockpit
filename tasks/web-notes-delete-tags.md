@@ -1,10 +1,11 @@
 ---
 title: Web notes: delete and edit tags
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [web-back-navigation]
 touches: [web/src/app/features/notes,web/src/locale]
 prio: 2
+lease_until: 2026-11-09T01:04:18Z
 ---
 ## Goal
 Web notes have no delete (API `deleteNote` unused) and tags can only be set when creating a note.
