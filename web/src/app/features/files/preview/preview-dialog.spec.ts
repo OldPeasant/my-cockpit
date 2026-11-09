@@ -181,6 +181,53 @@ describe('PreviewDialog', () => {
     expect(title()).toBe('Clip.mp4');
   });
 
+  describe('linked items', () => {
+    const toggle = () =>
+      [...el().querySelectorAll<HTMLButtonElement>('button')].find(
+        (b) => b.textContent?.trim() === 'Linked items',
+      )!;
+    const linkRequests = () =>
+      http.match((r) => r.method === 'GET' && r.url === '/api/v1/links');
+
+    it('shows the file’s linked items beside it on demand and hides them again', async () => {
+      await open([IMAGE], IMAGE.id);
+      expect(toggle().getAttribute('aria-pressed')).toBe('false');
+      expect(el().querySelector('#preview-links')).toBeNull();
+      expect(linkRequests()).toEqual([]);
+
+      toggle().click();
+      await render();
+
+      expect(toggle().getAttribute('aria-pressed')).toBe('true');
+      const panel = el().querySelector('#preview-links app-linked-items');
+      expect(panel).not.toBeNull();
+      const requests = linkRequests();
+      expect(requests.length).toBeGreaterThan(0);
+      expect(requests[0].request.urlWithParams).toContain(IMAGE.id);
+      expect(requests[0].request.urlWithParams).toContain('FILE');
+      requests.forEach((r) => r.flush({ items: [] }));
+      await render();
+
+      toggle().click();
+      await render();
+      expect(el().querySelector('#preview-links')).toBeNull();
+      expect(toggle().getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('leaves arrow keys typed in the linked-items panel to the panel', async () => {
+      await open(FOLDER_FILES, IMAGE.id);
+      toggle().click();
+      await render();
+      linkRequests().forEach((r) => r.flush({ items: [] }));
+      await render();
+
+      const event = await key('ArrowRight', el().querySelector<HTMLElement>('#preview-links')!);
+
+      expect(event.defaultPrevented).toBe(false);
+      expect(title()).toBe('Beach.png');
+    });
+  });
+
   it('starts at the first previewable file when the given one has no preview', async () => {
     await open(FOLDER_FILES, ZIP.id);
     expect(title()).toBe('Beach.png');

@@ -92,6 +92,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.core.links.ItemRef
+import ch.sonensei.cockpit.core.links.LinkedItemsSection
+import ch.sonensei.cockpit.search.SearchItemScreen
+import ch.sonensei.cockpit.search.SearchTarget
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import coil3.ImageLoader
 import coil3.compose.AsyncImage
@@ -129,6 +133,7 @@ fun FilesRoute(modifier: Modifier = Modifier) {
     BackHandler(enabled = state.selecting) { viewModel.clearSelection() }
     // Registered last, so it goes first: back closes a preview before anything else.
     BackHandler(enabled = state.preview != null) { viewModel.closePreview() }
+    var linked by rememberSaveable { mutableStateOf<String?>(null) }
 
     val noApp = stringResource(R.string.files_no_app)
     val resources = LocalResources.current
@@ -164,6 +169,13 @@ fun FilesRoute(modifier: Modifier = Modifier) {
                 viewModel.save(file, { openForWriting(resolver, uri) }) { discardDocument(resolver, uri) }
             }
         }
+
+    // A linked item opened from the preview, as "TYPE:id", replaces the files; Back returns to the preview.
+    linked?.split(':')?.let { (type, itemId) ->
+        BackHandler { linked = null }
+        SearchItemScreen(type, UUID.fromString(itemId), onClose = { linked = null }, modifier = modifier)
+        return
+    }
 
     FilesContent(
         state = state,
@@ -202,6 +214,11 @@ fun FilesRoute(modifier: Modifier = Modifier) {
             ),
         modifier = modifier,
         imageLoader = viewModel.imageLoader,
+        linksPanel = { file ->
+            LinkedItemsSection(ItemRef("FILE", file.id), open = { target ->
+                if (target is SearchTarget.InApp) linked = "${target.type}:${target.id}"
+            })
+        },
     )
 }
 
@@ -330,6 +347,8 @@ fun FilesContent(
     imageLoader: ImageLoader? = null,
     /** Opens a previewed PDF; tests give fakes, as Robolectric does not render PDFs. */
     pdfOpener: (File) -> PdfPages? = ::openPdf,
+    /** The previewed file's linked items; `null` (tests) hides the preview's links toggle. */
+    linksPanel: (@Composable (DriveEntry.File) -> Unit)? = null,
 ) {
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
@@ -417,6 +436,7 @@ fun FilesContent(
             callbacks = callbacks,
             imageLoader = imageLoader,
             pdfOpener = pdfOpener,
+            linksPanel = linksPanel,
         )
     }
     state.nameDialog?.let { NameDialogView(it, callbacks) }

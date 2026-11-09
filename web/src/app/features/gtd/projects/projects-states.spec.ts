@@ -12,6 +12,7 @@ import {
   createTask,
   listAreas,
   listContexts,
+  listLinks,
   listProjects,
   listTasks,
   orderProjectTasks,
@@ -162,6 +163,7 @@ describe('Projects views: states and edge cases', () => {
         if (fn === listProjects) return { items: projects };
         if (fn === listAreas) return { items: areas };
         if (fn === listContexts) return { items: [] };
+        if (fn === listLinks) return { items: [] };
         if (fn === listTasks) return { items: tasks.filter((t) => t.projectId === p['projectId']) };
         if (fn === updateProject) {
           const current = projects.find((x) => x.id === p['id'])!;
@@ -399,11 +401,24 @@ describe('Projects views: states and edge cases', () => {
       expect(titles()).toEqual(['Fill form', 'Send', 'Collect receipts']);
     });
 
+    it('shows the linked-items panel of the project (SPEC.md §4.3)', async () => {
+      await render(ProjectDetailPage);
+
+      const panel = element.querySelector('article app-linked-items');
+      expect(panel).not.toBeNull();
+      expect(panel?.textContent).toContain('No linked items yet.');
+      const linkCalls = calls.filter((c) => c.fn === listLinks);
+      expect(linkCalls.length).toBeGreaterThan(0);
+      expect(JSON.stringify(linkCalls[0].params)).toContain('PROJECT');
+      expect(JSON.stringify(linkCalls[0].params)).toContain('p1');
+    });
+
     it('shows an error when the tasks cannot be loaded, and retries', async () => {
       overrides.set(listTasks, () => Promise.reject(new Error('503')));
       await render(ProjectDetailPage);
 
       expect(element.querySelector('h1')?.textContent).toBe('Tax return');
+      expect(element.querySelector('app-linked-items')).not.toBeNull();
       expect(element.querySelector('.block [role=alert]')?.textContent).toContain(
         'The tasks could not be loaded.',
       );
@@ -614,7 +629,7 @@ describe('Projects views: states and edge cases', () => {
       expect(callsOf(updateProject)[0].params['body']).toEqual({ descriptionMd: null });
       expect(element.querySelector('#description-md')).toBeNull();
       expect(button('Add description')).toBeDefined();
-      expect(text('.block .empty').at(-1)).toContain('Note the outcome');
+      expect(text('section.block .empty').at(-1)).toContain('Note the outcome');
     });
 
     it('cancel and Escape discard description edits', async () => {
