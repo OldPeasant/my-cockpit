@@ -1,11 +1,11 @@
 ---
 title: Weekly review reminder on a configurable weekday
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-review-flow, and-review-steps, web-small-gaps, review-reminder-server, review-reminder-web, review-reminder-android]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/review,server/src/test/kotlin/ch/sonensei/cockpit/review,web/src/app/features/settings/general,web/src/app/features/review,android/app/src/main/java/ch/sonensei/cockpit/review,android/app/src/test/java/ch/sonensei/cockpit/review,web/src/locale,android/app/src/main/res/values/strings_review.xml,android/app/src/main/res/values-de/strings_review.xml]
 prio: 3
-lease_until: 2026-11-09T09:04:07Z
+lease_until: 
 subtasks: review-reminder-server, review-reminder-web, review-reminder-android
 releases: 2
 extended: 
@@ -33,3 +33,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - ASSUMPTION (2026-11-09 05:30+0100 by felix/agent-1): Weekly review reminder notification title stays the server's English 'Weekly review' for now (CR-1/TW-1); localizing it on web and Android is deferred to new task review-reminder-title-l10n. German strings exist on both clients and are used in settings and as the Android fallback title.
 - release by felix/agent-1: Integration of server/web/android subtasks verified: criteria 1-4 verified via focused server/web/android tests on main; quality evidence (tests.md, review.md, quality.json, reviewed_revision 2abe6d094) committed; CR-1 deferred to new task review-reminder-title-l10n (assumption recorded). LEFT: criterion 5 - sh scripts/check.sh timed out (900s, during server ktlint+tests under machine load); rerun it, verify #5, then tasks.py done (no code change needed; if main moved only update reviewed_revision).
 - release by felix/agent-1: over budget after 2 sessions (~13 min) and a review that decided nothing; still resumable: continue from wip/review-reminder (see git log)
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 78s on 6da931ce7; criteria verified 5/5
