@@ -16,7 +16,6 @@
   ],
   "validation": [
     {"command": "cd web && npm run check", "result": "pass"},
-    {"command": "cd web && npm run build:de", "result": "pass"},
-    {"command": "sh scripts/check.sh", "result": "pass"}
+    {"command": "cd web && npm run build:de", "result": "pass"}
   ]
 }
