@@ -468,6 +468,8 @@ class ReminderUiTest {
                 "BOOKMARK" to CockpitDestination.Bookmarks,
                 "JOURNAL_ENTRY" to CockpitDestination.Journal,
                 "HABIT" to CockpitDestination.Habits,
+                // Still the generic fallback; the task review-reminder-android maps it to the review screen.
+                "WEEKLY_REVIEW" to CockpitDestination.Dashboard,
                 "SOMETHING_NEW" to CockpitDestination.Dashboard,
             )
         expected.forEach { (type, destination) -> assertEquals(type, destination, OpenItemRequest(type, "x").destination) }

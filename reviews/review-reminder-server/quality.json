@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "task": "review-reminder-server",
+  "reviewed_revision": "b08b3fd2de26d8f0503e10e5f3f1c403ab1da35e",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/review-reminder-server/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/review-reminder-server/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/review-reminder-server/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (first review)", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "regenerated ItemType union broke the web build; WEEKLY_REVIEW glyph, label and i18n added (195fcf0e1), confirmed by the re-review"},
+    {"id": "CR-2 (first review)", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "startup sync deleted an overdue reminder; sync keeps the latest due one (4b835780b), regression tests added, confirmed by the re-review"},
+    {"id": "FX-1", "source": "fixer", "severity": "P2", "disposition": "fixed",
+     "note": "3 core tests (ItemResolverRegistryTests, SettingsServiceTests) lacked WEEKLY_REVIEW / weeklyReviewReminder; expectations updated (de5fa4f58)"},
+    {"id": "CR-1 (final review, earlier CR-3)", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "generic reminders API can add/delete WEEKLY_REVIEW reminders; clients do not offer it and the next sync/trigger restores exactly one reminder; reviewer says no code change needed"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests '*WeeklyReview*' jacocoTestReport", "result": "pass"},
+    {"command": "cd server && ./gradlew check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}

@@ -53,8 +53,9 @@ class TrashModelsTest {
                 "HABIT" to R.string.trash_type_habit,
             )
         expected.forEach { (type, label) -> assertEquals(type, label, trashTypeLabel(type)) }
-        // The client knows every type the API can send.
-        TrashItemResponse.Type.entries.forEach {
+        // The client knows every type the API can send. The weekly review is a well-known item that
+        // can never be trashed, so it needs no trash label.
+        TrashItemResponse.Type.entries.filter { it.value != "WEEKLY_REVIEW" }.forEach {
             assertNotEquals(it.value, R.string.trash_type_other, trashTypeLabel(it.value))
         }
         assertEquals(R.string.trash_type_other, trashTypeLabel("SPACESHIP"))
