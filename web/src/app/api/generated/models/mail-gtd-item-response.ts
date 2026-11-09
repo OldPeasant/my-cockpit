@@ -22,5 +22,5 @@ export interface MailGtdItemResponse {
   /**
    * TASK or NOTE
    */
-  type: 'TASK' | 'PROJECT' | 'NOTE' | 'EVENT' | 'EMAIL' | 'FILE' | 'FOLDER' | 'CONTACT' | 'BOOKMARK' | 'JOURNAL_ENTRY' | 'HABIT';
+  type: 'TASK' | 'PROJECT' | 'NOTE' | 'EVENT' | 'EMAIL' | 'FILE' | 'FOLDER' | 'CONTACT' | 'BOOKMARK' | 'JOURNAL_ENTRY' | 'HABIT' | 'WEEKLY_REVIEW';
 }

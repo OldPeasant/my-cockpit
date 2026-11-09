@@ -7,6 +7,7 @@ import ch.sonensei.cockpit.core.reminders.domain.ReminderService
 import ch.sonensei.cockpit.core.settings.domain.SettingsService
 import ch.sonensei.cockpit.core.web.InvalidRequestException
 import ch.sonensei.cockpit.review.domain.WeeklyReviewReminders
+import ch.sonensei.cockpit.review.infra.ReviewSettings
 import ch.sonensei.cockpit.support.PostgresTestBase
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -23,6 +24,7 @@ import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
+import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.Executors
@@ -96,12 +98,16 @@ class WeeklyReviewReminderTests(
 	@Test
 	fun `re-armed for the next week after it fired, and delivered with its item`() {
 		settings.update(mapOf("weeklyReviewReminder" to "SUNDAY@18:00"))
-		val upcoming =
+		val body =
 			mockMvc
-				.get("/api/v1/reminders/upcoming")
+				.get("/api/v1/reminders/upcoming") { param("until", "2026-03-09T00:00:00Z") }
+				.andExpect { status { isOk() } }
 				.andReturn()
 				.response.contentAsString
-		(upcoming.contains("\"deepLink\":\"/review\"") && upcoming.contains("Weekly review")) shouldBe true
+		val weekly = JsonMapper().readTree(body)["items"].filter { it["item"]["type"].asString() == "WEEKLY_REVIEW" }
+		weekly.map { it["item"]["title"].asString() } shouldContainExactly listOf("Weekly review")
+		weekly.map { it["item"]["deepLink"].asString() } shouldContainExactly listOf("/review")
+		weekly.map { Instant.parse(it["remindAt"].asString()) } shouldContainExactly listOf(Instant.parse("2026-03-08T17:00:00Z"))
 
 		clock.set(Instant.parse("2026-03-08T17:00:01Z"))
 		reminders.fireDue() shouldBe 1
@@ -144,6 +150,6 @@ class WeeklyReviewReminderTests(
 
 	private companion object {
 		val NOW: Instant = Instant.parse("2026-03-04T08:00:00Z")
-		val SETTING = ch.sonensei.cockpit.review.infra.ReviewSettings.WEEKLY_REVIEW_REMINDER
+		val SETTING = ReviewSettings.WEEKLY_REVIEW_REMINDER
 	}
 }

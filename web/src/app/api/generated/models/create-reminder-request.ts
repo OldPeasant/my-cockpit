@@ -8,7 +8,7 @@ export interface CreateReminderRequest {
    */
   channel?: 'NOTIFICATION';
   itemId: string;
-  itemType: 'TASK' | 'PROJECT' | 'NOTE' | 'EVENT' | 'EMAIL' | 'FILE' | 'FOLDER' | 'CONTACT' | 'BOOKMARK' | 'JOURNAL_ENTRY' | 'HABIT';
+  itemType: 'TASK' | 'PROJECT' | 'NOTE' | 'EVENT' | 'EMAIL' | 'FILE' | 'FOLDER' | 'CONTACT' | 'BOOKMARK' | 'JOURNAL_ENTRY' | 'HABIT' | 'WEEKLY_REVIEW';
 
   /**
    * When to remind (ISO-8601 instant)

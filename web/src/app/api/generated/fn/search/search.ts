@@ -19,7 +19,7 @@ export interface Search$Params {
 /**
  * Only these item types (comma-separated or repeated); all types when absent
  */
-  types?: Array<'TASK' | 'PROJECT' | 'NOTE' | 'EVENT' | 'EMAIL' | 'FILE' | 'FOLDER' | 'CONTACT' | 'BOOKMARK' | 'JOURNAL_ENTRY' | 'HABIT'>;
+  types?: Array<'TASK' | 'PROJECT' | 'NOTE' | 'EVENT' | 'EMAIL' | 'FILE' | 'FOLDER' | 'CONTACT' | 'BOOKMARK' | 'JOURNAL_ENTRY' | 'HABIT' | 'WEEKLY_REVIEW'>;
 
 /**
  * Maximum number of items, 1..50

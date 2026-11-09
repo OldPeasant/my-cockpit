@@ -4339,6 +4339,7 @@ paths:
           - BOOKMARK
           - JOURNAL_ENTRY
           - HABIT
+          - WEEKLY_REVIEW
       - description: Id of the item
         in: query
         name: id
@@ -7541,6 +7542,7 @@ paths:
           - BOOKMARK
           - JOURNAL_ENTRY
           - HABIT
+          - WEEKLY_REVIEW
       - description: Id of the item
         in: query
         name: itemId
@@ -7802,6 +7804,7 @@ paths:
             - BOOKMARK
             - JOURNAL_ENTRY
             - HABIT
+            - WEEKLY_REVIEW
       - description: "Maximum number of items, 1..50"
         in: query
         name: limit
@@ -8879,6 +8882,7 @@ paths:
           - BOOKMARK
           - JOURNAL_ENTRY
           - HABIT
+          - WEEKLY_REVIEW
       - description: Id of the item
         in: path
         name: id
@@ -8926,6 +8930,7 @@ paths:
           - BOOKMARK
           - JOURNAL_ENTRY
           - HABIT
+          - WEEKLY_REVIEW
       - description: Id of the item
         in: path
         name: id
@@ -11202,6 +11207,7 @@ components:
           - BOOKMARK
           - JOURNAL_ENTRY
           - HABIT
+          - WEEKLY_REVIEW
         remindAt:
           type: string
           format: date-time
@@ -12163,6 +12169,7 @@ components:
           - BOOKMARK
           - JOURNAL_ENTRY
           - HABIT
+          - WEEKLY_REVIEW
       required:
       - id
       - type
@@ -12360,6 +12367,7 @@ components:
           - BOOKMARK
           - JOURNAL_ENTRY
           - HABIT
+          - WEEKLY_REVIEW
       required:
       - available
       - id
@@ -12730,6 +12738,7 @@ components:
           - BOOKMARK
           - JOURNAL_ENTRY
           - HABIT
+          - WEEKLY_REVIEW
       required:
       - id
       - linkId
@@ -13873,6 +13882,7 @@ components:
           - BOOKMARK
           - JOURNAL_ENTRY
           - HABIT
+          - WEEKLY_REVIEW
       required:
       - available
       - id
@@ -14097,6 +14107,7 @@ components:
           - BOOKMARK
           - JOURNAL_ENTRY
           - HABIT
+          - WEEKLY_REVIEW
       required:
       - items
       - type
@@ -14132,6 +14143,7 @@ components:
           - BOOKMARK
           - JOURNAL_ENTRY
           - HABIT
+          - WEEKLY_REVIEW
         updatedAt:
           type: string
           format: date-time
@@ -14764,6 +14776,7 @@ components:
           - BOOKMARK
           - JOURNAL_ENTRY
           - HABIT
+          - WEEKLY_REVIEW
       required:
       - deletedAt
       - icon

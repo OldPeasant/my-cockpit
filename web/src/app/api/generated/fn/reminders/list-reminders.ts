@@ -14,7 +14,7 @@ export interface ListReminders$Params {
 /**
  * Type of the item
  */
-  itemType: 'TASK' | 'PROJECT' | 'NOTE' | 'EVENT' | 'EMAIL' | 'FILE' | 'FOLDER' | 'CONTACT' | 'BOOKMARK' | 'JOURNAL_ENTRY' | 'HABIT';
+  itemType: 'TASK' | 'PROJECT' | 'NOTE' | 'EVENT' | 'EMAIL' | 'FILE' | 'FOLDER' | 'CONTACT' | 'BOOKMARK' | 'JOURNAL_ENTRY' | 'HABIT' | 'WEEKLY_REVIEW';
 
 /**
  * Id of the item
