@@ -1,3 +1,5 @@
+import { renderMarkdown as fromProjectsShim } from '../projects/markdown';
+import { renderMarkdown as fromUiBarrel } from './index';
 import { renderMarkdown } from './markdown';
 
 describe('renderMarkdown', () => {
@@ -119,5 +121,12 @@ describe('renderMarkdown', () => {
   it('renders nothing for an empty text', () => {
     expect(renderMarkdown('')).toBe('');
     expect(renderMarkdown('\n  \n')).toBe('');
+  });
+});
+
+describe('renderMarkdown exports', () => {
+  it('is the same function from gtd/ui and from the gtd/projects re-export', () => {
+    expect(fromUiBarrel).toBe(renderMarkdown);
+    expect(fromProjectsShim).toBe(renderMarkdown);
   });
 });
