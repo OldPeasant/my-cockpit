@@ -22,7 +22,6 @@ import { ChangeEventsService } from '../../../core/events';
 import { ApiError } from '../../../core/http';
 import { LinkedItems } from '../../../shared/links';
 import { ContextStore, localDate, ProjectStore } from '../data';
-import { renderMarkdown } from '../projects/markdown';
 import {
   ContextChips,
   Creativity,
@@ -30,6 +29,7 @@ import {
   Energy,
   EnergyPicker,
   EstimatePicker,
+  renderMarkdown,
   Segmented,
   TaskUndo,
 } from '../ui';
@@ -93,7 +93,7 @@ type LoadKind = 'initial' | 'background' | 'conflict';
   ],
   providers: [TaskDetailService],
   templateUrl: './task-detail.html',
-  styleUrls: ['./controls.scss', './task-detail.scss', './task-detail-notes.scss'],
+  styleUrls: ['./controls.scss', './task-detail.scss', '../ui/markdown.scss', './task-detail-notes.scss'],
   host: { '(keydown)': 'onKeydown($event)' },
 })
 export class TaskDetail {

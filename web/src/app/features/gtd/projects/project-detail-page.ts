@@ -26,10 +26,9 @@ import { firstValueFrom, map } from 'rxjs';
 import { Api, ProjectResponse, restoreTrashItem, TaskResponse } from '../../../api/generated';
 import { BackButton, BackNavigation } from '../../../shared/navigation';
 import { ContextStore, localDate, ProjectStore } from '../data';
-import { TaskRow, TaskUndo, UNDO_DURATION_MS } from '../ui';
+import { renderMarkdown, TaskRow, TaskUndo, UNDO_DURATION_MS } from '../ui';
 import { AreaStore } from './area-store';
 import { DeleteProjectData, DeleteProjectDialog } from './delete-project-dialog';
-import { renderMarkdown } from './markdown';
 import { MAX_PROJECT_TITLE, ProjectForm } from './project-form';
 import { statusLabel } from './project-groups';
 import { ProjectTaskStore } from './project-task-store';
@@ -60,6 +59,7 @@ import { ProjectTaskStore } from './project-task-store';
   styleUrls: [
     '../task-detail/controls.scss',
     './project-detail-page.scss',
+    '../ui/markdown.scss',
     './project-description.scss',
     './project-list-label.scss',
   ],

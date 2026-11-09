@@ -24,43 +24,7 @@
   }
 }
 
-.markdown {
-  font: var(--mat-sys-body-large);
-  overflow-wrap: anywhere;
-
-  :is(h3, h4, h5, h6) {
-    margin: var(--app-space-3) 0 var(--app-space-1);
-    font: var(--mat-sys-title-small);
-  }
-
-  code {
-    padding: 0 3px;
-    border-radius: 3px;
-    background: var(--mat-sys-surface-container-high);
-    font-size: 0.9em;
-  }
-
-  pre {
-    overflow-x: auto;
-    padding: var(--app-space-2);
-    border-radius: var(--app-radius);
-    background: var(--mat-sys-surface-container-high);
-
-    code {
-      padding: 0;
-      background: transparent;
-    }
-  }
-
-  blockquote {
-    margin: var(--app-space-2) 0;
-    padding-inline-start: var(--app-space-3);
-    border-inline-start: 3px solid var(--app-border);
-    color: var(--app-fg-muted);
-  }
-
-  a {
-    color: var(--app-accent);
-    cursor: pointer;
-  }
+// Note links open on click; the rest of .markdown comes from gtd/ui/markdown.scss.
+.markdown a {
+  cursor: pointer;
 }

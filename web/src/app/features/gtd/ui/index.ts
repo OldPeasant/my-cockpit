@@ -9,6 +9,7 @@ export {
   ESTIMATE_OPTIONS,
   estimateLabel,
 } from './labels';
+export { renderMarkdown } from './markdown';
 export { CreativityPicker, EnergyPicker, EstimatePicker } from './pickers';
 export { Segmented, type SegmentedOption } from './segmented';
 export { TaskRow } from './task-row';
