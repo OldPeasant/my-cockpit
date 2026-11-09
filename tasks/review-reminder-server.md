@@ -1,11 +1,11 @@
 ---
 title: Weekly review reminder setting and scheduling (server)
-status: todo
-owner: 
+status: in_progress
+owner: felix/agent-1
 deps: [and-review-flow, and-review-steps, web-small-gaps]
 prio: 3
 parent: review-reminder
-lease_until: 
+lease_until: 2026-11-09T02:11:48Z
 releases: 1
 extended: 
 ---
