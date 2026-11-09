@@ -14,7 +14,8 @@ Goal: The Android note editor lists a note's revisions and restores one (server 
 ## Acceptance criteria
 - [x] Revisions: list and restore
   - verified (2026-11-09 08:01+0100 by dell26/agent-1): Android note editor menu 'Earlier versions' opens NoteRevisionsDialog (GET /api/v1/notes/{id}/revisions, newest first, preview) and Restore (POST .../revisions/{n}/restore with If-Match, saves pending text first); cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*' -> 327 passed incl. NoteRevisionsRepositoryTest (8), NoteEditorRevisionsViewModelTest (29), NoteRevisionsDialogTest (13)
-- [ ] New strings are in English and German (`res/values/strings_notes.xml` + `res/values-de/strings_notes.xml`)
+- [x] New strings are in English and German (`res/values/strings_notes.xml` + `res/values-de/strings_notes.xml`)
+  - verified (2026-11-09 08:01+0100 by dell26/agent-1): 8 new notes_revisions* strings in android/app/src/main/res/values/strings_notes.xml and values-de/strings_notes.xml; NoteRevisionsDialogTest German-locale test renders 'Frühere Versionen' -> passed; lintDebug (no MissingTranslation) -> clean
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
