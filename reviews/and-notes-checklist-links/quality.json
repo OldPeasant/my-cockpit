@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "and-notes-checklist-links",
-  "reviewed_revision": "cb684093212279168a1a5b05cb04ce3023ffcc11",
+  "reviewed_revision": "b6f2ecfdc4ab3353a5641aa86cfcbd391e0cbac2",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/and-notes-checklist-links/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/and-notes-checklist-links/review.md"},
@@ -11,6 +11,7 @@
   "findings": [],
   "validation": [
     {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*'", "result": "pass"},
-    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport (test-writer, same code)", "result": "pass"}
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport (test-writer, same code)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
   ]
 }
