@@ -1,9 +1,10 @@
 {
+  "schema": 1,
   "task": "review-reminder-title-l10n",
   "reviewed_revision": "fe391e372fc1599f72527ce9b6bc69dc384c815e",
   "helpers": {
-    "test_writer": {"status": "completed", "report": "reviews/review-reminder-title-l10n/tests.md"},
-    "code_reviewer": {"status": "completed", "report": "reviews/review-reminder-title-l10n/review.md"},
+    "test-writer": {"status": "completed", "report": "reviews/review-reminder-title-l10n/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/review-reminder-title-l10n/review.md"},
     "fixer": {"status": "not_required", "reason": "No P0-P2 findings; the only finding (CR-1, P3 dead weekly-review branch in untitledTitle) is accepted, and the test-writer found no production bugs."}
   },
   "fixes_required": false,
