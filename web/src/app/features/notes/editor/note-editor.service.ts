@@ -19,6 +19,8 @@ export interface NoteDraft {
   /** `null` removes the title (the note then shows its first line). */
   readonly title: string | null;
   readonly bodyMd: string;
+  /** Sent only when the tags changed. */
+  readonly tags?: string[];
 }
 
 /**

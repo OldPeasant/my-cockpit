@@ -67,6 +67,16 @@
       >
         Earlier versions
       </button>
+      <button
+        mat-button
+        type="button"
+        class="delete"
+        [disabled]="deleting()"
+        (click)="remove()"
+        i18n="@@notes.editor.delete"
+      >
+        Delete
+      </button>
     </div>
 
     @if (saveState() === 'conflict') {
@@ -119,6 +129,13 @@
           [placeholder]="current.displayTitle"
           i18n-aria-label="@@notes.new.title"
           aria-label="Title"
+        />
+        <app-note-tags-input
+          class="tags"
+          [tags]="tags()"
+          [known]="knownTags()"
+          [disabled]="deleting() || saveState() === 'conflict'"
+          (tagsChange)="onTags($event)"
         />
         <div class="panes" [attr.data-mode]="mode()">
           <app-markdown-editor

@@ -16,11 +16,14 @@ import { ItemRefDto, NoteResponse } from '../../../api/generated';
 import { ApiError } from '../../../core/http';
 import { itemTypeLabel, LinkedItems, LinksService } from '../../../shared/links';
 import { BackButton, BackNavigation } from '../../../shared/navigation';
+import { NotesService } from '../list/notes.service';
+import { NoteTrash } from '../list/note-trash';
 import { LinkOption, MarkdownEditor, withoutUploadPlaceholders } from './markdown-editor';
 import { NoteDraft, NoteEditorService } from './note-editor.service';
 import { InlineLinkInfo, inlineLinks, toggleChecklistItem } from './note-markdown';
 import { NoteMarkdownView } from './note-markdown-view';
 import { NoteRevisionsDialog, NoteRevisionsDialogData } from './note-revisions-dialog';
+import { NoteTagsInput } from './note-tags-input';
 
 /** Wait after the last keystroke before saving. */
 export const AUTOSAVE_DEBOUNCE_MS = 1000;
@@ -38,12 +41,21 @@ export type SaveState = 'saved' | 'pending' | 'saving' | 'error' | 'conflict';
  * The note editor (`/notes/:id`, SPEC.md §8.1): title, a CodeMirror Markdown editor with preview
  * (toggle or split), autosave (debounced, `If-Match`; a note changed elsewhere stops the autosave
  * and asks which version to keep), images by paste or drop, checklists toggled in the preview,
- * `[[` links rendered as chips, earlier versions with restore, and the Linked items panel.
+ * `[[` links rendered as chips, earlier versions with restore, tags as chips (saved right away),
+ * delete (to the Trash, with undo) and the Linked items panel.
  */
 @Component({
   selector: 'app-note-editor-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BackButton, LinkedItems, MarkdownEditor, MatButtonModule, NoteMarkdownView, RouterLink],
+  imports: [
+    BackButton,
+    LinkedItems,
+    MarkdownEditor,
+    MatButtonModule,
+    NoteMarkdownView,
+    NoteTagsInput,
+    RouterLink,
+  ],
   host: { '(window:beforeunload)': 'onBeforeUnload($event)' },
   templateUrl: './note-editor-page.html',
   styleUrl: './note-editor-page.scss',
@@ -53,6 +65,8 @@ export default class NoteEditorPage {
   private readonly links = inject(LinksService);
   private readonly dialog = inject(MatDialog);
   private readonly router = inject(Router);
+  private readonly notes = inject(NotesService);
+  private readonly trash = inject(NoteTrash);
 
   /** The back button's destination when the note was not opened from a page of the app. */
   protected readonly notesLabel = $localize`:@@nav.notes:Notes`;
@@ -67,6 +81,11 @@ export default class NoteEditorPage {
   protected readonly loadError = signal<string | null>(null);
   protected readonly title = signal('');
   protected readonly body = signal('');
+  protected readonly tags = signal<string[]>([]);
+  /** Every tag in use, for the tag suggestions. */
+  protected readonly knownTags = signal<string[]>([]);
+  /** The note is being moved to the Trash. */
+  protected readonly deleting = signal(false);
   protected readonly mode = signal<NoteEditorMode>(storedMode());
   protected readonly saveState = signal<SaveState>('saved');
   protected readonly saveError = signal<string | null>(null);
@@ -93,10 +112,13 @@ export default class NoteEditorPage {
   private readonly draft = computed<NoteDraft>(() => ({
     title: this.title().trim() || null,
     bodyMd: withoutUploadPlaceholders(this.body()),
+    tags: this.tags(),
   }));
   private timer?: ReturnType<typeof setTimeout>;
   private inFlight: Promise<void> | null = null;
   private destroyed = false;
+  /** Moved to the Trash: nothing is saved any more. */
+  private deleted = false;
   /** Images still uploading, by their placeholder in the body: their Markdown ('' if failed). */
   private readonly uploads = new Map<string, Promise<string>>();
 
@@ -118,6 +140,7 @@ export default class NoteEditorPage {
     inject(ActivatedRoute)
       .paramMap.pipe(takeUntilDestroyed())
       .subscribe((params) => void this.open(params.get('id') ?? ''));
+    void this.loadKnownTags();
     inject(DestroyRef).onDestroy(() => {
       this.destroyed = true;
       void this.leave();
@@ -224,6 +247,39 @@ export default class NoteEditorPage {
   }
 
   /** A checkbox in the preview: the change is saved right away. */
+  /** A tag was added or removed: the change is saved right away. */
+  protected onTags(tags: string[]): void {
+    this.tags.set(tags);
+    this.schedule();
+    void this.flush();
+  }
+
+  /**
+   * Moves the note to the Trash (after saving pending edits, so the version matches), goes back to
+   * the notes and offers to undo; undo opens the note again.
+   */
+  protected async remove(): Promise<void> {
+    if (this.deleting() || this.deleted) return;
+    this.deleting.set(true);
+    try {
+      await this.flushAll();
+      const note = this.note();
+      if (!note || this.deleted) return;
+      await this.trash.remove(note);
+      this.deleted = true;
+      clearTimeout(this.timer);
+      this.timer = undefined;
+      void this.router.navigate(['/notes']);
+      if (await this.trash.offerUndo(note)) void this.router.navigate(['/notes', note.id]);
+    } catch (error) {
+      this.saveError.set(
+        $localize`:@@notes.editor.deleteFailed:The note could not be moved to the Trash: ${message(error)}:message:`,
+      );
+    } finally {
+      this.deleting.set(false);
+    }
+  }
+
   protected onToggle(line: number): void {
     const body = toggleChecklistItem(this.body(), line);
     if (body === this.body()) return;
@@ -244,7 +300,7 @@ export default class NoteEditorPage {
     this.timer = undefined;
     while (this.inFlight) await this.inFlight;
     const note = this.note();
-    if (!note || this.saveState() === 'conflict') return;
+    if (!note || this.deleted || this.saveState() === 'conflict') return;
     const draft = changes(note, this.draft());
     if (!draft) {
       if (this.saveState() !== 'error') this.saveState.set('saved');
@@ -346,6 +402,10 @@ export default class NoteEditorPage {
       if (savedTitle !== draft.title && this.draft().title === draft.title) {
         this.title.set(savedTitle ?? '');
       }
+      // Likewise the tags as the server kept them, unless they were changed meanwhile.
+      if (draft.tags && sameTags(this.tags(), draft.tags) && !sameTags(saved.tags, draft.tags)) {
+        this.tags.set([...saved.tags]);
+      }
       if (!sameLinks(note.bodyMd, saved.bodyMd)) void this.reloadLinks();
       // Edits made while saving wait for their own debounce (or are saved now when leaving).
       if (!changes(saved, this.draft())) this.saveState.set('saved');
@@ -373,8 +433,17 @@ export default class NoteEditorPage {
     this.note.set(note);
     this.title.set(note.title ?? '');
     this.body.set(note.bodyMd);
+    this.tags.set([...note.tags]);
     this.saveState.set('saved');
     this.saveError.set(null);
+  }
+
+  private async loadKnownTags(): Promise<void> {
+    try {
+      this.knownTags.set((await this.notes.tags()).map((t) => t.tag));
+    } catch {
+      // Without them the tag input just has no suggestions.
+    }
   }
 
   private async reloadLinks(): Promise<void> {
@@ -423,13 +492,22 @@ export default class NoteEditorPage {
   }
 }
 
-/** The draft when it differs from the saved note, else null. */
+/** What of the draft differs from the saved note (tags only when they changed), else null. */
 function changes(note: NoteResponse, draft: NoteDraft): NoteDraft | null {
-  return draft.bodyMd !== note.bodyMd || draft.title !== (note.title ?? null) ? draft : null;
+  const tagsChanged = !!draft.tags && !sameTags(draft.tags, note.tags);
+  if (draft.bodyMd === note.bodyMd && draft.title === (note.title ?? null) && !tagsChanged) {
+    return null;
+  }
+  const { tags, ...rest } = draft;
+  return tagsChanged ? { ...rest, tags } : rest;
 }
 
 function sameDraft(a: NoteDraft, b: NoteDraft): boolean {
-  return a.title === b.title && a.bodyMd === b.bodyMd;
+  return a.title === b.title && a.bodyMd === b.bodyMd && sameTags(a.tags ?? [], b.tags ?? []);
+}
+
+function sameTags(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((tag, i) => tag === b[i]);
 }
 
 function sameLinks(before: string, after: string): boolean {

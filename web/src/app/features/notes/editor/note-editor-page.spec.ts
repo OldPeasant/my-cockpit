@@ -1366,7 +1366,9 @@ describe('NoteEditorPage', () => {
     harness.detectChanges();
     expect(state()).toBe('Saved');
     expect(root.querySelector('.banner[role=alert]')).toBeNull();
-    http.expectNone((r) => r.method === 'GET' && r.url.startsWith('/api/v1/notes/'));
+    http.expectNone(
+      (r) => r.method === 'GET' && r.url.startsWith('/api/v1/notes/') && !r.url.endsWith('/tags'),
+    );
   });
 
   /** Edits the first note, lets the autosave and the retry before opening the other note fail. */
