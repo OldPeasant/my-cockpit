@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "and-notes-linked-panel",
+  "reviewed_revision": "e07cfb3b536a19219f7a3de40e8bcda074b5cecc",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-notes-linked-panel/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-notes-linked-panel/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-notes-linked-panel/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: links panel stale after the note's inline links changed; route reloads it on a new note version and on reopening"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: in-place opening untested; covered by NoteEditorLinksRouteInAppTest (test-writer round 1, verified by fixer)"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "round 2: links refetched after each autosave while editing (panel hidden); extra network calls only, no wrong data, deliberately left"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
