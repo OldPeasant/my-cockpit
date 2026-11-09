@@ -15,7 +15,8 @@ The Android note editor lacks tags, checklist toggling in the preview, `[[` link
 links panel (web: `note-editor-page.html`).
 
 ## Acceptance criteria
-- [ ] Edit tags (chips with suggestions from existing tags)
+- [x] Edit tags (chips with suggestions from existing tags)
+  - verified (2026-11-09 08:52+0100 by dell26/agent-1): NoteEditorIntegrationTest (picks suggested tag chip + checklist toggle via real NoteEditorRoute/ViewModel) plus NoteTagsEditorTest/NoteEditorTagsViewModelTest: ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*' -> 343 passed
 - [ ] Tapping a checklist item in preview toggles it (saved like an edit)
 - [ ] Typing `[[` offers search-as-you-type and inserts `[[type:id]]`
 - [ ] Revisions: list and restore
