@@ -176,6 +176,28 @@ class ReminderAlarmsNotifierTest {
     }
 
     @Test
+    fun `a weekly review reminder shows its own name also when the server sends a title`() {
+        ReminderNotifier(context).show(scheduled(1, title = "Weekly review from server").copy(itemType = WEEKLY_REVIEW))
+
+        assertEquals("Weekly review", shadowOf(shadowOf(notifications).allNotifications.single()).contentTitle)
+    }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `in German a weekly review reminder with the server's English title is called Wochenrückblick`() {
+        ReminderNotifier(context).show(scheduled(1, title = "Weekly review").copy(itemType = WEEKLY_REVIEW))
+
+        assertEquals("Wochenrückblick", shadowOf(shadowOf(notifications).allNotifications.single()).contentTitle)
+    }
+
+    @Test
+    fun `other reminders keep the title the server sends`() {
+        ReminderNotifier(context).show(scheduled(1, title = "Call the plumber").copy(itemType = "TASK"))
+
+        assertEquals("Call the plumber", shadowOf(shadowOf(notifications).allNotifications.single()).contentTitle)
+    }
+
+    @Test
     fun `only the weekly review gets its own fallback title, other untitled items stay untitled`() {
         assertEquals(R.string.review_reminder_title, untitledTitle(WEEKLY_REVIEW))
         listOf("TASK", "NOTE", "HABIT", "weekly_review", "").forEach {

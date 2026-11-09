@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { clearTranslations, loadTranslations } from '@angular/localize';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { provideRouter, Router } from '@angular/router';
 import { Subject } from 'rxjs';
@@ -210,6 +211,60 @@ describe('ReminderNotificationsService', () => {
       );
       action.next();
       expect(navigate).toHaveBeenCalledWith('/review');
+    });
+
+    it('shows its own name even when the server sends another title', () => {
+      localStorage.setItem(REMINDER_NOTIFICATIONS_STORAGE_KEY, 'on');
+      create('granted');
+
+      fired.next(reminder({ ...weeklyReview, title: 'Fictitious server title' }));
+
+      expect(browser.shown[0].title).toBe('Weekly review');
+    });
+
+    it('shows its own name when the server sends no title', () => {
+      create();
+
+      fired.next(reminder({ ...weeklyReview, title: undefined }));
+
+      expect(snackBar.open).toHaveBeenCalledWith(
+        'Reminder: Weekly review',
+        'Open',
+        expect.anything(),
+      );
+    });
+
+    describe('in German', () => {
+      // The same targets as messages.de.xlf.
+      beforeEach(() =>
+        loadTranslations({
+          'reminders.weeklyReview': 'Wochenrückblick',
+          'reminders.toast': 'Erinnerung: {$title}',
+          'reminders.toast.open': 'Öffnen',
+        }),
+      );
+      afterEach(() => clearTranslations());
+
+      it("titles the browser notification Wochenrückblick, not the server's English title", () => {
+        localStorage.setItem(REMINDER_NOTIFICATIONS_STORAGE_KEY, 'on');
+        create('granted');
+
+        fired.next(reminder(weeklyReview));
+
+        expect(browser.shown[0].title).toBe('Wochenrückblick');
+      });
+
+      it('toasts Wochenrückblick while notifications are off', () => {
+        create();
+
+        fired.next(reminder(weeklyReview));
+
+        expect(snackBar.open).toHaveBeenCalledWith(
+          'Erinnerung: Wochenrückblick',
+          'Öffnen',
+          expect.anything(),
+        );
+      });
     });
   });
 

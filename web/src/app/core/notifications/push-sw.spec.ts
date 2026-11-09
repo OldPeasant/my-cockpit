@@ -355,4 +355,28 @@ describe('push service worker, weekly review reminder', () => {
     expect(open.navigate).toHaveBeenCalledWith(`${DE_SCOPE}review`);
     expect(w.self.clients.openWindow).not.toHaveBeenCalled();
   });
+
+  it("titles the German push Wochenrückblick instead of the server's English title", async () => {
+    const w = worker('de', [], DE_SCOPE);
+
+    await w.push(weeklyReview);
+
+    expect(w.shown()[0][0]).toBe('Wochenrückblick');
+  });
+
+  it('shows its own name, not the title the server sends, and also without one', async () => {
+    const w = worker();
+    const item = weeklyReview.data.item;
+
+    await w.push({
+      ...weeklyReview,
+      data: { ...weeklyReview.data, item: { ...item, title: 'Fictitious' } },
+    });
+    await w.push({
+      ...weeklyReview,
+      data: { id: 'r-weekly-2', item: { ...item, title: undefined } },
+    });
+
+    expect(w.shown().map(([title]) => title)).toEqual(['Weekly review', 'Weekly review']);
+  });
 });

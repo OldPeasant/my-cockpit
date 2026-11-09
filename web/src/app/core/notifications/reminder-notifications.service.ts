@@ -17,6 +17,16 @@ export const REMINDER_NOTIFICATIONS_STORAGE_KEY = 'cockpit.reminderNotifications
 
 const REMINDER = $localize`:@@reminders.untitled:Reminder`;
 
+/**
+ * The title a reminder shows: the weekly review always its own translated name (the server only
+ * knows the English one), any other item its title.
+ */
+function reminderTitle(reminder: ReminderResponse): string | undefined {
+  if (reminder.item.type === 'WEEKLY_REVIEW')
+    return $localize`:@@reminders.weeklyReview:Weekly review`;
+  return reminder.item.title || undefined;
+}
+
 /** How long the in-app reminder toast stays. */
 export const REMINDER_TOAST_DURATION_MS = 15_000;
 
@@ -86,7 +96,7 @@ export class ReminderNotificationsService {
 
   private remind(reminder: ReminderResponse): void {
     if (!reminder?.item) return;
-    const title = reminder.item.title || undefined;
+    const title = reminderTitle(reminder);
     const link = reminder.item.available ? reminder.item.deepLink : undefined;
     this.refresh();
     if (this.enabled() && this.notify(reminder, title ?? REMINDER, link)) return;

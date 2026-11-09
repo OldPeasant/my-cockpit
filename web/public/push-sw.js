@@ -8,12 +8,14 @@
 const TEXTS = {
   en: {
     reminder: 'Reminder',
+    weeklyReview: 'Weekly review',
     reminderBody: 'Reminder from My Cockpit',
     newMail: 'New mail',
     newMessages: (count) => `${count} new messages`,
   },
   de: {
     reminder: 'Erinnerung',
+    weeklyReview: 'Wochenrückblick',
     reminderBody: 'Erinnerung von My Cockpit',
     newMail: 'Neue E-Mail',
     newMessages: (count) => `${count} neue Nachrichten`,
@@ -53,7 +55,8 @@ function pushNotification(message) {
   if (message.event === 'reminder') {
     const item = (data && data.item) || {};
     return {
-      title: item.title || T.reminder,
+      // The weekly review shows its own translated name: the server only knows the English one.
+      title: item.type === 'WEEKLY_REVIEW' ? T.weeklyReview : item.title || T.reminder,
       options: {
         body: T.reminderBody,
         icon,

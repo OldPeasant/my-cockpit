@@ -37,7 +37,7 @@ class ReminderNotifier
                 NotificationCompat
                     .Builder(context, CHANNEL_ID)
                     .setSmallIcon(R.drawable.ic_notification_reminder)
-                    .setContentTitle(reminder.title ?: context.getString(untitledTitle(reminder.itemType)))
+                    .setContentTitle(notificationTitle(context, reminder))
                     .setContentText(context.getString(R.string.reminder_notification_text))
                     .setWhen(reminder.remindAtMillis)
                     .setShowWhen(true)
@@ -92,6 +92,20 @@ class ReminderNotifier
             /** Notifications are told apart by their tag (the reminder id); the id is the same for all. */
             const val NOTIFICATION_ID = 1
         }
+    }
+
+/**
+ * The notification title: the weekly review always shows its own translated name (the server only knows the
+ * English one), any other item its title, or a generic name when it has none.
+ */
+internal fun notificationTitle(
+    context: Context,
+    reminder: ScheduledReminder,
+): String =
+    if (reminder.itemType == WEEKLY_REVIEW) {
+        context.getString(R.string.review_reminder_title)
+    } else {
+        reminder.title ?: context.getString(untitledTitle(reminder.itemType))
     }
 
 /** The title shown for a reminder whose item has none: the weekly review has its own name. */

@@ -48,6 +48,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowAlarmManager
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -197,7 +198,7 @@ class PushReminderDeliveryTest {
     }
 
     @Test
-    fun `a pushed weekly review reminder with a title keeps the server's title`() {
+    fun `a pushed weekly review reminder with the server's title shows the app's own name`() {
         answer(
             """{"id":"${reminderId(1)}","channel":"NOTIFICATION","createdAt":"2026-10-21T07:00:00Z",""" +
                 """"remindAt":"${NOW.minusSeconds(60)}","firedAt":"$NOW",""" +
@@ -206,7 +207,21 @@ class PushReminderDeliveryTest {
 
         assertEquals(PushReminderResult.SHOWN, deliver(1))
 
-        assertEquals("Fictitious review", shadowOf(shown().single()).contentTitle.toString())
+        assertEquals("Weekly review", shadowOf(shown().single()).contentTitle.toString())
+    }
+
+    @Test
+    @Config(qualifiers = "de")
+    fun `in German a pushed weekly review reminder with the server's English title is called Wochenrückblick`() {
+        answer(
+            """{"id":"${reminderId(1)}","channel":"NOTIFICATION","createdAt":"2026-10-21T07:00:00Z",""" +
+                """"remindAt":"${NOW.minusSeconds(60)}","firedAt":"$NOW",""" +
+                """"item":{"available":true,"id":"${itemId(1)}","type":"WEEKLY_REVIEW","title":"Weekly review"}}""",
+        )
+
+        assertEquals(PushReminderResult.SHOWN, deliver(1))
+
+        assertEquals("Wochenrückblick", shadowOf(shown().single()).contentTitle.toString())
     }
 
     @Test
