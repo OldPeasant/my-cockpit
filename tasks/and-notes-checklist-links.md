@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [and-notes-list, and-links-panel]
 prio: 2
 parent: and-notes-editor
-lease_until: 2026-11-09T02:50:31Z
+lease_until: 2026-11-09T03:10:41Z
 releases: 0
 extended: 
 hold: 
@@ -29,3 +29,4 @@ Goal: Tapping a checklist item in the preview toggles it and saves like an edit;
 - ASSUMPTION (2026-11-08 22:26+0100 by felix/agent-1): Android [[ autocomplete searches all item types via global search (250 ms debounce), shows up to 6 hits above the body field, inserts [[<lowercase type>:<id>]] like web/server; checklist tap in preview only when the note is editable (no conflict/loading).
 - release by felix/agent-1: Implementation done (commits 2e03999cf, 15be26a4d) + Markdown helper tests (dc174e159). Criterion 3 verified. WIP ViewModel/screen tests from an unfinished test-writer run committed in 04839b060 (unverified, may not compile/pass). reviews/.../review.md: only finding CR-1 = missing VM/screen tests. Left: finish/run those tests, re-run test-writer (tests.md with coverage) and code-reviewer on final code, verify #1 #2 #4, quality.json, done.
 - hold by felix/agent-1: Ready to finish: criteria 1-3 verified; review/tests/quality.json committed. Only blocker: sh scripts/check.sh fails on origin/main (AppStartRoutingTest logout cache test, reproduced on a clean origin/main worktree, unrelated to notes). After fix-android-logout-cache-test is done: unhold, then re-run check.sh, verify #4, add check.sh to quality.json validation, and run done.
+- ASSUMPTION (2026-11-09 03:42+0100 by felix/agent-1): fix-android-logout-cache-test (created by me) duplicates and-fix-logout-cache-test, which dell26/agent-2 finished on main 2026-11-09 02:34; humans may drop it
