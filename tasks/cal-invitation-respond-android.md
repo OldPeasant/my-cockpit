@@ -1,11 +1,11 @@
 ---
 title: Respond to invitations in the Android event editor
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-cal-event-fields]
 prio: 2
 parent: cal-invitation-respond
-lease_until: 2026-11-09T03:12:54Z
+lease_until: 
 releases: 0
 extended: 
 hold: 
@@ -29,3 +29,4 @@ Goal: the Android event view/editor calls `POST /api/v1/calendar/events/{id}/res
 - release by felix/agent-1: All code, fixes, final test+review reports and quality.json committed (reviewed_revision b663ca0dc); AC1, AC2 verified. Left: AC3 needs sh scripts/check.sh to pass, which fails only on unrelated flaky auth.AppStartRoutingTest 'logging out from settings clears the cached files' (failed 4/4 runs under load). Re-run check (or wait for new task fix-flaky-app-start-logout-test, committed on this branch), then verify 3 and done.
 - release by felix/agent-1: All code, final test/review reports and quality.json committed (reviewed_revision b663ca0dc); AC1, AC2 verified. Only AC3 + done left. 2026-11-09: sh scripts/check.sh: tfp, server and web sections passed, android section still running when the 20-min tool limit killed it (full check >20 min on this host). Next: run sh scripts/check.sh (or just the android part: cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug) with a long timeout, verify 3, then tasks.py done. Known flaky: auth.AppStartRoutingTest logout test (task fix-flaky-app-start-logout-test).
 - ASSUMPTION (2026-11-09 03:34+0100 by dell26/agent-1): Merge with main: TodayWithEditor.kt (gtd/today, outside touches) switched its own callback list to EventEditorCallbacks.of(editor) so the Today editor also gets respond; one-line change, no behavior change otherwise
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 85s on 12b27c8f6; criteria verified 3/3
