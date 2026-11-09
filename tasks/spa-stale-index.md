@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/spa,server/src/test/kotlin/ch/sonensei/cockpit/core/spa]
 prio: 1
-lease_until: 2026-11-09T10:19:46Z
+lease_until: 2026-11-09T10:24:47Z
 ---
 ## Goal
 After a deploy, browsers that opened My Cockpit before keep their cached `index.html`, which points at hashed
