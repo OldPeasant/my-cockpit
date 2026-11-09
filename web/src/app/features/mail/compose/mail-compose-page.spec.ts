@@ -6,6 +6,7 @@ import {
   DraftContentRequest,
   DraftResponse,
   MailAccountResponse,
+  MailIdentityResponse,
 } from '../../../api/generated';
 import { ApiError, NotificationService } from '../../../core/http';
 import MailComposePage, { AUTOSAVE_INTERVAL_MS } from './mail-compose-page';
@@ -68,8 +69,15 @@ class FakeComposeService {
     return Promise.resolve({ draft: this.stored, etag: `"${this.version++}"` });
   }
 
+  identityLists = new Map<string, MailIdentityResponse[]>();
+  identitiesError?: Error;
+
   accounts() {
     return Promise.resolve(this.accountList);
+  }
+  identities(accountId: string) {
+    if (this.identitiesError) return Promise.reject(this.identitiesError);
+    return Promise.resolve(this.identityLists.get(accountId) ?? []);
   }
   get(id: string) {
     this.gets.push(id);

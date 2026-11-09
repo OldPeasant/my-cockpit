@@ -70,12 +70,14 @@
           <mat-form-field subscriptSizing="dynamic">
             <mat-label i18n="@@mailCompose.from">From</mat-label>
             <mat-select
-              [value]="accountId()"
-              [disabled]="!canChangeSender() || !!busy()"
-              (selectionChange)="changeSender($event.value)"
+              [value]="senderKeyValue()"
+              [disabled]="!!busy()"
+              (selectionChange)="chooseSender($event.value)"
             >
-              @for (account of accounts(); track account.id) {
-                <mat-option [value]="account.id">{{ accountLabel(account) }}</mat-option>
+              @for (sender of senders(); track sender.key) {
+                <mat-option [value]="sender.key" [disabled]="!senderSelectable(sender)">{{
+                  sender.label
+                }}</mat-option>
               }
             </mat-select>
           </mat-form-field>

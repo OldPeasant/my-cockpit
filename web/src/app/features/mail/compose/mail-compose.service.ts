@@ -13,7 +13,9 @@ import {
   getMailDraft,
   listFolder,
   listMailAccounts,
+  listMailIdentities,
   MailAccountResponse,
+  MailIdentityResponse,
   replyAllToMailMessage,
   replyToMailMessage,
   SendDraftResponse,
@@ -63,6 +65,11 @@ export class MailComposeService {
 
   async accounts(): Promise<MailAccountResponse[]> {
     return (await this.api.invoke(listMailAccounts, undefined, silent())).items;
+  }
+
+  /** The sending identities of an account, in their order. */
+  async identities(accountId: string): Promise<MailIdentityResponse[]> {
+    return (await this.api.invoke(listMailIdentities, { accountId }, silent())).items;
   }
 
   async get(id: string): Promise<VersionedDraft> {

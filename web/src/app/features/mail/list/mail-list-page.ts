@@ -380,9 +380,29 @@ export default class MailListPage {
     }
   }
 
-  /** Opens a message in the read view. */
+  /** Opens a message in the read view; a message in a Drafts folder opens in compose instead. */
   protected open(id: string): void {
-    void this.router.navigate(['/mail/messages', id]);
+    const item = (this.store.items() ?? []).find((candidate) => candidate.id === id);
+    if (item && this.isDraft(item)) {
+      void this.router.navigate(['/mail/compose'], { queryParams: { draft: id } });
+    } else {
+      void this.router.navigate(['/mail/messages', id]);
+    }
+  }
+
+  /** Whether the message lies in a Drafts folder: opening it continues the draft in compose. */
+  protected isDraft(item: MailSummary): boolean {
+    return !!item.folderId && this.folders.folderById().get(item.folderId)?.role === 'DRAFTS';
+  }
+
+  /** The row link: the read view, or compose for a draft. */
+  protected link(item: MailSummary): string[] {
+    return this.isDraft(item) ? ['/mail/compose'] : ['/mail/messages', item.id];
+  }
+
+  /** The query of the row link: the draft compose opens. */
+  protected linkQuery(item: MailSummary): Record<string, string> | null {
+    return this.isDraft(item) ? { draft: item.id } : null;
   }
 
   /**

@@ -22,6 +22,7 @@ import {
   MailAddressRequest,
   MailAddressResponse,
   MailAttachmentResponse,
+  MailIdentityResponse,
 } from '../../../api/generated';
 import { ApiError, NotificationService } from '../../../core/http';
 import { formatBytes } from '../read/format-bytes';
@@ -32,6 +33,18 @@ import { RichTextEditor } from './rich-text-editor';
 
 /** Unsaved changes are saved to the Drafts folder this often (SPEC.md §7.3). */
 export const AUTOSAVE_INTERVAL_MS = 10_000;
+
+/**
+ * One entry of the From picker: an identity of an account, or the account address (`identityId`
+ * null) when the account has no default identity (the server sends a draft without identity from
+ * its default identity, else from the account address).
+ */
+export interface Sender {
+  key: string;
+  accountId: string;
+  identityId: string | null;
+  label: string;
+}
 
 type State = 'loading' | 'failed' | 'noAccount' | 'ready';
 type Busy = 'send' | 'discard' | 'attach';
@@ -77,6 +90,10 @@ export default class MailComposePage {
   protected readonly loadError = signal<string | null>(null);
   protected readonly accounts = signal<MailAccountResponse[]>([]);
   protected readonly accountId = signal<string | null>(null);
+  /** The identities of each account (empty when it has none or they could not be read). */
+  protected readonly identities = signal<ReadonlyMap<string, MailIdentityResponse[]>>(new Map());
+  /** The identity sent with; null: the account's default identity, else the account address. */
+  protected readonly identityId = signal<string | null>(null);
   protected readonly to = signal<Recipient[]>([]);
   protected readonly cc = signal<Recipient[]>([]);
   protected readonly bcc = signal<Recipient[]>([]);
@@ -104,6 +121,45 @@ export default class MailComposePage {
     () => !this.stored() || (!this.isReply() && this.attachments().length === 0),
   );
 
+  /** The From picker: per account its identities, or its address when no identity is default. */
+  protected readonly senders = computed<Sender[]>(() =>
+    this.accounts().flatMap((account) => {
+      const identities = this.identities().get(account.id) ?? [];
+      const own: Sender[] = identities.some((identity) => identity.isDefault)
+        ? []
+        : [
+            {
+              key: senderKey(account.id, null),
+              accountId: account.id,
+              identityId: null,
+              label: this.accountLabel(account),
+            },
+          ];
+      return own.concat(
+        identities
+          .filter((identity) => !!identity.id && !!identity.email)
+          .map((identity) => ({
+            key: senderKey(account.id, identity.id!),
+            accountId: account.id,
+            identityId: identity.id!,
+            label: addressLabel(identity.name ?? '', identity.email!),
+          })),
+      );
+    }),
+  );
+  /**
+   * The picker entry shown: the chosen identity, else (none chosen, or one the account does not
+   * list) the account's default identity, else its address.
+   */
+  protected readonly senderKeyValue = computed(() => {
+    const accountId = this.accountId();
+    if (!accountId) return null;
+    const identities = this.identities().get(accountId) ?? [];
+    const chosen = identities.find((identity) => identity.id === this.identityId());
+    const shown = chosen ?? identities.find((identity) => identity.isDefault);
+    return senderKey(accountId, shown?.id ?? null);
+  });
+
   protected readonly savedAt = computed(() => {
     const state = this.saveState();
     return state.kind === 'saved' ? state.at : null;
@@ -121,7 +177,6 @@ export default class MailComposePage {
   /** The draft the URL opens (`?draft=`). */
   private urlDraftId: string | null = null;
   private etag: string | null = null;
-  private identityId: string | null = null;
   private html = '';
   /** Counts the edits; `savedRevision` is the one stored in the Drafts folder. */
   private revision = 0;
@@ -182,14 +237,37 @@ export default class MailComposePage {
   }
 
   /**
+   * Another From entry: another identity of the same account is just an edit (the next save sends
+   * it); one of another account moves the draft there (see `changeSender`).
+   */
+  protected chooseSender(key: string): void {
+    const sender = this.senders().find((candidate) => candidate.key === key);
+    if (!sender || key === this.senderKeyValue()) return;
+    if (sender.accountId === this.accountId()) {
+      this.identityId.set(sender.identityId);
+      this.edited();
+      return;
+    }
+    this.changeSender(sender.accountId, sender.identityId);
+  }
+
+  /** Whether a From entry can be chosen: another account only while the draft can move. */
+  protected senderSelectable(sender: Sender): boolean {
+    return sender.accountId === this.accountId() || this.canChangeSender();
+  }
+
+  /**
    * Another sender: before the first save just the account; afterwards the draft moves to it. The
    * move is queued, so a save still running (the first one too) finishes before it is decided.
+   * `identityId` is the identity of the new account (null: its default one).
    */
-  protected changeSender(accountId: string): void {
+  protected changeSender(accountId: string, identityId: string | null = null): void {
     if (accountId === this.accountId() || !this.canChangeSender()) return;
+    const previousIdentity = this.identityId();
     this.accountId.set(accountId);
+    this.identityId.set(identityId);
     if (!this.stored()) this.edited();
-    void this.write(() => this.followSender()).catch((error: unknown) =>
+    void this.write(() => this.followSender(previousIdentity)).catch((error: unknown) =>
       this.notifications.error(messageOf(error)),
     );
   }
@@ -286,6 +364,7 @@ export default class MailComposePage {
     try {
       const accounts = await this.service.accounts();
       this.accounts.set(accounts);
+      this.identities.set(await this.readIdentities(accounts));
       const draftId = params.get('draft');
       this.urlDraftId = draftId;
       const source = (['reply', 'replyAll', 'forward'] as const).find((mode) => params.has(mode));
@@ -314,10 +393,24 @@ export default class MailComposePage {
     }
   }
 
+  /**
+   * The identities of every account. One that cannot be read leaves just its address to pick: a
+   * draft can still be written and sent.
+   */
+  private async readIdentities(
+    accounts: MailAccountResponse[],
+  ): Promise<Map<string, MailIdentityResponse[]>> {
+    const lists = await Promise.all(
+      accounts.map((account) => this.service.identities(account.id).catch(() => [])),
+    );
+    return new Map(accounts.map((account, index) => [account.id, lists[index]]));
+  }
+
   /** Shows a stored draft (opened, or started from a message). */
   private load(loaded: VersionedDraft): void {
     const { draft } = loaded;
     this.accountId.set(draft.accountId ?? null);
+    this.identityId.set(draft.identityId ?? null);
     this.to.set(recipients(draft.to));
     this.cc.set(recipients(draft.cc));
     this.bcc.set(recipients(draft.bcc));
@@ -335,7 +428,6 @@ export default class MailComposePage {
     this.draftAccountId = saved.draft.accountId ?? this.draftAccountId;
     this.etag = saved.etag;
     this.showInUrl(saved.draft.id);
-    this.identityId = saved.draft.identityId ?? null;
     this.attachments.set(saved.draft.attachments ?? []);
     this.stored.set(true);
     if (revision !== undefined) this.savedRevision = revision;
@@ -383,13 +475,16 @@ export default class MailComposePage {
   /**
    * Moves a stored draft to the account chosen as sender: recreated there, the old copy discarded.
    * When it cannot move (it holds attachments or reply headers by now, or the create fails), the
-   * sender shown goes back to the account holding the draft, since that is the one Send uses.
+   * sender shown goes back to the account holding the draft (and its identity before), since that
+   * is the one Send uses.
    */
-  private async followSender(): Promise<void> {
+  private async followSender(previousIdentity: string | null): Promise<void> {
     const target = this.accountId();
     if (!this.stored() || this.finished || !target || target === this.draftAccountId) return;
     const back = () => {
-      if (this.accountId() === target) this.accountId.set(this.draftAccountId);
+      if (this.accountId() !== target) return;
+      this.accountId.set(this.draftAccountId);
+      this.identityId.set(previousIdentity);
     };
     if (!this.canChangeSender()) {
       back();
@@ -398,8 +493,8 @@ export default class MailComposePage {
     const old = { id: this.draftId!, etag: this.etag! };
     const revision = this.revision;
     try {
-      // The identity belongs to the old account: the new one starts with its default.
-      const content = { ...this.content(), identityId: undefined };
+      // The identity chosen with the account (null: the new account's default).
+      const content = this.content();
       this.apply(await this.service.create({ ...content, accountId: target }), revision);
     } catch (error) {
       back();
@@ -436,7 +531,7 @@ export default class MailComposePage {
   /** The draft as the server takes it; invalid addresses wait in the view until they are fixed. */
   private content(): DraftContentRequest {
     return {
-      identityId: this.identityId ?? undefined,
+      identityId: this.identityId() ?? undefined,
       to: addresses(this.to()),
       cc: addresses(this.cc()),
       bcc: addresses(this.bcc()),
@@ -476,6 +571,10 @@ export default class MailComposePage {
   private dirty(): boolean {
     return !this.finished && this.revision !== this.savedRevision;
   }
+}
+
+function senderKey(accountId: string, identityId: string | null): string {
+  return `${accountId}/${identityId ?? ''}`;
 }
 
 function recipients(list: MailAddressResponse[] | undefined): Recipient[] {

@@ -201,7 +201,8 @@
               />
               <a
                 class="open"
-                [routerLink]="['/mail/messages', item.id]"
+                [routerLink]="link(item)"
+                [queryParams]="linkQuery(item)"
                 (click)="store.setCursor(item.id)"
                 (keydown.enter)="openFromKey($event, item.id)"
               >
