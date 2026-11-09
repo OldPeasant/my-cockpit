@@ -6,9 +6,9 @@ deps: [and-links-panel,web-projects-plus,and-project-tasks,and-files-preview,and
 touches: [web/src/app/features/gtd/projects,web/src/app/features/files,web/src/app/features/gtd/lists,android/app/src/main/java/ch/sonensei/cockpit/gtd/projects,android/app/src/test/java/ch/sonensei/cockpit/gtd/projects,android/app/src/main/java/ch/sonensei/cockpit/files,android/app/src/test/java/ch/sonensei/cockpit/files,android/app/src/main/java/ch/sonensei/cockpit/gtd/lists,android/app/src/test/java/ch/sonensei/cockpit/gtd/lists,web/src/locale,android/app/src/main/res/values/strings_projects_lists.xml,android/app/src/main/res/values-de/strings_projects_lists.xml,android/app/src/main/res/values/strings_files.xml,android/app/src/main/res/values-de/strings_files.xml]
 prio: 3
 lease_until: 
-releases: 3
+releases: 0
 extended: 
-hold: given back 3 times; last: Done since last: final-pass test-writer (14 new tests, TW-4 web emailIn keeps ()/[], TW-5 trailing full stop both clients) + code-reviewer (CR-1=TW-4, CR-2 web preview dialog
+hold: 
 ---
 ## Goal
 SPEC.md §4.3 wants the linked-items panel on every detail view; projects and files have none on either client.
