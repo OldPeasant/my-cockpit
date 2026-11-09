@@ -6,9 +6,9 @@ deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/dashboard,android/app/src/test/java/ch/sonensei/cockpit/dashboard,android/app/src/main/res/values/strings_dashboard.xml,android/app/src/main/res/values-de/strings_dashboard.xml]
 prio: 2
 lease_until: 
-releases: 3
+releases: 0
 extended: 
-hold: given back 3 times; last: All review evidence done and committed (quality.json 7907203d3, reviewed_revision 78ac21c00), criteria 1-4 verified. Blocker: android testDebugUnitTest fails on PRE-EXISTING 
+hold: 
 ---
 ## Goal
 On Android only task items in dashboard widgets are tappable; the review widget has no Start/Continue button and
