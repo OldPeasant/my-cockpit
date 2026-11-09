@@ -11,7 +11,8 @@ lease_until: 2026-11-09T04:16:44Z
 The settings-logout cache test must not time out on a loaded host.
 
 ## Acceptance criteria
-- [ ] The cache-clearing waits in AppStartRoutingTest run Robolectric's main looper explicitly (a user logout runs on the main dispatcher) and dump the app threads on a timeout
+- [x] The cache-clearing waits in AppStartRoutingTest run Robolectric's main looper explicitly (a user logout runs on the main dispatcher) and dump the app threads on a timeout
+  - verified (2026-11-09 05:00+0100 by dell26/agent-2): Read AppStartRoutingTest.kt at a60ec23da: both cache waits use awaitDeleted, which calls shadowOf(Looper.getMainLooper()).idle() every 10ms until a 30s deadline, then throws an AssertionError with the app thread stacks; code-reviewer confirmed it
 - [ ] AppStartRoutingTest passes repeatedly while every CPU core is busy with other work
 - [ ] `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
 
