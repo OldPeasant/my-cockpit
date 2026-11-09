@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [and-mail-compose-plus]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/compose,android/app/src/test/java/ch/sonensei/cockpit/mail/compose]
 prio: 2
-lease_until: 2026-11-09T03:15:54Z
+lease_until: 2026-11-09T03:20:52Z
 releases: 0
 extended: 
 hold: 
