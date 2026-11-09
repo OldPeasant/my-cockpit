@@ -14,7 +14,8 @@ SPEC.md §7.3 says "choose sending identity"; both clients only pick the account
 the Drafts folder to continue it.
 
 ## Acceptance criteria
-- [ ] Compose (web + Android): the From picker lists identities (per account) and sends with the chosen one; if the send/draft API does not accept an identity yet, add it on the server first and regenerate `api/openapi.yaml` and the web client
+- [x] Compose (web + Android): the From picker lists identities (per account) and sends with the chosen one; if the send/draft API does not accept an identity yet, add it on the server first and regenerate `api/openapi.yaml` and the web client
+  - verified (2026-11-09 02:54+0100 by dell26/agent-1): Rev 4cbbdf631: web MailComposeService.identities + mail-compose-page senders specs (npm --prefix web run coverage -> 4751 passed); Android MailComposeIdentityScreenTest/IdentityDraftTest/IdentityRepositoryTest (gradlew -p android ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.*' -> 906 tests, 0 failures); server unchanged: API already accepts identityId (see assumption)
 - [ ] Opening a message in the Drafts folder (web and Android) opens it in compose; saving updates that draft
 - [ ] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
 - [ ] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
