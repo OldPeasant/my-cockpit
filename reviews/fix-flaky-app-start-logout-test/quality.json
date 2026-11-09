@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "task": "fix-flaky-app-start-logout-test",
+  "reviewed_revision": "a60ec23da7d56b3ead7bf55b39a85e8bc7d6491a",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/fix-flaky-app-start-logout-test/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/fix-flaky-app-start-logout-test/review.md"},
+    "fixer": {"status": "not_required", "reason": "No defects found; the only finding is an optional P3 that was deliberately left as is"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "The thread dump cannot show suspended coroutines; it still shows blocked IO threads and is a cheap diagnostic. Making it richer would need kotlinx-coroutines-debug, which is out of scope for this test-only fix"}
+  ],
+  "validation": [
+    {"command": "sh .tmp/load.sh 3 (AppStartRoutingTest --rerun x3 with 16 busy loops on 16 cores)", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
