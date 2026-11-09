@@ -8,7 +8,7 @@ prio: 2
 lease_until: 
 releases: 0
 extended: 
-hold: Check still fails outside this task (2026-11-09 ~03:00, after and-fix-logout-cache-test was done): full ./gradlew ktlintCheck testDebugUnitTest lintDebug -> 5142 tests, 1 failed: SessionCacheTest 'the
+hold: 
 ---
 ## Goal
 Follow-up of the and-mail-compose-plus review (P3, `reviews/and-mail-compose-plus/review.md` CR-1): the recipient
