@@ -17,7 +17,8 @@ SPEC.md §4.6 and the phase 3 demo (step 5) expect reminders on tasks/ticklers; 
 ## Acceptance criteria
 - [ ] Web task detail: add/remove reminders (presets relative to due/scheduled date, or an exact date/time); existing reminders listed
 - [ ] Android task detail: the same; local alarms are scheduled through the existing reminder sync
-- [ ] A reminder fires as a notification on both platforms and opens the task (manually verified or skipped with reason)
+- [~] A reminder fires as a notification on both platforms and opens the task (manually verified or skipped with reason)
+  - skipped (2026-11-09 01:00+0100 by dell26/agent-1): No interactive browser (notification permission) and no Android emulator/device in this agent environment; firing/opening covered by unit tests: web core/notifications ReminderNotificationsService opens deepLink /tasks/{id}; Android OpenItemRequestTaskTest (TASK reminder -> TaskRoutes.detail). Same skip recorded on both subtasks.
 - [ ] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
 - [ ] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
 
