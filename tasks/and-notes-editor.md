@@ -23,7 +23,8 @@ links panel (web: `note-editor-page.html`).
   - verified (2026-11-09 08:53+0100 by dell26/agent-1): NoteEditorIntegrationTest: typing [[boo searches after 250 ms debounce, picking hit inserts [[task:{id}]], Done saves; MarkdownChecklistLinksTest; notes tests -> 343 passed
 - [x] Revisions: list and restore
   - verified (2026-11-09 08:53+0100 by dell26/agent-1): NoteEditorIntegrationTest: Earlier versions lists 2 revisions, Restore saves pending text then restores, title/body/tags shown; NoteRevisionsDialogTest, NoteEditorRevisionsViewModelTest -> pass (343 notes tests)
-- [ ] `LinkedItemsPanel` for the note
+- [x] `LinkedItemsPanel` for the note
+  - verified (2026-11-09 08:53+0100 by dell26/agent-1): NoteEditorScreen renders LinkedItemsSection for saved note; NoteEditorLinksRouteInAppTest + NoteEditorLinksPanelScreenTest -> pass in notes tests (343 passed)
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
