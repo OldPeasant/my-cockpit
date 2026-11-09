@@ -1,11 +1,11 @@
 ---
 title: Android note editor: tags, checklists, links, revisions
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [and-notes-list, and-links-panel, and-notes-checklist-links, and-notes-tags, and-notes-revisions, and-notes-linked-panel]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/notes,android/app/src/test/java/ch/sonensei/cockpit/notes,android/app/src/main/res/values/strings_notes.xml,android/app/src/main/res/values-de/strings_notes.xml]
 prio: 2
-lease_until: 
+lease_until: 2026-11-09T08:00:26Z
 subtasks: and-notes-checklist-links, and-notes-tags, and-notes-revisions, and-notes-linked-panel
 releases: 0
 extended: 
