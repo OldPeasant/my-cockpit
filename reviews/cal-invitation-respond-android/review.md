@@ -1,24 +1,25 @@
 # Code Review
 
-Date: 2026-11-08
+Date: 2026-11-09
 
 Task: cal-invitation-respond-android - Respond to invitations in the Android event editor
 
-Scope: final task code at HEAD, `git diff 0d79924c8cfdc1218629b425f6aa284dc77fcc21..b663ca0dc567e0174ba4aae42606fd12245d616b` (task commits 81324b87b implementation, b4c468cea tests, 403feb486 fixes, 3dd6114fd more tests, b663ca0dc KDoc fix; a501d1597 and e22f5685d only add review reports). Committed changes only, no uncommitted changes. This is the third review. The previous one was at 6fc9e1864 (before a rebase; the same content as e22f5685d). Since then, 3dd6114fd added two tests and b663ca0dc rewrote two KDoc comments for the earlier CR-1. I read the whole task diff again on the final code. I re-checked the delta in detail.
+Scope: the whole task diff `git diff 924770e97 bf4361ac5 -- android`. This covers the original implementation, the fixes, and the merge with main that wired `respond` through `EventEditorCallbacks.of(editor)` and switched `gtd/today/TodayWithEditor.kt` to it.
 
 Requirements:
-- tasks/cal-invitation-respond-android.md: the acceptance criteria and the recorded assumption. The assumption says the rules are the same as on the web: 412 -> conflict, 404 -> gone, any other failure -> "could not be sent", and unsaved form edits stay after answering.
-- SPEC.md §6.2: answering Google/Microsoft invitations through `POST /api/v1/calendar/events/{id}/respond`
-- AGENTS.md project notes: strings in values and values-de, Android conventions, the task's touches
-- Parent agent instructions: the earlier CR-2 (mail accounts fetched twice) is accepted as optional
+- tasks/cal-invitation-respond-android.md (acceptance criteria, assumptions: same rules as web; the Today editor uses `EventEditorCallbacks.of`)
+- SPEC.md §6.2 (Invitations: answering via API for Google and Microsoft) and §4.2 (If-Match/ETag)
+- api/openapi.yaml `POST /api/v1/calendar/events/{id}/respond` (operationId respondToInvitation, optional If-Match, body RespondToInvitationRequest, 200 EventResponse)
+- AGENTS.md project notes, docs/QUALITY.md
 
 Git range:
 - Branch: main
-- HEAD: b663ca0dc567e0174ba4aae42606fd12245d616b
-- Base/start: 0d79924c8cfdc1218629b425f6aa284dc77fcc21 (`git merge-base HEAD origin/main`)
-- Commits reviewed: 7 (5 change android/)
+- HEAD: bf4361ac5 (reviewed revision). The clone has since moved to 700f0237a, a merge of main that does not touch any file in this task's diff (checked with `git diff --stat bf4361ac5 700f0237a` on the task paths).
+- Base/start: 924770e973ebb0f112aea4b401645a50693c231f
+- Commits reviewed: 13 task commits (a642512d0 .. bf4361ac5). Commits that touch only reviews/ or tasks/ were skipped.
+- Uncommitted changes: `android/app/src/test/java/ch/sonensei/cockpit/gtd/today/TodayWithEditorTest.kt` was modified while this review ran. This is the parallel test-writer's work, so it was not reviewed.
 
-Summary: 0 P0, 0 P1, 0 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 2 P3
 
 ## P0 Critical
 
@@ -34,28 +35,32 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | The mail accounts are fetched twice (accepted as optional by the parent worker)**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/calendar/edit/EventExtrasRepository.kt:126-130`
+- [ ] **CR-1 | No host-level test that the editor screens pass taps on Accept, Maybe or Decline to the view model**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/calendar/edit/EventEditorScreen.kt:107`
+    - Category: Tests
+    - Problem: When main was merged, `respond = editor::respond` was added to `EventEditorCallbacks.of(editor)`, and Today now uses `of()`. No committed test covers this connection. `EventEditorExtrasScreenTest` tests `ResponseSection` with a fake callback. `EventEditorViewModelRespondTest` calls `respond()` directly. `TodayWithEditorTest` and the calendar and dashboard host tests never tap an answer button. If the `respond = editor::respond` line were removed, the buttons would silently do nothing (the default is `{}`) and every unit test would still pass.
+    - Why it matters: This connection is exactly what the merge changed, and the callback defaults to a no-op, so a regression would not be visible. The test-writer currently has an uncommitted edit to `TodayWithEditorTest.kt` that may cover this; check it once it is committed.
+    - Suggested fix: Add one test that opens a respondable event in a host (Today, Calendar or Dashboard), taps `EventEditorTags.respond(ACCEPTED)`, and asserts that the repository's respond call was made. Alternatively, add a small unit test asserting that `EventEditorCallbacks.of(editor).respond` reaches `editor.respond`.
+
+- [ ] **CR-2 | The `editorCallbacks` wrapper in TodayWithEditor is now redundant**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/today/TodayWithEditor.kt:59`
     - Category: Quality
-    - Problem: `mailAccounts()` and `ownAddresses()` both call `listMailAccounts()` and map the same response. This is unchanged since the earlier reviews.
-    - Why it matters: it costs one extra network call and duplicates a mapping. Behavior is not affected.
-    - Suggested fix: optional. Record it as accepted in quality.json, as the parent worker plans to. Or derive `ownAddresses` from `mailAccounts()`.
+    - Problem: `private fun editorCallbacks(editor: EventEditorViewModel) = EventEditorCallbacks.of(editor)` only forwards to `of()`. `CalendarWithEditor.kt:47` and `DashboardScreen.kt:201` call `EventEditorCallbacks.of(editor)` inline.
+    - Why it matters: It is a small inconsistency between the three hosts of the same editor, and it adds one more step for a reader.
+    - Suggested fix: Call `EventEditorCallbacks.of(editor)` inline at line 40 and delete the wrapper.
 
-## Verification of the earlier findings and the new commits
+## Verified without findings
 
-- Earlier CR-1 (stale KDoc about 409): fixed in b663ca0dc. The KDoc of `RESPOND_FAILED` (`EventEditorViewModel.kt:48-51`) and of `STALE` (`:756-759`) now lists every reason for a refusal and says that a reload and another try may help. This matches the neutral text and the Reload action. The commit changes only comments.
-- Earlier CR-2: still present and accepted. It is carried over as CR-1 above.
-- New test `a delegated or unknown own answer counts as not answered and selects no button` (`EventEditorExtrasScreenTest.kt`): it matches `ResponseSection` (`EventEditorSections.kt:293-302`). There, DELEGATED, NEEDS_ACTION and a null `ownStatus` show "You have not answered yet." DELEGATED is not in `INVITATION_RESPONSES`, so no button gets `selected`. With no own addresses, `ownStatus` is null and the buttons stay enabled.
-- New test `a reload of a new event neither fetches the sources again nor drops the form` (`EventEditorViewModelRespondTest.kt`): it matches `reload()` (`EventEditorViewModel.kt:263-267`), which returns early when `occurrence == null`. So `localCalendars()` is called only once, from `create()`. The invitation calendars and the event are never fetched, and the edited title stays. The test checks behavior.
-
-## Notes (not findings)
-
-- Acceptance criterion 1 is met in code. Accept/Maybe/Decline show for existing events with guests in writable Google/Microsoft calendars (`respondable`). The current answer is selected and named in a note. On success (`respond()`, `EventEditorViewModel.kt:644-679`), the code updates `version`, the guests in the form, `initial.attendees` and `savedAttendees`, and it keeps unsaved edits to other fields. 412 maps to CONFLICT, 404 to GONE, and any other failure to RESPOND_FAILED. Every result path clears `responding`.
-- Concurrency is unchanged since the earlier review. `canRespond` and `canSave` block each other. `load()` and `reset()` cancel `respondJob`.
-- Acceptance criterion 2: all seven strings exist in both locales. The task file already records this as verified.
-- Acceptance criterion 3: the unit tests cover the new behavior in the ViewModel, the screen and both repositories. I did not run `sh scripts/check.sh`. Criteria 1 and 3 are not yet verified in the task file. The parent worker must run the check and record the evidence with `tasks.py verify` before `done`.
-- Every changed file is under `android/.../calendar/edit`, its tests, or `strings_calendar_edit.xml`. This matches the task's touches.
+- API contract: `EventEditRepository.respond` calls `api.respondToInvitation(id, RespondToInvitationRequest(answer), "\"version\"")`. This matches the generated signature (path id, body, optional If-Match) and quotes the ETag the same way as patch and delete. The enum is mapped by name and protected by the `INVITATION_RESPONSES` guard in the view model.
+- When the answers show (assumption #1): only for existing events that have guests and are in writable GOOGLE or MICROSOFT calendars (`EventExtrasRepository.invitationCalendars`). The own status comes from the guest that matches a mail account address, compared in lower case. DELEGATED, NEEDS_ACTION and no match all show as "not answered", with no button selected.
+- Error mapping: 412 gives CONFLICT, which blocks further saves and answers until a reload. 404 gives GONE. Any other refusal (including 409) gives RESPOND_FAILED with a Reload action, and the user can try again. Offline gives OFFLINE and allows a retry.
+- State and concurrency: `responding` blocks save, update, delete and a second answer, and `canRespond` blocks answering during a load or save. `load()` and `reset()` cancel `respondJob`, so a late answer never reaches a reloaded or different event. Every result path clears `responding`. On success, the new version and guests are applied to `initial`, the form and `savedAttendees`, and unsaved form edits are kept. `reload()` fetches the sources again only for existing events (it returns early for a new event).
+- All three hosts (Calendar, Dashboard, Today) now use `EventEditorCallbacks.of`, so every one of them gets `respond`. No host builds its callback list by hand any more.
+- Strings: the 7 `calendar_edit_respond_*` keys exist in both values/ and values-de/ (German uses "du"), and placeholders match.
+- Security: there are no secrets or logging of personal data. Authorization stays on the server (it refuses non-invitees and organizers). The UI only decides whether to show the section.
+- The task stays within its `touches`, except for the one-line Today change, which is recorded as an assumption on the task.
+- Tests: the repository, view model and screen behaviour are covered, including edge cases (unknown or failed invitation calendars, retry after a failed source load, stale versions, a closed editor, a reload while an answer is being sent).
 
 ## Review conclusion
 
-No material issues found. The remaining P3 item is an optional cleanup that the parent worker has already accepted.
+No material issues found.

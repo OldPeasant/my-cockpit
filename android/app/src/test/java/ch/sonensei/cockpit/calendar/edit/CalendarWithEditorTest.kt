@@ -4,11 +4,13 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.calendar.agenda.CalendarInfo
 import ch.sonensei.cockpit.calendar.agenda.CalendarRepository
@@ -21,6 +23,7 @@ import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -109,9 +112,8 @@ class CalendarWithEditorTest {
     private var openedContact: UUID? = null
     private var backFromContact: (() -> Unit)? = null
 
-    private fun show(): Pair<CalendarViewModel, EventEditorViewModel> {
+    private fun show(editor: EventEditorViewModel = EventEditorViewModel(editRepo, clock)): Pair<CalendarViewModel, EventEditorViewModel> {
         val calendar = CalendarViewModel(calendarRepo, clock, Locale.US)
-        val editor = EventEditorViewModel(editRepo, clock)
         composeRule.setContent {
             CockpitTheme {
                 CalendarWithEditor(
@@ -173,6 +175,52 @@ class CalendarWithEditorTest {
                 ?.location,
         )
     }
+
+    @Test
+    fun `an invitation opened from the calendar can be answered in the editor`() {
+        // The team day is in a Google calendar and has guests, so the editor offers Accept / Maybe / Decline.
+        val me = Attendee("me@example.org", "Me", AttendeeStatus.NEEDS_ACTION)
+        val ada = Attendee("ada@example.org", "Ada Example", AttendeeStatus.ACCEPTED)
+        coEvery { editRepo.event(holiday.eventId) } returns CalendarResult.Ok(holidayDetails(listOf(ada, me), version = 2))
+        coEvery { editRepo.respond(holiday.eventId, 2, AttendeeStatus.TENTATIVE) } returns
+            CalendarResult.Ok(holidayDetails(listOf(ada, me.copy(status = AttendeeStatus.TENTATIVE)), version = 3))
+        val sources = mockk<EventExtrasRepository>()
+        coEvery { sources.localCalendars() } returns CalendarResult.Ok(emptySet())
+        coEvery { sources.links(any()) } returns CalendarResult.Ok(emptyList())
+        coEvery { sources.invitationCalendars() } returns CalendarResult.Ok(setOf(work.id))
+        coEvery { sources.ownAddresses() } returns CalendarResult.Ok(setOf("me@example.org"))
+
+        val (_, editor) = show(EventEditorViewModel(editRepo, clock, MutableStateFlow(null), sources))
+        composeRule.onNodeWithTag(CalendarTags.entry(holiday.key, today)).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(EventEditorTags.respond(AttendeeStatus.TENTATIVE)).performScrollTo().performClick()
+        composeRule.waitForIdle()
+
+        coVerify(exactly = 1) { editRepo.respond(holiday.eventId, 2, AttendeeStatus.TENTATIVE) }
+        assertEquals(AttendeeStatus.TENTATIVE, editor.uiState.value.ownStatus)
+        composeRule.onNodeWithTag(EventEditorTags.respond(AttendeeStatus.TENTATIVE)).performScrollTo().assertIsSelected()
+    }
+
+    private fun holidayDetails(
+        attendees: List<Attendee>,
+        version: Long,
+    ) = EventDetails(
+        id = holiday.eventId,
+        calendarId = work.id,
+        title = "Team day",
+        location = "Lakeside hall",
+        description = null,
+        allDay = true,
+        start = null,
+        end = null,
+        startDate = today,
+        endDate = today.plusDays(1),
+        timeZone = null,
+        rrule = null,
+        seriesId = null,
+        version = version,
+        attendees = attendees,
+    )
 
     @Test
     fun `in the day view a tapped birthday opens its contact, not the editor`() {

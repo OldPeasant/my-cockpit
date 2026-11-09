@@ -4,20 +4,25 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.calendar.agenda.CalendarInfo
 import ch.sonensei.cockpit.calendar.agenda.CalendarRepository
 import ch.sonensei.cockpit.calendar.agenda.CalendarResult
 import ch.sonensei.cockpit.calendar.agenda.Occurrence
+import ch.sonensei.cockpit.calendar.edit.Attendee
+import ch.sonensei.cockpit.calendar.edit.AttendeeStatus
 import ch.sonensei.cockpit.calendar.edit.EventDetails
 import ch.sonensei.cockpit.calendar.edit.EventEditRepository
 import ch.sonensei.cockpit.calendar.edit.EventEditorTags
 import ch.sonensei.cockpit.calendar.edit.EventEditorViewModel
+import ch.sonensei.cockpit.calendar.edit.EventExtrasRepository
 import ch.sonensei.cockpit.gtd.data.Cached
 import ch.sonensei.cockpit.gtd.data.ContextRepository
 import ch.sonensei.cockpit.gtd.data.GtdTask
@@ -127,10 +132,9 @@ class TodayWithEditorTest {
     private var openedContact: UUID? = null
     private var backFromContact: (() -> Unit)? = null
 
-    private fun show(): EventEditorViewModel {
+    private fun show(editor: EventEditorViewModel = EventEditorViewModel(editRepo, clock)): EventEditorViewModel {
         val taskList = TodayViewModel(tasks, contexts, completion, clock)
         val extras = TodayExtrasViewModel(calendarRepo, habitsRepo, clock)
-        val editor = EventEditorViewModel(editRepo, clock)
         composeRule.setContent {
             CockpitTheme {
                 TodayWithEditor(
@@ -172,6 +176,52 @@ class TodayWithEditorTest {
         coVerify(exactly = 2) { habitsRepo.list() }
         coVerify(exactly = 2) { calendarRepo.occurrences(today, today.plusDays(1), ZoneOffset.UTC) }
     }
+
+    @Test
+    fun `an invitation opened from Today can be answered in the editor`() {
+        // The holiday is in a Google calendar and has guests, so the Today editor offers Accept / Maybe / Decline.
+        val me = Attendee("me@example.org", "Me", AttendeeStatus.NEEDS_ACTION)
+        val ada = Attendee("ada@example.org", "Ada Example", AttendeeStatus.ACCEPTED)
+        coEvery { editRepo.event(holiday.eventId) } returns CalendarResult.Ok(holidayDetails(listOf(ada, me), version = 2))
+        coEvery { editRepo.respond(holiday.eventId, 2, AttendeeStatus.DECLINED) } returns
+            CalendarResult.Ok(holidayDetails(listOf(ada, me.copy(status = AttendeeStatus.DECLINED)), version = 3))
+        val sources = mockk<EventExtrasRepository>()
+        coEvery { sources.localCalendars() } returns CalendarResult.Ok(emptySet())
+        coEvery { sources.links(any()) } returns CalendarResult.Ok(emptyList())
+        coEvery { sources.invitationCalendars() } returns CalendarResult.Ok(setOf(work.id))
+        coEvery { sources.ownAddresses() } returns CalendarResult.Ok(setOf("me@example.org"))
+
+        val editor = show(EventEditorViewModel(editRepo, clock, MutableStateFlow(null), sources))
+        composeRule.onNodeWithTag(TodayExtrasTags.event(holiday)).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(EventEditorTags.respond(AttendeeStatus.DECLINED)).performScrollTo().performClick()
+        composeRule.waitForIdle()
+
+        coVerify(exactly = 1) { editRepo.respond(holiday.eventId, 2, AttendeeStatus.DECLINED) }
+        assertEquals(AttendeeStatus.DECLINED, editor.uiState.value.ownStatus)
+        composeRule.onNodeWithTag(EventEditorTags.respond(AttendeeStatus.DECLINED)).performScrollTo().assertIsSelected()
+    }
+
+    private fun holidayDetails(
+        attendees: List<Attendee>,
+        version: Long,
+    ) = EventDetails(
+        id = holiday.eventId,
+        calendarId = work.id,
+        title = "Company day",
+        location = "Lakeside hall",
+        description = null,
+        allDay = true,
+        start = null,
+        end = null,
+        startDate = today,
+        endDate = today.plusDays(1),
+        timeZone = null,
+        rrule = null,
+        seriesId = null,
+        version = version,
+        attendees = attendees,
+    )
 
     @Test
     fun `a tapped birthday opens its contact, not the editor, and back returns to Today`() {
