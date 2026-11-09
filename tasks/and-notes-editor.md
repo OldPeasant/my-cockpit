@@ -25,7 +25,8 @@ links panel (web: `note-editor-page.html`).
   - verified (2026-11-09 08:53+0100 by dell26/agent-1): NoteEditorIntegrationTest: Earlier versions lists 2 revisions, Restore saves pending text then restores, title/body/tags shown; NoteRevisionsDialogTest, NoteEditorRevisionsViewModelTest -> pass (343 notes tests)
 - [x] `LinkedItemsPanel` for the note
   - verified (2026-11-09 08:53+0100 by dell26/agent-1): NoteEditorScreen renders LinkedItemsSection for saved note; NoteEditorLinksRouteInAppTest + NoteEditorLinksPanelScreenTest -> pass in notes tests (343 passed)
-- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [x] New strings are in English and German (`res/values/` + `res/values-de/`)
+  - verified (2026-11-09 08:53+0100 by dell26/agent-1): diff of sorted string names in res/values/strings_notes.xml vs res/values-de/strings_notes.xml -> identical (74 keys)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
