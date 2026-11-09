@@ -1,5 +1,6 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { filter, Subject } from 'rxjs';
@@ -29,7 +30,33 @@ const GUIDE = bookmark('0192f0c4-0000-7000-8000-000000000002', {
   snapshotFileId: '0192f0c4-0000-7000-8000-0000000000f1',
 });
 
+/** A MatSnackBar double: each `open` gives a ref whose action and dismissal the test fires. */
+class FakeSnackBar {
+  readonly opened: { message: string; action: string; act: () => void; dismiss: () => void }[] = [];
+
+  open(message: string, action: string) {
+    const onAction = new Subject<void>();
+    const afterDismissed = new Subject<void>();
+    const dismiss = (): void => {
+      afterDismissed.next();
+      afterDismissed.complete();
+    };
+    this.opened.push({
+      message,
+      action,
+      act: () => {
+        onAction.next();
+        onAction.complete();
+        dismiss();
+      },
+      dismiss,
+    });
+    return { onAction: () => onAction, afterDismissed: () => afterDismissed };
+  }
+}
+
 describe('BookmarksPage', () => {
+  let snackBar: FakeSnackBar;
   let harness: RouterTestingHarness;
   let root: HTMLElement;
   let http: HttpTestingController;
@@ -43,6 +70,7 @@ describe('BookmarksPage', () => {
     nextCursor?: string,
   ): Promise<void> {
     notifications = { error: vi.fn(), info: vi.fn() };
+    snackBar = new FakeSnackBar();
     changes = new Subject();
     resyncs = new Subject();
     TestBed.configureTestingModule({
@@ -51,6 +79,7 @@ describe('BookmarksPage', () => {
         provideHttpClientTesting(),
         provideRouter([{ path: 'bookmarks', children: routes }]),
         { provide: NotificationService, useValue: notifications },
+        { provide: MatSnackBar, useValue: snackBar },
         {
           provide: ChangeEventsService,
           useValue: {
@@ -229,7 +258,10 @@ describe('BookmarksPage', () => {
     flushTags([]);
     await settle();
     expect(row(ESSAY)).toBeNull();
-    expect(notifications.info).toHaveBeenCalledWith('Moved “On slow software” to the Trash');
+    expect(snackBar.opened.map((o) => [o.message, o.action])).toEqual([
+      ['Moved “On slow software” to the Trash', 'Undo'],
+    ]);
+    snackBar.opened[0].dismiss();
   });
 
   it('shows a conflict next to the bookmark and loads its current version', async () => {

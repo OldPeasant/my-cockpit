@@ -417,8 +417,7 @@ export default class BookmarksPage {
     if (!this.bookmarks() || this.busy().has(id)) return;
     const seq = this.loadSeq;
     const changes = this.changeSeq;
-    const current = (): boolean =>
-      seq === this.loadSeq && (this.changedAt.get(id) ?? 0) <= changes;
+    const current = (): boolean => seq === this.loadSeq && (this.changedAt.get(id) ?? 0) <= changes;
     try {
       const bookmark = await this.service.get(id);
       if (!current()) return;
