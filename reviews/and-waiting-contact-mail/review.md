@@ -4,7 +4,7 @@ Date: 2026-11-09
 
 Task: and-waiting-contact-mail - Android Draft email: To from the linked waiting-for contact
 
-Scope: final task code, git diff a95fa744f67f90916b6100a637151a8153e8ee80..c48d73bd01a569d40eb6927ee2a8b4b437c93f70, excluding tasks/ and reviews/ (implementation commit f2a077e6a, test-writer commit 6c900fb6b, fix commit c48d73bd0). Re-review after the fixes for CR-1 and CR-2 of the earlier review.
+Scope: final task code, git diff a95fa744f67f90916b6100a637151a8153e8ee80..a83a2873d0ac5e3ff94218488a0db98f1032b1f5, excluding tasks/ and reviews/ (implementation commit f2a077e6a, test-writer commit 6c900fb6b, fix commit c48d73bd0, test commit a83a2873d). Re-review after the fixes for CR-1 and CR-2 of the earlier review, extended to the final revision a83a2873d, which adds one test and no production change (git diff c48d73bd..a83a2873 -- android touches only WaitingRouteDraftMailTest.kt).
 
 Requirements:
 - tasks/and-waiting-contact-mail.md (acceptance criteria and recorded assumption)
@@ -15,9 +15,9 @@ Requirements:
 
 Git range:
 - Branch: main
-- HEAD: c48d73bd01a569d40eb6927ee2a8b4b437c93f70
+- HEAD: a83a2873d0ac5e3ff94218488a0db98f1032b1f5
 - Base/start: a95fa744f67f90916b6100a637151a8153e8ee80
-- Commits reviewed: 3 code commits (f2a077e6a, 6c900fb6b, c48d73bd0); fae4609b3 and 0d725793d touch only tasks/
+- Commits reviewed: 4 code commits (f2a077e6a, 6c900fb6b, c48d73bd0, a83a2873d); fae4609b3 and 0d725793d touch only tasks/
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
@@ -28,8 +28,9 @@ Verified:
 - Criterion 2: followUpRecipient takes the linked contact's first email (ContactsResult.Ok, emails.firstOrNull()), otherwise falls back to emailIn(waitingForText); Offline/Failed results and contacts without addresses fall back. ContactsRepository.get goes through load, which maps network/HTTP errors to results, so the button coroutine does not crash on failure. followUpMailUri/followUpMailIntent keep their old default (address from the text), so existing callers are unchanged.
 - Earlier CR-1 (double taps open several mails) is fixed: WaitingRoute keeps a remembered per-task set; a tap only launches when the task id is newly added, and the id is removed in finally after the intent was started, the lookup failed, or the scope was cancelled (leaving composition), so later taps work again. All access is on the main thread, so a plain set is adequate. WaitingRouteDraftMailTest "taps while the contact is still loading open a single mail" suspends the lookup on a CompletableDeferred, clicks twice, asserts no intent before completion, exactly one SENDTO after, one lookup, and that a later tap drafts again.
 - Earlier CR-2 (firstEmail untested) is resolved: ListViewModelsTest builds WaitingViewModel through the @Inject constructor with a mocked ContactsRepository and covers Ok with two emails (first one, get called once), Ok without emails, Offline and Failed(404) falling back to the text, and null without text. This exercises the production contacts::firstEmail wiring.
-- Criterion 3 (tests): mapper round trip with and without contact id (GtdMappersTest), JSON parsing through the cache (TaskRepositoryTest) and the live list (TaskListsRepositoryTest), recipient selection (WaitingDraftEmailTest, ListViewModelsTest) and the route-level intent for both the contact and the fallback case (WaitingRouteDraftMailTest). Whether `sh scripts/check.sh` passes was not run in this review; that is the parent worker's evidence.
-- Architecture: the gtd list view model depends on the contacts module only through ContactsRepository (a service), consistent with module boundaries; no new state owner was introduced. No email addresses or contact data are logged. Test data uses example.com/example.org addresses.
+- Final commit a83a2873d: the new test "a contact still loading for one task does not hold back another task's draft" shows the guard is keyed per task (WaitingScreen.kt drafting.add(task.id)), not global. It lists two waiting tasks: Contract (linked contact, lookup suspended on a CompletableDeferred) and Offer (no contact id, so followUpRecipient skips the lookup and uses the address in the text). Tapping Contract then Offer starts Offer's mail immediately (To ben@example.net, subject Offer) with no second intent queued; completing the lookup then starts Contract's mail (To anna@example.com, subject Contract). The assertions match the production order of events, use existing imports and fixtures (id, contract, contexts, completion, now), and test data uses example.net/example.com addresses. Minor observation, not a finding: because Offer has no linked contact, the test does not cover two lookups in flight at once; the per-task set semantics are still demonstrated, which is what the test name claims.
+- Criterion 3 (tests): mapper round trip with and without contact id (GtdMappersTest), JSON parsing through the cache (TaskRepositoryTest) and the live list (TaskListsRepositoryTest), recipient selection (WaitingDraftEmailTest, ListViewModelsTest) and the route-level intent for both the contact and the fallback case plus the per-task draft guard (WaitingRouteDraftMailTest). Whether `sh scripts/check.sh` passes was not run in this review; that is the parent worker's evidence.
+- Architecture: the gtd list view model depends on the contacts module only through ContactsRepository (a service), consistent with module boundaries; no new state owner was introduced. No email addresses or contact data are logged. Test data uses example.com/example.org/example.net addresses.
 
 ## P0 Critical
 
@@ -49,4 +50,4 @@ None.
 
 ## Review conclusion
 
-No material issues found.
+No material issues found. This conclusion covers the final revision a83a2873d0ac5e3ff94218488a0db98f1032b1f5.
