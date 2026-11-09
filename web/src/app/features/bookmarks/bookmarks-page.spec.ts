@@ -1369,6 +1369,120 @@ describe('BookmarksPage', () => {
         expect(row(NOTED).querySelector('.edit')).toBeNull();
       });
 
+      it('keeps the editor version when the read toggle started from a newer row', async () => {
+        await open('/bookmarks?view=all', [NOTED]);
+        button(NOTED, 'edit-open').click();
+        harness.detectChanges();
+        typeInto(editField(NOTED, 'edit-title'), 'Coroutines, revisited');
+        // Retitled on another device while the editor is open.
+        const elsewhere = { ...NOTED, title: 'Coroutines (other device)', version: 2 };
+        changes.next({ type: 'BOOKMARK', op: 'UPDATED', id: NOTED.id, at: '2026-10-22T09:00:00Z' });
+        http
+          .expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${NOTED.id}`)
+          .flush(elsewhere);
+        await settle();
+
+        button(NOTED, 'mark-read').click();
+        const read = http.expectOne((r) => r.method === 'PATCH');
+        expect(read.request.headers.get('If-Match')).toBe('"2"');
+        read.flush({ ...elsewhere, readAt: '2026-10-22T09:05:00Z', version: 3 });
+        await settle();
+
+        // The editor's values are still based on version 1: the save must be a conflict.
+        (row(NOTED).querySelector('.edit') as HTMLFormElement).dispatchEvent(new Event('submit'));
+        const save = http.expectOne((r) => r.method === 'PATCH');
+        expect(save.request.headers.get('If-Match')).toBe('"1"');
+        expect(save.request.body.title).toBe('Coroutines, revisited');
+        save.flush(...problem(412, 'Precondition Failed'));
+        await settle();
+        http
+          .expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${NOTED.id}`)
+          .flush({ ...elsewhere, readAt: '2026-10-22T09:05:00Z', version: 3 });
+        await settle();
+        expect(editField(NOTED, 'edit-title').value).toBe('Coroutines, revisited');
+        expect(text(row(NOTED).querySelector('.error'))).toContain('changed elsewhere');
+      });
+
+      it('leaves the editor version alone when another bookmark is marked read', async () => {
+        await open('/bookmarks?view=all', [NOTED, ESSAY]);
+        button(NOTED, 'edit-open').click();
+        harness.detectChanges();
+        button(ESSAY, 'mark-read').click();
+        http
+          .expectOne((r) => r.method === 'PATCH' && r.url === `${LIST}/${ESSAY.id}`)
+          .flush({ ...ESSAY, readAt: '2026-10-22T09:00:00Z', version: 2 });
+        await settle();
+
+        (row(NOTED).querySelector('.edit') as HTMLFormElement).dispatchEvent(new Event('submit'));
+        const save = http.expectOne((r) => r.method === 'PATCH');
+        expect(save.request.url).toBe(`${LIST}/${NOTED.id}`);
+        expect(save.request.headers.get('If-Match')).toBe('"1"');
+        save.flush({ ...NOTED, version: 2 });
+        await settle();
+        flushTags();
+        await settle();
+        expect(row(NOTED).querySelector('.edit')).toBeNull();
+      });
+
+      it('leaves another editor opened during a conflict reload untouched', async () => {
+        await open('/bookmarks?view=all', [NOTED, ESSAY]);
+        button(NOTED, 'edit-open').click();
+        harness.detectChanges();
+        (row(NOTED).querySelector('.edit') as HTMLFormElement).dispatchEvent(new Event('submit'));
+        http.expectOne((r) => r.method === 'PATCH').flush(...problem(412, 'Precondition Failed'));
+        await settle();
+        const reload = http.expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${NOTED.id}`);
+
+        // The user moves on to another bookmark before the current version arrives.
+        button(ESSAY, 'edit-open').click();
+        harness.detectChanges();
+        typeInto(editField(ESSAY, 'edit-title'), 'Slow software, revisited');
+        reload.flush({ ...NOTED, version: 5 });
+        await settle();
+
+        expect(row(NOTED).querySelector('.edit')).toBeNull();
+        expect(row(NOTED).querySelector('.error')).toBeNull();
+        expect(editField(ESSAY, 'edit-title').value).toBe('Slow software, revisited');
+        (row(ESSAY).querySelector('.edit') as HTMLFormElement).dispatchEvent(new Event('submit'));
+        const save = http.expectOne((r) => r.method === 'PATCH');
+        expect(save.request.url).toBe(`${LIST}/${ESSAY.id}`);
+        expect(save.request.headers.get('If-Match')).toBe('"1"');
+        save.flush({ ...ESSAY, title: 'Slow software, revisited', version: 2 });
+        await settle();
+        flushTags();
+        await settle();
+      });
+
+      it('does not reopen an editor cancelled while its save ran into a conflict', async () => {
+        await open('/bookmarks?view=all', [NOTED]);
+        button(NOTED, 'edit-open').click();
+        harness.detectChanges();
+        typeInto(editField(NOTED, 'edit-title'), 'Discarded after all');
+        (row(NOTED).querySelector('.edit') as HTMLFormElement).dispatchEvent(new Event('submit'));
+        const save = http.expectOne((r) => r.method === 'PATCH');
+        (row(NOTED).querySelector('.edit-cancel') as HTMLButtonElement).click();
+        harness.detectChanges();
+        save.flush(...problem(412, 'Precondition Failed'));
+        await settle();
+        http
+          .expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${NOTED.id}`)
+          .flush({ ...NOTED, title: 'Coroutines (other device)', version: 5 });
+        await settle();
+
+        expect(row(NOTED).querySelector('.edit')).toBeNull();
+        // A new editor starts from the current version and values, not the cancelled draft.
+        button(NOTED, 'edit-open').click();
+        harness.detectChanges();
+        expect(editField(NOTED, 'edit-title').value).toBe('Coroutines (other device)');
+        (row(NOTED).querySelector('.edit') as HTMLFormElement).dispatchEvent(new Event('submit'));
+        const again = http.expectOne((r) => r.method === 'PATCH');
+        expect(again.request.headers.get('If-Match')).toBe('"5"');
+        again.flush({ ...NOTED, title: 'Coroutines (other device)', version: 6 });
+        await settle();
+        flushTags();
+        await settle();
+      });
+
       it('limits the notes to the 2000 characters the server accepts', async () => {
         await open('/bookmarks?view=all', [NOTED]);
         button(NOTED, 'edit-open').click();

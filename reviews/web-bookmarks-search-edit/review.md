@@ -4,25 +4,29 @@ Date: 2026-11-09
 
 Task: web-bookmarks-search-edit - Web bookmarks: search, edit, undo, to inbox
 
-Scope: committed task changes `git diff 4e2b5d5e4..c578b8ad0` (web/src/app/features/bookmarks, web/src/locale). Uncommitted test-writer work running in parallel is not part of this scope.
+Scope: final revision of the full task diff `git diff a73c68c4a..66b577797` (web/src/app/features/bookmarks, web/src/locale). This is the second review, after the fixes for the first review's findings. Uncommitted test-writer work running in parallel is not part of this scope.
 
 Requirements:
-- tasks/web-bookmarks-search-edit.md (acceptance criteria)
+- tasks/web-bookmarks-search-edit.md (acceptance criteria and recorded assumptions)
 - SPEC.md §4.2 (optimistic locking), §4.5 (bookmark to Inbox task), §8.4 (bookmarks, search)
-- docs/PARITY.md (row "Bookmarks: no search, no edit, no undo, bookmark to inbox")
 - docs/ARCHITECTURE.md "Code conventions"; AGENTS.md project notes
-- Android parity reference: android/app/src/main/java/ch/sonensei/cockpit/bookmarks/ (BookmarksRepository.toInbox/save/restore, BookmarksViewModel)
-- Server contract: server/.../bookmarks/api/BookmarkDtos.kt, BookmarksWebSupport.kt (PATCH fields by presence)
+- First review (earlier version of this file) and reviews/web-bookmarks-search-edit/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: c578b8ad00bd9427b60deeac3a4b862ee86a6e4b
-- Base/start: 4e2b5d5e44feb5bc3ec365ec2adb1fccd50cb14e
-- Commits reviewed: 3 (fe8f7acb3, 615ddc5d2, c578b8ad0)
+- HEAD: 66b5777978c1a554453ab1a260e6622d7aec1221
+- Base/start: a73c68c4a47065c97cdfc02a2f001404e0b71ffe
+- Commits reviewed: 5 (3e2e17cb8, 8fd1957c3, 3acdcdf3d, 85f6d104f, 66b577797)
 
-Summary: 0 P0, 1 P1, 1 P2, 2 P3
+Summary: 0 P0, 0 P1, 1 P2, 1 P3
 
-Verified as correct (no finding): client-side search over title, display title, URL, description and `#tag` with every-word, case-insensitive matching and a "no loaded bookmark matches" empty state; the editor sends `title`/`description` as explicit `null` when blank, which the server treats as "clear" (presence-based PATCH, BookmarksWebSupport.kt:40) and matches Android `save`; undo uses `restoreTrashItem` with type BOOKMARK, mirrors `TaskUndo` in gtd, and handles restore failure with an error message; "To Inbox task" creates the task with a client UUIDv7 reused on retry until success, title truncated to 500, URL as notes, list INBOX, and an `origin` link TASK to BOOKMARK, reporting an unlinked task separately, all identical to Android; row busy state prevents double submits; all 13 new message ids exist in messages.xlf and have German targets in messages.de.xlf.
+What the earlier findings came to:
+- CR-1 (no tests) is resolved. bookmark-display.spec.ts covers `matchesQuery`. bookmarks.service.spec.ts covers restore and toInbox: task body, the origin link to the id the server returned, the 500-character title cap, the unlinked case, and a failed create. bookmarks-page.spec.ts covers search (including the empty state and Escape), the editor (open, save, blank fields sent as null, cancel, failure, conflict, the stale-version case, mark read while editing, maxlength), undo (restore, dismiss, restore failure, no undo after a failed delete), and To Inbox (linked and unlinked, the same id on retry and a new one after success, one id per bookmark, no double submit).
+- CR-2 (lost update) is resolved. `Draft.version` is set in `startEdit` and sent as `If-Match` in `saveEdit` (bookmarks-page.ts:326). A conflict reloads the bookmark, moves the draft to the current version and shows `bookmarks.edit.conflict`. `change()` moves the draft version along only when the change started from the draft's own version (bookmarks-page.ts:397). So a fetched title that arrived meanwhile still causes a conflict, and the user's own mark read does not.
+- CR-3 is resolved: the notes field has `maxlength="2000"` (bookmarks-page.html:196).
+- CR-4 (the `uuidv7` import from features/capture) is recorded as a task assumption. Moving the helper is outside this task's touches, so it is not repeated here.
+
+Checked and correct (no finding): all 14 new message ids (13 from the first revision plus `bookmarks.edit.conflict`) are in messages.xlf and have German targets in messages.de.xlf. Placeholders match between source and target. Existing units changed only in their line-number context.
 
 ## P0 Critical
 
@@ -30,38 +34,26 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | New behavior has no unit tests in the reviewed commits**
-    - File: `web/src/app/features/bookmarks/bookmarks-page.spec.ts:258`
-    - Category: Tests
-    - Problem: The only spec change in the range adapts the existing delete test to the undo snackbar (asserts message and "Undo" action, then dismisses). There are no tests for `matchesQuery` (bookmark-display.ts), the search field and its empty state, startEdit/saveEdit/cancelEdit (including blank-clears-field and editor-stays-on-failure), the Undo action calling restore and re-inserting the bookmark (or the restore-failure message), or `toInbox` (task body, origin link, same id reused after a failed attempt, unlinked message).
-    - Why it matters: Acceptance criterion 5 ("Unit tests cover the new behavior") is not met by the committed code. The idempotent-retry and undo paths are the kind of thing that breaks quietly.
-    - Suggested fix: Add page and service/helper specs for the behaviors above. The test-writer running in parallel may already cover this; check its committed result before recording the criterion.
+None.
 
 ## P2 Medium
 
-- [ ] **CR-2 | Editor save bypasses optimistic locking and can silently overwrite newer values (e.g. the fetched title)**
-    - File: `web/src/app/features/bookmarks/bookmarks-page.ts:310` (also `bookmarks-page.ts:290`, `bookmarks-page.html:165`)
+- [ ] **CR-1 | "Show more" is hidden when no loaded bookmark matches the search**
+    - File: `web/src/app/features/bookmarks/bookmarks-page.html:108` (the button is at line 301)
     - Category: Correctness
-    - Problem: `startEdit` copies title, tags and notes into `draft` but does not keep the bookmark version. The template calls `saveEdit(b)` with the row's current bookmark, and `refreshOne` replaces that row whenever a change event brings a newer version. So the PATCH goes out with `If-Match` of the refreshed version but with the values from the older draft. The server cannot detect the conflict. Concrete case: add a URL, then open Edit while the row still says "fetching title…". The draft title and notes are empty. The server's metadata fetch then updates the row. Saving (for example after only adding a tag) sends `title: null, description: null` and wipes the fetched title and description. A change made on another device while the editor is open is overwritten the same way. Android has the same pattern (BookmarksViewModel `run` takes the current list item), so this is not a parity break. It does defeat the purpose of SPEC.md §4.2's If-Match on the web.
-    - Why it matters: Silent lost update of user-visible data (title and notes) in a normal flow, with no 409/412 shown.
-    - Suggested fix: Store the version (or the whole base bookmark) in `Draft` at `startEdit` and send that version in `If-Match`, so the existing conflict path (row error plus `reloadOne`) runs. Alternatively, send only the fields the user changed compared to the draft's base.
+    - Problem: Search filters only the loaded pages, as the task assumption says. The "Show more" button sits only in the `@else` branch for a non-empty `shown()` list. When the query matches none of the loaded bookmarks but `nextCursor()` is set, the page says "No loaded bookmark matches {query}." and has no "Show more" button. The text itself suggests that unloaded bookmarks might match, yet the only way to search them is to clear the search, load more and search again.
+    - Why it matters: For users with more than one page of bookmarks, searching for an older bookmark looks like a dead end, which weakens the search feature from criterion 1.
+    - Suggested fix: Also show the "Show more" button in the no-match branch whenever `nextCursor()` is set (for example, move the button out of the non-empty branch), and add a page test for it.
 
 ## P3 Low
 
-- [ ] **CR-3 | Notes textarea has no client-side length limit**
-    - File: `web/src/app/features/bookmarks/bookmarks-page.html:193`
+- [ ] **CR-2 | A failed "To Inbox task" is reported as "could not be changed"**
+    - File: `web/src/app/features/bookmarks/bookmarks-page.ts:357` (message at `bookmarks-page.html:294`)
     - Category: Quality
-    - Problem: The title input has `maxlength="500"`, which matches the server, but the notes textarea has no `maxlength`, while the server limits `description` to 2000 characters (BookmarkDtos.kt:92). Longer notes only fail after Save, with a server validation message.
-    - Why it matters: Inconsistent with the title field, and gives avoidable failed saves.
-    - Suggested fix: Add `maxlength="2000"` to the textarea.
-
-- [ ] **CR-4 | Bookmarks imports a helper from the capture feature folder**
-    - File: `web/src/app/features/bookmarks/bookmarks-page.ts:16`
-    - Category: Architecture
-    - Problem: `import { uuidv7 } from '../capture/uuidv7'` makes bookmarks depend on another feature's internals. It is the only use of that file outside `features/capture`. ARCHITECTURE.md describes one feature folder per module, and AGENTS.md keeps each feature in its own folder.
-    - Why it matters: It couples two lazy features, and a change in capture can break bookmarks. The task's `touches` does not allow moving the helper, so this is a follow-up.
-    - Suggested fix: Keep it for now, and file a follow-up to move `uuidv7` to a shared location such as `core/`. Or record the decision as an assumption.
+    - Problem: `toInbox` runs through `run()`, so any failure appears as the row error `bookmarks.changeFailed`: "{title} could not be changed: {error}". The bookmark is not being changed. A task is being created.
+    - Why it matters: The message misleads the user about what failed. They may think the bookmark is damaged instead of retrying the task creation.
+    - Suggested fix: Catch the toInbox failure separately, or pass a message id to `run`, and show a specific text such as "No Inbox task could be created for {title}: {error}". It needs English and German strings.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+Material issues found; fix before completing the task. CR-1 is a non-blocking P2 usability gap and CR-2 is cosmetic, so the parent worker may instead mark them out of scope with a reason. No P0 or P1 issues remain.
