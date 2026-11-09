@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "and-cal-overlay-month",
-  "reviewed_revision": "6816f515bf6380048e9c98eacb0623ec7cfd63cc",
+  "reviewed_revision": "a4428a0b8ab9ca686840bac5ff16b287971e8b24",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/and-cal-overlay-month/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/and-cal-overlay-month/review.md"},
