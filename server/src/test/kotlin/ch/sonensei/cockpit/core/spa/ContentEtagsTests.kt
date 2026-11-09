@@ -24,7 +24,8 @@ import java.util.jar.JarOutputStream
 
 /** [ContentEtags] on its own, without a Spring context. */
 class ContentEtagsTests {
-	private val etags = ContentEtags()
+	private val etags = ContentEtags(cacheDigests = false)
+	private val cached = ContentEtags(cacheDigests = true)
 
 	private fun sha256(bytes: ByteArray): String = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes))
 
@@ -50,7 +51,7 @@ class ContentEtagsTests {
 
 		etags.etag(FileSystemResource(first)) shouldBe etags.etag(FileSystemResource(first))
 		// A fresh instance (another server start) computes the same value.
-		ContentEtags().etag(FileSystemResource(first)) shouldBe etags.etag(FileSystemResource(first))
+		ContentEtags(cacheDigests = false).etag(FileSystemResource(first)) shouldBe etags.etag(FileSystemResource(first))
 		etags.etag(FileSystemResource(second)) shouldBe etags.etag(FileSystemResource(first))
 		etags.etag(FileSystemResource(other)) shouldNotBe etags.etag(FileSystemResource(first))
 	}
@@ -106,25 +107,43 @@ class ContentEtagsTests {
 	}
 
 	@Test
-	fun `non-file resource is read once and its digest cached per url`() {
+	fun `with caching a jar entry is read once and its digest cached per url`() {
 		val resource = InMemoryResource("jar:file:/fictitious/app.jar!/static/index.html", "<title>build-1</title>")
-		val first = etags.etag(resource)
+		val first = cached.etag(resource)
 		first shouldBe sha256("<title>build-1</title>".toByteArray())
 
 		// The jar does not change while the server runs, so even changed bytes are not read again.
 		resource.content = "<title>build-2</title>"
-		etags.etag(resource) shouldBe first
+		cached.etag(resource) shouldBe first
 		resource.reads shouldBe 1
 
 		// Another URL has its own entry; a new instance (a restart after a deploy) sees the new content.
 		val other = InMemoryResource("jar:file:/fictitious/app.jar!/static/main-ABC123.js", "console.log('x')")
-		etags.etag(other) shouldBe sha256("console.log('x')".toByteArray())
+		cached.etag(other) shouldBe sha256("console.log('x')".toByteArray())
 		other.reads shouldBe 1
-		ContentEtags().etag(resource) shouldBe sha256("<title>build-2</title>".toByteArray())
+		ContentEtags(cacheDigests = true).etag(resource) shouldBe sha256("<title>build-2</title>".toByteArray())
 	}
 
 	@Test
-	fun `file resource is read on every request`(
+	fun `with caching a real file (the unpacked jar of the image) is read once and stays content based`(
+		@TempDir dir: Path,
+	) {
+		val index = CountingFileResource(Files.writeString(dir.resolve("index.html"), "<title>build-1</title>"))
+		val bundle = CountingFileResource(Files.writeString(dir.resolve("main-ABC123.js"), "console.log('x')"))
+		index.isFile shouldBe true
+
+		val first = cached.etag(index)
+		first shouldBe sha256("<title>build-1</title>".toByteArray())
+		cached.etag(index) shouldBe first
+		index.reads shouldBe 1
+
+		cached.etag(bundle) shouldBe sha256("console.log('x')".toByteArray())
+		cached.etag(bundle) shouldNotBe first
+		bundle.reads shouldBe 1
+	}
+
+	@Test
+	fun `without caching a file is read on every request`(
 		@TempDir dir: Path,
 	) {
 		val file = Files.writeString(dir.resolve("index.html"), "<title>dev</title>")
@@ -135,14 +154,23 @@ class ContentEtagsTests {
 	}
 
 	@Test
+	fun `without caching a non-file resource is read on every request`() {
+		val resource = InMemoryResource("jar:file:/fictitious/app.jar!/static/index.html", "<title>build-1</title>")
+		etags.etag(resource)
+		resource.content = "<title>build-2</title>"
+		etags.etag(resource) shouldBe sha256("<title>build-2</title>".toByteArray())
+		resource.reads shouldBe 2
+	}
+
+	@Test
 	fun `read error propagates and is not cached`() {
 		val resource = InMemoryResource("jar:file:/fictitious/app.jar!/static/index.html", "<title>ok</title>")
 		resource.failing = true
-		shouldThrow<IOException> { etags.etag(resource) }
+		shouldThrow<IOException> { cached.etag(resource) }
 
 		// A later successful read computes and caches the digest instead of a stale failure.
 		resource.failing = false
-		etags.etag(resource) shouldBe sha256("<title>ok</title>".toByteArray())
+		cached.etag(resource) shouldBe sha256("<title>ok</title>".toByteArray())
 	}
 
 	/** A non-file resource (like a boot jar entry) that counts how often its content is read. */

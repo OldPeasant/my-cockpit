@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.io.Resource
 import org.springframework.http.CacheControl
+import org.springframework.util.ResourceUtils
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
@@ -25,6 +26,10 @@ import java.util.concurrent.ConcurrentHashMap
  * every entry of the reproducible boot jar has the same 1980 timestamp and a date check would answer 304 even
  * after a deploy changed `index.html`. A changed file therefore gets a 200 with the new content, an unchanged
  * one a cheap 304 for a matching `If-None-Match`.
+ * Digests are cached for a `classpath:` location (the default): classpath content never changes while the server
+ * runs, whether it is a packed jar or the unpacked jar the Dockerfile runs (where the files are real files under
+ * `BOOT-INF/classes/static/`). Any other location (a `file:` `cockpit.spa.location` in dev and tests) is hashed on
+ * every request, since its files can change in place.
  * The chain runs without Spring's caching resolver: its cache has no size limit, and the fallback would add
  * an entry for every distinct client-route URL.
  */
@@ -38,7 +43,7 @@ class SpaWebConfiguration(
 			.addResourceLocations(location)
 			.setCacheControl(CacheControl.noCache())
 			.setUseLastModified(false)
-			.setEtagGenerator(ContentEtags()::etag)
+			.setEtagGenerator(ContentEtags(cacheDigests = location.startsWith(ResourceUtils.CLASSPATH_URL_PREFIX))::etag)
 			.resourceChain(false)
 			.addResolver(SpaFallbackResourceResolver())
 	}
@@ -78,17 +83,21 @@ class SpaFallbackResourceResolver : PathResourceResolver() {
 /**
  * Strong ETags from the content of the served files (SHA-256, hex), so revalidation detects any change.
  *
- * Digests of files inside the boot jar are kept per URL, since the jar never changes while the server runs; the map
- * is bounded by the number of files in the build, because client routes all resolve to the same `index.html`.
- * Files on disk (a dev `cockpit.spa.location`) are hashed on every request: they can change in place without a
- * reliable size or date change.
+ * With [cacheDigests] each digest is computed once and kept per resource URL. The caller sets it for content that
+ * never changes while the server runs: a `classpath:` location, both inside a packed boot jar and in the unpacked
+ * jar the Dockerfile runs, whose files are real files on disk. The map is bounded by the number of files in the
+ * build, because client routes all resolve to the same `index.html`.
+ * Without it (a `file:` `cockpit.spa.location` in dev and tests) every request hashes the file again: such files can
+ * change in place without a reliable size or date change.
  */
-class ContentEtags {
+class ContentEtags(
+	private val cacheDigests: Boolean,
+) {
 	private val digests = ConcurrentHashMap<String, String>()
 
-	/** The ETag value of [resource]; a read error propagates, as serving the file would fail as well. */
+	/** The ETag value of [resource]; a read error propagates uncached, as serving the file would fail as well. */
 	fun etag(resource: Resource): String {
-		if (resource.isFile) return digest(resource)
+		if (!cacheDigests) return digest(resource)
 		return digests.computeIfAbsent(resource.url.toString()) { digest(resource) }
 	}
 
