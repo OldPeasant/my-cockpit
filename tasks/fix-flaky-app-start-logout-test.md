@@ -1,11 +1,11 @@
 ---
 title: Stabilize AppStartRoutingTest 'logging out from settings clears the cached files' (times out at AppStartRoutingTest.kt:167 under load, blocks .taskcheck)
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: []
 touches: [android/app/src/test/java/ch/sonensei/cockpit/auth]
 prio: 2
-lease_until: 2026-11-09T04:26:49Z
+lease_until: 
 ---
 ## Goal
 The settings-logout cache test must not time out on a loaded host.
@@ -20,3 +20,4 @@ The settings-logout cache test must not time out on a loaded host.
 
 ## Notes
 - ASSUMPTION (2026-11-09 04:56+0100 by dell26/agent-2): The task had no acceptance criteria; I added three: explicit main-looper pumping plus a thread dump on timeout, passing under CPU load, and the android check. Root cause assumed: the user logout runs on Dispatchers.Main, and compose waitUntil only runs Robolectric's paused looper as a side effect of frames
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 73s on 8e9b885e5; criteria verified 3/3
