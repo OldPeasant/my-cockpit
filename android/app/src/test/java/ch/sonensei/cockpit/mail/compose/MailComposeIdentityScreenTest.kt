@@ -189,4 +189,22 @@ class MailComposeIdentityScreenTest {
 
         assertEquals(listOf(workSupport.id), chosenIdentities)
     }
+
+    @Test
+    fun `without a default identity and before the accounts are loaded the identity shows and no address entry is offered`() {
+        show(
+            editing.copy(
+                mode = ComposeMode.Draft(id(7)),
+                accounts = emptyList(),
+                accountLocked = true,
+                identities = listOf(workSupport),
+            ),
+        )
+
+        composeRule.onNodeWithTag(MailComposeTags.ACCOUNT).assertIsEnabled().performClick()
+        composeRule.onNodeWithTag(MailComposeTags.ACCOUNT_ADDRESS).assertDoesNotExist()
+        composeRule.onNodeWithTag(MailComposeTags.identity(workSupport.id)).performClick()
+
+        assertEquals(listOf(workSupport.id), chosenIdentities)
+    }
 }

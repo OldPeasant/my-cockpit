@@ -335,4 +335,70 @@ class MailComposeIdentityDraftTest {
             assertEquals(workSupport.id, vm.uiState.value.identityId)
             assertEquals(DraftState.SAVED, vm.uiState.value.draft)
         }
+
+    @Test
+    fun `a reply also loads the accounts for its From row, its account stays locked`() =
+        runTest(dispatcher) {
+            coEvery { repository.start(ComposeMode.Reply(id(5))) } returns MailResult.Ok(draft())
+            val vm = compose(ComposeMode.Reply(id(5)))
+
+            assertEquals(listOf(home, work), vm.uiState.value.accounts)
+            assertEquals(work.id, vm.uiState.value.accountId)
+            assertTrue(vm.uiState.value.accountLocked)
+            assertEquals(listOf(workMain, workSupport), vm.uiState.value.identities)
+        }
+
+    @Test
+    fun `accounts that cannot be read for an opened draft leave its identities and keep it editable`() =
+        runTest(dispatcher) {
+            coEvery { repository.accounts() } returns MailResult.Offline
+            coEvery { repository.start(ComposeMode.Draft(id(7))) } returns MailResult.Ok(draft())
+            val vm = compose(ComposeMode.Draft(id(7)))
+
+            assertEquals(emptyList<MailAccount>(), vm.uiState.value.accounts)
+            assertEquals(listOf(workMain, workSupport), vm.uiState.value.identities)
+            assertEquals(ComposePhase.EDITING, vm.uiState.value.phase)
+            assertEquals(DraftState.SAVED, vm.uiState.value.draft)
+            assertNull(vm.uiState.value.problem)
+            assertEquals("Draft so far", vm.uiState.value.body.text)
+        }
+
+    @Test
+    fun `choosing the account address while it is already used changes nothing`() =
+        runTest(dispatcher) {
+            coEvery { repository.identities(work.id) } returns MailResult.Ok(listOf(workSupport))
+            coEvery { repository.start(ComposeMode.Draft(id(7))) } returns MailResult.Ok(draft())
+            val vm = compose(ComposeMode.Draft(id(7)))
+
+            vm.selectAccountAddress()
+            advanceUntilIdle()
+
+            assertNull(vm.uiState.value.identityId)
+            assertEquals(DraftState.SAVED, vm.uiState.value.draft)
+            coVerify(exactly = 0) { repository.update(any(), any(), any()) }
+        }
+
+    @Test
+    fun `an opened draft can switch from the account address to an identity and back before saving`() =
+        runTest(dispatcher) {
+            coEvery { repository.identities(work.id) } returns MailResult.Ok(listOf(workSupport))
+            coEvery { repository.start(ComposeMode.Draft(id(7))) } returns MailResult.Ok(draft())
+            val saved = mutableListOf<DraftContent>()
+            coEvery { repository.update(id(7), any(), capture(saved)) } returns MailResult.Ok(draft("\"2\"", workSupport.id))
+            val vm = compose(ComposeMode.Draft(id(7)))
+
+            vm.selectIdentity(workSupport.id)
+            vm.save()
+            advanceUntilIdle()
+            assertEquals(workSupport.id, saved.last().identityId)
+
+            coEvery { repository.update(id(7), any(), capture(saved)) } returns MailResult.Ok(draft("\"3\""))
+            vm.selectAccountAddress()
+            vm.save()
+            advanceUntilIdle()
+
+            assertNull(saved.last().identityId)
+            assertEquals("<p>Draft so far</p>", saved.last().html)
+            assertEquals(DraftState.SAVED, vm.uiState.value.draft)
+        }
 }

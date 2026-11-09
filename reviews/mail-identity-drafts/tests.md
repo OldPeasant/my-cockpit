@@ -4,87 +4,75 @@ Date: 2026-11-09
 
 Task: mail-identity-drafts: Choose sending identity and resume drafts (web + Android)
 
-Scope: base 01bc0c3481d44b5deb2289967beb3da453facf7d .. HEAD aba2e1ded5184e4a84b24899f178129919dd92bf (branch main, local, rebased). Task-owned commits: 214ef4783 (web picker + drafts open in compose), e6b4083ce (Android ComposeMode.Draft), 4a48acd50 (Android identity picker), aba2e1ded (review report only). The other commits in the range only touch `tasks/` (claim/assume/heartbeat of other tasks). Production paths came from `git diff --name-only 01bc0c348 HEAD -- server/src/main web/src android/app/src/main`, checked against the parent's description and the task's `touches`. The working tree held uncommitted test changes only (listed below), no production changes.
+Scope: base 7e0d05a872840148fb11271d4baad499bd9eb23a .. HEAD b93d060acf9c46fc2bcf041b6ab50c46f255f8a4 (branch main, local). Task code commits: a10b695db (web picker + drafts open in compose), bb142855a (Android ComposeMode.Draft), 2dabe1bdf (Android identity picker), 0b2384c18 (tests, first test report), b93d060ac (fixes for CR-1, CR-2, CR-4/TW-1, CR-5; this is commit 0e3156e93 after the rebase, same message and content). 5bafe51d9 is the review report only. The other commits in the range only touch `tasks/`. Production paths come from `git diff --name-only 7e0d05a87 HEAD -- server/src/main web/src android/app/src/main`, checked against the task's `touches` and `reviews/mail-identity-drafts/fixes.md`. The working tree holds uncommitted test changes only (the two files below). There are no production changes in it.
+
+This report replaces the earlier one (rev aba2e1ded, before the fixes). Every number below comes from runs on b93d060ac plus the uncommitted tests.
 
 Requirements:
-- tasks/mail-identity-drafts.md acceptance criteria and recorded assumptions (From picker lists the account address only when the account has no default identity; an untouched opened draft is kept on leave; identities that fail to load leave only account addresses)
+- tasks/mail-identity-drafts.md acceptance criteria and recorded assumptions (the account address is listed only when the account has no default identity; an untouched opened draft is kept on leave; identities that fail to load leave only the account address; a resumed Android draft loads its plain text into the editor; leaving while an opened draft is loading keeps it)
 - SPEC.md §7.3 ("choose sending identity")
-- docs/ARCHITECTURE.md "Coverage" and code conventions; AGENTS.md
-- Parent instructions (fix strict-mock setups, then add Android and web tests)
+- docs/ARCHITECTURE.md "Coverage"; AGENTS.md
+- reviews/mail-identity-drafts/review.md and fixes.md (CR-1, CR-2, CR-4/TW-1, CR-5)
+- Parent instructions: check that the fixes have adequate tests and re-run everything on the final code
 
 ## Test files changed
 
-Existing Android tests, updated for the changed production API (no assertion weakened):
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/compose/MailComposeViewModelTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/compose/MailComposeReviewFixesTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/compose/MailComposeSecondReviewFixesTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/compose/MailComposeRecipientsFilesTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/compose/MailComposeRecipientsFilesEdgeCasesTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/compose/MailComposeRecipientsFilesReviewFixesTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/compose/MailComposeOverwriteLeaveEdgeCasesTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/compose/MailComposeRouteTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/compose/MailComposeSaveSendStatesTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/compose/MailComposeStatesScreenTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/compose/MailComposeViewModelConcurrencyTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/compose/MailComposeInAppTest.kt` (also one new test)
+In this run (uncommitted):
+- `android/app/src/test/java/ch/sonensei/cockpit/mail/compose/MailComposeIdentityDraftTest.kt` (4 new tests)
+- `android/app/src/test/java/ch/sonensei/cockpit/mail/compose/MailComposeIdentityScreenTest.kt` (1 new test)
 
-Two changes were made in these files. The strict `mockk<MailComposeRepository>()` setups now stub `repository.identities(any())` to return `MailResult.Ok(emptyList())`. The positional `Draft(...)` constructions now pass `null` for the new third parameter `identityId`. Without that second change the test sources do not compile, because `identityId` was added between `accountId` and `etag`.
-
-New test files:
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/compose/MailComposeIdentityDraftTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/compose/MailComposeIdentityRepositoryTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/compose/MailComposeIdentityScreenTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/compose/ComposeModelsIdentityDraftTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/mail/list/MailListDraftTest.kt`
-
-Web specs extended:
-- `web/src/app/features/mail/compose/mail-compose-page.spec.ts` (new `describe('sending identity')`)
-- `web/src/app/features/mail/compose/mail-compose.service.spec.ts`
-- `web/src/app/features/mail/list/mail-list-page.spec.ts` (new `describe('in a Drafts folder')`)
+Already committed for this task (0b2384c18 by the test-writer, b93d060ac by the fixer): `ComposeModelsIdentityDraftTest.kt`, `MailComposeIdentityDraftTest.kt`, `MailComposeIdentityRepositoryTest.kt`, `MailComposeIdentityScreenTest.kt`, `mail/list/MailListDraftTest.kt`, `MailComposeInAppTest.kt` (one test), 11 existing compose test files changed for the new API (strict mocks stub `repository.identities`, `Draft(...)` gets `identityId`; no assertion weakened), and the web specs `mail-compose-page.spec.ts`, `mail-compose.service.spec.ts`, `mail-list-page.spec.ts`.
 
 ## Tests added or updated
 
-Count: 52 new tests (Android 35, web 17) and 12 existing Android test files updated (setup stub and constructor only).
+Count: 5 new tests in this run. The task now has 66 new tests: 52 from the first test-writer run, 9 from the fixer and 5 from this run (Android 49, web 17).
+
+Review of the fixer's tests: each fix has a test that would fail without it. CR-1: the screen shows identities with no account list, and an opened draft loads its accounts. CR-2: the editable body, a save that stores only the edited text, a reply that still quotes, and a draft left while loading is not discarded. CR-4/TW-1: the TW-1 test now passes, the address entry is offered or hidden, and `selectAccountAddress` saves null or is refused. CR-5 is checked by ktlint. This run fills these gaps:
+- `a reply also loads the accounts for its From row, its account stays locked` (CR-1: the fixer's test of that name only covered an opened draft)
+- `accounts that cannot be read for an opened draft leave its identities and keep it editable` (CR-1: a failed account load is ignored)
+- `choosing the account address while it is already used changes nothing` (CR-4: no spurious edit or save)
+- `an opened draft can switch from the account address to an identity and back before saving` (CR-4 + CR-2: the chosen identity is saved, then null, on the same draft, with only the body text)
+- `without a default identity and before the accounts are loaded the identity shows and no address entry is offered` (CR-1 + CR-4 together on the screen)
 
 ## Requirement coverage
 
-Android command A: `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.*'` (892 tests, 1 failed: TW-1).
-Web command W: `npm --prefix web run test -- --watch=false --include src/app/features/mail/compose/mail-compose-page.spec.ts --include src/app/features/mail/compose/mail-compose.service.spec.ts --include src/app/features/mail/list/mail-list-page.spec.ts` (211 passed).
+Android command A: `android/gradlew -p android ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.*' createDebugUnitTestCoverageReport` (906 tests, 0 failures, ktlint clean).
+Web command W: `npm --prefix web run coverage` (full web unit suite, 196 files, 4751 tests passed; it includes the 3 changed mail specs).
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1 web: the From picker lists identities per account (account address only without a default identity) | `sending identity`: lists the identities of each account...; leaves out identities without an address; shows the From value of the chosen identity in the picker; offers only the account addresses when identities cannot be read, and still saves | W | Pass |
-| AC1 web: sends/saves with the chosen identity (same account = edit, other account = move with that identity, failure restores it) | creates a new mail with the identity picked before the first save; shows the identity of an opened draft and saves another identity of its account as an edit; shows the default identity when the draft's identity is not listed any more; choosing the entry already shown changes nothing; moves a stored draft to an identity of another account...; puts account and identity back when the move fails; keeps identities of another account disabled once a reply cannot move | W | Pass |
-| AC1 web: identities endpoint client | `MailComposeService` lists the sending identities of an account (GET `/api/v1/mail/accounts/{id}/identities`, silent errors) | W | Pass |
-| AC1 Android: identities loaded per account, chosen identity saved with the draft | `MailComposeIdentityDraftTest`: a new mail loads the identities of its account; a chosen identity is an edit and is created with the new draft; an identity not listed... changes nothing; another account forgets the identity and loads that account's identities; identities of an account left meanwhile are not shown for the new one (reverse-order answer); identities that cannot be read...; without any account no identities are asked for; a reply loads the identities... and keeps the identity the server chose | A | Pass |
+| AC1 web: the From picker lists identities per account (the account address only without a default identity) | `sending identity`: lists the identities of each account...; leaves out identities without an address; shows the From value of the chosen identity in the picker; offers only the account addresses when identities cannot be read, and still saves | W | Pass |
+| AC1 web: sends/saves with the chosen identity (same account = edit, another account = move, a failed move restores it) | creates a new mail with the identity picked before the first save; shows the identity of an opened draft and saves another identity of its account as an edit; shows the default identity when the draft's identity is not listed any more; choosing the entry already shown changes nothing; moves a stored draft to an identity of another account...; puts account and identity back when the move fails; keeps identities of another account disabled once a reply cannot move | W | Pass |
+| AC1 web: identities endpoint client | `MailComposeService` lists the sending identities of an account | W | Pass |
+| AC1 Android: identities loaded per account, the chosen identity saved with the draft | `MailComposeIdentityDraftTest`: a new mail loads the identities...; a chosen identity is an edit and is created with the new draft; an identity not listed... changes nothing; another account forgets the identity...; identities of an account left meanwhile are not shown (reverse-order answer); identities that cannot be read...; without any account no identities are asked for; a reply loads the identities... | A | Pass |
 | AC1 Android: API mapping (identities JSON, identityId in create/update/read) | `MailComposeIdentityRepositoryTest` (5 tests) | A | Pass |
-| AC1 Android: From picker UI lists identities, then other accounts | `MailComposeIdentityScreenTest`: From shows the default identity and lists the identities, then the other accounts; From shows the chosen identity; another account is chosen from the same list; once the account is locked only its identities are offered; a locked account without identities cannot be changed...; without identities the accounts are listed as before; the From picker cannot be opened while the mail is not editable | A | Pass |
-| AC1 Android: an account's only (non-default) identity can be chosen | `MailComposeIdentityScreenTest`: a single identity that is not the default can still be chosen | A | Fail (TW-1) |
-| AC1 server/API: server change only if needed | No server change in the task diff. The server already accepts `identityId` (generated web client has `listMailIdentities` and `identityId`). | n/a | Not testable here (no server change to test) |
-| AC2 web: opening Drafts-folder mail opens it in compose | `in a Drafts folder`: links a draft to compose with its id...; opens a clicked draft in compose; opens the cursor draft in compose with o and Enter; opens a mail of another folder... in the read view; treats a draft listed in the unified inbox like one in its folder | W | Pass |
-| AC2 web: saving updates that draft | Existing `opens a stored draft without creating another`, plus the new "...saves another identity of its account as an edit" (update to the same draft id, no create) | W | Pass |
-| AC2 Android: list opens Drafts-folder mail in compose | `MailListDraftTest` (4 tests on `MailListUiState.isDraft`: listed, found in search, by role not name, unknown folder); `MailComposeInAppTest`: a mail of a Drafts folder opens in compose as that draft, not in the read view, and back keeps it | A | Pass |
-| AC2 Android: compose loads the draft, saving updates it, untouched leave keeps it | `MailComposeIdentityDraftTest`: an opened draft shows its content and identity, saving updates that draft...; leaving an opened draft untouched keeps it; leaving an edited opened draft saves it into the same draft; a draft that cannot be opened offers retry...; `MailComposeIdentityRepositoryTest`: continuing a draft reads it from the server; `ComposeModelsIdentityDraftTest`: encode/parse of `ComposeMode.Draft` | A | Pass |
-| AC3 new strings en + de | Android: `MailComposeIdentityScreenTest` "a continued draft is titled Draft" / "...Entwurf in German"; existing `MailComposeRecipientsFilesStringsTest` "every compose string in English has a German one". Web: no new i18n message in the diff (the picker shows addresses only) | A | Pass |
-| AC4 unit tests per changed part; `sh scripts/check.sh` passes | All the above | `sh scripts/check.sh` | Fail: only TW-1 fails |
+| AC1 Android: From picker UI (identities, then other accounts; locked account; not editable) | `MailComposeIdentityScreenTest` (the 7 picker tests of the first run) | A | Pass |
+| AC1 Android, TW-1/CR-4: a single non-default identity can be chosen; the account address is offered without a default identity and saves `identityId = null` | `MailComposeIdentityScreenTest`: a single identity that is not the default can still be chosen; without a default identity the account address is offered and can be chosen back; with a default identity the account address is not offered; without a default identity and before the accounts are loaded...; `MailComposeIdentityDraftTest`: the account address replaces a chosen identity only while...; the account address is not chosen while the account has a default identity; choosing the account address while it is already used changes nothing; an opened draft can switch from the account address to an identity and back before saving | A | Pass |
+| AC1 Android, CR-1: the From row and its identities show for replies, forwards and opened drafts | `MailComposeIdentityScreenTest`: an opened draft or reply shows its identities before the accounts are loaded; `MailComposeIdentityDraftTest`: a reply or opened draft loads the accounts...; a reply also loads the accounts...; accounts that cannot be read for an opened draft... | A | Pass |
+| AC1 server/API: change the server only if needed | No server change in the task diff. The API already accepts `identityId`, and the generated web client has `listMailIdentities`. | n/a | Not testable (no server change) |
+| AC2 web: opening Drafts-folder mail opens it in compose; saving updates it | `in a Drafts folder` (5 tests); the existing `opens a stored draft without creating another`; "...saves another identity of its account as an edit" | W | Pass |
+| AC2 Android: the list opens Drafts-folder mail in compose | `MailListDraftTest` (4 tests); `MailComposeInAppTest`: a mail of a Drafts folder opens in compose as that draft... | A | Pass |
+| AC2 Android, CR-2: the opened draft's text is editable, saving updates that draft with only the edited text, and leaving keeps it | `MailComposeIdentityDraftTest`: an opened draft puts its text into the editable body...; a reply keeps the original as quoted text...; an opened draft left while it still loads is kept, unlike a reply; an opened draft shows its content and identity, saving updates that draft...; leaving an opened draft untouched keeps it; leaving an edited opened draft saves it into the same draft; a draft that cannot be opened offers retry; `ComposeModelsIdentityDraftTest` | A | Pass |
+| AC3 new strings in English and German | `MailComposeIdentityScreenTest` "a continued draft is titled Draft" / "...Entwurf in German"; the existing `MailComposeRecipientsFilesStringsTest` (every English compose string has a German one). The fixes add no strings. Web: no new i18n unit (the picker shows names and addresses only) | A | Pass |
+| AC4 unit tests per changed part; `sh scripts/check.sh` passes | All the above | `sh scripts/check.sh` | Pass |
 
 ## Focused test execution
 
 Command:
 
-`cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.*'`
+`android/gradlew -p android ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.compose.MailComposeIdentity*' -q`
 
 Result:
 
-Fail: ktlint passes; 892 tests, 1 failed (`MailComposeIdentityScreenTest > a single identity that is not the default can still be chosen`, TW-1).
+Pass: ktlint clean. MailComposeIdentityDraftTest 22/22, MailComposeIdentityRepositoryTest 5/5, MailComposeIdentityScreenTest 14/14.
 
 Command:
 
-`npm --prefix web run test -- --watch=false --include (the 3 changed specs)`, plus `npm --prefix web run lint`
+`android/gradlew -p android ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.*' createDebugUnitTestCoverageReport -q` (the command the parent asked for, plus the coverage report)
 
 Result:
 
-Pass: 3 files, 211 tests. Lint: "All files pass linting".
+Pass: ktlint clean, 906 tests (901 after the fixer plus 5 new), 0 failures, 0 errors, 0 skipped (summed from `android/app/build/test-results/testDebugUnitTest/*.xml`).
 
 ## Full test execution
 
@@ -98,111 +86,82 @@ Pass: 196 files, 4751 tests.
 
 Command:
 
-`sh scripts/check.sh` (tfp, server, web incl. build, android)
+`sh scripts/check.sh` (tfp, server, web lint/tests/build, android ktlint/all unit tests/lintDebug)
 
 Result:
 
-Fail: tfp OK (22 tests), server OK, web OK (lint, tests, build; only the pre-existing initial-bundle budget warning). Android: 4928 tests, 1 failed (TW-1), so `lintDebug` did not run.
+Pass: exit 0, "== all checks passed" (2026-11-09, about 02:49 to 02:58 +01:00, on HEAD b93d060ac plus the 2 uncommitted test files). tfp gate tests OK, server ktlint + tests OK, web eslint + 4751 tests + build OK, Android ktlint + 4943 unit tests (0 failures, 0 errors, 0 skipped, summed from the test-result XML) + lintDebug OK.
 
 ## .taskcheck
 
 Result:
 
-Fail: only because of TW-1 (see above). It passes once TW-1 is fixed in production code.
+Pass (`.taskcheck` is `sh scripts/check.sh`, see above).
 
 ## Bugs found
 
-### Android From picker cannot choose an account's only identity when it is not the default
+None open. TW-1 from the first run (an account's only, non-default identity could not be chosen on Android) is fixed in b93d060ac. Its test `MailComposeIdentityScreenTest > a single identity that is not the default can still be chosen` passes now, unchanged.
 
-Finding ID:
-
-`TW-1`
-
-Test:
-
-`ch.sonensei.cockpit.mail.compose.MailComposeIdentityScreenTest.a single identity that is not the default can still be chosen`
-
-Production source:
-
-`android/app/src/main/java/ch/sonensei/cockpit/mail/compose/MailComposeScreen.kt:496` (`canPick = state.editable && (state.identities.size > 1 || otherAccounts.isNotEmpty())`), and the item list at `:528`
-
-Requirement:
-
-AC1: "the From picker lists identities (per account) and sends with the chosen one". The web parity behavior offers the account address plus every identity when no identity is the default.
-
-Expected behavior:
-
-Take an account with exactly one identity that is not the default, with no identity chosen (so mail goes out from the account address), and an account that cannot change: a reply, an opened or saved draft, or a single configured account. The From button should be enabled, and the identity should be choosable.
-
-Actual behavior:
-
-The From button is disabled (`identities.size == 1` and no other account), so that identity can never be chosen on Android. Related: when an account has identities but none is the default, the Android menu never offers the account address. Once an identity is picked, the user cannot go back to sending from the account address. The web lists the address in that case.
-
-Severity:
-
-Medium
-
-Fix required:
-
-`Yes — production code must be fixed by the parent worker / fixer.`
+Observation, not a defect against a criterion (no failing test written): an opened Android draft whose account has no default identity and no chosen identity shows an empty From label until the account list arrives. If `repository.accounts()` fails, the label stays empty. The picker still opens and lists the identities (covered by the new screen test). The fixer's change made this fallback the account name and address, which is only known once the accounts are loaded. Low impact. The parent may decide whether a label is needed while the list is loading.
 
 ## Coverage
 
-Status: verified for web; partial for Android. The Android coverage run left out one test method (the TW-1 failure), because a failing test stops `createDebugUnitTestCoverageReport` from running. That test only renders the screen, and the other 9 tests of its class were included.
+Status: verified (Android and web, fresh runs on the final code, 0 failures).
 
 Metric: whole-file coverage of task-changed production files.
 Changed-line coverage: not measured (no existing changed-line tooling).
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: mail-identity-drafts; base 01bc0c3481d44b5deb2289967beb3da453facf7d; HEAD aba2e1ded5184e4a84b24899f178129919dd92bf; commits 214ef4783, e6b4083ce, 4a48acd50 (code), aba2e1ded (report only); file scope from `git diff --name-only 01bc0c348 HEAD -- server/src/main web/src android/app/src/main`.
-- Source/test snapshot identifier (including uncommitted inputs): HEAD aba2e1ded plus the uncommitted test files listed above. Combined sha256 over the sha256 of each modified/untracked file: f996f1a23bc3092f51c1a7990c496c74c8f0ce147cb11aab76fb993f8b7935d2 (same before and after the runs).
-- Exact included files: Android `mail/compose/{ComposeModels,ComposeSession,MailComposeApi,MailComposeRepository,MailComposeScreen,MailComposeViewModel}.kt`, `mail/list/{MailListViewModel,MailScreen}.kt`; web `mail/compose/{mail-compose-page.ts,mail-compose.service.ts,mail-compose-page.html}`, `mail/list/{mail-list-page.ts,mail-list-page.html}`. Excluded: `strings_mail_compose.xml` en/de (resources, not executable; checked by string tests); `mail-compose-page.spec.ts` (test file). No renamed or deleted files.
-- Provider/version, command, working directory, and test selection: Android JaCoCo via AGP; `./gradlew createDebugUnitTestCoverageReport testDebugUnitTest --tests` (all `mail.list.*`, `mail.read.*` and every `mail.compose` test class, `MailComposeIdentityScreenTest` without the TW-1 method) in `android/`; 891 tests, 0 failures. Web: `@vitest/coverage-v8` (Vitest 5.0.5), `npm --prefix web run coverage`, full suite.
-- Run start/completion time and exit status: Android 2026-11-09 02:22:58 to 02:23:51 +01:00, exit 0. Web 02:24:19 to 02:25:28 +01:00, exit 0.
-- Generated report paths and report hashes/run identifier: `android/app/build/reports/coverage/test/debug/report.xml` (sha256 31cfe9c4d600bd328edeebf91581f20af141958eb0d2fb29b7f5298009cd1c6d, written 02:23); `web/coverage/web/coverage-summary.json` (sha256 1cff27e00ada4a1e939469da236e3c8b0ac6dea2c14205bac2135b859d15a6a3, written 02:25:28), `web/coverage/web/coverage-final.json` (sha256 ca7e52cfad58cb51f4cc76d21b0bfeb85d2d2f71c4f263784f3c7ca9b42abfc7).
-- Evidence outputs are fresh and inputs stayed unchanged: yes. Both reports were rewritten by these runs (the Gradle test task executed, and Vitest rewrote `coverage/`). The snapshot hash and HEAD were the same after the runs.
-- Final run after latest test additions and production fixes: yes for the test additions. No production fix has been made yet: after the TW-1 fix, coverage must be measured again.
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: mail-identity-drafts; base 7e0d05a872840148fb11271d4baad499bd9eb23a; HEAD b93d060acf9c46fc2bcf041b6ab50c46f255f8a4; code commits a10b695db, bb142855a, 2dabe1bdf, b93d060ac (tests in 0b2384c18, b93d060ac); file scope from `git diff --name-only 7e0d05a87 HEAD -- server/src/main web/src android/app/src/main`.
+- Source/test snapshot identifier (including uncommitted inputs): HEAD b93d060ac plus two modified test files, sha256 `MailComposeIdentityDraftTest.kt` 5cfffe52b517f62b20300b58e4a315632e4128508bfd3a22e08ef94d4e8c4345 and `MailComposeIdentityScreenTest.kt` 696c5c48087ccecc06abbcf2db0683ed0d4fab9dc90eeb6dac2d3cb55eb117b7. These were the same before and after the runs, and there were no other working-tree changes.
+- Exact included files: Android `mail/compose/{ComposeModels,ComposeSession,MailComposeApi,MailComposeRepository,MailComposeScreen,MailComposeViewModel}.kt`, `mail/list/{MailListViewModel,MailScreen}.kt`; web `mail/compose/{mail-compose-page.ts,mail-compose.service.ts,mail-compose-page.html}`, `mail/list/{mail-list-page.ts,mail-list-page.html}`. Excluded: `res/values{,-de}/strings_mail_compose.xml` (resources, not executable; checked by the string tests). No server files, and no renamed or deleted files.
+- Provider/version, command, working directory, and test selection: Android JaCoCo via AGP `enableUnitTestCoverage`, `android/gradlew -p android ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.*' createDebugUnitTestCoverageReport` from the clone root (all mail.* tests, 906). Web: Vitest + `@vitest/coverage-v8`, `npm --prefix web run coverage`, full suite.
+- Run start/completion time and exit status: Android 2026-11-09 02:46:42 to 02:47:30 +01:00, exit 0. Web about 02:47:40 to 02:48:52 +01:00, exit 0.
+- Generated report paths and report hashes/run identifier: `android/app/build/reports/coverage/test/debug/report.xml` (written 02:47:28, sha256 8f877ca055e0aaa0cb5b0fd79cdd4aaf35295563e199bf064ff042279bafed5c); `web/coverage/web/coverage-summary.json` (written 02:48:51, sha256 1cff27e00ada4a1e939469da236e3c8b0ac6dea2c14205bac2135b859d15a6a3; same bytes as the earlier run, because no web code or spec changed since then), `web/coverage/web/coverage-final.json` (sha256 be388a2525caff7c4363292cf50981c414d27fda020a82e9a561b63992cee84a).
+- Evidence outputs are fresh and inputs stayed unchanged: yes. Both reports were rewritten by these runs: the JaCoCo report is new (its hash differs from the run before the fixes), and Vitest rewrote `coverage/`. The test-result timestamps fall in the run window. HEAD and the snapshot hashes did not change.
+- Final run after latest test additions and production fixes: yes (after the fixer's b93d060ac and the 5 new tests).
 
-Values below use covered/total (percentage). Android: JaCoCo INSTRUCTION (statements), BRANCH, METHOD, LINE. Web: v8 summary counters.
+Values below use covered/total (percentage). Android: JaCoCo INSTRUCTION (statements), BRANCH, METHOD (functions), LINE. Web: v8 summary counters.
 
 | Changed file | Statements | Branches | Functions | Lines |
 |---|---:|---:|---:|---:|
 | `android/.../mail/compose/ComposeModels.kt` | 1324/1333 (99.3%) | 132/134 (98.5%) | 72/75 (96.0%) | 168/168 (100.0%) |
-| `android/.../mail/compose/ComposeSession.kt` | 3497/3527 (99.1%) | 297/320 (92.8%) | 82/82 (100.0%) | 325/325 (100.0%) |
+| `android/.../mail/compose/ComposeSession.kt` | 3619/3652 (99.1%) | 312/338 (92.3%) | 85/85 (100.0%) | 335/335 (100.0%) |
 | `android/.../mail/compose/MailComposeApi.kt` | 303/669 (45.3%) | N/A | 32/69 (46.4%) | 52/75 (69.3%) |
 | `android/.../mail/compose/MailComposeRepository.kt` | 1139/1167 (97.6%) | 84/90 (93.3%) | 29/30 (96.7%) | 110/110 (100.0%) |
-| `android/.../mail/compose/MailComposeScreen.kt` | 5451/5583 (97.6%) | 191/219 (87.2%) | 109/130 (83.8%) | 449/450 (99.8%) |
-| `android/.../mail/compose/MailComposeViewModel.kt` | 1615/1638 (98.6%) | 90/110 (81.8%) | 81/81 (100.0%) | 165/165 (100.0%) |
+| `android/.../mail/compose/MailComposeScreen.kt` | 6147/6278 (97.9%) | 327/409 (80.0%) | 113/135 (83.7%) | 462/462 (100.0%) |
+| `android/.../mail/compose/MailComposeViewModel.kt` | 1667/1692 (98.5%) | 95/116 (81.9%) | 83/83 (100.0%) | 170/170 (100.0%) |
 | `android/.../mail/list/MailListViewModel.kt` | 4710/4774 (98.7%) | 396/416 (95.2%) | 117/117 (100.0%) | 450/450 (100.0%) |
 | `android/.../mail/list/MailScreen.kt` | 8367/8568 (97.7%) | 308/351 (87.7%) | 172/202 (85.1%) | 670/679 (98.7%) |
-| Android aggregate (8 files, summed) | 26406/27259 (96.9%) | 1498/1640 (91.3%) | 694/786 (88.3%) | 2389/2422 (98.6%) |
-| `web/.../mail/compose/mail-compose-page.ts` | 287/290 (98.97%) | 139/157 (88.54%) | 84/84 (100.00%) | 245/245 (100.00%) |
+| Android aggregate (8 files, summed) | 27276/28133 (97.0%) | 1654/1854 (89.2%) | 703/796 (88.3%) | 2417/2449 (98.7%) |
+| `web/.../mail/compose/mail-compose-page.ts` | 287/290 (98.96%) | 139/157 (88.53%) | 84/84 (100.00%) | 245/245 (100.00%) |
 | `web/.../mail/compose/mail-compose.service.ts` | 36/36 (100.00%) | 25/25 (100.00%) | 13/13 (100.00%) | 31/31 (100.00%) |
-| `web/.../mail/list/mail-list-page.ts` | 255/256 (99.61%) | 178/186 (95.70%) | 67/68 (98.53%) | 213/213 (100.00%) |
-| `web/.../mail/compose/mail-compose-page.html` | 41/168 (24.40%) | 2/26 (7.69%) | 0/15 (0.00%) | 36/113 (31.86%) |
+| `web/.../mail/list/mail-list-page.ts` | 255/256 (99.60%) | 178/186 (95.69%) | 67/68 (98.52%) | 213/213 (100.00%) |
+| `web/.../mail/compose/mail-compose-page.html` | 41/168 (24.40%) | 2/26 (7.69%) | 0/15 (0.00%) | 36/113 (31.85%) |
 | `web/.../mail/list/mail-list-page.html` | 251/251 (100.00%) | 44/44 (100.00%) | 20/20 (100.00%) | 168/168 (100.00%) |
 | Web aggregate (5 files, summed) | 870/1001 (86.91%) | 388/438 (88.58%) | 184/200 (92.00%) | 693/770 (90.00%) |
 
-The aggregates cover every file in scope. No scoped file was left unmeasured. The Android numbers leave out one test method (see Status).
+The aggregates cover every file in scope. No scoped file was left unmeasured. JaCoCo's branch total for `MailComposeScreen.kt` grew (219 to 409) because the fixed `From` composable has more conditions (`canPick`, `addressEntry`). All its lines are covered.
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `MailComposeApi.kt:111-194` (DTO declarations, incl. new `MailIdentityDto`/`MailIdentityListDto`) | Serializer-generated members (encode paths, `copy`, getters) | Non-material: decoding and encoding are covered by `MailComposeIdentityRepositoryTest` |
-| `MailComposeScreen.kt:496,528` | TW-1: a single non-default identity cannot be picked | Failing test kept (TW-1); its method was left out of the coverage run |
-| `MailComposeScreen.kt:502-510` (label fallback when the account address is blank or equals its name) | Not part of the task logic (it was there before) | Left uncovered |
-| `ComposeSession.kt:122,129` (`draft.accountId` null; identities answer arriving after the compose ended) | Defensive guards | Reverse-order answer covered; the ended guard is left uncovered (low risk) |
-| `MailComposeViewModel.kt:287` (`selectIdentity` without a session) | Defensive | Left uncovered |
-| `mail-compose-page.ts:127,145,156-157,413` (`?? []` / `?? ''` / `?? null` fallbacks: account missing in identities map, identity without name, no account, opened draft without `identityId`) | Nullish fallbacks | Non-material; the main paths are covered by the new specs |
+| `ComposeSession.kt:136` (`loadAccounts` when the accounts are already loaded) | Defensive. `prepared` runs only for reply, forward and draft modes, which never load accounts first | Left uncovered (not reachable in the current flows) |
+| `ComposeSession.kt:139,148` (accounts or identities arriving after compose ended) | Defensive guards against late answers | A failed account load is now covered (new test). The ended branch is left uncovered (low risk; same pattern as the identities guard) |
+| `ComposeSession.kt:130` (`draft.accountId` null) | Defensive | Left uncovered |
+| `MailComposeScreen.kt:499,512` (one side of the early return / `addressEntry && chosen` condition) | CR-1/CR-4 conditions | Main combinations covered by 5 screen tests (incl. the new one). The remaining short-circuit side is non-material |
+| `MailComposeScreen.kt:564` (`MailAccount.sender`: blank address, or the address equals the name) | Label fallback moved from pre-existing code | Left uncovered (not task logic) |
+| `MailComposeViewModel.kt:287,297` (`selectIdentity` / `selectAccountAddress` without a session) | Defensive | Left uncovered |
+| `MailComposeApi.kt` (DTO declarations, incl. `MailIdentityDto`/`MailIdentityListDto`) | Members generated by the serializer (`copy`, getters, unused encode paths) | Non-material. Decoding and encoding are covered by `MailComposeIdentityRepositoryTest` |
+| `mail-compose-page.ts:127,145,156-157,413` (`?? []` / `?? ''` / `?? null` fallbacks) | Nullish fallbacks | Non-material; the main paths are covered by the specs |
 | `mail-list-page.ts:385` (`store.items() ?? []`) | Fallback while nothing is loaded | Non-material |
-| `mail-compose-page.html` (24% statements) | Template | Most likely a source-map artifact: the spec recompiles the component with `TestBed.overrideComponent` (stub editor), so v8 cannot map the template. The From `mat-select` and the chosen label are checked in the DOM ("shows the From value of the chosen identity in the picker"). Not a test gap. |
+| `mail-compose-page.html` (24% statements) | Template | A source-map artifact: the spec recompiles the component with `TestBed.overrideComponent`, so v8 cannot map the template. The From `mat-select` and the chosen label are checked in the DOM. Not a test gap |
 
 ## Unable to test
 
-- Server/API part of AC1: the task made no server change because the API already accepts `identityId`, so there is nothing new to test on the server. `api/openapi.yaml` and the generated client were not changed.
-- Real browser/device flows: not run (no e2e named by the criteria). Covered at unit, Robolectric and in-app (Hilt activity) level only.
-- Ambiguity for the parent to decide (no test written, to avoid guessing): on Android an opened draft (`ComposeMode.Draft`) goes through the reply path in `ComposeSession.prepared`. Its stored body becomes `quotedHtml`/`quotedText` and is shown read-only by `Quoted(...)`, and the editable body starts empty. Saving keeps the old body, appended below any new text, so nothing is lost. But the user cannot edit the text they already wrote, while the web loads it into the editor. If "continue a draft" means editing the existing body, this needs a production change (Medium). If showing it read-only is acceptable, record an assumption.
-- Formatting: Prettier was not run on the web specs (running it directly was not permitted here). `npm run lint` passes, and Prettier is not part of `scripts/check.sh`.
+- Server/API part of AC1: no server change was made (the API already accepts `identityId`), so there is nothing new to test on the server.
+- Real browser/device flows: not run (no criterion names e2e). They are covered at unit, Robolectric and in-app (Hilt activity) level.
+- Formatting of a resumed Android draft (bold, links, images) is lost by design: it loads as plain text (recorded assumption). No test asserts that formatting is kept, and one asserts that the saved HTML is the edited plain text.
 
 ## Summary
 
-Tests added; production defects were discovered and must be passed to the `fixer` before task completion (TW-1). Everything else passes: web (focused, full suite, lint, build) and Android (891 of 892 mail tests; the full Android suite 4927 of 4928). Separately, the parent should decide on the read-only body of an opened Android draft (see Unable to test).
+Tests added and all validation passed. The fixes for CR-1, CR-2, CR-4/TW-1 and CR-5 are covered by tests (the fixer's 9, plus 5 added here for the remaining gaps). No production defects are open. Android mail tests (906), the full web suite (4751) and `sh scripts/check.sh` pass on the final code. Fresh task-scoped coverage: Android 98.7% lines / 89.2% branches, web 90.0% lines / 88.6% branches. One low-impact observation for the parent: the From label is empty on Android while the accounts load (see Bugs found).
