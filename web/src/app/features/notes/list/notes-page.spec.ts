@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { NoteResponse } from '../../../api/generated';
 import { NotificationService, provideHttp } from '../../../core/http';
+import { NoteTrash } from './note-trash';
 import NotesPage, { NOTES_VIEW_KEY } from './notes-page';
 import { NotesService } from './notes.service';
 
@@ -802,6 +803,117 @@ describe('NotesPage', () => {
       expect(titles()).toEqual(['Soup ideas', 'Recipes']);
       const groups = [...root.querySelectorAll('h2.group')].map((h) => h.textContent?.trim());
       expect(groups).toEqual(['Pinned', 'Other notes']);
+    });
+
+    describe('delete', () => {
+      function del(id: string) {
+        return http.expectOne((r) => r.method === 'DELETE' && r.url === `${LIST}/${id}`);
+      }
+
+      /** Replaces the undo snackbar with an answer the test gives. */
+      function controlUndo(): { spy: ReturnType<typeof vi.spyOn>; answer(undo: boolean): void } {
+        let answer!: (undo: boolean) => void;
+        const spy = vi
+          .spyOn(TestBed.inject(NoteTrash), 'offerUndo')
+          .mockImplementation(() => new Promise<boolean>((resolve) => (answer = resolve)));
+        return { spy, answer: (undo) => answer(undo) };
+      }
+
+      it('moves a note to the Trash with If-Match, drops it, reloads the tags and offers undo', async () => {
+        await create();
+        const undo = controlUndo();
+        const remove = button('.card .delete', 1);
+        expect(remove.getAttribute('aria-label')).toBe('Move Recipes to the Trash');
+        remove.click();
+        const req = del(RECIPES.id);
+        expect(req.request.headers.get('If-Match')).toBe('"1"');
+        req.flush(null, { status: 204, statusText: 'No Content' });
+        await settle();
+        http.expectOne((r) => r.url === TAGS).flush({ items: [{ tag: 'Holiday', count: 1 }] });
+
+        expect(titles()).toEqual(['Garden ideas', 'Packing list']);
+        expect(undo.spy).toHaveBeenCalledWith(RECIPES);
+        undo.answer(false);
+        await settle();
+        http.expectNone((r) => r.url === LIST);
+        expect(titles()).toEqual(['Garden ideas', 'Packing list']);
+      });
+
+      it('reloads the notes and tags when the delete is undone', async () => {
+        await create();
+        const undo = controlUndo();
+        button('.card .delete', 1).click();
+        del(RECIPES.id).flush(null, { status: 204, statusText: 'No Content' });
+        await settle();
+        http.expectOne((r) => r.url === TAGS).flush({ items: [] });
+
+        undo.answer(true);
+        await settle();
+        http.expectOne((r) => r.url === TAGS).flush({ items: [{ tag: 'Holiday', count: 1 }] });
+        await flushList([GARDEN, RECIPES, PACKING]);
+        expect(titles()).toEqual(['Garden ideas', 'Recipes', 'Packing list']);
+      });
+
+      it('keeps the note and shows the error when the delete fails, without offering undo', async () => {
+        await create();
+        const undo = controlUndo();
+        button('.card .delete', 1).click();
+        del(RECIPES.id).flush(
+          { title: 'Server Error', status: 500, detail: 'Try later.' },
+          { status: 500, statusText: 'Server Error' },
+        );
+        await settle();
+
+        expect(titles()).toEqual(['Garden ideas', 'Recipes', 'Packing list']);
+        expect(root.querySelector('.error[role=alert]')?.textContent).toContain(
+          '“Recipes” could not be changed: Try later.',
+        );
+        expect(undo.spy).not.toHaveBeenCalled();
+        expect(button('.card .delete', 1).disabled).toBe(false);
+      });
+
+      it('reloads the notes when the note to delete changed elsewhere (412)', async () => {
+        await create();
+        const undo = controlUndo();
+        button('.card .delete', 2).click();
+        del(PACKING.id).flush(
+          { title: 'Precondition Failed', status: 412, detail: 'Changed elsewhere.' },
+          { status: 412, statusText: 'Precondition Failed' },
+        );
+        await settle();
+        await flushList([GARDEN, RECIPES, { ...PACKING, version: 2 }]);
+        expect(titles()).toEqual(['Garden ideas', 'Recipes', 'Packing list']);
+        expect(undo.spy).not.toHaveBeenCalled();
+      });
+
+      it('drops a note already gone (404) without an error and without undo', async () => {
+        await create();
+        const undo = controlUndo();
+        button('.card .delete', 1).click();
+        del(RECIPES.id).flush(
+          { title: 'Not Found', status: 404 },
+          { status: 404, statusText: 'Not Found' },
+        );
+        await settle();
+        expect(titles()).toEqual(['Garden ideas', 'Packing list']);
+        expect(root.querySelector('.error[role=alert]')).toBeNull();
+        expect(undo.spy).not.toHaveBeenCalled();
+      });
+
+      it('sends a delete only once when pressed twice and disables the card meanwhile', async () => {
+        await create();
+        controlUndo();
+        button('.card .delete', 1).click();
+        fixture.detectChanges();
+        expect(button('.card .delete', 1).disabled).toBe(true);
+        expect(button('.card .pin', 1).disabled).toBe(true);
+        button('.card .delete', 1).click();
+        const [req, ...more] = http.match((r) => r.method === 'DELETE');
+        expect(more).toHaveLength(0);
+        req.flush(null, { status: 204, statusText: 'No Content' });
+        await settle();
+        http.expectOne((r) => r.url === TAGS).flush({ items: [] });
+      });
     });
 
     it('keeps the search when the tag filter changes', async () => {

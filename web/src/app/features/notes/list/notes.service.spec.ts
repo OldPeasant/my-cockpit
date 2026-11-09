@@ -111,6 +111,44 @@ describe('NotesService', () => {
     await expect(archived).resolves.toMatchObject({ archived: true });
   });
 
+  it('moves a note to the Trash with the version as If-Match, without toasting errors', async () => {
+    const removed = service.remove(note('01', { version: 7 }));
+    const req = http.expectOne((r) => r.method === 'DELETE' && r.url === '/api/v1/notes/01');
+    expect(req.request.headers.get('If-Match')).toBe('"7"');
+    expect(req.request.context.get(SILENT_ERRORS)).toBe(true);
+    req.flush(null, { status: 204, statusText: 'No Content' });
+    await expect(removed).resolves.toBeUndefined();
+  });
+
+  it('rejects a delete of a note changed elsewhere with a 412 ApiError', async () => {
+    const removed = service.remove(note('01'));
+    http
+      .expectOne((r) => r.method === 'DELETE')
+      .flush(
+        { title: 'Precondition Failed', status: 412 },
+        { status: 412, statusText: 'Precondition Failed' },
+      );
+    await expect(removed).rejects.toMatchObject({ name: 'ApiError', status: 412 });
+  });
+
+  it('restores a note from the Trash as type NOTE, without toasting errors', async () => {
+    const restored = service.restore(note('01'));
+    const req = http.expectOne((r) => r.url === '/api/v1/trash/NOTE/01/restore');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.headers.has('If-Match')).toBe(false);
+    expect(req.request.context.get(SILENT_ERRORS)).toBe(true);
+    req.flush(null, { status: 204, statusText: 'No Content' });
+    await expect(restored).resolves.toBeUndefined();
+  });
+
+  it('rejects a failed restore with its ApiError', async () => {
+    const restored = service.restore(note('01'));
+    http
+      .expectOne((r) => r.url === '/api/v1/trash/NOTE/01/restore')
+      .flush({ title: 'Not Found', status: 404 }, { status: 404, statusText: 'Not Found' });
+    await expect(restored).rejects.toMatchObject({ name: 'ApiError', status: 404 });
+  });
+
   it('follows the cursor across three pages and keeps the server order', async () => {
     const result = service.list({ archived: false });
     http

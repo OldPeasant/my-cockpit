@@ -118,6 +118,38 @@ describe('NoteCard', () => {
     expect(archived).not.toHaveBeenCalled();
   });
 
+  const remove = () => element.querySelector<HTMLButtonElement>('button.delete')!;
+
+  it('labels the delete button with the note title', () => {
+    render(note());
+    expect(remove().getAttribute('aria-label')).toBe('Move Packing list to the Trash');
+    expect(remove().title).toBe('Move Packing list to the Trash');
+  });
+
+  it('emits remove, and only remove, when the delete button is pressed', () => {
+    render(note());
+    const removed = vi.fn();
+    const pinned = vi.fn();
+    const archived = vi.fn();
+    fixture.componentInstance.remove.subscribe(removed);
+    fixture.componentInstance.pin.subscribe(pinned);
+    fixture.componentInstance.archive.subscribe(archived);
+
+    remove().click();
+    expect(removed).toHaveBeenCalledTimes(1);
+    expect(pinned).not.toHaveBeenCalled();
+    expect(archived).not.toHaveBeenCalled();
+  });
+
+  it('disables the delete button and emits nothing while busy', () => {
+    render(note(), { busy: true });
+    const removed = vi.fn();
+    fixture.componentInstance.remove.subscribe(removed);
+    expect(remove().disabled).toBe(true);
+    remove().click();
+    expect(removed).not.toHaveBeenCalled();
+  });
+
   it('is enabled and not compact by default, compact for the list view', () => {
     render(note());
     expect(pin().disabled).toBe(false);

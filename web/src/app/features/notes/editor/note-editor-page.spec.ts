@@ -13,6 +13,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { LinkResponse, NoteResponse } from '../../../api/generated';
 import { ApiError, NotificationService, provideHttp } from '../../../core/http';
 import { BackNavigation } from '../../../shared/navigation';
+import { NoteTrash } from '../list/note-trash';
 import { MarkdownEditor } from './markdown-editor';
 import NoteEditorPage, { AUTOSAVE_DEBOUNCE_MS, NOTE_EDITOR_MODE_KEY } from './note-editor-page';
 
@@ -1953,5 +1954,242 @@ describe('NoteEditorPage', () => {
     expect(box.disabled).toBe(true);
     expect(box.checked).toBe(true);
     http.expectNone((r) => r.method === 'PATCH');
+  });
+
+  describe('tags', () => {
+    const TAGS = '/api/v1/notes/tags';
+
+    function chips(): string[] {
+      return [...root.querySelectorAll('app-note-tags-input .chip span')].map(
+        (s) => s.textContent?.trim() ?? '',
+      );
+    }
+
+    function tagField(): HTMLInputElement {
+      return root.querySelector<HTMLInputElement>('app-note-tags-input input.tag-input')!;
+    }
+
+    function addTag(value: string): void {
+      tagField().value = value;
+      tagField().dispatchEvent(new Event('input'));
+      tagField().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true }));
+    }
+
+    it('shows the tags as chips and suggests the tags in use that the note lacks', async () => {
+      await open(note({ tags: ['Holiday'] }));
+      http
+        .expectOne((r) => r.url === TAGS && r.method === 'GET')
+        .flush({
+          items: [
+            { tag: 'holiday', count: 3 },
+            { tag: 'Travel', count: 1 },
+          ],
+        });
+      await settle();
+      expect(chips()).toEqual(['#Holiday']);
+      const options = [...root.querySelectorAll<HTMLOptionElement>('datalist option')];
+      expect(options.map((o) => o.value)).toEqual(['Travel']);
+    });
+
+    it('still edits tags without suggestions when the tags cannot be loaded', async () => {
+      await open(note({ tags: ['Holiday'] }));
+      http
+        .expectOne((r) => r.url === TAGS)
+        .flush(null, { status: 503, statusText: 'Service Unavailable' });
+      await settle();
+      expect(root.querySelectorAll('datalist option')).toHaveLength(0);
+      expect(root.querySelector('.banner[role=alert]')).toBeNull();
+      expect(tagField().disabled).toBe(false);
+    });
+
+    it('saves an added tag right away with If-Match, sending the tags', async () => {
+      await open(note({ tags: ['Holiday'] }));
+      addTag('Lisbon');
+      await tick();
+      const save = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+      expect(save.request.headers.get('If-Match')).toBe('"1"');
+      expect(save.request.body).toEqual({
+        title: 'Packing list',
+        bodyMd: '- [ ] Passport\n- [ ] Charger',
+        tags: ['Holiday', 'Lisbon'],
+      });
+      save.flush(note({ tags: ['Holiday', 'Lisbon'], version: 2 }));
+      await settle();
+      expect(chips()).toEqual(['#Holiday', '#Lisbon']);
+      expect(state()).toBe('Saved');
+    });
+
+    it('saves a removed tag right away', async () => {
+      await open(note({ tags: ['Holiday', 'Travel'] }));
+      root.querySelectorAll<HTMLButtonElement>('app-note-tags-input button.remove')[0].click();
+      await tick();
+      const save = http.expectOne((r) => r.method === 'PATCH');
+      expect(save.request.body.tags).toEqual(['Travel']);
+      save.flush(note({ tags: ['Travel'], version: 2 }));
+      await settle();
+      expect(chips()).toEqual(['#Travel']);
+    });
+
+    it('sends the tags with a body edit only when they changed', async () => {
+      await open(note({ tags: ['Holiday'] }));
+      vi.useFakeTimers();
+      type('Sunscreen');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+      const save = http.expectOne((r) => r.method === 'PATCH');
+      expect(save.request.body).toEqual({ title: 'Packing list', bodyMd: 'Sunscreen' });
+    });
+
+    it('shows the tags as the server kept them and does not save them again', async () => {
+      await open(note({ tags: [] }));
+      vi.useFakeTimers();
+      addTag('Lisbon');
+      await vi.advanceTimersByTimeAsync(0);
+      http.expectOne((r) => r.method === 'PATCH').flush(note({ tags: ['lisbon'], version: 2 }));
+      await vi.advanceTimersByTimeAsync(0);
+      harness.detectChanges();
+      expect(chips()).toEqual(['#lisbon']);
+      expect(state()).toBe('Saved');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 3);
+      http.expectNone((r) => r.method === 'PATCH');
+    });
+
+    it('disables the tags while the note is in conflict', async () => {
+      await open(note({ tags: ['Holiday'] }));
+      vi.useFakeTimers();
+      type('mine');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+      await conflictOnSave();
+      expect(tagField().disabled).toBe(true);
+      expect(
+        root.querySelector<HTMLButtonElement>('app-note-tags-input button.remove')!.disabled,
+      ).toBe(true);
+    });
+  });
+
+  describe('delete', () => {
+    let navigate: ReturnType<typeof vi.spyOn>;
+    let answerUndo: (undo: boolean) => void;
+    let offerUndo: ReturnType<typeof vi.spyOn>;
+
+    /** Opens the note with the router navigation and the undo snackbar under test control. */
+    async function openForDelete(loaded: NoteResponse = note()): Promise<void> {
+      await open(loaded);
+      navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      offerUndo = vi
+        .spyOn(TestBed.inject(NoteTrash), 'offerUndo')
+        .mockImplementation(() => new Promise<boolean>((resolve) => (answerUndo = resolve)));
+    }
+
+    function deleteRequest(): TestRequest {
+      return http.expectOne((r) => r.url === URL && r.method === 'DELETE');
+    }
+
+    it('moves the note to the Trash with If-Match, goes to the notes and offers undo', async () => {
+      await openForDelete();
+      button('Delete').click();
+      await tick();
+      const req = deleteRequest();
+      expect(req.request.headers.get('If-Match')).toBe('"1"');
+      req.flush(null, { status: 204, statusText: 'No Content' });
+      await settle();
+      expect(navigate).toHaveBeenCalledWith(['/notes']);
+      expect(offerUndo).toHaveBeenCalledWith(expect.objectContaining({ id: ID, version: 1 }));
+
+      answerUndo(false);
+      await settle();
+      expect(navigate).toHaveBeenCalledTimes(1);
+    });
+
+    it('reopens the note when the delete is undone', async () => {
+      await openForDelete();
+      button('Delete').click();
+      await tick();
+      deleteRequest().flush(null, { status: 204, statusText: 'No Content' });
+      await settle();
+      answerUndo(true);
+      await settle();
+      expect(navigate).toHaveBeenLastCalledWith(['/notes', ID]);
+    });
+
+    it('saves pending edits first and deletes with the new version', async () => {
+      await openForDelete();
+      type('Last edit before deleting');
+      button('Delete').click();
+      await tick();
+      http.expectNone((r) => r.method === 'DELETE');
+      const save = http.expectOne((r) => r.url === URL && r.method === 'PATCH');
+      expect(save.request.body.bodyMd).toBe('Last edit before deleting');
+      save.flush(note({ bodyMd: 'Last edit before deleting', version: 2 }));
+      await tick();
+      await tick();
+      const req = deleteRequest();
+      expect(req.request.headers.get('If-Match')).toBe('"2"');
+    });
+
+    it('saves nothing more after the delete, also when the debounce would fire', async () => {
+      await openForDelete();
+      button('Delete').click();
+      await tick();
+      deleteRequest().flush(null, { status: 204, statusText: 'No Content' });
+      await settle();
+      vi.useFakeTimers();
+      type('typed after delete');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 2);
+      http.expectNone((r) => r.method === 'PATCH');
+      // Leaving the page does not save it either.
+      void harness.navigateByUrl('/elsewhere');
+      await vi.advanceTimersByTimeAsync(0);
+      http.expectNone((r) => r.method === 'PATCH');
+    });
+
+    it('shows a failed delete in the banner, stays on the note and can delete again', async () => {
+      await openForDelete();
+      button('Delete').click();
+      await tick();
+      deleteRequest().flush(
+        { title: 'Server Error', status: 500, detail: 'Try later.' },
+        { status: 500, statusText: 'Server Error' },
+      );
+      await settle();
+      expect(root.querySelector('.banner[role=alert]')?.textContent).toContain(
+        'The note could not be moved to the Trash:',
+      );
+      expect(navigate).not.toHaveBeenCalled();
+      expect(offerUndo).not.toHaveBeenCalled();
+      expect(button('Delete').disabled).toBe(false);
+
+      // The note was not deleted: edits are still saved.
+      vi.useFakeTimers();
+      type('still editable');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+      http.expectOne((r) => r.method === 'PATCH');
+    });
+
+    it('shows a generic message when the delete fails unexpectedly', async () => {
+      await openForDelete();
+      vi.spyOn(TestBed.inject(NoteTrash), 'remove').mockRejectedValue(new Error('boom'));
+      button('Delete').click();
+      await settle();
+      expect(root.querySelector('.banner[role=alert]')?.textContent).toContain(
+        'The note could not be moved to the Trash: Something went wrong.',
+      );
+    });
+
+    it('disables Delete while it runs and sends it only once', async () => {
+      await openForDelete();
+      button('Delete').click();
+      await settle();
+      expect(button('Delete').disabled).toBe(true);
+      expect(tagFieldDisabled()).toBe(true);
+      button('Delete').click();
+      const [req, ...more] = http.match((r) => r.method === 'DELETE');
+      expect(more).toHaveLength(0);
+      req.flush(null, { status: 204, statusText: 'No Content' });
+      await settle();
+    });
+
+    function tagFieldDisabled(): boolean {
+      return root.querySelector<HTMLInputElement>('app-note-tags-input input.tag-input')!.disabled;
+    }
   });
 });
