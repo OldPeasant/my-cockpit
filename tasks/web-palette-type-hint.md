@@ -15,7 +15,8 @@ Android shows type chips. Follow-up of review finding CR-2 in `reviews/web-small
 ## Acceptance criteria
 - [x] The command palette shows how to filter by type (a hint line, or type chips that insert/remove `type:`)
   - verified (2026-11-09 01:17+0100 by felix/agent-1): npx vitest command-palette.spec.ts (via npm run check) -> hint line with type:note passport / type:task,event examples shown, hidden once query has a type: word; 2 specs pass
-- [ ] New UI strings are in `web/src/locale` (English + German)
+- [x] New UI strings are in `web/src/locale` (English + German)
+  - verified (2026-11-09 01:17+0100 by felix/agent-1): palette.typeHint added to web/src/locale/messages.xlf + messages.de.xlf; npm --prefix web run build:de -> exit 0 (fails on missing translations)
 - [ ] Unit tests cover it; `cd web && npm run check` and `sh scripts/check.sh` pass
 
 ## Notes
