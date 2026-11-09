@@ -15,7 +15,8 @@ from `gtd/projects`, and `task-detail-notes.scss` copies the `.markdown` styles 
 `gtd/projects/project-description.scss`. Move both to one shared place so they cannot drift.
 
 ## Acceptance criteria
-- [ ] `renderMarkdown` lives in a shared location (e.g. `gtd/ui`) and both project description and task notes use it; no import from `gtd/projects` into `gtd/task-detail` remains
+- [x] `renderMarkdown` lives in a shared location (e.g. `gtd/ui`) and both project description and task notes use it; no import from `gtd/projects` into `gtd/task-detail` remains
+  - verified (2026-11-09 02:04+0100 by felix/agent-1): grep -rn import web/src/app/features/gtd/task-detail | grep projects -> no hits; renderMarkdown in gtd/ui/markdown.ts, exported via gtd/ui/index.ts, used by project-detail-page.ts and task-detail.ts; gtd/projects/markdown.ts is a re-export shim (assumption recorded); markdown.spec.ts in vitest passes (npm --prefix web run check -> 4682 tests passed)
 - [ ] One shared `.markdown` stylesheet partial is used by both; rendering looks unchanged
 - [ ] `cd web && npm run check` and `sh scripts/check.sh` pass
 
