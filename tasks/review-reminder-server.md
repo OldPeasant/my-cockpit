@@ -15,7 +15,8 @@ Goal: SPEC.md §8.6 weekly review reminder, delivered through the existing remin
 Design: setting `weeklyReviewReminder` in the review module (e.g. `review/infra/ReviewSettings.kt`), value "off" or "<DAY>@HH:mm" (DayOfWeek name, e.g. "SUNDAY@18:00"), default "off". Add `ItemType.WEEKLY_REVIEW` (core enum, one line) plus an ItemResolver in the review module for a fixed well-known item id: title "Weekly review", deepLink "/review", always exists. The review module keeps exactly one pending reminder for that item at the next occurrence in the user's time zone: recompute when the setting or timeZone changes and after it fires (a small scheduled job or ReminderFiredEvent listener), delete the pending one when "off".
 
 ## Acceptance criteria
-- [ ] setting definition with validation (unit tests for parse: off, valid, invalid day/time)
+- [x] setting definition with validation (unit tests for parse: off, valid, invalid day/time)
+  - verified (2026-11-09 03:43+0100 by dell26/agent-2): cd server && ./gradlew test --tests '*WeeklyReview*' -> WeeklyReviewScheduleTests (20) + EdgeCase (27) incl. parse off/valid/invalid day/time pass; invalid value via settings API -> 400 (WeeklyReviewWebTests)
 - [ ] next-occurrence computation honours timeZone and DST (unit tests)
 - [ ] pending reminder created/replaced/removed on setting change and re-armed after firing (Spring tests)
 - [ ] regenerate api/openapi.yaml if the item type enum appears there; `cd server && ./gradlew check` passes
