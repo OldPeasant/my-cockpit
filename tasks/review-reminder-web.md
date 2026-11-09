@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [and-review-flow, and-review-steps, web-small-gaps, review-reminder-server]
 prio: 3
 parent: review-reminder
-lease_until: 2026-11-09T04:01:33Z
+lease_until: 2026-11-09T04:06:36Z
 ---
 ## Goal
 Part of `review-reminder` (Weekly review reminder on a configurable weekday), which was split.
