@@ -13,7 +13,8 @@ dialog from itip-api: `web/src/app/features/calendar/edit/invitation-dialog.ts`,
 `web/src/locale/messages.xlf` and German targets to `messages.de.xlf`.
 
 ## Acceptance criteria
-- [ ] `cd web && npm run build:de` reports no missing translation
+- [x] `cd web && npm run build:de` reports no missing translation
+  - verified (2026-11-09 01:41+0100 by dell26/agent-1): cd web && npm run build:de (at 2e207f3eb) -> bundle generation complete, 0 'No translation found' errors; 16 calendar.invite.* units present in messages.xlf and messages.de.xlf (added by ba52ebac3)
 - [ ] `cd web && npm run check` and `sh scripts/check.sh` pass
 
 ## Notes
