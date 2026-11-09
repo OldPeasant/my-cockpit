@@ -164,7 +164,7 @@ class AppStartRoutingTest {
         composeRule.onNodeWithText("Log out").performScrollTo().performClick()
         composeRule.onNodeWithTag(LoginTags.SCREEN).assertIsDisplayed()
 
-        composeRule.waitUntil(WAIT_MS) { !cached.exists() }
+        composeRule.waitUntil(CACHE_CLEAR_WAIT_MS) { !cached.exists() }
         assertFalse(cached.exists())
     }
 
@@ -178,7 +178,7 @@ class AppStartRoutingTest {
         session.logout(LogoutReason.REFRESH_REJECTED)
 
         composeRule.onNodeWithTag(LoginTags.SCREEN).assertIsDisplayed()
-        composeRule.waitUntil(WAIT_MS) { !cached.exists() }
+        composeRule.waitUntil(CACHE_CLEAR_WAIT_MS) { !cached.exists() }
         assertFalse(cached.exists())
     }
 
@@ -192,5 +192,11 @@ class AppStartRoutingTest {
 
     private companion object {
         const val WAIT_MS = 5_000L
+
+        /**
+         * The logout clears every session cache one after another (Room tables, WorkManager, push, ...) before the
+         * cache directory, so on a loaded host the file goes away much later than the login screen shows.
+         */
+        const val CACHE_CLEAR_WAIT_MS = 30_000L
     }
 }
