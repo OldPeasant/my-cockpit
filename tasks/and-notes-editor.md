@@ -19,7 +19,8 @@ links panel (web: `note-editor-page.html`).
   - verified (2026-11-09 08:52+0100 by dell26/agent-1): NoteEditorIntegrationTest (picks suggested tag chip + checklist toggle via real NoteEditorRoute/ViewModel) plus NoteTagsEditorTest/NoteEditorTagsViewModelTest: ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*' -> 343 passed
 - [x] Tapping a checklist item in preview toggles it (saved like an edit)
   - verified (2026-11-09 08:52+0100 by dell26/agent-1): NoteEditorIntegrationTest: preview checklist tap toggles body and is saved in the same autosave (If-Match) as tag edit; notes tests -> 343 passed
-- [ ] Typing `[[` offers search-as-you-type and inserts `[[type:id]]`
+- [x] Typing `[[` offers search-as-you-type and inserts `[[type:id]]`
+  - verified (2026-11-09 08:53+0100 by dell26/agent-1): NoteEditorIntegrationTest: typing [[boo searches after 250 ms debounce, picking hit inserts [[task:{id}]], Done saves; MarkdownChecklistLinksTest; notes tests -> 343 passed
 - [ ] Revisions: list and restore
 - [ ] `LinkedItemsPanel` for the note
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
