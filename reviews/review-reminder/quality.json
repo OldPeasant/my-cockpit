@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "review-reminder",
+  "reviewed_revision": "2abe6d0947ff87277ee54ec511191b8023b08361",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/review-reminder/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/review-reminder/review.md"},
+    "fixer": {"status": "not_required", "reason": "only finding (CR-1/TW-1, P2/Low, English-only notification title) is deferred to task review-reminder-title-l10n; no fix in this integration task"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "deferred",
+     "note": "weekly review notification title always English (server resolver title wins on all clients); follow-up task review-reminder-title-l10n"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "deferred",
+     "note": "same defect as CR-1; follow-up task review-reminder-title-l10n"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests '*WeeklyReview*' --tests '*ItemResolverRegistry*' --tests '*SettingsService*'", "result": "pass"},
+    {"command": "cd web && npx ng test --watch=false --include src/app/features/settings/general/general-settings.spec.ts --include src/app/core/notifications/reminder-notifications.service.spec.ts", "result": "pass"},
+    {"command": "npm --prefix web test -- --watch=false --include src/app/core/notifications/push-sw.spec.ts", "result": "pass"},
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests '*ReminderUiTest' --tests '*ReminderAlarmsNotifierTest' --tests '*PushReminderDeliveryTest'", "result": "pass"}
+  ]
+}
