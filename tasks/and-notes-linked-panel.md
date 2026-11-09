@@ -12,7 +12,8 @@ Part of `and-notes-editor` (Android note editor: tags, checklists, links, revisi
 Goal: Show the shared `LinkedItemsPanel` (from `and-links-panel`) for the open note in the Android note editor. Touches android/.../cockpit/notes, its tests and strings_notes.xml (en + de).
 
 ## Acceptance criteria
-- [ ] `LinkedItemsPanel` for the note
+- [x] `LinkedItemsPanel` for the note
+  - verified (2026-11-09 08:31+0100 by dell26/agent-1): NoteEditorLinksPanelScreenTest (5) + NoteEditorLinksRouteInAppTest (8, MainActivity/Hilt, fake LinksRepository) via ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*' -> 340 tests pass; saved note shows LinkedItemsPanel for ItemRef(NOTE,id) in view mode, linked items open in place, panel reloads on new version
 - [ ] New strings (if any) are in English and German (`res/values/strings_notes.xml` + `res/values-de/strings_notes.xml`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
