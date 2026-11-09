@@ -4,17 +4,17 @@ Date: 2026-11-09
 
 Task: review-reminder-android - Weekly review reminder opens the review on Android
 
-Scope: committed task changes `git diff 81c26c97b..bde783c82` (uncommitted working-tree changes not reviewed)
+Scope: committed task changes `git diff 81c26c97b..0f7b8f3b2` (final revision 0f7b8f3b21aebc67d4083e2dbfa97ecdad2990dd)
 
 Requirements:
 - tasks/review-reminder-android.md acceptance criteria
-- SPEC.md, docs/ARCHITECTURE.md, AGENTS.md project conventions (i18n en + de, lint, feature folders)
+- SPEC.md, docs/ARCHITECTURE.md, AGENTS.md project conventions (i18n en + de, lint, feature folders, fictitious test data)
 
 Git range:
 - Branch: main
-- HEAD: bde783c827ba7861e5674b5a0aff066b07e7f1cf
+- HEAD: 0f7b8f3b21aebc67d4083e2dbfa97ecdad2990dd
 - Base/start: 81c26c97b3139ac4e6b0ce7a3985d4f99cc388ca
-- Commits reviewed: 1
+- Commits reviewed: 2 (bde783c82 implementation, 0f7b8f3b2 tests and helper reports)
 
 Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
@@ -37,19 +37,26 @@ None.
 ## Notes on verification
 
 - AC1: `OpenItemRequest.destination` maps `WEEKLY_REVIEW` to `CockpitDestination.Review`
-  (`ReminderOpenRequests.kt`). `ReminderUiTest` covers the mapping table, with the former Dashboard fallback
-  expectation replaced by Review. `ReminderAlarmsNotifierTest` adds an end-to-end Robolectric test: notification
-  title, then content intent, then `ReminderOpenRequests.offer`, then destination Review. Both notification paths
-  (local alarm via `ReminderScheduler` and UnifiedPush via `PushReminderDelivery.toFired`, then
-  `scheduler.showFiredByServer`) build `ScheduledReminder` from `item.type.value` and use the same
-  `ReminderNotifier`, so the mapping applies to both. `WEEKLY_REVIEW` is in the reminder item type enum in
-  `api/openapi.yaml`, which the Android client is generated from.
+  (`ReminderOpenRequests.kt`). The following tests cover it:
+  - the mapping table in `ReminderUiTest`;
+  - a Robolectric local-alarm test in `ReminderAlarmsNotifierTest` (title, then content intent, then offer, then
+    destination Review);
+  - since 0f7b8f3b2, a UnifiedPush test in `PushReminderDeliveryTest`, which takes the server JSON with type
+    `WEEKLY_REVIEW` through delivery, the shown notification, the tap intent and finally destination Review.
+
+  Both notification paths build `ScheduledReminder` from `item.type.value` and use the same `ReminderNotifier`.
+  `WEEKLY_REVIEW` is in the reminder item type enum in `api/openapi.yaml`, which the Android client is generated
+  from.
 - AC2: `review_reminder_title` is present in `res/values/strings_review.xml` ("Weekly review") and
   `res/values-de/strings_review.xml` ("Wochenrückblick"). The fallback applies only when the server sends no
-  title, through `untitledTitle(itemType)`.
+  title. The new tests cover:
+  - the German locale (`@Config(qualifiers = "de")`);
+  - a server-provided title being kept;
+  - other or mis-cased item types keeping the generic untitled string.
 - AC3: the Gradle run was not repeated in this review. The parent worker records that evidence.
-- The changes stay inside the reminders feature folder and the review strings file. There are no new
-  dependencies, secrets or logging.
+- The second commit changes only tests and review reports. Production code is unchanged since bde783c82. Test
+  data is fictitious. The new tests reset the shared `ReminderOpenRequests` state via `take`, as the existing
+  tests do. There are no new dependencies, secrets or logging.
 
 ## Review conclusion
 
