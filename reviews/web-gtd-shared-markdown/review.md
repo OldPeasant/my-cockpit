@@ -4,20 +4,20 @@ Date: 2026-11-09
 
 Task: web-gtd-shared-markdown - Web: share renderMarkdown and Markdown styles between project description and task notes
 
-Scope: `git diff 9fef9ab2..HEAD -- web/` (task commit 7bc5ae606)
+Scope: task commits 4b3972142, 05f12f9f0, dfc05f7c6 on base cc8fbe4c0 (`git diff cc8fbe4c0 HEAD -- web`); reviewed revision 03c090ae62e171febf6aec2308d2ee7e623b1cea (re-review after fixer commit dfc05f7c6)
 
 Requirements:
-- tasks/web-gtd-shared-markdown.md acceptance criteria and recorded assumption
-- AGENTS.md project notes (feature folders, lint contract)
-- web/.prettierrc (printWidth 100)
+- tasks/web-gtd-shared-markdown.md acceptance criteria and recorded assumption (re-export shim in gtd/projects)
+- AGENTS.md project notes (feature folders, touches, lint conventions)
+- Previous review findings CR-1/CR-2 and reviews/web-gtd-shared-markdown/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: 7bc5ae606
-- Base/start: 9fef9ab231227319cfa1125e69041983ed1038d9
-- Commits reviewed: 1
+- HEAD: 03c090ae62e171febf6aec2308d2ee7e623b1cea
+- Base/start: cc8fbe4c0
+- Commits reviewed: 3 (plus TFP claim/release/merge commits without code changes)
 
-Summary: 0 P0, 0 P1, 0 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## P0 Critical
 
@@ -33,25 +33,31 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | New styleUrls line exceeds the Prettier print width**
-    - File: `web/src/app/features/gtd/task-detail/task-detail.ts:96`
-    - Category: Quality
-    - Problem: The changed `styleUrls: ['./controls.scss', './task-detail.scss', '../ui/markdown.scss', './task-detail-notes.scss'],` line is longer than 100 characters; `npx prettier --check` flags the file. Prettier is not part of `npm run check`, and the file already has other over-long lines, so nothing fails.
-    - Why it matters: It breaks the project formatting convention, and the next `prettier --write` will produce an unrelated diff.
-    - Suggested fix: Wrap the array one entry per line, the way `project-detail-page.ts` does.
-
-- [ ] **CR-2 | Shared renderMarkdown doc comment still says it is for project descriptions**
-    - File: `web/src/app/features/gtd/ui/markdown.ts:1-2` (also the heading comment at line 29)
-    - Category: Quality
-    - Problem: The comment still says "for previews of short texts (a project's description)" and "Headings of a description". The function is now the shared renderer in `gtd/ui`, used by task notes too (and, through the re-export, by bookmarks, files and contacts).
-    - Why it matters: A small inaccuracy that hides who depends on the function.
-    - Suggested fix: Reword it as general short-text Markdown, e.g. "project descriptions, task notes, ...".
+None.
 
 ## Verification notes
 
-- AC1: `renderMarkdown` now lives in `gtd/ui/markdown.ts` and is exported from `gtd/ui/index.ts`. Both `project-detail-page.ts` and `task-detail.ts` import it from `../ui`. A grep finds no import from `gtd/projects` in `gtd/task-detail/*.ts`. The implementation matches the old file exactly (same blob `dd8859d3d`), and the spec file was moved unchanged. `projects/markdown.ts` stays as a re-export for bookmarks, files and contacts. That is recorded as an assumption and is outside this task's touches.
-- AC2: `gtd/ui/markdown.scss` is the same as the old duplicated `.markdown` block. Both components list it in `styleUrls` before their own sheets. The only difference between the two copies, `cursor: pointer` on note links, is kept as a `.markdown a` override in `task-detail-notes.scss`, which loads after the shared sheet and has the same specificity. `.preview` and `.notes-view`, which sit on the same elements, set no properties that `.markdown` also sets, so the cascade order does not change how anything renders.
-- AC3: the parent reports that `npm run check` passed. I did not run it again.
+- AC1: `renderMarkdown` now lives in `web/src/app/features/gtd/ui/markdown.ts` and is exported from the
+  `gtd/ui` barrel. `project-detail-page.ts` and `task-detail.ts` import it from `../ui`. No import from
+  `gtd/projects` remains in `gtd/task-detail` (grep for `projects` in task-detail `*.ts` finds only the
+  `ProjectStore` field). The function body is byte-identical to the old `gtd/projects/markdown.ts`
+  apart from the doc and heading comments, which the fixer rewrote (`git diff --no-index` against the base
+  version). `gtd/projects/markdown.ts` is a one-line re-export for bookmarks, files and contacts, which are
+  outside the task's touches. This is recorded as an assumption and covered by the new export identity test in
+  `gtd/ui/markdown.spec.ts`.
+- AC2: `gtd/ui/markdown.scss` holds the same `.markdown` rules as both removed copies. The task-only
+  `cursor: pointer` on links stays in `task-detail-notes.scss` as `.markdown a`. Both components list
+  `../ui/markdown.scss` in `styleUrls`. I checked the cascade: the shared sheet now loads before
+  `project-description.scss`/`task-detail-notes.scss`, but the co-applied classes (`.preview`,
+  `.notes-view`) set no properties that `.markdown` also sets. `.notes-view > :first-child` (0,2,0)
+  beats `.markdown h3`/`blockquote` (0,1,1) by specificity, as it did before. The rendered output therefore
+  looks the same.
+- Previous findings: CR-1 (styleUrls line length) is fixed, and `prettier --check` passes on all 9 changed web
+  files. CR-2 (comment said it was only for project descriptions) is fixed.
+- AC3: In this session `npm run check` did not finish within a 280 s timeout, so I could not confirm it here.
+  The parent worker must record its own `npm --prefix web run check` and `sh scripts/check.sh` results as
+  evidence. The release note mentions an android Compose timeout in `scripts/check.sh` that looked
+  unrelated. That must be re-run, not assumed.
 
 ## Review conclusion
 
