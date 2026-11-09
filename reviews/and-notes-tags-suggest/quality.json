@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "task": "and-notes-tags-suggest",
+  "reviewed_revision": "c585ae6d58540fe91aa17786561eaf4b30a113a5",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-notes-tags-suggest/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-notes-tags-suggest/review.md"},
+    "fixer": {"status": "not_required", "reason": "code-reviewer reported no findings on the final code and test-writer found no production bugs"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests '*NoteTagsEditorTest*' createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
