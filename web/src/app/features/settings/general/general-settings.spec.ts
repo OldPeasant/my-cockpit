@@ -842,5 +842,98 @@ describe('GeneralSettings', () => {
       expect(daySelect().textContent).toContain('Sunday');
       expect(root.textContent).toContain('Not saved, previous value restored');
     });
+
+    it('shows an unknown stored value as off and saves a picked day with the default time', async () => {
+      await setup([], fakeSettings({ weeklyReviewReminder: 'FUNDAY@25:99' }));
+
+      expect(daySelect().textContent).toContain('Off');
+      expect(timeInput()).toBeNull();
+
+      await pickDay('Wednesday');
+      await flushPatch(
+        { weeklyReviewReminder: 'WEDNESDAY@18:00' },
+        fakeSettings({ weeklyReviewReminder: 'WEDNESDAY@18:00' }),
+      );
+      expect(timeInput()?.value).toBe('18:00');
+    });
+
+    it('keeps the chosen time while off and uses it when switched on again', async () => {
+      await setup([], fakeSettings({ weeklyReviewReminder: 'SUNDAY@07:45' }));
+
+      await pickDay('Off');
+      await flushPatch(
+        { weeklyReviewReminder: 'off' },
+        fakeSettings({ weeklyReviewReminder: 'off' }),
+      );
+      expect(timeInput()).toBeNull();
+
+      await pickDay('Monday');
+      await flushPatch(
+        { weeklyReviewReminder: 'MONDAY@07:45' },
+        fakeSettings({ weeklyReviewReminder: 'MONDAY@07:45' }),
+      );
+      expect(timeInput()?.value).toBe('07:45');
+    });
+
+    it('does not save a time changed back to the stored one', async () => {
+      await setup([], fakeSettings({ weeklyReviewReminder: 'SUNDAY@18:00' }));
+
+      const time = timeInput() as HTMLInputElement;
+      time.value = '18:00';
+      time.dispatchEvent(new Event('input'));
+      time.dispatchEvent(new Event('change'));
+      await tick();
+
+      http.expectNone({ method: 'PATCH', url: PATH });
+    });
+
+    it('keeps the second day picked while the first save is still running', async () => {
+      await setup([], fakeSettings({ weeklyReviewReminder: 'SUNDAY@18:00' }));
+
+      await pickDay('Monday');
+      const first = http.expectOne({ method: 'PATCH', url: PATH });
+      expect(first.request.body).toEqual({ weeklyReviewReminder: 'MONDAY@18:00' });
+      await pickDay('Tuesday');
+      first.flush(fakeSettings({ weeklyReviewReminder: 'MONDAY@18:00' }), {
+        headers: { ETag: '"2"' },
+      });
+      await tick();
+      await fixture.whenStable();
+
+      // The answer to the first save does not overwrite the newer pick.
+      expect(daySelect().textContent).toContain('Tuesday');
+      const second = http.expectOne({ method: 'PATCH', url: PATH });
+      expect(second.request.body).toEqual({ weeklyReviewReminder: 'TUESDAY@18:00' });
+      expect(second.request.headers.get('If-Match')).toBe('"2"');
+      second.flush(fakeSettings({ weeklyReviewReminder: 'TUESDAY@18:00' }), {
+        headers: { ETag: '"3"' },
+      });
+      await tick();
+      await fixture.whenStable();
+
+      expect(daySelect().textContent).toContain('Tuesday');
+      expect(root.textContent).toContain('Saved');
+    });
+
+    it('saves the stored day again when it is picked back while a save is running', async () => {
+      await setup([], fakeSettings({ weeklyReviewReminder: 'SUNDAY@18:00' }));
+
+      await pickDay('Monday');
+      const first = http.expectOne({ method: 'PATCH', url: PATH });
+      await pickDay('Sunday');
+      first.flush(fakeSettings({ weeklyReviewReminder: 'MONDAY@18:00' }), {
+        headers: { ETag: '"2"' },
+      });
+      await tick();
+      const second = http.expectOne({ method: 'PATCH', url: PATH });
+      expect(second.request.body).toEqual({ weeklyReviewReminder: 'SUNDAY@18:00' });
+      second.flush(fakeSettings({ weeklyReviewReminder: 'SUNDAY@18:00' }), {
+        headers: { ETag: '"3"' },
+      });
+      await tick();
+      await fixture.whenStable();
+
+      expect(daySelect().textContent).toContain('Sunday');
+    });
   });
 });
