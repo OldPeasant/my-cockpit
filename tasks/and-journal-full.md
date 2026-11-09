@@ -7,7 +7,7 @@ touches: [android/app/src/main/java/ch/sonensei/cockpit/journal,android/app/src/
 prio: 2
 lease_until: 
 extended: 
-hold: Implementation, review evidence (quality.json, reviewed_revision c12daa98) and criteria 1-6 recorded; only 'done' is left. .taskcheck cannot pass on this machine (rudi/agent-1) for reasons outside the
+hold: 
 releases: 0
 ---
 ## Goal
