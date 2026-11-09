@@ -867,6 +867,32 @@ describe('GeneralSettings', () => {
       expect(timeInput()?.value).toBe('08:00');
     });
 
+    it('keeps a pending reminder pick when another row finishes saving first', async () => {
+      await setup([], fakeSettings({ weeklyReviewReminder: 'SUNDAY@18:00' }));
+
+      toggle('Dark').click();
+      await tick();
+      const theme = http.expectOne({ method: 'PATCH', url: PATH });
+      await pickDay('Monday');
+      theme.flush(fakeSettings({ theme: 'dark', weeklyReviewReminder: 'SUNDAY@18:00' }), {
+        headers: { ETag: '"2"' },
+      });
+      await tick();
+      await fixture.whenStable();
+
+      // The theme answer still holds the old reminder; it must not undo the running pick.
+      expect(daySelect().textContent).toContain('Monday');
+      const reminder = http.expectOne({ method: 'PATCH', url: PATH });
+      expect(reminder.request.body).toEqual({ weeklyReviewReminder: 'MONDAY@18:00' });
+      reminder.flush(fakeSettings({ theme: 'dark', weeklyReviewReminder: 'MONDAY@18:00' }), {
+        headers: { ETag: '"3"' },
+      });
+      await tick();
+      await fixture.whenStable();
+
+      expect(daySelect().textContent).toContain('Monday');
+    });
+
     it('puts the stored reminder back when the server refuses the save', async () => {
       await setup([], fakeSettings({ weeklyReviewReminder: 'SUNDAY@18:00' }));
 

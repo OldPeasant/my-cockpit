@@ -4,20 +4,20 @@ Date: 2026-11-09
 
 Task: review-reminder-web - Weekly review reminder control in web settings
 
-Scope: commit range 8c540b53290c779efb7947fd75d40196cd44c20f..c7a216b19 (one commit: "review-reminder-web: weekly review reminder control in General settings, WEEKLY_REVIEW notification tests"). Bash was not available to this reviewer, so `git diff` could not be run. The changed files named by the parent worker were read in full instead: `web/src/app/features/settings/general/general-settings.ts`, `general-settings.html`, `general-settings.spec.ts`, `web/src/app/core/notifications/reminder-notifications.service.spec.ts`. The generated `Settings`, `SettingsPatch` and `ReminderItemResponse` models were checked for the contract, along with the server `ReviewSettings.kt` and `WeeklyReviewSchedule.kt`.
+Scope: re-review of the final code, commit range 8c540b53290c779efb7947fd75d40196cd44c20f..81eee9e3d5decc7f7ec3444f37a4a6a4a2967351 (web/src/app/features/settings/general/*, web/src/app/core/notifications/reminder-notifications.service.spec.ts, web/src/locale/*.xlf). This reviewer had no git access (`git diff`/`git log` were denied), so the files in scope were read in their current state at HEAD. Checked: `general-settings.ts` and `general-settings.html` in full, the reminder specs and the new fix specs in `general-settings.spec.ts`, and the `settings.reviewReminder*` trans-units in `messages.xlf` and `messages.de.xlf`. The earlier findings CR-1 and CR-2 (previous review.md) and `fixes.md` were checked against the code.
 
 Requirements:
 - tasks/review-reminder-web.md acceptance criteria
-- AGENTS.md project notes (conventions, generated files, i18n)
-- Server contract: `weeklyReviewReminder` setting (`off` or `<DAY>@HH:mm`), ReviewSettings.kt / WeeklyReviewSchedule.kt
+- AGENTS.md project notes (conventions, i18n, generated files)
+- Previous review (CR-1, CR-2) and reviews/review-reminder-web/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: c7a216b19
+- HEAD: 81eee9e3d5decc7f7ec3444f37a4a6a4a2967351
 - Base/start: 8c540b53290c779efb7947fd75d40196cd44c20f
-- Commits reviewed: 1
+- Commits reviewed: 3 (5508866e9 implementation, 945ffd61e tests and helper reports, 81eee9e3d fixes)
 
-Summary: 0 P0, 0 P1, 0 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## P0 Critical
 
@@ -33,26 +33,19 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | Reminder row is not refreshed after another row saves or reloads after a 412**
-    - File: `web/src/app/features/settings/general/general-settings.ts:342`
-    - Category: Correctness
-    - Problem: `refresh()` loops only over `this.fields()`, which are the controls of `form`. `reminderForm` is updated only by `show()`, which runs on the initial load, and by `saveReminder()`. Say the theme save gets a 412 and the settings service reloads the settings. The other rows then show the reloaded server values (see the spec "shows the reloaded server value after a 412"), but the weekly review reminder row keeps its old value. That happens even when the reload has a different `weeklyReviewReminder` that another device set.
-    - Why it matters: Inside one section, the reminder row can show a stale day and time while the other rows show fresh ones. The next reminder save still compares against the fresh `service.settings()`, so no data is lost. The row is only shown inconsistently.
-    - Suggested fix: When a generic save finishes and no reminder save is pending, also call `showReminder(current)` (for example from `save()` after `refresh`, guarded by `!this.reminderPending`). Add a spec that does the 412 reload with a changed `weeklyReviewReminder`.
+None.
 
-- [ ] **CR-2 | An empty or invalid reminder time is silently ignored**
-    - File: `web/src/app/features/settings/general/general-settings.ts:262`, `web/src/app/features/settings/general/general-settings.html:122`
-    - Category: Quality
-    - Problem: With a weekday selected, clearing the time input makes `saveReminder()` return early. No `mat-error` is shown and the save status does not change, so an earlier "Saved" may still be visible. The label rows show "Each label needs 1 to 40 characters." for the same kind of input, but the time field has no message.
-    - Why it matters: The user may think the reminder was changed when the server still holds the old time.
-    - Suggested fix: Show a `mat-error` when `reminderForm.controls.time` is invalid. Alternatively, put the stored time back on blur, as the time zone field does.
+## Verification of earlier findings
+
+- CR-1 (reminder row not refreshed after another row's 412 reload): resolved. `save()` now calls `this.showReminder(current)` after `refresh(current)` whenever no reminder save is pending (`general-settings.ts:254-255`). Because the code before the first `await` in `saveReminder()` runs synchronously, `reminderPending` is already raised while a reminder save is in flight, so the guard holds. The new spec "shows the reloaded reminder after another row saves into a 412" (`general-settings.spec.ts:845`) answers a theme PATCH with a 412, reloads with `FRIDAY@08:00`, and checks that the row shows Friday and 08:00.
+- CR-2 (an empty or invalid time was ignored without a message): resolved. The time field now has `<mat-error i18n="@@settings.reviewReminder.timeInvalid">Enter a time.</mat-error>` while the control is invalid (`general-settings.html:131-133`). The new spec "asks for a time when the time field is emptied and left" (`general-settings.spec.ts:829`) checks that the message appears and no PATCH is sent. The English source is in `messages.xlf` and the German target "Gib eine Uhrzeit ein." is in `messages.de.xlf`.
 
 ## Notes (not findings)
 
-- Acceptance criterion 1 (load, save off, save day+time): covered by the specs "shows a stored day and time", "saves off" and "saves a day with the default time, then a changed time". Edge cases are covered too: unknown stored value, refused save, overlapping saves, and picking the stored day again while a save is in flight.
-- Acceptance criterion 2: WEEKLY_REVIEW navigation to `/review` is unit-tested for both the browser notification click and the toast action. `WEEKLY_REVIEW` is part of the generated `ReminderItemResponse.type` union. The test supplies `deepLink: '/review'` itself, so it checks that the deep link is passed through. It does not check that the server resolver produces that link. The task description asks for exactly this pass-through check.
-- Acceptance criterion 3: this reviewer could not run `npm run check` or check the new `@@settings.reviewReminder*` ids in the en/de locale files. The parent worker must record that evidence.
-- Client and server agree on the format: the client regex `^([A-Z]+)@((?:[01]\d|2[0-3]):[0-5]\d)$` plus the weekday check matches the server's `WeeklyReviewSchedule.PATTERN`. `formatReminder` produces `DAY@HH:mm` or `off`, both of which the server accepts. The PATCH goes through `SettingsService.update`, so it gets ETag/If-Match and the service's rollback.
+- The CR-1 fix resets `reminderForm` after every generic save, also a successful one. If the user has emptied the time (not saved) and then changes another row, the stored time comes back and the error clears. The generic rows keep user edits by comparing against a baseline; the reminder row does not. `type="time"` inputs fire `change` once the value is complete, so the only unsaved state that can be lost is an empty or partial time, and putting the stored value back is acceptable there. Not a defect.
+- Criterion 1 (load, save off, save day+time): covered by "shows a stored day and time", "shows off without a time field...", "saves off", and "saves a day with the default time, then a changed time". Edge-case specs cover refused saves, unknown stored values, overlapping saves, and picking the stored day again while a save runs.
+- Criterion 2: the WEEKLY_REVIEW navigation to `/review` specs in `reminder-notifications.service.spec.ts` were assessed in the previous review and are unchanged by the fix commit (it touched only the settings/general files and locales, per fixes.md).
+- Criterion 3: the en/de strings for all five `settings.reviewReminder*` ids are present and translated. This reviewer could not run `npm run check`. fixes.md reports that it passed (4767 tests). The parent worker must record that evidence with `tasks.py verify`.
 
 ## Review conclusion
 
