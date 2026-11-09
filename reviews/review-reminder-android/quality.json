@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "task": "review-reminder-android",
+  "reviewed_revision": "46795d9ae29e9157619a682df31a668213eb78ef",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/review-reminder-android/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/review-reminder-android/review.md"},
+    "fixer": {"status": "not_required", "reason": "code-reviewer reported 0 findings and test-writer found no bugs; the test-writer could not run Gradle in its sandbox, so the parent ran the tests and coverage (all new tests pass; ReminderOpenRequests.kt 26/26 lines, 24/24 branches; ReminderNotifier.kt 51/52 lines, 18/18 branches)"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport", "result": "pass"}
+  ]
+}
