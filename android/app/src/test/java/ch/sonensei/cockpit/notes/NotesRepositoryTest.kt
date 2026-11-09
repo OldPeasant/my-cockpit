@@ -6,6 +6,7 @@ import ch.sonensei.cockpit.core.network.generated.infrastructure.Serializer
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.MockResponse
@@ -14,6 +15,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -115,7 +117,8 @@ class NotesRepositoryTest {
             val base =
                 Note(id(1), "Old", "Old", "Body", pinned = true, tags = listOf("home"), updatedAt = java.time.Instant.EPOCH, version = 3)
 
-            val result = notes.save(base, NoteDraft(title = "  ", bodyMd = "New")) as SaveResult.Saved
+            // The tags are unchanged (the same as the saved note's), so they are not sent.
+            val result = notes.save(base, NoteDraft(title = "  ", bodyMd = "New", tags = listOf("home"))) as SaveResult.Saved
 
             assertEquals(4L, result.note.version)
             val request = server.takeRequest()
@@ -515,5 +518,61 @@ class NotesRepositoryTest {
             assertEquals(NotesResult.Failed(404), notes.restore(id(1)))
             server.close()
             assertEquals(NotesResult.Offline, notes.restore(id(1)))
+        }
+
+    private fun sentTags(): List<String>? =
+        Json
+            .parseToJsonElement(server.takeRequest().body!!.utf8())
+            .jsonObject["tags"]
+            ?.jsonArray
+            ?.map { it.jsonPrimitive.content }
+
+    @Test
+    fun `changed tags are patched as the whole list, in their order`() =
+        runBlocking {
+            server.enqueue(json(noteJson(1, version = 4)))
+
+            notes.save(base, NoteDraft(title = "Trip", bodyMd = "Body", tags = listOf("work", "home", "Travel 2026")))
+
+            assertEquals(listOf("work", "home", "Travel 2026"), sentTags())
+        }
+
+    @Test
+    fun `removing the last tag patches an empty list, so the server clears them`() =
+        runBlocking {
+            server.enqueue(json(noteJson(1, version = 4)))
+
+            notes.save(base, NoteDraft(title = "Trip", bodyMd = "Body", tags = emptyList()))
+
+            assertEquals(emptyList<String>(), sentTags())
+        }
+
+    @Test
+    fun `tags that only changed in order or case count as changed`() =
+        runBlocking {
+            val two = base.copy(tags = listOf("home", "work"))
+            server.enqueue(json(noteJson(1, version = 4)))
+            notes.save(two, NoteDraft(title = "Trip", bodyMd = "Body", tags = listOf("work", "home")))
+            assertEquals(listOf("work", "home"), sentTags())
+
+            server.enqueue(json(noteJson(1, version = 5)))
+            notes.save(base, NoteDraft(title = "Trip", bodyMd = "Body", tags = listOf("Home")))
+            assertEquals(listOf("Home"), sentTags())
+        }
+
+    @Test
+    fun `a new note sends its tags when it has any, and no tags field without`() =
+        runBlocking {
+            server.enqueue(json(noteJson(7), code = 201))
+            notes.save(null, NoteDraft(title = "", bodyMd = "Idea", tags = listOf("ideas")))
+            val request = server.takeRequest()
+            assertEquals("POST", request.method)
+            val sent = Json.parseToJsonElement(request.body!!.utf8()).jsonObject
+            assertEquals(setOf("bodyMd", "tags"), sent.keys)
+            assertEquals(listOf("ideas"), sent["tags"]!!.jsonArray.map { it.jsonPrimitive.content })
+
+            server.enqueue(json(noteJson(8), code = 201))
+            notes.save(null, NoteDraft(title = "", bodyMd = "Plain", tags = emptyList()))
+            assertNull(sentTags())
         }
 }

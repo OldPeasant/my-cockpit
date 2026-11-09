@@ -59,10 +59,15 @@ class NoteEditorChecklistLinksViewModelTest {
     private fun test(block: suspend TestScope.(NoteEditorViewModel) -> Unit) =
         runTest(dispatcher) {
             val vm =
-                NoteEditorViewModel(repo, images, CoroutineScope(SupervisorJob() + dispatcher)) { q ->
-                    searches += q
-                    answer(q)
-                }
+                NoteEditorViewModel(
+                    repo,
+                    images,
+                    CoroutineScope(SupervisorJob() + dispatcher),
+                    linkSearch = { q ->
+                        searches += q
+                        answer(q)
+                    },
+                )
             block(vm)
         }
 

@@ -48,6 +48,8 @@ class NoteEditorsTest {
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         coEvery { repo.get(id) } returns NotesResult.Ok(loaded)
+        // The editors load the tags in use for the tag suggestions whenever a note opens.
+        coEvery { repo.tags() } returns NotesResult.Ok(emptyList())
     }
 
     @After
