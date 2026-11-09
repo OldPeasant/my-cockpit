@@ -23,8 +23,9 @@ the layout cannot be edited (web: `dashboard-page.html`).
   - verified (2026-11-08 20:28+0100 by felix/agent-1): same run -> DashboardActionsScreenTest (checkbox toggle, a11y move actions, long-press drag, reset), DashboardSaveLayoutTest (PATCH /settings dashboardWidgets with If-Match, retry), DashboardSlotsTest pass
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-08 20:28+0100 by felix/agent-1): same run: lintDebug (MissingTranslation) passed; DashboardActionsScreenTest German strings test passes; 14 new strings in values/ and values-de/strings_dashboard.xml
-- [~] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
   - skipped (2026-11-08 20:38+0100 by felix/agent-1): ktlintCheck+lintDebug pass and all dashboard tests pass, but testDebugUnitTest fails on auth/AppStartRoutingTest 'logging out from settings clears the cached files' (ComposeTimeout at line 167), which fails identically on origin/main with this task's files reverted; sh scripts/check.sh was killed after ~20 min in this session
+  - verified (2026-11-09 03:22+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug --continue at 928cb083d (main merged incl. AppStartRoutingTest fix) -> BUILD SUCCESSFUL, 406 test result files, 0 failures; sh scripts/check.sh -> all checks passed (exit 0)
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
