@@ -28,7 +28,10 @@ class WeeklyReviewScheduleTests {
 
 	@ParameterizedTest
 	@ValueSource(
-		strings = ["", "OFF", "on", "sunday@18:00", "SUNDAYS@18:00", "FUNDAY@18:00", "SUNDAY@24:00", "SUNDAY@18:60", "SUNDAY@8:00", "SUNDAY 18:00", "SUNDAY@18:00:00", " SUNDAY@18:00"],
+		strings = [
+			"", "OFF", "on", "sunday@18:00", "SUNDAYS@18:00", "FUNDAY@18:00", "SUNDAY@24:00", "SUNDAY@18:60", "SUNDAY@8:00",
+			"SUNDAY 18:00", "SUNDAY@18:00:00", " SUNDAY@18:00",
+		],
 	)
 	fun `rejects invalid day or time`(value: String) {
 		type.parse(value).shouldBeNull()
@@ -50,6 +53,24 @@ class WeeklyReviewScheduleTests {
 		schedule.nextAfter(Instant.parse("2026-03-01T17:00:00Z"), zurich) shouldBe Instant.parse("2026-03-08T17:00:00Z")
 		// Wednesday.
 		schedule.nextAfter(Instant.parse("2026-03-04T08:00:00Z"), zurich) shouldBe Instant.parse("2026-03-08T17:00:00Z")
+	}
+
+	@Test
+	fun `on the scheduled weekday after the time, the next occurrence is a week later`() {
+		val schedule = WeeklyReviewSchedule(DayOfWeek.SUNDAY, LocalTime.of(18, 0))
+		// Sunday 2026-03-01 18:00:00.001 Zurich.
+		schedule.nextAfter(Instant.parse("2026-03-01T17:00:00.001Z"), zurich) shouldBe Instant.parse("2026-03-08T17:00:00Z")
+		// Saturday 23:59 Zurich, one minute before midnight: tomorrow.
+		WeeklyReviewSchedule(DayOfWeek.SUNDAY, LocalTime.MIDNIGHT)
+			.nextAfter(Instant.parse("2026-02-28T22:59:00Z"), zurich) shouldBe Instant.parse("2026-02-28T23:00:00Z")
+	}
+
+	@Test
+	fun `isValid accepts off and schedules only`() {
+		WeeklyReviewSchedule.isValid("off") shouldBe true
+		WeeklyReviewSchedule.isValid("WEDNESDAY@12:00") shouldBe true
+		WeeklyReviewSchedule.isValid("WEDNESDAY") shouldBe false
+		WeeklyReviewSchedule.isValid("@12:00") shouldBe false
 	}
 
 	@Test
