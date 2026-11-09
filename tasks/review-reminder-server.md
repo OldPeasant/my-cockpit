@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [and-review-flow, and-review-steps, web-small-gaps]
 prio: 3
 parent: review-reminder
-lease_until: 2026-11-09T01:51:48Z
+lease_until: 2026-11-09T01:55:04Z
 ---
 ## Goal
 Part of `review-reminder` (Weekly review reminder on a configurable weekday), which was split.
