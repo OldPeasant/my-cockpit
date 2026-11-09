@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [and-cal-event-fields, cal-invitation-respond-web, cal-invitation-respond-android]
 touches: [web/src/app/features/calendar,android/app/src/main/java/ch/sonensei/cockpit/calendar/edit,android/app/src/test/java/ch/sonensei/cockpit/calendar/edit,android/app/src/main/res/values/strings_calendar_edit.xml,android/app/src/main/res/values-de/strings_calendar_edit.xml,web/src/locale]
 prio: 2
-lease_until: 2026-11-09T04:01:09Z
+lease_until: 2026-11-09T04:06:10Z
 subtasks: cal-invitation-respond-web, cal-invitation-respond-android
 releases: 0
 extended: 
