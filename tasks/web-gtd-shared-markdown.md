@@ -17,7 +17,8 @@ from `gtd/projects`, and `task-detail-notes.scss` copies the `.markdown` styles 
 ## Acceptance criteria
 - [x] `renderMarkdown` lives in a shared location (e.g. `gtd/ui`) and both project description and task notes use it; no import from `gtd/projects` into `gtd/task-detail` remains
   - verified (2026-11-09 02:04+0100 by felix/agent-1): grep -rn import web/src/app/features/gtd/task-detail | grep projects -> no hits; renderMarkdown in gtd/ui/markdown.ts, exported via gtd/ui/index.ts, used by project-detail-page.ts and task-detail.ts; gtd/projects/markdown.ts is a re-export shim (assumption recorded); markdown.spec.ts in vitest passes (npm --prefix web run check -> 4682 tests passed)
-- [ ] One shared `.markdown` stylesheet partial is used by both; rendering looks unchanged
+- [x] One shared `.markdown` stylesheet partial is used by both; rendering looks unchanged
+  - verified (2026-11-09 02:04+0100 by felix/agent-1): gtd/ui/markdown.scss holds the .markdown rules, both copies removed; project-detail-page.ts and task-detail.ts styleUrls include ../ui/markdown.scss; diff check: shared rules identical to the removed ones, only task-notes-specific '.markdown a {cursor:pointer}' remains local; ng build passes; reviewer confirmed cascade/specificity unchanged. Not checked visually in a browser
 - [ ] `cd web && npm run check` and `sh scripts/check.sh` pass
 
 ## Notes
