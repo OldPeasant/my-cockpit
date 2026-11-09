@@ -1,11 +1,11 @@
 ---
 title: Note editor: checklist toggle in preview and [[ link autocomplete
-status: todo
-owner: 
+status: in_progress
+owner: felix/agent-1
 deps: [and-notes-list, and-links-panel]
 prio: 2
 parent: and-notes-editor
-lease_until: 
+lease_until: 2026-11-09T02:39:11Z
 releases: 0
 extended: 
 hold: 
