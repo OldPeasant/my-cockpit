@@ -20,7 +20,8 @@ SPEC.md §8.6: a weekly review reminder on a configurable weekday; today web onl
 - [x] The server creates the reminder notification at that time (existing reminder delivery: web push, UnifiedPush/alarms)
   - verified (2026-11-09 05:25+0100 by felix/agent-1): On main 8a340b6b0: cd server && ./gradlew test --tests '*WeeklyReviewReminderTests' (Spring + Postgres testcontainer) -> 15 passed, 0 failures: pending reminder row (ItemType.WEEKLY_REVIEW) created at next weekday/time in user timezone, replaced/removed on change, re-armed after fireDue, overdue kept at startup; delivery uses the existing reminder table/fireDue pipeline (SSE/web push/UnifiedPush/Android alarms unchanged); ItemResolverRegistryTests 5 passed
 - [ ] Tapping it opens the review on web and Android
-- [ ] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
+- [x] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
+  - verified (2026-11-09 05:25+0100 by felix/agent-1): grep: web/src/locale/messages.xlf and messages.de.xlf each have 5 settings.reviewReminder* units (de targets present); android res/values/strings_review.xml review_reminder_title='Weekly review', values-de='Wochenrückblick'; web general-settings spec 92 passed incl. messages; Android German/English title tests in ReminderAlarmsNotifierTest (see #3 run)
 - [ ] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
 
 ## Notes
