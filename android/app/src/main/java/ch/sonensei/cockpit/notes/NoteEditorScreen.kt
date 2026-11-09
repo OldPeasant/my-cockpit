@@ -58,7 +58,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.core.links.ItemRef
+import ch.sonensei.cockpit.core.links.LinkedItemsSection
 import ch.sonensei.cockpit.search.SearchHit
+import ch.sonensei.cockpit.search.SearchItemScreen
+import ch.sonensei.cockpit.search.SearchTarget
 import ch.sonensei.cockpit.search.searchTypeStyle
 import coil3.ImageLoader
 import kotlinx.coroutines.Job
@@ -146,6 +150,14 @@ fun NoteEditorRoute(
         }
     }
     val close = { onClose(viewModel.saveNow()) }
+    // A linked item opened from the links panel ("<type>:<id>"), shown in place of the note until it is closed.
+    var opened by rememberSaveable { mutableStateOf<String?>(null) }
+    val item = opened?.split(':')?.let { (type, itemId) -> type to UUID.fromString(itemId) }
+    if (item != null) {
+        BackHandler { opened = null }
+        SearchItemScreen(item.first, item.second, onClose = { opened = null }, modifier = modifier)
+        return
+    }
     BackHandler(onBack = close)
 
     val context = LocalContext.current
@@ -216,8 +228,24 @@ fun NoteEditorRoute(
                     ),
             ),
         modifier = modifier,
+        linksPanel = { noteId ->
+            LinkedItemsSection(ItemRef(NOTE_ITEM_TYPE, noteId), open = { target ->
+                when (target) {
+                    is SearchTarget.InApp -> {
+                        // Whatever is not saved yet goes to the server before the note is left for the linked item.
+                        viewModel.saveNow()
+                        opened = "${target.type}:${target.id}"
+                    }
+                    // The note editor has no navigation to other screens; such items have a web link instead.
+                    is SearchTarget.Screen, is SearchTarget.Web -> Unit
+                }
+            })
+        },
     )
 }
+
+/** The type of notes in the link system. */
+private const val NOTE_ITEM_TYPE = "NOTE"
 
 /** The note's tags, editable as chips when the note is. */
 @Composable
@@ -245,6 +273,8 @@ fun NoteEditorContent(
     callbacks: NoteEditorCallbacks,
     imageLoader: ImageLoader?,
     modifier: Modifier = Modifier,
+    /** The linked-items panel of a saved note, below its text in the view (the route passes [LinkedItemsSection]). */
+    linksPanel: @Composable (UUID) -> Unit = {},
 ) {
     // The body with its cursor; follows the state when the text changes from elsewhere (load, photo, conflict).
     var body by remember { mutableStateOf(TextFieldValue(state.body)) }
@@ -330,6 +360,7 @@ fun NoteEditorContent(
                                 onToggleChecklist = callbacks.toggleChecklist.takeIf { state.editable },
                             )
                         }
+                        state.note?.let { linksPanel(it.id) }
                     }
             }
         }
