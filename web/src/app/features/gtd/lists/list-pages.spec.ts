@@ -1,5 +1,5 @@
 import { Type } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import {
@@ -73,7 +73,10 @@ describe('GTD list pages', () => {
       (b) => b.getAttribute('aria-label') === label || b.textContent?.trim() === label,
     );
 
-  async function render(component: Type<unknown>, tasks: TaskResponse[]): Promise<void> {
+  async function render(
+    component: Type<unknown>,
+    tasks: TaskResponse[],
+  ): Promise<ComponentFixture<unknown>> {
     items = tasks;
     const fixture = TestBed.createComponent(component);
     element = fixture.nativeElement;
@@ -81,6 +84,7 @@ describe('GTD list pages', () => {
     await settle();
     fixture.detectChanges();
     await fixture.whenStable();
+    return fixture;
   }
 
   async function refresh(): Promise<void> {
@@ -339,6 +343,40 @@ describe('GTD list pages', () => {
 
         expect(navigate).toHaveBeenCalledWith(['/mail/compose'], {
           queryParams: { to: 'bob@example.test', subject: 'Lease papers' },
+        });
+      });
+
+      it('does not open compose when the page was left while the contact was loading', async () => {
+        hold(getContact);
+        const fixture = await render(WaitingPage, [
+          task('t1', { title: 'Lease papers', waitingForContactId: 'c-anna' }),
+        ]);
+        const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+        await click(button('Draft an email about “Lease papers”'));
+
+        fixture.destroy();
+        held!.release();
+        await refresh();
+
+        expect(navigate).not.toHaveBeenCalled();
+      });
+
+      it('opens compose once when Draft email is clicked again during the lookup', async () => {
+        hold(getContact);
+        await render(WaitingPage, [
+          task('t1', { title: 'Lease papers', waitingForContactId: 'c-anna' }),
+        ]);
+        const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+        await click(button('Draft an email about “Lease papers”'));
+        await click(button('Draft an email about “Lease papers”'));
+
+        held!.release();
+        await refresh();
+
+        expect(callsOf(getContact)).toHaveLength(2);
+        expect(navigate).toHaveBeenCalledTimes(1);
+        expect(navigate).toHaveBeenCalledWith(['/mail/compose'], {
+          queryParams: { to: 'anna@example.test', subject: 'Lease papers' },
         });
       });
 

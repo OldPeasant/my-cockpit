@@ -1,5 +1,12 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  inject,
+  signal,
+} from '@angular/core';
 import { Router } from '@angular/router';
 import { Api, getContact, TaskResponse } from '../../../api/generated';
 import { TaskQuery, TaskStore } from '../data';
@@ -30,9 +37,17 @@ import {
 export class WaitingPage extends ListPage {
   private readonly api = inject(Api);
   private readonly nav = inject(Router);
+  /** Counts "Draft email" clicks: only the latest one, on a page still shown, opens compose. */
+  private draftRequest = 0;
+  private left = false;
   protected readonly waiting = computed(() => byWaitingSince(this.tasks.items()));
   /** The last follow-up created, announced to the user. */
   protected readonly created = signal<string | null>(null);
+
+  constructor() {
+    super();
+    inject(DestroyRef).onDestroy(() => (this.left = true));
+  }
 
   protected query(): TaskQuery {
     return { list: 'WAITING' };
@@ -53,6 +68,7 @@ export class WaitingPage extends ListPage {
 
   /** Opens the compose page with To and subject filled in for chasing `task`. */
   protected async draftEmail(task: TaskResponse): Promise<void> {
+    const request = ++this.draftRequest;
     let address: string | undefined;
     if (task.waitingForContactId) {
       try {
@@ -62,6 +78,8 @@ export class WaitingPage extends ListPage {
         // The contact is gone or unreachable: fall back to the waiting-for text.
       }
     }
+    // The lookup may be slow: don't pull a user who left meanwhile, or clicked again, to compose.
+    if (this.left || request !== this.draftRequest) return;
     await this.nav.navigate(['/mail/compose'], { queryParams: followUpMail(task, address) });
   }
 

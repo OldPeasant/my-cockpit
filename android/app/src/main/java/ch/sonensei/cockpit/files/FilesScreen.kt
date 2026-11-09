@@ -69,6 +69,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -171,56 +172,62 @@ fun FilesRoute(modifier: Modifier = Modifier) {
         }
 
     // A linked item opened from the preview, as "TYPE:id", replaces the files; Back returns to the preview.
+    // The holder keeps the files' saved UI state (the open links panel, the PDF page) while the item is shown.
+    val filesState = rememberSaveableStateHolder()
     linked?.split(':')?.let { (type, itemId) ->
         BackHandler { linked = null }
         SearchItemScreen(type, UUID.fromString(itemId), onClose = { linked = null }, modifier = modifier)
         return
     }
 
-    FilesContent(
-        state = state,
-        callbacks =
-            FilesCallbacks(
-                openFolder = viewModel::openFolder,
-                openFile = { file -> viewModel.open(file) { OpenedFiles.target(app, file.id, file.name) } },
-                preview = { file -> viewModel.preview(file) { PreviewFiles.target(app, it.id) } },
-                previewStep = viewModel::previewStep,
-                closePreview = viewModel::closePreview,
-                retryPreview = viewModel::retryPreview,
-                saveFile = {
-                    saving = it
-                    pickSaveTarget.launch(it.name)
-                },
-                goTo = viewModel::goTo,
-                upload = { pickUploads.launch(arrayOf("*/*")) },
-                dismissUpload = viewModel::dismissUpload,
-                dismissDownloadMessage = viewModel::dismissDownloadMessage,
-                retry = viewModel::refresh,
-                toggleSelected = viewModel::toggleSelected,
-                clearSelection = viewModel::clearSelection,
-                newFolder = viewModel::startNewFolder,
-                rename = viewModel::startRename,
-                move = viewModel::startMove,
-                delete = viewModel::delete,
-                moveSelected = viewModel::startMoveSelected,
-                deleteSelected = viewModel::deleteSelected,
-                dismissActionMessage = viewModel::dismissActionMessage,
-                saveName = viewModel::saveName,
-                cancelName = viewModel::cancelName,
-                pickerOpen = viewModel::pickerOpen,
-                pickerGoTo = viewModel::pickerGoTo,
-                confirmMove = viewModel::confirmMove,
-                cancelMove = viewModel::cancelMove,
-            ),
-        modifier = modifier,
-        imageLoader = viewModel.imageLoader,
-        linksPanel = { file ->
-            LinkedItemsSection(ItemRef("FILE", file.id), open = { target ->
-                if (target is SearchTarget.InApp) linked = "${target.type}:${target.id}"
-            })
-        },
-    )
+    filesState.SaveableStateProvider(FILES_STATE_KEY) {
+        FilesContent(
+            state = state,
+            callbacks =
+                FilesCallbacks(
+                    openFolder = viewModel::openFolder,
+                    openFile = { file -> viewModel.open(file) { OpenedFiles.target(app, file.id, file.name) } },
+                    preview = { file -> viewModel.preview(file) { PreviewFiles.target(app, it.id) } },
+                    previewStep = viewModel::previewStep,
+                    closePreview = viewModel::closePreview,
+                    retryPreview = viewModel::retryPreview,
+                    saveFile = {
+                        saving = it
+                        pickSaveTarget.launch(it.name)
+                    },
+                    goTo = viewModel::goTo,
+                    upload = { pickUploads.launch(arrayOf("*/*")) },
+                    dismissUpload = viewModel::dismissUpload,
+                    dismissDownloadMessage = viewModel::dismissDownloadMessage,
+                    retry = viewModel::refresh,
+                    toggleSelected = viewModel::toggleSelected,
+                    clearSelection = viewModel::clearSelection,
+                    newFolder = viewModel::startNewFolder,
+                    rename = viewModel::startRename,
+                    move = viewModel::startMove,
+                    delete = viewModel::delete,
+                    moveSelected = viewModel::startMoveSelected,
+                    deleteSelected = viewModel::deleteSelected,
+                    dismissActionMessage = viewModel::dismissActionMessage,
+                    saveName = viewModel::saveName,
+                    cancelName = viewModel::cancelName,
+                    pickerOpen = viewModel::pickerOpen,
+                    pickerGoTo = viewModel::pickerGoTo,
+                    confirmMove = viewModel::confirmMove,
+                    cancelMove = viewModel::cancelMove,
+                ),
+            modifier = modifier,
+            imageLoader = viewModel.imageLoader,
+            linksPanel = { file ->
+                LinkedItemsSection(ItemRef("FILE", file.id), open = { target ->
+                    if (target is SearchTarget.InApp) linked = "${target.type}:${target.id}"
+                })
+            },
+        )
+    }
 }
+
+private const val FILES_STATE_KEY = "files"
 
 /** The confirmation of a finished change: the name for one entry, the count for several. */
 internal fun changedText(

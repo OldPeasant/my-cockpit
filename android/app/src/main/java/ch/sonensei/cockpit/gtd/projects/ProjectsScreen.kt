@@ -378,12 +378,13 @@ private fun ProjectDetail(
     val project = detail.project
     // A linked item opened from the panel, as "TYPE:id"; Back returns to the project.
     var linked by rememberSaveable(project.id) { mutableStateOf<String?>(null) }
+    // Above the early return, so the panel is still open when Back returns from a linked item.
+    var showLinks by rememberSaveable(project.id) { mutableStateOf(false) }
     linked?.split(':')?.let { (type, itemId) ->
         BackHandler { linked = null }
         SearchItemScreen(type, UUID.fromString(itemId), onClose = { linked = null })
         return
     }
-    var showLinks by rememberSaveable(project.id) { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().testTag(ProjectsTags.DETAIL)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = callbacks.close, modifier = Modifier.testTag(ProjectsTags.BACK)) {
