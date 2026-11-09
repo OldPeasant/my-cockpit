@@ -14,7 +14,8 @@ filtered by the whole input, so none match. Tapping a suggestion always clears t
 `onAdd` refuses the tag.
 
 ## Acceptance criteria
-- [ ] Suggestions are filtered by the part being typed (`splitTagInput(text).second`), not the whole input
+- [x] Suggestions are filtered by the part being typed (`splitTagInput(text).second`), not the whole input
+  - verified (2026-11-09 09:04+0100 by dell26/agent-1): NoteTagsEditor.kt:171 filters by splitTagInput(text).second; ./gradlew testDebugUnitTest --tests '*NoteTagsEditorTest*' -> 23 passed, incl. 'after a refused tag, suggestions follow the part being typed...' (home,wo shows #Work/#network)
 - [ ] Tapping a suggestion keeps refused parts and clears only the typed part on success; if `onAdd` refuses, the input is unchanged
 - [ ] Compose tests cover both; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
