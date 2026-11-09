@@ -16,7 +16,8 @@ Goal: The Android note editor lists a note's revisions and restores one (server 
   - verified (2026-11-09 08:01+0100 by dell26/agent-1): Android note editor menu 'Earlier versions' opens NoteRevisionsDialog (GET /api/v1/notes/{id}/revisions, newest first, preview) and Restore (POST .../revisions/{n}/restore with If-Match, saves pending text first); cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*' -> 327 passed incl. NoteRevisionsRepositoryTest (8), NoteEditorRevisionsViewModelTest (29), NoteRevisionsDialogTest (13)
 - [x] New strings are in English and German (`res/values/strings_notes.xml` + `res/values-de/strings_notes.xml`)
   - verified (2026-11-09 08:01+0100 by dell26/agent-1): 8 new notes_revisions* strings in android/app/src/main/res/values/strings_notes.xml and values-de/strings_notes.xml; NoteRevisionsDialogTest German-locale test renders 'Frühere Versionen' -> passed; lintDebug (no MissingTranslation) -> clean
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-09 08:02+0100 by dell26/agent-1): Tests NoteRevisionsRepositoryTest/NoteEditorRevisionsViewModelTest/NoteRevisionsDialogTest (50 tests); cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> 5344 tests, 0 failures, lint clean (test-writer, at c29d14ca2); sh scripts/check.sh at c29d14ca2 -> all checks passed
 
 ## Notes
 - Work done on `and-notes-editor` before the split is on `origin/wip/and-notes-editor` (if it exists): merge it first if your part builds on it.
