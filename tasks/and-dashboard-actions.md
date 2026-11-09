@@ -1,11 +1,11 @@
 ---
 title: Android dashboard: tappable items, review button, layout editing
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/dashboard,android/app/src/test/java/ch/sonensei/cockpit/dashboard,android/app/src/main/res/values/strings_dashboard.xml,android/app/src/main/res/values-de/strings_dashboard.xml]
 prio: 2
-lease_until: 
+lease_until: 2026-11-09T02:33:14Z
 releases: 0
 extended: 
 hold: 
