@@ -4,7 +4,10 @@ import ch.sonensei.cockpit.core.auth.WithCockpitUser
 import ch.sonensei.cockpit.core.items.domain.ItemType
 import ch.sonensei.cockpit.core.persistence.MutableClock
 import ch.sonensei.cockpit.core.persistence.MutableClockTestConfiguration
+import ch.sonensei.cockpit.core.reminders.domain.Reminder
+import ch.sonensei.cockpit.core.reminders.domain.ReminderFiredEvent
 import ch.sonensei.cockpit.core.reminders.domain.ReminderService
+import ch.sonensei.cockpit.core.reminders.domain.ResolvedReminder
 import ch.sonensei.cockpit.core.settings.domain.SettingsService
 import ch.sonensei.cockpit.core.web.InvalidRequestException
 import ch.sonensei.cockpit.review.domain.WeeklyReviewReminders
@@ -198,6 +201,33 @@ class WeeklyReviewReminderTests(
 		reminders.fireDue() shouldBe 1
 		jdbc.queryForObject("select fired_at is not null from reminder where id = '${missed.first}'", Boolean::class.java) shouldBe true
 		pending().map { it.second } shouldContainExactly listOf(Instant.parse("2026-03-15T17:00:00Z"))
+	}
+
+	@Test
+	fun `of several due pending reminders, sync keeps only the latest`() {
+		settings.update(mapOf("weeklyReviewReminder" to "SUNDAY@18:00"))
+		val older = reminders.create(WeeklyReviewReminders.ITEM, Instant.parse("2026-03-08T16:00:00Z")).reminder.id
+		val latest = pending().single { it.second == Instant.parse("2026-03-08T17:00:00Z") }.first
+		// Down past both: at restart, only the latest due one is kept for the scheduler, plus next Sunday's.
+		clock.set(Instant.parse("2026-03-08T17:10:00Z"))
+		service.sync()
+		val after = pending()
+		after.map { it.second } shouldContainExactly
+			listOf(Instant.parse("2026-03-08T17:00:00Z"), Instant.parse("2026-03-15T17:00:00Z"))
+		after.first().first shouldBe latest
+		after.none { it.first == older } shouldBe true
+	}
+
+	@Test
+	fun `a fired reminder of another item type does not resync`() {
+		settings.update(mapOf("weeklyReviewReminder" to "SUNDAY@18:00"))
+		val id = pending().single().first
+		// Tamper with the row: a sync would move it back, so an unchanged row proves the listener ignored the event.
+		jdbc.execute("update reminder set remind_at = '2026-03-10T10:00:00Z' where id = '$id'")
+		val other = ItemType.entries.first { it != ItemType.WEEKLY_REVIEW }
+		val fired = Reminder(other, UUID.fromString("00000000-0000-7000-8000-00000000c0de"), NOW)
+		service.onReminderFired(ReminderFiredEvent(ResolvedReminder(fired, null)))
+		pending() shouldContainExactly listOf(id to Instant.parse("2026-03-10T10:00:00Z"))
 	}
 
 	@Test
