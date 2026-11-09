@@ -313,3 +313,46 @@ describe('push service worker, edge cases', () => {
     expect(w.shown()[0][1].icon).toBe(`${DE_SCOPE}apple-touch-icon.png`);
   });
 });
+
+// Seam with the server: WeeklyReviewItemResolver gives the weekly review reminder the deepLink
+// '/review', which must open the web app's `review` route (app.routes.ts) from a push notification.
+describe('push service worker, weekly review reminder', () => {
+  const DE_SCOPE = 'https://cockpit.example.test/de/';
+  const weeklyReview = {
+    event: 'reminder',
+    data: {
+      id: 'r-weekly',
+      item: {
+        type: 'WEEKLY_REVIEW',
+        id: '0190a5c8-0000-7000-8000-00000000wr01',
+        available: true,
+        title: 'Weekly review',
+        deepLink: '/review',
+      },
+    },
+  };
+
+  it('shows the weekly review push and opens the review page when clicked', async () => {
+    const w = worker();
+
+    await w.push(weeklyReview);
+    const [title, options] = w.shown()[0];
+    await w.click(options.data);
+
+    expect(title).toBe('Weekly review');
+    expect(options.tag).toBe('reminder-r-weekly');
+    expect(options.data.route).toBe('/review');
+    expect(w.self.clients.openWindow).toHaveBeenCalledWith(`${SCOPE}review`);
+  });
+
+  it('navigates an open tab of the German build to its own review page', async () => {
+    const open = client(`${DE_SCOPE}inbox`);
+    const w = worker('de', [open], DE_SCOPE);
+
+    await w.push(weeklyReview);
+    await w.click(w.shown()[0][1].data);
+
+    expect(open.navigate).toHaveBeenCalledWith(`${DE_SCOPE}review`);
+    expect(w.self.clients.openWindow).not.toHaveBeenCalled();
+  });
+});
