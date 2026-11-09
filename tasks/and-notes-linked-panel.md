@@ -1,10 +1,11 @@
 ---
 title: Note editor: LinkedItemsPanel
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [and-notes-list, and-links-panel, and-notes-revisions]
 prio: 2
 parent: and-notes-editor
+lease_until: 2026-11-09T07:24:43Z
 ---
 ## Goal
 Part of `and-notes-editor` (Android note editor: tags, checklists, links, revisions), which was split.
