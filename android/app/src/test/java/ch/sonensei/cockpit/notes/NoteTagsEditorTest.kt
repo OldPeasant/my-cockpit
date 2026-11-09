@@ -289,6 +289,22 @@ class NoteTagsEditorTest {
     }
 
     @Test
+    fun `a suggestion tap after several refused parts keeps them with their spacing and clears only the typed part`() {
+        accepts = { it == "Work" }
+        show(emptyList(), suggestions = listOf("Work", "travel", "network"))
+
+        composeRule.onNodeWithTag(NoteTagsTags.INPUT).performTextInput("home, trip, wo")
+        assertInput("home, trip, wo")
+        assertEquals("the typed part is matched without its leading space", 2, suggestions())
+
+        composeRule.onNodeWithText("#Work").performClick()
+
+        assertEquals(listOf("home", " trip", "Work"), added)
+        assertEquals(listOf("Work"), tags)
+        assertInput("home, trip,")
+    }
+
+    @Test
     fun `tapping a suggestion that is refused leaves the input unchanged`() {
         accepts = { false }
         show(emptyList(), suggestions = listOf("Work", "network"))
