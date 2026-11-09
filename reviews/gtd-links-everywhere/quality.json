@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "task": "gtd-links-everywhere",
+  "reviewed_revision": "86f169cad065ee342e325713d763e883e6579f3a",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/gtd-links-everywhere/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/gtd-links-everywhere/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/gtd-links-everywhere/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "deferred",
+     "note": "final review: web files without a preview type have no linked-items panel; follow-up task web-file-links-nopreview"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "final review: Android project toggle says 'Linked items', file toggle 'Show linked items'; both icon-only content descriptions, wording difference harmless"},
+    {"id": "TW-OBS-1", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "final tests.md observation: emailIn keeps trailing ?, ! or : ; unspecified, web compose drops an invalid To; not a failing test"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "earlier round: Android email regex kept parentheses (3a36e2834)"},
+    {"id": "TW-2", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "earlier round: project links toggle pushed tasks down, compact IconToggleButton (3a36e2834)"},
+    {"id": "TW-3", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "earlier round: lint UseKtx Uri.parse -> toUri (99fe47199)"},
+    {"id": "TW-4", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "web emailIn kept ()/[] (fixes.md, 671a3cf49)"},
+    {"id": "TW-5", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "trailing full stop kept in address, both clients (fixes.md, 671a3cf49)"},
+    {"id": "PREV-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "earlier review CR-2: web preview dialog stayed open when a linked item was followed; closes on NavigationStart (fixes.md)"},
+    {"id": "PREV-CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "deferred",
+     "note": "earlier review CR-3: Android Draft email ignores the linked waiting-for contact; follow-up task and-waiting-contact-mail"},
+    {"id": "PREV-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "earlier review CR-4: over-long doc comment line (fixes.md)"},
+    {"id": "OLD-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: Android links panel state reset after returning from a linked item (fixes.md earlier round)"},
+    {"id": "OLD-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: web draftEmail navigated after leaving the page (fixes.md earlier round)"}
+  ],
+  "validation": [
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest (focused: FilePreviewLinks*, ProjectLinksToggleTest, WaitingDraftEmailTest, ListScreensTest, ProjectsScreenTest)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
