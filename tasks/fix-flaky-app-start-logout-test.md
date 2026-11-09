@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: []
 touches: [android/app/src/test/java/ch/sonensei/cockpit/auth]
 prio: 2
-lease_until: 2026-11-09T04:14:14Z
+lease_until: 2026-11-09T04:16:44Z
 ---
 ## Goal
 The settings-logout cache test must not time out on a loaded host.
