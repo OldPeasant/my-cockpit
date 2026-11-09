@@ -146,6 +146,34 @@ class NoteRevisionsDialogTest {
     }
 
     @Test
+    fun `while a restore runs the text fields are disabled and the toolbar and the list are hidden`() {
+        showEditor(
+            NoteEditorUiState(
+                note = note,
+                title = note.title.orEmpty(),
+                body = note.bodyMd,
+                editing = true,
+                changing = true,
+                restoring = true,
+                revisions = NoteRevisionsState(listOf(v3), selected = 3),
+            ),
+        )
+        composeRule.onNodeWithTag(NoteEditorTags.TITLE).assertIsNotEnabled()
+        composeRule.onNodeWithTag(NoteEditorTags.BODY).assertIsNotEnabled()
+        composeRule.onNodeWithTag(NoteEditorTags.CAMERA).assertDoesNotExist()
+        composeRule.onNodeWithTag(NoteEditorTags.GALLERY).assertDoesNotExist()
+        composeRule.onNodeWithTag(NoteEditorTags.TOGGLE).assertDoesNotExist()
+        composeRule.onNodeWithTag(NoteEditorTags.MENU).assertDoesNotExist()
+        composeRule.onNodeWithTag(NoteRevisionsTags.DIALOG).assertDoesNotExist()
+
+        editor = editor.copy(changing = false, restoring = false, revisions = null)
+        composeRule.onNodeWithTag(NoteEditorTags.TITLE).assertIsEnabled()
+        composeRule.onNodeWithTag(NoteEditorTags.BODY).assertIsEnabled()
+        composeRule.onNodeWithTag(NoteEditorTags.TOGGLE).assertExists()
+        composeRule.onNodeWithTag(NoteEditorTags.MENU).assertIsEnabled()
+    }
+
+    @Test
     fun `while loading there is a loading text and neither Restore nor Retry`() {
         showList(NoteRevisionsState())
         composeRule.onNodeWithText("Loading versions…").assertExists()

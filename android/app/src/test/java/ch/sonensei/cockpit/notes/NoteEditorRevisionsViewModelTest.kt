@@ -559,4 +559,113 @@ class NoteEditorRevisionsViewModelTest {
             advanceUntilIdle()
             assertNull(vm.revisions)
         }
+
+    @Test
+    fun `while a restore runs nothing else starts, no edit mode, photo, pin, archive, delete or new list`() =
+        test { vm ->
+            val answer = CompletableDeferred<SaveResult>()
+            coEvery { repo.restoreRevision(loaded, 3) } coAnswers { answer.await() }
+            opened(vm)
+            assertFalse("the note opens in view mode", vm.uiState.value.editing)
+            vm.openRevisions()
+            runCurrent()
+            vm.restoreRevision()
+            runCurrent()
+            assertTrue(vm.uiState.value.restoring)
+
+            vm.setEditing(true)
+            assertFalse("edit mode is refused", vm.uiState.value.editing)
+            vm.addPhoto(NotePhoto(byteArrayOf(1), "image/png", "photo.png"))
+            assertFalse("no upload starts", vm.uiState.value.uploading)
+            vm.togglePin()
+            vm.toggleArchived()
+            vm.delete()
+            vm.openRevisions()
+            assertNull("no new list opens", vm.revisions)
+            runCurrent()
+
+            answer.complete(SaveResult.Saved(loaded.copy(title = "Trip v3", bodyMd = "Passport, tickets", version = 4)))
+            advanceUntilIdle()
+            coVerify(exactly = 0) { repo.uploadImage(any(), any()) }
+            coVerify(exactly = 0) { repo.setFlags(any(), any(), any()) }
+            coVerify(exactly = 0) { repo.delete(any()) }
+            coVerify(exactly = 1) { repo.revisions(id) }
+            coVerify(exactly = 1) { repo.restoreRevision(any(), any()) }
+            assertFalse(vm.uiState.value.closed)
+            assertEquals("Passport, tickets", vm.uiState.value.body)
+        }
+
+    @Test
+    fun `a restore that ends in a conflict leaves no restore lock, so the text is editable after the decision`() =
+        test { vm ->
+            coEvery { repo.restoreRevision(loaded, 3) } returns SaveResult.Conflict(loaded.copy(bodyMd = "Theirs", version = 8))
+            opened(vm)
+            vm.openRevisions()
+            runCurrent()
+            vm.restoreRevision()
+            advanceUntilIdle()
+            assertFalse("latest version shown, nothing to decide", vm.uiState.value.restoring)
+            assertTrue(vm.uiState.value.editable)
+
+            coEvery { repo.restoreRevision(any(), 3) } returns SaveResult.Conflict(null)
+            vm.openRevisions()
+            runCurrent()
+            vm.restoreRevision()
+            advanceUntilIdle()
+            assertEquals(NoteConflict(null), vm.uiState.value.conflict)
+            assertFalse(vm.uiState.value.restoring)
+            assertFalse(vm.uiState.value.changing)
+
+            coEvery { repo.save(null, any()) } returns SaveResult.Saved(loaded.copy(id = UUID.randomUUID(), bodyMd = "Theirs"))
+            vm.keepMine()
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.conflict)
+            assertTrue("editable once the conflict is decided", vm.uiState.value.editable)
+        }
+
+    @Test
+    fun `when saving first meets a conflict nothing is restored, and the text is editable after the decision`() =
+        test { vm ->
+            val theirs = loaded.copy(bodyMd = "Theirs", version = 9)
+            coEvery { repo.save(loaded, any()) } returns SaveResult.Conflict(theirs)
+            opened(vm)
+            vm.setBody("Passport, visa")
+            vm.openRevisions()
+            runCurrent()
+
+            vm.restoreRevision()
+            advanceUntilIdle()
+
+            coVerify(exactly = 0) { repo.restoreRevision(any(), any()) }
+            assertEquals(NoteConflict(theirs), vm.uiState.value.conflict)
+            assertEquals("the text written here stays", "Passport, visa", vm.uiState.value.body)
+            assertFalse(vm.uiState.value.restoring)
+            assertFalse(vm.uiState.value.changing)
+
+            coEvery { repo.save(theirs, any()) } returns SaveResult.Saved(theirs.copy(bodyMd = "Passport, visa", version = 10))
+            vm.keepMine()
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.editable)
+            vm.setBody("Passport, visa, map")
+            assertEquals("Passport, visa, map", vm.uiState.value.body)
+            coEvery { repo.save(any(), any()) } returns SaveResult.Saved(theirs.copy(version = 11))
+            advanceUntilIdle()
+        }
+
+    @Test
+    fun `when saving first fails offline the restore lock is lifted and the text can still be edited`() =
+        test { vm ->
+            coEvery { repo.save(loaded, any()) } returns SaveResult.Offline
+            opened(vm)
+            vm.setBody("Passport, visa")
+            vm.openRevisions()
+            runCurrent()
+            vm.restoreRevision()
+            advanceUntilIdle()
+
+            assertFalse(vm.uiState.value.restoring)
+            assertTrue(vm.uiState.value.editable)
+            vm.setBody("Passport, visa, map")
+            assertEquals("Passport, visa, map", vm.uiState.value.body)
+        }
 }
