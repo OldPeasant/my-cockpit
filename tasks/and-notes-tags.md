@@ -1,11 +1,11 @@
 ---
 title: Note editor: tag chips with suggestions
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [and-notes-list, and-links-panel, and-notes-checklist-links]
 prio: 2
 parent: and-notes-editor
-lease_until: 
+lease_until: 2026-11-09T04:27:50Z
 releases: 1
 extended: 
 ---
