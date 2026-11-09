@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [web-task-actions]
 touches: [web/src/app/features/gtd/ui,web/src/app/features/gtd/projects,web/src/app/features/gtd/task-detail]
 prio: 2
-lease_until: 2026-11-09T01:14:51Z
+lease_until: 2026-11-09T01:19:52Z
 releases: 1
 extended: 
 ---
