@@ -13,8 +13,10 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import ch.sonensei.cockpit.MainActivity
 import ch.sonensei.cockpit.auth.PersistentTokenStore
 import ch.sonensei.cockpit.core.network.AuthTokens
+import ch.sonensei.cockpit.mail.list.FolderRole
 import ch.sonensei.cockpit.mail.list.MailAccount
 import ch.sonensei.cockpit.mail.list.MailAccountFolders
+import ch.sonensei.cockpit.mail.list.MailFolder
 import ch.sonensei.cockpit.mail.list.MailListTags
 import ch.sonensei.cockpit.mail.list.MailPage
 import ch.sonensei.cockpit.mail.list.MailRepository
@@ -115,6 +117,7 @@ class MailComposeInAppTest {
         coEvery { mail.markRead(any()) } returns MailResult.Ok(true)
         coEvery { reader.message(id(1)) } returns MailResult.Ok(message)
         coEvery { compose.accounts() } returns MailResult.Ok(listOf(account))
+        coEvery { compose.identities(any()) } returns MailResult.Ok(emptyList())
         coEvery { compose.start(any()) } returns MailResult.Ok(replyDraft)
         coEvery { compose.discard(any(), any()) } returns MailResult.Ok(Unit)
     }
@@ -165,6 +168,27 @@ class MailComposeInAppTest {
         waitFor(MailReadTags.SUBJECT)
         composeRule.onNodeWithTag(MailReadTags.SUBJECT).assertTextEquals("Subject 1")
         coVerify(exactly = 1) { compose.discard(id(7), "\"1\"") }
+    }
+
+    @Test
+    fun `a mail of a Drafts folder opens in compose as that draft, not in the read view, and back keeps it`() {
+        val drafts = MailFolder(id(90), account.id, "Drafts", "Drafts", FolderRole.DRAFTS, 0)
+        val stored = summary.copy(id = id(7), subject = "Draft 7", folderId = drafts.id)
+        coEvery { mail.accounts() } returns MailResult.Ok(listOf(MailAccountFolders(account, listOf(drafts))))
+        coEvery { mail.messages(Mailbox.Unified, null) } returns MailResult.Ok(MailPage(listOf(stored), null))
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.onNode(hasText("Mail") and isSelectable()).performClick()
+        waitFor(MailListTags.row(id(7)))
+
+        composeRule.onNodeWithTag(MailListTags.row(id(7))).performClick()
+        waitFor(MailComposeTags.SUBJECT)
+        composeRule.onNodeWithTag(MailComposeTags.TITLE).assertTextEquals("Draft")
+        coVerify(exactly = 1) { compose.start(ComposeMode.Draft(id(7))) }
+        coVerify(exactly = 0) { reader.message(any()) }
+
+        composeRule.onNodeWithTag(MailComposeTags.BACK).performClick()
+        waitFor(MailListTags.row(id(7)))
+        coVerify(exactly = 0) { compose.discard(any(), any()) }
     }
 
     private companion object {

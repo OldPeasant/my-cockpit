@@ -41,12 +41,13 @@ class MailComposeSecondReviewFixesTest {
     private fun draft(
         etag: String = "\"1\"",
         attachments: List<DraftAttachment> = emptyList(),
-    ) = Draft(id(1), work.id, etag, emptyList(), emptyList(), emptyList(), "", "", "", attachments)
+    ) = Draft(id(1), work.id, null, etag, emptyList(), emptyList(), emptyList(), "", "", "", attachments)
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         coEvery { repository.accounts() } returns MailResult.Ok(listOf(work))
+        coEvery { repository.identities(any()) } returns MailResult.Ok(emptyList())
         coEvery { repository.create(any(), any()) } returns MailResult.Ok(draft())
         coEvery { repository.update(any(), any(), any()) } returns MailResult.Ok(draft("\"2\""))
         coEvery { repository.discard(any(), any()) } returns MailResult.Ok(Unit)

@@ -686,6 +686,71 @@ describe('MailListPage', () => {
       expect(navigate).not.toHaveBeenCalled();
     });
 
+    describe('in a Drafts folder', () => {
+      async function createDrafts(folderId: string | null = 'drafts-1') {
+        await create(folderId, {
+          setup: (fake) => {
+            fake.folders = (id: string) =>
+              Promise.resolve(
+                id === 'acc-1'
+                  ? [
+                      folder('inbox-1', 'acc-1', 'INBOX', 'INBOX'),
+                      folder('drafts-1', 'acc-1', 'Drafts', 'DRAFTS'),
+                      folder('proj-1', 'acc-1', 'Projects'),
+                    ]
+                  : [folder('inbox-2', 'acc-2', 'INBOX', 'INBOX')],
+              );
+          },
+          firstPage: {
+            items: [
+              summary('d1', { subject: 'Unfinished', folderId: 'drafts-1' }),
+              summary('m1', { subject: 'Other', folderId: 'proj-1' }),
+            ],
+            nextCursor: null,
+          },
+        });
+        fixture.detectChanges();
+      }
+
+      it('links a draft to compose with its id, other mail to the read view', async () => {
+        await createDrafts();
+        expect(link(0).getAttribute('href')).toBe('/mail/compose?draft=d1');
+        expect(link(1).getAttribute('href')).toBe('/mail/messages/m1');
+      });
+
+      it('opens a clicked draft in compose', async () => {
+        await createDrafts();
+        const navigate = urlNavigations();
+        link(0).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        fixture.detectChanges();
+        expect(navigatedTo(navigate)).toEqual(['/mail/compose?draft=d1']);
+      });
+
+      it('opens the cursor draft in compose with o and Enter', async () => {
+        await createDrafts();
+        const navigate = navigations();
+        press('o');
+        press('Enter', {}, link(0));
+        expect(navigate.mock.calls).toEqual([
+          [['/mail/compose'], { queryParams: { draft: 'd1' } }],
+          [['/mail/compose'], { queryParams: { draft: 'd1' } }],
+        ]);
+      });
+
+      it('opens a mail of another folder from the same list in the read view', async () => {
+        await createDrafts();
+        const navigate = navigations();
+        press('j');
+        press('o');
+        expect(navigate).toHaveBeenCalledExactlyOnceWith(['/mail/messages', 'm1']);
+      });
+
+      it('treats a draft listed in the unified inbox like one in its folder', async () => {
+        await createDrafts(null);
+        expect(link(0).getAttribute('href')).toBe('/mail/compose?draft=d1');
+      });
+    });
+
     it('names o and click in the key hint', async () => {
       await create();
       expect(el().querySelector('.keys')?.textContent).toContain('o or click open');

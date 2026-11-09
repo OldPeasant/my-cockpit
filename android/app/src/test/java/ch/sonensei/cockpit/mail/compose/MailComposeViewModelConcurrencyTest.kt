@@ -44,7 +44,7 @@ class MailComposeViewModelConcurrencyTest {
         draftId: UUID = id(1),
         to: List<Recipient> = emptyList(),
         subject: String = "",
-    ) = Draft(draftId, work.id, etag, to, emptyList(), emptyList(), subject, "", "", emptyList())
+    ) = Draft(draftId, work.id, null, etag, to, emptyList(), emptyList(), subject, "", "", emptyList())
 
     private fun file(name: String) =
         object : PickedFile {
@@ -59,6 +59,7 @@ class MailComposeViewModelConcurrencyTest {
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         coEvery { repository.accounts() } returns MailResult.Ok(listOf(home, work))
+        coEvery { repository.identities(any()) } returns MailResult.Ok(emptyList())
         coEvery { repository.create(any(), any()) } returns MailResult.Ok(draft())
         coEvery { repository.update(any(), any(), any()) } returns MailResult.Ok(draft("\"2\""))
         coEvery { repository.discard(any(), any()) } returns MailResult.Ok(Unit)

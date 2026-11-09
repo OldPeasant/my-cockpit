@@ -61,12 +61,13 @@ class MailComposeRecipientsFilesEdgeCasesTest {
         etag: String = "\"1\"",
         attachments: List<DraftAttachment> = emptyList(),
         to: List<Recipient> = emptyList(),
-    ) = Draft(id(1), work.id, etag, to, emptyList(), emptyList(), "", "", "", attachments)
+    ) = Draft(id(1), work.id, null, etag, to, emptyList(), emptyList(), "", "", "", attachments)
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         coEvery { repository.accounts() } returns MailResult.Ok(listOf(work))
+        coEvery { repository.identities(any()) } returns MailResult.Ok(emptyList())
         coEvery { repository.create(any(), any()) } returns MailResult.Ok(draft())
         coEvery { repository.update(any(), any(), any()) } returns MailResult.Ok(draft())
         coEvery { repository.discard(any(), any()) } returns MailResult.Ok(Unit)

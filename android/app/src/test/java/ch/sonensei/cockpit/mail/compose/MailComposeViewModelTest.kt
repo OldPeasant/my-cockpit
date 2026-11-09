@@ -43,7 +43,7 @@ class MailComposeViewModelTest {
         etag: String = "\"1\"",
         attachments: List<DraftAttachment> = emptyList(),
         to: List<Recipient> = emptyList(),
-    ) = Draft(id(1), work.id, etag, to, emptyList(), emptyList(), "", "", "", attachments)
+    ) = Draft(id(1), work.id, null, etag, to, emptyList(), emptyList(), "", "", "", attachments)
 
     private fun file(name: String) =
         object : PickedFile {
@@ -58,6 +58,7 @@ class MailComposeViewModelTest {
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         coEvery { repository.accounts() } returns MailResult.Ok(listOf(home, work))
+        coEvery { repository.identities(any()) } returns MailResult.Ok(emptyList())
         // Autosave runs 10 s after a change; tests that care stub their own answer.
         coEvery { repository.create(any(), any()) } returns MailResult.Ok(draft())
         coEvery { repository.update(any(), any(), any()) } returns MailResult.Ok(draft())
@@ -281,6 +282,7 @@ class MailComposeViewModelTest {
                 Draft(
                     id(1),
                     work.id,
+                    null,
                     "\"1\"",
                     listOf(Recipient("ann@example.org", "Ann Example")),
                     listOf(Recipient("ben@example.org")),

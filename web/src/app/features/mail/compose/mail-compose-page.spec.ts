@@ -1033,6 +1033,215 @@ describe('MailComposePage', () => {
     });
   });
 
+  describe('sending identity', () => {
+    function identity(
+      id: string,
+      accountId: string,
+      email: string,
+      extra: Partial<MailIdentityResponse> = {},
+    ): MailIdentityResponse {
+      return {
+        id,
+        accountId,
+        name: 'Jane Doe',
+        email,
+        isDefault: false,
+        position: 0,
+        version: 1,
+        createdAt: '2026-10-01T08:00:00Z',
+        updatedAt: '2026-10-01T08:00:00Z',
+        ...extra,
+      };
+    }
+    const senders = () =>
+      (page()['senders'] as () => { key: string; identityId: string | null; label: string }[])();
+    const shown = () => (page()['senderKeyValue'] as () => string | null)();
+
+    it('lists the identities of each account, and an account address only without a default identity', async () => {
+      service.identityLists.set(ACCOUNT, [
+        identity('ident-1', ACCOUNT, 'jane@example.test', { isDefault: true }),
+        identity('ident-2', ACCOUNT, 'support@example.test', { name: 'Support' }),
+      ]);
+      service.identityLists.set(OTHER_ACCOUNT, [
+        identity('ident-3', OTHER_ACCOUNT, 'jd-alias@work.test'),
+      ]);
+      await open();
+      expect(senders()).toEqual([
+        {
+          key: `${ACCOUNT}/ident-1`,
+          accountId: ACCOUNT,
+          identityId: 'ident-1',
+          label: 'Jane Doe <jane@example.test>',
+        },
+        {
+          key: `${ACCOUNT}/ident-2`,
+          accountId: ACCOUNT,
+          identityId: 'ident-2',
+          label: 'Support <support@example.test>',
+        },
+        {
+          key: `${OTHER_ACCOUNT}/`,
+          accountId: OTHER_ACCOUNT,
+          identityId: null,
+          label: 'Jane Doe <jd@work.test>',
+        },
+        {
+          key: `${OTHER_ACCOUNT}/ident-3`,
+          accountId: OTHER_ACCOUNT,
+          identityId: 'ident-3',
+          label: 'Jane Doe <jd-alias@work.test>',
+        },
+      ]);
+      // A new mail starts with the default identity of its account.
+      expect(shown()).toBe(`${ACCOUNT}/ident-1`);
+    });
+
+    it('leaves out identities without an address', async () => {
+      service.identityLists.set(ACCOUNT, [identity('ident-9', ACCOUNT, '')]);
+      await open();
+      expect(senders().map((s) => s.key)).toEqual([`${ACCOUNT}/`, `${OTHER_ACCOUNT}/`]);
+    });
+
+    it('shows the From value of the chosen identity in the picker', async () => {
+      service.identityLists.set(ACCOUNT, [
+        identity('ident-1', ACCOUNT, 'jane@example.test', { isDefault: true }),
+        identity('ident-2', ACCOUNT, 'support@example.test', { name: 'Support' }),
+      ]);
+      await open();
+      call('chooseSender', `${ACCOUNT}/ident-2`);
+      fixture.detectChanges();
+      await settle();
+      fixture.detectChanges();
+      expect(el().querySelector('mat-select')?.textContent).toContain(
+        'Support <support@example.test>',
+      );
+    });
+
+    it('offers only the account addresses when identities cannot be read, and still saves', async () => {
+      service.identitiesError = new ApiError(500, 'Server Error', 'down');
+      await open();
+      expect(senders().map((s) => s.key)).toEqual([`${ACCOUNT}/`, `${OTHER_ACCOUNT}/`]);
+      expect(shown()).toBe(`${ACCOUNT}/`);
+      call('setSubject', 'Hi');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+      await settle();
+      expect(service.creates).toEqual([
+        expect.objectContaining({ accountId: ACCOUNT, identityId: undefined }),
+      ]);
+      expect(errors).toEqual([]);
+    });
+
+    it('creates a new mail with the identity picked before the first save', async () => {
+      service.identityLists.set(ACCOUNT, [
+        identity('ident-1', ACCOUNT, 'jane@example.test', { isDefault: true }),
+        identity('ident-2', ACCOUNT, 'support@example.test'),
+      ]);
+      await open();
+      call('chooseSender', `${ACCOUNT}/ident-2`);
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+      await settle();
+      expect(service.creates).toEqual([
+        expect.objectContaining({ accountId: ACCOUNT, identityId: 'ident-2' }),
+      ]);
+    });
+
+    it('shows the identity of an opened draft and saves another identity of its account as an edit', async () => {
+      service.identityLists.set(ACCOUNT, [
+        identity('ident-1', ACCOUNT, 'jane@example.test', { isDefault: true }),
+        identity('ident-2', ACCOUNT, 'support@example.test'),
+      ]);
+      service.stored = draft({ identityId: 'ident-2' });
+      await open({ draft: DRAFT });
+      expect(shown()).toBe(`${ACCOUNT}/ident-2`);
+
+      call('chooseSender', `${ACCOUNT}/ident-1`);
+      expect(shown()).toBe(`${ACCOUNT}/ident-1`);
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+      await settle();
+      expect(service.creates).toEqual([]);
+      expect(service.discards).toEqual([]);
+      expect(service.updates).toEqual([
+        expect.objectContaining({ id: DRAFT, body: expect.objectContaining({ identityId: 'ident-1' }) }),
+      ]);
+    });
+
+    it('shows the default identity when the draft’s identity is not listed any more', async () => {
+      service.identityLists.set(ACCOUNT, [
+        identity('ident-1', ACCOUNT, 'jane@example.test', { isDefault: true }),
+      ]);
+      service.stored = draft({ identityId: 'ident-gone' });
+      await open({ draft: DRAFT });
+      expect(shown()).toBe(`${ACCOUNT}/ident-1`);
+    });
+
+    it('choosing the entry already shown changes nothing', async () => {
+      service.identityLists.set(ACCOUNT, [
+        identity('ident-1', ACCOUNT, 'jane@example.test', { isDefault: true }),
+      ]);
+      await open({ draft: DRAFT });
+      call('chooseSender', `${ACCOUNT}/ident-1`);
+      call('chooseSender', 'unknown/key');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS * 2);
+      await settle();
+      expect(service.updates).toEqual([]);
+      expect(service.creates).toEqual([]);
+    });
+
+    it('moves a stored draft to an identity of another account, created there with that identity', async () => {
+      service.identityLists.set(OTHER_ACCOUNT, [
+        identity('ident-3', OTHER_ACCOUNT, 'jd-alias@work.test'),
+      ]);
+      await open({ draft: DRAFT });
+      call('chooseSender', `${OTHER_ACCOUNT}/ident-3`);
+      await settle();
+      expect(service.creates).toEqual([
+        expect.objectContaining({ accountId: OTHER_ACCOUNT, identityId: 'ident-3' }),
+      ]);
+      expect(service.discards).toEqual([{ id: DRAFT, etag: '"1"' }]);
+      expect(shown()).toBe(`${OTHER_ACCOUNT}/ident-3`);
+    });
+
+    it('puts account and identity back when the move to another account fails', async () => {
+      service.identityLists.set(ACCOUNT, [
+        identity('ident-1', ACCOUNT, 'jane@example.test', { isDefault: true }),
+        identity('ident-2', ACCOUNT, 'support@example.test'),
+      ]);
+      service.identityLists.set(OTHER_ACCOUNT, [
+        identity('ident-3', OTHER_ACCOUNT, 'jd-alias@work.test'),
+      ]);
+      service.stored = draft({ identityId: 'ident-2' });
+      await open({ draft: DRAFT });
+      vi.spyOn(service, 'create').mockRejectedValueOnce(new ApiError(500, 'Server Error', 'x'));
+      call('chooseSender', `${OTHER_ACCOUNT}/ident-3`);
+      await settle();
+      expect(shown()).toBe(`${ACCOUNT}/ident-2`);
+      expect(service.discards).toEqual([]);
+      expect(errors).toHaveLength(1);
+    });
+
+    it('keeps identities of another account disabled once a reply cannot move', async () => {
+      service.identityLists.set(ACCOUNT, [
+        identity('ident-1', ACCOUNT, 'jane@example.test', { isDefault: true }),
+        identity('ident-2', ACCOUNT, 'support@example.test'),
+      ]);
+      service.identityLists.set(OTHER_ACCOUNT, [
+        identity('ident-3', OTHER_ACCOUNT, 'jd-alias@work.test'),
+      ]);
+      await open({ reply: MESSAGE });
+      const selectable = (key: string) =>
+        (page()['senderSelectable'] as (s: unknown) => boolean).call(
+          fixture.componentInstance,
+          senders().find((s) => s.key === key),
+        );
+      expect(selectable(`${ACCOUNT}/ident-2`)).toBe(true);
+      expect(selectable(`${OTHER_ACCOUNT}/ident-3`)).toBe(false);
+      call('chooseSender', `${OTHER_ACCOUNT}/ident-3`);
+      await settle();
+      expect(service.creates).toEqual([]);
+      expect(shown()).toBe(`${ACCOUNT}/ident-1`);
+    });
+  });
+
   function fileInput(...files: File[]): HTMLInputElement {
     const input = document.createElement('input');
     Object.defineProperty(input, 'files', { value: files });

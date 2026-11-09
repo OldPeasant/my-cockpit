@@ -37,6 +37,17 @@ describe('MailComposeService', () => {
     expect(await result).toEqual([account]);
   });
 
+  it('lists the sending identities of an account', async () => {
+    const result = service.identities('acc-1');
+    await flush();
+    const req = http.expectOne('/api/v1/mail/accounts/acc-1/identities');
+    expect(req.request.method).toBe('GET');
+    expect(req.request.context.get(SILENT_ERRORS)).toBe(true);
+    const identity = { id: 'ident-1', accountId: 'acc-1', name: 'Jane', email: 'jane@example.test' };
+    req.flush({ items: [identity] });
+    expect(await result).toEqual([identity]);
+  });
+
   it('fails on a draft answer without id', async () => {
     const result = service.create({ accountId: 'acc-1' });
     await flush();

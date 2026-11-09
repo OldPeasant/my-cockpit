@@ -47,11 +47,13 @@ class MailComposeRouteTest {
     private val repository = mockk<MailComposeRepository>()
     private var closed = 0
 
-    private fun draft(etag: String = "\"1\"") = Draft(id(1), work.id, etag, emptyList(), emptyList(), emptyList(), "", "", "", emptyList())
+    private fun draft(etag: String = "\"1\"") =
+        Draft(id(1), work.id, null, etag, emptyList(), emptyList(), emptyList(), "", "", "", emptyList())
 
     @Before
     fun setUp() {
         coEvery { repository.accounts() } returns MailResult.Ok(listOf(work))
+        coEvery { repository.identities(any()) } returns MailResult.Ok(emptyList())
         coEvery { repository.create(any(), any()) } returns MailResult.Ok(draft())
         coEvery { repository.update(any(), any(), any()) } returns MailResult.Ok(draft("\"2\""))
         coEvery { repository.discard(any(), any()) } returns MailResult.Ok(Unit)
