@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-mail-compose-plus]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/compose,android/app/src/test/java/ch/sonensei/cockpit/mail/compose]
 prio: 2
-lease_until: 2026-11-09T07:53:27Z
+lease_until: 2026-11-09T07:58:29Z
 releases: 0
 extended: 
 hold: 
