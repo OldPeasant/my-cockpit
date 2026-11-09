@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "task": "and-notes-tags",
+  "reviewed_revision": "9f8ba2a2f800b9c253bffe63423f66484a6e0675",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-notes-tags/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-notes-tags/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-notes-tags/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "round 1: no tests for the tags editor; tests added by test-writer, verified by fixer (fixes.md)"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "round 1: strict mock missing tags() stub; fixed, verified by fixer"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: chip tap removed the tag; only the remove button removes"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: refused tag cleared silently; input kept"},
+    {"id": "R1-CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: overlapping known-tags loads; previous job cancelled"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 2: comma path merged refused tag with next / allowed commas in tags; split input, addTag refuses commas"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 2: chip still clickable for a11y; non-clickable Surface with remove button"},
+    {"id": "R3-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "round 3: suggestions filtered by whole input after a refused tag; follow-up task and-notes-tags-suggest"},
+    {"id": "R3-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "round 3: suggestion tap clears refused/typed text even when onAdd refuses; follow-up task and-notes-tags-suggest"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "deferred",
+     "note": "suggestion tap discards refused text (same as R3-CR-2); follow-up task and-notes-tags-suggest"},
+    {"id": "TW-2", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "NoteDraft.tags default and NUL-containing tags rejected only server-side; unreachable by normal typing"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck createDebugUnitTestCoverageReport lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
