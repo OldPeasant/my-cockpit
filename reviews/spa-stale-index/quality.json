@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "spa-stale-index",
+  "reviewed_revision": "d0dc41f700ff3036655218f474bcd70214b91c4b",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/spa-stale-index/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/spa-stale-index/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/spa-stale-index/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "digest cache never applied with the unpacked jar in production; caching now decided by classpath: location"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "ContentEtags cache path untested; fixer added caching tests"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "location-to-cacheDigests wiring untested; test-writer added SpaWebConfigurationTests, re-reviewed"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew ktlintCheck test --rerun --tests 'ch.sonensei.cockpit.core.spa.*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
