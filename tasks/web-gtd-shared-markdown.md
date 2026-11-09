@@ -18,3 +18,4 @@ from `gtd/projects`, and `task-detail-notes.scss` copies the `.markdown` styles 
 - [ ] `cd web && npm run check` and `sh scripts/check.sh` pass
 
 ## Notes
+- ASSUMPTION (2026-11-09 01:35+0100 by felix/agent-1): Kept gtd/projects/markdown.ts as a one-line re-export of gtd/ui/markdown because bookmarks, files and contacts import it and are outside this task's touches; they can switch to gtd/ui later.
