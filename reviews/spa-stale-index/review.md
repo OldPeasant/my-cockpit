@@ -4,22 +4,22 @@ Date: 2026-11-09
 
 Task: spa-stale-index - SPA: deploys leave browsers on a stale index.html (constant 1980 Last-Modified)
 
-Scope: git diff 28ee9f350a33ab55fabf30c99c20c2ef4ddcecff..fd99730285abab394a69eb6fc7a24be2cef6d16e. The production change is in SpaWebConfiguration.kt. The tests are ContentEtagsTests.kt and SpaFallbackTests.kt. This is the re-review of the final revision after the fixes for CR-1 and CR-2 from the first review. HEAD (01a447513) differs from fd9973028 only in tasks/spa-stale-index.md. This was a static review: the parent asked that Gradle not be run because a test-writer runs it in parallel. fixes.md reports that `./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.core.spa.*'` passed (ContentEtagsTests 10/10, SpaFallbackTests 19/19).
+Scope: git diff 28ee9f350a33ab55fabf30c99c20c2ef4ddcecff..d0dc41f700ff3036655218f474bcd70214b91c4b (the whole task). The production change is in SpaWebConfiguration.kt. The tests are ContentEtagsTests.kt, SpaFallbackTests.kt and SpaWebConfigurationTests.kt. This is the third review. The previous review covered revision fd9973028. Between fd9973028 and d0dc41f70 the only code change is the new test file SpaWebConfigurationTests.kt. The other changes are in reviews/ and tasks/. SpaWebConfiguration.kt, ContentEtagsTests.kt and SpaFallbackTests.kt are unchanged since the last review. This was a static review: the parent asked that Gradle not be run because it runs Gradle in parallel. Earlier runs are recorded in fixes.md and tests.md.
 
 Requirements:
 - tasks/spa-stale-index.md: acceptance criteria and the two recorded assumptions, including the corrected one about caching digests for classpath: locations
 - AGENTS.md project notes
 - Dockerfile (unpacked boot jar in production)
-- reviews/spa-stale-index/fixes.md
-- Spring ResourceHttpRequestHandler semantics (setUseLastModified, setEtagGenerator, checkNotModified)
+- reviews/spa-stale-index/fixes.md and reviews/spa-stale-index/tests.md
+- Spring ResourceHandlerRegistry and ResourceHttpRequestHandler semantics (getHandlerMapping, setUseLastModified, setEtagGenerator, checkNotModified)
 
 Git range:
 - Branch: main
-- HEAD: 01a447513 (reviewed code revision fd9973028; the commits after it change only tasks/)
+- HEAD: d0dc41f700ff3036655218f474bcd70214b91c4b
 - Base/start: 28ee9f350a33ab55fabf30c99c20c2ef4ddcecff
-- Commits reviewed: 5 (3 code/test commits plus 2 board commits)
+- Commits reviewed: 10 (4 code/test/report commits plus 6 board commits). The working tree is clean.
 
-Summary: 0 P0, 0 P1, 0 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## P0 Critical
 
@@ -35,26 +35,22 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-3 | No test covers how the location prefix selects digest caching**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/core/spa/SpaWebConfiguration.kt:46`
-    - Category: Tests
-    - Problem: `cacheDigests = location.startsWith(ResourceUtils.CLASSPATH_URL_PREFIX)` is the only thing that turns caching on for production. ContentEtagsTests test both modes of `ContentEtags` directly. SpaFallbackTests always use a `file:` location. So no test fails if this condition is inverted or dropped. If it is inverted, production goes back to the CR-1 per-request hashing, and dev/test serves stale ETags for edited files.
-    - Why it matters: This is a low-risk one-liner, but it decides the production performance behaviour that CR-1 was about. Today only review protects it.
-    - Suggested fix: This is optional. Move the decision into a small function (for example `ContentEtags.forLocation(location)` or an internal `cachesDigests(location)`), and unit-test it for `classpath:/static/` (true) and a `file:` URI (false).
+None open.
 
 ## Previous findings
 
-- CR-1 (P2, production re-hashes on every request): Resolved. Caching no longer depends on `Resource.isFile`. A constructor flag, set from the configured location, decides it (SpaWebConfiguration.kt:46). `classpath:/static/` is the default and is not overridden anywhere in the repository (`git grep` finds `cockpit.spa.location` only in the test). Production therefore caches digests for the unpacked jar the Dockerfile runs. The cache key is the resource URL, and the map is bounded by the number of build files, because client routes resolve to `index.html`. The KDoc of `SpaWebConfiguration` (lines 23-34) and of `ContentEtags` (lines 83-92) now describes the unpacked-jar case correctly. The corrected assumption (2026-11-09 11:00) matches the code.
-- CR-2 (P3, cache path untested): Resolved. ContentEtagsTests now cover four cases. A real file with caching (`isFile` true, the unpacked-jar case) is read once and stays content-based. A jar-URL resource is cached per URL, and a new instance sees new content. Without caching, a resource is read on every request (file and non-file). A read error propagates and is not cached. A failed `computeIfAbsent` stores no mapping, which matches the test.
+- CR-1 (P2, production re-hashes on every request): Resolved in 8c7564f2e. Caching no longer depends on `Resource.isFile`. A constructor flag set from the configured location decides it (SpaWebConfiguration.kt:46). `classpath:/static/` is the default, so production caches digests for the unpacked jar the Dockerfile runs. The cache key is the resource URL. The map is bounded by the number of build files, because client routes resolve to `index.html`. The KDoc (lines 23-34 and 83-92) and the corrected assumption match the code.
+- CR-2 (P3, cache path untested): Resolved in 8c7564f2e. ContentEtagsTests cover four cases. With caching, a real file is read once and the ETag stays content-based. With caching, a jar-URL resource is cached per URL. Without caching, the content is read on every request. A read error propagates and is not cached.
+- CR-3 (P3, no test covers how the location prefix selects digest caching): Resolved in d0dc41f70. SpaWebConfigurationTests builds the real handler through `SpaWebConfiguration(location).addResourceHandlers` and a `ResourceHandlerRegistry` subclass that exposes the protected `getHandlerMapping()`. It takes the `/**` `ResourceHttpRequestHandler` from the `SimpleUrlHandlerMapping` and calls its actual `etagGenerator`. For `classpath:/static/`, two calls read the resource once (`reads shouldBe 1`). For a `file:` temp-dir location, a content change gives the new digest and two reads. If the `startsWith(CLASSPATH_URL_PREFIX)` condition were inverted or removed, at least one of these tests would fail. A third test checks that both locations have `isUseLastModified == false` and `Cache-Control: no-cache`. This guards the criterion 1 wiring at unit level as well as through SpaFallbackTests. The test uses only fictitious URLs and content, has no shared state, and needs no running server. The `CountingResource` URLs do not have to match the location, because the generator only uses `resource.url` as the cache key.
 
-Verified without findings:
-- Criterion 1: `setUseLastModified(false)` stops `If-Modified-Since: 1980` from producing a 304, and an old `If-None-Match` does not match the new SHA-256 ETag. The SpaFallbackTests test runs against a fixture with the same length and the 1980 mtime. It sends both validators, and the date alone, to `/index.html`, `/inbox` and a nested client route, and expects 200 with the new content. It would get 304 with the fix reverted: the `oldEtag` fallback still leaves the date check to reproduce the bug. `/` is covered as a forward to `/index.html`.
-- Criterion 2: a 304 for a matching `If-None-Match` on the index, the fallback and the bundle. No `Last-Modified` header. `Cache-Control: no-cache` is kept on hashed bundles. The fallback and the bundle get different ETags, and `/inbox` gets the same ETag as `/index.html`. `/main-GONE.js` stays 404. The fallback resolver did not change.
-- Criterion 3: the KDoc matches the code (`no-cache`, content ETag, `Last-Modified` disabled, caching for classpath: locations and hashing per request for other locations).
-- `computeIfAbsent` holds the map bin lock while one file is hashed. This happens once per file per server lifetime, so it is negligible.
-- Security: no new input handling, no logging, and no change to which paths are served. `/api/`, `/actuator/` and `/download/` still never fall back.
-- Tests use fictitious data, restore the shared fixture in `finally`, and no assertion was weakened.
+Verified without findings (whole task diff at d0dc41f70):
+- Criterion 1: `setUseLastModified(false)` stops `If-Modified-Since: 1980` from producing a 304. An old `If-None-Match` does not match the new SHA-256 ETag. SpaFallbackTests reproduce the bug with a fixture that has the same length and the 1980 mtime. They send both validators, and the date alone, to `/index.html`, `/inbox` and a nested client route, and expect 200 with the new content.
+- Criterion 2: a matching `If-None-Match` gets a 304 on the index, the fallback and the bundle. No `Last-Modified` header is sent. Hashed bundles keep `Cache-Control: no-cache`. `/inbox` gets the same ETag as `/index.html`. `/main-GONE.js` stays 404. The fallback resolver did not change.
+- Criterion 3: the KDoc matches the code.
+- Criterion 4: not re-run here, as the parent asked. The parent runs `./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.core.spa.*'` and must record the result for d0dc41f70.
+- Security: there is no new input handling and no logging. The set of served paths did not change. `/api/`, `/actuator/` and `/download/` still never fall back.
+- The reports tests.md and fixes.md at d0dc41f70 contain no angle-bracket placeholders, TODO or TBD.
 
 ## Review conclusion
 
-No material issues found. CR-1 and CR-2 are resolved. The only new finding, CR-3, is an optional low-priority test gap and does not block completing the task.
+No material issues found. CR-1, CR-2 and CR-3 are resolved. The whole task diff 28ee9f350a33..d0dc41f70 has no open findings.
