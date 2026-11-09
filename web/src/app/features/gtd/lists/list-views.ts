@@ -64,9 +64,15 @@ export function followUpTask(task: TaskResponse): CreateTaskRequest {
   return { title, list: 'NEXT', projectId: task.projectId };
 }
 
-/** An email address inside free text such as `Anna <anna@example.org>`, or `undefined`. */
+/**
+ * An email address inside free text such as `Anna <anna@example.org>` or `Anna (anna@example.org)`,
+ * or `undefined`. Surrounding brackets, quotes and separators and a trailing full stop are not part
+ * of it.
+ */
 export function emailIn(text: string | undefined): string | undefined {
-  return text?.match(/[^\s<>"',;]+@[^\s<>"',;]+\.[^\s<>"',;]+/)?.[0];
+  return text?.match(
+    /[^\s<>"',;()[\]]+@[^\s<>"',;()[\]]+\.[^\s<>"',;()[\]]*[^\s<>"',;()[\].]/,
+  )?.[0];
 }
 
 /**

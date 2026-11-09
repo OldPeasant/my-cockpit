@@ -112,9 +112,12 @@ object WaitingTags {
     fun draftMail(id: UUID) = "waiting-draft-mail-$id"
 }
 
-private val EMAIL = Regex("[^\\s<>\"',;()\\[\\]]+@[^\\s<>\"',;()\\[\\]]+\\.[^\\s<>\"',;()\\[\\]]+")
+private val EMAIL = Regex("[^\\s<>\"',;()\\[\\]]+@[^\\s<>\"',;()\\[\\]]+\\.[^\\s<>\"',;()\\[\\]]*[^\\s<>\"',;()\\[\\].]")
 
-/** The first email address written in [text], e.g. `anna@example.org` in "Anna (anna@example.org)". */
+/**
+ * The first email address written in [text], e.g. `anna@example.org` in "Anna (anna@example.org)";
+ * a full stop that ends the sentence after it is not part of it.
+ */
 internal fun emailIn(text: String?): String? = text?.let { EMAIL.find(it)?.value }
 
 /** The `mailto:` of "Draft email": To is an address in the waiting-for text (empty if none), the subject the task's title. */

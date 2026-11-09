@@ -1,6 +1,7 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { provideRouter, Router } from '@angular/router';
 import { FileResponse } from '../../../api/generated';
 import { NotificationService, provideHttp } from '../../../core/http';
 import { PdfJs, setPdfJsLoader } from './pdf-viewer';
@@ -47,6 +48,7 @@ describe('PreviewDialog', () => {
       providers: [
         provideHttp(),
         provideHttpClientTesting(),
+        provideRouter([{ path: '**', children: [] }]),
         { provide: NotificationService, useValue: { error: vi.fn(), info: vi.fn() } },
         { provide: MAT_DIALOG_DATA, useValue: { files, id } satisfies PreviewDialogData },
         { provide: MatDialogRef, useValue: { close } },
@@ -234,6 +236,45 @@ describe('PreviewDialog', () => {
       expect(next.every((r) => r.request.urlWithParams.includes(VIDEO.id))).toBe(true);
       next.forEach((r) => r.flush({ items: [] }));
       await render();
+    });
+
+    it('closes the preview when a linked item is followed, so the item is not hidden under it', async () => {
+      const noteId = '0192f0c4-0000-7000-8000-0000000000b1';
+      await open([IMAGE], IMAGE.id);
+      toggle().click();
+      await render();
+      const self = { type: 'FILE' as const, id: IMAGE.id, available: true, title: 'Beach.png' };
+      const note = {
+        type: 'NOTE' as const,
+        id: noteId,
+        available: true,
+        title: 'Holiday ideas',
+        deepLink: `/notes/${noteId}`,
+      };
+      linkRequests().forEach((r) =>
+        r.flush({
+          items: [
+            {
+              id: '0192f0c4-0000-7000-8000-0000000000c1',
+              direction: 'OUTGOING',
+              origin: 'MANUAL',
+              createdAt: STAMP,
+              source: self,
+              target: note,
+            },
+          ],
+        }),
+      );
+      await render();
+      expect(close).not.toHaveBeenCalled();
+
+      const row = el().querySelector<HTMLAnchorElement>('#preview-links a.title')!;
+      expect(row.textContent?.trim()).toBe('Holiday ideas');
+      row.click();
+      await render();
+
+      expect(TestBed.inject(Router).url).toBe(`/notes/${noteId}`);
+      expect(close).toHaveBeenCalled();
     });
 
     it('leaves arrow keys typed in the linked-items panel to the panel', async () => {

@@ -58,8 +58,9 @@ type SaveState =
 /**
  * Writing a mail (SPEC.md §7.3): a new one (`/mail/compose`), a reply, reply to all or forward of a
  * message (`?reply=`, `?replyAll=`, `?forward=` with its id: the server starts the draft) or a
- * stored draft (`?draft=`); a new one may start with `?to=` and `?subject=`. The sender (one per account), To/Cc/Bcc with suggestions, subject, a
- * rich text body and attachments (uploaded or from Files). Changes are saved to the account's
+ * stored draft (`?draft=`); a new one may start with `?to=` and `?subject=`. The sender (one per
+ * account), To/Cc/Bcc with suggestions, subject, a rich text body and attachments (uploaded or
+ * from Files). Changes are saved to the account's
  * Drafts folder every 10 seconds; every write waits for the one before, since each needs the
  * version (`If-Match`) the previous one returned.
  */

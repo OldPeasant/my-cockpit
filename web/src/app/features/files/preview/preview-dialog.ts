@@ -2,13 +2,17 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   effect,
   inject,
   Injector,
   signal,
   untracked,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { NavigationStart, Router } from '@angular/router';
+import { filter } from 'rxjs';
 import { FileResponse } from '../../../api/generated';
 import { LinkedItems } from '../../../shared/links';
 import { renderMarkdown } from '../../gtd/projects/markdown';
@@ -27,7 +31,7 @@ export interface PreviewDialogData {
  * A full-window preview of a file (SPEC.md §8.2): images as a lightbox, PDFs with pdf.js,
  * text and Markdown, audio and video with the browser's player. ←/→ and the side buttons move to
  * the previous/next previewable file of the folder; Esc closes. "Linked items" shows the file's
- * links (SPEC.md §4.3) beside it.
+ * links (SPEC.md §4.3) beside it; following one closes the preview, so the linked item is seen.
  */
 @Component({
   selector: 'app-preview-dialog',
@@ -75,6 +79,13 @@ export class PreviewDialog {
   protected readonly imageError = signal(false);
 
   constructor() {
+    // A router navigation (a linked item followed) does not close a dialog by itself.
+    inject(Router)
+      .events.pipe(
+        filter((event) => event instanceof NavigationStart),
+        takeUntilDestroyed(inject(DestroyRef)),
+      )
+      .subscribe(() => this.dialogRef.close());
     effect(() => {
       const file = this.file();
       const kind = this.kind();

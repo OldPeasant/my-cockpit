@@ -4,116 +4,108 @@ Date: 2026-11-09
 
 Task: gtd-links-everywhere - Linked items on projects and files; follow-up by mail (web + Android)
 
-Scope: current task. Findings TW-1..TW-3 from `reviews/gtd-links-everywhere/tests.md` and CR-2, CR-3 (P3) from `reviews/gtd-links-everywhere/review.md`. Base commit 13b10e74e8c696a6724f9096e03a34bb00710e8a. The parent worker fixed TW-1..TW-3 in commits 3a36e2834 and 99fe47199. This fixer checked those commits and fixed CR-2 and CR-3 in the working tree.
+Scope: current task. Findings TW-4 and TW-5 from `reviews/gtd-links-everywhere/tests.md` and CR-1, CR-2 and CR-4 from `reviews/gtd-links-everywhere/review.md` (final-pass reports committed in f5e67ddb0). CR-3 is out of scope: the parent worker deferred it to the new task `and-waiting-contact-mail`.
+
+Earlier fix round (same task, previous reports): TW-1 (Android email regex kept parentheses), TW-2 (project links toggle broke layout tests), TW-3 (lint UseKtx) were fixed by the parent in 3a36e2834 and 99fe47199. The earlier CR-2 (Android linked-items panel collapsed after returning from a linked item) and the earlier CR-3 (web "Draft email" navigating after the page was left) were fixed by the fixer in that round. Those IDs refer to the earlier review, not to the current one.
 
 ## Fixed findings
 
-### TW-1 - Email regex keeps parentheses (fixed by the parent, checked here)
+### TW-4 / CR-1 - Web emailIn keeps surrounding parentheses or brackets
 
 Files changed:
+- `web/src/app/features/gtd/lists/list-views.ts`
+
+Problem:
+The `emailIn` character classes excluded whitespace, `<>"',;` but not `()[]`, so "Anna (anna@example.test)" gave `(anna@example.test)`, an address the compose page rejects. Android was fixed for this earlier (TW-1).
+
+Fix:
+All parts of the regex now also exclude `(`, `)`, `[` and `]`, the same character class as Android. The JSDoc names the parentheses form.
+
+Validation:
+- `npx ng test --watch=false --include src/app/features/gtd/lists/list-views.spec.ts ...` (web/) - Pass (the existing failing emailIn cases for parentheses and brackets now pass)
+
+### TW-5 - Trailing sentence full stop kept in the address (web and Android)
+
+Files changed:
+- `web/src/app/features/gtd/lists/list-views.ts`
 - `android/app/src/main/java/ch/sonensei/cockpit/gtd/lists/WaitingScreen.kt`
 
 Problem:
-`emailIn("Anna (anna@example.org)")` returned `(anna@example.org)`.
+"Reply from anna@example.org." gave `anna@example.org.` on both clients.
 
 Fix:
-The `EMAIL` character classes now also exclude `(`, `)`, `[` and `]`, in all three parts of the address. Checked: the regex is correct and matches the function's KDoc example.
+The last part of the address (after the final dot of the domain) must now end with a character other than `.`: `[^X]*[^X.]` instead of `[^X]+`, where X is the excluded set. Backtracking drops any trailing full stops; "alex@localhost." still yields no address, and plus-addressing and the other forms are unchanged. Same change on web (`emailIn`) and Android (`EMAIL`), with the doc comments updated.
 
 Validation:
-- `./gradlew ktlintCheck lintDebug testDebugUnitTest --tests '*ListScreensTest' ...` - Pass (includes the "follow-up mail takes the address from the waiting-for text" case)
+- web: list-views.spec.ts emailIn "Reply from anna@example.test." case - Pass
+- Android: `WaitingDraftEmailTest` "a sentence ending after the address does not add its full stop to it" - Pass (8 of 8 tests in the class pass)
 
-### TW-2 - Project links toggle breaks three project layout tests (fixed by the parent, checked here)
+### CR-2 - Opening a linked item from the web file preview leaves the dialog on top
 
 Files changed:
-- `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/ProjectsScreen.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/gtd/projects/ProjectLinksToggleTest.kt`
+- `web/src/app/features/files/preview/preview-dialog.ts`
+- `web/src/app/features/files/preview/preview-dialog.spec.ts`
 
 Problem:
-A full-width `TextButton` row above the task list took height from the list. As a result, `ProjectsScreenTest`, `ProjectTaskListTest` and `FabClearanceTest` failed.
+The preview is a full-window MatDialog; its default `closeOnNavigation` only reacts to popstate, so following a `routerLink` in the linked-items panel changed the route under the still open preview.
 
 Fix:
-The toggle is now an `IconToggleButton` in the header row (Link icon, contentDescription = show/hide label, same test tag). The old row is removed. `ProjectLinksToggleTest` now checks the content description instead of the text. Its assertions still check the same labels, in English and German, so they were not weakened. Checked: the three earlier layout failures now pass, and no `TextButton` import is left unused (ktlint passes).
+`PreviewDialog` subscribes to `Router.events` and closes its dialog on `NavigationStart` (with `takeUntilDestroyed`), the same pattern the calendar event overlay already uses (`features/calendar/overlay/event-links.ts`). The class doc says so. The spec now provides a router (`provideRouter([{ path: '**', children: [] }])`) and a new test, "closes the preview when a linked item is followed, so the item is not hidden under it", flushes one linked note, checks the dialog is not closed yet, clicks the row, and expects the router URL to be the note's deep link and the dialog closed.
 
 Validation:
-- `./gradlew ... --tests '*ProjectsScreenTest' --tests '*ProjectTaskListTest' --tests '*FabClearanceTest' --tests '*ProjectLinksToggleTest'` - Pass
+- `npx ng test --watch=false --include src/app/features/files/preview/preview-dialog.spec.ts ...` (web/) - Pass
 
-### TW-3 - Lint UseKtx error (fixed by the parent, checked here)
+### CR-4 - Over-long compose page doc comment line
 
 Files changed:
-- `android/app/src/main/java/ch/sonensei/cockpit/gtd/lists/WaitingScreen.kt`
+- `web/src/app/features/mail/compose/mail-compose-page.ts`
 
 Problem:
-`Uri.parse(followUpMailUri(task))` raised lint error `UseKtx`.
+One line of the class doc comment was about 140 characters, the rest wraps at about 100.
 
 Fix:
-The call now uses `followUpMailUri(task).toUri()` (`androidx.core.net.toUri`). The `Uri` import stays because `Uri.encode` still uses it.
+Re-wrapped the paragraph to about 100 characters; wording unchanged.
 
 Validation:
-- `./gradlew lintDebug` - Pass (no errors)
-
-### CR-2 - Returning from a linked item collapses the linked-items panel (Android)
-
-Files changed:
-- `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/ProjectsScreen.kt`
-- `android/app/src/main/java/ch/sonensei/cockpit/files/FilesScreen.kt`
-
-Problem:
-While a linked item is shown, the project detail and the file preview are removed from composition. Their `rememberSaveable` state was discarded with them: the open panel and, in the preview, the PDF page. Back showed the panel collapsed.
-
-Fix:
-- `ProjectDetail`: `showLinks` (still keyed by `project.id`) is now declared before the early return for `linked`. It therefore stays in composition while the linked item is shown.
-- `FilesRoute`: `FilesContent` is wrapped in `rememberSaveableStateHolder().SaveableStateProvider("files")`. When the linked item replaces the files, the holder saves their saveable UI state, including `FilePreviewView`'s `showLinks` and `PdfPagesView`'s `page`. The state is restored on Back. Closing a preview still resets its state as before, because the holder only saves the subtree while the subtree is removed as a whole. The PDF bitmap is still re-rendered, which the finding accepted.
-
-No regression test: `linked` is set only through `LinkedItemsSection` (Hilt) and `SearchItemScreen` (Hilt). Neither renders in the Robolectric tests without Hilt, which the review already noted for CR-1. The existing project and file tests still pass.
-
-Validation:
-- `./gradlew ktlintCheck lintDebug testDebugUnitTest --tests '*ProjectsScreenTest' --tests '*ProjectTaskListTest' --tests '*FabClearanceTest' --tests '*ProjectLinksToggleTest' --tests '*FilePreviewLinksTest' --tests '*FilesScreenTest' --tests '*ListScreensTest'` - Pass (BUILD SUCCESSFUL)
-
-### CR-3 - Web "Draft email" can navigate to compose after the user has left the page
-
-Files changed:
-- `web/src/app/features/gtd/lists/waiting-page.ts`
-- `web/src/app/features/gtd/lists/list-pages.spec.ts`
-
-Problem:
-`draftEmail` always navigated to `/mail/compose` after the contact lookup. This happened even if the page had been destroyed meanwhile. Repeated clicks started parallel lookups, and each one navigated.
-
-Fix:
-`WaitingPage` sets a `left` flag through `DestroyRef.onDestroy` and numbers each draft request. After the lookup it navigates only if the page is still alive and the request is the latest one. Two regression tests hold `getContact`. In one, the fixture is destroyed during the lookup: no navigation. In the other, the button is clicked twice: two lookups, exactly one navigation, with the expected query params. The spec's `render` helper now returns its fixture; existing callers are unaffected.
-
-Validation:
-- `npm run check` (web) - Pass (196 test files passed, lint clean)
+- `npm run lint` (part of `npm run check`) - Pass
 
 ## Not fixed
 
-None.
+### CR-3 - Android "Draft email" ignores the linked contact
+
+Status:
+Out of scope
+
+Reason:
+The parent worker deferred it to the new task `and-waiting-contact-mail` (commit 262d65e8e). No code changed for it here.
 
 ## Validation summary
 
 Focused tests:
-- `cd android && ./gradlew ktlintCheck lintDebug testDebugUnitTest --tests '*ListScreensTest' --tests '*ProjectsScreenTest' --tests '*ProjectTaskListTest' --tests '*FabClearanceTest' --tests '*ProjectLinksToggleTest' --tests '*FilePreviewLinksTest' --tests '*FilesScreenTest'` - BUILD SUCCESSFUL
-- `cd web && npm run check` - Pass (196 test files)
+- `npx ng test --watch=false --include src/app/features/gtd/lists/list-views.spec.ts --include src/app/features/files/preview/preview-dialog.spec.ts --include src/app/features/mail/compose/mail-compose-page.spec.ts` (web/) - 3 files, 125 tests passed
+- `./gradlew ktlintCheck testDebugUnitTest --tests '*WaitingDraftEmailTest*' --tests '*ListScreensTest*' lintDebug` (android/) - BUILD SUCCESSFUL; WaitingDraftEmailTest 8/8, ListScreensTest 16/16, ktlint and lintDebug pass
 
 Full test suite:
-- `sh scripts/check.sh` - "all checks passed" (server, web, Android ktlint + unit tests + lint)
+- `npm run check` (web/: api:check, lint, e2e typecheck, full test:ci, ng build) - Pass; reached and completed `ng build` (the "initial bundle exceeded 500 kB budget" warning is pre-existing and only a warning)
+- Full Android unit suite and server: Not run by the fixer (only the Android files above changed; the server is untouched)
 
 Lint/type-check/build:
-- Included in the commands above (ktlint, Android lint, web lint and build) - Pass
+- Web lint, e2e typecheck and build, Android ktlint and lintDebug - Pass (in the commands above)
 
 `.taskcheck`:
-- Pass (`sh scripts/check.sh`)
+- Not run by the fixer (its web and Android parts touched by these fixes were run above); the parent worker runs it before `done`
 
 Remaining unresolved findings:
-0
+0 in scope (CR-3 deferred to `and-waiting-contact-mail`)
 
 ## Final status
 
 All validated findings fixed and validation passed.
 
-- TW-1: Fixed by the parent (3a36e2834). Checked correct and complete.
-- TW-2: Fixed by the parent (3a36e2834, 99fe47199). Checked correct and complete; the tests were not weakened.
-- TW-3: Fixed by the parent (3a36e2834, 99fe47199). Checked correct; lintDebug is clean.
-- CR-2: Fixed by this fixer (ProjectsScreen.kt, FilesScreen.kt). No Robolectric regression test, because the linked-item path needs Hilt.
-- CR-3: Fixed by this fixer (waiting-page.ts), with two regression tests in list-pages.spec.ts.
+- TW-4 / CR-1: Fixed (list-views.ts), covered by the existing failing spec cases that now pass.
+- TW-5: Fixed on web (list-views.ts) and Android (WaitingScreen.kt), covered by the existing failing tests that now pass.
+- CR-2: Fixed (preview-dialog.ts), with a new regression test in preview-dialog.spec.ts.
+- CR-4: Fixed (comment re-wrap only).
+- CR-3: Not fixed, out of scope (deferred).
 
-The code changed after the review (CR-2, CR-3), so the test-writer and code-reviewer evidence is stale. They must run again on the final revision.
+Production code changed after the review, so the test-writer and code-reviewer evidence is stale and they must run again on the final revision.
