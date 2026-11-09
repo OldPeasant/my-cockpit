@@ -23,7 +23,8 @@ SPEC.md §4.6 and the phase 3 demo (step 5) expect reminders on tasks/ticklers; 
   - skipped (2026-11-09 01:00+0100 by dell26/agent-1): No interactive browser (notification permission) and no Android emulator/device in this agent environment; firing/opening covered by unit tests: web core/notifications ReminderNotificationsService opens deepLink /tasks/{id}; Android OpenItemRequestTaskTest (TASK reminder -> TaskRoutes.detail). Same skip recorded on both subtasks.
 - [x] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
   - verified (2026-11-09 01:00+0100 by dell26/agent-1): grep -c 'name="task_detail_remind' android res values{,-de}/strings_task_detail.xml -> 13/13; grep -c 'id="taskDetail.reminder' web/src/locale/messages{,.de}.xlf -> 13/13, all 13 German units have a target; locale spec + android lintDebug (no missing translations) run in check.sh
-- [ ] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
+- [x] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
+  - verified (2026-11-09 01:07+0100 by dell26/agent-1): sh scripts/check.sh at dfa7863bd -> all checks passed; web 382 + android 449 focused tests pass; coverage web lines 100% / android 90.5% (reviews/task-reminders/tests.md)
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
