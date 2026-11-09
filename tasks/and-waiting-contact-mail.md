@@ -16,7 +16,8 @@ SPEC.md §5.3: waiting "Follow up" → "Draft email" prefills To from the linked
 ## Acceptance criteria
 - [x] Android GtdTask (model, mapper, cache) carries `waitingForContactId`
   - verified (2026-11-09 10:46+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.*' -> 1212 tests pass incl. GtdMappersTest/TaskRepositoryTest (Room) /TaskListsRepositoryTest round-trips of waitingForContactId; cache v3 schema exported
-- [ ] Android "Draft email" uses the linked contact's first email address as To, falling back to an address in the waiting-for text
+- [x] Android "Draft email" uses the linked contact's first email address as To, falling back to an address in the waiting-for text
+  - verified (2026-11-09 10:46+0100 by dell26/agent-1): same gradle run -> WaitingRouteDraftMailTest 4/4 (tap on real WaitingRoute opens SENDTO to contact's first email; falls back to waiting-for text; one mail per tap while loading), ListViewModelsTest 19/19 (Hilt ctor, mocked ContactsRepository: first email, no email/offline/404 fallback)
 - [ ] Unit tests cover both cases; `sh scripts/check.sh` passes
 
 ## Notes
