@@ -21,3 +21,4 @@ SPEC.md §5.3 also wants waiting "follow up" to be able to draft an email to the
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 - ASSUMPTION (2026-11-09 02:12+0100 by felix/agent-1): Web 'Draft email' opens /mail/compose?to=&subject=; added minimal ?to/?subject prefill to the compose page (outside touches, 5 lines) since no prefill existed. To = first email of waitingForContactId's contact, else an address found in waitingForText, else empty (a plain name is not a usable address).
+- ASSUMPTION (2026-11-09 02:12+0100 by felix/agent-1): Web file preview: linked items shown in a toggleable side panel ('Linked items' button) of the full-window preview; Android project detail: collapsible 'Linked items' section under the next-step line, linked items open via SearchItemScreen.
