@@ -1,10 +1,11 @@
 ---
 title: Weekly review reminder opens the review on Android
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [and-review-flow, and-review-steps, web-small-gaps, review-reminder-server]
 prio: 3
 parent: review-reminder
+lease_until: 2026-11-09T03:33:23Z
 ---
 ## Goal
 Part of `review-reminder` (Weekly review reminder on a configurable weekday), which was split.
