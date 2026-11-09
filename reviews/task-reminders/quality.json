@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "task": "task-reminders",
+  "reviewed_revision": "dfa7863bd3056501ad9bcf2b1227c4abc22a91d2",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/task-reminders/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/task-reminders/review.md"},
+    "fixer": {"status": "not_required", "reason": "Integration task without code of its own; test-writer found no test gaps and code-reviewer reported 0 findings on the combined web-task-reminders + and-task-reminders result"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "npm --prefix web run test:ci -- --include='src/app/features/gtd/task-detail/**/*.spec.ts' --include='src/locale/**/*.spec.ts' (test-writer)", "result": "pass"},
+    {"command": "android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.task.*' --tests 'ch.sonensei.cockpit.reminders.*' (test-writer)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
