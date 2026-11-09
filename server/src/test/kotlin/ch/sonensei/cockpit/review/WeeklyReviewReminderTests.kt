@@ -63,7 +63,8 @@ class WeeklyReviewReminderTests(
 	@AfterEach
 	fun reset() {
 		settings.update(mapOf("timeZone" to null, "weeklyReviewReminder" to null))
-		jdbc.execute("delete from reminder where item_type = 'WEEKLY_REVIEW'")
+		// All reminders: due ones left by other test classes in the shared database would fire with ours.
+		jdbc.execute("delete from reminder")
 	}
 
 	@Test

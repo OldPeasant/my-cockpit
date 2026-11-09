@@ -13,7 +13,7 @@ class ItemResolverRegistryTests {
 	@Test
 	fun `ItemType has every type of SPEC section 4_3`() {
 		ItemType.entries.map { it.name } shouldBe
-			listOf("TASK", "PROJECT", "NOTE", "EVENT", "EMAIL", "FILE", "FOLDER", "CONTACT", "BOOKMARK", "JOURNAL_ENTRY", "HABIT")
+			listOf("TASK", "PROJECT", "NOTE", "EVENT", "EMAIL", "FILE", "FOLDER", "CONTACT", "BOOKMARK", "JOURNAL_ENTRY", "HABIT", "WEEKLY_REVIEW")
 	}
 
 	@Test

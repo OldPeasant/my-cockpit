@@ -9,6 +9,7 @@ import ch.sonensei.cockpit.core.settings.infra.DashboardSettings
 import ch.sonensei.cockpit.core.settings.infra.UserSettingsRepository
 import ch.sonensei.cockpit.core.web.InvalidRequestException
 import ch.sonensei.cockpit.gtd.infra.GtdSettings
+import ch.sonensei.cockpit.review.infra.ReviewSettings
 import ch.sonensei.cockpit.support.PostgresTestBase
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
@@ -120,6 +121,10 @@ class SettingsServiceTests(
 
 	private companion object {
 		/** Every setting of the application: the core ones and those modules register as beans. */
-		val REGISTERED_KEYS = (CoreSettings.ALL + GtdSettings.NEXT_ACTION_PRESETS + DashboardSettings.DASHBOARD_WIDGETS).map { it.key }.sorted()
+		val REGISTERED_KEYS =
+			(
+				CoreSettings.ALL + GtdSettings.NEXT_ACTION_PRESETS + DashboardSettings.DASHBOARD_WIDGETS +
+					ReviewSettings.WEEKLY_REVIEW_REMINDER
+			).map { it.key }.sorted()
 	}
 }
