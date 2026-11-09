@@ -18,6 +18,7 @@ filtered by the whole input, so none match. Tapping a suggestion always clears t
   - verified (2026-11-09 09:04+0100 by dell26/agent-1): NoteTagsEditor.kt:171 filters by splitTagInput(text).second; ./gradlew testDebugUnitTest --tests '*NoteTagsEditorTest*' -> 23 passed, incl. 'after a refused tag, suggestions follow the part being typed...' (home,wo shows #Work/#network)
 - [x] Tapping a suggestion keeps refused parts and clears only the typed part on success; if `onAdd` refuses, the input is unchanged
   - verified (2026-11-09 09:04+0100 by dell26/agent-1): ./gradlew testDebugUnitTest --tests '*NoteTagsEditorTest*' -> 23 passed: tap on accepted suggestion after refused 'home,wo' leaves 'home,'; 'home, trip, wo' leaves 'home, trip,'; refused tap leaves 'home,wo' unchanged
-- [ ] Compose tests cover both; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Compose tests cover both; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-09 09:04+0100 by dell26/agent-1): Compose tests in NoteTagsEditorTest cover both; cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL; sh scripts/check.sh -> all checks passed (at c585ae6d5)
 
 ## Notes
