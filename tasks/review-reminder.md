@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-review-flow, and-review-steps, web-small-gaps, review-reminder-server, review-reminder-web, review-reminder-android]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/review,server/src/test/kotlin/ch/sonensei/cockpit/review,web/src/app/features/settings/general,web/src/app/features/review,android/app/src/main/java/ch/sonensei/cockpit/review,android/app/src/test/java/ch/sonensei/cockpit/review,web/src/locale,android/app/src/main/res/values/strings_review.xml,android/app/src/main/res/values-de/strings_review.xml]
 prio: 3
-lease_until: 2026-11-09T08:59:07Z
+lease_until: 2026-11-09T09:04:07Z
 subtasks: review-reminder-server, review-reminder-web, review-reminder-android
 releases: 2
 extended: 
