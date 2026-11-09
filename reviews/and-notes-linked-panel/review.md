@@ -4,23 +4,28 @@ Date: 2026-11-09
 
 Task: and-notes-linked-panel - Note editor: LinkedItemsPanel
 
-Scope: `git diff 8c9fb0bfd..12e34fa37 -- android` (NoteEditorScreen.kt, new NoteEditorLinksPanelScreenTest.kt). HEAD 6aaa8e5bc has no further android changes relative to 12e34fa37.
+Scope: round 2 on the final code, `git diff 9fd07318f..e07cfb3b5 -- android` (NoteEditorScreen.kt, NoteEditorLinksPanelScreenTest.kt, NoteEditorLinksRouteInAppTest.kt). Round-1 findings CR-1 and CR-2 re-checked against reviews/and-notes-linked-panel/fixes.md.
 
 Requirements:
-- tasks/and-notes-linked-panel.md (acceptance criteria and the recorded assumption: panel only in view mode for saved notes; in-app linked items open in place via SearchItemScreen after saveNow())
-- SPEC.md §4.3 (Linked items panel in every detail view; note inline links `[[type:id]]` are persisted into the `link` table)
+- tasks/and-notes-linked-panel.md (acceptance criteria and the recorded assumption: panel only in the view of a saved note; in-app linked items open in place via SearchItemScreen after saveNow(); Screen targets ignored, web targets open in the browser)
+- SPEC.md §4.3 (linked items panel in every detail view; inline links `[[type:id]]` synced into the link table on save)
 - docs/ARCHITECTURE.md, AGENTS.md project notes
-- Comparison with existing embeddings: ContactsScreen.kt, MailReadScreen.kt, TaskDetailScreen.kt, core/links/LinkedItemsPanel.kt
+- Existing embeddings for comparison: core/links/LinkedItemsPanel.kt, core/links/LinkedItemsViewModel.kt, search/SearchItemScreen.kt, notes/NotesScreen.kt, notes/NoteEditors.kt, NoteEditorViewModel.kt
 
 Git range:
 - Branch: main
-- HEAD: 6aaa8e5bc7784de183c7c2ee8622d910f162f9cd
-- Base/start: 8c9fb0bfd4705cdca507bfd391ecd72e29a9a380
-- Commits reviewed: 1 (12e34fa37b8586abc1d5044fc903031e8c4dc807)
+- HEAD: e07cfb3b536a19219f7a3de40e8bcda074b5cecc
+- Base/start: 9fd07318fb01864c36cd0950d41f412a8fabd24a
+- Commits reviewed: 3 (da6ecadbf, 9e6b8e797, e07cfb3b5); no uncommitted changes
 
-Summary: 0 P0, 0 P1, 1 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-Gradle was not run (per instruction; another helper runs it concurrently).
+Gradle was not run (per instruction; another helper runs it concurrently). Findings are from reading the code and tests.
+
+## Round-1 findings
+
+- CR-1 (stale panel after the note's inline links change): resolved. `NoteEditorRoute` now obtains the panel's view model itself via `noteLinks(state.note?.id)` (same key `linksViewModelKey(ItemRef("NOTE", id))` as `LinkedItemsSection` would use, Hilt-guarded like ContactsScreen/MailReadScreen) and passes it to `LinkedItemsSection`. `LaunchedEffect(links, state.note?.version)` calls `reload()` only once the view model already shows this note, so a new saved version (edit, checklist toggle, revision restore) and a reopened note reload, while the first open is still loaded once by the panel's own `open()`. `LinkedItemsViewModel.load()` cancels the previous load and keeps the shown links while reloading, so overlapping reloads resolve to the latest and do not flicker. Covered by the two new route tests (`a new version of the note saved with an inline link loads the panel's links again`, `the note opened again loads its links again`) plus the `exactly = 1` assertion on first open.
+- CR-2 (route wiring untested): resolved. NoteEditorLinksRouteInAppTest drives the real route in MainActivity with fake repositories and covers in-place opening, close and system back returning to the note, save-before-open ordering, and a Screen target keeping the note open.
 
 ## P0 Critical
 
@@ -32,24 +37,19 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Links panel stays stale after the note's inline links change (edit, revision restore, reopen)**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteEditorScreen.kt:231-243` (with `core/links/LinkedItemsPanel.kt:137,150` and `core/links/LinkedItemsViewModel.kt:87-88`)
-    - Category: Correctness
-    - Problem: The server syncs a note's inline links `[[type:id]]` into the link table on every save that changes the body (`server/.../notes/domain/NoteService.kt:106,225`; SPEC.md §4.3). The panel's view model is a `hiltViewModel(key = "links:NOTE:{id}")` scoped to the hosting ViewModelStoreOwner (the Notes / Dashboard / search nav entry), so it survives the panel leaving composition while editing and survives closing and reopening the same note. `LinkedItemsViewModel.open(item)` returns early for the same item ("the same item again keeps what is shown"), and nothing in the note editor calls `reload()`. Concrete flow: view a note (panel loads), tap Edit, insert `[[` link to a task via the suggestions, tap View (`setEditing(false)` triggers `saveSoon(0)`) - the panel reappears with the old list and never shows the new link; the same applies to deleting an inline link, restoring a revision with different links, or reopening the note from the list after it changed elsewhere. MailReadScreen handles the analogous case by calling `links?.reload()` when its content changes (`MailReadScreen.kt:126`); the note route has no equivalent.
-    - Why it matters: The panel shows a wrong set of linked items in the normal editing flow of the very feature (inline links) whose links it is meant to render, and there is no user action in the editor that refreshes it short of leaving the Notes screen.
-    - Suggested fix: Obtain the panel's view model in the route (as ContactsScreen/MailReadScreen do with `linksViewModelKey(ItemRef("NOTE", id))`, Hilt-guarded) and pass it to `LinkedItemsSection(..., viewModel = it)`; call `reload()` when a save that changed the body completes (e.g. a `LaunchedEffect` keyed on the saved note's version, `state.note?.version`) and once per opening. Add a test that a changed saved version triggers a reload.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | Route wiring for opening a linked item in place is untested**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteEditorScreen.kt:153-160,232-242`
-    - Category: Tests
-    - Problem: `NoteEditorLinksPanelScreenTest` only covers the stateless `linksPanel` slot of `NoteEditorContent` (shown for saved notes in view mode, hidden while editing, loading, or for a new note). The new route behavior - an `InApp` target calls `viewModel.saveNow()` before switching to `SearchItemScreen`, back/close returns to the note, `Screen` targets are ignored - has no test. The existing `NoteEditorRouteTest` (fake view model) could at least assert that the open callback triggers a save and swaps the content; ContactsScreen/MailReadScreen have no such test either, so this follows project precedent and is low priority.
-    - Why it matters: The "save before leaving the note" step is the part of the recorded assumption that protects unsaved view-mode changes (checklist toggles, tags); a regression there would go unnoticed.
-    - Suggested fix: Extract the target handling into a small function (e.g. {openLinked}(target, save, open)) or expose it via a test seam, and test that `InApp` saves then opens, and `Screen`/`Web` do neither.
+- [ ] **CR-1 | Panel links are reloaded on every autosave while the panel is hidden in edit mode**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteEditorScreen.kt:160-163`
+    - Category: Quality
+    - Problem: The reload effect is keyed only on `state.note?.version`. While editing, `NoteEditorViewModel` autosaves 1 s after each pause in typing (`AUTOSAVE_DELAY_MS`, `saveSoon(AUTOSAVE_DELAY_MS)` at NoteEditorViewModel.kt:330), and each saved version triggers `links.reload()`, i.e. a `GET` of the note's links, although `NoteEditorContent` does not compose the panel in edit mode. Only the last of these results is ever shown, after switching back to the view (which saves once more and reloads again).
+    - Why it matters: Extra network calls per autosave during normal editing (more on a slow or metered connection); no wrong data is shown, so the impact is small.
+    - Suggested fix: Skip the reload while `state.editing` is true and reload when the view is shown again with a version newer than the last one loaded (e.g. remember the last reloaded version and include `state.editing` in the effect keys). Optional; acceptable to leave as is.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
 
-The acceptance criteria are otherwise met by the code: the shared `LinkedItemsSection` is shown for the saved note below its text in view mode, with `ItemRef("NOTE", id)` matching the server type; no new strings were added (criterion 2 is vacuous); in-place opening mirrors ContactsScreen/MailReadScreen. CR-1 is a behavioral defect in normal use of the new panel and should be fixed (or explicitly accepted by the parent as out of scope via an assumption) before `done`.
+All acceptance criteria are met by the code: the shared `LinkedItemsSection` is shown for the saved note below its text in the view (criterion 1), with `ItemRef("NOTE", id)` matching the server type and the recorded assumption's behavior for in-app, Screen and Web targets; no new strings were added, so criterion 2 needs no translations; screen tests for the `linksPanel` slot and Hilt route tests cover the new behavior (criterion 3, test part). Whether `./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass was not verified by this review and must be recorded by the parent worker.
