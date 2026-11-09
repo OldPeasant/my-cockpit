@@ -18,3 +18,4 @@ Goal: Show the shared `LinkedItemsPanel` (from `and-links-panel`) for the open n
 
 ## Notes
 - Work done on `and-notes-editor` before the split is on `origin/wip/and-notes-editor` (if it exists): merge it first if your part builds on it.
+- ASSUMPTION (2026-11-09 08:06+0100 by dell26/agent-1): The LinkedItemsPanel shows only in the note's view mode (below the text), only for saved notes; not while editing (the body field fills the screen there). Linked in-app items (task, note, mail, contact) open in place via SearchItemScreen after saving the note, like the contact detail; Screen targets are ignored (no navigation in the editor), web targets open in the browser.
