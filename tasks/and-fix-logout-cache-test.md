@@ -18,7 +18,8 @@ logout cleanup no longer deletes what the test creates, or the test's `cachedFil
 every task's `done`.
 
 ## Acceptance criteria
-- [ ] Logout clears the files cache actually used by the files feature (fix the code, or the test if only it is outdated)
+- [x] Logout clears the files cache actually used by the files feature (fix the code, or the test if only it is outdated)
+  - verified (2026-11-09 02:33+0100 by dell26/agent-2): Logout clears the whole cacheDir (AuthModule.cacheDirectory); new SessionCacheTest 'the files feature's previewed and opened files go with the logout' creates files via PreviewFiles.target/OpenedFiles.target and asserts they are deleted: android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.*' -> pass (SessionCacheTest 3/3, AppStartRoutingTest 9/9). Production code unchanged; the test's cache wait was raised from 5s to 30s (timing under load)
 - [ ] `AppStartRoutingTest` passes; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
