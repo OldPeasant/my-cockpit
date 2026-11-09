@@ -4,10 +4,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusManager
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -16,6 +18,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.text.AnnotatedString
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
@@ -36,6 +39,9 @@ class NoteTagsEditorTest {
     private val removed = mutableListOf<String>()
     private var tags by mutableStateOf(listOf<String>())
     private var enabled by mutableStateOf(true)
+
+    /** Whether onAdd takes a tag (the view model refuses duplicates and tags over a limit). */
+    private var accepts: (String) -> Boolean = { true }
     private lateinit var focus: FocusManager
     private val note =
         Note(UUID.fromString("00000000-0000-7000-8000-000000000001"), null, "Trip", "Body", false, listOf("travel"), Instant.EPOCH, 1)
@@ -54,8 +60,7 @@ class NoteTagsEditorTest {
                     enabled = enabled,
                     onAdd = { tag ->
                         added += tag
-                        tags = tags + tag.trim()
-                        true
+                        accepts(tag).also { if (it) tags = tags + tag.trim() }
                     },
                     onRemove = { tag ->
                         removed += tag
@@ -89,6 +94,47 @@ class NoteTagsEditorTest {
         assertEquals(listOf("work"), removed)
         assertEquals(1, chips())
         composeRule.onNodeWithText("#work").assertDoesNotExist()
+    }
+
+    @Test
+    fun `tapping the chip itself does not remove the tag`() {
+        // A long tag, tapped at the start of its label: the close icon's touch target (48 dp) covers short chips.
+        val tag = "groceries and errands for the whole week"
+        show(listOf(tag))
+
+        composeRule.onNodeWithText("#$tag", useUnmergedTree = true).performTouchInput { click(centerLeft + Offset(1f, 0f)) }
+
+        assertEquals(emptyList<String>(), removed)
+        assertEquals(1, chips())
+    }
+
+    @Test
+    fun `a tag typed before a comma that is not added stays in the input`() {
+        accepts = { it.trim() != "home" }
+        show(emptyList())
+
+        composeRule.onNodeWithTag(NoteTagsTags.INPUT).performTextInput("home,")
+        assertEquals(listOf("home"), added)
+        assertInput("home")
+        assertEquals(0, chips())
+
+        composeRule.onNodeWithTag(NoteTagsTags.INPUT).performTextInput(", b,wor")
+        assertEquals(listOf("home", "home", " b"), added)
+        assertInput("home, wor")
+        assertEquals(1, chips())
+    }
+
+    @Test
+    fun `Enter keeps a typed tag that is not added`() {
+        accepts = { false }
+        show(emptyList())
+
+        composeRule.onNodeWithTag(NoteTagsTags.INPUT).performTextInput("way too long")
+        composeRule.onNodeWithTag(NoteTagsTags.INPUT).performImeAction()
+
+        assertEquals(listOf("way too long"), added)
+        assertInput("way too long")
+        assertEquals(0, chips())
     }
 
     @Test
@@ -163,6 +209,7 @@ class NoteTagsEditorTest {
         show(listOf("home"), suggestions = listOf("Work"))
 
         composeRule.onNodeWithTag(NoteTagsTags.CHIP).performClick()
+        composeRule.onNodeWithTag(NoteTagsTags.REMOVE).performClick()
 
         assertEquals(emptyList<String>(), removed)
         assertEquals(0, suggestions())
@@ -191,7 +238,7 @@ class NoteTagsEditorTest {
         composeRule.onNodeWithText("#travel").assertExists()
         composeRule.onNodeWithTag(NoteTagsTags.INPUT).performTextInput("ho")
         composeRule.onNodeWithTag(NoteTagsTags.SUGGESTION).performClick()
-        composeRule.onNodeWithTag(NoteTagsTags.CHIP).performClick()
+        composeRule.onNodeWithTag(NoteTagsTags.REMOVE).performClick()
 
         assertEquals(listOf("add home", "remove travel"), calls)
     }

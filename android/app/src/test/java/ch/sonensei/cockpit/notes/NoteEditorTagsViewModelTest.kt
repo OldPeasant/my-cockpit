@@ -367,6 +367,26 @@ class NoteEditorTagsViewModelTest {
         }
 
     @Test
+    fun `an older load of the tags in use that ends last does not replace the newer one`() =
+        test { vm ->
+            val older = CompletableDeferred<NotesResult<List<NoteTag>>>()
+            known = { older.await() }
+            vm.open(id, Any())
+            runCurrent()
+
+            known = { NotesResult.Ok(listOf(NoteTag("fresh", 1))) }
+            vm.open(id, Any())
+            runCurrent()
+            assertEquals(listOf("fresh"), vm.uiState.value.knownTags)
+
+            older.complete(NotesResult.Ok(listOf(NoteTag("stale", 9))))
+            advanceUntilIdle()
+
+            assertEquals(2, tagCalls)
+            assertEquals(listOf("fresh"), vm.uiState.value.knownTags)
+        }
+
+    @Test
     fun `normalizeTag trims and drops one leading hash, as the server does`() {
         assertEquals("home", NoteEditorViewModel.normalizeTag("  #home "))
         assertEquals("home", NoteEditorViewModel.normalizeTag("# home"))

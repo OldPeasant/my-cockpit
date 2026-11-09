@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.notes
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -28,8 +29,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import ch.sonensei.cockpit.R
@@ -64,7 +64,8 @@ internal fun matchingTags(
 /**
  * The note's [tags] as removable chips, with an input that adds a tag on Enter, on a comma or when it loses focus,
  * and the tags in use not on the note yet ([suggestions]) as chips to add with a tap, filtered by what is typed.
- * [onAdd] returns whether the tag was added.
+ * [onAdd] returns whether the tag was added; text that was not added stays in the input. Only a chip's close icon
+ * removes its tag.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -79,36 +80,41 @@ fun NoteTagsEditor(
     var text by rememberSaveable { mutableStateOf("") }
     var focused by rememberSaveable { mutableStateOf(false) }
 
+    // A tag that is not added (a duplicate, too long, one too many) stays in the input, so nothing typed is lost.
     fun commit() {
-        if (text.isNotBlank()) onAdd(text)
-        text = ""
+        if (text.isBlank() || onAdd(text)) text = ""
     }
 
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             tags.forEach { tag ->
                 val removeLabel = stringResource(R.string.notes_tag_remove, tag)
+                // Only the close icon removes the tag: a tap on the chip itself does nothing.
                 InputChip(
                     selected = false,
-                    onClick = { onRemove(tag) },
+                    onClick = {},
                     enabled = enabled,
                     label = { Text("#$tag") },
                     trailingIcon = {
                         Icon(
                             Icons.Outlined.Close,
                             contentDescription = removeLabel,
-                            modifier = Modifier.size(16.dp).testTag(NoteTagsTags.REMOVE),
+                            modifier =
+                                Modifier
+                                    .size(16.dp)
+                                    .clickable(enabled = enabled, role = Role.Button) { onRemove(tag) }
+                                    .testTag(NoteTagsTags.REMOVE),
                         )
                     },
-                    modifier = Modifier.semantics { contentDescription = removeLabel }.testTag(NoteTagsTags.CHIP),
+                    modifier = Modifier.testTag(NoteTagsTags.CHIP),
                 )
             }
             TextField(
                 value = text,
                 onValueChange = { value ->
                     val (done, rest) = splitTagInput(value)
-                    done.forEach { onAdd(it) }
-                    text = rest
+                    val refused = done.filter { it.isNotBlank() && !onAdd(it) }.map { it.trim() }
+                    text = if (refused.isEmpty()) rest else (refused + rest).filter { it.isNotEmpty() }.joinToString(", ")
                 },
                 enabled = enabled,
                 singleLine = true,

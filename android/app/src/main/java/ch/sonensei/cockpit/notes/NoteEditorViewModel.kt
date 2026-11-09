@@ -135,6 +135,7 @@ class NoteEditorViewModel
         private val saving = Mutex()
         private var autosave: Job? = null
         private var linkSearchJob: Job? = null
+        private var knownTagsJob: Job? = null
         private var opened = false
         private var opening: Any? = null
 
@@ -189,14 +190,19 @@ class NoteEditorViewModel
             return s.loading || s.uploading || s.conflict != null || s.status != SaveStatus.SAVED || saving.isLocked
         }
 
-        /** Loads the tags in use for the suggestions; a failure leaves the ones known (tags can still be typed). */
+        /**
+         * Loads the tags in use for the suggestions; a failure leaves the ones known (tags can still be typed). A load
+         * still running is cancelled, so an older answer never replaces a newer one.
+         */
         private fun loadKnownTags() {
-            viewModelScope.launch {
-                val result = tagSource.tags()
-                if (result is NotesResult.Ok) {
-                    state.update { s -> s.copy(knownTags = result.value.sortedByDescending { it.count }.map { it.tag }) }
+            knownTagsJob?.cancel()
+            knownTagsJob =
+                viewModelScope.launch {
+                    val result = tagSource.tags()
+                    if (result is NotesResult.Ok) {
+                        state.update { s -> s.copy(knownTags = result.value.sortedByDescending { it.count }.map { it.tag }) }
+                    }
                 }
-            }
         }
 
         /** Loads the note again after a failed load. */
