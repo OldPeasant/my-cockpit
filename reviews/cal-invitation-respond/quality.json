@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "task": "cal-invitation-respond",
+  "reviewed_revision": "e29b9fc2453edb643132595fd0ae50dd075f2d13",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/cal-invitation-respond/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/cal-invitation-respond/review.md"},
+    "fixer": {"status": "not_required", "reason": "Integration-only parent task with no own code; the review has only two non-blocking P3 parity suggestions (accepted) and the test report found no bugs."}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "Android shows no explicit 'answer sent' message; the status line updates when the attendee matches a mail address. Optional parity polish, not required by the acceptance criteria."},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "Android maps provider 502 to the shared 'Can't reach the server' message; this is the existing Android calendar editor convention and the retry advice stays valid."}
+  ],
+  "validation": [
+    {"command": "cd web && npx ng test --watch=false --include src/app/features/calendar/edit", "result": "pass"},
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.edit.*' --tests 'ch.sonensei.cockpit.gtd.today.*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
