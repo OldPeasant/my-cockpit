@@ -14,7 +14,8 @@ are not reachable on web. Android shows "Unsupported" plus the links toggle (SPE
 
 ## Acceptance criteria
 - [ ] Web: a file without a preview type can show its linked-items panel (e.g. preview dialog with a "no preview" notice plus download and the links toggle, like Android)
-- [ ] New strings in English and German (`web/src/locale`)
+- [x] New strings in English and German (`web/src/locale`)
+  - verified (2026-11-09 11:14+0100 by dell26/agent-1): Added files.openFile, files.preview.unsupported, files.preview.downloadFile to web/src/locale/messages.xlf (npm run i18n:extract output matched, only line numbers differed) and messages.de.xlf; npm run check (incl. messages-de.spec) -> 4811 passed, lint 0 warnings
 - [ ] Unit tests cover the new behavior; `sh scripts/check.sh` passes
 
 ## Notes
