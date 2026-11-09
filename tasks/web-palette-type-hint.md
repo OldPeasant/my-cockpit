@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [web-small-gaps]
 touches: [web/src/app/shell]
 prio: 2
-lease_until: 2026-11-09T01:17:26Z
+lease_until: 2026-11-09T01:22:29Z
 releases: 1
 extended: 
 ---
