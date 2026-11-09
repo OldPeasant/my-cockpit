@@ -21,3 +21,4 @@ Goal: web settings "General" gets a "Weekly review reminder" control: off, or we
 ## Notes
 - Work done on `review-reminder` before the split is on `origin/wip/review-reminder` (if it exists): merge it first if your part builds on it.
 - ASSUMPTION (2026-11-09 04:50+0100 by dell26/agent-2): Weekly review reminder control: a weekday select with 'Off' plus a time input shown once a day is picked; first switch-on offers 18:00; the time is kept while off; stored values that are not <DAY>@HH:mm show as Off.
+- ASSUMPTION (2026-11-09 04:50+0100 by dell26/agent-2): German term for weekly review in the reminder row: 'Wochenrückblick' (as used elsewhere in messages.de.xlf).
