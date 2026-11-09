@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "web-palette-type-hint",
-  "reviewed_revision": "d76dce30d79ba361189bc8ce683f27274f8949e2",
+  "reviewed_revision": "197d7cff8ae08c6d933e68d816c533898014a320",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/web-palette-type-hint/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/web-palette-type-hint/review.md"},
