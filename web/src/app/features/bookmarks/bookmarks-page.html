@@ -193,6 +193,7 @@
                     <textarea
                       class="edit-notes"
                       rows="3"
+                      maxlength="2000"
                       [value]="d.notes"
                       (input)="setDraft('notes', $event)"
                     ></textarea>

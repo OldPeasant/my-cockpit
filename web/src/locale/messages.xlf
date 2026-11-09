@@ -1071,6 +1071,13 @@
           <context context-type="linenumber">266</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="bookmarks.edit.conflict" datatype="html">
+        <source>It was changed elsewhere in the meantime. Save again to replace it with your values.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
+          <context context-type="linenumber">342</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="bookmarks.restoreFailed" datatype="html">
         <source>“<x id="title" equiv-text="title"/>” could not be restored: <x id="error" equiv-text="message(error)"/></source>
         <context-group purpose="location">

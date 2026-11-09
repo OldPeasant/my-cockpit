@@ -1283,6 +1283,9 @@ describe('BookmarksPage', () => {
           .flush({ ...NOTED, version: 5 });
         await settle();
         expect(row(NOTED).querySelector('.edit')).toBeTruthy();
+        expect(text(row(NOTED).querySelector('.error'))).toBe(
+          '“Kotlin coroutines in practice” could not be changed: It was changed elsewhere in the meantime. Save again to replace it with your values.',
+        );
 
         (row(NOTED).querySelector('.edit') as HTMLFormElement).dispatchEvent(new Event('submit'));
         const retry = http.expectOne((r) => r.method === 'PATCH');
@@ -1291,6 +1294,87 @@ describe('BookmarksPage', () => {
         await settle();
         flushTags();
         await settle();
+      });
+
+      it('saves with the version the editor opened with, so a newer row is a conflict', async () => {
+        await open('/bookmarks?view=all', [GUIDE]);
+        button(GUIDE, 'edit-open').click();
+        harness.detectChanges();
+        typeInto(editField(GUIDE, 'edit-tags'), 'docs');
+        // The fetched title arrives while the editor is open.
+        const fetched = {
+          ...GUIDE,
+          title: 'The guide',
+          displayTitle: 'The guide',
+          description: 'How to use the fictitious tool.',
+          metadataStatus: 'FETCHED' as const,
+          version: 2,
+        };
+        changes.next({ type: 'BOOKMARK', op: 'UPDATED', id: GUIDE.id, at: '2026-10-22T09:00:00Z' });
+        http.expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${GUIDE.id}`).flush(fetched);
+        await settle();
+        expect(text(row(GUIDE).querySelector('.title'))).toBe('The guide');
+
+        (row(GUIDE).querySelector('.edit') as HTMLFormElement).dispatchEvent(new Event('submit'));
+        const save = http.expectOne((r) => r.method === 'PATCH');
+        expect(save.request.headers.get('If-Match')).toBe('"1"');
+        expect(save.request.body).toEqual({ title: null, description: null, tags: ['docs'] });
+        save.flush(...problem(412, 'Precondition Failed'));
+        await settle();
+        http.expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${GUIDE.id}`).flush(fetched);
+        await settle();
+
+        // The fetched values stay on the row; the editor keeps the user's values.
+        expect(text(row(GUIDE).querySelector('.title'))).toBe('The guide');
+        expect(text(row(GUIDE).querySelector('.error'))).toContain('changed elsewhere');
+        expect(editField(GUIDE, 'edit-tags').value).toBe('docs');
+
+        // Saving again overwrites knowingly, with the current version.
+        (row(GUIDE).querySelector('.edit') as HTMLFormElement).dispatchEvent(new Event('submit'));
+        harness.detectChanges();
+        expect(row(GUIDE).querySelector('.error')).toBeNull();
+        const retry = http.expectOne((r) => r.method === 'PATCH');
+        expect(retry.request.headers.get('If-Match')).toBe('"2"');
+        expect(retry.request.body.tags).toEqual(['docs']);
+        retry.flush({
+          ...fetched,
+          title: undefined,
+          description: undefined,
+          tags: ['docs'],
+          version: 3,
+        });
+        await settle();
+        flushTags();
+        await settle();
+        expect(row(GUIDE).querySelector('.edit')).toBeNull();
+      });
+
+      it('keeps the editor current after marking the bookmark read while editing', async () => {
+        await open('/bookmarks?view=all', [NOTED]);
+        button(NOTED, 'edit-open').click();
+        harness.detectChanges();
+        button(NOTED, 'mark-read').click();
+        http
+          .expectOne((r) => r.method === 'PATCH')
+          .flush({ ...NOTED, readAt: '2026-10-22T09:00:00Z', version: 2 });
+        await settle();
+
+        (row(NOTED).querySelector('.edit') as HTMLFormElement).dispatchEvent(new Event('submit'));
+        const save = http.expectOne((r) => r.method === 'PATCH');
+        expect(save.request.headers.get('If-Match')).toBe('"2"');
+        save.flush({ ...NOTED, readAt: '2026-10-22T09:00:00Z', version: 3 });
+        await settle();
+        flushTags();
+        await settle();
+        expect(row(NOTED).querySelector('.edit')).toBeNull();
+      });
+
+      it('limits the notes to the 2000 characters the server accepts', async () => {
+        await open('/bookmarks?view=all', [NOTED]);
+        button(NOTED, 'edit-open').click();
+        harness.detectChanges();
+        expect(editField(NOTED, 'edit-notes').getAttribute('maxlength')).toBe('2000');
+        expect(editField(NOTED, 'edit-title').getAttribute('maxlength')).toBe('500');
       });
 
       it('keeps the editor of another bookmark opened while a save was running', async () => {

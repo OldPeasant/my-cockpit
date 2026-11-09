@@ -26,6 +26,8 @@ export const UNDO_DURATION_MS = 6000;
 /** The unsaved values of the bookmark editor. */
 interface Draft {
   id: string;
+  /** The version the values were based on, sent as `If-Match`: a newer one is a conflict. */
+  version: number;
   title: string;
   tags: string;
   notes: string;
@@ -291,6 +293,7 @@ export default class BookmarksPage {
     this.rowError.set(null);
     this.draft.set({
       id: bookmark.id,
+      version: bookmark.version,
       title: bookmark.title ?? '',
       tags: bookmark.tags.join(', '),
       notes: bookmark.description ?? '',
@@ -306,21 +309,41 @@ export default class BookmarksPage {
     this.draft.update((draft) => (draft ? { ...draft, [field]: value } : draft));
   }
 
-  /** Saves the editor's values; a blank title or notes field clears it. The editor stays on failure. */
+  /**
+   * Saves the editor's values; a blank title or notes field clears it. The editor stays on failure.
+   * The version the editor opened with goes as `If-Match`, so a change made meanwhile (e.g. the
+   * fetched title, or an edit on another device) is a conflict instead of being overwritten. After a
+   * conflict the editor keeps the values and takes the current version: saving again overwrites.
+   */
   protected async saveEdit(bookmark: BookmarkResponse): Promise<void> {
     const draft = this.draft();
     if (!draft || draft.id !== bookmark.id) return;
-    await this.run(bookmark, async () => {
-      this.put(
-        await this.service.update(bookmark, {
-          title: draft.title.trim() || null,
-          description: draft.notes.trim() || null,
-          tags: parseTags(draft.tags),
-        }),
-      );
-      if (this.draft()?.id === bookmark.id) this.draft.set(null);
-      void this.loadTags();
-    });
+    await this.run(
+      bookmark,
+      async () => {
+        this.put(
+          await this.service.update(
+            { ...bookmark, version: draft.version },
+            {
+              title: draft.title.trim() || null,
+              description: draft.notes.trim() || null,
+              tags: parseTags(draft.tags),
+            },
+          ),
+        );
+        if (this.draft()?.id === bookmark.id) this.draft.set(null);
+        void this.loadTags();
+      },
+      (current) => {
+        this.draft.update((d) => (d?.id === current.id ? { ...d, version: current.version } : d));
+        if (this.rowError()?.id === current.id) {
+          this.rowError.set({
+            id: current.id,
+            message: $localize`:@@bookmarks.edit.conflict:It was changed elsewhere in the meantime. Save again to replace it with your values.`,
+          });
+        }
+      },
+    );
   }
 
   /** Creates an Inbox task for the bookmark, linked to it as its origin (SPEC.md §4.5). */
@@ -369,7 +392,14 @@ export default class BookmarksPage {
     after?: () => void,
   ): Promise<void> {
     await this.run(bookmark, async () => {
-      this.put(await this.service.update(bookmark, patch));
+      const changed = await this.service.update(bookmark, patch);
+      // Read and queue state are not in the editor: its values still apply to the new version.
+      this.draft.update((d) =>
+        d?.id === changed.id && d.version === bookmark.version
+          ? { ...d, version: changed.version }
+          : d,
+      );
+      this.put(changed);
       after?.();
     });
   }
@@ -463,8 +493,15 @@ export default class BookmarksPage {
     }
   }
 
-  /** Runs a change of `bookmark`; a bookmark gone meanwhile (404) is dropped from the list. */
-  private async run(bookmark: BookmarkResponse, action: () => Promise<void>): Promise<void> {
+  /**
+   * Runs a change of `bookmark`; a bookmark gone meanwhile (404) is dropped from the list. After a
+   * conflict its current version is loaded and handed to `reloaded`.
+   */
+  private async run(
+    bookmark: BookmarkResponse,
+    action: () => Promise<void>,
+    reloaded?: (current: BookmarkResponse) => void,
+  ): Promise<void> {
     if (this.busy().has(bookmark.id)) return;
     this.busy.update((ids) => new Set(ids).add(bookmark.id));
     this.rowError.set(null);
@@ -479,7 +516,7 @@ export default class BookmarksPage {
         this.drop(bookmark.id);
       } else {
         this.rowError.set({ id: bookmark.id, message: message(error) });
-        if (isConflict(error)) void this.reloadOne(bookmark.id);
+        if (isConflict(error)) void this.reloadOne(bookmark.id, reloaded);
       }
     } finally {
       this.busy.update((ids) => {
@@ -491,9 +528,14 @@ export default class BookmarksPage {
   }
 
   /** After a conflict: the current version, so the next try works. */
-  private async reloadOne(id: string): Promise<void> {
+  private async reloadOne(
+    id: string,
+    reloaded?: (current: BookmarkResponse) => void,
+  ): Promise<void> {
     try {
-      this.put(await this.service.get(id));
+      const current = await this.service.get(id);
+      this.put(current);
+      reloaded?.(current);
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) this.drop(id);
     }
