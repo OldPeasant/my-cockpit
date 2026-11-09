@@ -20,7 +20,8 @@ bookmark → Inbox task.
   - verified (2026-11-09 01:37+0100 by dell26/agent-1): same bookmarks spec run -> 132 passed; delete opens MatSnackBar 'Undo' -> POST /api/v1/trash/BOOKMARK/{id}/restore and row reloaded, dismissed -> no restore, failed restore -> error; 'To Inbox task' -> POST /api/v1/tasks (UUIDv7 id, list INBOX, notes = URL) + POST /api/v1/links origin, retry reuses id, unlinked and failed messages
 - [x] New UI strings are in `web/src/locale` (English + German)
   - verified (2026-11-09 01:37+0100 by dell26/agent-1): npm run i18n:extract in web/ -> only bookmarks.* units added to messages.xlf; grep of messages.de.xlf -> all 15 new ids (search, searchPlaceholder, noMatch, edit.*, edit.conflict, toInbox, undo, restoreFailed, taskCreated, taskCreatedUnlinked, taskFailed) with state=translated; ng build in npm run check -> no missing-translation errors
-- [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+- [x] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+  - verified (2026-11-09 01:38+0100 by dell26/agent-1): bookmarks specs 132 passed (bookmark-display, bookmarks.service, bookmarks-page, reader); cd web && npm run check -> pass (test-writer, final revision); sh scripts/check.sh at e52450cb4 -> exit 0, 'all checks passed' (server, web, android)
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
