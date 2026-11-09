@@ -7,6 +7,7 @@ import {
   ChangeEvent,
   completeTask,
   createTask,
+  getContact,
   listContexts,
   listProjects,
   listTasks,
@@ -113,6 +114,11 @@ describe('GTD list pages', () => {
           return { items };
         }
         if (fn === listContexts || fn === listProjects) return { items: [] };
+        if (fn === getContact) {
+          if (params['id'] === 'c-anna') return { emails: [{ address: 'anna@example.test' }] };
+          if (params['id'] === 'c-none') return { emails: [] };
+          throw new Error('not found');
+        }
         if (fn === createTask) {
           return task('new', { ...(params['body'] as object), list: 'NEXT' });
         }
@@ -292,6 +298,58 @@ describe('GTD list pages', () => {
       await click(element.querySelector<HTMLElement>('app-task-row .title')!);
 
       expect(navigate).toHaveBeenCalledWith(['/tasks', 't2']);
+    });
+
+    describe('Draft email', () => {
+      async function draftFor(fields: Partial<TaskResponse>) {
+        await render(WaitingPage, [task('t1', { title: 'Lease papers', ...fields })]);
+        const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+        await click(button('Draft an email about “Lease papers”'));
+        return navigate;
+      }
+
+      it('opens compose to the linked contact’s first address with the task as subject', async () => {
+        const navigate = await draftFor({
+          waitingForContactId: 'c-anna',
+          waitingForText: 'Bob <bob@example.test>',
+        });
+
+        expect(callsOf(getContact)[0].params).toMatchObject({ id: 'c-anna' });
+        expect(navigate).toHaveBeenCalledWith(['/mail/compose'], {
+          queryParams: { to: 'anna@example.test', subject: 'Lease papers' },
+        });
+      });
+
+      it('falls back to the address in the waiting-for text when the contact has no email', async () => {
+        const navigate = await draftFor({
+          waitingForContactId: 'c-none',
+          waitingForText: 'Bob <bob@example.test>',
+        });
+
+        expect(navigate).toHaveBeenCalledWith(['/mail/compose'], {
+          queryParams: { to: 'bob@example.test', subject: 'Lease papers' },
+        });
+      });
+
+      it('falls back to the waiting-for text when the contact cannot be loaded', async () => {
+        const navigate = await draftFor({
+          waitingForContactId: 'c-gone',
+          waitingForText: 'bob@example.test',
+        });
+
+        expect(navigate).toHaveBeenCalledWith(['/mail/compose'], {
+          queryParams: { to: 'bob@example.test', subject: 'Lease papers' },
+        });
+      });
+
+      it('leaves To empty for a plain name and asks for no contact without a link', async () => {
+        const navigate = await draftFor({ waitingForText: 'Alex' });
+
+        expect(callsOf(getContact)).toEqual([]);
+        expect(navigate).toHaveBeenCalledWith(['/mail/compose'], {
+          queryParams: { subject: 'Lease papers' },
+        });
+      });
     });
   });
 
