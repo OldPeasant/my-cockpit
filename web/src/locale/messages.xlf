@@ -678,7 +678,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">91,93</context>
+          <context context-type="linenumber">104,106</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.readMark" datatype="html">
@@ -689,7 +689,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">128,130</context>
+          <context context-type="linenumber">145,147</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.markUnread" datatype="html">
@@ -700,7 +700,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">164,165</context>
+          <context context-type="linenumber">243,244</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.markRead" datatype="html">
@@ -711,7 +711,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">166,167</context>
+          <context context-type="linenumber">245,246</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.reader.noSnapshot" datatype="html">
@@ -780,7 +780,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
-          <context context-type="linenumber">385</context>
+          <context context-type="linenumber">517</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.views" datatype="html">
@@ -824,12 +824,20 @@
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
           <context context-type="linenumber">38,40</context>
         </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">180,181</context>
+        </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.add.tagsPlaceholder" datatype="html">
         <source>e.g. kotlin, design</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
           <context context-type="linenumber">45,48</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">188,190</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.add.readLater" datatype="html">
@@ -853,144 +861,235 @@
           <context context-type="linenumber">56,58</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="bookmarks.search" datatype="html">
+        <source>Search</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">65,67</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.searchPlaceholder" datatype="html">
+        <source>Title, address, notes or #tag</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">73,77</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="bookmarks.tagFilter" datatype="html">
         <source>Tags</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">66</context>
+          <context context-type="linenumber">79</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.taggedWith" datatype="html">
         <source>Tagged #<x id="INTERPOLATION" equiv-text="{{ current }}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">80,81</context>
+          <context context-type="linenumber">93,94</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.clearTag" datatype="html">
         <source>Show all</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">82,87</context>
+          <context context-type="linenumber">95,100</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.loadFailed" datatype="html">
         <source>The bookmarks could not be loaded: <x id="INTERPOLATION" equiv-text="{{ error }}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">89,90</context>
+          <context context-type="linenumber">102,103</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.noMatch" datatype="html">
+        <source> No loaded bookmark matches “<x id="INTERPOLATION" equiv-text="{{ query().trim() }}"/>”. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">111,113</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.emptyQueue" datatype="html">
         <source> Nothing left to read. Save a link above with “Read later” to queue it here. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">98,100</context>
+          <context context-type="linenumber">115,117</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.emptyTag" datatype="html">
         <source>No bookmarks with this tag.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">101,103</context>
+          <context context-type="linenumber">118,120</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.empty" datatype="html">
         <source> No bookmarks yet. Paste a link above to save it. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">104,106</context>
+          <context context-type="linenumber">121,123</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.fetching" datatype="html">
         <source>fetching title…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">125,127</context>
+          <context context-type="linenumber">142,144</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.edit.title" datatype="html">
+        <source>Title</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">169,171</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.edit.notes" datatype="html">
+        <source>Notes</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">192,193</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.edit.save" datatype="html">
+        <source> Save </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">208,209</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.edit.cancel" datatype="html">
+        <source> Cancel </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">217,218</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.openSnapshot" datatype="html">
         <source>Read here</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">152,154</context>
+          <context context-type="linenumber">231,233</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.unqueue" datatype="html">
         <source>Remove from Read later</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">177,178</context>
+          <context context-type="linenumber">256,257</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.queue" datatype="html">
         <source>Read later</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">179,180</context>
+          <context context-type="linenumber">258,259</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.edit" datatype="html">
+        <source> Edit </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">269,270</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.toInbox" datatype="html">
+        <source> To Inbox task </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">279,280</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.delete" datatype="html">
         <source> Delete </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">190,191</context>
+          <context context-type="linenumber">289,290</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.changeFailed" datatype="html">
         <source> “<x id="INTERPOLATION" equiv-text="{{ b.displayTitle }}"/>” could not be changed: <x id="INTERPOLATION_1" equiv-text="{{ error }}"/> </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">195,197</context>
+          <context context-type="linenumber">294,296</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.more" datatype="html">
         <source> Show more </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">210,212</context>
+          <context context-type="linenumber">309,311</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.loading" datatype="html">
         <source>Loading bookmarks…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">215,218</context>
+          <context context-type="linenumber">314,317</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.add.invalid" datatype="html">
         <source>Enter a web address, such as https://example.org/article.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
-          <context context-type="linenumber">156</context>
+          <context context-type="linenumber">197</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.added.queue" datatype="html">
         <source>Saved to Read later</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
-          <context context-type="linenumber">179</context>
+          <context context-type="linenumber">220</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.added" datatype="html">
         <source>Bookmark saved</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
-          <context context-type="linenumber">180</context>
+          <context context-type="linenumber">221</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.markedRead" datatype="html">
         <source>Marked “<x id="title" equiv-text="title"/>” as read</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
-          <context context-type="linenumber">198</context>
+          <context context-type="linenumber">239</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.trashed" datatype="html">
         <source>Moved “<x id="title" equiv-text="title"/>” to the Trash</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
-          <context context-type="linenumber">213</context>
+          <context context-type="linenumber">265</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.undo" datatype="html">
+        <source>Undo</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
+          <context context-type="linenumber">266</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.restoreFailed" datatype="html">
+        <source>“<x id="title" equiv-text="title"/>” could not be restored: <x id="error" equiv-text="message(error)"/></source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
+          <context context-type="linenumber">284</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.taskCreated" datatype="html">
+        <source>Added to Inbox: <x id="title" equiv-text="title"/></source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
+          <context context-type="linenumber">340</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.taskCreatedUnlinked" datatype="html">
+        <source>Added to Inbox: <x id="title" equiv-text="title"/> (the link to the bookmark could not be made)</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
+          <context context-type="linenumber">341</context>
         </context-group>
       </trans-unit>
       <trans-unit id="nav.calendar" datatype="html">

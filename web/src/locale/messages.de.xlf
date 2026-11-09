@@ -16004,6 +16004,110 @@
           <context context-type="linenumber">163</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="bookmarks.search" datatype="html">
+        <source>Search</source>
+        <target state="translated">Suchen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">65,67</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.searchPlaceholder" datatype="html">
+        <source>Title, address, notes or #tag</source>
+        <target state="translated">Titel, Adresse, Notizen oder #Tag</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">73,77</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.noMatch" datatype="html">
+        <source> No loaded bookmark matches “<x id="INTERPOLATION" equiv-text="{{ query().trim() }}"/>”. </source>
+        <target state="translated"> Kein geladenes Lesezeichen passt zu „<x id="INTERPOLATION" equiv-text="{{ query().trim() }}"/>“. </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">111,113</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.edit.title" datatype="html">
+        <source>Title</source>
+        <target state="translated">Titel</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">169,171</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.edit.notes" datatype="html">
+        <source>Notes</source>
+        <target state="translated">Notizen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">192,193</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.edit.save" datatype="html">
+        <source> Save </source>
+        <target state="translated"> Speichern </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">208,209</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.edit.cancel" datatype="html">
+        <source> Cancel </source>
+        <target state="translated"> Abbrechen </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">217,218</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.edit" datatype="html">
+        <source> Edit </source>
+        <target state="translated"> Bearbeiten </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">269,270</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.toInbox" datatype="html">
+        <source> To Inbox task </source>
+        <target state="translated"> Als Eingangsaufgabe </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">279,280</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.undo" datatype="html">
+        <source>Undo</source>
+        <target state="translated">Rückgängig</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
+          <context context-type="linenumber">266</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.restoreFailed" datatype="html">
+        <source>“<x id="title" equiv-text="title"/>” could not be restored: <x id="error" equiv-text="message(error)"/></source>
+        <target state="translated">„<x id="title" equiv-text="title"/>“ konnte nicht wiederhergestellt werden: <x id="error" equiv-text="message(error)"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
+          <context context-type="linenumber">284</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.taskCreated" datatype="html">
+        <source>Added to Inbox: <x id="title" equiv-text="title"/></source>
+        <target state="translated">Zum Eingang hinzugefügt: <x id="title" equiv-text="title"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
+          <context context-type="linenumber">340</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.taskCreatedUnlinked" datatype="html">
+        <source>Added to Inbox: <x id="title" equiv-text="title"/> (the link to the bookmark could not be made)</source>
+        <target state="translated">Zum Eingang hinzugefügt: <x id="title" equiv-text="title"/> (die Verknüpfung zum Lesezeichen konnte nicht erstellt werden)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
+          <context context-type="linenumber">341</context>
+        </context-group>
+      </trans-unit>
     </body>
   </file>
 </xliff>
