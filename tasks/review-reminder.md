@@ -1,10 +1,11 @@
 ---
 title: Weekly review reminder on a configurable weekday
-status: todo
-owner:
+status: in_progress
+owner: felix/agent-1
 deps: [and-review-flow,and-review-steps,web-small-gaps]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/review,server/src/test/kotlin/ch/sonensei/cockpit/review,web/src/app/features/settings/general,web/src/app/features/review,android/app/src/main/java/ch/sonensei/cockpit/review,android/app/src/test/java/ch/sonensei/cockpit/review,web/src/locale,android/app/src/main/res/values/strings_review.xml,android/app/src/main/res/values-de/strings_review.xml]
 prio: 3
+lease_until: 2026-11-09T01:50:43Z
 ---
 ## Goal
 SPEC.md §8.6: a weekly review reminder on a configurable weekday; today web only highlights the review after
