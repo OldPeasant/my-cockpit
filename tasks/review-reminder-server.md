@@ -20,3 +20,4 @@ Design: setting `weeklyReviewReminder` in the review module (e.g. `review/infra/
 
 ## Notes
 - Work done on `review-reminder` before the split is on `origin/wip/review-reminder` (if it exists): merge it first if your part builds on it.
+- ASSUMPTION (2026-11-09 02:41+0100 by felix/agent-1): Weekly review reminder item uses fixed well-known id 00000000-0000-7000-8000-00000000a001 (ItemType.WEEKLY_REVIEW), icon event_repeat; DST gap shifts forward, overlap fires at first occurrence; schedule synced on settings change, after firing and at startup (no periodic job).
