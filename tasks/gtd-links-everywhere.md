@@ -15,7 +15,8 @@ SPEC.md §4.3 wants the linked-items panel on every detail view; projects and fi
 SPEC.md §5.3 also wants waiting "follow up" to be able to draft an email to the contact.
 
 ## Acceptance criteria
-- [ ] Web and Android project detail show the linked-items panel
+- [x] Web and Android project detail show the linked-items panel
+  - verified (2026-11-09 10:20+0100 by dell26/agent-1): web project-detail-page <app-linked-items PROJECT> + projects-states.spec.ts; Android ProjectLinksToggleTest (toggle shows LinkedItemsSection PROJECT) -> npm run check (web/) pass, focused gradle testDebugUnitTest pass, sh scripts/check.sh at 22c4b4728 -> all checks passed
 - [ ] Web file details/preview and Android file preview show the linked-items panel
 - [ ] Waiting "Follow up" offers "Draft email" (prefilled To from the linked contact or waiting-for text, subject from the task) on web and Android
 - [ ] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
