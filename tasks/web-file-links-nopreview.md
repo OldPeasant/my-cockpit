@@ -1,11 +1,11 @@
 ---
 title: Web: linked items for files without a preview
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [gtd-links-everywhere]
 touches: [web/src/app/features/files,web/src/locale]
 prio: 2
-lease_until: 2026-11-09T10:40:00Z
+lease_until: 
 ---
 ## Goal
 gtd-links-everywhere put the web file linked-items panel into the preview dialog, but files without a
@@ -23,3 +23,4 @@ are not reachable on web. Android shows "Unsupported" plus the links toggle (SPE
 ## Notes
 From code review finding CR-1 (P2) of gtd-links-everywhere, deferred there.
 - ASSUMPTION (2026-11-09 11:13+0100 by dell26/agent-1): Files without a preview type now open the preview dialog alone (no paging to other files) instead of downloading on click; the row label became 'Open NAME' and Download stays in the dialog and the row menu, matching Android's Unsupported view
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 73s on 90b782d13; criteria verified 3/3
