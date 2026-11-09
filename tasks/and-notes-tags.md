@@ -1,11 +1,11 @@
 ---
 title: Note editor: tag chips with suggestions
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-notes-list, and-links-panel, and-notes-checklist-links]
 prio: 2
 parent: and-notes-editor
-lease_until: 2026-11-09T06:37:49Z
+lease_until: 
 releases: 0
 extended: 
 hold: 
@@ -29,3 +29,4 @@ Goal: Edit a note's tags in the Android editor as chips, with suggestions from e
 - release by dell26/agent-1: Implemented + committed (acf2ddefb) with tests by test-writer (5076d1c30, reviews/and-notes-tags/tests.md: 266 notes tests pass, check.sh passed) and review (review.md). Left: run fixer for review P3s CR-3 (InputChip onClick removes the tag: make only the trailing X remove), CR-4 (rejected tag clears input silently: keep text when onAdd returns false), CR-5 (loadKnownTags: cancel previous job); CR-1/CR-2 already resolved by test-writer (record as fixed via fixer verification, see memory: fixed finding needs fixes.md). Then re-run test-writer + code-reviewer on final code, verify 3 criteria, quality.json, done.
 - release by dell26/agent-1: Fixer done + committed (c298915fe, reviews/and-notes-tags/fixes.md): CR-3/4/5 fixed, CR-1/2 verified fixed; fixer ran ktlintCheck, full testDebugUnitTest, lintDebug -> pass. Left: re-run test-writer + code-reviewer in parallel on final code (base b6e7dc2da, commits b056900b3 8dc50f014 c298915fe), verify 3 criteria, run check.sh, quality.json (fixes_required=true), done.
 - release by dell26/agent-1: Re-review done (245b2383f, review.md): old CR-1..5 all fixed, but NEW findings: CR-1 P2 NoteTagsEditor.kt:114-117 refused tag + comma path rebuilds text so 'home,' loses comma and merges with next tag / spaces accumulate and tags with commas get saved (fix: keep refused parts out, reject or split commas in addTag/commit, add Compose test); CR-2 P3 chip onClick={} still clickable for a11y (use non-clickable container + remove button). Test re-run committed (21cf2718c, tests.md, +2 tests, 272 notes tests + check.sh pass). Left: fixer for new CR-1/CR-2 (fixes.md must keep old CR-1..5 entries too: append), then re-run test-writer + code-reviewer, verify 3 criteria, quality.json (old CR-1/2 P1 fixed, CR-3..5 P3 fixed, plus new ones; use distinct ids e.g. R2-CR-1), done.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 75s on 03a3909d7; criteria verified 3/3
