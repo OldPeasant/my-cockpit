@@ -14,7 +14,8 @@ bookmark → Inbox task.
 ## Acceptance criteria
 - [x] Search field (title, URL, notes, tags)
   - verified (2026-11-09 01:37+0100 by dell26/agent-1): npx ng test --watch=false --include='src/app/features/bookmarks/**/*.spec.ts' in web/ at e52450cb4 -> 132 passed; search specs cover title, URL, notes (description), #tag, multi-word, no-match message, Escape clears, Show more while searching
-- [ ] Edit title, tags and notes
+- [x] Edit title, tags and notes
+  - verified (2026-11-09 01:37+0100 by dell26/agent-1): same bookmarks spec run -> 132 passed; editor specs: opens with current values, PATCH title/description/tags with If-Match of the opened version, blank -> null, cancel by button/Escape, failure keeps editor, conflict keeps editor and retry saves
 - [ ] Undo after delete; "To Inbox task" action
 - [ ] New UI strings are in `web/src/locale` (English + German)
 - [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
