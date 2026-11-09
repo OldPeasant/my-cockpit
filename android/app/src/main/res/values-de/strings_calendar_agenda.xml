@@ -22,4 +22,19 @@
     <string name="calendar_visibility_failed">Der Kalender konnte nicht geändert werden. Versuche es erneut.</string>
     <string name="calendar_retry">Erneut versuchen</string>
     <string name="calendar_week_range">%1$s – %2$s</string>
+    <string name="calendar_view_month">Monat</string>
+    <string name="calendar_previous_month">Vorheriger Monat</string>
+    <string name="calendar_next_month">Nächster Monat</string>
+    <string name="calendar_month_more">+%1$d</string>
+    <plurals name="calendar_month_items">
+        <item quantity="one">%1$d Eintrag</item>
+        <item quantity="other">%1$d Einträge</item>
+    </plurals>
+    <string name="calendar_task_overlay">Aufgaben anzeigen</string>
+    <string name="calendar_task_due">Fällig</string>
+    <string name="calendar_task_scheduled">Geplant</string>
+    <string name="calendar_task_tickler">Zurück aus Wiedervorlage</string>
+    <string name="calendar_tasks_failed">Die Aufgaben konnten nicht geladen werden.</string>
+    <string name="calendar_tasks_retry">Aufgaben erneut laden</string>
+    <string name="calendar_more_options">Weitere Optionen</string>
 </resources>

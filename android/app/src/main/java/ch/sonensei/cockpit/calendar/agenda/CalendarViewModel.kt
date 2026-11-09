@@ -22,8 +22,8 @@ import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
 
-/** The calendar views of SPEC.md §9.2 item 4. */
-enum class CalendarView { AGENDA, DAY, WEEK }
+/** The calendar views of SPEC.md §9.2 item 4, and the month view of the web (SPEC.md §6.3). */
+enum class CalendarView { AGENDA, DAY, WEEK, MONTH }
 
 /** Why the shown occurrences may be outdated. */
 enum class CalendarMessage { OFFLINE, FAILED, VISIBILITY_FAILED }
@@ -54,6 +54,12 @@ data class CalendarUiState(
      * are read-only until a load works again. `null` when nothing cached is shown.
      */
     val cachedAt: Instant? = null,
+    /** The task overlay is on: due and scheduled tasks and ticklers of the shown days are shown (SPEC.md §6.3). */
+    val overlay: Boolean = false,
+    /** The overlay's tasks of [from, to); empty while it is off. */
+    val tasks: List<OverlayTask> = emptyList(),
+    /** The overlay's tasks could not be loaded for the shown range. */
+    val tasksFailed: Boolean = false,
 ) {
     /** Something is shown for the range: loaded from the server, or from the cache. */
     val shown: Boolean get() = loaded || cachedAt != null
@@ -66,8 +72,12 @@ data class CalendarUiState(
         get() =
             when (view) {
                 CalendarView.WEEK -> weekOf(anchor, firstDayOfWeek)
+                CalendarView.MONTH -> monthGrid(anchor, firstDayOfWeek)
                 else -> listOf(anchor)
             }
+
+    /** The overlay's marks by day; empty while it is off. */
+    val taskMarks: Map<LocalDate, List<TaskMark>> get() = if (overlay) taskMarks(tasks, from, to, today) else emptyMap()
 
     fun calendar(id: UUID): CalendarInfo? = calendars.firstOrNull { it.id == id }
 }
@@ -84,10 +94,17 @@ class CalendarViewModel internal constructor(
     locale: Locale,
     private val cache: AgendaCache = AgendaCache.None,
     settings: StateFlow<UserSettings?> = MutableStateFlow(null),
+    private val taskSource: TaskOverlaySource = TaskOverlaySource.None,
+    private val overlaySetting: TaskOverlaySetting = TaskOverlaySetting.InMemory(),
 ) : ViewModel() {
     @Inject
-    constructor(repository: CalendarRepository, cache: AgendaCache, settings: UserSettingsRepository) :
-        this(repository, Clock.systemDefaultZone(), Locale.getDefault(), cache, settings.settings)
+    constructor(
+        repository: CalendarRepository,
+        cache: AgendaCache,
+        settings: UserSettingsRepository,
+        tasks: TaskOverlayRepository,
+        overlaySetting: SharedPreferencesTaskOverlaySetting,
+    ) : this(repository, Clock.systemDefaultZone(), Locale.getDefault(), cache, settings.settings, tasks, overlaySetting)
 
     /** The week start of the device locale, for as long as the synced settings are not known. */
     private val localeWeekStart = WeekFields.of(locale).firstDayOfWeek
@@ -102,12 +119,14 @@ class CalendarViewModel internal constructor(
                     anchor = today,
                     firstDayOfWeek = initial?.weekStart ?: localeWeekStart,
                     zone = zone,
+                    overlay = overlaySetting.enabled,
                 )
             },
         )
     val uiState: StateFlow<CalendarUiState> = state.asStateFlow()
 
     private var loadJob: Job? = null
+    private var tasksJob: Job? = null
 
     /** For each calendar with a pending visibility change: the newest state known from the server. */
     private val serverCalendars = mutableMapOf<UUID, CalendarInfo>()
@@ -161,6 +180,7 @@ class CalendarViewModel internal constructor(
                 CalendarView.AGENDA -> return
                 CalendarView.DAY -> 1L
                 CalendarView.WEEK -> 7L
+                CalendarView.MONTH -> return show(current.view, current.anchor.plusMonths(step.toLong()))
             }
         show(current.view, current.anchor.plusDays(step * days))
     }
@@ -170,6 +190,52 @@ class CalendarViewModel internal constructor(
 
     /** Opens the day view on [date] (e.g. from a day header of the agenda or the week). */
     fun openDay(date: LocalDate) = show(CalendarView.DAY, date)
+
+    /** Turns the task overlay on (loads the tasks of the shown days) or off; the choice is remembered. */
+    fun setOverlay(enabled: Boolean) {
+        if (enabled == state.value.overlay) return
+        overlaySetting.enabled = enabled
+        if (enabled) {
+            state.update { it.copy(overlay = true) }
+            loadTasks(state.value.from, state.value.to, append = false)
+        } else {
+            tasksJob?.cancel()
+            state.update { it.copy(overlay = false, tasks = emptyList(), tasksFailed = false) }
+        }
+    }
+
+    /** Loads the overlay's tasks of the shown range again, e.g. after they could not be loaded. */
+    fun retryTasks() = loadTasks(state.value.from, state.value.to, append = false)
+
+    /**
+     * Loads the overlay's tasks of [from, to) (when it is on): replaces the shown ones, or adds those of the days the
+     * agenda appended. A load still running for an earlier range is dropped when the range is replaced.
+     */
+    private fun loadTasks(
+        from: LocalDate,
+        to: LocalDate,
+        append: Boolean,
+    ) {
+        if (!state.value.overlay || to <= from) return
+        if (!append) tasksJob?.cancel()
+        val job =
+            viewModelScope.launch {
+                val result = taskSource.tasks(from, to, state.value.today)
+                state.update {
+                    // Turned off, or another range shown meanwhile: the answer no longer fits.
+                    if (!it.overlay || from < it.from || to > it.to) return@update it
+                    when (result) {
+                        is CalendarResult.Ok ->
+                            it.copy(
+                                tasks = if (append) (it.tasks + result.value).distinctBy { t -> t.id } else result.value,
+                                tasksFailed = false,
+                            )
+                        else -> it.copy(tasksFailed = true)
+                    }
+                }
+            }
+        if (!append) tasksJob = job
+    }
 
     /** The agenda was scrolled near its end: loads the next days and appends them. */
     fun loadMore() {
@@ -196,6 +262,8 @@ class CalendarViewModel internal constructor(
                         is CalendarResult.Failed -> it.copy(loadingMore = false, message = CalendarMessage.FAILED)
                     }
                 }
+                // After the range was extended: an answer for the new days is only kept while they are in the range.
+                if (result is CalendarResult.Ok) loadTasks(from, to, append = true)
             }
     }
 
@@ -300,6 +368,9 @@ class CalendarViewModel internal constructor(
                 to = to,
                 // The occurrences of another range would be wrong here: cleared until the new ones arrive.
                 occurrences = if (sameRange) it.occurrences else emptyList(),
+                tasks = if (sameRange) it.tasks else emptyList(),
+                // A failure of another range's tasks says nothing about this range's.
+                tasksFailed = it.tasksFailed && sameRange,
                 loaded = it.loaded && sameRange,
                 cachedAt = it.cachedAt.takeIf { sameRange },
             )
@@ -316,6 +387,7 @@ class CalendarViewModel internal constructor(
             CalendarView.AGENDA -> current.today to current.today.plusDays(AGENDA_CHUNK_DAYS)
             CalendarView.DAY -> anchor to anchor.plusDays(1)
             CalendarView.WEEK -> weekOf(anchor, current.firstDayOfWeek).let { it.first() to it.last().plusDays(1) }
+            CalendarView.MONTH -> monthGrid(anchor, current.firstDayOfWeek).let { it.first() to it.last().plusDays(1) }
         }
 
     /**
@@ -330,6 +402,7 @@ class CalendarViewModel internal constructor(
         val zone = state.value.zone
         val agenda = state.value.view == CalendarView.AGENDA
         state.update { it.copy(loading = true, loadingMore = false) }
+        loadTasks(from, to, append = false)
         loadJob =
             viewModelScope.launch {
                 val session = cache.session()

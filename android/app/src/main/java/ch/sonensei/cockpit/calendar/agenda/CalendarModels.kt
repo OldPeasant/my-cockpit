@@ -210,6 +210,19 @@ fun weekOf(
     return (0L until 7L).map { start.plusDays(it) }
 }
 
+/**
+ * The days of the month view of [date]'s month: whole weeks starting on [firstDay], from the week of the 1st to the
+ * week of the last day (4 to 6 weeks).
+ */
+fun monthGrid(
+    date: LocalDate,
+    firstDay: DayOfWeek,
+): List<LocalDate> {
+    val first = weekOf(date.withDayOfMonth(1), firstDay).first()
+    val last = weekOf(date.withDayOfMonth(date.lengthOfMonth()), firstDay).last()
+    return generateSequence(first) { it.plusDays(1) }.takeWhile { it <= last }.toList()
+}
+
 internal fun CalendarResponse.toCalendar() =
     CalendarInfo(
         id = id,

@@ -32,12 +32,17 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material.icons.outlined.Today
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
@@ -60,12 +65,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -77,6 +87,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.calendar.edit.CalendarWithEditor
+import ch.sonensei.cockpit.gtd.task.LocalTaskOpener
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
 import kotlinx.coroutines.delay
@@ -113,6 +124,7 @@ fun CalendarRoute(
     viewModel: CalendarViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val taskOpener = LocalTaskOpener.current
     // Reloaded each time the screen is shown or the app comes back to it (also on a later day, so "today" moves on),
     // so events changed on the web or another device appear. The first resume is the first load.
     LifecycleResumeEffect(viewModel) {
@@ -130,7 +142,10 @@ fun CalendarRoute(
                 loadMore = viewModel::loadMore,
                 setVisible = viewModel::setVisible,
                 retry = viewModel::refresh,
+                retryTasks = viewModel::retryTasks,
                 open = onOpen,
+                setOverlay = viewModel::setOverlay,
+                openTask = { task -> taskOpener?.open(task.id, task.snapshot) },
             ),
         modifier = modifier,
     )
@@ -139,15 +154,21 @@ fun CalendarRoute(
 /** What the views can ask for, so they can be tested without a view model. */
 data class CalendarCallbacks(
     val select: (CalendarView) -> Unit = {},
-    /** `-1` previous, `+1` next day or week. */
+    /** `-1` previous, `+1` next day, week or month. */
     val move: (Int) -> Unit = {},
     val today: () -> Unit = {},
     val openDay: (LocalDate) -> Unit = {},
     val loadMore: () -> Unit = {},
     val setVisible: (UUID, Boolean) -> Unit = { _, _ -> },
     val retry: () -> Unit = {},
+    /** Loads the overlay's tasks again after they could not be loaded. */
+    val retryTasks: () -> Unit = {},
     /** An occurrence was tapped: the event editor opens it. */
     val open: (Occurrence) -> Unit = {},
+    /** The task overlay was switched on or off. */
+    val setOverlay: (Boolean) -> Unit = {},
+    /** A task of the overlay was tapped: its detail screen opens. */
+    val openTask: (OverlayTask) -> Unit = {},
 )
 
 internal object CalendarTags {
@@ -163,6 +184,20 @@ internal object CalendarTags {
     const val RANGE = "calendar-range"
     const val CALENDARS = "calendar-calendars"
     const val NOW = "calendar-now"
+    const val OVERLAY = "calendar-overlay"
+    const val MENU = "calendar-menu"
+    const val MONTH = "calendar-month"
+    const val TASKS_FAILED = "calendar-tasks-failed"
+    const val TASKS_RETRY = "calendar-tasks-retry"
+
+    fun task(
+        key: String,
+        date: LocalDate,
+    ) = "calendar-task:$key@$date"
+
+    fun monthDay(date: LocalDate) = "calendar-month-day:$date"
+
+    fun monthMore(date: LocalDate) = "calendar-month-more:$date"
 
     fun view(view: CalendarView) = "calendar-view:$view"
 
@@ -198,12 +233,17 @@ fun CalendarContent(
             )
         }
         state.message?.let { Message(it, state.cachedAt, state.zone, state.loading, shownCallbacks.retry) }
+        if (state.overlay && state.tasksFailed && state.message == null) TasksFailedLine(shownCallbacks.retryTasks)
         if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth()) else Spacer(Modifier.height(4.dp))
         when (state.view) {
             CalendarView.AGENDA -> Agenda(state, shownCallbacks)
             CalendarView.DAY, CalendarView.WEEK -> {
                 RangeHeader(state, shownCallbacks)
                 TimeGrid(state, shownCallbacks)
+            }
+            CalendarView.MONTH -> {
+                RangeHeader(state, shownCallbacks)
+                MonthGrid(state, shownCallbacks, currentLocale())
             }
         }
     }
@@ -228,23 +268,67 @@ private fun Toolbar(
                     onClick = { callbacks.select(view) },
                     shape = SegmentedButtonDefaults.itemShape(index, views.size),
                     icon = {},
-                    label = { Text(stringResource(view.label), maxLines = 1) },
+                    label = { Text(stringResource(view.label), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    contentPadding = PaddingValues(horizontal = 4.dp),
                     modifier = Modifier.testTag(CalendarTags.view(view)),
                 )
             }
         }
-        TextButton(onClick = callbacks.today, modifier = Modifier.testTag(CalendarTags.TODAY)) {
-            Text(stringResource(R.string.calendar_today))
+        IconButton(onClick = callbacks.today, modifier = Modifier.testTag(CalendarTags.TODAY)) {
+            Icon(Icons.Outlined.Today, contentDescription = stringResource(R.string.calendar_today))
         }
-        val label = stringResource(R.string.calendar_calendars)
-        IconToggleButton(
-            checked = showCalendars,
-            onCheckedChange = onShowCalendars,
-            modifier = Modifier.testTag(CalendarTags.CALENDARS).semantics { contentDescription = label },
-        ) {
-            Icon(Icons.Outlined.Tune, contentDescription = null)
+        ToolbarMenu(state.overlay, callbacks.setOverlay, showCalendars, onShowCalendars)
+    }
+}
+
+/**
+ * The toolbar's toggles (task overlay, calendar filter) in an overflow menu, so that the four view segments keep their
+ * width on a phone. Each item is a checkbox: its state is shown and announced.
+ */
+@Composable
+private fun ToolbarMenu(
+    overlay: Boolean,
+    onOverlay: (Boolean) -> Unit,
+    showCalendars: Boolean,
+    onShowCalendars: (Boolean) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }, modifier = Modifier.testTag(CalendarTags.MENU)) {
+            Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.calendar_more_options))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            MenuToggle(R.string.calendar_task_overlay, Icons.Outlined.TaskAlt, overlay, CalendarTags.OVERLAY) {
+                open = false
+                onOverlay(it)
+            }
+            MenuToggle(R.string.calendar_calendars, Icons.Outlined.Tune, showCalendars, CalendarTags.CALENDARS) {
+                open = false
+                onShowCalendars(it)
+            }
         }
     }
+}
+
+@Composable
+private fun MenuToggle(
+    label: Int,
+    icon: ImageVector,
+    checked: Boolean,
+    tag: String,
+    onChange: (Boolean) -> Unit,
+) {
+    DropdownMenuItem(
+        text = { Text(stringResource(label)) },
+        onClick = { onChange(!checked) },
+        leadingIcon = { Icon(icon, contentDescription = null) },
+        trailingIcon = { Checkbox(checked = checked, onCheckedChange = null) },
+        modifier =
+            Modifier.testTag(tag).semantics {
+                role = Role.Checkbox
+                toggleableState = ToggleableState(checked)
+            },
+    )
 }
 
 private val CalendarView.label: Int
@@ -253,6 +337,7 @@ private val CalendarView.label: Int
             CalendarView.AGENDA -> R.string.calendar_view_agenda
             CalendarView.DAY -> R.string.calendar_view_day
             CalendarView.WEEK -> R.string.calendar_view_week
+            CalendarView.MONTH -> R.string.calendar_view_month
         }
 
 /** One chip per calendar, in its color: selected ones are shown in the views. */
@@ -292,7 +377,7 @@ private fun CalendarFilter(
 }
 
 @Composable
-private fun ColorDot(
+internal fun ColorDot(
     color: Color,
     size: Dp = 10.dp,
 ) {
@@ -300,7 +385,7 @@ private fun ColorDot(
 }
 
 @Composable
-private fun calendarColor(calendar: CalendarInfo?): Color = calendar?.color?.let { Color(it) } ?: MaterialTheme.colorScheme.primary
+internal fun calendarColor(calendar: CalendarInfo?): Color = calendar?.color?.let { Color(it) } ?: MaterialTheme.colorScheme.primary
 
 @Composable
 private fun Message(
@@ -363,6 +448,25 @@ private sealed interface AgendaItem {
     ) : AgendaItem {
         override val key get() = "entry:${entry.occurrence.key}@${entry.date}"
     }
+
+    data class Task(
+        val mark: TaskMark,
+    ) : AgendaItem {
+        override val key get() = "${mark.key}@${mark.date}"
+    }
+}
+
+/** The agenda's items: a header for each day with events or overlay tasks, then its events, then its tasks. */
+private fun agendaItems(
+    days: List<AgendaDay>,
+    marks: Map<LocalDate, List<TaskMark>>,
+): List<AgendaItem> {
+    val entries = days.associate { it.date to it.entries }
+    return (entries.keys + marks.keys).sorted().flatMap { date ->
+        listOf(AgendaItem.Header(date)) +
+            entries[date].orEmpty().map { AgendaItem.Entry(it) } +
+            marks[date].orEmpty().map { AgendaItem.Task(it) }
+    }
 }
 
 /** How many items before the end of the agenda the next days start loading. */
@@ -374,7 +478,8 @@ private fun Agenda(
     callbacks: CalendarCallbacks,
 ) {
     val days = remember(state.occurrences, state.from, state.to, state.zone) { state.agendaDays }
-    val items = remember(days) { days.flatMap { day -> listOf(AgendaItem.Header(day.date)) + day.entries.map { AgendaItem.Entry(it) } } }
+    val marks = remember(state.overlay, state.tasks, state.from, state.to, state.today) { state.taskMarks }
+    val items = remember(days, marks) { agendaItems(days, marks) }
     val listState = rememberLazyListState()
     val loadMore by rememberUpdatedState(callbacks.loadMore)
     val busy by rememberUpdatedState(state.loading || state.loadingMore || !state.loaded)
@@ -417,10 +522,11 @@ private fun Agenda(
             when (item) {
                 is AgendaItem.Header -> DayHeader(item.date, state.today, locale, onClick = { callbacks.openDay(item.date) })
                 is AgendaItem.Entry -> AgendaRow(item.entry, state.calendar(item.entry.occurrence.calendarId), state.zone, callbacks.open)
+                is AgendaItem.Task -> AgendaTaskRow(item.mark, locale, callbacks.openTask)
             }
         }
         item(key = "footer") {
-            AgendaFooter(state, empty = days.isEmpty(), locale = locale, onMore = callbacks.loadMore)
+            AgendaFooter(state, empty = items.isEmpty(), locale = locale, onMore = callbacks.loadMore)
         }
     }
 }
@@ -530,7 +636,7 @@ private fun formatTime(
 
 /** The locale of the configuration, so the dates follow a change of the system language. */
 @Composable
-private fun currentLocale(): Locale = LocalConfiguration.current.locales[0]
+internal fun currentLocale(): Locale = LocalConfiguration.current.locales[0]
 
 @Composable
 private fun AgendaFooter(
@@ -567,20 +673,27 @@ private fun RangeHeader(
     callbacks: CalendarCallbacks,
 ) {
     val locale = currentLocale()
-    val week = state.view == CalendarView.WEEK
     val title =
-        if (week) {
-            val days = state.days
-            val format = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
-            stringResource(R.string.calendar_week_range, days.first().format(format), days.last().format(format))
-        } else {
-            state.anchor.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale))
+        when (state.view) {
+            CalendarView.WEEK -> {
+                val days = state.days
+                val format = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
+                stringResource(R.string.calendar_week_range, days.first().format(format), days.last().format(format))
+            }
+            CalendarView.MONTH -> state.anchor.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale))
+            else -> state.anchor.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale))
+        }
+    val (previous, next) =
+        when (state.view) {
+            CalendarView.WEEK -> R.string.calendar_previous_week to R.string.calendar_next_week
+            CalendarView.MONTH -> R.string.calendar_previous_month to R.string.calendar_next_month
+            else -> R.string.calendar_previous_day to R.string.calendar_next_day
         }
     Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = { callbacks.move(-1) }, modifier = Modifier.testTag(CalendarTags.PREVIOUS)) {
             Icon(
                 Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
-                contentDescription = stringResource(if (week) R.string.calendar_previous_week else R.string.calendar_previous_day),
+                contentDescription = stringResource(previous),
             )
         }
         Text(
@@ -594,7 +707,7 @@ private fun RangeHeader(
         IconButton(onClick = { callbacks.move(1) }, modifier = Modifier.testTag(CalendarTags.NEXT)) {
             Icon(
                 Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-                contentDescription = stringResource(if (week) R.string.calendar_next_week else R.string.calendar_next_day),
+                contentDescription = stringResource(next),
             )
         }
     }
@@ -619,6 +732,7 @@ private fun TimeGrid(
     val days = state.days
     val entriesByDay =
         remember(state.occurrences, days, state.zone) { days.associateWith { entriesOn(state.occurrences, it, state.zone) } }
+    val marks = remember(state.overlay, state.tasks, state.from, state.to, state.today) { state.taskMarks }
     val week = state.view == CalendarView.WEEK
     val locale = currentLocale()
     Column(Modifier.fillMaxSize().testTag(CalendarTags.TIME_GRID)) {
@@ -629,9 +743,9 @@ private fun TimeGrid(
                 }
             }
         }
-        AllDayStrip(days, entriesByDay, state, callbacks.open)
+        AllDayStrip(days, entriesByDay, marks, state, callbacks)
         HorizontalDivider()
-        if (!week && state.shown && entriesByDay.values.all { it.isEmpty() }) {
+        if (!week && state.shown && entriesByDay.values.all { it.isEmpty() } && days.none { marks[it].orEmpty().isNotEmpty() }) {
             Text(
                 stringResource(R.string.calendar_day_empty),
                 style = MaterialTheme.typography.bodyMedium,
@@ -687,10 +801,14 @@ private fun WeekDayHeader(
 private fun AllDayStrip(
     days: List<LocalDate>,
     entriesByDay: Map<LocalDate, List<DayEntry>>,
+    /** The overlay's tasks: all shown here, also those due at a time (their time is in the day view's label). */
+    marks: Map<LocalDate, List<TaskMark>>,
     state: CalendarUiState,
-    onOpen: (Occurrence) -> Unit,
+    callbacks: CalendarCallbacks,
 ) {
-    if (days.none { day -> entriesByDay[day].orEmpty().any { it.allDay } }) return
+    if (days.none { day -> entriesByDay[day].orEmpty().any { it.allDay } || marks[day].orEmpty().isNotEmpty() }) return
+    val locale = currentLocale()
+    val detailed = state.view == CalendarView.DAY
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
         Text(
             stringResource(R.string.calendar_all_day),
@@ -706,9 +824,12 @@ private fun AllDayStrip(
                         entry,
                         state.calendar(entry.occurrence.calendarId),
                         null,
-                        onOpen,
+                        callbacks.open,
                         Modifier.fillMaxWidth().padding(vertical = 1.dp),
                     )
+                }
+                marks[day].orEmpty().forEach { mark ->
+                    TaskChip(mark, detailed, locale, callbacks.openTask, Modifier.fillMaxWidth().padding(vertical = 1.dp))
                 }
             }
         }

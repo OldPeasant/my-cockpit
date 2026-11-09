@@ -144,6 +144,7 @@ class CalendarScreensTest {
         composeRule.onNodeWithTag(CalendarTags.view(CalendarView.AGENDA)).assertIsSelected()
         composeRule.onNodeWithTag(CalendarTags.view(CalendarView.WEEK)).performClick()
         composeRule.onNodeWithTag(CalendarTags.TODAY).performClick()
+        composeRule.onNodeWithTag(CalendarTags.MENU).performClick()
         composeRule.onNodeWithTag(CalendarTags.CALENDARS).performClick()
         composeRule.onNodeWithTag(CalendarTags.calendar(work.id)).assertIsSelected()
         composeRule.onNodeWithTag(CalendarTags.calendar(home.id)).assertIsNotSelected().performClick()
@@ -198,6 +199,8 @@ class CalendarScreensTest {
     @Test
     fun `the chip of a calendar whose visibility is being written waits for the answer`() {
         show(state(pendingVisibility = mapOf(home.id to true)))
+
+        composeRule.onNodeWithTag(CalendarTags.MENU).performClick()
 
         composeRule.onNodeWithTag(CalendarTags.CALENDARS).performClick()
         composeRule.onNodeWithTag(CalendarTags.calendar(home.id)).assertIsNotEnabled().performClick()
