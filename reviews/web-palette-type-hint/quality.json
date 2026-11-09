@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "task": "web-palette-type-hint",
+  "reviewed_revision": "d76dce30d79ba361189bc8ce683f27274f8949e2",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-palette-type-hint/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-palette-type-hint/review.md"},
+    "fixer": {"status": "not_required", "reason": "No production bugs; only two non-blocking P3 review findings, both accepted"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "Hint is not linked via aria-describedby; it is visible static helper text outside the listbox, criteria only ask that the palette shows it"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "Hint also hides for an unknown type like type:foo; deliberately simple rule matching how the parser detects the prefix"}
+  ],
+  "validation": [
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "cd web && npm run build:de", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}

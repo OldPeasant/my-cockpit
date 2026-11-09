@@ -4,7 +4,7 @@ Date: 2026-11-09
 
 Task: web-palette-type-hint - Web: make the Ctrl+K type: filter discoverable (hint or chips in the palette)
 
-Scope: task commit 2cdfe9088 on top of base e2321d948 (`git diff e2321d948 2cdfe9088`)
+Scope: task commits on top of base e2321d948 up to final revision d76dce30d (`git diff e2321d948 d76dce30d`); re-review of the test-writer addition `git diff 2cdfe9088 d76dce30d -- web`
 
 Requirements:
 - tasks/web-palette-type-hint.md acceptance criteria
@@ -14,9 +14,9 @@ Requirements:
 
 Git range:
 - Branch: main
-- HEAD: 2cdfe9088
+- HEAD: d76dce30d (reviewed revision)
 - Base/start: e2321d9485b4b97a38298f3e61d22a8899ca1e36
-- Commits reviewed: 1
+- Commits reviewed: 2 (2cdfe9088 implementation, d76dce30d test-writer test + reports)
 
 Summary: 0 P0, 0 P1, 0 P2, 2 P3
 
@@ -35,6 +35,13 @@ Summary: 0 P0, 0 P1, 0 P2, 2 P3
    at the start (mixed case) and in the middle, and staying for `subtype:x`. The check commands were
    not re-run in this review. `tasks.py verify` showed no recorded evidence yet, so the parent worker
    still has to record it.
+
+Re-review at d76dce30d: the only code change since 2cdfe9088 is one added test in
+`web/src/app/shell/command-palette.spec.ts` ("shows the type: hint again after the filter is removed,
+also with results listed"). It uses the existing `type`/`labels` helpers and checks real behavior:
+the hint hides for `  type:note` (leading whitespace), comes back after the query is cleared, and stays
+visible next to a non-empty result list (`inb` -> `Inbox`). It asserts on rendered DOM, not on internals,
+and does not weaken any existing test. No new findings. The prior findings still apply.
 
 Styling uses project tokens (`--app-space-*`, `--app-border`, `--app-fg-muted`, `--mat-sys-body-small`).
 I found no security concerns (static text, no user input rendered).
