@@ -34,3 +34,4 @@ with `Cache-Control: no-store`. Hashed bundles may keep revalidating or get a lo
 
 ## Notes
 - Users already stuck on the stale page recover with Ctrl+Shift+R or "Clear site data"; no migration needed.
+- ASSUMPTION (2026-11-09 10:52+0100 by dell26/agent-1): SPA caching: kept Cache-Control no-cache for all SPA files (index.html, fallback, hashed bundles) and replaced Last-Modified with a strong SHA-256 content ETag (setUseLastModified(false) + setEtagGenerator); no no-store/max-age split, so unchanged files cost a 304 and hashed bundles stay cacheable with revalidation. Digests are cached per URL for jar entries only; files on disk are hashed per request.
