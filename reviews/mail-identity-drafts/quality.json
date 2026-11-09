@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "task": "mail-identity-drafts",
+  "reviewed_revision": "a8eb8d0e5432a55254e4e78c3ef826c2b179bdb4",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/mail-identity-drafts/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-identity-drafts/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/mail-identity-drafts/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "first review: Android From row hidden for opened drafts/replies/forwards; fixed in b93d060ac"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "first review: Android resumed draft body read-only quoted text; now editable body"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "first review: missing unit tests; resolved by test-writer tests (web + Android)"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first review: Android picker could not choose account address or single non-default identity"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "same as CR-4; failing test now passes"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "first review: fully qualified java.util.UUID; now imported"},
+    {"id": "CR-1-final", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "final review CR-1: cosmetic empty From label for an opened draft without default/chosen identity until accounts load; picker, save and send unaffected"}
+  ],
+  "validation": [
+    {"command": "android/gradlew -p android ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.*' createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "npm --prefix web run coverage", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
