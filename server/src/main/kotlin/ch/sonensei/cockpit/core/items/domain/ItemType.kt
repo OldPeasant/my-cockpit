@@ -15,6 +15,7 @@ enum class ItemType {
 	BOOKMARK,
 	JOURNAL_ENTRY,
 	HABIT,
+	WEEKLY_REVIEW,
 }
 
 /** A reference to one item of any module (`item_ref`, SPEC.md §4.3). For [ItemType.EMAIL] the id is `mail_message.id`. */

@@ -79,6 +79,14 @@ sealed class SettingType<T : Any>(
 		override fun parse(value: Any?): String? = (value as? String)?.takeIf { it in ids }
 	}
 
+	/** A string that [check] accepts (e.g. a module's own format); [check] returns the value to store, or `null`. */
+	class Formatted(
+		expected: String,
+		private val check: (String) -> String?,
+	) : SettingType<String>(expected) {
+		override fun parse(value: Any?): String? = (value as? String)?.let(check)
+	}
+
 	/** A display label for each of a fixed set of [keys] (e.g. energy `LOW`/`MEDIUM`/`HIGH`); all keys are required. */
 	class Labels(
 		val keys: List<String>,
