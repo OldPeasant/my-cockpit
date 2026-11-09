@@ -1,11 +1,11 @@
 ---
 title: Android Draft email: To from the linked waiting-for contact
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [gtd-links-everywhere]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/data,android/app/src/main/java/ch/sonensei/cockpit/gtd/lists,android/app/src/test/java/ch/sonensei/cockpit/gtd/lists]
 prio: 2
-lease_until: 2026-11-09T10:04:39Z
+lease_until: 
 ---
 ## Goal
 SPEC.md §5.3: waiting "Follow up" → "Draft email" prefills To from the linked contact. Web does this
@@ -23,3 +23,4 @@ SPEC.md §5.3: waiting "Follow up" → "Draft email" prefills To from the linked
 
 ## Notes
 - ASSUMPTION (2026-11-09 10:25+0100 by dell26/agent-1): Android Draft email: if the linked contact cannot be loaded (offline, deleted, no address) the To falls back to an address in the waiting-for text; the contact is fetched live when the button is pressed (contacts have no Android cache). GtdCacheDatabase bumped to v3 with destructive fallback (cache only).
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 78s on 9036d7523; criteria verified 3/3
