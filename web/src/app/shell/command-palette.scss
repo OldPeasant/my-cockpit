@@ -44,6 +44,19 @@
   color: var(--app-fg-muted);
 }
 
+.type-hint {
+  margin: 0;
+  padding: var(--app-space-2) var(--app-space-3);
+  border-top: 1px solid var(--app-border);
+  color: var(--app-fg-muted);
+  font: var(--mat-sys-body-small);
+
+  code {
+    color: var(--app-fg);
+    font-family: monospace;
+  }
+}
+
 .empty {
   margin: 0;
   padding: var(--app-space-3);

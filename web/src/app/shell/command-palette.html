@@ -48,4 +48,10 @@
       <p class="empty" i18n="@@palette.empty">Nothing matches. Try another word.</p>
     }
   </div>
+  @if (showTypeHint()) {
+    <p class="type-hint" i18n="@@palette.typeHint">
+      Tip: start with <code>type:</code> to search one kind of item, for example
+      <code>type:note passport</code> or <code>type:task,event</code>.
+    </p>
+  }
 </div>

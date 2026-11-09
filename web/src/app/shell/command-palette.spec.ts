@@ -150,4 +150,18 @@ describe('CommandPalette', () => {
     await key('Enter');
     expect(close).not.toHaveBeenCalled();
   });
+
+  it('hints at the type: filter until the query uses it', async () => {
+    await setup([]);
+    const hint = (): HTMLElement | null => root.querySelector('.type-hint');
+    expect(hint()?.textContent).toContain('type:note passport');
+    await type('passport');
+    expect(hint()).not.toBeNull();
+    await type('Type:note passport');
+    expect(hint()).toBeNull();
+    await type('passport type:task');
+    expect(hint()).toBeNull();
+    await type('subtype:x');
+    expect(hint()).not.toBeNull();
+  });
 });

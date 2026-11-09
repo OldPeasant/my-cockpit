@@ -44,6 +44,9 @@ export class CommandPalette {
     return groups;
   });
 
+  /** The `type:` search filter hint, hidden once the query uses the filter. */
+  protected readonly showTypeHint = computed(() => !/(^|\s)type:/i.test(this.query()));
+
   /** Rows in display order (grouped), so arrow keys follow what the user sees. */
   private readonly ordered = computed(() => this.groups().flatMap((g) => g.items));
 
