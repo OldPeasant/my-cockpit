@@ -4,29 +4,34 @@ Date: 2026-11-09
 
 Task: web-bookmarks-search-edit - Web bookmarks: search, edit, undo, to inbox
 
-Scope: final revision of the full task diff `git diff a73c68c4a..66b577797` (web/src/app/features/bookmarks, web/src/locale). This is the second review, after the fixes for the first review's findings. Uncommitted test-writer work running in parallel is not part of this scope.
+Scope: final revision of the full task diff (web/src/app/features/bookmarks, web/src/locale) at HEAD 2d12fed81. This is the third review. It checks the Round 2 fixes for the second review's CR-1 ("Show more") and CR-2 (To Inbox error message), and the optional conflict-message change. Test-writer work running in parallel and not yet committed is outside this scope.
 
 Requirements:
 - tasks/web-bookmarks-search-edit.md (acceptance criteria and recorded assumptions)
 - SPEC.md §4.2 (optimistic locking), §4.5 (bookmark to Inbox task), §8.4 (bookmarks, search)
 - docs/ARCHITECTURE.md "Code conventions"; AGENTS.md project notes
-- First review (earlier version of this file) and reviews/web-bookmarks-search-edit/fixes.md
+- Second review (earlier version of this file) and reviews/web-bookmarks-search-edit/fixes.md ("Round 2")
 
 Git range:
 - Branch: main
-- HEAD: 66b5777978c1a554453ab1a260e6622d7aec1221
-- Base/start: a73c68c4a47065c97cdfc02a2f001404e0b71ffe
-- Commits reviewed: 5 (3e2e17cb8, 8fd1957c3, 3acdcdf3d, 85f6d104f, 66b577797)
+- HEAD: 2d12fed818db54cf935dd92f22ce841c481dea6d
+- Base/start: a73c68c4a47065c97cdfc02a2f001404e0b71ffe (the task base used in the second review; Bash was not available in this session, so I could not resolve it again with git merge-base)
+- Commits reviewed: every task commit from the base up to 2d12fed81: the 5 from the second review (ending at 66b577797), then the later commits, which include 8d2bf7271, 78905b744, ba7b2ec33 and 2d12fed81. Without git I could not list the range, so the exact count is not stated.
 
-Summary: 0 P0, 0 P1, 1 P2, 1 P3
+Limitation: Bash was denied in this session. The review is based on reading the current files in full: bookmarks-page.ts, bookmarks-page.html, bookmarks.service.ts and bookmark-display.ts. I could not print the exact git diff or grep the locale files. I did not check the new `bookmarks.taskFailed` unit in messages.xlf and messages.de.xlf myself. The fixer reports that `ng build` ran with no translation errors and that `ng extract-i18n` gives the same source text.
 
-What the earlier findings came to:
-- CR-1 (no tests) is resolved. bookmark-display.spec.ts covers `matchesQuery`. bookmarks.service.spec.ts covers restore and toInbox: task body, the origin link to the id the server returned, the 500-character title cap, the unlinked case, and a failed create. bookmarks-page.spec.ts covers search (including the empty state and Escape), the editor (open, save, blank fields sent as null, cancel, failure, conflict, the stale-version case, mark read while editing, maxlength), undo (restore, dismiss, restore failure, no undo after a failed delete), and To Inbox (linked and unlinked, the same id on retry and a new one after success, one id per bookmark, no double submit).
-- CR-2 (lost update) is resolved. `Draft.version` is set in `startEdit` and sent as `If-Match` in `saveEdit` (bookmarks-page.ts:326). A conflict reloads the bookmark, moves the draft to the current version and shows `bookmarks.edit.conflict`. `change()` moves the draft version along only when the change started from the draft's own version (bookmarks-page.ts:397). So a fetched title that arrived meanwhile still causes a conflict, and the user's own mark read does not.
-- CR-3 is resolved: the notes field has `maxlength="2000"` (bookmarks-page.html:196).
-- CR-4 (the `uuidv7` import from features/capture) is recorded as a task assumption. Moving the helper is outside this task's touches, so it is not repeated here.
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-Checked and correct (no finding): all 14 new message ids (13 from the first revision plus `bookmarks.edit.conflict`) are in messages.xlf and have German targets in messages.de.xlf. Placeholders match between source and target. Existing units changed only in their line-number context.
+Status of the second review's findings:
+- CR-1 ("Show more" hidden when nothing matches) is resolved. The `@if (nextCursor())` button now comes after the empty/list block inside the `shown()` branch (bookmarks-page.html:308-320). It appears with the no-match message and with an empty view. It still does not appear in the loading and load-error branches, which is correct.
+- CR-2 (wrong message for a failed To Inbox task) is resolved. `run()` takes a `task` flag (bookmarks-page.ts:519), and `toInbox` passes `true` (bookmarks-page.ts:374). The flag is stored in `rowError`. `isTaskError` picks the new message `bookmarks.taskFailed` (bookmarks-page.html:294-297). Every other failure still shows `bookmarks.changeFailed`.
+- Optional conflict-message change: it is correct. After a reload, `saveEdit` shows `bookmarks.edit.conflict` only when the row error and the open editor both still belong to this bookmark (bookmarks-page.ts:343). The draft version moves to the reloaded version only when the editor for that bookmark is still open (bookmarks-page.ts:341).
+
+Re-checked and correct (no finding):
+- `busy` blocks overlapping writes to the same row.
+- The task id stays the same across retries (`taskIds`) and is cleared only after success.
+- `change()` moves the draft version only when the change started from the draft's own version. So a fetched title that arrives during editing still causes a conflict on save.
+- The search filter `matchesQuery` covers title, display title, URL, description and `#tag`.
 
 ## P0 Critical
 
@@ -38,22 +43,17 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | "Show more" is hidden when no loaded bookmark matches the search**
-    - File: `web/src/app/features/bookmarks/bookmarks-page.html:108` (the button is at line 301)
-    - Category: Correctness
-    - Problem: Search filters only the loaded pages, as the task assumption says. The "Show more" button sits only in the `@else` branch for a non-empty `shown()` list. When the query matches none of the loaded bookmarks but `nextCursor()` is set, the page says "No loaded bookmark matches {query}." and has no "Show more" button. The text itself suggests that unloaded bookmarks might match, yet the only way to search them is to clear the search, load more and search again.
-    - Why it matters: For users with more than one page of bookmarks, searching for an older bookmark looks like a dead end, which weakens the search feature from criterion 1.
-    - Suggested fix: Also show the "Show more" button in the no-match branch whenever `nextCursor()` is set (for example, move the button out of the non-empty branch), and add a page test for it.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | A failed "To Inbox task" is reported as "could not be changed"**
-    - File: `web/src/app/features/bookmarks/bookmarks-page.ts:357` (message at `bookmarks-page.html:294`)
+- [ ] **CR-1 | Two doc comments on `rowError`; the old one is now wrong**
+    - File: `web/src/app/features/bookmarks/bookmarks-page.ts:73`
     - Category: Quality
-    - Problem: `toInbox` runs through `run()`, so any failure appears as the row error `bookmarks.changeFailed`: "{title} could not be changed: {error}". The bookmark is not being changed. A task is being created.
-    - Why it matters: The message misleads the user about what failed. They may think the bookmark is damaged instead of retrying the task creation.
-    - Suggested fix: Catch the toInbox failure separately, or pass a message id to `run`, and show a specific text such as "No Inbox task could be created for {title}: {error}". It needs English and German strings.
+    - Problem: Round 2 added a new JSDoc for `rowError` at line 74 but left the old one, "The last failed change, by bookmark id.", at line 73. The field now holds failed row actions, including a To Inbox task that changes no bookmark, so the old comment contradicts the new one. Only the comment directly above the field counts as its doc comment, which leaves the old one as dead text.
+    - Why it matters: It is a small readability issue. A reader sees two descriptions of the same field that disagree.
+    - Suggested fix: Delete line 73.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 is a non-blocking P2 usability gap and CR-2 is cosmetic, so the parent worker may instead mark them out of scope with a reason. No P0 or P1 issues remain.
+No material issues found. The only finding is a P3 comment cleanup. It does not block completion, and the parent worker may fix it or leave it.

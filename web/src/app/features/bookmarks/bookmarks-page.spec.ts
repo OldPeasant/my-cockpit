@@ -1136,6 +1136,32 @@ describe('BookmarksPage', () => {
       expect(root.querySelector('.more')).toBeTruthy();
     });
 
+    it('keeps the search on a page loaded with "Show more" and offers the next one', async () => {
+      await open('/bookmarks?view=all', [ESSAY], 'c1');
+      search('coroutines');
+      const more = root.querySelector('.more') as HTMLButtonElement;
+      more.click();
+      harness.detectChanges();
+      expect((root.querySelector('.more') as HTMLButtonElement).disabled).toBe(true);
+      http
+        .expectOne((r) => r.method === 'GET' && r.params.get('cursor') === 'c1')
+        .flush({ items: [GUIDE], nextCursor: 'c2' });
+      await settle();
+      // The loaded page holds no match either: the message stays and older pages can still be loaded.
+      expect(ids()).toEqual([]);
+      expect(text(root.querySelector('.empty'))).toBe('No loaded bookmark matches “coroutines”.');
+      expect((root.querySelector('.more') as HTMLButtonElement).disabled).toBe(false);
+      search('');
+      expect(ids()).toEqual([ESSAY.id, GUIDE.id]);
+      expect(root.querySelector('.more')).toBeTruthy();
+    });
+
+    it('offers no "Show more" in an empty view without more pages', async () => {
+      await open('/bookmarks', []);
+      expect(text(root.querySelector('.empty'))).toContain('Nothing left to read.');
+      expect(root.querySelector('.more')).toBeNull();
+    });
+
     it('keeps the search when a bookmark it hides arrives from the server', async () => {
       await open('/bookmarks?view=all', [ESSAY]);
       search('slow');
@@ -1746,6 +1772,50 @@ describe('BookmarksPage', () => {
         expect(reqs).toHaveLength(1);
         reqs[0].flush(...problem(500, 'Server error'));
         await settle();
+      });
+
+      it('reports a failed change after a failed task as a change again', async () => {
+        await open();
+        button(ESSAY, 'to-inbox').click();
+        http
+          .expectOne((r) => r.method === 'POST' && r.url === TASKS)
+          .flush(...problem(503, 'Service Unavailable', 'Try again in a moment.'));
+        await settle();
+        expect(text(row(ESSAY).querySelector('.error'))).toBe(
+          'No Inbox task could be created for “On slow software”: Try again in a moment.',
+        );
+        expect(row(GUIDE).querySelector('.error')).toBeNull();
+
+        button(ESSAY, 'mark-read').click();
+        http
+          .expectOne((r) => r.method === 'PATCH')
+          .flush(...problem(500, 'Server error', 'Storage is unavailable.'));
+        await settle();
+        expect(text(row(ESSAY).querySelector('.error'))).toBe(
+          '“On slow software” could not be changed: Storage is unavailable.',
+        );
+      });
+
+      it('moves the task message to the bookmark whose task failed last', async () => {
+        await open();
+        button(ESSAY, 'mark-read').click();
+        http
+          .expectOne((r) => r.method === 'PATCH')
+          .flush(...problem(500, 'Server error', 'Storage is unavailable.'));
+        await settle();
+        expect(text(row(ESSAY).querySelector('.error'))).toBe(
+          '“On slow software” could not be changed: Storage is unavailable.',
+        );
+
+        button(GUIDE, 'to-inbox').click();
+        http
+          .expectOne((r) => r.method === 'POST' && r.url === TASKS)
+          .flush(...problem(500, 'Server error', 'Tasks are unavailable.'));
+        await settle();
+        expect(row(ESSAY).querySelector('.error')).toBeNull();
+        expect(text(row(GUIDE).querySelector('.error'))).toBe(
+          'No Inbox task could be created for “docs.example.com”: Tasks are unavailable.',
+        );
       });
     });
   });
