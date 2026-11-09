@@ -19,7 +19,8 @@ Goal: the Android event view/editor calls `POST /api/v1/calendar/events/{id}/res
   - verified (2026-11-09 00:15+0100 by felix/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.edit.*' -> pass (Accept/Maybe/Decline with current status selected; answering updates status/version)
 - [x] New strings in English and German (`res/values{,-de}/strings_calendar_edit.xml`)
   - verified (2026-11-08 23:23+0100 by felix/agent-1): git diff 0cec3b4ba HEAD -- android/app/src/main/res/ -> 7 new calendar_edit_respond_* strings in values/ and values-de/strings_calendar_edit.xml (same keys, German uses du); lintDebug (MissingTranslation) passes in the helper run
-- [ ] Unit tests cover the new behavior; `sh scripts/check.sh` passes
+- [x] Unit tests cover the new behavior; `sh scripts/check.sh` passes
+  - verified (2026-11-09 03:51+0100 by dell26/agent-1): sh scripts/check.sh at b9a18ccca (main merged, wiring tests 521f51e38) -> exit 0, 'all checks passed' (tfp, server, web, android ktlint+testDebugUnitTest+lintDebug); new tests EventEditorViewModelRespondTest, CalendarWithEditorTest/TodayWithEditorTest respond wiring pass
 
 ## Notes
 - Work done on `cal-invitation-respond` before the split is on `origin/wip/cal-invitation-respond` (if it exists): merge it first if your part builds on it.
