@@ -2,36 +2,54 @@
 
 Date: 2026-11-09
 
-Task: and-notes-revisions - Note editor: revisions list and restore
+Task: and-notes-revisions - Note editor: revisions list and restore (round 2, final code)
 
-Scope: task commit 758b571d0 on top of base c6a0de9a1 (`git diff c6a0de9a1e..758b571d0`), committed changes only
+Scope: `git diff 7d3817057..42443e527 -- android` (whole task diff: implementation bf809d1f1, tests 8db10b448, review fixes 42443e527), committed changes only
 
 Requirements:
-- tasks/and-notes-revisions.md acceptance criteria
+- tasks/and-notes-revisions.md acceptance criteria and the recorded assumption (overflow menu item, dialog with preview, save before restore, reuse of the "Not changed" messages)
 - SPEC.md §8.1 (note history: keep the last 20 versions for undo of accidental edits)
 - api/openapi.yaml `GET /api/v1/notes/{id}/revisions`, `POST /api/v1/notes/{id}/revisions/{number}/restore`
-- docs/ARCHITECTURE.md and AGENTS.md conventions
-- Web reference: web/src/app/features/notes/editor/note-revisions-dialog.ts, `openRevisions` in note-editor-page.ts
+- docs/ARCHITECTURE.md and AGENTS.md conventions (feature folder, strings en + de, lint not suppressed)
+- Round 1 report (previous content of this file) and reviews/and-notes-revisions/fixes.md
 
 Git range:
 - Branch: main
-- HEAD: 758b571d0
-- Base/start: c6a0de9a1e3722a9893e4d7684216c4a3453cbc7
-- Commits reviewed: 1
+- HEAD: 42443e527
+- Base/start: 7d381705750ae41510671ebc6bb2f40bc5de563e (merge-base with origin/main)
+- Commits reviewed: 4 (bf809d1f1, 6690f9fbf, 8db10b448, 42443e527; 6690f9fbf only adds the round-1 report)
 
-Summary: 0 P0, 0 P1, 1 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-Static review only. I did not run Gradle, as the parent asked, because another helper uses the build dir.
+Static review only. As the parent asked, I did not run Gradle, because another helper is using the build dir in parallel. No uncommitted changes existed when the review started.
 
-What I checked and found correct:
-- The repository calls the generated `listNoteRevisions` / `restoreNoteRevision` with the If-Match ETag. It maps 404/409/412 through `CONFLICTS` to `SaveResult.Conflict`, the same way `save` does, and sorts newest first, matching the contract and the web dialog.
-- Restore saves the unsaved text first (`changeFlags` -> `save()`), so the current text becomes a revision and the restore can be undone. This matches the web's `flush()` before `restore`.
-- Loading the list cancels the previous job. A result is dropped when the list was closed or the editor was reopened (`it.revisions == null`), so an older answer never shows. Retry only runs after an error.
-- The dialog covers loading, empty, offline and failed (with Retry) states, plus a selectable list with a read-only Markdown preview. `MarkdownView` has no lazy layout, so putting it inside `verticalScroll` is safe.
-- All 8 new strings exist in both `values/strings_notes.xml` and `values-de/strings_notes.xml`. `notes_retry` already existed in both.
-- The Android editor has no links panel, so it has nothing to reload after a restore (the web's `reloadLinks`).
+## Round 1 findings: status
 
-Note on the tests criterion: the reviewed commit has no tests for the new behavior (no `revision` matches under `android/app/src/test/.../notes/`). The parent says a test-writer is adding them in parallel. So this is not a finding against this scope, but criterion 3 is open until those tests exist and pass.
+- CR-1 (P2, text typed during a restore was silently lost): **fixed.** `NoteEditorUiState.restoring` now exists, and `editable` is `changeable && !restoring` (NoteEditorViewModel.kt:131-134). `changeFlags` sets `restoring` together with `changing` and clears both in every outcome (lines 517, 548). The action check uses `changeable` (line 522), so the restore itself still runs. Every input path checks `editable`: `change()` covers title, body, tags, removeTag and the checklist toggle (line 328); `setEditing(true)` (260), `addTag` (278), `addPhoto` (455) and `openRevisions` (558) check it too. In the UI, the text fields (NoteEditorScreen.kt:280, 303), the tag chips (230), the checklist toggles (330) and the toolbar (430) are all gated on `editable`. `restoreRevision` also refuses while a photo uploads (line 611), so an image cannot land while the editor is not editable and be dropped. Pin and archive pass `restoring = false`, so they still allow editing as before. Tests: NoteEditorRevisionsViewModelTest.kt:444, 484, 498, 514.
+- CR-2 (P3, Restore button a silent no-op while another change runs): **fixed.** `NoteRevisionsDialog` takes `canRestore`, and the editor passes `!state.changing && !state.uploading` (NoteEditorScreen.kt:257). This matches the view model guards (`changing`, `uploading`, line 611). The Compose test is at NoteRevisionsDialogTest.kt:136.
+- CR-3 (P3, a hidden list came back stale after a conflict): **fixed.** `keepMine` and `useTheirs` call `closeRevisions()` (NoteEditorViewModel.kt:399, 408), which cancels the load job and clears `revisions`. Test: NoteEditorRevisionsViewModelTest.kt:534.
+
+## What I checked in round 2 and found correct
+
+- Criterion 1 (list and restore):
+  - The repository maps the generated `listNoteRevisions` and sorts newest first. `restoreRevision` sends If-Match from `etag(base.version)` and maps 404/409/412 through `CONFLICTS` to `SaveResult.Conflict`, the same way `save` does.
+  - The view model saves unsaved text first (`save()` inside `changeFlags`), so the replaced text becomes a revision, as SPEC.md §8.1 and the web's flush-before-restore require. The restore then runs under the `saving` mutex with the version just saved.
+  - On success the restored title, body and tags replace the editor text, and the status is SAVED. If the note changed elsewhere and nothing is unsaved, the latest server version is shown with the CHANGE_CONFLICT message. A note deleted elsewhere becomes a conflict to decide. Offline and failed results reuse the existing CHANGE_OFFLINE and CHANGE_FAILED messages, as the assumption states.
+- Async ordering:
+  - `loadRevisions` cancels the previous job, and its result is dropped once the list is closed (`it.revisions == null`).
+  - Reopening replaces any load still running.
+  - `retryRevisions` only runs after an error.
+  - `selectRevision` ignores numbers that are not in the loaded list.
+  - Every path through `changeFlags`, including a failed pre-save or a conflict, clears `changing` and `restoring`, so the editor always becomes usable again.
+- The dialog covers loading, empty, offline and failed (with Retry) states, and a selectable list (radio role) with a read-only Markdown preview. It is hidden while the editor is not editable, so it never shows over a conflict.
+- Criterion 2: all 8 new strings exist in both values/strings_notes.xml and values-de/strings_notes.xml with matching keys. `notes_retry` already existed in both files.
+- Criterion 3 (tests):
+  - 25 view model tests cover open, load, retry, select, close, ordering, restore, conflict, offline, failed, the guards and the CR-1/CR-3 regressions.
+  - 12 Compose/unit dialog tests include the German translation and the editor menu entry.
+  - 8 repository tests cover mapping, sorting, If-Match and the status-to-result mapping.
+  - The assertions check behaviour, and the mocks are only at the repository and API boundary.
+  - I did not run the commands named in criterion 3 (`ktlintCheck testDebugUnitTest lintDebug`, `scripts/check.sh`); the parent has to record that evidence.
+- Architecture: all changes stay in `android/.../cockpit/notes` and its tests, which is within the task's touches. The client calls the API through the generated client, and no new dependencies were added. Nothing is logged.
 
 ## P0 Critical
 
@@ -43,29 +61,12 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Text typed while a restore is in flight is silently lost**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteEditorViewModel.kt:599`
-    - Category: Correctness
-    - Problem: `restoreRevision` passes an `onSaved` that overwrites `title`, `body` and `tags` with the restored note and sets `status = SaveStatus.SAVED`. While the request runs, the editor stays editable (`editable` ignores `changing`; `change()` and the title/body text fields stay enabled). So any edit made during the request is replaced when the answer arrives. The autosave that edit scheduled waits on the `saving` mutex. When it runs, `isSaved()` is already true, so it saves nothing. There is no conflict or message: the edit just disappears. The default `onSaved` for pin/archive only replaces `note`, so this risk is new with this task.
-    - Why it matters: the user loses input with no notice, on slow connections or when the pre-restore save takes time. It goes against the editor's rule that typed text is never dropped, and against SPEC.md §8.1's aim of protecting against accidental loss.
-    - Suggested fix: inside `onSaved`, replace the text only when the state still matches what was there when the restore was sent (e.g. `s.isSaved()` against the pre-restore note, or the title/body/tags captured before the request). Otherwise set `note = restored` and keep the typed text as unsaved. That makes the next save a conflict or overwrite, the same way a concurrent change is handled. A simpler alternative: block editing while a restore runs (e.g. a `restoring` flag folded into `editable`). Add a ViewModel test that edits during a suspended restore.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | Restore button is a silent no-op while another change runs**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteEditorViewModel.kt:597`
-    - Category: Quality
-    - Problem: if a pin, archive or delete is still running (`changing == true`), `restoreRevision` returns early and leaves the dialog open. The Restore button stays enabled (`NoteRevisionsDialog.kt:97` only checks `selectedRevision != null`), so tapping it does nothing.
-    - Why it matters: the button looks broken, with no feedback.
-    - Suggested fix: pass `changing` to the dialog and disable Restore while it is true, or close the dialog and run the restore after the running change.
-
-- [ ] **CR-3 | Hidden revisions list reappears after a conflict is resolved**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteEditorScreen.kt:256`
-    - Category: Correctness
-    - Problem: the dialog is only hidden while `!state.editable` (e.g. an autosave conflict comes up while the list is open). `state.revisions` is kept. When the user resolves the conflict (`keepMine` / `useTheirs`), the dialog pops up again with the list loaded before the conflict. That list may no longer include the content just replaced.
-    - Why it matters: an unexpected dialog appears with possibly stale data. Restoring from it still goes through the ETag check, so nothing is corrupted.
-    - Suggested fix: close the revisions list (`revisions = null`, cancel `revisionsJob`) when a conflict is set, or reload it when the editor becomes editable again.
+None.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 is a possible silent loss of typed text. CR-2 and CR-3 are minor. The tests for criterion 3 still have to be added by the parallel test-writer.
+No material issues found. All three round-1 findings are fixed and covered by tests. Criterion 3 still needs the parent's recorded run of `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh`.
