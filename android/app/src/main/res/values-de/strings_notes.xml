@@ -64,4 +64,6 @@
     <string name="notes_link_none">Keine passenden Elemente</string>
     <string name="notes_link_offline">Suche nicht möglich: keine Verbindung.</string>
     <string name="notes_link_failed">Suche nicht möglich: der Server hat sie abgelehnt.</string>
+    <string name="notes_tag_add">Tag hinzufügen</string>
+    <string name="notes_tag_remove">Tag %1$s entfernen</string>
 </resources>

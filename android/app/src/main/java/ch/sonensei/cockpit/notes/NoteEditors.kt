@@ -76,7 +76,8 @@ class NoteEditors
                 return created.value.viewModel
             }
             val store = ViewModelStore()
-            val factory = viewModelFactory { initializer { NoteEditorViewModel(notes, images, saves, linkSearch) } }
+            val factory =
+                viewModelFactory { initializer { NoteEditorViewModel(notes, images, saves, linkSearch, NoteTagSource { notes.tags() }) } }
             val viewModel = ViewModelProvider(store, factory)[NoteEditorViewModel::class.java]
             editors[key] = Editor(store, viewModel)
             return viewModel

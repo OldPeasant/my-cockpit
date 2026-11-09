@@ -64,4 +64,6 @@
     <string name="notes_link_none">No matching items</string>
     <string name="notes_link_offline">Cannot search: no connection.</string>
     <string name="notes_link_failed">Cannot search: the server refused it.</string>
+    <string name="notes_tag_add">Add a tag</string>
+    <string name="notes_tag_remove">Remove tag %1$s</string>
 </resources>

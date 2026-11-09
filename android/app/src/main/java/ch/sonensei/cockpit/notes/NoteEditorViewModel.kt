@@ -53,6 +53,11 @@ fun interface NoteLinkSearch {
     suspend fun search(query: String): SearchResult
 }
 
+/** The tags already in use, suggested when a tag is added (so the editor can be tested without a server). */
+fun interface NoteTagSource {
+    suspend fun tags(): NotesResult<List<NoteTag>>
+}
+
 /** Why link suggestions could not be found. */
 enum class LinkSearchError { OFFLINE, FAILED }
 
@@ -70,6 +75,10 @@ data class NoteEditorUiState(
     val note: Note? = null,
     val title: String = "",
     val body: String = "",
+    /** The note's tags as edited here, saved with the text. */
+    val tags: List<String> = emptyList(),
+    /** Every tag in use (most used first), for the suggestions; empty until loaded or when that failed. */
+    val knownTags: List<String> = emptyList(),
     /** Loading an existing note; nothing can be edited yet. */
     val loading: Boolean = false,
     /**
@@ -92,7 +101,10 @@ data class NoteEditorUiState(
     /** An inline link `[[` is being typed: items it may link to; `null` otherwise. */
     val links: LinkSuggestions? = null,
 ) {
-    val draft: NoteDraft get() = NoteDraft(title, body)
+    val draft: NoteDraft get() = NoteDraft(title, body, tags)
+
+    /** The known tags not on the note yet. */
+    val tagSuggestions: List<String> get() = knownTags.filter { known -> tags.none { it.equals(known, ignoreCase = true) } }
 
     /** Editing is possible: the note is loaded and no conflict waits for a decision. */
     val editable: Boolean get() = !loading && !unloaded && conflict == null && !closed
@@ -113,6 +125,7 @@ class NoteEditorViewModel
         images: NoteImages,
         private val saves: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         private val linkSearch: NoteLinkSearch = NoteLinkSearch { SearchResult.Ok(emptyList()) },
+        private val tagSource: NoteTagSource = NoteTagSource { NotesResult.Ok(emptyList()) },
     ) : ViewModel() {
         val imageLoader = images.loader
 
@@ -144,6 +157,7 @@ class NoteEditorViewModel
             if (opened) {
                 if (opening == null || opening == this.opening) return
                 this.opening = opening
+                loadKnownTags()
                 if (id != null && !pending()) {
                     pendingImage = null
                     state.value = NoteEditorUiState(loading = true, unloaded = true)
@@ -153,6 +167,7 @@ class NoteEditorViewModel
             }
             opened = true
             this.opening = opening
+            loadKnownTags()
             if (id == null) {
                 state.update { it.copy(editing = true) }
                 return
@@ -174,6 +189,16 @@ class NoteEditorViewModel
             return s.loading || s.uploading || s.conflict != null || s.status != SaveStatus.SAVED || saving.isLocked
         }
 
+        /** Loads the tags in use for the suggestions; a failure leaves the ones known (tags can still be typed). */
+        private fun loadKnownTags() {
+            viewModelScope.launch {
+                val result = tagSource.tags()
+                if (result is NotesResult.Ok) {
+                    state.update { s -> s.copy(knownTags = result.value.sortedByDescending { it.count }.map { it.tag }) }
+                }
+            }
+        }
+
         /** Loads the note again after a failed load. */
         fun retryLoad(id: UUID) {
             if (state.value.loading || !state.value.unloaded) return
@@ -190,6 +215,7 @@ class NoteEditorViewModel
                             note = result.value,
                             title = result.value.title.orEmpty(),
                             body = result.value.bodyMd,
+                            tags = result.value.tags,
                             loading = false,
                             unloaded = false,
                         )
@@ -208,6 +234,27 @@ class NoteEditorViewModel
         fun setTitle(title: String) = change { it.copy(title = title) }
 
         fun setBody(body: String) = change { it.copy(body = body) }
+
+        /**
+         * Adds [tag] (trimmed, without a leading `#`, as the server stores it), saved like an edit. A tag already on the
+         * note (in any case), an empty one, one longer than [MAX_TAG_LENGTH] or one over [MAX_TAGS] is not added; one
+         * that differs from a tag in use only in case takes that tag's spelling. Returns whether it was added.
+         */
+        fun addTag(tag: String): Boolean {
+            val clean = normalizeTag(tag)
+            val s = state.value
+            if (!s.editable || clean.isEmpty() || clean.length > MAX_TAG_LENGTH || s.tags.size >= MAX_TAGS) return false
+            if (s.tags.any { it.equals(clean, ignoreCase = true) }) return false
+            val spelled = s.knownTags.firstOrNull { it.equals(clean, ignoreCase = true) } ?: clean
+            change { it.copy(tags = it.tags + spelled) }
+            return true
+        }
+
+        /** Removes [tag] from the note, saved like an edit. */
+        fun removeTag(tag: String) {
+            if (tag !in state.value.tags) return
+            change { it.copy(tags = it.tags - tag) }
+        }
 
         /** Checks or unchecks the checklist item on [line] of the body (tapped in the rendered note): saved like an edit. */
         fun toggleChecklist(line: Int) {
@@ -297,7 +344,7 @@ class NoteEditorViewModel
                 state.update {
                     when (result) {
                         is SaveResult.Saved -> {
-                            val saved = it.copy(note = result.note)
+                            val saved = it.copy(note = result.note).adoptSavedTags(before.tags)
                             saved.copy(status = if (saved.isSaved()) SaveStatus.SAVED else SaveStatus.UNSAVED)
                         }
                         is SaveResult.Conflict ->
@@ -333,6 +380,7 @@ class NoteEditorViewModel
                         note = current,
                         title = current.title.orEmpty(),
                         body = current.bodyMd,
+                        tags = current.tags,
                         conflict = null,
                         status = SaveStatus.SAVED,
                     )
@@ -401,9 +449,11 @@ class NoteEditorViewModel
         private suspend fun create(): Note? =
             saving.withLock {
                 state.value.note?.let { return it }
-                val result = notes.save(null, state.value.draft) as? SaveResult.Saved ?: return null
+                val draft = state.value.draft
+                val result = notes.save(null, draft) as? SaveResult.Saved ?: return null
+                val sent = draft.tags
                 state.update {
-                    it.copy(note = result.note).let { s ->
+                    it.copy(note = result.note).adoptSavedTags(sent).let { s ->
                         s.copy(status = if (s.isSaved()) SaveStatus.SAVED else SaveStatus.UNSAVED)
                     }
                 }
@@ -442,6 +492,7 @@ class NoteEditorViewModel
                                                 note = current,
                                                 title = current.title.orEmpty(),
                                                 body = current.bodyMd,
+                                                tags = current.tags,
                                                 message = NoteEditorMessage.CHANGE_CONFLICT,
                                             )
                                         } else {
@@ -485,16 +536,32 @@ class NoteEditorViewModel
             }
         }
 
+        /**
+         * The server stores tags in its own spelling (that of other notes, each once): when the tags were not changed
+         * since [sent] was saved, they take the saved note's, so they do not count as unsaved.
+         */
+        private fun NoteEditorUiState.adoptSavedTags(sent: List<String>): NoteEditorUiState {
+            val saved = note ?: return this
+            return if (tags == sent) copy(tags = saved.tags) else this
+        }
+
         /** The text equals the saved note (for a new note: there is nothing to save yet). */
         private fun NoteEditorUiState.isSaved(): Boolean {
-            val saved = note ?: return title.isBlank() && body.isEmpty()
-            return title.trim() == saved.title.orEmpty() && body == saved.bodyMd
+            val saved = note ?: return title.isBlank() && body.isEmpty() && tags.isEmpty()
+            return title.trim() == saved.title.orEmpty() && body == saved.bodyMd && tags == saved.tags
         }
 
         companion object {
             const val AUTOSAVE_DELAY_MS = 1_000L
             const val LINK_SEARCH_DELAY_MS = 250L
             private const val NOT_FOUND = 404
+
+            /** The server's limits: a longer tag, or more tags, are refused. */
+            const val MAX_TAG_LENGTH = 50
+            const val MAX_TAGS = 50
+
+            /** [tag] as the server stores it: trimmed, without a leading `#`. */
+            fun normalizeTag(tag: String): String = tag.trim().removePrefix("#").trim()
 
             /** [body] with [image] inserted at [at] (clamped; `null`: the end), on a line of its own. */
             fun insertImage(

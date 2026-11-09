@@ -88,6 +88,9 @@ data class NoteEditorCallbacks(
     val toggleChecklist: (Int) -> Unit = {},
     /** The inline link `[[query` being typed changed (`null`: none is typed). */
     val searchLinks: (String?) -> Unit = {},
+    /** Adds a tag; returns whether it was added. */
+    val addTag: (String) -> Boolean = { false },
+    val removeTag: (String) -> Unit = {},
 )
 
 internal object NoteEditorTags {
@@ -197,10 +200,25 @@ fun NoteEditorRoute(
                 delete = viewModel::delete,
                 toggleChecklist = viewModel::toggleChecklist,
                 searchLinks = viewModel::searchLinks,
+                addTag = viewModel::addTag,
+                removeTag = viewModel::removeTag,
             ),
         modifier = modifier,
     )
 }
+
+/** The note's tags, editable as chips when the note is. */
+@Composable
+private fun Tags(
+    state: NoteEditorUiState,
+    callbacks: NoteEditorCallbacks,
+) = NoteTagsEditor(
+    tags = state.tags,
+    suggestions = state.tagSuggestions,
+    enabled = state.editable,
+    onAdd = callbacks.addTag,
+    onRemove = callbacks.removeTag,
+)
 
 /** The editor for [key], kept by the Notes screen's [NoteEditors]. */
 @Composable
@@ -247,6 +265,7 @@ fun NoteEditorContent(
                             enabled = state.editable,
                             modifier = Modifier.fillMaxWidth().testTag(NoteEditorTags.TITLE),
                         )
+                        Tags(state, callbacks)
                         val query = body.linkQuery()
                         val links = state.links
                         if (query != null && links != null && state.editable) {
@@ -282,6 +301,7 @@ fun NoteEditorContent(
                         state.title.takeIf { it.isNotBlank() }?.let {
                             Text(it, style = MaterialTheme.typography.headlineMedium)
                         }
+                        Tags(state, callbacks)
                         if (state.body.isBlank()) {
                             Text(
                                 stringResource(R.string.notes_empty_body),

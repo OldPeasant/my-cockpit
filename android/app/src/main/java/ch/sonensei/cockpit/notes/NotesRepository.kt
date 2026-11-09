@@ -10,6 +10,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -115,6 +116,8 @@ data class NoteDraft(
     /** Blank: no title (the server derives it from the first line). */
     val title: String,
     val bodyMd: String,
+    /** The note's tags, in their order; sent only when they differ from the saved note's (a new note: when any). */
+    val tags: List<String> = emptyList(),
 )
 
 /** An image picked for a note, already read into memory. */
@@ -169,6 +172,7 @@ class NotesRepository
                     val title = draft.title.trim()
                     put("title", if (title.isEmpty()) JsonNull else JsonPrimitive(title))
                     put("bodyMd", JsonPrimitive(draft.bodyMd))
+                    if (draft.tags != (base?.tags ?: emptyList<String>())) put("tags", JsonArray(draft.tags.map(::JsonPrimitive)))
                 }
             val result =
                 load {
