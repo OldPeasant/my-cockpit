@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [and-notes-list, and-links-panel]
 prio: 2
 parent: and-notes-editor
-lease_until: 2026-11-09T02:45:28Z
+lease_until: 2026-11-09T02:50:31Z
 releases: 0
 extended: 
 hold: 
