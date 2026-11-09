@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [web/src/app/features/bookmarks,web/src/locale]
 prio: 2
-lease_until: 2026-11-09T00:30:10Z
+lease_until: 2026-11-09T00:35:13Z
 ---
 ## Goal
 Android bookmarks have search and editing; web has neither (SPEC.md §8.4 lists search). SPEC.md §4.5 wants
