@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: [web-task-actions]
 touches: [web/src/app/features/gtd/ui,web/src/app/features/gtd/projects,web/src/app/features/gtd/task-detail]
 prio: 2
-lease_until: 2026-11-09T01:04:45Z
+lease_until: 2026-11-09T01:09:47Z
 ---
 ## Goal
 Follow-up of web-task-actions review finding CR-3 (P3, deferred): task notes import `renderMarkdown`
