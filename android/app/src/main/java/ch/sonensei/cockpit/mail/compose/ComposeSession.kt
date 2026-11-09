@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.mail.compose
 
+import androidx.compose.ui.text.input.TextFieldValue
 import ch.sonensei.cockpit.files.DriveEntry
 import ch.sonensei.cockpit.mail.compose.MailComposeViewModel.Companion.AUTOSAVE_MILLIS
 import ch.sonensei.cockpit.mail.compose.MailComposeViewModel.Companion.SAVE_PROBLEMS
@@ -11,6 +12,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.UUID
 
 /**
  * One compose of [MailComposeViewModel]: its screen state ([value]), its draft and the writes for it, one at a time.
@@ -95,14 +97,19 @@ internal class ComposeSession(
             }
     }
 
-    /** The reply or forward the server prepared; left meanwhile, it is discarded like any untouched one. */
+    /**
+     * The reply or forward the server prepared, or the stored draft opened; a reply or forward left meanwhile is discarded
+     * like any untouched one. An opened draft is the user's own text: it goes into the editable body as plain text (its
+     * formatting is not kept), while a reply or forward keeps the original as quoted text below the body.
+     */
     private suspend fun prepared(draft: Draft) {
         if (value.ended) {
-            writes.withLock { discardStored(draft) }
+            if (mode !is ComposeMode.Draft) writes.withLock { discardStored(draft) }
             return
         }
         stored = draft
-        quotedHtml = draft.html
+        val resumed = mode is ComposeMode.Draft
+        quotedHtml = if (resumed) "" else draft.html
         update {
             it.copy(
                 phase = ComposePhase.EDITING,
@@ -113,17 +120,29 @@ internal class ComposeSession(
                 bcc = recipientField(draft.bcc),
                 showCcBcc = draft.cc.isNotEmpty() || draft.bcc.isNotEmpty(),
                 subject = draft.subject,
-                quotedText = draft.text.trim(),
+                body = if (resumed) TextFieldValue(draft.text.trim()) else it.body,
+                quotedText = if (resumed) "" else draft.text.trim(),
                 attachments = draft.attachments,
                 identityId = draft.identityId,
                 draft = DraftState.SAVED,
             )
         }
         draft.accountId?.let { loadIdentities(it) }
+        loadAccounts()
+    }
+
+    /** Loads the accounts for the From row of a reply, forward or opened draft (its account stays locked). */
+    private fun loadAccounts() {
+        if (value.accounts.isNotEmpty()) return
+        scope.launch {
+            val result = repository.accounts()
+            if (value.ended || result !is MailResult.Ok) return@launch
+            update { it.copy(accounts = result.value) }
+        }
     }
 
     /** Loads the identities of [accountId] for the From picker; a failure leaves only the account address. */
-    fun loadIdentities(accountId: java.util.UUID) {
+    fun loadIdentities(accountId: UUID) {
         scope.launch {
             val result = repository.identities(accountId)
             if (value.ended || value.accountId != accountId || result !is MailResult.Ok) return@launch

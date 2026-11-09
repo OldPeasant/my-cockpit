@@ -146,4 +146,47 @@ class MailComposeIdentityScreenTest {
 
         composeRule.onNodeWithTag(MailComposeTags.TITLE).assertTextEquals("Entwurf")
     }
+
+    @Test
+    fun `without a default identity the account address is offered and can be chosen back`() {
+        var addressChosen = 0
+        composeRule.setContent {
+            CockpitTheme {
+                MailComposeContent(
+                    editing.copy(identities = listOf(workSupport), identityId = workSupport.id, accountLocked = true),
+                    MailComposeCallbacks(accountAddress = { addressChosen++ }),
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(MailComposeTags.ACCOUNT).assertTextContains("Support <support@example.org>").performClick()
+        composeRule.onNodeWithTag(MailComposeTags.ACCOUNT_ADDRESS).assertTextEquals("Work <me@example.org>").performClick()
+
+        assertEquals(1, addressChosen)
+    }
+
+    @Test
+    fun `with a default identity the account address is not offered`() {
+        show(editing)
+
+        composeRule.onNodeWithTag(MailComposeTags.ACCOUNT).performClick()
+        composeRule.onNodeWithTag(MailComposeTags.ACCOUNT_ADDRESS).assertDoesNotExist()
+    }
+
+    @Test
+    fun `an opened draft or reply shows its identities before the accounts are loaded`() {
+        show(
+            editing.copy(
+                mode = ComposeMode.Draft(id(7)),
+                accounts = emptyList(),
+                accountLocked = true,
+                identityId = workMain.id,
+            ),
+        )
+
+        composeRule.onNodeWithTag(MailComposeTags.ACCOUNT).assertTextContains("Me <me@example.org>").performClick()
+        composeRule.onNodeWithTag(MailComposeTags.identity(workSupport.id)).performClick()
+
+        assertEquals(listOf(workSupport.id), chosenIdentities)
+    }
 }

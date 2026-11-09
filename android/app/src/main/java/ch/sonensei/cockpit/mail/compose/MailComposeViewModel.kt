@@ -289,6 +289,17 @@ class MailComposeViewModel
             session.edit { it.copy(identityId = id) }
         }
 
+        /**
+         * Sends from the account address itself (no identity). Offered only while the account has no default identity
+         * (the server sends from the default one otherwise).
+         */
+        fun selectAccountAddress() {
+            val session = current ?: return
+            val s = session.value
+            if (s.identityId == null || s.identities.any { it.isDefault }) return
+            session.edit { it.copy(identityId = null) }
+        }
+
         fun removeAttachment(partId: String) = edit { s -> s.copy(attachments = s.attachments.filterNot { it.partId == partId }) }
 
         private fun edit(change: (MailComposeUiState) -> MailComposeUiState) {

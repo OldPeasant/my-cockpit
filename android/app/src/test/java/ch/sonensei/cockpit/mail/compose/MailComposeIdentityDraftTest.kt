@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.mail.compose
 
+import androidx.compose.ui.text.input.TextFieldValue
 import ch.sonensei.cockpit.mail.list.MailAccount
 import ch.sonensei.cockpit.mail.list.MailResult
 import io.mockk.coEvery
@@ -250,5 +251,88 @@ class MailComposeIdentityDraftTest {
 
             assertEquals(ComposePhase.EDITING, vm.uiState.value.phase)
             assertEquals("Plan", vm.uiState.value.subject)
+        }
+
+    @Test
+    fun `an opened draft puts its text into the editable body, not the quoted text, and saves the edited text alone`() =
+        runTest(dispatcher) {
+            coEvery { repository.start(ComposeMode.Draft(id(7))) } returns MailResult.Ok(draft())
+            val saved = slot<DraftContent>()
+            coEvery { repository.update(id(7), "\"1\"", capture(saved)) } returns MailResult.Ok(draft("\"2\""))
+            val vm = compose(ComposeMode.Draft(id(7)))
+
+            assertEquals("Draft so far", vm.uiState.value.body.text)
+            assertEquals("", vm.uiState.value.quotedText)
+
+            vm.setBody(TextFieldValue("Draft so far, now finished"))
+            vm.save()
+            advanceUntilIdle()
+
+            assertEquals("<p>Draft so far, now finished</p>", saved.captured.html)
+        }
+
+    @Test
+    fun `a reply keeps the original as quoted text below an empty body`() =
+        runTest(dispatcher) {
+            coEvery { repository.start(ComposeMode.Reply(id(5))) } returns MailResult.Ok(draft())
+            val vm = compose(ComposeMode.Reply(id(5)))
+
+            assertEquals("", vm.uiState.value.body.text)
+            assertEquals("Draft so far", vm.uiState.value.quotedText)
+        }
+
+    @Test
+    fun `an opened draft left while it still loads is kept, unlike a reply`() =
+        runTest(dispatcher) {
+            val opened = CompletableDeferred<MailResult<Draft>>()
+            coEvery { repository.start(ComposeMode.Draft(id(7))) } coAnswers { opened.await() }
+            val vm = compose(ComposeMode.Draft(id(7)))
+
+            vm.leave()
+            opened.complete(MailResult.Ok(draft()))
+            advanceUntilIdle()
+
+            assertEquals(ComposePhase.CLOSED, vm.uiState.value.phase)
+            coVerify(exactly = 0) { repository.discard(any(), any()) }
+        }
+
+    @Test
+    fun `a reply or opened draft loads the accounts for its From row, its account stays locked`() =
+        runTest(dispatcher) {
+            coEvery { repository.start(ComposeMode.Draft(id(7))) } returns MailResult.Ok(draft())
+            val vm = compose(ComposeMode.Draft(id(7)))
+
+            assertEquals(listOf(home, work), vm.uiState.value.accounts)
+            assertEquals(work.id, vm.uiState.value.accountId)
+            assertTrue(vm.uiState.value.accountLocked)
+        }
+
+    @Test
+    fun `the account address replaces a chosen identity only while the account has no default identity`() =
+        runTest(dispatcher) {
+            coEvery { repository.identities(work.id) } returns MailResult.Ok(listOf(workSupport))
+            coEvery { repository.start(ComposeMode.Draft(id(7))) } returns MailResult.Ok(draft(identityId = workSupport.id))
+            val saved = slot<DraftContent>()
+            coEvery { repository.update(id(7), "\"1\"", capture(saved)) } returns MailResult.Ok(draft("\"2\""))
+            val vm = compose(ComposeMode.Draft(id(7)))
+
+            vm.selectAccountAddress()
+            assertNull(vm.uiState.value.identityId)
+            assertEquals(DraftState.UNSAVED, vm.uiState.value.draft)
+            vm.save()
+            advanceUntilIdle()
+            assertNull(saved.captured.identityId)
+        }
+
+    @Test
+    fun `the account address is not chosen while the account has a default identity`() =
+        runTest(dispatcher) {
+            coEvery { repository.start(ComposeMode.Draft(id(7))) } returns MailResult.Ok(draft(identityId = workSupport.id))
+            val vm = compose(ComposeMode.Draft(id(7)))
+
+            vm.selectAccountAddress()
+
+            assertEquals(workSupport.id, vm.uiState.value.identityId)
+            assertEquals(DraftState.SAVED, vm.uiState.value.draft)
         }
 }

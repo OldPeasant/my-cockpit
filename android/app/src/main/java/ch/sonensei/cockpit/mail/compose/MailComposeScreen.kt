@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.mail.list.MailAccount
 import java.util.UUID
 
 /**
@@ -104,6 +105,7 @@ fun MailComposeRoute(
                 retry = viewModel::retry,
                 account = viewModel::selectAccount,
                 identity = viewModel::selectIdentity,
+                accountAddress = viewModel::selectAccountAddress,
                 to = viewModel::setTo,
                 leaveRecipients = viewModel::clearSuggestions,
                 cc = viewModel::setCc,
@@ -140,6 +142,8 @@ data class MailComposeCallbacks(
     val retry: () -> Unit = {},
     val account: (UUID) -> Unit = {},
     val identity: (UUID) -> Unit = {},
+    /** Send from the account address itself, without an identity. */
+    val accountAddress: () -> Unit = {},
     val to: (String) -> Unit = {},
     val cc: (String) -> Unit = {},
     val bcc: (String) -> Unit = {},
@@ -179,6 +183,7 @@ internal object MailComposeTags {
     const val RETRY = "mail-compose-retry"
     const val ABANDON = "mail-compose-abandon"
     const val ACCOUNT = "mail-compose-account"
+    const val ACCOUNT_ADDRESS = "mail-compose-account-address"
     const val CC_BCC = "mail-compose-cc-bcc"
     const val SUBJECT = "mail-compose-subject"
     const val BODY = "mail-compose-body"
@@ -406,7 +411,7 @@ private fun Form(
 ) {
     fun shown(field: RecipientField) = if (suggestions.field == field) suggestions.items else emptyList()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        From(state, callbacks.account, callbacks.identity)
+        From(state, callbacks.account, callbacks.identity, callbacks.accountAddress)
         HorizontalDivider()
         RecipientRow(
             R.string.mail_compose_to,
@@ -487,27 +492,31 @@ private fun From(
     state: MailComposeUiState,
     select: (UUID) -> Unit,
     selectIdentity: (UUID) -> Unit,
+    selectAccountAddress: () -> Unit,
 ) {
     val account = state.accounts.firstOrNull { it.id == state.accountId }
-    if (account == null && state.accounts.isEmpty()) return
+    // A reply, forward or opened draft has no account list until it is loaded, but its identities are shown already.
+    if (account == null && state.accounts.isEmpty() && state.identities.isEmpty()) return
     var expanded by remember { mutableStateOf(false) }
-    val identity = state.identities.firstOrNull { it.id == state.identityId } ?: state.identities.firstOrNull { it.isDefault }
+    val chosen = state.identities.firstOrNull { it.id == state.identityId }
+    val identity = chosen ?: state.identities.firstOrNull { it.isDefault }
+    // Without a default identity the account address is used while none is chosen, so it is offered as well (as on the web).
+    val addressEntry = account?.takeIf { state.identities.isNotEmpty() && state.identities.none { it.isDefault } }
     val otherAccounts = if (state.accountLocked) emptyList() else state.accounts.filter { it.id != state.accountId }
-    val canPick = state.editable && (state.identities.size > 1 || otherAccounts.isNotEmpty())
+    val listedAccounts = if (state.identities.isEmpty() && !state.accountLocked) state.accounts else otherAccounts
+    // Something else than what is shown can be chosen.
+    val canPick =
+        state.editable &&
+            (
+                state.identities.any { it.id != identity?.id } ||
+                    (addressEntry != null && chosen != null) ||
+                    listedAccounts.any { it.id != state.accountId }
+            )
     LabeledRow(R.string.mail_compose_from, isError = false) {
         Box(Modifier.weight(1f)) {
             TextButton(onClick = { expanded = true }, enabled = canPick, modifier = Modifier.testTag(MailComposeTags.ACCOUNT)) {
                 Text(
-                    identity?.label ?: account
-                        ?.let {
-                            if (it.address.isNotBlank() &&
-                                it.address != it.name
-                            ) {
-                                "${it.name} <${it.address}>"
-                            } else {
-                                it.name
-                            }
-                        }.orEmpty(),
+                    identity?.label ?: account?.sender.orEmpty(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -515,6 +524,16 @@ private fun From(
                 if (canPick) Icon(Icons.Outlined.ArrowDropDown, contentDescription = null)
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                if (addressEntry != null) {
+                    DropdownMenuItem(
+                        text = { Text(addressEntry.sender) },
+                        onClick = {
+                            expanded = false
+                            selectAccountAddress()
+                        },
+                        modifier = Modifier.testTag(MailComposeTags.ACCOUNT_ADDRESS),
+                    )
+                }
                 state.identities.forEach { i ->
                     DropdownMenuItem(
                         text = { Text(i.label) },
@@ -525,7 +544,7 @@ private fun From(
                         modifier = Modifier.testTag(MailComposeTags.identity(i.id)),
                     )
                 }
-                (if (state.identities.isEmpty() && !state.accountLocked) state.accounts else otherAccounts).forEach { a ->
+                listedAccounts.forEach { a ->
                     DropdownMenuItem(
                         text = { Text(a.name) },
                         onClick = {
@@ -539,6 +558,10 @@ private fun From(
         }
     }
 }
+
+/** "Name <address>", or the name alone. */
+private val MailAccount.sender: String
+    get() = if (address.isNotBlank() && address != name) "$name <$address>" else name
 
 @Composable
 private fun RecipientRow(
