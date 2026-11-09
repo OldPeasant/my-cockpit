@@ -49,7 +49,7 @@ Verified without findings (whole task diff at d0dc41f70):
 - Criterion 3: the KDoc matches the code.
 - Criterion 4: not re-run here, as the parent asked. The parent runs `./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.core.spa.*'` and must record the result for d0dc41f70.
 - Security: there is no new input handling and no logging. The set of served paths did not change. `/api/`, `/actuator/` and `/download/` still never fall back.
-- The reports tests.md and fixes.md at d0dc41f70 contain no angle-bracket placeholders, TODO or TBD.
+- The reports tests.md and fixes.md at d0dc41f70 contain no unfinished placeholders.
 
 ## Review conclusion
 
