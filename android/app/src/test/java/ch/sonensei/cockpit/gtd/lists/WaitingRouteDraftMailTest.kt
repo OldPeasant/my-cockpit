@@ -116,4 +116,39 @@ class WaitingRouteDraftMailTest {
         composeRule.waitForIdle()
         assertEquals(Intent.ACTION_SENDTO, shadowOf(composeRule.activity).nextStartedActivity.action)
     }
+
+    @Test
+    fun `a contact still loading for one task does not hold back another task's draft`() {
+        val offer =
+            GtdTask(
+                id(2),
+                "Offer",
+                TaskList.WAITING,
+                1,
+                1,
+                waitingForText = "Ben Example (ben@example.net)",
+                waitingSince = LocalDate.of(2026, 10, 15),
+            )
+        val twoTasks =
+            mockk<TaskListsRepository> {
+                every { observe(TaskList.WAITING, any()) } returns MutableStateFlow(Live(listOf(contract, offer)))
+            }
+        val lookup = CompletableDeferred<String?>()
+        val viewModel = WaitingViewModel(twoTasks, contexts, completion, Clock.fixed(now, ZoneOffset.UTC)) { lookup.await() }
+        composeRule.setContent { CockpitTheme { WaitingRoute(viewModel = viewModel) } }
+
+        composeRule.onNodeWithTag(WaitingTags.draftMail(contract.id)).performClick()
+        composeRule.onNodeWithTag(WaitingTags.draftMail(offer.id)).performClick()
+        composeRule.waitForIdle()
+        val offerMail = shadowOf(composeRule.activity).nextStartedActivity
+        assertEquals(listOf("ben@example.net"), offerMail.getStringArrayExtra(Intent.EXTRA_EMAIL)?.toList())
+        assertEquals("Offer", offerMail.getStringExtra(Intent.EXTRA_SUBJECT))
+        assertNull(shadowOf(composeRule.activity).nextStartedActivity)
+
+        lookup.complete("anna@example.com")
+        composeRule.waitForIdle()
+        val contractMail = shadowOf(composeRule.activity).nextStartedActivity
+        assertEquals(listOf("anna@example.com"), contractMail.getStringArrayExtra(Intent.EXTRA_EMAIL)?.toList())
+        assertEquals("Contract", contractMail.getStringExtra(Intent.EXTRA_SUBJECT))
+    }
 }

@@ -4,29 +4,32 @@ Date: 2026-11-09
 
 Task: and-waiting-contact-mail - Android Draft email: To from the linked waiting-for contact
 
-Scope: commits between the task base a95fa744f67f90916b6100a637151a8153e8ee80 and task commit 20acec0b79fc9af27e7aa1f93c4c87e345a6cd08 (git diff a95fa744..20acec0b). HEAD f2a077e6a has the same code (its diff from 20acec0b only touches tasks/and-waiting-contact-mail.md). Uncommitted test-writer edits to GtdMappersTest.kt are outside this scope and were not reviewed as part of the implementation.
+Scope: final task code, git diff a95fa744f67f90916b6100a637151a8153e8ee80..c48d73bd01a569d40eb6927ee2a8b4b437c93f70, excluding tasks/ and reviews/ (implementation commit f2a077e6a, test-writer commit 6c900fb6b, fix commit c48d73bd0). Re-review after the fixes for CR-1 and CR-2 of the earlier review.
 
 Requirements:
 - tasks/and-waiting-contact-mail.md (acceptance criteria and recorded assumption)
 - SPEC.md §5.3 (waiting "Follow up" then "Draft email" prefills To from the linked contact)
 - AGENTS.md project notes, docs/ARCHITECTURE.md conventions
-- Web reference implementation web/src/app/features/gtd/lists/waiting-page.ts (uses contact.emails[0])
+- reviews/and-waiting-contact-mail/fixes.md (claimed fixes)
+- Web reference web/src/app/features/gtd/lists/waiting-page.ts (contact.emails[0])
 
 Git range:
 - Branch: main
-- HEAD: f2a077e6a582fbd1490345705d623a92cca1c3cb
+- HEAD: c48d73bd01a569d40eb6927ee2a8b4b437c93f70
 - Base/start: a95fa744f67f90916b6100a637151a8153e8ee80
-- Commits reviewed: 1 (20acec0b, code-identical to f2a077e6a)
+- Commits reviewed: 3 code commits (f2a077e6a, 6c900fb6b, c48d73bd0); fae4609b3 and 0d725793d touch only tasks/
 
-Summary: 0 P0, 0 P1, 1 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-Static review only (Gradle was not run, as instructed).
+Static review only: Gradle was not run, as instructed. No uncommitted changes were reviewed.
 
-Verified without findings:
-- Criterion 1: GtdTask.waitingForContactId (UUID?, default null), CachedTaskEntity.waitingForContactId (String?), both mappers (TaskResponse.toEntity / CachedTaskEntity.toDomain) and TaskResponse.toTask in TaskLists.kt carry the field. GtdCacheDatabase is bumped to version 3, the exported schema 3.json contains the new TEXT column, and GtdDataModule already uses fallbackToDestructiveMigration(dropAllTables = true), so existing v2 caches are dropped and refilled instead of crashing (cache-only data, as the assumption states). The only CachedTaskEntity constructor call site is the mapper.
-- Criterion 2: followUpRecipient uses the linked contact's first email (ContactsResult.Ok, emails.firstOrNull()), falling back to emailIn(waitingForText) when there is no link, the contact cannot be loaded (Offline/Failed) or has no email. This matches the web behavior (emails[0]). ContactsRepository.load catches IO/HTTP/serialization errors and rethrows CancellationException, so the coroutine started from the button does not crash the app on a network failure. The Draft email button is shown for every waiting task, so linked tasks without an address in the text can still draft a mail.
-- Hilt: ContactsRepository is an @Singleton @Inject class; existing tests build WaitingViewModel through the internal constructor, whose contactEmail defaults to returning null.
-- No email address or contact data is logged.
+Verified:
+- Criterion 1: GtdTask.waitingForContactId (UUID?, default null), CachedTaskEntity.waitingForContactId (String?), the cache mappers (TaskResponse.toEntity, CachedTaskEntity.toDomain) and TaskResponse.toTask carry the field. GtdCacheDatabase version 3 with exported schema 3.json containing the new TEXT column; GtdDataModule uses fallbackToDestructiveMigration(dropAllTables = true), so a v2 cache is dropped and refilled (cache-only data, matches the recorded assumption). The mapper is the only CachedTaskEntity construction site.
+- Criterion 2: followUpRecipient takes the linked contact's first email (ContactsResult.Ok, emails.firstOrNull()), otherwise falls back to emailIn(waitingForText); Offline/Failed results and contacts without addresses fall back. ContactsRepository.get goes through load, which maps network/HTTP errors to results, so the button coroutine does not crash on failure. followUpMailUri/followUpMailIntent keep their old default (address from the text), so existing callers are unchanged.
+- Earlier CR-1 (double taps open several mails) is fixed: WaitingRoute keeps a remembered per-task set; a tap only launches when the task id is newly added, and the id is removed in finally after the intent was started, the lookup failed, or the scope was cancelled (leaving composition), so later taps work again. All access is on the main thread, so a plain set is adequate. WaitingRouteDraftMailTest "taps while the contact is still loading open a single mail" suspends the lookup on a CompletableDeferred, clicks twice, asserts no intent before completion, exactly one SENDTO after, one lookup, and that a later tap drafts again.
+- Earlier CR-2 (firstEmail untested) is resolved: ListViewModelsTest builds WaitingViewModel through the @Inject constructor with a mocked ContactsRepository and covers Ok with two emails (first one, get called once), Ok without emails, Offline and Failed(404) falling back to the text, and null without text. This exercises the production contacts::firstEmail wiring.
+- Criterion 3 (tests): mapper round trip with and without contact id (GtdMappersTest), JSON parsing through the cache (TaskRepositoryTest) and the live list (TaskListsRepositoryTest), recipient selection (WaitingDraftEmailTest, ListViewModelsTest) and the route-level intent for both the contact and the fallback case (WaitingRouteDraftMailTest). Whether `sh scripts/check.sh` passes was not run in this review; that is the parent worker's evidence.
+- Architecture: the gtd list view model depends on the contacts module only through ContactsRepository (a service), consistent with module boundaries; no new state owner was introduced. No email addresses or contact data are logged. Test data uses example.com/example.org addresses.
 
 ## P0 Critical
 
@@ -38,22 +41,12 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Draft email: no feedback or duplicate guard while the contact loads**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/lists/WaitingScreen.kt:60`
-    - Category: Correctness
-    - Problem: draftMail now runs `scope.launch { ... viewModel.mailRecipient(task) ... }`, which waits for a live `GET /contacts/{id}` before starting the mail intent. Nothing shows that the tap was registered, and nothing stops more taps while the request runs. On a slow network every extra tap starts another coroutine, and each one later launches its own ACTION_SENDTO, so the user gets several compose windows or chooser dialogs in a row. Before this change the intent was built synchronously, so this could not happen.
-    - Why it matters: Duplicate compose windows on a slow or flaky connection, the typical case for a live fetch with no cache. This is the overlapping-action defect the review guidelines name.
-    - Suggested fix: Ignore taps while a draft for that task is still resolving, for example by keeping the running Job (or a per-task "resolving" flag in remembered state or the ViewModel) and skipping the launch while it is active. Optionally disable the button or show progress while it runs. Add a test that two quick taps launch one intent.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | Contact-to-address mapping is untested**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/lists/ListViewModels.kt:179`
-    - Category: Tests
-    - Problem: The new tests in WaitingDraftEmailTest only exercise followUpRecipient with a lambda. The production lambda, the private `ContactsRepository.firstEmail` (Ok with several emails returns the first, Ok with no emails returns null, Offline/Failed returns null and falls back to the text), and the @Inject wiring `contacts::firstEmail` are never executed by a test.
-    - Why it matters: A regression in this mapping, such as picking the wrong email or treating a Failed result as an address, would go unnoticed. This is the part of criterion 2 that talks to the contacts module.
-    - Suggested fix: Make firstEmail internal (or test it through WaitingViewModel.mailRecipient) and cover Ok-with-emails, Ok-without-emails and Offline against a fake ContactsApi or MockWebServer, as other contacts tests do.
+None.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.

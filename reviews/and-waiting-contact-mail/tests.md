@@ -4,51 +4,54 @@ Date: 2026-11-09
 
 Task: and-waiting-contact-mail - Android Draft email: To from the linked waiting-for contact
 
-Scope: `git diff a95fa744f67f90916b6100a637151a8153e8ee80..20acec0b79fc9af27e7aa1f93c4c87e345a6cd08`
-(task commit 20acec0b, given by the parent). The checkout's HEAD is f2a077e6a582fbd1490345705d623a92cca1c3cb
-("and-waiting-contact-mail: Draft email To from the linked waiting-for contact"); `git diff 20acec0b f2a077e6a -- android`
-is empty, so the measured code is identical to the task commit. Commits between base and HEAD otherwise only touch
-`tasks/` (assume, heartbeat). Branch: main.
+Scope: `git diff a95fa744f67f90916b6100a637151a8153e8ee80..c48d73bd01a569d40eb6927ee2a8b4b437c93f70` (final revision
+given by the parent; HEAD of the checkout, branch main). Task-owned commits: f2a077e6a (implementation), 6c900fb6b
+(tests and review reports), c48d73bd0 (fixer: CR-1 draft-tap guard plus test); fae4609b3 and 0d725793d only touch
+`tasks/`. This is a re-run on the final code after the fixer commit; the previous report described f2a077e6a.
 
 Requirements:
 - tasks/and-waiting-contact-mail.md acceptance criteria and its recorded assumption (fallback to the waiting-for text
   when the contact cannot be loaded, has no address, or is deleted; contact fetched live)
 - SPEC.md §5.3 (Draft email prefills To from the linked contact)
+- reviews/and-waiting-contact-mail/review.md CR-1 and reviews/and-waiting-contact-mail/fixes.md (guard against
+  repeated Draft email taps while the contact lookup runs)
 - docs/ARCHITECTURE.md "Coverage" (Android: JaCoCo via AGP)
-- Parent instructions (Android only, tests under android/app/src/test, focused Gradle run only)
+- Parent instructions (single focused Gradle run, no commit, no TFP state)
 
 ## Test files changed
 
-- `android/app/src/test/java/ch/sonensei/cockpit/gtd/data/GtdMappersTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/gtd/data/TaskRepositoryTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/gtd/lists/ListViewModelsTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/gtd/lists/TaskListsRepositoryTest.kt`
-- `android/app/src/test/java/ch/sonensei/cockpit/gtd/lists/WaitingRouteDraftMailTest.kt` (new)
+- `android/app/src/test/java/ch/sonensei/cockpit/gtd/lists/WaitingRouteDraftMailTest.kt` (this run, uncommitted)
 
-Already present from the implementation commit (not changed by me): two tests in `WaitingDraftEmailTest.kt`.
+Already committed in the task (6c900fb6b, c48d73bd0) and re-run here: GtdMappersTest, TaskRepositoryTest,
+ListViewModelsTest, TaskListsRepositoryTest, WaitingDraftEmailTest, WaitingRouteDraftMailTest.
 
 ## Tests added or updated
 
-Count: 13 (11 new, 2 existing tests strengthened with extra assertions; nothing removed or weakened)
+Count: 1 (new; nothing removed or weakened)
 
-- GtdMappersTest: `the linked waiting-for contact survives the cache row`, `a task without a linked contact keeps no contact id in the cache row`
-- TaskRepositoryTest (updated): `refresh stores the loaded tasks with all fields` now sends and asserts `waitingForContactId` through the real Room in-memory cache; `a task the server did not release has no release day in the cache` also asserts a null contact id
-- TaskListsRepositoryTest: `a loaded waiting task keeps its linked contact, an unlinked one has none` (API JSON -> `TaskResponse.toTask`)
-- ListViewModelsTest (WaitingViewModel.mailRecipient):
-  - internal constructor with a fake `contactEmail`: `the mail recipient is the linked contact's email address, asked for that contact`, `the mail recipient falls back to the waiting-for text when the contact has no address`, `without a linked contact no contact is asked`
-  - Hilt `@Inject` constructor with a mocked `ContactsRepository` (exercises the private `firstEmail`): `the injected view model takes the contact's first email address`, `the injected view model falls back to the text for a contact without email addresses`, `the injected view model falls back to the text when the contact cannot be loaded` (Offline, Failed 404, and no text -> null)
-- WaitingRouteDraftMailTest (Robolectric + Compose, real WaitingRoute and WaitingViewModel): `draft email is addressed to the linked contact's email address`, `draft email falls back to the address in the waiting-for text when the contact has none` (asserts the started ACTION_SENDTO intent's EXTRA_EMAIL, mailto recipient and subject)
+- WaitingRouteDraftMailTest `a contact still loading for one task does not hold back another task's draft`: two
+  waiting tasks; the contact lookup of the first ("Contract", linked to a contact) is suspended on a
+  CompletableDeferred; tapping Draft email on the second ("Offer", no contact, address in the text) opens its mail
+  immediately (To ben@example.net, subject Offer) and only one mail is started; completing the lookup then opens the
+  first task's mail (To anna@example.com, subject Contract). This pins that the CR-1 guard is per task, as described
+  in fixes.md: the fixer's test used a single task, so a guard that blocked every draft while any lookup runs would
+  have passed it.
+
+Review of the fixer's test `taps while the contact is still loading open a single mail`: it controls ordering with a
+CompletableDeferred (no real delays), asserts no mail before the lookup completes, exactly one SENDTO after, one
+lookup call, and that a later tap drafts again (guard released in `finally`). Adequate for CR-1.
 
 ## Requirement coverage
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1: GtdTask model, mapper and cache carry `waitingForContactId` | GtdMappersTest (2 new), TaskRepositoryTest (2 updated, Room in-memory), TaskListsRepositoryTest `a loaded waiting task keeps its linked contact...` | `./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.*' createDebugUnitTestCoverageReport` (in android/) | Pass |
-| AC2: Draft email To = linked contact's first email | ListViewModelsTest `the mail recipient is the linked contact's...`, `the injected view model takes the contact's first email address`; WaitingRouteDraftMailTest `draft email is addressed to the linked contact's email address`; WaitingDraftEmailTest `a linked contact's first email address is the recipient...` | same | Pass |
-| AC2: fallback to an address in the waiting-for text (no contact, no address, offline, failed) | ListViewModelsTest fallback tests (4); WaitingRouteDraftMailTest fallback test; WaitingDraftEmailTest `without a contact address...` | same | Pass |
+| AC1: GtdTask model, mapper and cache carry `waitingForContactId` | GtdMappersTest (2), TaskRepositoryTest (2, Room in-memory v3 DB), TaskListsRepositoryTest `a loaded waiting task keeps its linked contact, an unlinked one has none` | `./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.*' createDebugUnitTestCoverageReport` (in android/) | Pass |
+| AC2: Draft email To = linked contact's first email | ListViewModelsTest `the mail recipient is the linked contact's email address, asked for that contact`, `the injected view model takes the contact's first email address`; WaitingRouteDraftMailTest `draft email is addressed to the linked contact's email address`; WaitingDraftEmailTest | same | Pass |
+| AC2: fallback to an address in the waiting-for text (no contact, no address, offline, failed) | ListViewModelsTest fallback tests (4); WaitingRouteDraftMailTest `draft email falls back to the address in the waiting-for text when the contact has none`; WaitingDraftEmailTest | same | Pass |
+| CR-1 fix: repeated taps during a pending lookup open one mail; tapping again later drafts again | WaitingRouteDraftMailTest `taps while the contact is still loading open a single mail` | same | Pass |
+| CR-1 fix: the guard is per task (another task's draft is not blocked) | WaitingRouteDraftMailTest `a contact still loading for one task does not hold back another task's draft` | same | Pass |
 | AC3: unit tests cover both cases | all of the above | same | Pass |
-| AC3: `sh scripts/check.sh` passes | none | not run | Not run: parent asked for focused Gradle runs only; the parent runs `.taskcheck` |
-| Room cache schema v3 (destructive fallback, cache only) | indirectly via TaskRepositoryTest on the v3 in-memory DB | same | Pass (migration from v2 on a device not tested: destructive fallback by design) |
+| AC3: `sh scripts/check.sh` passes | none | not run | Not run: parent asked for the focused Gradle run only; the parent runs `.taskcheck` |
 
 ## Focused test execution
 
@@ -58,8 +61,8 @@ Command:
 
 Result:
 
-Pass. Exit 0, ktlintCheck clean. 86 suites, 1210 tests, 0 failures, 0 errors, 0 skipped (all suites timestamped in this run).
-A first run before adding WaitingRouteDraftMailTest also passed (85 suites, 1208 tests).
+Pass. Exit 0, ktlintCheck clean. 86 suites, 1212 tests, 0 failures, 0 errors, 0 skipped; every suite result file
+was written inside this run. WaitingRouteDraftMailTest 4/4, ListViewModelsTest 19/19.
 
 ## Full test execution
 
@@ -69,7 +72,8 @@ Command:
 
 Result:
 
-Not run: the parent asked for the focused `ch.sonensei.cockpit.gtd.*` run only (Gradle must not run in parallel with the parent).
+Not run: the parent asked for the focused `ch.sonensei.cockpit.gtd.*` run only (Gradle must not run in parallel with
+the parent).
 
 ## .taskcheck
 
@@ -83,22 +87,39 @@ None.
 
 ## Coverage
 
-Status: verified (whole-file and changed-line, from a fresh run with the final tests).
+Status: verified (fresh run on the final revision plus the new test).
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: measured by intersecting the added/modified lines of `git diff -U0 a95fa744..HEAD -- android/app/src/main` with the executable lines of the JaCoCo XML (`line` elements, `ci`/`mi`/`cb`/`mb`); a line counts as covered when `ci` is above 0. Result: 25/26 changed executable lines (96.2%), 23/24 branches on changed lines (95.8%).
+Changed-line coverage: measured by intersecting the added/modified lines of
+`git diff -U0 a95fa744..c48d73bd -- android/app/src/main` with the JaCoCo XML `line` elements (`ci`/`mi`/`cb`/`mb`);
+a line counts as covered when `ci` is above 0, branches are summed `cb` over `cb+mb` on those lines. Result: 30/31
+changed executable lines (96.8%), 29/32 branches on changed lines (90.6%).
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: and-waiting-contact-mail; base a95fa744f67f90916b6100a637151a8153e8ee80; HEAD f2a077e6a582fbd1490345705d623a92cca1c3cb (android tree identical to task commit 20acec0b given by the parent); scope from the parent and the task's `touches`.
-- Source/test snapshot identifier (including uncommitted inputs): production code = HEAD (no uncommitted production changes). Uncommitted test files, sha256: GtdMappersTest e62d577e...e678, TaskRepositoryTest 582ab4a0...6263, ListViewModelsTest 5d53efa3...082c, TaskListsRepositoryTest 126ddb92...bb3d, WaitingRouteDraftMailTest 6d0f9469...8d71 (identical before and after the run).
-- Exact included files: `android/app/src/main/java/ch/sonensei/cockpit/gtd/data/{GtdCacheDatabase,GtdMappers,GtdModels}.kt`, `android/app/src/main/java/ch/sonensei/cockpit/gtd/lists/{ListViewModels,TaskLists,WaitingScreen}.kt`. Excluded: `android/app/schemas/.../GtdCacheDatabase/3.json` (generated Room schema, not executable), the test file. No renames or deletions.
-- Provider/version, command, working directory, and test selection: JaCoCo via AGP `enableUnitTestCoverage` (Gradle `jacoco` plugin, version as configured by the build); command above in `android/`; selection `--tests 'ch.sonensei.cockpit.gtd.*'` (so hits only come from GTD tests).
-- Run start/completion time and exit status: 2026-11-09T09:29:33Z to about 09:31:00Z, exit 0.
-- Generated report paths and report hashes/run identifier: `android/app/build/reports/coverage/test/debug/report.xml`, sha256 13e851eb52ddd08ad538d8d9f1770f5ea8b9405e0547a4740d7c03ca8ec9bd9a, written 2026-11-09T09:30:57Z.
-- Evidence outputs are fresh and inputs stayed unchanged: yes (report mtime and all suite timestamps inside the run window; test hashes unchanged after the run).
-- Final run after latest test additions and production fixes: yes (no production fixes were made).
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: and-waiting-contact-mail; base
+  a95fa744f67f90916b6100a637151a8153e8ee80; HEAD c48d73bd01a569d40eb6927ee2a8b4b437c93f70; commits and base given by
+  the parent, cross-checked with `git log` and the task's `touches`.
+- Source/test snapshot identifier (including uncommitted inputs): production code = HEAD c48d73bd (no uncommitted
+  production changes; `git status` shows only the test file below). Uncommitted test file sha256:
+  WaitingRouteDraftMailTest.kt 76678edee447b0cc9f8bdae19b8b588fe474779a5d72c63074d833054f466305; WaitingScreen.kt
+  9bbe31cda7683d72bad9e49d2e32efd91ef082a936a47bcc42aacf5f699cce17 (both identical before and after the run).
+- Exact included files: `android/app/src/main/java/ch/sonensei/cockpit/gtd/data/{GtdCacheDatabase,GtdMappers,GtdModels}.kt`,
+  `android/app/src/main/java/ch/sonensei/cockpit/gtd/lists/{ListViewModels,TaskLists,WaitingScreen}.kt`. Excluded:
+  `android/app/schemas/.../GtdCacheDatabase/3.json` (generated Room schema, not executable), test files, `reviews/`,
+  `tasks/`. No renames or deletions.
+- Provider/version, command, working directory, and test selection: JaCoCo via AGP `enableUnitTestCoverage` (version
+  as configured by the build); command above in `android/`; selection `--tests 'ch.sonensei.cockpit.gtd.*'` (hits
+  come only from GTD tests).
+- Run start/completion time and exit status: 2026-11-09T09:37:21Z to 2026-11-09T09:38:53Z, exit 0.
+- Generated report paths and report hashes/run identifier: `android/app/build/reports/coverage/test/debug/report.xml`,
+  sha256 62c590e3cc2a36173b2d241ec2956aa50251145e7f071c501cf82da82fd31d7d, written 2026-11-09T09:38:51Z.
+- Evidence outputs are fresh and inputs stayed unchanged: yes (report mtime and all 86 suite result files inside the
+  run window; input hashes unchanged).
+- Final run after latest test additions and production fixes: yes (covers the fixer commit c48d73bd and the test
+  added in this run).
 
-Values below use covered/total (percentage); JaCoCo has no separate statement counter, so the Statements column shows instructions.
+Values below use covered/total (percentage); JaCoCo has no separate statement counter, so the Statements column
+shows instructions.
 
 | Changed file | Statements (instructions) | Branches | Functions (methods) | Lines |
 |---|---:|---:|---:|---:|
@@ -107,25 +128,28 @@ Values below use covered/total (percentage); JaCoCo has no separate statement co
 | `gtd/data/GtdModels.kt` | 535/544 (98.3%) | N/A (0/0) | 50/53 (94.3%) | 55/55 (100%) |
 | `gtd/lists/ListViewModels.kt` | 727/738 (98.5%) | 27/28 (96.4%) | 44/46 (95.7%) | 90/90 (100%) |
 | `gtd/lists/TaskLists.kt` | 788/828 (95.2%) | 26/28 (92.9%) | 31/31 (100%) | 92/92 (100%) |
-| `gtd/lists/WaitingScreen.kt` | 1073/1110 (96.7%) | 67/72 (93.1%) | 22/23 (95.7%) | 89/91 (97.8%) |
-| Aggregate (summed counters, all 6 files measured, none missing) | 4303/4400 (97.8%) | 170/178 (95.5%) | 207/213 (97.2%) | 475/477 (99.6%) |
-
-Before the new tests (first run, same scope): instructions 4247/4400, branches 169/178, lines 471/477; changed lines 23/26, changed-line branches 22/24 (the WaitingRoute draft-mail lambda was not executed).
+| `gtd/lists/WaitingScreen.kt` | 1151/1188 (96.9%) | 77/86 (89.5%) | 22/23 (95.7%) | 93/95 (97.9%) |
+| Aggregate (summed counters, all 6 files measured, none missing) | 4381/4478 (97.8%) | 180/192 (93.8%) | 207/213 (97.2%) | 479/481 (99.6%) |
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `WaitingScreen.kt:62-63` (one branch, Toast line) | "no mail app" toast when no app handles ACTION_SENDTO | Left uncovered: Robolectric records `startActivity` instead of throwing ActivityNotFoundException, so the failure branch cannot be reached without changing test infrastructure; behavior is unchanged from before the task (only moved into a coroutine). |
-| `WaitingScreen.kt:38-42,47,77,107` | Hilt-activity switch, default parameters | Pre-existing code outside this task; not touched by the diff. |
-| `ListViewModels.kt:150` (partially) | default `contactEmail = { null }` body | Never invoked: both production and tests pass a lambda; trivial. |
+| `WaitingScreen.kt:67` (one branch), `:68` (Toast line) | "no mail app" toast when no app handles ACTION_SENDTO | Left uncovered: Robolectric records `startActivity` instead of throwing ActivityNotFoundException, so the failure branch is not reachable without changing test infrastructure; behavior unchanged by the task (only wrapped in the guard). |
+| `WaitingScreen.kt:63` (2 of 6 branches), `:61` (2 of 6) | Compose compiler-generated lambda memoization branches for `draftMail` / callbacks | Not task behavior; the guard's own `if (drafting.add(task.id))` at line 64 has both branches covered (first tap and repeated tap). |
+| `WaitingScreen.kt:39-43,48,86,116` | Hilt-activity switch, default parameters, pre-existing row code | Pre-existing code outside this task; not touched by the diff. |
+| `ListViewModels.kt:150` (partially) | default `contactEmail = { null }` body | Never invoked: production and tests always pass a lambda; trivial. |
 | `ListViewModels.kt:50,55,119` | other list view models | Pre-existing, unchanged by the task. |
 | `GtdModels.kt:65-67`, `TaskLists.kt:76,191-192` | unrelated model/enum mapping branches | Pre-existing, unchanged by the task (the changed line in each is covered). |
 
 ## Unable to test
 
-- Room v2 to v3 upgrade on an installed app: the database uses a destructive fallback (cache only, per the task's assumption); verifying it needs an instrumented test on a device, which this run does not include. No follow-up needed beyond the recorded assumption.
-- "No mail app" toast path in WaitingRoute (see coverage table): not reachable under Robolectric's default activity handling; unchanged behavior.
+- Room v2 to v3 upgrade on an installed app: the database uses a destructive fallback (cache only, per the task's
+  assumption); verifying it needs an instrumented test on a device, not part of this run. No follow-up needed beyond
+  the recorded assumption.
+- "No mail app" toast path in WaitingRoute (see coverage table): not reachable under Robolectric's default activity
+  handling; unchanged behavior.
 - `sh scripts/check.sh` (AC3): left to the parent as instructed.
 
 ## Summary
 
-Tests added and all validation passed. Tests and task-scoped coverage are sufficient; no production defects found.
+Tests added and all validation passed. Tests and task-scoped coverage are sufficient for the final revision
+c48d73bd; no production defects found.
