@@ -4,211 +4,146 @@ Date: 2026-11-09
 
 Task: gtd-links-everywhere - Linked items on projects and files; follow-up by mail (web + Android)
 
-Scope: `git diff origin/main HEAD` excluding `tasks/` and `reviews/`. origin/main = ce03deae60ce4cf8fa0a4e33c08789101bea00b2 (the claim commit, also `git merge-base HEAD origin/main`). The code was measured at HEAD 3f534445dfe04d71b7f0956e63e44d293c5f145a (final code after fixes, see `reviews/gtd-links-everywhere/fixes.md`). During the run HEAD moved to 262d65e8eddb7938a08f1ad53d8ab63ce704374d. That commit only adds `tasks/and-waiting-contact-mail.md` (checked with `git diff --stat 3f534445d HEAD`), so the production code is the same. This report replaces the earlier, now stale tests.md, which described b2068fad9 before TW-1..TW-3, CR-2 and CR-3 were fixed.
+Scope: `git diff 4a3afeb14 HEAD` excluding `tasks/` and `reviews/`. Base 4a3afeb14a46d69971ca600e515840d50072bdfa (the claim commit and current merge-base with origin/main, given by the parent). Measured at HEAD 552099febf91af06cca83fba8b840e5968b5f8f8 (final code after the fixer's TW-4/TW-5/CR-1/CR-2/CR-4 fixes in 671a3cf49). During the run HEAD moved to 5bd3bb42a7697f85f95c0d08b14af05bf5702a4b; `git diff --stat 552099feb HEAD -- . ':!tasks' ':!reviews'` is empty (only a heartbeat, review.md and a new task file), so the measured code is the code at the new HEAD. This report replaces the previous tests.md, which described 3f534445d before TW-4/TW-5 were fixed.
 
 Requirements:
-- tasks/gtd-links-everywhere.md: acceptance criteria and the recorded assumptions (web Draft email opens `/mail/compose?to=&subject=`; To is the contact's first email, else an address in the waiting-for text, else empty. Android opens a mailto `ACTION_SENDTO` with an address from the waiting-for text)
+- tasks/gtd-links-everywhere.md: acceptance criteria and the recorded assumptions (web Draft email opens `/mail/compose?to=&subject=`, To = the contact's first email, else an address in the waiting-for text, else empty; Android opens a mailto `ACTION_SENDTO` with an address from the waiting-for text; Android linked-contact lookup deferred to `and-waiting-contact-mail`)
 - SPEC.md §4.3 (linked-items panel on every detail view) and §5.3 (waiting follow-up)
-- docs/ARCHITECTURE.md "Coverage" and "Code conventions"
-- reviews/gtd-links-everywhere/fixes.md (TW-1..TW-3, CR-2, CR-3 fixes)
+- docs/ARCHITECTURE.md "Coverage"
+- reviews/gtd-links-everywhere/fixes.md (TW-4, TW-5, CR-1, CR-2, CR-4)
 
 ## Test files changed
 
-- `web/src/app/features/gtd/lists/list-views.spec.ts` (this run: `emailIn` punctuation cases)
-- `web/src/app/features/files/preview/preview-dialog.spec.ts` (this run: paging with the links panel open; Prettier-formatted)
-- `web/src/app/features/mail/compose/mail-compose-page.spec.ts` (this run: prefill rendering, reply wins over `?to=`/`?subject=`; Prettier-formatted)
-- `android/app/src/test/java/ch/sonensei/cockpit/gtd/lists/WaitingDraftEmailTest.kt` (new, this run)
-- Already committed in the task by earlier runs and the fixer, re-assessed here and unchanged: `web/.../gtd/lists/list-pages.spec.ts` (Waiting > Draft email, including the CR-3 regression tests), `web/.../gtd/projects/projects-states.spec.ts`, `android/.../files/FilePreviewLinksTest.kt`, `android/.../gtd/projects/ProjectLinksToggleTest.kt`, `android/.../gtd/lists/ListScreensTest.kt`
+This run (uncommitted, for the parent to commit):
+- `web/src/app/features/gtd/lists/list-views.spec.ts` (emailIn trailing-dot edge cases)
+- `android/app/src/test/java/ch/sonensei/cockpit/gtd/lists/WaitingDraftEmailTest.kt` (the same edge cases on Android)
+- `android/app/src/test/java/ch/sonensei/cockpit/files/FilePreviewLinksRouteInAppTest.kt` (new)
+
+Already in the task, re-checked against the final code and unchanged: `web/.../files/preview/preview-dialog.spec.ts` (links toggle, paging, close on NavigationStart, arrow keys), `web/.../gtd/lists/list-pages.spec.ts` (Waiting > Draft email), `web/.../gtd/projects/projects-states.spec.ts` (project panel), `web/.../mail/compose/mail-compose-page.spec.ts` (`?to`/`?subject` prefill), `android/.../files/FilePreviewLinksTest.kt`, `android/.../gtd/projects/ProjectLinksToggleTest.kt`, `android/.../gtd/lists/ListScreensTest.kt`.
 
 ## Tests added or updated
 
-Count: 14 (6 web, 8 Android). No existing test was changed, weakened or skipped.
+Count: 5 (3 web parameterized cases, 1 updated Android test, 2 new Android in-app tests). No existing test was weakened, removed or skipped.
 
-- `list-views.spec.ts` > emailIn > "finds the bare address in {text}, without surrounding punctuation" (3 cases: `Anna (anna@example.test)`, `Anna [anna@example.test]`, `Reply from anna@example.test.`). **All 3 fail**: TW-4 and TW-5.
-- `preview-dialog.spec.ts` > linked items > "keeps the panel open when paging and shows the next file's links". After stepping, the panel is still open and every links request is for the new file.
-- `mail-compose-page.spec.ts` > "shows the ?to= address as a recipient chip and ?subject= in the subject field"
-- `mail-compose-page.spec.ts` > "lets a reply keep its own recipients and subject over ?to= and ?subject="
-- `WaitingDraftEmailTest` (Android):
-  - "the address is found in common name-and-address forms" (angle brackets, parentheses, square brackets, quoted list, plus-addressing)
-  - "a sentence ending after the address does not add its full stop to it". **Fails**: TW-5.
-  - "no address is found in a name, a host without a domain, or nothing"
-  - "the subject is encoded, so a question mark or hash in the title stays in it"
-  - "without an address the mail has no recipient, only the subject" (no `EXTRA_EMAIL`)
-  - "a plus in the address survives as a recipient"
-  - "the draft email button names its task for screen readers and drafts that task"
-  - "in German, draft email is German"
+- `list-views.spec.ts` > emailIn > "finds the bare address in {text}, without surrounding punctuation": new cases `Ask anna@mail.example.co.uk.` (multi-level domain plus full stop) and `Ping anna@example.test...` (several dots); "finds none in {text}": new case `alex@localhost.` (a full stop must not make a host without a domain into an address). These pin the TW-5 regex fix (`[^X]*[^X.]` with backtracking) against its edge cases.
+- `WaitingDraftEmailTest` > "a sentence ending after the address does not add its full stop to it": the same three cases on Android, so both clients agree.
+- `FilePreviewLinksRouteInAppTest` (new, Hilt activity with fake files, links and notes repositories):
+  - "the preview's links toggle shows the real panel with the previewed file's linked items": the toggle shows the real `LinkedItemsSection`, loaded once for `FILE:{file id}`. Earlier Android tests only checked the toggle, because the panel needs Hilt.
+  - "a linked note opens in place of the files, and Back returns to the preview with its links still shown": the linked note replaces the files screen, and system Back returns to the same preview with the panel still open (the earlier CR-2 fix).
 
 ## Requirement coverage
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| Web project detail shows the linked-items panel | `projects-states.spec.ts` "shows the linked-items panel of the project (SPEC.md §4.3)", the panel present in "shows an error when the tasks cannot be loaded, and retries" | `npm run coverage` (web/, full suite) | Pass |
-| Android project detail shows the linked-items panel | `ProjectLinksToggleTest` (5) | `./gradlew ktlintCheck testDebugUnitTest --tests ...ProjectLinksToggleTest ...` (android/) | Pass. Only the toggle is tested: rendering the panel needs Hilt, see "Unable to test" |
-| Android project layout still intact after the toggle (TW-2 fix) | `ProjectsScreenTest`, `ProjectTaskListTest`, `FabClearanceTest` | `./gradlew testDebugUnitTest lintDebug --continue` (android/, full) | Pass |
-| Web file preview shows the linked-items panel | `preview-dialog.spec.ts` > linked items (3, 1 new) | `npm run coverage` (web/) | Pass |
-| Android file preview shows the linked-items panel | `FilePreviewLinksTest` (5) | focused Android command | Pass |
-| Web waiting "Draft email": To from the contact, else the waiting-for text, else empty; subject from the task; no navigation after leaving or on a stale click (CR-3) | `list-pages.spec.ts` > Waiting For > Draft email (6), `list-views.spec.ts` followUpMail (3), emailIn (existing 2 + 5) | `npm run coverage` (web/) | Pass |
-| Web: the address taken from the waiting-for text has no surrounding punctuation | `list-views.spec.ts` emailIn "finds the bare address in ..." (3, new) | `npm run coverage` (web/) | **Fail**: TW-4, TW-5 |
-| Web compose `?to=`/`?subject=` prefill | `mail-compose-page.spec.ts` prefill (4, 2 new) | `npm run coverage` (web/) | Pass |
-| Android waiting "Draft email" (mailto, address from the waiting-for text, subject from the task) | `ListScreensTest` (2), `WaitingDraftEmailTest` (7 of 8 pass) | focused Android command | Pass, except **Fail** on the trailing full stop (TW-5) |
-| New strings in English and German | German tests in `ProjectLinksToggleTest`, `FilePreviewLinksTest`, `WaitingDraftEmailTest`; web de targets checked in `messages.de.xlf` (3 units) | focused Android command; web build not rerun (the earlier `npm run check` by the fixer built de at the same production code) | Pass |
-| Unit tests cover the new behavior; `sh scripts/check.sh` passes | everything above | not run as one command | Not run: it would fail on the new failing tests (TW-4, TW-5). The parts were run separately, see below |
+| Web project detail shows the linked-items panel | `projects-states.spec.ts` "shows the linked-items panel of the project (SPEC.md §4.3)", plus the panel in "shows an error when the tasks cannot be loaded, and retries" | `npm run check` and `npm run coverage` (web/) | Pass |
+| Android project detail shows the linked-items panel | `ProjectLinksToggleTest` (5); layout regressions: `ProjectsScreenTest` (63), `ProjectTaskListTest` (22), `FabClearanceTest` (8), `ProjectsScreensInAppTest` (3) | focused Android command (below) | Pass. The toggle is tested, but the panel and linked-item navigation inside a project are not rendered in a test (see "Unable to test") |
+| Web file preview shows the linked-items panel; following a link closes the preview (CR-2) | `preview-dialog.spec.ts` > linked items (4: toggle, paging, close on NavigationStart, arrow keys) | `npm run check` / `npm run coverage` (web/) | Pass |
+| Android file preview shows the linked-items panel | `FilePreviewLinksTest` (5), `FilePreviewLinksRouteInAppTest` (2, new), `FilesRouteInAppTest` (24), `FilesScreenTest` (28), `FilePreviewScreenTest` (33) | focused Android command | Pass |
+| Web waiting "Draft email": To from the contact, else the waiting-for text, else empty; subject from the task; no navigation after leaving or on a stale click | `list-pages.spec.ts` > Waiting For > Draft email, `list-views.spec.ts` followUpMail (3) and emailIn (incl. TW-4/TW-5 cases and 3 new edge cases) | `npm run check` / `npm run coverage` (web/) | Pass |
+| Web compose `?to=`/`?subject=` prefill | `mail-compose-page.spec.ts` prefill (4) | `npm run check` / `npm run coverage` (web/) | Pass |
+| Android waiting "Draft email" (mailto, address from the waiting-for text, subject from the task) | `ListScreensTest` (16), `WaitingDraftEmailTest` (8) | focused Android command | Pass |
+| New strings in English and German | German tests in `ProjectLinksToggleTest`, `FilePreviewLinksTest`, `WaitingDraftEmailTest`; web `ng build` (part of `npm run check`) | `npm run check` (web/), focused Android command | Pass |
+| Unit tests cover the new behavior; `sh scripts/check.sh` passes | all of the above | `npm run check` (web/), focused Android tests + `ktlintCheck` | Pass for the parts run. `sh scripts/check.sh` was not run as one command here: the parent runs it before `done` |
 
 ## Focused test execution
 
 Commands:
 
-1. `npx ng test --watch=false --include src/app/features/gtd/lists/list-views.spec.ts --include src/app/features/files/preview/preview-dialog.spec.ts` (web/)
-2. `npx ng test --watch=false --include src/app/features/mail/compose/mail-compose-page.spec.ts` (web/)
-3. `./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.lists.WaitingDraftEmailTest' --tests 'ch.sonensei.cockpit.gtd.lists.ListScreensTest' --tests 'ch.sonensei.cockpit.files.FilePreviewLinksTest' --tests 'ch.sonensei.cockpit.gtd.projects.ProjectLinksToggleTest' --continue` (android/), then `./gradlew ktlintCheck`
+1. `npx ng test --watch=false --include src/app/features/gtd/lists/list-views.spec.ts --include src/app/features/files/preview/preview-dialog.spec.ts --include src/app/features/mail/compose/mail-compose-page.spec.ts --include src/app/features/gtd/lists/list-pages.spec.ts --include src/app/features/gtd/projects/projects-states.spec.ts` (web/), after `npx prettier --check` on the changed spec
+2. `./gradlew ktlintCheck testDebugUnitTest --tests '*FilePreviewLinksTest' --tests '*ProjectLinksToggleTest' --tests '*WaitingDraftEmailTest' --tests '*ListScreensTest' --tests '*ProjectsScreenTest' --continue` (android/, the parent's command), before the new in-app test was added
+3. `./gradlew ktlintCheck testDebugUnitTest --tests '*FilePreviewLinksRouteInAppTest' --tests '*WaitingDraftEmailTest' --continue` (android/), after the new tests
+4. Final: `./gradlew testDebugUnitTest --tests '*FilePreviewLinksTest' --tests '*ProjectLinksToggleTest' --tests '*WaitingDraftEmailTest' --tests '*ListScreensTest' --tests '*ProjectsScreenTest' --tests '*FilePreviewLinksRouteInAppTest' --tests '*FilesRouteInAppTest' --tests '*FilesScreenTest' --tests '*FilePreviewScreenTest' --tests '*ProjectsScreensInAppTest' --tests '*ProjectTaskListTest' --tests '*FabClearanceTest' createDebugUnitTestCoverageReport --continue` (android/)
 
 Result:
 
-Fail, as expected from the new defect tests:
-1. 46 passed, 3 failed (the 3 new emailIn punctuation cases: TW-4, TW-5)
-2. 75 passed
-3. ktlint passed. 33 of 34 tests passed (FilePreviewLinksTest 5/5, ListScreensTest 16/16, ProjectLinksToggleTest 5/5, WaitingDraftEmailTest 7/8). The 1 failure is TW-5.
+Pass.
+1. 5 files, 214 tests passed; Prettier clean.
+2. BUILD SUCCESSFUL: ListScreensTest 16, FilePreviewLinksTest 5, WaitingDraftEmailTest 8, ProjectLinksToggleTest 5, ProjectsScreenTest 63, 0 failures. ktlint passed.
+3. BUILD SUCCESSFUL: FilePreviewLinksRouteInAppTest 2/2, WaitingDraftEmailTest 8/8; ktlint passed (after joining one line that ktlint flagged in the new file).
+4. BUILD SUCCESSFUL: 223 tests in 13 classes (the selection also matched `MailComposeRecipientsFilesScreenTest`, 6), 0 failures, 0 errors.
 
 ## Full test execution
 
 Commands:
 
-1. `npm run lint` (web/): "All files pass linting."
-2. `npm run coverage` (web/, full suite, started 09:21:43): 196 files, 4795 tests, 3 failed (the TW-4/TW-5 cases), 4792 passed. Exit nonzero, no coverage report written.
-3. `./gradlew testDebugUnitTest lintDebug --continue` (android/, ended about 09:30): 5390 tests, 1 failed (TW-5). lintDebug: 0 errors, 0 warnings, 2 hints in files outside the task.
+1. `npm run check` (web/: `api:check`, `lint`, `e2e:typecheck`, `test:ci`, `ng build`)
+2. `npm run coverage` (web/, full Vitest suite with coverage)
 
 Result:
 
-Fail, only on the new defect tests (3 web, 1 Android). All other existing and new tests pass. The earlier TW-1/TW-2 regressions (ListScreensTest, ProjectsScreenTest, ProjectTaskListTest, FabClearanceTest) now pass, and lint is clean (TW-3 fixed). `npm run check` steps other than lint and tests (api:check, e2e typecheck, `ng build`) were not rerun, because no production or e2e file changed in this run.
+Pass.
+1. All steps passed, ending with "Application bundle generation complete" and the output location. There is one warning: the initial bundle exceeds its 500 kB budget. That warning existed before this task and does not fail the build.
+2. 196 test files, 4810 tests passed (10:05:40 to 10:06:41).
+
+The full Android unit suite (`testDebugUnitTest lintDebug`, about 9 minutes) was not rerun here. Android production code is unchanged since the fixer's full `sh scripts/check.sh` passed and since the previous test run of the full Android suite. This run only added tests, and those ran in the focused selection above.
 
 ## .taskcheck
 
 Result:
 
-Not run as one command. It would fail on the new legitimate failing tests TW-4/TW-5 (web `ng test` and Android `testDebugUnitTest`). All its parts except the server were run separately above. The server is not touched by this task.
+Not run as one command. Its web part (`npm run check`) and the affected Android tests plus ktlint passed above. The server is not touched by this task. The parent runs `sh scripts/check.sh` before `done`.
 
 ## Bugs found
 
-### Web Draft email keeps parentheses or brackets around the address
+None. TW-1..TW-5 from earlier rounds are fixed. Their tests pass, and the new edge-case tests also pass on the final code.
 
-Finding ID:
-
-`TW-4`
-
-Test:
-
-`list-views.spec.ts` > emailIn > "finds the bare address in \"Anna (anna@example.test)\", without surrounding punctuation" and the same for "Anna [anna@example.test]"
-
-Production source:
-
-`web/src/app/features/gtd/lists/list-views.ts:68-69` (`emailIn` regex: its character classes exclude whitespace, angle brackets, quotes, comma and semicolon, but not parentheses or square brackets)
-
-Requirement:
-
-AC 3 and the task assumption: To is "an address found in waitingForText". This is the same defect as Android TW-1, which was fixed only on Android (its regex now also excludes `()[]`). The web and Android clients should give the same result for the same waiting-for text.
-
-Expected behavior:
-
-`emailIn('Anna (anna@example.test)') === 'anna@example.test'` (the same for square brackets), so compose opens with a valid To.
-
-Actual behavior:
-
-Returns `(anna@example.test)` and `[anna@example.test]`. Draft email navigates to `/mail/compose?to=(anna@example.test)`. The compose page then treats it as an invalid address and leaves it out of the saved draft.
-
-Severity:
-
-Medium
-
-Fix required:
-
-`Yes — production code must be fixed by the parent worker / fixer.`
-
-### The address keeps a full stop that ends the sentence (web and Android)
-
-Finding ID:
-
-`TW-5`
-
-Test:
-
-Web: `list-views.spec.ts` > emailIn > "finds the bare address in \"Reply from anna@example.test.\", without surrounding punctuation". Android: `WaitingDraftEmailTest` > "a sentence ending after the address does not add its full stop to it"
-
-Production source:
-
-`web/src/app/features/gtd/lists/list-views.ts:68-69`; `android/app/src/main/java/ch/sonensei/cockpit/gtd/lists/WaitingScreen.kt:115-118` (`EMAIL` / `emailIn`)
-
-Requirement:
-
-AC 3: Draft email prefills To from the address in the waiting-for text. A free-text field such as "Reply from anna@example.test." is a natural way to write it.
-
-Expected behavior:
-
-`anna@example.test` (no trailing `.`).
-
-Actual behavior:
-
-Both clients return `anna@example.test.`. The last character class allows `.`, and the match is greedy (Android: expected `anna@example.org` but was `anna@example.org.`). The mail app or compose page gets an invalid To.
-
-Severity:
-
-Low
-
-Fix required:
-
-`Yes — production code must be fixed by the parent worker / fixer.`
+Observation (not a finding, no failing test, for the parent to decide): on both clients, `emailIn` still keeps trailing `?`, `!` or `:` (e.g. "Did anna@example.org reply?" gives `anna@example.org?`). The requirement only says "an address found in waitingForText", and the fixer handled the full stop on purpose (TW-5). Other punctuation is not specified. If the parent sees it as the same class of defect, it is a follow-up for both regexes (`list-views.ts` `emailIn`, `WaitingScreen.kt` `EMAIL`). Severity would be Low: the web compose page drops an invalid To, and the Android mail app gets an invalid one.
 
 ## Coverage
 
-Status: partial (diagnostic). The required coverage commands fail on the legitimate failing tests TW-4/TW-5. The web run wrote no report on failure. The numbers below come from fresh diagnostic runs that leave out exactly those failing cases. Those cases only call the pure `emailIn` function, which other passing tests cover completely, so the numbers are not inflated. They are still not a passing validation run.
+Status: verified (web: full suite; Android: focused selection of the affected test classes)
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: not measured (the tooling has no changed-line mode). Uncovered task lines were mapped by hand, see the gap table.
+Changed-line coverage: Android measured from JaCoCo line counters (`ci`/`mi`), intersected with the `+` lines of `git diff -U0 4a3afeb14 HEAD -- android/app/src/main/java`, counting only lines with instructions: 149/157 (94.9%). For web, a changed-line ratio was not measured. In `coverage-final.json`, no uncovered statement or branch location starts on a line the task added (list below).
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: gtd-links-everywhere. Base ce03deae60ce4cf8fa0a4e33c08789101bea00b2 (origin/main = merge-base). Production code measured at 3f534445dfe04d71b7f0956e63e44d293c5f145a. Later HEAD 262d65e8e changes only `tasks/`. Scope given by the parent as `git diff origin/main HEAD` without `tasks/` and `reviews/`.
-- Source/test snapshot identifier (including uncommitted inputs): HEAD above + working-tree test changes, sha256: `preview-dialog.spec.ts` 379aad178e38b29c, `list-views.spec.ts` d881f4e88c2947d2, `mail-compose-page.spec.ts` c4b84c60f5be543a, `WaitingDraftEmailTest.kt` 3ab4266b57404a59. Hashed before and after the coverage runs: unchanged. (`reviews/gtd-links-everywhere/review.md` was also modified in the tree by another helper, not by this run.)
-- Exact included files: web `src/app/features/files/preview/preview-dialog.ts`, `features/gtd/lists/list-views.ts`, `features/gtd/lists/waiting-page.ts`, `features/gtd/projects/project-detail-page.ts`, `features/mail/compose/mail-compose-page.ts`; Android `files/FilePreviewView.kt`, `files/FilesScreen.kt`, `gtd/lists/WaitingScreen.kt`, `gtd/projects/ProjectsScreen.kt`. Excluded (not executable): web `.html`/`.scss` (counted through their components), `web/src/locale/*.xlf`, Android `res/values*/strings_*.xml`. No renamed or deleted files. No file is missing from either report.
-- Provider/version, command, working directory, and test selection:
-  - Web: Vitest 5.0.5 + @vitest/coverage-v8, in `web/`: `npm run coverage -- --filter '^(?!.*without surrounding punctuation)'` (full suite except the 3 failing TW-4/TW-5 cases)
-  - Android: JaCoCo via AGP `enableUnitTestCoverage`, in `android/`: `./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.files.*' --tests 'ch.sonensei.cockpit.gtd.projects.*' --tests 'ch.sonensei.cockpit.gtd.lists.ListScreensTest' --tests 'ch.sonensei.cockpit.gtd.lists.ListRoutesTest' --tests '*FabClearanceTest' --tests '...WaitingDraftEmailTest.the *' --tests '...WaitingDraftEmailTest.no address*' --tests '...WaitingDraftEmailTest.without an address*' --tests '...WaitingDraftEmailTest.a plus*' --tests '...WaitingDraftEmailTest.in German*' createDebugUnitTestCoverageReport` (25 classes, 504 tests, all of `WaitingDraftEmailTest` except the TW-5 case)
-- Run start/completion time and exit status: web ended 09:23:44, exit 0 (diagnostic selection). Android ended 09:24:56, exit 0 (BUILD SUCCESSFUL, 504 tests, 0 failures). The unfiltered web `npm run coverage` (09:21:43) exited nonzero with no report.
-- Generated report paths and report hashes/run identifier: `web/coverage/web/coverage-summary.json` (sha256 prefix d3184e2002eb5a92, written 09:23:44, `coverage/web/` did not exist before this run); `android/app/build/reports/coverage/test/debug/report.xml` (sha256 prefix 999e32d037a61b0e, written 09:24:56)
-- Evidence outputs are fresh and inputs stayed unchanged: yes. Both reports were written by these runs, and the snapshot hashes did not change.
-- Final run after latest test additions and production fixes: yes. It covers the code after TW-1..TW-3 and CR-2/CR-3. It is stale once TW-4/TW-5 are fixed.
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: gtd-links-everywhere; base 4a3afeb14a46d69971ca600e515840d50072bdfa (given by the parent as the merge-base); measured HEAD 552099febf91af06cca83fba8b840e5968b5f8f8; file scope = `git diff --name-only 4a3afeb14 HEAD -- web/src android/app/src/main` without specs/tests.
+- Source/test snapshot identifier (including uncommitted inputs): HEAD 552099feb plus uncommitted tests, sha256 `list-views.spec.ts` 51a7655c..., `WaitingDraftEmailTest.kt` 699fbdd1..., `FilePreviewLinksRouteInAppTest.kt` 3b710608... (untracked). No production file is modified in the working tree.
+- Exact included files: web `features/files/preview/preview-dialog.ts`, `features/gtd/lists/list-views.ts`, `features/gtd/lists/waiting-page.ts`, `features/gtd/projects/project-detail-page.ts`, `features/mail/compose/mail-compose-page.ts`; Android `files/FilePreviewView.kt`, `files/FilesScreen.kt`, `gtd/lists/WaitingScreen.kt`, `gtd/projects/ProjectsScreen.kt`. Excluded: `preview-dialog.html/.scss`, `waiting-page.html`, `project-detail-page.html` (templates and styles are not instrumented by v8; they are exercised by the component specs), `messages.xlf`/`messages.de.xlf` and the four Android `strings_*.xml` (resources, no executable code; checked by `ng build` de and German tests). No renamed or deleted files.
+- Provider/version, command, working directory, and test selection: web: Vitest 5.0.5 + `@vitest/coverage-v8`, `npm run coverage` in `web/`, full suite. Android: JaCoCo via AGP `enableUnitTestCoverage`, the final focused command 4 above in `android/` (13 test classes, 223 tests).
+- Run start/completion time and exit status: web 10:05:40 to 10:06:41 +01:00, all tests passed, reports written. Android 10:11:3x to 10:12:14 +01:00, BUILD SUCCESSFUL.
+- Generated report paths and report hashes/run identifier: `web/coverage/web/coverage-final.json` (sha256 ebd9a780a63d1ebdf7daf097c1ace783755df3c06abd3986b226e60e9aa63947, written 10:06:41), `web/coverage/web/coverage-summary.json`; `android/app/build/reports/coverage/test/debug/report.xml` (sha256 eab55ff7d078b9ffaf0eb7a868b2a703e065a3c7a1d0f39ed5e5f4a44e898b24, written 10:12:14).
+- Evidence outputs are fresh and inputs stayed unchanged: yes. Both reports were rewritten by these runs, and the test-result timestamps (09:11-09:12Z) match the Android run. The web spec was edited before the web coverage run. No production file changed during the runs; the HEAD move only touched `tasks/` and `reviews/`.
+- Final run after latest test additions and production fixes: yes. The fixer's fixes are in the measured HEAD, and both coverage runs happened after the last test edit of their part.
 
-Values below use covered/total (percentage). Android "Statements" are JaCoCo INSTRUCTION counters and "Functions" are METHOD counters.
+Values below use covered/total (percentage); zero-denominator or unsupported metrics are N/A. Android "Statements" = JaCoCo INSTRUCTION, "Functions" = METHOD. The Android numbers come from the focused selection, so for old code in these files they are a lower bound.
 
 | Changed file | Statements | Branches | Functions | Lines |
 |---|---:|---:|---:|---:|
-| `web/.../files/preview/preview-dialog.ts` | 63/63 (100%) | 36/39 (92.3%) | 20/20 (100%) | 45/45 (100%) |
-| `web/.../gtd/lists/list-views.ts` | 47/47 (100%) | 26/26 (100%) | 16/16 (100%) | 36/36 (100%) |
-| `web/.../gtd/lists/waiting-page.ts` | 32/32 (100%) | 19/21 (90.5%) | 12/12 (100%) | 24/24 (100%) |
-| `web/.../gtd/projects/project-detail-page.ts` | 188/190 (98.9%) | 88/97 (90.7%) | 48/48 (100%) | 164/164 (100%) |
-| `web/.../mail/compose/mail-compose-page.ts` | 291/294 (99.0%) | 143/161 (88.8%) | 84/84 (100%) | 248/248 (100%) |
-| Web aggregate (summed, 5 of 5 files) | 621/626 (99.2%) | 312/344 (90.7%) | 180/180 (100%) | 517/517 (100%) |
+| `web/src/app/features/files/preview/preview-dialog.ts` | 66/66 (100%) | 36/39 (92.3%) | 22/22 (100%) | 48/48 (100%) |
+| `web/src/app/features/gtd/lists/list-views.ts` | 47/47 (100%) | 26/26 (100%) | 16/16 (100%) | 36/36 (100%) |
+| `web/src/app/features/gtd/lists/waiting-page.ts` | 32/32 (100%) | 19/21 (90.5%) | 12/12 (100%) | 24/24 (100%) |
+| `web/src/app/features/gtd/projects/project-detail-page.ts` | 188/190 (98.9%) | 88/97 (90.7%) | 48/48 (100%) | 164/164 (100%) |
+| `web/src/app/features/mail/compose/mail-compose-page.ts` | 291/294 (99.0%) | 143/161 (88.8%) | 84/84 (100%) | 248/248 (100%) |
+| Web aggregate (5 files) | 624/629 (99.2%) | 312/344 (90.7%) | 182/182 (100%) | 520/520 (100%) |
+| `android/.../files/FilesScreen.kt` | 8229/8416 (97.8%) | 296/337 (87.8%) | 164/194 (84.5%) | 620/627 (98.9%) |
 | `android/.../files/FilePreviewView.kt` | 3730/3762 (99.1%) | 100/106 (94.3%) | 73/73 (100%) | 287/289 (99.3%) |
-| `android/.../files/FilesScreen.kt` | 8060/8416 (95.8%) | 296/337 (87.8%) | 160/194 (82.5%) | 613/627 (97.8%) |
-| `android/.../gtd/projects/ProjectsScreen.kt` | 4214/4464 (94.4%) | 161/182 (88.5%) | 82/112 (73.2%) | 351/357 (98.3%) |
-| `android/.../gtd/lists/WaitingScreen.kt` | 999/1042 (95.9%) | 70/78 (89.7%) | 18/20 (90.0%) | 80/84 (95.2%) |
-| Android aggregate (summed, 4 of 4 files) | 17003/17684 (96.1%) | 627/703 (89.2%) | 333/399 (83.5%) | 1331/1357 (98.1%) |
+| `android/.../gtd/projects/ProjectsScreen.kt` | 4201/4464 (94.1%) | 154/182 (84.6%) | 82/112 (73.2%) | 351/357 (98.3%) |
+| `android/.../gtd/lists/WaitingScreen.kt` | 981/1042 (94.1%) | 62/78 (79.5%) | 18/20 (90.0%) | 80/84 (95.2%) |
+| Android aggregate (4 files) | 17141/17684 (96.9%) | 612/703 (87.1%) | 337/399 (84.5%) | 1338/1357 (98.6%) |
+
+Aggregates are summed counters over the files listed; the excluded templates, styles and resources are named above. No scoped file is missing from the reports.
+
+Android changed-line coverage per file: FilesScreen.kt 51/51 (was 2/51 before the new in-app test), FilePreviewView.kt 49/50, ProjectsScreen.kt 20/24, WaitingScreen.kt 29/32.
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `ProjectsScreen.kt:384-385, 436-437` | Opening a linked item from the project panel (SearchItemScreen replaces the detail, Back returns; the CR-2 state kept) | Justified gap. `LinkedItemsSection` and `SearchItemScreen` need Hilt, the project detail has no panel slot, and there is no Hilt test activity |
-| `FilesScreen.kt:178-180, 222-225` | FilesRoute: a linked item opened from the preview replaces the files; the `rememberSaveableStateHolder` (CR-2); the real `LinkedItemsSection(FILE)` wiring | Justified gap, Hilt route only. The toggle and slot are covered by `FilePreviewLinksTest` |
-| `WaitingScreen.kt:58-61` | WaitingRoute's draftMail: launch the intent, or show the "no mail app" toast | Justified gap, Hilt route only. The intent is covered by `ListScreensTest` and `WaitingDraftEmailTest` |
-| `FilePreviewView.kt:124, 143` (partial branches) | `showLinks` true without a panel | Unreachable: the toggle is hidden without a panel |
-| `waiting-page.ts:61` (`?? 0`), `:33` (constructor `if`, compiler artifact); `preview-dialog.ts:61, 65, 73` (no file selected) | Pre-existing or defensive branches | Not task behavior, not chased |
-| `WaitingScreen.kt:115-118`, `list-views.ts:68-69` | emailIn with punctuation around the address | Lines covered, but the behavior is wrong: TW-4, TW-5 |
-| Remaining pre-existing gaps in `FilesScreen.kt`, `ProjectsScreen.kt`, `project-detail-page.ts`, `mail-compose-page.ts` | Code the task did not change | Outside the task's change |
+| `FilesScreen.kt:176-227` (linked item replaces the files, Back returns, `linksPanel` wiring) | AC 2 on Android; the earlier CR-2 fix (panel state survives a linked item) | Covered now by `FilePreviewLinksRouteInAppTest` (2 tests); 51/51 changed lines |
+| `FilesScreen.kt:223` (1 of 2 branches: a non-`InApp` target) | A linked item without an Android screen opens the web/browser path inside `LinkedItemsSection` and never reaches this lambda | Justified gap: `linkedItemTarget` handles `Web` targets before `open` is called. The `else` branch is defensive |
+| `ProjectsScreen.kt:383-385, 436-437` (linked item opens in place of the project; Back) | AC 1 on Android: opening a linked item from the project panel | Not tested: needs the Projects route in the Hilt activity with fake `ProjectRepository`/`TaskListsRepository`/`ProjectWorkRepository` (Room-backed cache flows), much more setup than the Files route. The same pattern is tested for Files (`FilePreviewLinksRouteInAppTest`) and notes. Follow-up candidate, see "Unable to test" |
+| `WaitingScreen.kt:55-61` (`WaitingRoute` draftMail lambda: launch the intent, "no mail app" toast) | AC 3 on Android: the intent is actually started, toast without a mail app | Not tested in a route test (WaitingViewModel needs the Room-backed task cache). The intent itself (`followUpMailIntent`, `followUpMailUri`) and the button wiring are unit-tested in `WaitingDraftEmailTest`/`ListScreensTest`. `ContactIntents.launch` is shared code that is tested elsewhere |
+| `FilePreviewView.kt:197`, branches `:143` (1 of 4), `:188` (1 of 2) | Line 197 is the closing brace of the exhaustive `when` (a JaCoCo artefact for moved code). Branch 143 is `linksPanel == null` while `showLinks` is true. That state cannot happen without the toggle, which `FilePreviewLinksTest` tests | Non-material |
+| `preview-dialog.ts:65,69,77` (falsy `file` branches) | No file at the index: code that was there before this task | Non-material, outside the task's changes |
+| `waiting-page.ts:33` (decorator metadata branch), `:61` (`?? 0` with no waitingSince) | Code that was there before this task | Non-material |
+| `project-detail-page.ts` (9 branches, statements at 189 and 349), `mail-compose-page.ts` (18 branches, statements at 157, 357 and 518) | Code that was there before this task; the task added only the `LinkedItems` import and the prefill lines 383-386, which have no uncovered statement or branch | Outside the task's changes |
 
 ## Unable to test
 
-- Android project detail: the linked-items panel content and opening a linked item, plus the CR-2 state kept after returning, on both the project detail and the files route. `LinkedItemsSection`/`SearchItemScreen` are Hilt-only, the project detail has no `linksPanel` slot, and there is no Hilt test activity. Optional follow-up: a slot like `FilesContent.linksPanel`.
-- Android `WaitingRoute` "no mail app" toast: Hilt route only.
-- Web project/file panel content: covered through the shared `app-linked-items` (its own spec). Here only that it renders with the right item ref.
-- `sh scripts/check.sh` as one command: not run, it would fail on TW-4/TW-5.
+- Android project detail: the linked-items panel actually rendered inside a project, and opening a linked item from it (Back returns with the panel open). Reason: rendering needs the Projects route in a Hilt activity with fakes for the Room-backed GTD repositories. That setup is substantial, and no in-app Projects test with fake data exists to copy. The toggle and its state are tested (`ProjectLinksToggleTest`), and the same code pattern is tested end to end for Files. Follow-up: recommended (a `ProjectsRouteInAppTest` with fake GTD repositories), not blocking.
+- Android `WaitingRoute` starting the mail app or showing the "no mail app" toast: same reason (Hilt route with the task cache). The intent contents are unit-tested. Follow-up: optional.
+- Android Draft email using the linked waiting-for contact: deferred by the parent to `and-waiting-contact-mail`. Not part of this task.
+- Real browser and device behavior (Playwright, emulator) is not part of the acceptance criteria and was not run.
 
 ## Summary
 
-Tests added; production defects were discovered and must be passed to the `fixer` before task completion. The earlier findings TW-1..TW-3 are fixed (their tests pass, Android lint clean), and every acceptance criterion has passing tests. The new tests found that the web `emailIn` still keeps parentheses or brackets around the address (TW-4, Medium, the web side of TW-1), and that both clients keep a sentence's trailing full stop (TW-5, Low). 3 web tests and 1 Android test fail until these are fixed. After the fix, rerun `npm run check`, the Android focused tests and fresh coverage.
+Tests added and all validation passed. The final code passes `npm run check` and the full web suite with coverage (4810 tests), and 223 focused Android tests plus ktlint. I found no production defects. The new tests pin the TW-5 regex edge cases on both clients and add Android in-app tests for the file preview's real linked-items panel and its linked-item navigation, which raised FilesScreen.kt changed-line coverage from 2/51 to 51/51. Remaining gaps: the Android project panel's linked-item navigation and the WaitingRoute intent launch are not tested in a route test. They are documented above, and neither blocks completion.

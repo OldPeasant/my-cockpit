@@ -54,6 +54,9 @@ class WaitingDraftEmailTest {
     @Test
     fun `a sentence ending after the address does not add its full stop to it`() {
         assertEquals("anna@example.org", emailIn("Reply from anna@example.org."))
+        assertEquals("anna@mail.example.co.uk", emailIn("Ask anna@mail.example.co.uk."))
+        assertEquals("anna@example.org", emailIn("Ping anna@example.org..."))
+        assertNull(emailIn("alex@localhost."))
     }
 
     @Test

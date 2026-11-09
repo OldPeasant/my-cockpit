@@ -149,11 +149,13 @@ describe('emailIn', () => {
     ['Anna (anna@example.test)', 'anna@example.test'],
     ['Anna [anna@example.test]', 'anna@example.test'],
     ['Reply from anna@example.test.', 'anna@example.test'],
+    ['Ask anna@mail.example.co.uk.', 'anna@mail.example.co.uk'],
+    ['Ping anna@example.test...', 'anna@example.test'],
   ])('finds the bare address in %j, without surrounding punctuation', (text, address) => {
     expect(emailIn(text)).toBe(address);
   });
 
-  it.each([undefined, '', 'Alex', 'alex@localhost', '@example.test'])(
+  it.each([undefined, '', 'Alex', 'alex@localhost', 'alex@localhost.', '@example.test'])(
     'finds none in %j',
     (text) => {
       expect(emailIn(text)).toBeUndefined();
