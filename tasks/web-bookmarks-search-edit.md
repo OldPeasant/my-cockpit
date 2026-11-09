@@ -16,7 +16,8 @@ bookmark → Inbox task.
   - verified (2026-11-09 01:37+0100 by dell26/agent-1): npx ng test --watch=false --include='src/app/features/bookmarks/**/*.spec.ts' in web/ at e52450cb4 -> 132 passed; search specs cover title, URL, notes (description), #tag, multi-word, no-match message, Escape clears, Show more while searching
 - [x] Edit title, tags and notes
   - verified (2026-11-09 01:37+0100 by dell26/agent-1): same bookmarks spec run -> 132 passed; editor specs: opens with current values, PATCH title/description/tags with If-Match of the opened version, blank -> null, cancel by button/Escape, failure keeps editor, conflict keeps editor and retry saves
-- [ ] Undo after delete; "To Inbox task" action
+- [x] Undo after delete; "To Inbox task" action
+  - verified (2026-11-09 01:37+0100 by dell26/agent-1): same bookmarks spec run -> 132 passed; delete opens MatSnackBar 'Undo' -> POST /api/v1/trash/BOOKMARK/{id}/restore and row reloaded, dismissed -> no restore, failed restore -> error; 'To Inbox task' -> POST /api/v1/tasks (UUIDv7 id, list INBOX, notes = URL) + POST /api/v1/links origin, retry reuses id, unlinked and failed messages
 - [ ] New UI strings are in `web/src/locale` (English + German)
 - [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
 
