@@ -4,6 +4,7 @@ import ch.sonensei.cockpit.core.network.generated.models.ContextResponse
 import ch.sonensei.cockpit.core.network.generated.models.ProjectResponse
 import ch.sonensei.cockpit.core.network.generated.models.TaskResponse
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -61,6 +62,32 @@ class GtdMappersTest {
         val entity = task().copy(contextIds = listOf(id(80))).toEntity(TaskView.NEXT, 0)
 
         assertEquals(listOf(id(80)), entity.toDomain().contextIds)
+    }
+
+    @Test
+    fun `the linked waiting-for contact survives the cache row`() {
+        val waiting =
+            task(list = TaskResponse.List.WAITING).copy(
+                waitingForText = "Anna (anna@example.org)",
+                waitingForContactId = id(90),
+                waitingSince = LocalDate.of(2026, 10, 20),
+            )
+
+        val entity = waiting.toEntity(TaskView.NEXT, 0)
+
+        assertEquals(id(90).toString(), entity.waitingForContactId)
+        val domain = entity.toDomain()
+        assertEquals(id(90), domain.waitingForContactId)
+        assertEquals("Anna (anna@example.org)", domain.waitingForText)
+        assertEquals(LocalDate.of(2026, 10, 20), domain.waitingSince)
+    }
+
+    @Test
+    fun `a task without a linked contact keeps no contact id in the cache row`() {
+        val entity = task(list = TaskResponse.List.WAITING).copy(waitingForText = "Anna").toEntity(TaskView.NEXT, 0)
+
+        assertNull(entity.waitingForContactId)
+        assertNull(entity.toDomain().waitingForContactId)
     }
 
     @Test

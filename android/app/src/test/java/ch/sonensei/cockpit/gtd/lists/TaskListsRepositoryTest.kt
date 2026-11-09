@@ -72,6 +72,18 @@ class TaskListsRepositoryTest {
         }
 
     @Test
+    fun `a loaded waiting task keeps its linked contact, an unlinked one has none`() =
+        runBlocking {
+            val linked = taskJson(1, "Contract", "WAITING", ""","waitingForText":"Anna","waitingForContactId":"${uuid(50)}"""")
+            dispatcher.enqueue("$TASKS|WAITING", json(taskPage(linked, taskJson(2, "Parcel", "WAITING"))))
+            val live = withTimeout(TIMEOUT) { repository.observe(TaskList.WAITING, MutableSharedFlow()).first { it.data != null } }
+            assertEquals(
+                listOf(UUID.fromString(uuid(50)), null),
+                live.data!!.sortedBy { it.position }.map { it.waitingForContactId },
+            )
+        }
+
+    @Test
     fun `a loaded task keeps the day the server released it to Next`() =
         runBlocking {
             val released = taskJson(3, "Water the plants", "NEXT", ""","releasedOn":"2026-10-20"""")

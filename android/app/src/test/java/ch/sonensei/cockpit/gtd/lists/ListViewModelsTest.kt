@@ -1,5 +1,9 @@
 package ch.sonensei.cockpit.gtd.lists
 
+import ch.sonensei.cockpit.contacts.Contact
+import ch.sonensei.cockpit.contacts.ContactsRepository
+import ch.sonensei.cockpit.contacts.ContactsResult
+import ch.sonensei.cockpit.contacts.LabeledValue
 import ch.sonensei.cockpit.gtd.data.Cached
 import ch.sonensei.cockpit.gtd.data.ContextRepository
 import ch.sonensei.cockpit.gtd.data.GtdTask
@@ -241,5 +245,81 @@ class ListViewModelsTest {
             assertEquals(true, state.readOnly)
             vm.followUp(recent, "Follow up: Quote")
             coVerify(exactly = 0) { repository.followUp(any(), any()) }
+        }
+
+    private val anna = id(50)
+
+    private val linked = old.copy(waitingForText = "Anna Example (anna.old@example.org)", waitingForContactId = anna)
+
+    private fun contact(vararg emails: String) =
+        Contact(
+            id = anna,
+            displayName = "Anna Example",
+            organization = null,
+            title = null,
+            emails = emails.map { LabeledValue(it, "work") },
+            phones = emptyList(),
+            addresses = emptyList(),
+            birthday = null,
+            notesMd = null,
+            source = "LOCAL",
+        )
+
+    /** The view model Hilt builds, with the contacts repository answering [answer] for Anna. */
+    private fun waitingWithContacts(answer: ContactsResult<Contact>): Pair<WaitingViewModel, ContactsRepository> {
+        val contacts = mockk<ContactsRepository> { coEvery { get(anna) } returns answer }
+        return WaitingViewModel(repository, contexts, completion, contacts) to contacts
+    }
+
+    @Test
+    fun `the mail recipient is the linked contact's email address, asked for that contact`() =
+        runTest {
+            val asked = mutableListOf<UUID>()
+            val vm =
+                WaitingViewModel(repository, contexts, completion, clock) {
+                    asked += it
+                    "anna@example.com"
+                }
+            assertEquals("anna@example.com", vm.mailRecipient(linked))
+            assertEquals(listOf(anna), asked)
+        }
+
+    @Test
+    fun `the mail recipient falls back to the waiting-for text when the contact has no address`() =
+        runTest {
+            val vm = WaitingViewModel(repository, contexts, completion, clock) { null }
+            assertEquals("anna.old@example.org", vm.mailRecipient(linked))
+            assertNull(vm.mailRecipient(linked.copy(waitingForText = "Anna Example")))
+        }
+
+    @Test
+    fun `without a linked contact no contact is asked`() =
+        runTest {
+            val vm = WaitingViewModel(repository, contexts, completion, clock) { error("no contact is linked") }
+            assertEquals("anna.old@example.org", vm.mailRecipient(linked.copy(waitingForContactId = null)))
+            assertNull(vm.mailRecipient(undated))
+        }
+
+    @Test
+    fun `the injected view model takes the contact's first email address`() =
+        runTest {
+            val (vm, contacts) = waitingWithContacts(ContactsResult.Ok(contact("anna@example.com", "anna@home.example.net")))
+            assertEquals("anna@example.com", vm.mailRecipient(linked))
+            coVerify(exactly = 1) { contacts.get(anna) }
+        }
+
+    @Test
+    fun `the injected view model falls back to the text for a contact without email addresses`() =
+        runTest {
+            val (vm, _) = waitingWithContacts(ContactsResult.Ok(contact()))
+            assertEquals("anna.old@example.org", vm.mailRecipient(linked))
+        }
+
+    @Test
+    fun `the injected view model falls back to the text when the contact cannot be loaded`() =
+        runTest {
+            assertEquals("anna.old@example.org", waitingWithContacts(ContactsResult.Offline).first.mailRecipient(linked))
+            assertEquals("anna.old@example.org", waitingWithContacts(ContactsResult.Failed(404)).first.mailRecipient(linked))
+            assertNull(waitingWithContacts(ContactsResult.Offline).first.mailRecipient(linked.copy(waitingForText = null)))
         }
 }
