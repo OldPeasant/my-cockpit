@@ -12,7 +12,8 @@ Part of `and-notes-editor` (Android note editor: tags, checklists, links, revisi
 Goal: The Android note editor lists a note's revisions and restores one (server notes revisions API; web: `note-editor-page.html`). Touches android/.../cockpit/notes, its tests and strings_notes.xml (en + de).
 
 ## Acceptance criteria
-- [ ] Revisions: list and restore
+- [x] Revisions: list and restore
+  - verified (2026-11-09 08:01+0100 by dell26/agent-1): Android note editor menu 'Earlier versions' opens NoteRevisionsDialog (GET /api/v1/notes/{id}/revisions, newest first, preview) and Restore (POST .../revisions/{n}/restore with If-Match, saves pending text first); cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*' -> 327 passed incl. NoteRevisionsRepositoryTest (8), NoteEditorRevisionsViewModelTest (29), NoteRevisionsDialogTest (13)
 - [ ] New strings are in English and German (`res/values/strings_notes.xml` + `res/values-de/strings_notes.xml`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
