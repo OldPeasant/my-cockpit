@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "task": "and-notes-editor",
+  "reviewed_revision": "0a620f04634a057c7ceff82a4bc65fc90bf0bf0e",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-notes-editor/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-notes-editor/review.md"},
+    "fixer": {"status": "not_required", "reason": "only finding is CR-1 (P3, optional edge case outside the acceptance criteria), accepted; test-writer found no production bugs"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "[[ query while the cursor is inside an already closed link opens suggestions and a pick leaves the old link tail; rare edge case, not in the acceptance criteria, deliberately left"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck lintDebug", "result": "pass"},
+    {"command": "cd android && ./gradlew testDebugUnitTest", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
