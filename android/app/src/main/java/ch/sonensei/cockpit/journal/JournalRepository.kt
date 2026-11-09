@@ -28,13 +28,43 @@ data class JournalEntry(
     val id: UUID,
     val date: LocalDate,
     val bodyMd: String,
-    /** 1 (bad) to 5 (great); `null` when not set. Kept as is when the text is saved from the phone. */
+    /** 1 (bad) to 5 (great); `null` when not set. */
     val mood: Int?,
     val tags: List<String>,
     val updatedAt: Instant,
     /** The entry's version, sent back as `If-Match` when it is saved. */
     val version: Long,
 )
+
+/** What is written for a day: the text, the mood (1 to 5, `null`: none) and the tags. */
+data class JournalDraft(
+    val bodyMd: String = "",
+    val mood: Int? = null,
+    val tags: List<String> = emptyList(),
+) {
+    /** Nothing written, no mood, no tags: a day without an entry stays without one. */
+    val isEmpty: Boolean get() = bodyMd.isBlank() && mood == null && tags.isEmpty()
+
+    /** The same content as [other]; the order and case of the tags are no change (the server orders them). */
+    fun sameAs(other: JournalDraft): Boolean = bodyMd == other.bodyMd && mood == other.mood && tagsKey(tags) == tagsKey(other.tags)
+
+    companion object {
+        /** Tags typed as text: split at commas, trimmed, a leading `#` removed, each once regardless of case. */
+        fun parseTags(text: String): List<String> {
+            val seen = mutableSetOf<String>()
+            return text
+                .split(',')
+                .map { it.trim().removePrefix("#").trim() }
+                .filter { it.isNotEmpty() && seen.add(it.lowercase()) }
+        }
+
+        private fun tagsKey(tags: List<String>) = tags.map { it.lowercase() }.sorted()
+    }
+}
+
+/** The draft of a saved entry, or the empty one when the day has none. */
+val JournalEntry?.draft: JournalDraft
+    get() = if (this == null) JournalDraft() else JournalDraft(bodyMd, mood, tags)
 
 internal fun JournalEntryResponse.toEntry() =
     JournalEntry(
@@ -104,17 +134,27 @@ class JournalRepository
                 if (response.code() == NOT_FOUND) null else body(response).toEntry()
             }
 
+        /** The days from [from] to [to] (both included) that have an entry, each with the entry's mood. */
+        suspend fun days(
+            from: LocalDate,
+            to: LocalDate,
+        ): JournalResult<Map<LocalDate, Int?>> = load { body(api.getJournalHeatmap(from, to)).items.associate { it.date to it.mood } }
+
+        /** The entries of [date]'s day in earlier years, newest first. */
+        suspend fun onThisDay(date: LocalDate): JournalResult<List<JournalEntry>> =
+            load { body(api.getJournalOnThisDay(date)).items.map { it.toEntry() }.filter { it.date < date } }
+
         /**
-         * Saves [bodyMd] as the entry of [date]: creates it ([base] `null`) or replaces [base], keeping its mood and
-         * tags. A refusal because the day changed elsewhere (`409`, `412`, `428` when a create finds an entry made
-         * elsewhere, or `404` when it was deleted) is a [JournalSaveResult.Conflict] with the server's current entry.
+         * Saves [draft] as the entry of [date]: creates it ([base] `null`) or replaces [base]. A refusal because the
+         * day changed elsewhere (`409`, `412`, `428` when a create finds an entry made elsewhere, or `404` when it was
+         * deleted) is a [JournalSaveResult.Conflict] with the server's current entry.
          */
-        suspend fun save(
+        suspend fun saveEntry(
             date: LocalDate,
             base: JournalEntry?,
-            bodyMd: String,
+            draft: JournalDraft,
         ): JournalSaveResult {
-            val request = JournalEntryRequest(bodyMd = bodyMd, mood = base?.mood, tags = base?.tags.orEmpty())
+            val request = JournalEntryRequest(bodyMd = draft.bodyMd, mood = draft.mood, tags = draft.tags)
             val result = load { body(api.putJournalEntry(date, request, base?.let { etag(it.version) })).toEntry() }
             return when (result) {
                 is JournalResult.Ok -> JournalSaveResult.Saved(result.value)
@@ -123,6 +163,13 @@ class JournalRepository
                     if (result.status in CONFLICTS) conflict(date) else JournalSaveResult.Failed(result.status)
             }
         }
+
+        /** Saves [bodyMd] as the entry of [date] like [saveEntry], keeping [base]'s mood and tags. */
+        suspend fun save(
+            date: LocalDate,
+            base: JournalEntry?,
+            bodyMd: String,
+        ): JournalSaveResult = saveEntry(date, base, base.draft.copy(bodyMd = bodyMd))
 
         /** Stores [photo] in `/Attachments/Journal`; returns the Markdown to insert into the entry's body. */
         suspend fun uploadImage(photo: NotePhoto): JournalResult<String> =

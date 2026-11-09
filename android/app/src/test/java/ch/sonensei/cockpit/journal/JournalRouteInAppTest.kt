@@ -24,6 +24,7 @@ import dagger.hilt.android.testing.BindValue
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
+import io.mockk.MockKMatcherScope
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -74,6 +75,8 @@ class JournalRouteInAppTest {
         tokenStore.login(AuthTokens("access-fictitious", "refresh-fictitious"), null)
         // The view model asks for the device's today, which the test does not fix.
         coEvery { repo.get(any()) } returns JournalResult.Ok(loaded)
+        coEvery { repo.days(any(), any()) } returns JournalResult.Ok(emptyMap())
+        coEvery { repo.onThisDay(any()) } returns JournalResult.Ok(emptyList())
     }
 
     @After
@@ -92,7 +95,7 @@ class JournalRouteInAppTest {
     @Test
     fun `the Journal screen shows today's entry and saves edited text when the editor is left`() {
         val saved = AtomicBoolean(false)
-        coEvery { repo.save(any(), loaded, "Walked by the lake, then tea") } answers {
+        coEvery { repo.saveEntry(any(), loaded, body("Walked by the lake, then tea")) } answers {
             saved.set(true)
             JournalSaveResult.Saved(loaded.copy(bodyMd = "Walked by the lake, then tea", version = 4))
         }
@@ -110,13 +113,13 @@ class JournalRouteInAppTest {
         composeRule.waitForIdle()
         composeRule.onNodeWithTag(JournalTags.STATUS).assertTextContains("Saved")
         composeRule.onNodeWithText("Walked by the lake, then tea").assertIsDisplayed()
-        coVerify(exactly = 1) { repo.save(any(), any(), any()) }
+        coVerify(exactly = 1) { repo.saveEntry(any(), any(), any()) }
     }
 
     @Test
     fun `the shell's back arrow leaves the Journal and still saves the text typed last`() {
         val saved = AtomicBoolean(false)
-        coEvery { repo.save(any(), loaded, "Typed just before leaving") } answers {
+        coEvery { repo.saveEntry(any(), loaded, body("Typed just before leaving")) } answers {
             saved.set(true)
             JournalSaveResult.Saved(loaded.copy(bodyMd = "Typed just before leaving", version = 4))
         }
@@ -130,10 +133,13 @@ class JournalRouteInAppTest {
         }
 
         composeRule.waitUntil(WAIT_MS) { saved.get() }
-        coVerify(exactly = 1) { repo.save(any(), loaded, "Typed just before leaving") }
+        coVerify(exactly = 1) { repo.saveEntry(any(), loaded, body("Typed just before leaving")) }
     }
 
     private companion object {
         const val WAIT_MS = 5_000L
     }
 }
+
+/** Matches a draft by its text. */
+private fun MockKMatcherScope.body(text: String) = match<JournalDraft> { it.bodyMd == text }

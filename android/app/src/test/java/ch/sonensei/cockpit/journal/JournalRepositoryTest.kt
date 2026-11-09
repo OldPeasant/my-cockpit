@@ -94,7 +94,7 @@ class JournalRepositoryTest {
         runBlocking {
             server.enqueue(json(entryJson(body = "First words", mood = null), code = 201))
 
-            val result = journal.save(day, null, "First words") as JournalSaveResult.Saved
+            val result = journal.saveEntry(day, null, JournalDraft("First words")) as JournalSaveResult.Saved
 
             assertEquals("First words", result.entry.bodyMd)
             val request = server.takeRequest()
@@ -106,11 +106,11 @@ class JournalRepositoryTest {
         }
 
     @Test
-    fun `a save replaces the entry over its version and keeps its mood and tags`() =
+    fun `a save replaces the entry over its version with the draft's mood and tags`() =
         runBlocking {
             server.enqueue(json(entryJson(body = "Walked far", version = 4)))
 
-            val result = journal.save(day, base, "Walked far") as JournalSaveResult.Saved
+            val result = journal.saveEntry(day, base, base.draft.copy(bodyMd = "Walked far")) as JournalSaveResult.Saved
 
             assertEquals(4L, result.entry.version)
             val request = server.takeRequest()
@@ -126,7 +126,7 @@ class JournalRepositoryTest {
             server.enqueue(status(412))
             server.enqueue(json(entryJson(body = "Theirs", version = 9)))
 
-            val result = journal.save(day, base, "Mine") as JournalSaveResult.Conflict
+            val result = journal.saveEntry(day, base, base.draft.copy(bodyMd = "Mine")) as JournalSaveResult.Conflict
 
             assertEquals("Theirs", result.current!!.bodyMd)
         }
@@ -138,7 +138,7 @@ class JournalRepositoryTest {
             server.enqueue(status(428))
             server.enqueue(json(entryJson(body = "From the web")))
 
-            val result = journal.save(day, null, "Mine") as JournalSaveResult.Conflict
+            val result = journal.saveEntry(day, null, JournalDraft("Mine")) as JournalSaveResult.Conflict
 
             assertEquals("From the web", result.current!!.bodyMd)
         }
@@ -149,7 +149,7 @@ class JournalRepositoryTest {
             server.enqueue(status(409))
             server.enqueue(json(entryJson(body = "From the web")))
 
-            val result = journal.save(day, null, "Mine") as JournalSaveResult.Conflict
+            val result = journal.saveEntry(day, null, JournalDraft("Mine")) as JournalSaveResult.Conflict
 
             assertEquals("From the web", result.current!!.bodyMd)
         }
@@ -160,7 +160,7 @@ class JournalRepositoryTest {
             server.enqueue(status(412))
             server.enqueue(status(404))
 
-            assertEquals(JournalSaveResult.Conflict(null), journal.save(day, base, "Mine"))
+            assertEquals(JournalSaveResult.Conflict(null), journal.saveEntry(day, base, base.draft.copy(bodyMd = "Mine")))
         }
 
     @Test
@@ -169,11 +169,11 @@ class JournalRepositoryTest {
             // The server is down for the fetch: the save stays retryable instead of offering a decision without data.
             server.enqueue(status(412))
             server.enqueue(status(503))
-            assertEquals(JournalSaveResult.Offline, journal.save(day, base, "Mine"))
+            assertEquals(JournalSaveResult.Offline, journal.saveEntry(day, base, base.draft.copy(bodyMd = "Mine")))
 
             server.enqueue(status(428))
             server.enqueue(status(403))
-            assertEquals(JournalSaveResult.Failed(403), journal.save(day, null, "Mine"))
+            assertEquals(JournalSaveResult.Failed(403), journal.saveEntry(day, null, JournalDraft("Mine")))
         }
 
     @Test
@@ -183,18 +183,78 @@ class JournalRepositoryTest {
             assertEquals(JournalResult.Failed(null), journal.get(day))
 
             server.enqueue(json("""{"id":"$id","date":"2026-10-22","bodyMd":"x","tags":[],"updatedAt":"yesterday","version":1}"""))
-            assertEquals(JournalSaveResult.Failed(null), journal.save(day, base, "x"))
+            assertEquals(JournalSaveResult.Failed(null), journal.saveEntry(day, base, base.draft.copy(bodyMd = "x")))
         }
 
     @Test
     fun `server errors are offline, refusals are failures`() =
         runBlocking {
             server.enqueue(status(503))
-            assertEquals(JournalSaveResult.Offline, journal.save(day, base, "Mine"))
+            assertEquals(JournalSaveResult.Offline, journal.saveEntry(day, base, base.draft.copy(bodyMd = "Mine")))
             server.enqueue(status(400))
-            assertEquals(JournalSaveResult.Failed(400), journal.save(day, base, "Mine"))
+            assertEquals(JournalSaveResult.Failed(400), journal.saveEntry(day, base, base.draft.copy(bodyMd = "Mine")))
             server.enqueue(status(500))
             assertEquals(JournalResult.Offline, journal.get(day))
+        }
+
+    @Test
+    fun `a save sends the draft's mood and tags`() =
+        runBlocking {
+            server.enqueue(json(entryJson(mood = 2)))
+
+            journal.saveEntry(day, base, JournalDraft("Walked", 2, listOf("rain", "walk")))
+
+            val sent = Json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+            assertEquals(2, sent["mood"]!!.jsonPrimitive.int)
+            assertEquals(listOf("rain", "walk"), sent["tags"]!!.jsonArray.map { it.jsonPrimitive.content })
+        }
+
+    @Test
+    fun `the text-only save keeps the entry's mood and tags`() =
+        runBlocking {
+            server.enqueue(json(entryJson()))
+
+            journal.save(day, base, "Walked twice")
+
+            val sent = Json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+            assertEquals("Walked twice", sent["bodyMd"]!!.jsonPrimitive.content)
+            assertEquals(4, sent["mood"]!!.jsonPrimitive.int)
+            assertEquals("walk", sent["tags"]!!.jsonArray[0].jsonPrimitive.content)
+        }
+
+    @Test
+    fun `the days of a range come with their moods`() =
+        runBlocking {
+            server.enqueue(
+                json("""{"from":"2026-10-01","to":"2026-10-31","items":[{"date":"2026-10-03","mood":5},{"date":"2026-10-09"}]}"""),
+            )
+
+            val days = journal.days(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31))
+
+            assertEquals(JournalResult.Ok(mapOf(LocalDate.of(2026, 10, 3) to 5, LocalDate.of(2026, 10, 9) to null)), days)
+            val url = server.takeRequest().url
+            assertEquals("/api/v1/journal/heatmap", url.encodedPath)
+            assertEquals("2026-10-01", url.queryParameter("from"))
+            assertEquals("2026-10-31", url.queryParameter("to"))
+        }
+
+    @Test
+    fun `on this day returns the earlier years only`() =
+        runBlocking {
+            val earlier = entryJson(body = "Years ago").replace("2026-10-22", "2024-10-22")
+            server.enqueue(json("""{"date":"2026-10-22","items":[${entryJson()},$earlier]}"""))
+
+            val result = (journal.onThisDay(day) as JournalResult.Ok).value
+
+            assertEquals(listOf(LocalDate.of(2024, 10, 22)), result.map { it.date })
+            val url = server.takeRequest().url
+            assertEquals("/api/v1/journal/on-this-day", url.encodedPath)
+            assertEquals("2026-10-22", url.queryParameter("date"))
+
+            server.enqueue(status(503))
+            assertEquals(JournalResult.Offline, journal.onThisDay(day))
+            server.enqueue(status(400))
+            assertEquals(JournalResult.Failed(400), journal.days(day, day))
         }
 
     @Test
