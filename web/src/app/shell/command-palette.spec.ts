@@ -164,4 +164,16 @@ describe('CommandPalette', () => {
     await type('subtype:x');
     expect(hint()).not.toBeNull();
   });
+
+  it('shows the type: hint again after the filter is removed, also with results listed', async () => {
+    await setup([provideNavigationPalette()]);
+    const hint = (): HTMLElement | null => root.querySelector('.type-hint');
+    await type('  type:note');
+    expect(hint()).toBeNull();
+    await type('');
+    expect(hint()).not.toBeNull();
+    await type('inb');
+    expect(labels()).toEqual(['Inbox']);
+    expect(hint()).not.toBeNull();
+  });
 });
