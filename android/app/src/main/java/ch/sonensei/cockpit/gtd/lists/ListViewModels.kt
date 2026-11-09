@@ -2,6 +2,8 @@ package ch.sonensei.cockpit.gtd.lists
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ch.sonensei.cockpit.contacts.ContactsRepository
+import ch.sonensei.cockpit.contacts.ContactsResult
 import ch.sonensei.cockpit.gtd.data.ContextRepository
 import ch.sonensei.cockpit.gtd.data.GtdContext
 import ch.sonensei.cockpit.gtd.data.GtdTask
@@ -144,13 +146,19 @@ class WaitingViewModel internal constructor(
     contexts: ContextRepository,
     completion: TaskCompletionRepository,
     clock: Clock,
+    /** The first email address of a contact, `null` if it has none or cannot be loaded (offline, deleted). */
+    private val contactEmail: suspend (UUID) -> String? = { null },
 ) : LiveTaskListViewModel(TaskList.WAITING, repository, contexts, completion, clock, ::byWaitingSince) {
     @Inject
     constructor(
         repository: TaskListsRepository,
         contexts: ContextRepository,
         completion: TaskCompletionRepository,
-    ) : this(repository, contexts, completion, Clock.systemDefaultZone())
+        contacts: ContactsRepository,
+    ) : this(repository, contexts, completion, Clock.systemDefaultZone(), contacts::firstEmail)
+
+    /** The To of [task]'s "Draft email" (see [followUpRecipient]). */
+    suspend fun mailRecipient(task: GtdTask): String? = followUpRecipient(task, contactEmail)
 
     /** Creates a next action titled [title] to chase what [task] waits for. */
     fun followUp(
@@ -158,6 +166,22 @@ class WaitingViewModel internal constructor(
         title: String,
     ) = act(task, ActionSnackbar.Kind.FOLLOW_UP) { repository.followUp(task, title) }
 }
+
+/**
+ * The To of a follow-up mail (SPEC.md §5.3): the linked contact's first email address, else an address written in the
+ * waiting-for text, else none.
+ */
+internal suspend fun followUpRecipient(
+    task: GtdTask,
+    contactEmail: suspend (UUID) -> String?,
+): String? = task.waitingForContactId?.let { contactEmail(it) } ?: emailIn(task.waitingForText)
+
+private suspend fun ContactsRepository.firstEmail(id: UUID): String? =
+    (get(id) as? ContactsResult.Ok)
+        ?.value
+        ?.emails
+        ?.firstOrNull()
+        ?.value
 
 /** Someday/Maybe: ideas parked for later; "Activate" makes one a next action. */
 @HiltViewModel

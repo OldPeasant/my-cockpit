@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -27,6 +28,7 @@ import ch.sonensei.cockpit.contacts.ContactIntents
 import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -49,14 +51,17 @@ fun WaitingRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val noMailApp = stringResource(R.string.waiting_no_mail_app)
+    val scope = rememberCoroutineScope()
     WaitingContent(
         state,
         LiveListCallbacks.of(viewModel),
         viewModel::followUp,
         modifier,
-        draftMail = {
-            if (!ContactIntents.launch(context, followUpMailIntent(it))) {
-                Toast.makeText(context, noMailApp, Toast.LENGTH_SHORT).show()
+        draftMail = { task ->
+            scope.launch {
+                if (!ContactIntents.launch(context, followUpMailIntent(task, viewModel.mailRecipient(task)))) {
+                    Toast.makeText(context, noMailApp, Toast.LENGTH_SHORT).show()
+                }
             }
         },
     )
@@ -120,14 +125,22 @@ private val EMAIL = Regex("[^\\s<>\"',;()\\[\\]]+@[^\\s<>\"',;()\\[\\]]+\\.[^\\s
  */
 internal fun emailIn(text: String?): String? = text?.let { EMAIL.find(it)?.value }
 
-/** The `mailto:` of "Draft email": To is an address in the waiting-for text (empty if none), the subject the task's title. */
-internal fun followUpMailUri(task: GtdTask): String =
-    "mailto:" + Uri.encode(emailIn(task.waitingForText).orEmpty(), "@") + "?subject=" + Uri.encode(task.title)
+/**
+ * The `mailto:` of "Draft email": To is [to] (by default an address in the waiting-for text; empty if none), the subject
+ * the task's title.
+ */
+internal fun followUpMailUri(
+    task: GtdTask,
+    to: String? = emailIn(task.waitingForText),
+): String = "mailto:" + Uri.encode(to.orEmpty(), "@") + "?subject=" + Uri.encode(task.title)
 
-/** Opens a mail app (only mail apps answer `ACTION_SENDTO`) with the follow-up prefilled. */
-internal fun followUpMailIntent(task: GtdTask): Intent {
-    val intent = Intent(Intent.ACTION_SENDTO, followUpMailUri(task).toUri()).putExtra(Intent.EXTRA_SUBJECT, task.title)
-    emailIn(task.waitingForText)?.let { intent.putExtra(Intent.EXTRA_EMAIL, arrayOf(it)) }
+/** Opens a mail app (only mail apps answer `ACTION_SENDTO`) with the follow-up to [to] prefilled. */
+internal fun followUpMailIntent(
+    task: GtdTask,
+    to: String? = emailIn(task.waitingForText),
+): Intent {
+    val intent = Intent(Intent.ACTION_SENDTO, followUpMailUri(task, to).toUri()).putExtra(Intent.EXTRA_SUBJECT, task.title)
+    to?.let { intent.putExtra(Intent.EXTRA_EMAIL, arrayOf(it)) }
     return intent
 }
 

@@ -192,6 +192,7 @@ internal fun TaskResponse.toTask() =
         creativity = creativity?.let { Creativity.valueOf(it.name) },
         timeEstimateMin = timeEstimateMin,
         waitingForText = waitingForText,
+        waitingForContactId = waitingForContactId,
         waitingSince = waitingSince,
         notesMd = notesMd,
     )

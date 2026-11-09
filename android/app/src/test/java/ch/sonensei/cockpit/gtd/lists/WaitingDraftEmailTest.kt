@@ -11,6 +11,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -91,6 +92,32 @@ class WaitingDraftEmailTest {
         val intent = followUpMailIntent(lease.copy(waitingForText = "Anna <anna+work@example.org>"))
         assertEquals(listOf("anna+work@example.org"), intent.getStringArrayExtra(Intent.EXTRA_EMAIL)?.toList())
         assertEquals("anna+work@example.org", intent.data?.schemeSpecificPart?.substringBefore('?'))
+    }
+
+    @Test
+    fun `a linked contact's first email address is the recipient, before an address in the text`() {
+        val contact = id(9)
+        val task = lease.copy(waitingForText = "Anna <old@example.org>", waitingForContactId = contact)
+        val asked = mutableListOf<UUID>()
+        val to =
+            runBlocking {
+                followUpRecipient(task) {
+                    asked += it
+                    "anna@example.com"
+                }
+            }
+        assertEquals("anna@example.com", to)
+        assertEquals(listOf(contact), asked)
+        assertEquals(listOf("anna@example.com"), followUpMailIntent(task, to).getStringArrayExtra(Intent.EXTRA_EMAIL)?.toList())
+    }
+
+    @Test
+    fun `without a contact address the address in the waiting-for text is the recipient`() {
+        val text = lease.copy(waitingForText = "Anna (anna@example.org)")
+        val noAddress: suspend (UUID) -> String? = { null }
+        assertEquals("anna@example.org", runBlocking { followUpRecipient(text.copy(waitingForContactId = id(9)), noAddress) })
+        assertEquals("anna@example.org", runBlocking { followUpRecipient(text) { error("no contact linked") } })
+        assertNull(runBlocking { followUpRecipient(lease.copy(waitingForContactId = id(9)), noAddress) })
     }
 
     @Test

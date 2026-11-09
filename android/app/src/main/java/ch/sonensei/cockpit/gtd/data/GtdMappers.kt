@@ -27,6 +27,7 @@ internal fun TaskResponse.toEntity(
     creativity = creativity?.name,
     timeEstimateMin = timeEstimateMin,
     waitingForText = waitingForText,
+    waitingForContactId = waitingForContactId?.toString(),
     waitingSince = waitingSince?.toString(),
     notesMd = notesMd,
 )
@@ -48,6 +49,7 @@ internal fun CachedTaskEntity.toDomain() =
         creativity = creativity?.let(Creativity::valueOf),
         timeEstimateMin = timeEstimateMin,
         waitingForText = waitingForText,
+        waitingForContactId = waitingForContactId?.let(UUID::fromString),
         waitingSince = waitingSince?.let(LocalDate::parse),
         notesMd = notesMd,
     )

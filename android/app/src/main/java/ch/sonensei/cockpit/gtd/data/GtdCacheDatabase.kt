@@ -33,6 +33,8 @@ data class CachedTaskEntity(
     val creativity: String?,
     val timeEstimateMin: Int?,
     val waitingForText: String?,
+    /** The contact the task waits for, if linked. */
+    val waitingForContactId: String?,
     val waitingSince: String?,
     val notesMd: String?,
 )
@@ -172,7 +174,7 @@ abstract class GtdCacheDao {
 /** The offline read cache of the GTD screens (SPEC.md §9.3). It only holds copies of server data, so it may be dropped. */
 @Database(
     entities = [CachedTaskEntity::class, CachedProjectEntity::class, CachedContextEntity::class, CacheMetaEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class GtdCacheDatabase : RoomDatabase() {

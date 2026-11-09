@@ -40,6 +40,8 @@ data class GtdTask(
     val creativity: Creativity? = null,
     val timeEstimateMin: Int? = null,
     val waitingForText: String? = null,
+    /** The contact the task waits for, if linked (SPEC.md §5.3). */
+    val waitingForContactId: UUID? = null,
     val waitingSince: LocalDate? = null,
     val notesMd: String? = null,
 )
