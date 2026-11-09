@@ -20,6 +20,7 @@ the Drafts folder to continue it.
   - verified (2026-11-09 02:55+0100 by dell26/agent-1): Web mail-list spec opens Drafts-folder mail in /mail/compose?draft= and compose spec saves into that draft; Android MailListDraftTest + MailComposeIdentityDraftTest (ComposeMode.Draft loads editable body, save updates the same draft) -> all pass (906 mail tests, 4751 web tests)
 - [x] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
   - verified (2026-11-09 02:55+0100 by dell26/agent-1): New strings: web/src/locale messages en/de for From picker/draft, Android strings_mail_compose.xml values + values-de (Draft/Entwurf title); sh scripts/check.sh (web i18n + Android lintDebug) -> all checks passed
+  - verified (2026-11-09 02:55+0100 by dell26/agent-1): git diff 7e0d05a87 HEAD: Android adds 1 string (compose title Draft / Entwurf) in res/values and res/values-de strings_mail_compose.xml; web adds no new strings (diff has no new i18n/$localize; picker labels are identity names/addresses, existing From label reused); sh scripts/check.sh incl. Android lintDebug -> all checks passed
 - [x] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
   - verified (2026-11-09 02:55+0100 by dell26/agent-1): Unit tests added on web and Android (57+ new tests, coverage Android 98.7% lines / web 90.0% lines of changed files, tests.md); sh scripts/check.sh on rev 4cbbdf631 -> exit 0, all checks passed (Android 4943 unit tests)
 
