@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "task": "and-fix-logout-cache-test",
+  "reviewed_revision": "0fcb536855b71adb06b1945eedd5e59898093345",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-fix-logout-cache-test/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-fix-logout-cache-test/review.md"},
+    "fixer":         {"status": "not_required", "reason": "The final review of 0fcb536 has no findings; the only earlier finding (P3, test file at the top of cacheDir instead of the files feature's folders) was covered by the test-writer's new SessionCacheTest case before that review"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}

@@ -4,28 +4,32 @@ Date: 2026-11-09
 
 Task: and-fix-logout-cache-test - Android: AppStartRoutingTest 'logging out from settings clears the cached files' fails on main
 
-Scope: git diff 5acb7590bb60248c6fb19287d4b2557ce1575dca..b61cd964f (test-only change in `android/app/src/test/java/ch/sonensei/cockpit/auth/AppStartRoutingTest.kt`)
+Scope: git diff 5acb7590bb60248c6fb19287d4b2557ce1575dca..0fcb536855b71adb06b1945eedd5e59898093345 -- android (test-only: `AppStartRoutingTest.kt` cache wait raised, new test in `SessionCacheTest.kt`)
 
 Requirements:
 - tasks/and-fix-logout-cache-test.md (acceptance criteria and notes)
-- AGENTS.md (Evidence, quality gate)
-- Production code read for context: `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthModule.kt`, `auth/AuthRepository.kt` (`clearCaches`), `files/DeviceFiles.kt`
+- AGENTS.md (Evidence, quality gate, conventions: fictitious test data, lint)
+- Production code read for context: `android/app/src/main/java/ch/sonensei/cockpit/auth/AuthModule.kt`, `android/app/src/main/java/ch/sonensei/cockpit/files/DeviceFiles.kt`
 
 Git range:
 - Branch: main
-- HEAD: b61cd964f (reviewed commit; local HEAD db4259359 is the same change after rebase)
+- HEAD: 0fcb536855b71adb06b1945eedd5e59898093345
 - Base/start: 5acb7590bb60248c6fb19287d4b2557ce1575dca
-- Commits reviewed: 1
+- Commits reviewed: 2 code commits touching `android/` (db4259359, 0fcb53685); the other commits in the range only touch task state
 
-Summary: 0 P0, 0 P1, 0 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-Verification of criterion 1 (logout clears the files cache actually used):
-- The files feature writes its caches under `context.cacheDir`: `PdfPreviews.target` uses `cacheDir/files-preview` and `OpenedFiles.target` uses `cacheDir/<DIR>/<id>/` (`files/DeviceFiles.kt:97`, `:123`). Neither uses `filesDir` or `externalCacheDir`.
-- `AuthModule.cacheDirectory` (`auth/AuthModule.kt:38-42`) deletes every entry of `context.cacheDir` recursively, so both subdirectories are removed.
-- `AuthRepository.clearCaches` (`auth/AuthRepository.kt:258-272`) clears the caches one after another and catches any failing cache. Only a cancellation of the caller stops the loop. So an earlier failing cache cannot skip the cache-directory cleanup, but a slow one delays it. That supports the timing explanation in the task notes, and raising the wait only in the two cache assertions is a proportionate test-only fix.
-- No production change was needed. The diff touches only the test, which is inside the task's `touches`.
+Verification of criterion 1 (logout clears the files cache actually used by the files feature):
+- The files feature writes its caches under `context.cacheDir`: `PreviewFiles.target` uses `cacheDir/files-preview/<id>-<n>.pdf` (`files/DeviceFiles.kt:93-103`) and `OpenedFiles.target` uses `cacheDir/files-open/<id>/<name>` (`files/DeviceFiles.kt:118-126`, `:217`).
+- `AuthModule.cacheDirectory` (`auth/AuthModule.kt`) deletes every entry of `context.cacheDir` recursively on IO, so both folders go away.
+- The new test `the files feature's previewed and opened files go with the logout` (`SessionCacheTest.kt:36-49`) creates its fixtures through the real `PreviewFiles.target` and `OpenedFiles.target`, then asserts that the preview folder and the opened file are gone and that `cacheDir` is empty. So the test now fails if the files feature moves its cache out of `cacheDir` or if the cleanup stops being recursive. This resolves CR-1 (P3) of the earlier review.
+- Test data is fictitious (fixed UUIDv7-shaped id, "fictitious" content, `report-fictitious.pdf`).
 
-Evidence status: `python tasks.py verify and-fix-logout-cache-test` still shows both criteria unrecorded. The parent worker must record them (the test run, `./gradlew ktlintCheck testDebugUnitTest lintDebug`, `sh scripts/check.sh`) before `done`. This is a process note, not a code finding.
+Criterion 2 (AppStartRoutingTest timing):
+- Only the two cache-disappearance waits use the new `CACHE_CLEAR_WAIT_MS = 30_000L` (`AppStartRoutingTest.kt:167`, `:181`); screen waits keep `WAIT_MS`. `waitUntil` returns as soon as the condition holds, so the larger limit costs nothing on a fast run. The KDoc explains the reason (sequential `SessionCache` loop before the cache directory). This matches the timing analysis in the task notes and is a proportionate test-only fix.
+- Gradle was not run in this review, as the parent agent asked. The parent worker must record the run of `AppStartRoutingTest`, `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` with `tasks.py verify`.
+
+No production code changed. All changed files are inside the task's `touches`.
 
 ## P0 Critical
 
@@ -41,12 +45,7 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | Test cache file does not sit where the files feature writes**
-    - File: `android/app/src/test/java/ch/sonensei/cockpit/auth/AppStartRoutingTest.kt:185-191`
-    - Category: Tests
-    - Problem: `cachedFile()` writes `cacheDir/thumbnail-fictitious.png` at the top level of the cache directory. The files feature writes into subdirectories (`files-preview/`, the opened-files folder). The current recursive delete covers both locations. But the test would still pass if the cleanup were narrowed to top-level files only, or if the files feature moved its cache outside `cacheDir`.
-    - Why it matters: criterion 1 is about the cache "actually used by the files feature". A regression there would go unnoticed.
-    - Suggested fix (optional): create the fixture through `PdfPreviews.target(context, id)` (or at least inside a subdirectory of `cacheDir`) so the test pins the real location.
+None.
 
 ## Review conclusion
 
