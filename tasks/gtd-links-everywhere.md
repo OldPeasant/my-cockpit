@@ -23,7 +23,8 @@ SPEC.md §5.3 also wants waiting "follow up" to be able to draft an email to the
   - verified (2026-11-09 10:20+0100 by dell26/agent-1): web list-pages.spec.ts Waiting Draft email (To from contact, else waiting-for text, subject = title, /mail/compose?to&subject) + mail-compose-page.spec.ts prefill; Android WaitingDraftEmailTest + ListScreensTest (mailto To from waiting-for text, subject from task; linked contact deferred to and-waiting-contact-mail) -> all pass
 - [x] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
   - verified (2026-11-09 10:20+0100 by dell26/agent-1): new units in web/src/locale/messages.xlf + messages.de.xlf, Android strings_projects_lists.xml/strings_files.xml in values and values-de -> npm run check i18n build + android lintDebug pass in sh scripts/check.sh
-- [ ] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
+- [x] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
+  - verified (2026-11-09 10:20+0100 by dell26/agent-1): test-writer tests.md (web 4810 tests pass, Android 223 focused pass, task coverage web 520/520 lines, Android 149/157 changed lines); sh scripts/check.sh on merged 22c4b4728 -> == all checks passed (exit 0)
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
