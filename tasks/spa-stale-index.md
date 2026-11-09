@@ -24,9 +24,10 @@ Fix direction (agent decides, record with `tasks.py assume`): validate by conten
 with `Cache-Control: no-store`. Hashed bundles may keep revalidating or get a long max-age.
 
 ## Acceptance criteria
-- [ ] A conditional GET of `/index.html`, `/` and a client route (e.g. `/inbox`) with the validators of an earlier
+- [x] A conditional GET of `/index.html`, `/` and a client route (e.g. `/inbox`) with the validators of an earlier
       `index.html` (`If-Modified-Since` 1980 date and/or an old `If-None-Match`) returns 200 with the current content
       when the file changed, not 304; server test reproduces the bug (fails with the fix reverted)
+  - verified (2026-11-09 11:03+0100 by dell26/agent-1): SpaFallbackTests 'changed index html is sent again despite the validators of the old one' (index.html rewritten with same length + 1980 mtime; GET /index.html, /inbox, /projects/{id} with old If-None-Match + If-Modified-Since 1980, and IMS only -> 200 with new content) and 'root forwards a conditional request' (/ with IMS 1980 -> 200 forward /index.html); ./gradlew test --tests 'ch.sonensei.cockpit.core.spa.*' passes with fix, and with SpaWebConfiguration.kt reverted (git stash) -> 2 FAILED (the changed-index and revalidate tests, 304 instead of 200)
 - [ ] Unchanged files still revalidate cheaply (304 for a matching `If-None-Match`) or are never cached (`no-store`)
       for `index.html`; hashed `*.js`/`*.css` remain cacheable; a missing `*.js` stays a 404 (no `index.html` fallback)
 - [x] KDoc of `SpaWebConfiguration` describes the actual caching behaviour
