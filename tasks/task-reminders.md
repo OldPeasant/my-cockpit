@@ -1,11 +1,11 @@
 ---
 title: Reminders on tasks (web + Android)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-task-detail-dates, web-task-actions, and-links-panel, web-task-reminders, and-task-reminders]
 touches: [web/src/app/features/gtd/task-detail,android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/test/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml,web/src/locale]
 prio: 2
-lease_until: 2026-11-09T00:25:05Z
+lease_until: 
 subtasks: web-task-reminders, and-task-reminders
 releases: 0
 extended: 
@@ -30,3 +30,4 @@ SPEC.md §4.6 and the phase 3 demo (step 5) expect reminders on tasks/ticklers; 
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 - split by dell26/agent-1: into web-task-reminders, and-task-reminders. No code yet. Split into web and Android parts: each is a full client feature plus its own quality gate, too big together for one session. The parent only integrates/verifies afterwards. Once they are done, this task is only integration: merge what is left on wip/task-reminders (if anything), verify the acceptance criteria end to end, done.
 - ASSUMPTION (2026-11-09 01:00+0100 by dell26/agent-1): Integration task: no code of its own and no wip/task-reminders branch; the quality gate reviews the combined result of web-task-reminders + and-task-reminders on main, and the notification firing criterion stays skipped (needs a browser/device, owner to check manually)
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 71s on 0033f89d8; criteria verified 4/5, skipped #3
