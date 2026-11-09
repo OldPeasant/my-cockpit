@@ -144,7 +144,10 @@ function previewableOrAlone(files: readonly FileResponse[], id: string): readonl
   return files.filter((file) => previewKind(file.mime, file.name));
 }
 
-/** Opens the preview of `id`, paging through the previewable ones of `files`. */
+/**
+ * Opens the preview of `id`, paging through the previewable ones of `files`; a file without a
+ * preview is shown alone (notice, download, linked items).
+ */
 export function openPreview(
   injector: Injector,
   files: readonly FileResponse[],
