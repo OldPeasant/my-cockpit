@@ -27,6 +27,7 @@ import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
+import java.util.UUID
 
 /** The Waiting tab; outside a Hilt activity (navigation tests, previews) it shows the placeholder. */
 @Composable
@@ -101,7 +102,7 @@ fun WaitingContent(
 }
 
 object WaitingTags {
-    fun draftMail(id: String) = "waiting_draft_mail_$id"
+    fun draftMail(id: UUID) = "waiting-draft-mail-$id"
 }
 
 private val EMAIL = Regex("[^\\s<>\"',;]+@[^\\s<>\"',;]+\\.[^\\s<>\"',;]+")

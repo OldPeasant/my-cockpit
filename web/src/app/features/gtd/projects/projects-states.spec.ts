@@ -12,6 +12,7 @@ import {
   createTask,
   listAreas,
   listContexts,
+  listLinks,
   listProjects,
   listTasks,
   orderProjectTasks,
@@ -162,6 +163,7 @@ describe('Projects views: states and edge cases', () => {
         if (fn === listProjects) return { items: projects };
         if (fn === listAreas) return { items: areas };
         if (fn === listContexts) return { items: [] };
+        if (fn === listLinks) return { items: [] };
         if (fn === listTasks) return { items: tasks.filter((t) => t.projectId === p['projectId']) };
         if (fn === updateProject) {
           const current = projects.find((x) => x.id === p['id'])!;
@@ -404,6 +406,7 @@ describe('Projects views: states and edge cases', () => {
       await render(ProjectDetailPage);
 
       expect(element.querySelector('h1')?.textContent).toBe('Tax return');
+      expect(element.querySelector('app-linked-items')).not.toBeNull();
       expect(element.querySelector('.block [role=alert]')?.textContent).toContain(
         'The tasks could not be loaded.',
       );

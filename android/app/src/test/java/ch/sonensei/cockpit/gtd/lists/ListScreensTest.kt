@@ -74,6 +74,32 @@ class ListScreensTest {
     }
 
     @Test
+    fun `waiting offers a draft email per item`() {
+        state = loaded
+        composeRule.setContent {
+            CockpitTheme {
+                WaitingContent(state, callbacks, { _, _ -> }, draftMail = { calls += "mail ${it.title}" })
+            }
+        }
+        composeRule.onAllNodesWithText("Draft email")[0].assertIsDisplayed()
+        composeRule.onNodeWithTag(WaitingTags.draftMail(contract.id)).performClick()
+        assertEquals(listOf("mail Contract"), calls)
+    }
+
+    @Test
+    fun `follow-up mail takes the address from the waiting-for text and the subject from the task`() {
+        val withMail = contract.copy(waitingForText = "Anna (anna@example.org)", title = "Contract & terms")
+        assertEquals("anna@example.org", emailIn(withMail.waitingForText))
+        assertEquals("mailto:anna@example.org?subject=Contract%20%26%20terms", followUpMailUri(withMail))
+        val intent = followUpMailIntent(withMail)
+        assertEquals(android.content.Intent.ACTION_SENDTO, intent.action)
+        assertEquals("Contract & terms", intent.getStringExtra(android.content.Intent.EXTRA_SUBJECT))
+        assertEquals(listOf("anna@example.org"), intent.getStringArrayExtra(android.content.Intent.EXTRA_EMAIL)?.toList())
+        assertEquals(null, emailIn("Anna"))
+        assertEquals("mailto:?subject=Contract", followUpMailUri(contract))
+    }
+
+    @Test
     fun `someday activates a task`() {
         showSomeday(loaded.copy(tasks = listOf(italian)))
         composeRule.onNodeWithTag(LiveListTags.action(italian.id)).performClick()
