@@ -6,9 +6,9 @@ deps: [and-cal-event-fields]
 prio: 2
 parent: cal-invitation-respond
 lease_until: 
-releases: 3
+releases: 0
 extended: 
-hold: given back 3 times; last: All code, final test/review reports and quality.json committed (reviewed_revision b663ca0dc); AC1, AC2 verified. Only AC3 + done left. 2026-11-09: sh scripts/check.sh: tfp, s
+hold: 
 ---
 ## Goal
 Part of `cal-invitation-respond` (Accept, decline or tentatively accept invitations (web + Android)), which was split.

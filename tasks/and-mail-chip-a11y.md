@@ -6,9 +6,9 @@ deps: [and-mail-compose-plus]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/compose,android/app/src/test/java/ch/sonensei/cockpit/mail/compose]
 prio: 2
 lease_until: 
-releases: 1
+releases: 0
 extended: 
-hold: Blocked by and-auth-logout-cache-test: AppStartRoutingTest 'logging out from settings clears the cached files' still fails on current main (re-run 2026-11-08 ~21:15, 9 tests 1 failed), so .taskcheck c
+hold: 
 ---
 ## Goal
 Follow-up of the and-mail-compose-plus review (P3, `reviews/and-mail-compose-plus/review.md` CR-1): the recipient

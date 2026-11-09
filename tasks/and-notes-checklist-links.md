@@ -1,14 +1,14 @@
 ---
 title: Note editor: checklist toggle in preview and [[ link autocomplete
-status: todo
-owner: 
+status: in_progress
+owner: felix/agent-1
 deps: [and-notes-list, and-links-panel]
 prio: 2
 parent: and-notes-editor
-lease_until: 
-releases: 1
+lease_until: 2026-11-09T02:40:25Z
+releases: 0
 extended: 
-hold: Ready to finish: criteria 1-3 verified; review/tests/quality.json committed. Only blocker: sh scripts/check.sh fails on origin/main (AppStartRoutingTest logout cache test, reproduced on a clean origin
+hold: 
 ---
 ## Goal
 Part of `and-notes-editor` (Android note editor: tags, checklists, links, revisions), which was split.
