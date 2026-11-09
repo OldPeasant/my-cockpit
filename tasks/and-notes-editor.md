@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-notes-list, and-links-panel, and-notes-checklist-links, and-notes-tags, and-notes-revisions, and-notes-linked-panel]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/notes,android/app/src/test/java/ch/sonensei/cockpit/notes,android/app/src/main/res/values/strings_notes.xml,android/app/src/main/res/values-de/strings_notes.xml]
 prio: 2
-lease_until: 2026-11-09T08:08:37Z
+lease_until: 2026-11-09T08:13:40Z
 subtasks: and-notes-checklist-links, and-notes-tags, and-notes-revisions, and-notes-linked-panel
 releases: 0
 extended: 
@@ -28,6 +28,7 @@ links panel (web: `note-editor-page.html`).
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-09 08:53+0100 by dell26/agent-1): diff of sorted string names in res/values/strings_notes.xml vs res/values-de/strings_notes.xml -> identical (74 keys)
 - [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-09 08:53+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck lintDebug -> pass; ./gradlew testDebugUnitTest -> 5367 tests, 0 failures (test-writer run); sh scripts/check.sh -> all checks passed
   - verified (2026-11-09 08:53+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck lintDebug -> pass; ./gradlew testDebugUnitTest -> 5367 tests, 0 failures (test-writer run); sh scripts/check.sh -> all checks passed
 
 ## Notes
