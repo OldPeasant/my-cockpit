@@ -1,10 +1,11 @@
 ---
 title: Android Draft email: To from the linked waiting-for contact
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [gtd-links-everywhere]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/data,android/app/src/main/java/ch/sonensei/cockpit/gtd/lists,android/app/src/test/java/ch/sonensei/cockpit/gtd/lists]
 prio: 2
+lease_until: 2026-11-09T09:42:26Z
 ---
 ## Goal
 SPEC.md §5.3: waiting "Follow up" → "Draft email" prefills To from the linked contact. Web does this
