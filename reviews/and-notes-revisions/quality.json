@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "task": "and-notes-revisions",
+  "reviewed_revision": "c29d14ca28162d605a200a497f17cd8ada14534d",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-notes-revisions/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-notes-revisions/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-notes-revisions/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: text typed during a restore was overwritten; restoring flag blocks editing while a restore runs"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: Restore enabled but inert while pin/archive/delete runs; disabled via canRestore"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: stale revisions list reappeared after a conflict; keepMine/useTheirs close it"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "same as R1-CR-1; fixed by fixer, covered by tests"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
