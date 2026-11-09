@@ -107,4 +107,5 @@
     <string name="review_decided_activated">„%1$s“ aktiviert.</string>
     <string name="review_decided_next_step">„%1$s“ als nächsten Schritt von „%2$s“ hinzugefügt.</string>
     <string name="review_decided_status">„%1$s“ auf %2$s gesetzt.</string>
+    <string name="review_reminder_title">Wochenrückblick</string>
 </resources>

@@ -37,7 +37,7 @@ class ReminderNotifier
                 NotificationCompat
                     .Builder(context, CHANNEL_ID)
                     .setSmallIcon(R.drawable.ic_notification_reminder)
-                    .setContentTitle(reminder.title ?: context.getString(R.string.reminder_untitled))
+                    .setContentTitle(reminder.title ?: context.getString(untitledTitle(reminder.itemType)))
                     .setContentText(context.getString(R.string.reminder_notification_text))
                     .setWhen(reminder.remindAtMillis)
                     .setShowWhen(true)
@@ -93,6 +93,10 @@ class ReminderNotifier
             const val NOTIFICATION_ID = 1
         }
     }
+
+/** The title shown for a reminder whose item has none: the weekly review has its own name. */
+internal fun untitledTitle(itemType: String): Int =
+    if (itemType == WEEKLY_REVIEW) R.string.review_reminder_title else R.string.reminder_untitled
 
 /** Opens the app on the reminded item; the data URI keeps the intents of two reminders apart. */
 internal fun openItemIntent(

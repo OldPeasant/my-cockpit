@@ -7,6 +7,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.UUID
 
+/** The item type of the weekly review reminder; it has no item of its own and opens the review screen. */
+const val WEEKLY_REVIEW = "WEEKLY_REVIEW"
+
 /** An item a reminder notification asked to open. */
 data class OpenItemRequest(
     val itemType: String,
@@ -29,6 +32,7 @@ data class OpenItemRequest(
                 "BOOKMARK" -> CockpitDestination.Bookmarks
                 "JOURNAL_ENTRY" -> CockpitDestination.Journal
                 "HABIT" -> CockpitDestination.Habits
+                WEEKLY_REVIEW -> CockpitDestination.Review
                 else -> CockpitDestination.start
             }
 

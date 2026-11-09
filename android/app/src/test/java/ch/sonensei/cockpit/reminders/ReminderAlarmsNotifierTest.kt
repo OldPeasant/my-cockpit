@@ -13,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.ui.navigation.CockpitDestination
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -152,6 +153,18 @@ class ReminderAlarmsNotifierTest {
         assertEquals(Notification.VISIBILITY_PRIVATE, shown.visibility)
         assertEquals(Notification.CATEGORY_REMINDER, shown.category)
         assertEquals(NOW.plusSeconds(1800).toEpochMilli(), shown.`when`)
+    }
+
+    @Test
+    fun `a weekly review reminder without a title is called Weekly review and opens the review`() {
+        ReminderNotifier(context).show(scheduled(1, title = null).copy(itemType = WEEKLY_REVIEW))
+
+        val shown = shadowOf(notifications).allNotifications.single()
+        assertEquals("Weekly review", shadowOf(shown).contentTitle)
+        val intent = shadowOf(shown.contentIntent).savedIntent
+        assertTrue(ReminderOpenRequests.offer(intent))
+        assertEquals(CockpitDestination.Review, ReminderOpenRequests.requests.value!!.destination)
+        ReminderOpenRequests.take(ReminderOpenRequests.requests.value!!)
     }
 
     @Test
