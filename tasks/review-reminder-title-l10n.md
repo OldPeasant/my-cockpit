@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [review-reminder]
 touches: [web/src/app/core/notifications,android/app/src/main/java/ch/sonensei/cockpit/reminders,android/app/src/test/java/ch/sonensei/cockpit/reminders]
 prio: 2
-lease_until: 2026-11-09T09:07:19Z
+lease_until: 2026-11-09T09:09:13Z
 ---
 ## Goal
 Finding CR-1 of review-reminder (reviews/review-reminder/review.md): the server's WeeklyReviewItemResolver always
