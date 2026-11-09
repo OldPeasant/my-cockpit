@@ -21,7 +21,8 @@ but neither client calls it.
   - verified (2026-11-09 04:10+0100 by felix/agent-1): Integrated via done subtask cal-invitation-respond-android (EventEditor respond actions, EventEditRepository). cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.edit.*' -> pass, EventEditorViewModelRespondTest 15/15, 0 failures
 - [x] Invitation mails in the mail read view (if the server marks them) offer the same actions on web and Android
   - verified (2026-11-09 04:10+0100 by felix/agent-1): grep -i 'text/calendar|invitation' api/openapi.yaml -> no mail-side invitation marker (only calendar respond/invitations endpoints); per criterion 'if the server marks them' and recorded assumption, no mail-view actions apply (N/A)
-- [ ] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
+- [x] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
+  - verified (2026-11-09 04:10+0100 by felix/agent-1): web: calendar.respond.* in web/src/locale/messages.xlf + 6 in messages.de.xlf; cd web && npx ng test --watch=false --include src/locale -> 10 passed. android: calendar_edit_respond_* in res/values{,-de}/strings_calendar_edit.xml (Zusagen/Vielleicht/Absagen), CalendarEditStringsTest passed in calendar.edit run
 - [ ] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
 
 ## Notes
