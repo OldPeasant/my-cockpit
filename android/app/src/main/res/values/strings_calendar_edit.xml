@@ -131,4 +131,11 @@
     <string name="calendar_edit_link_type_journal">Journal entry</string>
     <string name="calendar_edit_link_type_habit">Habit</string>
     <string name="calendar_edit_link_type_other">Item</string>
+    <string name="calendar_edit_respond_title">Your answer</string>
+    <string name="calendar_edit_respond_current">You answered: %1$s</string>
+    <string name="calendar_edit_respond_none">You have not answered yet.</string>
+    <string name="calendar_edit_respond_accept">Accept</string>
+    <string name="calendar_edit_respond_maybe">Maybe</string>
+    <string name="calendar_edit_respond_decline">Decline</string>
+    <string name="calendar_edit_respond_failed">The answer could not be sent. Reload the event and try again, or check that you are invited and not the organizer.</string>
 </resources>

@@ -131,4 +131,11 @@
     <string name="calendar_edit_link_type_journal">Journaleintrag</string>
     <string name="calendar_edit_link_type_habit">Gewohnheit</string>
     <string name="calendar_edit_link_type_other">Element</string>
+    <string name="calendar_edit_respond_title">Deine Antwort</string>
+    <string name="calendar_edit_respond_current">Du hast geantwortet: %1$s</string>
+    <string name="calendar_edit_respond_none">Du hast noch nicht geantwortet.</string>
+    <string name="calendar_edit_respond_accept">Zusagen</string>
+    <string name="calendar_edit_respond_maybe">Vielleicht</string>
+    <string name="calendar_edit_respond_decline">Absagen</string>
+    <string name="calendar_edit_respond_failed">Die Antwort konnte nicht gesendet werden. Lade den Termin neu und versuche es nochmals, oder prüfe, ob du eingeladen bist und ihn nicht organisierst.</string>
 </resources>

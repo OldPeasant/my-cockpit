@@ -56,25 +56,4 @@ fun TodayWithEditor(
     )
 }
 
-private fun editorCallbacks(editor: EventEditorViewModel) =
-    EventEditorCallbacks(
-        update = editor::update,
-        save = editor::save,
-        close = editor::close,
-        chooseScope = editor::chooseScope,
-        dismissScope = editor::dismissScope,
-        reload = editor::reload,
-        delete = editor::delete,
-        confirmDelete = editor::confirmDelete,
-        dismissDelete = editor::dismissDelete,
-        setGuestQuery = editor::setGuestQuery,
-        addGuest = editor::addGuest,
-        removeGuest = editor::removeGuest,
-        invite = editor::invite,
-        updateInvitation = editor::updateInvitation,
-        sendInvitation = editor::sendInvitation,
-        dismissInvitation = editor::dismissInvitation,
-        retryAccounts = editor::loadAccounts,
-        createLinked = editor::createLinked,
-        reloadLinks = editor::loadLinks,
-    )
+private fun editorCallbacks(editor: EventEditorViewModel) = EventEditorCallbacks.of(editor)

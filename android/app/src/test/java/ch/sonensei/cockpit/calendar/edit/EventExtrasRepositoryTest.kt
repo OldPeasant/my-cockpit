@@ -144,6 +144,44 @@ class EventExtrasRepositoryTest {
         }
 
     @Test
+    fun `only writable Google and Microsoft calendars answer invitations`() =
+        runBlocking {
+            server.enqueue(
+                json(
+                    """{"items":[${calendarJson(90, "LOCAL")},${calendarJson(91, "GOOGLE")},
+                    |${calendarJson(92, "GOOGLE", readOnly = true)},${calendarJson(93, "MICROSOFT")},
+                    |${calendarJson(94, "MICROSOFT", readOnly = true)},${calendarJson(95, "CALDAV")},
+                    |${calendarJson(96, "ICS_FEED", readOnly = true)}]}
+                    """.trimMargin(),
+                ),
+            )
+            assertEquals(CalendarResult.Ok(setOf(id(91), id(93))), repository.invitationCalendars())
+            assertEquals("/api/v1/calendar/calendars", server.takeRequest().url.encodedPath)
+
+            server.enqueue(status(503))
+            assertEquals(CalendarResult.Offline, repository.invitationCalendars())
+        }
+
+    @Test
+    fun `the own addresses are the mail account addresses in lower case, once each`() =
+        runBlocking {
+            server.enqueue(
+                json(
+                    """{"items":[${accountJson(70, "Work", "Ada.Example@Example.ORG")},
+                    |${accountJson(71, "Again", "ada.example@example.org")},${accountJson(72, "Private", "ada@example.net")}]}
+                    """.trimMargin(),
+                ),
+            )
+            assertEquals(CalendarResult.Ok(setOf("ada.example@example.org", "ada@example.net")), repository.ownAddresses())
+            assertEquals("/api/v1/mail/accounts", server.takeRequest().url.encodedPath)
+
+            server.enqueue(json("""{"items":[]}"""))
+            assertEquals(CalendarResult.Ok(emptySet<String>()), repository.ownAddresses())
+            server.enqueue(status(403))
+            assertEquals(CalendarResult.Failed(403), repository.ownAddresses())
+        }
+
+    @Test
     fun `refusals and missing answers are reported like the other calendar calls`() =
         runBlocking {
             server.enqueue(status(403))

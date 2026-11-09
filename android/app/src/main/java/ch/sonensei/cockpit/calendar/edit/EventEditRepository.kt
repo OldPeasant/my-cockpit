@@ -6,6 +6,7 @@ import ch.sonensei.cockpit.calendar.agenda.toOccurrence
 import ch.sonensei.cockpit.core.network.generated.apis.CalendarsApi
 import ch.sonensei.cockpit.core.network.generated.models.AttendeeDto
 import ch.sonensei.cockpit.core.network.generated.models.EventResponse
+import ch.sonensei.cockpit.core.network.generated.models.RespondToInvitationRequest
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -171,6 +172,21 @@ class EventEditRepository
                         ifMatch = "\"$version\"",
                     )
                 if (!response.isSuccessful) throw EventHttpFailure(response.code())
+            }
+
+        /**
+         * Answers the invitation to the event [eventId] (a series for all its occurrences, an override for its own) with
+         * [response] (ACCEPTED, TENTATIVE or DECLINED) and [version] as `If-Match`; the result is the event as the
+         * provider has it now.
+         */
+        suspend fun respond(
+            eventId: UUID,
+            version: Long,
+            response: AttendeeStatus,
+        ): CalendarResult<EventDetails> =
+            call {
+                val answer = RespondToInvitationRequest.Response.entries.first { it.name == response.name }
+                body(api.respondToInvitation(eventId, RespondToInvitationRequest(answer), "\"$version\"")).toDetails()
             }
 
         private suspend fun <T> call(block: suspend () -> T): CalendarResult<T> = calendarCall(block)

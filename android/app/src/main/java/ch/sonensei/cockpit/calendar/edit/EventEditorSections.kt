@@ -16,6 +16,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -40,6 +41,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -273,6 +276,46 @@ private fun statusLabel(status: AttendeeStatus): String =
             AttendeeStatus.NEEDS_ACTION -> R.string.calendar_edit_guest_pending
         },
     )
+
+/**
+ * The user's answer to the invitation (SPEC.md §6.2): Accept / Maybe / Decline, the current one selected. Sending one
+ * answers at the provider, which tells the organizer.
+ */
+@Composable
+internal fun ResponseSection(
+    state: EventEditorUiState,
+    respond: (AttendeeStatus) -> Unit,
+) {
+    val current = state.ownStatus
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.testTag(EventEditorTags.RESPONSE)) {
+        SectionTitle(stringResource(R.string.calendar_edit_respond_title))
+        Note(
+            if (current == null || current == AttendeeStatus.NEEDS_ACTION || current == AttendeeStatus.DELEGATED) {
+                stringResource(R.string.calendar_edit_respond_none)
+            } else {
+                stringResource(R.string.calendar_edit_respond_current, statusLabel(current))
+            },
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            INVITATION_RESPONSES.forEach { answer ->
+                val label = stringResource(responseLabel(answer))
+                val modifier = Modifier.testTag(EventEditorTags.respond(answer)).semantics { selected = answer == current }
+                if (answer == current) {
+                    Button(onClick = { respond(answer) }, enabled = state.canRespond, modifier = modifier) { Text(label) }
+                } else {
+                    OutlinedButton(onClick = { respond(answer) }, enabled = state.canRespond, modifier = modifier) { Text(label) }
+                }
+            }
+        }
+    }
+}
+
+private fun responseLabel(answer: AttendeeStatus): Int =
+    when (answer) {
+        AttendeeStatus.ACCEPTED -> R.string.calendar_edit_respond_accept
+        AttendeeStatus.DECLINED -> R.string.calendar_edit_respond_decline
+        else -> R.string.calendar_edit_respond_maybe
+    }
 
 /**
  * The guests with their answers. In a local calendar they are added (typed, or picked from matching contacts) and

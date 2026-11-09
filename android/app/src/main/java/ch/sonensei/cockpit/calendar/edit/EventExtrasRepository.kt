@@ -101,6 +101,19 @@ class EventExtrasRepository
                     .toSet()
             }
 
+        /**
+         * The ids of the writable Google and Microsoft calendars: their events' invitations are answered at the provider
+         * (SPEC.md §6.2).
+         */
+        suspend fun invitationCalendars(): CalendarResult<Set<UUID>> =
+            calendarCall {
+                body(calendars.listCalendars())
+                    .items
+                    .filter { it.sourceType in INVITATION_SOURCES && !it.readOnly }
+                    .map { it.id }
+                    .toSet()
+            }
+
         /** Contacts and correspondents matching [query] that have an address. */
         suspend fun suggestions(query: String): CalendarResult<List<Attendee>> =
             calendarCall {
@@ -111,6 +124,10 @@ class EventExtrasRepository
 
         suspend fun mailAccounts(): CalendarResult<List<MailAccount>> =
             calendarCall { body(mailAccounts.listMailAccounts()).items.map { MailAccount(it.id, it.displayName, it.emailAddress) } }
+
+        /** The user's own addresses (of the mail accounts), lower case: their attendee carries the user's answer. */
+        suspend fun ownAddresses(): CalendarResult<Set<String>> =
+            calendarCall { body(mailAccounts.listMailAccounts()).items.map { it.emailAddress.lowercase() }.toSet() }
 
         /**
          * Sends [method] for [eventId] over [accountId] to [recipients] (`null`: every guest but the organizer); the
@@ -180,5 +197,6 @@ class EventExtrasRepository
 
         private companion object {
             const val SUGGESTIONS = 8
+            val INVITATION_SOURCES = setOf(CalendarResponse.SourceType.GOOGLE, CalendarResponse.SourceType.MICROSOFT)
         }
     }

@@ -45,6 +45,12 @@ enum class EditorMessage {
     /** The event changed elsewhere (or at its provider) since it was opened: reload before changing it. */
     CONFLICT,
 
+    /**
+     * An answer to an invitation was refused by the server (not invited, organizer, changed at the provider,
+     * not synced yet, or read-only); a reload and another try may help.
+     */
+    RESPOND_FAILED,
+
     /** The edited occurrence no longer exists (its series changed or it was removed elsewhere): no reload can show it. */
     GONE,
 }
@@ -88,6 +94,12 @@ data class EventEditorUiState(
     val saveBeforeInviting: Boolean = false,
     /** The linked items of an existing event; `null` for a new one. */
     val links: LinksUiState? = null,
+    /** The calendars whose invitations are answered at their provider (Google, Microsoft); `null` while not known. */
+    val invitationCalendars: Set<UUID>? = null,
+    /** The user's own addresses (of the mail accounts), lower case: their attendee carries the user's answer. */
+    val ownAddresses: Set<String> = emptySet(),
+    /** The answer to the invitation being sent, if one is. */
+    val responding: AttendeeStatus? = null,
 ) {
     /** The problems shown next to the fields. */
     val errors: Set<FormError> get() = if (showErrors) form?.errors.orEmpty() else emptySet()
@@ -114,6 +126,7 @@ data class EventEditorUiState(
             form != null &&
                 !loading &&
                 !saving &&
+                responding == null &&
                 !readOnly &&
                 invitation == null &&
                 message != EditorMessage.CONFLICT &&
@@ -131,7 +144,36 @@ data class EventEditorUiState(
      * after a conflict (reload first, its version is stale) or once it is gone.
      */
     val canDelete: Boolean get() = !creating && canSave
+
+    /**
+     * The invitation to an existing event with guests in a writable Google or Microsoft calendar can be answered
+     * (SPEC.md §6.2); the server refuses when the user is not invited or organizes it.
+     */
+    val respondable: Boolean
+        get() =
+            !creating &&
+                form != null &&
+                form.attendees.isNotEmpty() &&
+                invitationCalendars?.contains(form.calendarId) == true
+
+    /** An answer can be sent now: not while a load, save or another answer runs, nor after a conflict. */
+    val canRespond: Boolean
+        get() =
+            respondable &&
+                !loading &&
+                !saving &&
+                responding == null &&
+                invitation == null &&
+                message != EditorMessage.CONFLICT &&
+                message != EditorMessage.GONE
+
+    /** The user's current answer: the status of the guest with one of [ownAddresses]; `null` when none matches. */
+    val ownStatus: AttendeeStatus?
+        get() = form?.attendees?.firstOrNull { it.email.lowercase() in ownAddresses }?.status
 }
+
+/** The answers an invitation can get. */
+val INVITATION_RESPONSES = listOf(AttendeeStatus.ACCEPTED, AttendeeStatus.TENTATIVE, AttendeeStatus.DECLINED)
 
 /**
  * Creates a new event or edits an occurrence (SPEC.md §6.3). Only changed fields are sent. A change of a repeating
@@ -178,6 +220,7 @@ class EventEditorViewModel internal constructor(
 
     /** Load the local calendars, the links, suggestions, or send invitations: beside [job]. */
     private var sourcesJob: Job? = null
+    private var respondJob: Job? = null
     private var linksJob: Job? = null
 
     /** The pending links load: a newer load cancels it, so an older answer never overrides a newer one. */
@@ -213,8 +256,15 @@ class EventEditorViewModel internal constructor(
         load()
     }
 
-    /** Loads the edited event again, e.g. after a conflict; unsaved changes are dropped. */
-    fun reload() = load()
+    /**
+     * Loads the edited event again, e.g. after a conflict; unsaved changes are dropped. The invitation calendars and
+     * own addresses are fetched again too, so a retry after a failed first load shows the answer section.
+     */
+    fun reload() {
+        if (occurrence == null) return
+        loadSources()
+        load()
+    }
 
     fun update(change: (EventForm) -> EventForm) {
         if (!state.value.canSave) return
@@ -303,7 +353,7 @@ class EventEditorViewModel internal constructor(
 
     private fun reset() {
         job?.cancel()
-        listOf(sourcesJob, linksJob, loadLinksJob, suggestJob, inviteJob).forEach { it?.cancel() }
+        listOf(sourcesJob, respondJob, linksJob, loadLinksJob, suggestJob, inviteJob).forEach { it?.cancel() }
         occurrence = null
         initial = null
         newId = null
@@ -399,9 +449,11 @@ class EventEditorViewModel internal constructor(
     private fun load() {
         val shown = occurrence ?: return
         job?.cancel()
+        respondJob?.cancel()
         state.update {
             it.copy(
                 loading = true,
+                responding = null,
                 form = null,
                 message = null,
                 showErrors = false,
@@ -583,6 +635,49 @@ class EventEditorViewModel internal constructor(
         if (prompt.afterSave) reset() else state.update { it.copy(invitation = null) }
     }
 
+    // --- Answering invitations
+
+    /**
+     * Answers the invitation to the edited event with [answer] (one of [INVITATION_RESPONSES]) at the provider. On
+     * success the guests show the new status and the event's new version is kept (unsaved changes of the form stay).
+     */
+    fun respond(answer: AttendeeStatus) {
+        val current = state.value
+        val edited = occurrence ?: return
+        if (!current.canRespond || answer !in INVITATION_RESPONSES) return
+        state.update { it.copy(responding = answer, message = null) }
+        respondJob =
+            viewModelScope.launch {
+                when (val result = repository.respond(edited.eventId, version, answer)) {
+                    is CalendarResult.Ok -> {
+                        val event = result.value
+                        version = event.version
+                        initial = initial?.copy(attendees = event.attendees)
+                        state.update {
+                            it.copy(
+                                responding = null,
+                                form = it.form?.copy(attendees = event.attendees),
+                                savedAttendees = event.attendees.map { a -> a.email },
+                            )
+                        }
+                    }
+                    CalendarResult.Offline -> state.update { it.copy(responding = null, message = EditorMessage.OFFLINE) }
+                    is CalendarResult.Failed ->
+                        state.update {
+                            it.copy(
+                                responding = null,
+                                message =
+                                    when (result.status) {
+                                        STALE -> EditorMessage.CONFLICT
+                                        NOT_FOUND -> EditorMessage.GONE
+                                        else -> EditorMessage.RESPOND_FAILED
+                                    },
+                            )
+                        }
+                }
+            }
+    }
+
     // --- Linked items
 
     /** Creates an Inbox task or a note titled with the event and its date, linked to the event. */
@@ -635,8 +730,19 @@ class EventEditorViewModel internal constructor(
         sourcesJob?.cancel()
         sourcesJob =
             viewModelScope.launch {
-                val result = source.localCalendars()
-                if (result is CalendarResult.Ok) state.update { it.copy(localCalendars = result.value) }
+                launch {
+                    val result = source.localCalendars()
+                    if (result is CalendarResult.Ok) state.update { it.copy(localCalendars = result.value) }
+                }
+                if (state.value.creating) return@launch
+                launch {
+                    val result = source.invitationCalendars()
+                    if (result is CalendarResult.Ok) state.update { it.copy(invitationCalendars = result.value) }
+                }
+                launch {
+                    val result = source.ownAddresses()
+                    if (result is CalendarResult.Ok) state.update { it.copy(ownAddresses = result.value) }
+                }
             }
     }
 
@@ -646,6 +752,12 @@ class EventEditorViewModel internal constructor(
     private companion object {
         /** Changed concurrently or at the provider (409), or a stale `If-Match` (412). */
         val CONFLICTS = setOf(409, 412)
+
+        /**
+         * A stale `If-Match` (412). A 409 to an answer is a refusal instead (not invited, organizer, changed at
+         * the provider, not synced yet, or read-only); a reload and another try may help.
+         */
+        const val STALE = 412
 
         /** The event or the occurrence no longer exists (or the event is in the Trash). */
         const val NOT_FOUND = 404
