@@ -16124,6 +16124,74 @@
           <context context-type="linenumber">341</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="notes.editor.delete" datatype="html">
+        <source> Delete </source>
+        <target state="translated">Löschen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.html</context>
+          <context context-type="linenumber">78,80</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="notes.editor.deleteFailed" datatype="html">
+        <source>The note could not be moved to the Trash: <x id="message" equiv-text="message(error)"/></source>
+        <target state="translated">Die Notiz konnte nicht in den Papierkorb verschoben werden: <x id="message" equiv-text="message(error)"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.ts</context>
+          <context context-type="linenumber">276</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="notes.editor.addTag" datatype="html">
+        <source>Add a tag</source>
+        <target state="translated">Tag hinzufügen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/editor/note-tags-input.ts</context>
+          <context context-type="linenumber">47,48</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/editor/note-tags-input.ts</context>
+          <context context-type="linenumber">49,51</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="notes.editor.removeTag" datatype="html">
+        <source>Remove tag <x id="tag" equiv-text="tag"/></source>
+        <target state="translated">Tag <x id="tag" equiv-text="tag"/> entfernen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/editor/note-tags-input.ts</context>
+          <context context-type="linenumber">141</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="notes.deleteAria" datatype="html">
+        <source>Move <x id="title" equiv-text="this.note().displayTitle"/> to the Trash</source>
+        <target state="translated"><x id="title" equiv-text="this.note().displayTitle"/> in den Papierkorb verschieben</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/list/note-card.ts</context>
+          <context context-type="linenumber">112</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="notes.trashed" datatype="html">
+        <source>Moved “<x id="title" equiv-text="title"/>” to the Trash</source>
+        <target state="translated">„<x id="title" equiv-text="title"/>“ in den Papierkorb verschoben</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/list/note-trash.ts</context>
+          <context context-type="linenumber">32</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="notes.undo" datatype="html">
+        <source>Undo</source>
+        <target state="translated">Rückgängig</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/list/note-trash.ts</context>
+          <context context-type="linenumber">33</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="notes.restoreFailed" datatype="html">
+        <source>“<x id="title" equiv-text="title"/>” could not be restored: <x id="error" equiv-text="reason"/></source>
+        <target state="translated">„<x id="title" equiv-text="title"/>“ konnte nicht wiederhergestellt werden: <x id="error" equiv-text="reason"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/list/note-trash.ts</context>
+          <context context-type="linenumber">53</context>
+        </context-group>
+      </trans-unit>
     </body>
   </file>
 </xliff>

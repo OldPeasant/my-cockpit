@@ -700,7 +700,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">243,244</context>
+          <context context-type="linenumber">244,245</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.markRead" datatype="html">
@@ -711,7 +711,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">245,246</context>
+          <context context-type="linenumber">246,247</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.reader.noSnapshot" datatype="html">
@@ -780,7 +780,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
-          <context context-type="linenumber">517</context>
+          <context context-type="linenumber">574</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.views" datatype="html">
@@ -956,154 +956,154 @@
         <source> Save </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">208,209</context>
+          <context context-type="linenumber">209,210</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.edit.cancel" datatype="html">
         <source> Cancel </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">217,218</context>
+          <context context-type="linenumber">218,219</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.openSnapshot" datatype="html">
         <source>Read here</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">231,233</context>
+          <context context-type="linenumber">232,234</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.unqueue" datatype="html">
         <source>Remove from Read later</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">256,257</context>
+          <context context-type="linenumber">257,258</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.queue" datatype="html">
         <source>Read later</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">258,259</context>
+          <context context-type="linenumber">259,260</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.edit" datatype="html">
         <source> Edit </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">269,270</context>
+          <context context-type="linenumber">270,271</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.toInbox" datatype="html">
         <source> To Inbox task </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">279,280</context>
+          <context context-type="linenumber">280,281</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.delete" datatype="html">
         <source> Delete </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">289,290</context>
-        </context-group>
-      </trans-unit>
-      <trans-unit id="bookmarks.changeFailed" datatype="html">
-        <source> “<x id="INTERPOLATION" equiv-text="{{ b.displayTitle }}"/>” could not be changed: <x id="INTERPOLATION_1" equiv-text="{{ error }}"/> </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">294,296</context>
+          <context context-type="linenumber">290,291</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.taskFailed" datatype="html">
         <source> No Inbox task could be created for “<x id="INTERPOLATION" equiv-text="{{ b.displayTitle }}"/>”: <x id="INTERPOLATION_1" equiv-text="{{ error }}"/> </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">295,297</context>
+          <context context-type="linenumber">296,297</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.changeFailed" datatype="html">
+        <source> “<x id="INTERPOLATION" equiv-text="{{ b.displayTitle }}"/>” could not be changed: <x id="INTERPOLATION_1" equiv-text="{{ error }}"/> </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">300,301</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.more" datatype="html">
         <source> Show more </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">309,311</context>
+          <context context-type="linenumber">318,320</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.loading" datatype="html">
         <source>Loading bookmarks…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
-          <context context-type="linenumber">314,317</context>
+          <context context-type="linenumber">322,325</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.add.invalid" datatype="html">
         <source>Enter a web address, such as https://example.org/article.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
-          <context context-type="linenumber">197</context>
+          <context context-type="linenumber">202</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.added.queue" datatype="html">
         <source>Saved to Read later</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
-          <context context-type="linenumber">220</context>
+          <context context-type="linenumber">225</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.added" datatype="html">
         <source>Bookmark saved</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
-          <context context-type="linenumber">221</context>
+          <context context-type="linenumber">226</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.markedRead" datatype="html">
         <source>Marked “<x id="title" equiv-text="title"/>” as read</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
-          <context context-type="linenumber">239</context>
+          <context context-type="linenumber">244</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.trashed" datatype="html">
         <source>Moved “<x id="title" equiv-text="title"/>” to the Trash</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
-          <context context-type="linenumber">265</context>
+          <context context-type="linenumber">270</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.undo" datatype="html">
         <source>Undo</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
-          <context context-type="linenumber">266</context>
-        </context-group>
-      </trans-unit>
-      <trans-unit id="bookmarks.edit.conflict" datatype="html">
-        <source>It was changed elsewhere in the meantime. Save again to replace it with your values.</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
-          <context context-type="linenumber">342</context>
+          <context context-type="linenumber">271</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.restoreFailed" datatype="html">
         <source>“<x id="title" equiv-text="title"/>” could not be restored: <x id="error" equiv-text="message(error)"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
-          <context context-type="linenumber">284</context>
+          <context context-type="linenumber">289</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="bookmarks.edit.conflict" datatype="html">
+        <source>It was changed elsewhere in the meantime. Save again to replace it with your values.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
+          <context context-type="linenumber">346</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.taskCreated" datatype="html">
         <source>Added to Inbox: <x id="title" equiv-text="title"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
-          <context context-type="linenumber">340</context>
+          <context context-type="linenumber">369</context>
         </context-group>
       </trans-unit>
       <trans-unit id="bookmarks.taskCreatedUnlinked" datatype="html">
         <source>Added to Inbox: <x id="title" equiv-text="title"/> (the link to the bookmark could not be made)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.ts</context>
-          <context context-type="linenumber">341</context>
+          <context context-type="linenumber">370</context>
         </context-group>
       </trans-unit>
       <trans-unit id="nav.calendar" datatype="html">
@@ -9418,7 +9418,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.html</context>
-          <context context-type="linenumber">105,106</context>
+          <context context-type="linenumber">115,116</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/list/notes-page.html</context>
@@ -9496,42 +9496,49 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.html</context>
-          <context context-type="linenumber">142,143</context>
+          <context context-type="linenumber">159,160</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.editor.revisions" datatype="html">
         <source> Earlier versions </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.html</context>
-          <context context-type="linenumber">68,72</context>
+          <context context-type="linenumber">68,70</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="notes.editor.delete" datatype="html">
+        <source> Delete </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.html</context>
+          <context context-type="linenumber">78,80</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.editor.conflict" datatype="html">
         <source> This note was changed somewhere else since you opened it. Your edits are not saved yet. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.html</context>
-          <context context-type="linenumber">75,77</context>
+          <context context-type="linenumber">85,87</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.editor.useTheirs" datatype="html">
         <source> Discard my edits </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.html</context>
-          <context context-type="linenumber">85,87</context>
+          <context context-type="linenumber">95,97</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.editor.keepMine" datatype="html">
         <source> Save my version </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.html</context>
-          <context context-type="linenumber">94,96</context>
+          <context context-type="linenumber">104,106</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.new.title" datatype="html">
         <source>Title</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.html</context>
-          <context context-type="linenumber">122,123</context>
+          <context context-type="linenumber">132,133</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/list/notes-page.html</context>
@@ -9546,7 +9553,7 @@
         <source>Text</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.html</context>
-          <context context-type="linenumber">131</context>
+          <context context-type="linenumber">148</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/list/notes-page.html</context>
@@ -9557,28 +9564,28 @@
         <source>Write in Markdown. Paste or drop images, type [[ to link an item.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.html</context>
-          <context context-type="linenumber">132,133</context>
+          <context context-type="linenumber">149,150</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.editor.emptyPreview" datatype="html">
         <source>Nothing to preview yet.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.html</context>
-          <context context-type="linenumber">150,152</context>
+          <context context-type="linenumber">167,169</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.editor.loading" datatype="html">
         <source>Loading note…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.html</context>
-          <context context-type="linenumber">162,164</context>
+          <context context-type="linenumber">179,181</context>
         </context-group>
       </trans-unit>
       <trans-unit id="nav.notes" datatype="html">
         <source>Notes</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.ts</context>
-          <context context-type="linenumber">58</context>
+          <context context-type="linenumber">72</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/list/notes-page.html</context>
@@ -9593,33 +9600,44 @@
           <context context-type="linenumber">51</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="notes.editor.deleteFailed" datatype="html">
+        <source>The note could not be moved to the Trash: <x id="message" equiv-text="message(error)"/></source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.ts</context>
+          <context context-type="linenumber">276</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="notes.editor.uploadFailed" datatype="html">
         <source>The image could not be uploaded: <x id="message" equiv-text="message(error)"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.ts</context>
-          <context context-type="linenumber">237</context>
+          <context context-type="linenumber">293</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.editor.restoreFailed" datatype="html">
         <source>The version could not be restored: <x id="message" equiv-text="message(error)"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.ts</context>
-          <context context-type="linenumber">318</context>
+          <context context-type="linenumber">374</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.error" datatype="html">
         <source>Something went wrong.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-editor-page.ts</context>
-          <context context-type="linenumber">455</context>
+          <context context-type="linenumber">533</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/editor/note-revisions-dialog.ts</context>
           <context context-type="linenumber">106</context>
         </context-group>
         <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/list/note-trash.ts</context>
+          <context context-type="linenumber">51</context>
+        </context-group>
+        <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/list/notes-page.ts</context>
-          <context context-type="linenumber">255</context>
+          <context context-type="linenumber">274</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.revisions.title" datatype="html">
@@ -9688,36 +9706,86 @@
       <trans-unit id="notes.noteTags" datatype="html">
         <source>Tags</source>
         <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/editor/note-tags-input.ts</context>
+          <context context-type="linenumber">16</context>
+        </context-group>
+        <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/list/note-card.ts</context>
           <context context-type="linenumber">27</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="notes.editor.addTag" datatype="html">
+        <source>Add a tag</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/editor/note-tags-input.ts</context>
+          <context context-type="linenumber">47,48</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/editor/note-tags-input.ts</context>
+          <context context-type="linenumber">49,51</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="notes.editor.removeTag" datatype="html">
+        <source>Remove tag <x id="tag" equiv-text="tag"/></source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/editor/note-tags-input.ts</context>
+          <context context-type="linenumber">141</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.unpinAria" datatype="html">
         <source>Unpin <x id="title" equiv-text="title"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/list/note-card.ts</context>
-          <context context-type="linenumber">86</context>
+          <context context-type="linenumber">100</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.pinAria" datatype="html">
         <source>Pin <x id="title" equiv-text="title"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/list/note-card.ts</context>
-          <context context-type="linenumber">87</context>
+          <context context-type="linenumber">101</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.unarchiveAria" datatype="html">
         <source>Unarchive <x id="title" equiv-text="title"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/list/note-card.ts</context>
-          <context context-type="linenumber">93</context>
+          <context context-type="linenumber">107</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.archiveAria" datatype="html">
         <source>Archive <x id="title" equiv-text="title"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/list/note-card.ts</context>
-          <context context-type="linenumber">94</context>
+          <context context-type="linenumber">108</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="notes.deleteAria" datatype="html">
+        <source>Move <x id="title" equiv-text="this.note().displayTitle"/> to the Trash</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/list/note-card.ts</context>
+          <context context-type="linenumber">112</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="notes.trashed" datatype="html">
+        <source>Moved “<x id="title" equiv-text="title"/>” to the Trash</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/list/note-trash.ts</context>
+          <context context-type="linenumber">32</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="notes.undo" datatype="html">
+        <source>Undo</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/list/note-trash.ts</context>
+          <context context-type="linenumber">33</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="notes.restoreFailed" datatype="html">
+        <source>“<x id="title" equiv-text="title"/>” could not be restored: <x id="error" equiv-text="reason"/></source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/notes/list/note-trash.ts</context>
+          <context context-type="linenumber">53</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.search" datatype="html">
@@ -9896,21 +9964,21 @@
         <source>Note saved</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/list/notes-page.ts</context>
-          <context context-type="linenumber">163</context>
+          <context context-type="linenumber">166</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.archived" datatype="html">
         <source>Archived “<x id="title" equiv-text="title"/>”</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/list/notes-page.ts</context>
-          <context context-type="linenumber">187</context>
+          <context context-type="linenumber">190</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.unarchived" datatype="html">
         <source>Moved “<x id="title" equiv-text="title"/>” back to Notes</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/notes/list/notes-page.ts</context>
-          <context context-type="linenumber">188</context>
+          <context context-type="linenumber">191</context>
         </context-group>
       </trans-unit>
       <trans-unit id="notes.editor.title" datatype="html">
