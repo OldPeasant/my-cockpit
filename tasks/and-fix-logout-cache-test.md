@@ -20,3 +20,4 @@ every task's `done`.
 - [ ] `AppStartRoutingTest` passes; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
+- ASSUMPTION (2026-11-09 02:18+0100 by dell26/agent-2): Could not reproduce on main 86d52bead: AppStartRoutingTest passes (0.5s for the settings-logout test) 3x in isolation and in a full ktlintCheck testDebugUnitTest lintDebug --rerun-tasks; AuthModule.cacheDirectory deletes all of context.cacheDir incl. files/ preview dir, so the cleanup is not outdated. Failure is likely timing: a cache earlier in the sequential clearCaches loop (Room clearAllTables via GtdRefresh writeLock, push registrar, WorkManager) blocked >5s on a loaded host.
