@@ -12,7 +12,8 @@ Android bookmarks have search and editing; web has neither (SPEC.md §8.4 lists 
 bookmark → Inbox task.
 
 ## Acceptance criteria
-- [ ] Search field (title, URL, notes, tags)
+- [x] Search field (title, URL, notes, tags)
+  - verified (2026-11-09 01:37+0100 by dell26/agent-1): npx ng test --watch=false --include='src/app/features/bookmarks/**/*.spec.ts' in web/ at e52450cb4 -> 132 passed; search specs cover title, URL, notes (description), #tag, multi-word, no-match message, Escape clears, Show more while searching
 - [ ] Edit title, tags and notes
 - [ ] Undo after delete; "To Inbox task" action
 - [ ] New UI strings are in `web/src/locale` (English + German)
