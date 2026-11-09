@@ -29,6 +29,7 @@ links panel (web: `note-editor-page.html`).
   - verified (2026-11-09 08:53+0100 by dell26/agent-1): diff of sorted string names in res/values/strings_notes.xml vs res/values-de/strings_notes.xml -> identical (74 keys)
 - [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
   - verified (2026-11-09 08:53+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck lintDebug -> pass; ./gradlew testDebugUnitTest -> 5367 tests, 0 failures (test-writer run); sh scripts/check.sh -> all checks passed
+  - verified (2026-11-09 08:53+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck lintDebug -> pass; ./gradlew testDebugUnitTest -> 5367 tests, 0 failures (test-writer run); sh scripts/check.sh -> all checks passed
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
