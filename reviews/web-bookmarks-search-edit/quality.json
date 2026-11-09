@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "task": "web-bookmarks-search-edit",
+  "reviewed_revision": "e52450cb43c318611a699b3e660e6e43faefd4d4",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-bookmarks-search-edit/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-bookmarks-search-edit/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-bookmarks-search-edit/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "no unit tests for the new behavior; test-writer added tests for search, edit, undo and To Inbox (132 bookmark tests now, see tests.md); the second review confirms it resolved"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "editor draft now keeps the version it opened with, so a stale save gets a conflict instead of overwriting newer data"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "notes textarea has maxlength 2000"},
+    {"id": "R1-CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "bookmarks imports uuidv7 from features/capture; moving it to shared/ is outside this task's touches; recorded as a task assumption"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "Show more is rendered whenever more pages exist, also when the search matches nothing"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "a failed To Inbox task has its own message bookmarks.taskFailed (English and German)"},
+    {"id": "R3-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "a leftover duplicate doc comment above rowError at bookmarks-page.ts:73; cosmetic, left to avoid another review round"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "a 404 from creating the Inbox task would drop the bookmark row (shared 404 handling); the create endpoint does not return 404, so this is theoretical"}
+  ],
+  "validation": [
+    {"command": "cd web && npx ng test --watch=false --include='src/app/features/bookmarks/**/*.spec.ts'", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
