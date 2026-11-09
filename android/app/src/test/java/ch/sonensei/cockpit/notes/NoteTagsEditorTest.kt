@@ -178,6 +178,30 @@ class NoteTagsEditorTest {
     }
 
     @Test
+    fun `commas with nothing between them add no tag`() {
+        show(emptyList())
+
+        composeRule.onNodeWithTag(NoteTagsTags.INPUT).performTextInput(" ,,")
+
+        assertEquals(emptyList<String>(), added)
+        assertInput("")
+        assertEquals(0, chips())
+    }
+
+    @Test
+    fun `leaving the input keeps a typed tag that is not added`() {
+        accepts = { false }
+        show(emptyList())
+
+        composeRule.onNodeWithTag(NoteTagsTags.INPUT).performTextInput("travel")
+        composeRule.runOnIdle { focus.clearFocus() }
+
+        composeRule.runOnIdle { assertEquals(listOf("travel"), added) }
+        assertInput("travel")
+        assertEquals(0, chips())
+    }
+
+    @Test
     fun `suggestions show while the input is used, filtered by what is typed, and a tap adds one`() {
         show(listOf("home"), suggestions = listOf("Work", "travel", "home", "network"))
         assertEquals("no suggestions before the input is used", 0, suggestions())
