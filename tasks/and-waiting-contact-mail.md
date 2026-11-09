@@ -14,7 +14,8 @@ SPEC.md §5.3: waiting "Follow up" → "Draft email" prefills To from the linked
 (code review CR-3 of gtd-links-everywhere).
 
 ## Acceptance criteria
-- [ ] Android GtdTask (model, mapper, cache) carries `waitingForContactId`
+- [x] Android GtdTask (model, mapper, cache) carries `waitingForContactId`
+  - verified (2026-11-09 10:46+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.*' -> 1212 tests pass incl. GtdMappersTest/TaskRepositoryTest (Room) /TaskListsRepositoryTest round-trips of waitingForContactId; cache v3 schema exported
 - [ ] Android "Draft email" uses the linked contact's first email address as To, falling back to an address in the waiting-for text
 - [ ] Unit tests cover both cases; `sh scripts/check.sh` passes
 
