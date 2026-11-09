@@ -291,25 +291,32 @@
               </button>
             </div>
             @if (errorOf(b); as error) {
-              <p class="error" role="alert" i18n="@@bookmarks.changeFailed">
-                “{{ b.displayTitle }}” could not be changed: {{ error }}
-              </p>
+              @if (isTaskError(b)) {
+                <p class="error" role="alert" i18n="@@bookmarks.taskFailed">
+                  No Inbox task could be created for “{{ b.displayTitle }}”: {{ error }}
+                </p>
+              } @else {
+                <p class="error" role="alert" i18n="@@bookmarks.changeFailed">
+                  “{{ b.displayTitle }}” could not be changed: {{ error }}
+                </p>
+              }
             }
           </li>
         }
       </ul>
-      @if (nextCursor()) {
-        <button
-          mat-stroked-button
-          type="button"
-          class="more"
-          [disabled]="loadingMore()"
-          (click)="loadMore()"
-          i18n="@@bookmarks.more"
-        >
-          Show more
-        </button>
-      }
+    }
+    <!-- Also without a match: search covers only the loaded pages, older ones may match. -->
+    @if (nextCursor()) {
+      <button
+        mat-stroked-button
+        type="button"
+        class="more"
+        [disabled]="loadingMore()"
+        (click)="loadMore()"
+        i18n="@@bookmarks.more"
+      >
+        Show more
+      </button>
     }
   } @else {
     <p class="hint" role="status" i18n="@@bookmarks.loading">Loading bookmarks…</p>

@@ -1116,6 +1116,26 @@ describe('BookmarksPage', () => {
       });
     });
 
+    it('keeps "Show more" when nothing loaded matches, so older pages can be searched', async () => {
+      await open('/bookmarks?view=all', [ESSAY, GUIDE], 'c1');
+      search('coroutines');
+      expect(ids()).toEqual([]);
+      expect(text(root.querySelector('.empty'))).toBe('No loaded bookmark matches “coroutines”.');
+      (root.querySelector('.more') as HTMLButtonElement).click();
+      const more = http.expectOne((r) => r.method === 'GET' && r.params.get('cursor') === 'c1');
+      more.flush({ items: [NOTED] });
+      await settle();
+      expect(ids()).toEqual([NOTED.id]);
+      expect(root.querySelector('.empty')).toBeNull();
+      expect(root.querySelector('.more')).toBeNull();
+    });
+
+    it('keeps the empty message of an empty view and offers "Show more" with it', async () => {
+      await open('/bookmarks', [], 'c1');
+      expect(text(root.querySelector('.empty'))).toContain('Nothing left to read.');
+      expect(root.querySelector('.more')).toBeTruthy();
+    });
+
     it('keeps the search when a bookmark it hides arrives from the server', async () => {
       await open('/bookmarks?view=all', [ESSAY]);
       search('slow');
@@ -1294,6 +1314,26 @@ describe('BookmarksPage', () => {
         await settle();
         flushTags();
         await settle();
+      });
+
+      it('does not ask to save again after a conflict when the editor was closed meanwhile', async () => {
+        await open('/bookmarks?view=all', [NOTED]);
+        button(NOTED, 'edit-open').click();
+        harness.detectChanges();
+        (row(NOTED).querySelector('.edit') as HTMLFormElement).dispatchEvent(new Event('submit'));
+        const save = http.expectOne((r) => r.method === 'PATCH');
+        button(NOTED, 'edit-cancel').click();
+        harness.detectChanges();
+        save.flush(...problem(412, 'Precondition Failed', 'It was changed meanwhile.'));
+        await settle();
+        http
+          .expectOne((r) => r.method === 'GET' && r.url === `${LIST}/${NOTED.id}`)
+          .flush({ ...NOTED, version: 5 });
+        await settle();
+        expect(row(NOTED).querySelector('.edit')).toBeNull();
+        expect(text(row(NOTED).querySelector('.error'))).toBe(
+          '“Kotlin coroutines in practice” could not be changed: It was changed meanwhile.',
+        );
       });
 
       it('saves with the version the editor opened with, so a newer row is a conflict', async () => {
@@ -1655,7 +1695,7 @@ describe('BookmarksPage', () => {
         first.flush(...problem(503, 'Service Unavailable', 'Try again in a moment.'));
         await settle();
         expect(text(row(ESSAY).querySelector('.error'))).toBe(
-          '“On slow software” could not be changed: Try again in a moment.',
+          'No Inbox task could be created for “On slow software”: Try again in a moment.',
         );
         expect(notifications.info).not.toHaveBeenCalled();
         http.expectNone((r) => r.url === LINKS);

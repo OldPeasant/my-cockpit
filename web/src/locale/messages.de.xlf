@@ -1066,6 +1066,14 @@
           <context context-type="linenumber">195,197</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="bookmarks.taskFailed" datatype="html">
+        <source> No Inbox task could be created for “<x id="INTERPOLATION" equiv-text="{{ b.displayTitle }}"/>”: <x id="INTERPOLATION_1" equiv-text="{{ error }}"/> </source>
+        <target state="translated">Für „<x id="INTERPOLATION" equiv-text="{{ b.displayTitle }}"/>“ konnte keine Aufgabe im Eingang erstellt werden: <x id="INTERPOLATION_1" equiv-text="{{ error }}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">295,297</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="bookmarks.more" datatype="html">
         <source> Show more </source>
         <target state="translated">Mehr anzeigen</target>

@@ -84,3 +84,91 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+# Round 2
+
+Date: 2026-11-09
+
+Task: web-bookmarks-search-edit - Web bookmarks: search, edit, undo, to inbox
+
+Scope: findings CR-1 and CR-2 of the second review (reviews/web-bookmarks-search-edit/review.md, HEAD 66b577797), plus the optional conflict-message refinement the parent worker asked for. Files: web/src/app/features/bookmarks, web/src/locale.
+
+## Fixed findings
+
+### CR-1 — "Show more" is hidden when no loaded bookmark matches the search
+
+Files changed:
+- `web/src/app/features/bookmarks/bookmarks-page.html`
+- `web/src/app/features/bookmarks/bookmarks-page.spec.ts`
+
+Problem:
+Confirmed: the "Show more" button sat only in the branch for a non-empty `shown()` list, so with a search that matched no loaded bookmark (and also in an empty filtered view) older pages could not be loaded while `nextCursor()` was set.
+
+Fix:
+Moved the `@if (nextCursor())` button out of the non-empty branch, after the empty/list block inside the `shown()` branch. It is now rendered whenever `nextCursor()` is set. The empty messages are unchanged: an empty view still shows its empty message (now with "Show more" below it when more pages exist). The load-error and loading branches still show no button.
+New page tests: "keeps "Show more" when nothing loaded matches, so older pages can be searched" (search with no match, the button is there, loading the next page shows the matching bookmark) and "keeps the empty message of an empty view and offers "Show more" with it".
+
+Validation:
+- `npx ng test --watch=false --include='src/app/features/bookmarks/**/*.spec.ts'` (in web/) — Pass
+
+### CR-2 — A failed "To Inbox task" is reported as "could not be changed"
+
+Files changed:
+- `web/src/app/features/bookmarks/bookmarks-page.ts`
+- `web/src/app/features/bookmarks/bookmarks-page.html`
+- `web/src/app/features/bookmarks/bookmarks-page.spec.ts`
+- `web/src/locale/messages.xlf`
+- `web/src/locale/messages.de.xlf`
+
+Problem:
+Confirmed: `toInbox` ran through `run()`, whose failure path always produced the `bookmarks.changeFailed` row error.
+
+Fix:
+`rowError` got an optional `task` flag. `run()` takes an optional fourth parameter `task = false` that is stored in the row error; `toInbox` passes `true`. A new `isTaskError(b)` selects the template message: new id `bookmarks.taskFailed`, "No Inbox task could be created for “{title}”: {error}". Added by hand to messages.xlf and to messages.de.xlf with the target "Für „{title}“ konnte keine Aufgabe im Eingang erstellt werden: {error}" (Inbox = Eingang, task = Aufgabe, as elsewhere in the file). The source text was checked against `ng extract-i18n` output written to `.tmp/` (identical source and placeholders).
+The existing test "retries with the same task id after a failure, and a new one after success" now expects the new message (the behavior changed as the finding requires; the assertion is not weaker).
+
+Validation:
+- `npx ng test --watch=false --include='src/app/features/bookmarks/**/*.spec.ts'` (in web/) — Pass
+- `npx ng build` (in web/) — Pass, no translation errors
+
+### Optional — Conflict message "Save again..." only while the editor is open
+
+Files changed:
+- `web/src/app/features/bookmarks/bookmarks-page.ts`
+- `web/src/app/features/bookmarks/bookmarks-page.spec.ts`
+
+Problem:
+After a save conflict, `bookmarks.edit.conflict` ("Save again to replace it with your values.") replaced the row error even if the user had closed the editor meanwhile, so there was nothing to save again.
+
+Fix:
+The `saveEdit` reload callback sets the conflict message only when `draft()?.id` is still that bookmark; otherwise the generic conflict error stays. New test "does not ask to save again after a conflict when the editor was closed meanwhile".
+
+Validation:
+- `npx ng test --watch=false --include='src/app/features/bookmarks/**/*.spec.ts'` (in web/) — Pass
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `npx ng test --watch=false --include='src/app/features/bookmarks/**/*.spec.ts'` (in web/) — Pass, 4 files, 128 tests
+
+Full test suite:
+- Not run (the parent worker runs `.taskcheck`)
+
+Lint/type-check/build:
+- `npm run lint` (in web/) — Pass, all files pass linting
+- `npx prettier --check src/app/features/bookmarks` (in web/) — Pass
+- `npx ng build` (in web/) — Pass; only the existing initial bundle budget warning
+
+`.taskcheck`:
+- Not run (it runs Gradle, which the parent worker told this fixer not to run)
+
+Remaining unresolved findings:
+0
+
+## Final status (Round 2)
+
+All validated findings fixed and validation passed.

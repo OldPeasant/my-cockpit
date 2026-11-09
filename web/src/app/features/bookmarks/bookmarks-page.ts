@@ -71,7 +71,10 @@ export default class BookmarksPage {
   /** Ids of the bookmarks whose change is still running. */
   protected readonly busy = signal<ReadonlySet<string>>(new Set());
   /** The last failed change, by bookmark id. */
-  protected readonly rowError = signal<{ id: string; message: string } | null>(null);
+  /** The last failed row action; `task` for a failed "To Inbox task", which changes no bookmark. */
+  protected readonly rowError = signal<{ id: string; message: string; task?: boolean } | null>(
+    null,
+  );
 
   /** The search text: only loaded bookmarks matching every word are shown. */
   protected readonly query = signal('');
@@ -336,7 +339,8 @@ export default class BookmarksPage {
       },
       (current) => {
         this.draft.update((d) => (d?.id === current.id ? { ...d, version: current.version } : d));
-        if (this.rowError()?.id === current.id) {
+        // "Save again" only makes sense while the editor of this row is still open.
+        if (this.rowError()?.id === current.id && this.draft()?.id === current.id) {
           this.rowError.set({
             id: current.id,
             message: $localize`:@@bookmarks.edit.conflict:It was changed elsewhere in the meantime. Save again to replace it with your values.`,
@@ -354,16 +358,26 @@ export default class BookmarksPage {
       this.taskIds.set(bookmark.id, taskId);
     }
     const id = taskId;
-    await this.run(bookmark, async () => {
-      const { task, linked } = await this.service.toInbox(bookmark, id);
-      this.taskIds.delete(bookmark.id);
-      const title = task.title;
-      this.notifications.info(
-        linked
-          ? $localize`:@@bookmarks.taskCreated:Added to Inbox: ${title}:title:`
-          : $localize`:@@bookmarks.taskCreatedUnlinked:Added to Inbox: ${title}:title: (the link to the bookmark could not be made)`,
-      );
-    });
+    await this.run(
+      bookmark,
+      async () => {
+        const { task, linked } = await this.service.toInbox(bookmark, id);
+        this.taskIds.delete(bookmark.id);
+        const title = task.title;
+        this.notifications.info(
+          linked
+            ? $localize`:@@bookmarks.taskCreated:Added to Inbox: ${title}:title:`
+            : $localize`:@@bookmarks.taskCreatedUnlinked:Added to Inbox: ${title}:title: (the link to the bookmark could not be made)`,
+        );
+      },
+      undefined,
+      true,
+    );
+  }
+
+  protected isTaskError(bookmark: BookmarkResponse): boolean {
+    const error = this.rowError();
+    return error?.id === bookmark.id && !!error.task;
   }
 
   protected isEditing(bookmark: BookmarkResponse): boolean {
@@ -495,12 +509,14 @@ export default class BookmarksPage {
 
   /**
    * Runs a change of `bookmark`; a bookmark gone meanwhile (404) is dropped from the list. After a
-   * conflict its current version is loaded and handed to `reloaded`.
+   * conflict its current version is loaded and handed to `reloaded`. `task` marks a failure as one
+   * of "To Inbox task", which gets its own message.
    */
   private async run(
     bookmark: BookmarkResponse,
     action: () => Promise<void>,
     reloaded?: (current: BookmarkResponse) => void,
+    task = false,
   ): Promise<void> {
     if (this.busy().has(bookmark.id)) return;
     this.busy.update((ids) => new Set(ids).add(bookmark.id));
@@ -515,7 +531,7 @@ export default class BookmarksPage {
       if (error instanceof ApiError && error.status === 404) {
         this.drop(bookmark.id);
       } else {
-        this.rowError.set({ id: bookmark.id, message: message(error) });
+        this.rowError.set({ id: bookmark.id, message: message(error), task });
         if (isConflict(error)) void this.reloadOne(bookmark.id, reloaded);
       }
     } finally {

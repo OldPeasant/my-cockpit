@@ -1015,6 +1015,13 @@
           <context context-type="linenumber">294,296</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="bookmarks.taskFailed" datatype="html">
+        <source> No Inbox task could be created for “<x id="INTERPOLATION" equiv-text="{{ b.displayTitle }}"/>”: <x id="INTERPOLATION_1" equiv-text="{{ error }}"/> </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/bookmarks/bookmarks-page.html</context>
+          <context context-type="linenumber">295,297</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="bookmarks.more" datatype="html">
         <source> Show more </source>
         <context-group purpose="location">
