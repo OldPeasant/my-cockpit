@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "review-reminder-server",
-  "reviewed_revision": "b08b3fd2de26d8f0503e10e5f3f1c403ab1da35e",
+  "reviewed_revision": "16f9276dd8d4a7ac80ee06a705f7f164ca766fa1",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/review-reminder-server/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/review-reminder-server/review.md"},
@@ -21,6 +21,7 @@
   "validation": [
     {"command": "cd server && ./gradlew test --tests '*WeeklyReview*' jacocoTestReport", "result": "pass"},
     {"command": "cd server && ./gradlew check", "result": "pass"},
+    {"command": "android/gradlew -p android ktlintCheck testDebugUnitTest --tests '*ReminderUiTest' --tests '*TrashModelsTest'", "result": "pass"},
     {"command": "sh scripts/check.sh", "result": "pass"}
   ]
 }
