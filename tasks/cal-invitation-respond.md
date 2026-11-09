@@ -23,7 +23,8 @@ but neither client calls it.
   - verified (2026-11-09 04:10+0100 by felix/agent-1): grep -i 'text/calendar|invitation' api/openapi.yaml -> no mail-side invitation marker (only calendar respond/invitations endpoints); per criterion 'if the server marks them' and recorded assumption, no mail-view actions apply (N/A)
 - [x] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
   - verified (2026-11-09 04:10+0100 by felix/agent-1): web: calendar.respond.* in web/src/locale/messages.xlf + 6 in messages.de.xlf; cd web && npx ng test --watch=false --include src/locale -> 10 passed. android: calendar_edit_respond_* in res/values{,-de}/strings_calendar_edit.xml (Zusagen/Vielleicht/Absagen), CalendarEditStringsTest passed in calendar.edit run
-- [ ] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
+- [x] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
+  - verified (2026-11-09 05:34+0100 by dell26/agent-2): Unit tests: web event-dialog/event-edit.service respond specs (ng test --include src/app/features/calendar/edit -> 198 passed), Android EventEditorViewModelRespondTest 15/15 + CalendarEditStringsTest; sh scripts/check.sh at a7ee19e2b (server check, web npm run check, android ktlintCheck testDebugUnitTest lintDebug) -> exit 0, 'all checks passed'
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
