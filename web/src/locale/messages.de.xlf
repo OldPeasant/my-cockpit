@@ -14864,6 +14864,14 @@
           <context context-type="linenumber">48</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="itemType.weeklyReview" datatype="html">
+        <source>Weekly review</source>
+        <target state="translated">Wochenrückblick</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shared/links/item-type.ts</context>
+          <context context-type="linenumber">51</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="links.heading" datatype="html">
         <source>Linked items</source>
         <target state="translated">Verknüpfte Einträge</target>

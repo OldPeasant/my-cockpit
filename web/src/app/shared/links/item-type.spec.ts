@@ -14,6 +14,7 @@ const LABELS: Record<ItemType, string> = {
   BOOKMARK: 'Bookmark',
   JOURNAL_ENTRY: 'Journal entry',
   HABIT: 'Habit',
+  WEEKLY_REVIEW: 'Weekly review',
 };
 
 const TYPES = Object.keys(LABELS) as ItemType[];

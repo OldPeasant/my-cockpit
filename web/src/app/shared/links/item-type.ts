@@ -19,6 +19,8 @@ const GLYPHS: Record<ItemType, string> = {
   JOURNAL_ENTRY:
     'M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z',
   HABIT: 'M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z',
+  WEEKLY_REVIEW:
+    'M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z',
 };
 
 /** The user-facing name of an item type. */
@@ -46,6 +48,8 @@ export function itemTypeLabel(type: ItemType): string {
       return $localize`:@@itemType.journalEntry:Journal entry`;
     case 'HABIT':
       return $localize`:@@itemType.habit:Habit`;
+    case 'WEEKLY_REVIEW':
+      return $localize`:@@itemType.weeklyReview:Weekly review`;
   }
 }
 
