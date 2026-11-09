@@ -31,7 +31,8 @@ with `Cache-Control: no-store`. Hashed bundles may keep revalidating or get a lo
       for `index.html`; hashed `*.js`/`*.css` remain cacheable; a missing `*.js` stays a 404 (no `index.html` fallback)
 - [x] KDoc of `SpaWebConfiguration` describes the actual caching behaviour
   - verified (2026-11-09 11:00+0100 by dell26/agent-1): Read SpaWebConfiguration KDoc (lines 16-35): describes no-cache for all SPA files, content SHA-256 ETag instead of Last-Modified (1980 jar timestamp), 200 on change / 304 on matching If-None-Match, digest caching for classpath: vs per-request hashing for file: locations -> matches the code (setUseLastModified(false), setEtagGenerator(ContentEtags(...)::etag))
-- [ ] `cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.core.spa.*'` passes
+- [x] `cd server && ./gradlew ktlintCheck test --tests 'ch.sonensei.cockpit.core.spa.*'` passes
+  - verified (2026-11-09 11:03+0100 by dell26/agent-1): cd server && ./gradlew ktlintCheck test --rerun --tests 'ch.sonensei.cockpit.core.spa.*' at d0dc41f70 -> BUILD SUCCESSFUL, 36 tests 0 failures (ContentEtagsTests 10, SpaFallbackResourceResolverTests 4, SpaFallbackTests 19, SpaWebConfigurationTests 3)
 
 ## Notes
 - Users already stuck on the stale page recover with Ctrl+Shift+R or "Clear site data"; no migration needed.
