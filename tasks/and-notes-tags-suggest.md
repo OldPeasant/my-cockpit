@@ -1,11 +1,11 @@
 ---
 title: Note tags editor: suggestion tap keeps refused text, suggestions filter by current part
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-notes-tags]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/notes,android/app/src/test/java/ch/sonensei/cockpit/notes]
 prio: 2
-lease_until: 2026-11-09T08:23:49Z
+lease_until: 
 ---
 ## Goal
 Follow-up of the and-notes-tags round-3 review (reviews/and-notes-tags/review.md, P3 CR-1, CR-2).
@@ -22,3 +22,4 @@ filtered by the whole input, so none match. Tapping a suggestion always clears t
   - verified (2026-11-09 09:04+0100 by dell26/agent-1): Compose tests in NoteTagsEditorTest cover both; cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL; sh scripts/check.sh -> all checks passed (at c585ae6d5)
 
 ## Notes
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 73s on 373b2a7d2; criteria verified 3/3
