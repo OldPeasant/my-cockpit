@@ -1,11 +1,11 @@
 ---
 title: Web bookmarks: search, edit, undo, to inbox
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [web/src/app/features/bookmarks,web/src/locale]
 prio: 2
-lease_until: 2026-11-09T00:55:22Z
+lease_until: 
 ---
 ## Goal
 Android bookmarks have search and editing; web has neither (SPEC.md §8.4 lists search). SPEC.md §4.5 wants
@@ -27,3 +27,4 @@ bookmark → Inbox task.
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 - ASSUMPTION (2026-11-09 01:12+0100 by dell26/agent-1): Bookmark 'notes' are the server's description field (no separate notes field in the API), as on Android; search filters only the loaded bookmarks client-side (API has no q param), as Android does
 - ASSUMPTION (2026-11-09 01:12+0100 by dell26/agent-1): To Inbox task: title = displayTitle (max 500), notesMd = URL, plus a link TASK->BOOKMARK labelled origin, same as Android; web reuses features/capture/uuidv7 for the idempotent task id
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 70s on 7cd73fe57; criteria verified 5/5
