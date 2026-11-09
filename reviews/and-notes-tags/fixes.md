@@ -106,3 +106,72 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+# Round 2
+
+Date: 2026-11-09
+
+Task: and-notes-tags - Note editor: tag chips with suggestions
+
+Scope: current task; the new findings CR-1 (P2) and CR-2 (P3) of the re-review in reviews/and-notes-tags/review.md (HEAD ae6047d03), recorded here as R2-CR-1 and R2-CR-2. The Round 1 entries above stay valid.
+
+## Fixed findings
+
+### R2-CR-1 — The comma path can save a refused tag joined with the next one, or a tag that contains a comma
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteTagsEditor.kt`
+- `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteEditorViewModel.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/notes/NoteTagsEditorTest.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/notes/NoteEditorTagsViewModelTest.kt`
+
+Problem:
+Confirmed in the code: `onValueChange` rebuilt the input as the trimmed refused parts plus the rest joined with ", ". Typing `home,` (home refused) left `home` without its comma, so the next tag merged into it (`homework`). Text after a comma got another ", " on every keystroke, and Enter or losing focus passed the whole text, comma included, to `onAdd`, which accepted it.
+
+Fix:
+- The editor now handles keystrokes, Enter and focus loss with one function: it splits the text on commas and line breaks, offers each finished part (all parts on Enter or focus loss) to `onAdd`, and keeps only the refused parts in the input, as typed, each followed by its comma, then the part still being typed (new `keptTagInput`). The text is therefore stable across keystrokes (no growing spaces), a refused tag stays separated from the next one, and `onAdd` never receives a comma.
+- As a second guard, `NoteEditorViewModel.addTag` refuses a tag containing a comma or a line break (the web client cannot create one either, as it splits on commas).
+- Tests: Compose tests type `home,work` one key at a time with `home` refused and press Enter (only `work` is added, `home` stays in the input), type `home, wor` then more keys and leave the input (the input stays `home, words`, only `words` is added, no part with a comma is offered); a unit test for `keptTagInput`; a view-model test that `addTag` refuses `home, work`, `home,   words` and a tag with a line break. The existing test of a refused tag before a comma now expects the comma to stay (`home,`, then `home,wor`).
+
+Validation:
+- `cd android && ./gradlew ktlintFormat testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.NoteTagsEditorTest' --tests 'ch.sonensei.cockpit.notes.NoteEditorTagsViewModelTest'` — Pass (NoteTagsEditorTest 20, NoteEditorTagsViewModelTest 21 tests, 0 failures)
+
+### R2-CR-2 — The tag chip still looks and is announced as clickable, but its click does nothing
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/notes/NoteTagsEditor.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/notes/NoteTagsEditorTest.kt`
+
+Problem:
+Confirmed: the tag was an `InputChip` with `onClick = {}`, so the chip body was clickable, focusable and announced as a control with no effect.
+
+Fix:
+The tag is now a private `TagChip`: a non-clickable `Surface` with the chip shape and outline (disabled colors when the note cannot be edited) holding the `#tag` label and a separate `IconButton` (test tag `note-tag-remove`, enabled with the editor) whose close icon has the content description "Remove tag ..." (`notes_tag_remove`). A new Compose test checks that the chip node has no click action and that the remove button has one, has the button role and the content description; the existing tests for removing with the button, for a tap on the chip doing nothing and for the disabled state still pass.
+
+Validation:
+- same focused command as R2-CR-1 — Pass
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `cd android && ./gradlew ktlintFormat testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.NoteTagsEditorTest' --tests 'ch.sonensei.cockpit.notes.NoteEditorTagsViewModelTest'` — Pass
+
+Full test suite:
+- `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` — BUILD SUCCESSFUL (5294 unit tests, 0 failures, 0 errors, 0 skipped)
+
+Lint/type-check/build:
+- `ktlintCheck` and `lintDebug` in the command above — Pass
+
+`.taskcheck`:
+- Not run (left to the parent worker; only the Android part changed and its lint, unit tests and Android lint pass)
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed.

@@ -6,9 +6,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -115,13 +118,65 @@ class NoteTagsEditorTest {
 
         composeRule.onNodeWithTag(NoteTagsTags.INPUT).performTextInput("home,")
         assertEquals(listOf("home"), added)
-        assertInput("home")
+        assertInput("home,")
         assertEquals(0, chips())
 
         composeRule.onNodeWithTag(NoteTagsTags.INPUT).performTextInput(", b,wor")
         assertEquals(listOf("home", "home", " b"), added)
-        assertInput("home, wor")
+        assertInput("home,wor")
         assertEquals(1, chips())
+    }
+
+    @Test
+    fun `a refused tag, a comma and a second tag typed one key at a time add only the second tag`() {
+        accepts = { it.trim() !in tags }
+        show(listOf("home"))
+
+        "home,work".forEach { composeRule.onNodeWithTag(NoteTagsTags.INPUT).performTextInput(it.toString()) }
+        assertInput("home,work")
+        composeRule.onNodeWithTag(NoteTagsTags.INPUT).performImeAction()
+
+        assertEquals(listOf("home", "work"), tags)
+        assertInput("home")
+        assertEquals("no tag with a comma is offered", emptyList<String>(), added.filter { ',' in it })
+    }
+
+    @Test
+    fun `typing after a refused tag keeps its spacing and never adds a tag with a comma`() {
+        accepts = { it.trim() !in tags }
+        show(listOf("home"))
+
+        composeRule.onNodeWithTag(NoteTagsTags.INPUT).performTextInput("home, wor")
+        assertInput("home, wor")
+        composeRule.onNodeWithTag(NoteTagsTags.INPUT).performTextInput("d")
+        composeRule.onNodeWithTag(NoteTagsTags.INPUT).performTextInput("s")
+        assertInput("home, words")
+        composeRule.runOnIdle { focus.clearFocus() }
+
+        composeRule.runOnIdle { assertEquals(listOf("home", "words"), tags) }
+        assertInput("home")
+        assertEquals("no tag with a comma is offered", emptyList<String>(), added.filter { ',' in it })
+    }
+
+    @Test
+    fun `the chip has no click action, only its remove button does`() {
+        show(listOf("home"))
+
+        composeRule.onNodeWithTag(NoteTagsTags.CHIP).assert(SemanticsMatcher.keyNotDefined(SemanticsActions.OnClick))
+        composeRule
+            .onNodeWithTag(NoteTagsTags.REMOVE)
+            .assert(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+            .assertContentDescriptionEquals("Remove tag home")
+    }
+
+    @Test
+    fun `keptTagInput keeps refused parts as typed, each with its comma, then the part still typed`() {
+        assertEquals("wor", keptTagInput(emptyList(), "wor"))
+        assertEquals("home,", keptTagInput(listOf("home"), ""))
+        assertEquals("home, wor", keptTagInput(listOf("home"), " wor"))
+        assertEquals("a, b", keptTagInput(listOf("a", " b"), null))
+        assertEquals("", keptTagInput(emptyList(), null))
     }
 
     @Test

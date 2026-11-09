@@ -151,6 +151,17 @@ class NoteEditorTagsViewModelTest {
         }
 
     @Test
+    fun `a tag containing a comma or a line break is not added`() =
+        test { vm ->
+            opened(vm)
+
+            listOf("home, work", "home,   words", "a\nb").forEach { assertFalse("'$it' must not be added", vm.addTag(it)) }
+
+            assertEquals(listOf("travel"), vm.uiState.value.tags)
+            assertEquals(SaveStatus.SAVED, vm.uiState.value.status)
+        }
+
+    @Test
     fun `a tag of 50 characters is added, one of 51 is not`() =
         test { vm ->
             opened(vm)

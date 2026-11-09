@@ -243,13 +243,15 @@ class NoteEditorViewModel
 
         /**
          * Adds [tag] (trimmed, without a leading `#`, as the server stores it), saved like an edit. A tag already on the
-         * note (in any case), an empty one, one longer than [MAX_TAG_LENGTH] or one over [MAX_TAGS] is not added; one
-         * that differs from a tag in use only in case takes that tag's spelling. Returns whether it was added.
+         * note (in any case), an empty one, one longer than [MAX_TAG_LENGTH], one over [MAX_TAGS] or one containing a
+         * comma or a line break (which separate tags when typed, as on the web) is not added; one that differs from a
+         * tag in use only in case takes that tag's spelling. Returns whether it was added.
          */
         fun addTag(tag: String): Boolean {
             val clean = normalizeTag(tag)
             val s = state.value
             if (!s.editable || clean.isEmpty() || clean.length > MAX_TAG_LENGTH || s.tags.size >= MAX_TAGS) return false
+            if (clean.any { it == ',' || it == '\n' }) return false
             if (s.tags.any { it.equals(clean, ignoreCase = true) }) return false
             val spelled = s.knownTags.firstOrNull { it.equals(clean, ignoreCase = true) } ?: clean
             change { it.copy(tags = it.tags + spelled) }
