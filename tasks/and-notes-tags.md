@@ -6,9 +6,9 @@ deps: [and-notes-list, and-links-panel, and-notes-checklist-links]
 prio: 2
 parent: and-notes-editor
 lease_until: 
-releases: 3
+releases: 0
 extended: 
-hold: given back 3 times; last: Re-review done (245b2383f, review.md): old CR-1..5 all fixed, but NEW findings: CR-1 P2 NoteTagsEditor.kt:114-117 refused tag + comma path rebuilds text so 'home,' loses comm
+hold: 
 ---
 ## Goal
 Part of `and-notes-editor` (Android note editor: tags, checklists, links, revisions), which was split.
