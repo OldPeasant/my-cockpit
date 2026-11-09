@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "review-reminder",
-  "reviewed_revision": "2abe6d0947ff87277ee54ec511191b8023b08361",
+  "reviewed_revision": "bd71a7bc30ba3af64a79ab61445e55c622c9d9f0",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/review-reminder/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/review-reminder/review.md"},
