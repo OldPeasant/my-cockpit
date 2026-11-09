@@ -19,3 +19,4 @@ Web notes have no delete (API `deleteNote` unused) and tags can only be set when
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
 - ASSUMPTION (2026-11-09 01:47+0100 by dell26/agent-1): Tag suggestions use a native datalist (tags in use from GET /notes/tags) instead of mat-autocomplete: simpler, accessible, no new deps. Tag changes save right away through the editor's autosave PATCH (tags sent only when changed, with If-Match).
+- ASSUMPTION (2026-11-09 01:47+0100 by dell26/agent-1): Deleting in the editor first saves pending edits, then moves the note to the Trash and goes to /notes; the Undo snackbar (8 s) restores it via the Trash restore API and reopens the note. Card delete removes it from the list, undo reloads the list.
