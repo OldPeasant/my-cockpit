@@ -17,7 +17,8 @@ but neither client calls it.
 ## Acceptance criteria
 - [x] Web event dialog: for events where the user is an attendee, show Accept / Maybe / Decline with the current status; sending updates the status
   - verified (2026-11-09 04:10+0100 by felix/agent-1): Integrated via done subtask cal-invitation-respond-web (event-dialog respond UI + event-edit.service respondToInvitation). cd web && npx ng test --watch=false --include src/app/features/calendar/edit -> 8 files, 198 tests passed (incl. event-dialog/event-edit.service respond specs)
-- [ ] Android event view/editor: the same three actions
+- [x] Android event view/editor: the same three actions
+  - verified (2026-11-09 04:10+0100 by felix/agent-1): Integrated via done subtask cal-invitation-respond-android (EventEditor respond actions, EventEditRepository). cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.edit.*' -> pass, EventEditorViewModelRespondTest 15/15, 0 failures
 - [ ] Invitation mails in the mail read view (if the server marks them) offer the same actions on web and Android
 - [ ] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
 - [ ] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
