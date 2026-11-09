@@ -1,11 +1,11 @@
 ---
 title: Android: AppStartRoutingTest 'logging out from settings clears the cached files' fails on main
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-2
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/files,android/app/src/main/java/ch/sonensei/cockpit/auth,android/app/src/test/java/ch/sonensei/cockpit/auth]
 prio: 2
-lease_until: 
+lease_until: 2026-11-09T01:39:06Z
 releases: 1
 extended: 
 ---
