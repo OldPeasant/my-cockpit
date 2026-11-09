@@ -1,10 +1,11 @@
 ---
 title: Note editor: tag chips with suggestions
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [and-notes-list, and-links-panel, and-notes-checklist-links]
 prio: 2
 parent: and-notes-editor
+lease_until: 2026-11-09T04:00:53Z
 ---
 ## Goal
 Part of `and-notes-editor` (Android note editor: tags, checklists, links, revisions), which was split.
