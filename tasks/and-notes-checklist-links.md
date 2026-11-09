@@ -21,8 +21,9 @@ Goal: Tapping a checklist item in the preview toggles it and saves like an edit;
   - verified (2026-11-08 22:52+0100 by felix/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*' -> pass; VM tests: 250 ms debounced global search with trimmed query, offline/failed, stale results ignored; Screen test 'typing a link reports its query, and picking a hit inserts the link' inserts [[note:<id>]], max 6 hits; Markdown linkQuery/insertLink tests 12/12. No emulator: on-device IME not run
 - [x] New strings are in English and German (`res/values/strings_notes.xml` + `res/values-de/strings_notes.xml`)
   - verified (2026-11-08 22:28+0100 by felix/agent-1): git diff 1f9b236ce..HEAD -- android/app/src/main/res -> 5 new notes_link_* strings (hint, searching, none, offline, failed), each in values/strings_notes.xml and values-de/strings_notes.xml; lintDebug (MissingTranslation) run with criterion 4
-- [~] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
   - skipped (2026-11-08 23:03+0100 by felix/agent-1): ktlintCheck + notes tests pass, and lintDebug passed in the test-writer's full run, but sh scripts/check.sh fails on clean origin/main itself: AppStartRoutingTest 'logging out...clears the cached files' (auth/capture, not this task) -> see fix-android-logout-cache-test
+  - verified (2026-11-09 04:14+0100 by dell26/agent-1): sh scripts/check.sh (includes cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug) on HEAD with main merged (and-fix-logout-cache-test included) -> exit 0, all checks passed; notes VM/Screen/Markdown tests (9+4+12) pass
 
 ## Notes
 - Work done on `and-notes-editor` before the split is on `origin/wip/and-notes-editor` (if it exists): merge it first if your part builds on it.
