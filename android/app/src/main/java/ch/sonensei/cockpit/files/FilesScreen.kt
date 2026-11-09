@@ -69,6 +69,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -92,6 +93,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.core.links.ItemRef
+import ch.sonensei.cockpit.core.links.LinkedItemsSection
+import ch.sonensei.cockpit.search.SearchItemScreen
+import ch.sonensei.cockpit.search.SearchTarget
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import coil3.ImageLoader
 import coil3.compose.AsyncImage
@@ -129,6 +134,7 @@ fun FilesRoute(modifier: Modifier = Modifier) {
     BackHandler(enabled = state.selecting) { viewModel.clearSelection() }
     // Registered last, so it goes first: back closes a preview before anything else.
     BackHandler(enabled = state.preview != null) { viewModel.closePreview() }
+    var linked by rememberSaveable { mutableStateOf<String?>(null) }
 
     val noApp = stringResource(R.string.files_no_app)
     val resources = LocalResources.current
@@ -165,45 +171,63 @@ fun FilesRoute(modifier: Modifier = Modifier) {
             }
         }
 
-    FilesContent(
-        state = state,
-        callbacks =
-            FilesCallbacks(
-                openFolder = viewModel::openFolder,
-                openFile = { file -> viewModel.open(file) { OpenedFiles.target(app, file.id, file.name) } },
-                preview = { file -> viewModel.preview(file) { PreviewFiles.target(app, it.id) } },
-                previewStep = viewModel::previewStep,
-                closePreview = viewModel::closePreview,
-                retryPreview = viewModel::retryPreview,
-                saveFile = {
-                    saving = it
-                    pickSaveTarget.launch(it.name)
-                },
-                goTo = viewModel::goTo,
-                upload = { pickUploads.launch(arrayOf("*/*")) },
-                dismissUpload = viewModel::dismissUpload,
-                dismissDownloadMessage = viewModel::dismissDownloadMessage,
-                retry = viewModel::refresh,
-                toggleSelected = viewModel::toggleSelected,
-                clearSelection = viewModel::clearSelection,
-                newFolder = viewModel::startNewFolder,
-                rename = viewModel::startRename,
-                move = viewModel::startMove,
-                delete = viewModel::delete,
-                moveSelected = viewModel::startMoveSelected,
-                deleteSelected = viewModel::deleteSelected,
-                dismissActionMessage = viewModel::dismissActionMessage,
-                saveName = viewModel::saveName,
-                cancelName = viewModel::cancelName,
-                pickerOpen = viewModel::pickerOpen,
-                pickerGoTo = viewModel::pickerGoTo,
-                confirmMove = viewModel::confirmMove,
-                cancelMove = viewModel::cancelMove,
-            ),
-        modifier = modifier,
-        imageLoader = viewModel.imageLoader,
-    )
+    // A linked item opened from the preview, as "TYPE:id", replaces the files; Back returns to the preview.
+    // The holder keeps the files' saved UI state (the open links panel, the PDF page) while the item is shown.
+    val filesState = rememberSaveableStateHolder()
+    linked?.split(':')?.let { (type, itemId) ->
+        BackHandler { linked = null }
+        SearchItemScreen(type, UUID.fromString(itemId), onClose = { linked = null }, modifier = modifier)
+        return
+    }
+
+    filesState.SaveableStateProvider(FILES_STATE_KEY) {
+        FilesContent(
+            state = state,
+            callbacks =
+                FilesCallbacks(
+                    openFolder = viewModel::openFolder,
+                    openFile = { file -> viewModel.open(file) { OpenedFiles.target(app, file.id, file.name) } },
+                    preview = { file -> viewModel.preview(file) { PreviewFiles.target(app, it.id) } },
+                    previewStep = viewModel::previewStep,
+                    closePreview = viewModel::closePreview,
+                    retryPreview = viewModel::retryPreview,
+                    saveFile = {
+                        saving = it
+                        pickSaveTarget.launch(it.name)
+                    },
+                    goTo = viewModel::goTo,
+                    upload = { pickUploads.launch(arrayOf("*/*")) },
+                    dismissUpload = viewModel::dismissUpload,
+                    dismissDownloadMessage = viewModel::dismissDownloadMessage,
+                    retry = viewModel::refresh,
+                    toggleSelected = viewModel::toggleSelected,
+                    clearSelection = viewModel::clearSelection,
+                    newFolder = viewModel::startNewFolder,
+                    rename = viewModel::startRename,
+                    move = viewModel::startMove,
+                    delete = viewModel::delete,
+                    moveSelected = viewModel::startMoveSelected,
+                    deleteSelected = viewModel::deleteSelected,
+                    dismissActionMessage = viewModel::dismissActionMessage,
+                    saveName = viewModel::saveName,
+                    cancelName = viewModel::cancelName,
+                    pickerOpen = viewModel::pickerOpen,
+                    pickerGoTo = viewModel::pickerGoTo,
+                    confirmMove = viewModel::confirmMove,
+                    cancelMove = viewModel::cancelMove,
+                ),
+            modifier = modifier,
+            imageLoader = viewModel.imageLoader,
+            linksPanel = { file ->
+                LinkedItemsSection(ItemRef("FILE", file.id), open = { target ->
+                    if (target is SearchTarget.InApp) linked = "${target.type}:${target.id}"
+                })
+            },
+        )
+    }
 }
+
+private const val FILES_STATE_KEY = "files"
 
 /** The confirmation of a finished change: the name for one entry, the count for several. */
 internal fun changedText(
@@ -330,6 +354,8 @@ fun FilesContent(
     imageLoader: ImageLoader? = null,
     /** Opens a previewed PDF; tests give fakes, as Robolectric does not render PDFs. */
     pdfOpener: (File) -> PdfPages? = ::openPdf,
+    /** The previewed file's linked items; `null` (tests) hides the preview's links toggle. */
+    linksPanel: (@Composable (DriveEntry.File) -> Unit)? = null,
 ) {
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
@@ -417,6 +443,7 @@ fun FilesContent(
             callbacks = callbacks,
             imageLoader = imageLoader,
             pdfOpener = pdfOpener,
+            linksPanel = linksPanel,
         )
     }
     state.nameDialog?.let { NameDialogView(it, callbacks) }

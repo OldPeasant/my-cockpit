@@ -58,7 +58,7 @@ type SaveState =
 /**
  * Writing a mail (SPEC.md §7.3): a new one (`/mail/compose`), a reply, reply to all or forward of a
  * message (`?reply=`, `?replyAll=`, `?forward=` with its id: the server starts the draft) or a
- * stored draft (`?draft=`). The sender (one per account), To/Cc/Bcc with suggestions, subject, a
+ * stored draft (`?draft=`); a new one may start with `?to=` and `?subject=`. The sender (one per account), To/Cc/Bcc with suggestions, subject, a
  * rich text body and attachments (uploaded or from Files). Changes are saved to the account's
  * Drafts folder every 10 seconds; every write waits for the one before, since each needs the
  * version (`If-Match`) the previous one returned.
@@ -379,6 +379,10 @@ export default class MailComposePage {
         this.load(loaded);
       } else if (accounts.length) {
         this.accountId.set(accounts[0].id);
+        // A new mail started elsewhere (e.g. a waiting item's "Draft email"): `?to=&subject=`.
+        const to = params.get('to')?.trim();
+        if (to) this.to.set([{ address: to }]);
+        this.subject.set(params.get('subject') ?? '');
       } else {
         this.state.set('noAccount');
         return;

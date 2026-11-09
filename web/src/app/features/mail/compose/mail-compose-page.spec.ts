@@ -309,6 +309,26 @@ describe('MailComposePage', () => {
       expect(service.creates).toEqual([]);
     });
 
+    it('starts a new mail with To and subject from ?to= and ?subject=', async () => {
+      await open({ to: ' anna@example.test ', subject: 'Lease papers' });
+      call('setSubject', 'Lease papers');
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+      await settle();
+      expect(service.creates[0]).toEqual(
+        expect.objectContaining({
+          accountId: ACCOUNT,
+          to: [expect.objectContaining({ address: 'anna@example.test' })],
+          subject: 'Lease papers',
+        }),
+      );
+    });
+
+    it('leaves To empty for a blank ?to= and keeps ?subject=', async () => {
+      await open({ to: '   ', subject: 'Parcel' });
+      expect((page()['to'] as () => unknown[])()).toEqual([]);
+      expect((page()['subject'] as () => string)()).toBe('Parcel');
+    });
+
     it('asks for a mail account when there is none', async () => {
       service.accountList = [];
       await open();
