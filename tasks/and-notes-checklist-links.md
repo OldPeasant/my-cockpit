@@ -1,11 +1,11 @@
 ---
 title: Note editor: checklist toggle in preview and [[ link autocomplete
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-notes-list, and-links-panel]
 prio: 2
 parent: and-notes-editor
-lease_until: 2026-11-09T03:58:19Z
+lease_until: 
 releases: 1
 extended: 
 hold: 
@@ -33,3 +33,4 @@ Goal: Tapping a checklist item in the preview toggles it and saves like an edit;
 - ASSUMPTION (2026-11-09 03:42+0100 by felix/agent-1): fix-android-logout-cache-test (created by me) duplicates and-fix-logout-cache-test, which dell26/agent-2 finished on main 2026-11-09 02:34; humans may drop it
 - release by felix/agent-1: over budget after 2 sessions (~23 min) and a review that decided nothing; still resumable: continue from wip/and-notes-checklist-links (see git log)
 - ASSUMPTION (2026-11-09 04:03+0100 by dell26/agent-1): Removed tasks/fix-android-logout-cache-test.md (only on the wip branch, never on main): it duplicates and-fix-logout-cache-test, done on main 2026-11-09
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 413s on 6d3722cc8; criteria verified 4/4
