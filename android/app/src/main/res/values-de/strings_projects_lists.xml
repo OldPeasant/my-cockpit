@@ -11,6 +11,7 @@
     <string name="waiting_empty">Nichts, worauf du wartest. Delegierte Einträge erscheinen hier.</string>
     <string name="waiting_draft_email">E-Mail entwerfen</string>
     <string name="waiting_draft_email_label">E-Mail zum Nachfassen von %1$s entwerfen</string>
+    <string name="waiting_no_mail_app">Keine App auf diesem Gerät kann E-Mails schreiben</string>
     <string name="waiting_follow_up">Nachfassen</string>
     <string name="waiting_follow_up_label">%1$s nachfassen</string>
     <string name="waiting_follow_up_title">Nachfassen: %1$s</string>

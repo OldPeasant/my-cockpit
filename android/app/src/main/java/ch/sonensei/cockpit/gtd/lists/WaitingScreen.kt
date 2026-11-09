@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.gtd.lists
 
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
@@ -14,10 +15,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
@@ -46,12 +47,17 @@ fun WaitingRoute(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val noMailApp = stringResource(R.string.waiting_no_mail_app)
     WaitingContent(
         state,
         LiveListCallbacks.of(viewModel),
         viewModel::followUp,
         modifier,
-        draftMail = { ContactIntents.launch(context, followUpMailIntent(it)) },
+        draftMail = {
+            if (!ContactIntents.launch(context, followUpMailIntent(it))) {
+                Toast.makeText(context, noMailApp, Toast.LENGTH_SHORT).show()
+            }
+        },
     )
 }
 

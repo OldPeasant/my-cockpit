@@ -170,6 +170,13 @@ fun FilesRoute(modifier: Modifier = Modifier) {
             }
         }
 
+    // A linked item opened from the preview, as "TYPE:id", replaces the files; Back returns to the preview.
+    linked?.split(':')?.let { (type, itemId) ->
+        BackHandler { linked = null }
+        SearchItemScreen(type, UUID.fromString(itemId), onClose = { linked = null }, modifier = modifier)
+        return
+    }
+
     FilesContent(
         state = state,
         callbacks =
@@ -213,11 +220,6 @@ fun FilesRoute(modifier: Modifier = Modifier) {
             })
         },
     )
-    // A linked item opened from the preview, as "TYPE:id", over the files; Back returns to the preview.
-    linked?.split(':')?.let { (type, itemId) ->
-        BackHandler { linked = null }
-        SearchItemScreen(type, UUID.fromString(itemId), onClose = { linked = null })
-    }
 }
 
 /** The confirmation of a finished change: the name for one entry, the count for several. */

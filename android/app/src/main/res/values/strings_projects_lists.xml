@@ -11,6 +11,7 @@
     <string name="waiting_empty">Nothing to wait for. Delegated items show up here.</string>
     <string name="waiting_draft_email">Draft email</string>
     <string name="waiting_draft_email_label">Draft an email to follow up on %1$s</string>
+    <string name="waiting_no_mail_app">No app on this device can write email</string>
     <string name="waiting_follow_up">Follow up</string>
     <string name="waiting_follow_up_label">Follow up on %1$s</string>
     <string name="waiting_follow_up_title">Follow up: %1$s</string>
