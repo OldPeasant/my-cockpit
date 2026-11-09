@@ -91,6 +91,9 @@ data class NoteEditorCallbacks(
     /** Adds a tag; returns whether it was added. */
     val addTag: (String) -> Boolean = { false },
     val removeTag: (String) -> Unit = {},
+    /** Shows the earlier versions; [revisions] acts on that list. */
+    val openRevisions: () -> Unit = {},
+    val revisions: NoteRevisionsCallbacks = NoteRevisionsCallbacks(),
 )
 
 internal object NoteEditorTags {
@@ -113,6 +116,7 @@ internal object NoteEditorTags {
     const val PIN = "note-pin"
     const val ARCHIVE = "note-archive"
     const val DELETE = "note-delete"
+    const val REVISIONS = "note-revisions-open"
     const val LINK_SUGGESTIONS = "note-link-suggestions"
     const val LINK_HIT = "note-link-hit"
 }
@@ -202,6 +206,14 @@ fun NoteEditorRoute(
                 searchLinks = viewModel::searchLinks,
                 addTag = viewModel::addTag,
                 removeTag = viewModel::removeTag,
+                openRevisions = viewModel::openRevisions,
+                revisions =
+                    NoteRevisionsCallbacks(
+                        select = viewModel::selectRevision,
+                        restore = viewModel::restoreRevision,
+                        retry = viewModel::retryRevisions,
+                        close = viewModel::closeRevisions,
+                    ),
             ),
         modifier = modifier,
     )
@@ -241,6 +253,7 @@ fun NoteEditorContent(
         body = TextFieldValue(state.body, TextRange(cursor))
     }
 
+    state.revisions?.takeIf { state.editable }?.let { NoteRevisionsDialog(it, imageLoader, callbacks.revisions) }
     Column(modifier.fillMaxSize()) {
         EditorBar(state, callbacks, insertAt = body.selection.start)
         state.conflict?.let { ConflictBanner(it, callbacks) }
@@ -466,6 +479,14 @@ private fun EditorMenu(
                     callbacks.toggleArchived()
                 },
                 modifier = Modifier.testTag(NoteEditorTags.ARCHIVE),
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.notes_revisions)) },
+                onClick = {
+                    open = false
+                    callbacks.openRevisions()
+                },
+                modifier = Modifier.testTag(NoteEditorTags.REVISIONS),
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.notes_delete)) },

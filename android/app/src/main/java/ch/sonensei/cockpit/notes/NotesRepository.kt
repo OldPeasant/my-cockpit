@@ -228,6 +228,32 @@ class NotesRepository
             }
         }
 
+        /** The kept earlier versions of note [id] (at most 20, SPEC.md §8.1), newest first. */
+        suspend fun revisions(id: UUID): NotesResult<List<NoteRevision>> =
+            load {
+                body(api.listNoteRevisions(id))
+                    .items
+                    .map { NoteRevision(it.number, it.title, it.bodyMd, it.savedAt.toInstant()) }
+                    .sortedByDescending { it.number }
+            }
+
+        /**
+         * Sets the title and body of [base] to those of revision [number] (tags, pin and archive state stay; the
+         * replaced content becomes a revision itself). A refusal because [base] is outdated or gone is a
+         * [SaveResult.Conflict], as for [save].
+         */
+        suspend fun restoreRevision(
+            base: Note,
+            number: Int,
+        ): SaveResult {
+            val result = load { body(api.restoreNoteRevision(base.id, number, etag(base.version))).toNote() }
+            return when (result) {
+                is NotesResult.Ok -> SaveResult.Saved(result.value)
+                NotesResult.Offline -> SaveResult.Offline
+                is NotesResult.Failed -> if (result.status in CONFLICTS) conflict(base.id) else SaveResult.Failed(result.status)
+            }
+        }
+
         /** Moves [note] to the Trash, if it is still the version shown (`409`/`412`: it changed; `404`: gone already). */
         suspend fun delete(note: Note): NotesResult<Unit> = load { done(api.deleteNote(note.id, etag(note.version))) }
 

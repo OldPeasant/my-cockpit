@@ -66,4 +66,12 @@
     <string name="notes_link_failed">Suche nicht möglich: der Server hat sie abgelehnt.</string>
     <string name="notes_tag_add">Tag hinzufügen</string>
     <string name="notes_tag_remove">Tag %1$s entfernen</string>
+    <string name="notes_revisions">Frühere Versionen</string>
+    <string name="notes_revisions_loading">Versionen werden geladen…</string>
+    <string name="notes_revisions_empty">Noch keine früheren Versionen. Jedes Speichern behält die Version davor.</string>
+    <string name="notes_revisions_offline">Die früheren Versionen konnten nicht geladen werden: keine Verbindung.</string>
+    <string name="notes_revisions_failed">Die früheren Versionen konnten nicht geladen werden: Der Server hat es abgelehnt.</string>
+    <string name="notes_revisions_restore">Diese Version wiederherstellen</string>
+    <string name="notes_revisions_close">Schließen</string>
+    <string name="notes_revisions_empty_note">Leere Notiz</string>
 </resources>

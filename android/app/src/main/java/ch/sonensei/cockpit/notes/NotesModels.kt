@@ -21,6 +21,16 @@ data class Note(
     val archived: Boolean = false,
 )
 
+/** An earlier version of a note's title and body, kept by the server (the last 20). */
+data class NoteRevision(
+    /** Counts up per note; used to restore it. */
+    val number: Int,
+    val title: String?,
+    val bodyMd: String,
+    /** When this content was last saved. */
+    val savedAt: Instant,
+)
+
 /** A tag in use and its number of notes. */
 data class NoteTag(
     val tag: String,

@@ -61,6 +61,20 @@ fun interface NoteTagSource {
 /** Why link suggestions could not be found. */
 enum class LinkSearchError { OFFLINE, FAILED }
 
+/** Why the earlier versions could not be loaded. */
+enum class RevisionsError { OFFLINE, FAILED }
+
+/** The open list of a note's earlier versions. */
+data class NoteRevisionsState(
+    /** Newest first; `null` while they load (or when that failed, see [error]). */
+    val revisions: List<NoteRevision>? = null,
+    /** The number of the revision shown (and restored by Restore). */
+    val selected: Int? = null,
+    val error: RevisionsError? = null,
+) {
+    val selectedRevision: NoteRevision? get() = revisions?.firstOrNull { it.number == selected }
+}
+
 /** The suggestions for the inline link `[[query` being typed. */
 data class LinkSuggestions(
     val query: String,
@@ -100,6 +114,8 @@ data class NoteEditorUiState(
     val changing: Boolean = false,
     /** An inline link `[[` is being typed: items it may link to; `null` otherwise. */
     val links: LinkSuggestions? = null,
+    /** The earlier versions are shown; `null` otherwise. */
+    val revisions: NoteRevisionsState? = null,
 ) {
     val draft: NoteDraft get() = NoteDraft(title, body, tags)
 
@@ -136,6 +152,7 @@ class NoteEditorViewModel
         private var autosave: Job? = null
         private var linkSearchJob: Job? = null
         private var knownTagsJob: Job? = null
+        private var revisionsJob: Job? = null
         private var opened = false
         private var opening: Any? = null
 
@@ -481,7 +498,10 @@ class NoteEditorViewModel
          * note changed elsewhere shows the server's version when nothing typed here would be lost (the user can pin or
          * archive it again); otherwise, or when the note was deleted elsewhere, it is a conflict, as for a save.
          */
-        private fun changeFlags(action: suspend (Note) -> SaveResult) {
+        private fun changeFlags(
+            onSaved: (NoteEditorUiState, Note) -> NoteEditorUiState = { s, note -> s.copy(note = note) },
+            action: suspend (Note) -> SaveResult,
+        ) {
             if (!state.value.editable || state.value.note == null || state.value.changing) return
             state.update { it.copy(changing = true, message = null) }
             saves.launch {
@@ -492,7 +512,7 @@ class NoteEditorViewModel
                             val result = action(note)
                             state.update {
                                 when (result) {
-                                    is SaveResult.Saved -> it.copy(note = result.note)
+                                    is SaveResult.Saved -> onSaved(it, result.note)
                                     is SaveResult.Conflict -> {
                                         val current = result.current
                                         if (current != null && it.isSaved()) {
@@ -516,6 +536,71 @@ class NoteEditorViewModel
                 }
                 state.update { it.copy(changing = false) }
             }
+        }
+
+        /**
+         * Shows the note's earlier versions (newest first, the newest selected). A load still running is replaced, so an
+         * older answer never shows.
+         */
+        fun openRevisions() {
+            val note = state.value.note
+            if (!state.value.editable || note == null) return
+            state.update { it.copy(revisions = NoteRevisionsState()) }
+            loadRevisions(note.id)
+        }
+
+        /** Loads the earlier versions again after a failed load. */
+        fun retryRevisions() {
+            val note = state.value.note ?: return
+            if (state.value.revisions?.error == null) return
+            state.update { it.copy(revisions = NoteRevisionsState()) }
+            loadRevisions(note.id)
+        }
+
+        private fun loadRevisions(id: UUID) {
+            revisionsJob?.cancel()
+            revisionsJob =
+                viewModelScope.launch {
+                    val loaded =
+                        when (val result = notes.revisions(id)) {
+                            is NotesResult.Ok -> NoteRevisionsState(result.value, result.value.firstOrNull()?.number)
+                            NotesResult.Offline -> NoteRevisionsState(error = RevisionsError.OFFLINE)
+                            is NotesResult.Failed -> NoteRevisionsState(error = RevisionsError.FAILED)
+                        }
+                    state.update { if (it.revisions == null) it else it.copy(revisions = loaded) }
+                }
+        }
+
+        /** Shows revision [number] of the open list. */
+        fun selectRevision(number: Int) =
+            state.update { s ->
+                val open = s.revisions
+                if (open?.revisions?.any { it.number == number } == true) s.copy(revisions = open.copy(selected = number)) else s
+            }
+
+        fun closeRevisions() {
+            revisionsJob?.cancel()
+            revisionsJob = null
+            state.update { it.copy(revisions = null) }
+        }
+
+        /**
+         * Restores the selected revision: the note's title and body become the revision's (tags, pin and archive stay).
+         * The text written here is saved first, so it becomes a revision too and the restore can be undone. The list
+         * closes. A refusal because the note changed elsewhere is handled as for a pin (see [changeFlags]).
+         */
+        fun restoreRevision() {
+            val number =
+                state.value.revisions
+                    ?.selectedRevision
+                    ?.number ?: return
+            if (!state.value.editable || state.value.note == null || state.value.changing) return
+            closeRevisions()
+            changeFlags(
+                onSaved = { s, note ->
+                    s.copy(note = note, title = note.title.orEmpty(), body = note.bodyMd, tags = note.tags, status = SaveStatus.SAVED)
+                },
+            ) { note -> notes.restoreRevision(note, number) }
         }
 
         /**
