@@ -1,11 +1,11 @@
 ---
 title: Web: make the Ctrl+K type: filter discoverable (hint or chips in the palette)
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [web-small-gaps]
 touches: [web/src/app/shell]
 prio: 2
-lease_until: 2026-11-09T01:27:33Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -24,3 +24,4 @@ Android shows type chips. Follow-up of review finding CR-2 in `reviews/web-small
 
 ## Notes
 - release by felix/agent-1: Implementation, tests, review reports, quality.json and all 3 verifies are committed; only 'tasks.py done' is left. done REFUSED because sh scripts/check.sh fails on main in android AppStartRoutingTest 'logging out from settings clears the cached files' (fails alone too, unrelated to this web-only task). Tracked as new task and-fix-logout-cache-test; once it is done, the next owner just runs 'python tasks.py done web-palette-type-hint' (evidence stays fresh).
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 83s on 81e4d2cff; criteria verified 3/3
