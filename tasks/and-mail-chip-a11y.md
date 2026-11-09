@@ -1,11 +1,11 @@
 ---
 title: Android compose: 48dp remove target and accessibility action for recipient chips
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-mail-compose-plus]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/compose,android/app/src/test/java/ch/sonensei/cockpit/mail/compose]
 prio: 2
-lease_until: 2026-11-09T07:58:29Z
+lease_until: 
 releases: 0
 extended: 
 hold: 
@@ -29,3 +29,4 @@ the chip itself is announced to TalkBack as a clickable control that does nothin
 - release by felix/agent-1: Implementation, tests, review (0 findings after CR-1 fix), fixer, verify 1-3 and quality.json all committed. Only blocker: auth.AppStartRoutingTest 'logging out from settings clears the cached files' fails reproducibly on clean origin/main too, so the testDebugUnitTest/check.sh validation cannot be 'pass' (new task and-auth-logout-cache-test). Once fixed: rerun ./gradlew ktlintCheck testDebugUnitTest lintDebug and sh scripts/check.sh, set both validation results in reviews/and-mail-chip-a11y/quality.json to pass, commit, tasks.py done.
 - hold by felix/agent-1: Blocked by and-auth-logout-cache-test: AppStartRoutingTest 'logging out from settings clears the cached files' still fails on current main (re-run 2026-11-08 ~21:15, 9 tests 1 failed), so .taskcheck cannot pass. All work, reviews, verify 1-3 and quality.json are committed on wip/and-mail-chip-a11y. Unhold once that task is done; then rerun check, set validation results in quality.json to pass, tasks.py done.
 - hold by felix/agent-1: Check still fails outside this task (2026-11-09 ~03:00, after and-fix-logout-cache-test was done): full ./gradlew ktlintCheck testDebugUnitTest lintDebug -> 5142 tests, 1 failed: SessionCacheTest 'the files feature's previewed and opened files go with the logout' (leftover capture_queue.db.lck in cacheDir); ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.*' -> AppStartRoutingTest 'logging out from settings clears the cached files' times out even at 30s (so not just load timing). Both auth/capture code, not mail/compose. Task tasks/and-auth-logout-cache-test.md exists only on wip/and-mail-chip-a11y, not on main: a human should add it to main (or reopen and-fix-logout-cache-test). Chip work, reviews, verify 1-3, quality.json all committed on wip; after the fix: rerun the check, set validation in quality.json to pass, tasks.py done.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 74s on a6452a269; criteria verified 3/3
