@@ -273,6 +273,36 @@ class NoteTagsEditorTest {
     }
 
     @Test
+    fun `after a refused tag, suggestions follow the part being typed and a tap keeps the refused part`() {
+        accepts = { it.trim() !in tags }
+        show(listOf("home"), suggestions = listOf("Work", "travel", "network"))
+
+        composeRule.onNodeWithTag(NoteTagsTags.INPUT).performTextInput("home,wo")
+        assertInput("home,wo")
+        assertEquals(2, suggestions())
+        composeRule.onNodeWithText("#travel").assertDoesNotExist()
+
+        composeRule.onNodeWithText("#Work").performClick()
+
+        assertEquals(listOf("home", "Work"), tags)
+        assertInput("home,")
+    }
+
+    @Test
+    fun `tapping a suggestion that is refused leaves the input unchanged`() {
+        accepts = { false }
+        show(emptyList(), suggestions = listOf("Work", "network"))
+
+        composeRule.onNodeWithTag(NoteTagsTags.INPUT).performTextInput("home,wo")
+        assertInput("home,wo")
+        composeRule.onNodeWithText("#Work").performClick()
+
+        assertEquals(listOf("home", "Work"), added)
+        assertInput("home,wo")
+        assertEquals(0, chips())
+    }
+
+    @Test
     fun `a tag on the note is not suggested`() {
         show(listOf("home"), suggestions = listOf("Work", "home"))
 

@@ -109,7 +109,7 @@ private fun TagChip(
 
 /**
  * The note's [tags] as chips, with an input that adds a tag on Enter, on a comma or when it loses focus,
- * and the tags in use not on the note yet ([suggestions]) as chips to add with a tap, filtered by what is typed.
+ * and the tags in use not on the note yet ([suggestions]) as chips to add with a tap, filtered by the part being typed (after the last comma).
  * [onAdd] returns whether the tag was added; text that was not added stays in the input. Only a chip's remove button
  * removes its tag.
  */
@@ -168,14 +168,14 @@ fun NoteTagsEditor(
                         }.testTag(NoteTagsTags.INPUT),
             )
         }
-        val shown = if (enabled && (focused || text.isNotBlank())) matchingTags(suggestions, text) else emptyList()
+        val shown = if (enabled && (focused || text.isNotBlank())) matchingTags(suggestions, splitTagInput(text).second) else emptyList()
         if (shown.isNotEmpty()) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 shown.forEach { tag ->
                     SuggestionChip(
                         onClick = {
-                            onAdd(tag)
-                            text = ""
+                            // Only the part being typed is replaced; refused parts stay, and a refused tap changes nothing.
+                            if (onAdd(tag)) text = keptTagInput(splitTagInput(text).first, "")
                         },
                         label = { Text("#$tag") },
                         modifier = Modifier.testTag(NoteTagsTags.SUGGESTION),
