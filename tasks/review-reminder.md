@@ -20,3 +20,4 @@ SPEC.md §8.6: a weekly review reminder on a configurable weekday; today web onl
 
 ## Notes
 Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images, back navigation, mail search); the parity inventory and decisions are in `docs/PARITY.md`.
+- ASSUMPTION (2026-11-09 02:31+0100 by felix/agent-1): Reminder delivered via existing reminder table with new ItemType.WEEKLY_REVIEW + review-module resolver (deepLink /review) so SSE/web push/UnifiedPush/Android alarms work unchanged; setting weeklyReviewReminder = 'off' | '<DAY>@HH:mm', default off
