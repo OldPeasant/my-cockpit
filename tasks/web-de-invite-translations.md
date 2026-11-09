@@ -1,10 +1,11 @@
 ---
 title: German translations for the iTIP invitation dialog (calendar.invite.*)
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [web/src/locale]
 prio: 2
+lease_until: 2026-11-09T01:00:25Z
 ---
 ## Goal
 `cd web && npm run build:de` fails with 16 "No translation found" errors, all `calendar.invite.*` (the invitation
