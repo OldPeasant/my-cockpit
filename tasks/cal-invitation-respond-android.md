@@ -1,11 +1,11 @@
 ---
 title: Respond to invitations in the Android event editor
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [and-cal-event-fields]
 prio: 2
 parent: cal-invitation-respond
-lease_until: 
+lease_until: 2026-11-09T02:52:33Z
 releases: 0
 extended: 
 hold: 
