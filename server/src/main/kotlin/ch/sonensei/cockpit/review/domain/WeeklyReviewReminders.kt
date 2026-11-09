@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.review.domain
 
 import ch.sonensei.cockpit.core.items.domain.ItemRef
 import ch.sonensei.cockpit.core.items.domain.ItemType
+import ch.sonensei.cockpit.core.reminders.domain.Reminder
 import ch.sonensei.cockpit.core.reminders.domain.ReminderFiredEvent
 import ch.sonensei.cockpit.core.reminders.domain.ReminderService
 import ch.sonensei.cockpit.core.settings.domain.CoreSettings
@@ -55,16 +56,21 @@ class WeeklyReviewReminders(
 			?.truncatedTo(ChronoUnit.MICROS)
 
 	/**
-	 * Makes the pending reminders of [ITEM] exactly the one at [next] (none when off). Serialized with an advisory lock,
-	 * so concurrent syncs never leave two pending reminders.
+	 * Makes the future pending reminders of [ITEM] exactly the one at [next]; when off, removes every pending one.
+	 * While on, a pending reminder that is already due (e.g. the server was down when it should have fired) is kept for
+	 * the scheduler to fire (only the latest one, if there are several); firing it re-arms via [onReminderFired].
+	 * Serialized with an advisory lock, so concurrent syncs never leave two future pending reminders.
 	 */
 	@Transactional
 	fun sync() {
 		jdbc.queryForList("select pg_advisory_xact_lock(?)", SYNC_LOCK)
 		val wanted = next()
 		val pending = reminders.pendingOfItem(ITEM)
-		if (pending.map { it.remindAt } == listOfNotNull(wanted)) return
-		pending.forEach { reminders.delete(it.id) }
+		val now = clock.instant()
+		val (due, future) = if (wanted == null) emptyList<Reminder>() to pending else pending.partition { !it.remindAt.isAfter(now) }
+		due.dropLast(1).forEach { reminders.delete(it.id) }
+		if (future.map { it.remindAt } == listOfNotNull(wanted)) return
+		future.forEach { reminders.delete(it.id) }
 		wanted?.let { reminders.create(ITEM, it) }
 		log.debug("Weekly review reminder moved to {}", wanted)
 	}

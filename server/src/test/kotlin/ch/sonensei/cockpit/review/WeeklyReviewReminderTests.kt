@@ -181,6 +181,33 @@ class WeeklyReviewReminderTests(
 	}
 
 	@Test
+	fun `startup keeps a reminder that became due while the server was down, so it still fires`() {
+		settings.update(mapOf("weeklyReviewReminder" to "SUNDAY@18:00"))
+		val missed = pending().single()
+		missed.second shouldBe Instant.parse("2026-03-08T17:00:00Z")
+		// The server was down at Sunday 18:00 and restarts at 18:10, before the scheduler's first run.
+		clock.set(Instant.parse("2026-03-08T17:10:00Z"))
+		service.onStartup()
+		pending().first() shouldBe missed
+		pending().map { it.second } shouldContainExactly
+			listOf(Instant.parse("2026-03-08T17:00:00Z"), Instant.parse("2026-03-15T17:00:00Z"))
+		service.sync()
+		pending().first() shouldBe missed
+
+		reminders.fireDue() shouldBe 1
+		jdbc.queryForObject("select fired_at is not null from reminder where id = '${missed.first}'", Boolean::class.java) shouldBe true
+		pending().map { it.second } shouldContainExactly listOf(Instant.parse("2026-03-15T17:00:00Z"))
+	}
+
+	@Test
+	fun `turning it off also removes a pending reminder that is already due`() {
+		settings.update(mapOf("weeklyReviewReminder" to "SUNDAY@18:00"))
+		clock.set(Instant.parse("2026-03-08T17:10:00Z"))
+		settings.update(mapOf("weeklyReviewReminder" to "off"))
+		pending().shouldBeEmpty()
+	}
+
+	@Test
 	fun `the resolver knows only the one weekly review item`() {
 		val resolver = WeeklyReviewItemResolver()
 		resolver.type shouldBe ItemType.WEEKLY_REVIEW
