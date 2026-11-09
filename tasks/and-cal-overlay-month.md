@@ -7,8 +7,8 @@ touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda,android/
 prio: 2
 lease_until: 
 extended: 
-releases: 2
-hold: All work, review evidence (quality.json, reviewed_revision 6816f515) and verify #1-3 committed; #4 skipped for full check. Only 'done' is left. It fails on this host (rudi): sh scripts/check.sh server
+releases: 0
+hold: 
 ---
 ## Goal
 SPEC.md §6.3 and the phase 4 demo want the task/tickler overlay on Android too; web also has a month view.
