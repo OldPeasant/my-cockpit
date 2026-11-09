@@ -19,3 +19,4 @@ are not reachable on web. Android shows "Unsupported" plus the links toggle (SPE
 
 ## Notes
 From code review finding CR-1 (P2) of gtd-links-everywhere, deferred there.
+- ASSUMPTION (2026-11-09 11:13+0100 by dell26/agent-1): Files without a preview type now open the preview dialog alone (no paging to other files) instead of downloading on click; the row label became 'Open NAME' and Download stays in the dialog and the row menu, matching Android's Unsupported view
