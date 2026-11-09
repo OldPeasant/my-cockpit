@@ -18,3 +18,4 @@ Goal: The Android note editor lists a note's revisions and restores one (server 
 
 ## Notes
 - Work done on `and-notes-editor` before the split is on `origin/wip/and-notes-editor` (if it exists): merge it first if your part builds on it.
+- ASSUMPTION (2026-11-09 07:35+0100 by dell26/agent-1): Android revisions: 'Earlier versions' item in the editor's overflow menu opens a dialog (list newest first + read-only preview of the selected one, Restore/Close), like the web dialog. Restore first saves unsaved text (so it becomes a revision), then replaces title/body; tags/pin/archive stay. Restore failures reuse the existing 'Not changed: ...' editor messages instead of new strings.
