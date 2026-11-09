@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "and-journal-full",
-  "reviewed_revision": "c12daa984986d79b0a59d4c25c50bfb5a4e49a37",
+  "reviewed_revision": "3cbf703b3d8febd98d6db5b0bf148a0c75c7a68f",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/and-journal-full/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/and-journal-full/review.md"},
