@@ -168,6 +168,22 @@ class ReminderAlarmsNotifierTest {
     }
 
     @Test
+    @Config(qualifiers = "de")
+    fun `in German a weekly review reminder without a title is called Wochenrückblick`() {
+        ReminderNotifier(context).show(scheduled(1, title = null).copy(itemType = WEEKLY_REVIEW))
+
+        assertEquals("Wochenrückblick", shadowOf(shadowOf(notifications).allNotifications.single()).contentTitle)
+    }
+
+    @Test
+    fun `only the weekly review gets its own fallback title, other untitled items stay untitled`() {
+        assertEquals(R.string.review_reminder_title, untitledTitle(WEEKLY_REVIEW))
+        listOf("TASK", "NOTE", "HABIT", "weekly_review", "").forEach {
+            assertEquals(it, R.string.reminder_untitled, untitledTitle(it))
+        }
+    }
+
+    @Test
     fun `dismissing removes only that reminder's notification`() {
         val notifier = ReminderNotifier(context)
         notifier.show(scheduled(1))

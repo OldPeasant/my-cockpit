@@ -30,6 +30,7 @@ import ch.sonensei.cockpit.reminders.ReminderStore
 import ch.sonensei.cockpit.reminders.itemId
 import ch.sonensei.cockpit.reminders.reminder
 import ch.sonensei.cockpit.reminders.reminderId
+import ch.sonensei.cockpit.ui.navigation.CockpitDestination
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -173,6 +174,39 @@ class PushReminderDeliveryTest {
         assertEquals(PushReminderResult.SHOWN, deliver(1))
 
         assertEquals(context.getString(R.string.reminder_untitled), shadowOf(shown().single()).contentTitle.toString())
+    }
+
+    @Test
+    fun `a pushed weekly review reminder without a title is called Weekly review and a tap opens the review`() {
+        answer(
+            """{"id":"${reminderId(1)}","channel":"NOTIFICATION","createdAt":"2026-10-21T07:00:00Z",""" +
+                """"remindAt":"${NOW.minusSeconds(60)}","firedAt":"$NOW",""" +
+                """"item":{"available":true,"id":"${itemId(1)}","type":"WEEKLY_REVIEW"}}""",
+        )
+
+        assertEquals(PushReminderResult.SHOWN, deliver(1))
+
+        val notification = shown().single()
+        assertEquals("Weekly review", shadowOf(notification).contentTitle.toString())
+        val open: Intent = shadowOf(notification.contentIntent).savedIntent
+        assertEquals("WEEKLY_REVIEW", open.getStringExtra(ReminderOpenRequests.EXTRA_ITEM_TYPE))
+        assertTrue(ReminderOpenRequests.offer(open))
+        val request = ReminderOpenRequests.requests.value!!
+        assertEquals(CockpitDestination.Review, request.destination)
+        ReminderOpenRequests.take(request)
+    }
+
+    @Test
+    fun `a pushed weekly review reminder with a title keeps the server's title`() {
+        answer(
+            """{"id":"${reminderId(1)}","channel":"NOTIFICATION","createdAt":"2026-10-21T07:00:00Z",""" +
+                """"remindAt":"${NOW.minusSeconds(60)}","firedAt":"$NOW",""" +
+                """"item":{"available":true,"id":"${itemId(1)}","type":"WEEKLY_REVIEW","title":"Fictitious review"}}""",
+        )
+
+        assertEquals(PushReminderResult.SHOWN, deliver(1))
+
+        assertEquals("Fictitious review", shadowOf(shown().single()).contentTitle.toString())
     }
 
     @Test
