@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "task": "web-de-invite-translations",
+  "reviewed_revision": "27c8e091c19dbd3470bb8a410788f5dfa9e401c6",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-de-invite-translations/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-de-invite-translations/review.md"},
+    "fixer": {"status": "not_required", "reason": "No findings from test-writer or code-reviewer; translations were already on main (ba52ebac3), no code change needed."}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "cd web && npm run build:de", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
