@@ -1,10 +1,11 @@
 ---
 title: Note tags editor: suggestion tap keeps refused text, suggestions filter by current part
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [and-notes-tags]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/notes,android/app/src/test/java/ch/sonensei/cockpit/notes]
 prio: 2
+lease_until: 2026-11-09T08:15:50Z
 ---
 ## Goal
 Follow-up of the and-notes-tags round-3 review (reviews/and-notes-tags/review.md, P3 CR-1, CR-2).
