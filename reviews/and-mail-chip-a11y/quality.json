@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "and-mail-chip-a11y",
-  "reviewed_revision": "be05d532bd487f75f63db4af6fc9caa795ab66d5",
+  "reviewed_revision": "46dbdf6d813321c553ba53c9ecf530d03945d9b4",
   "helpers": {
     "test-writer":   {"status": "completed", "report": "reviews/and-mail-chip-a11y/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/and-mail-chip-a11y/review.md"},
@@ -14,7 +14,7 @@
   ],
   "validation": [
     {"command": "cd android && ./gradlew ktlintCheck lintDebug -q", "result": "pass"},
-    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest createDebugUnitTestCoverageReport -q", "result": "mail.compose tests pass; 1 unrelated failure auth.AppStartRoutingTest 'logging out from settings clears the cached files', which fails identically on clean origin/main"},
-    {"command": "sh scripts/check.sh", "result": "run by tasks.py done"}
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -q (2026-11-09, merged with main 1ac65e932)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
   ]
 }
