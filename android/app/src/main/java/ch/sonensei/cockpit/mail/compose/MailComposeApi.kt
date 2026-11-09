@@ -31,6 +31,12 @@ interface MailComposeApi {
     @GET("api/v1/mail/accounts")
     suspend fun accounts(): Response<MailAccountListDto>
 
+    /** The sending identities of an account, in their order. */
+    @GET("api/v1/mail/accounts/{accountId}/identities")
+    suspend fun identities(
+        @Path("accountId") accountId: String,
+    ): Response<MailIdentityListDto>
+
     @POST("api/v1/mail/drafts")
     suspend fun create(
         @Body request: CreateDraftDto,
@@ -123,6 +129,8 @@ data class ContactSuggestionDto(
 @Serializable
 data class CreateDraftDto(
     val accountId: String,
+    /** `null`: the account's default identity. */
+    val identityId: String? = null,
     val to: List<AddressRequestDto>,
     val cc: List<AddressRequestDto>,
     val bcc: List<AddressRequestDto>,
@@ -139,6 +147,7 @@ data class DraftContentDto(
     val subject: String,
     val html: String,
     val attachments: List<AttachmentRefDto>,
+    val identityId: String? = null,
 )
 
 @Serializable
@@ -153,6 +162,7 @@ data class DraftAttachmentDto(
 data class DraftDto(
     val id: String,
     val accountId: String? = null,
+    val identityId: String? = null,
     val to: List<MailAddressDto> = emptyList(),
     val cc: List<MailAddressDto> = emptyList(),
     val bcc: List<MailAddressDto> = emptyList(),
@@ -167,4 +177,18 @@ data class SendDraftDto(
     val sentMessageId: String? = null,
     val appendedToSent: Boolean = false,
     val draftRemoved: Boolean = false,
+)
+
+@Serializable
+data class MailIdentityDto(
+    val id: String,
+    val accountId: String? = null,
+    val name: String? = null,
+    val email: String? = null,
+    val isDefault: Boolean = false,
+)
+
+@Serializable
+data class MailIdentityListDto(
+    val items: List<MailIdentityDto> = emptyList(),
 )

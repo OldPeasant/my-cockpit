@@ -103,6 +103,7 @@ fun MailComposeRoute(
                 abandon = viewModel::abandon,
                 retry = viewModel::retry,
                 account = viewModel::selectAccount,
+                identity = viewModel::selectIdentity,
                 to = viewModel::setTo,
                 leaveRecipients = viewModel::clearSuggestions,
                 cc = viewModel::setCc,
@@ -138,6 +139,7 @@ data class MailComposeCallbacks(
     val abandon: () -> Unit = {},
     val retry: () -> Unit = {},
     val account: (UUID) -> Unit = {},
+    val identity: (UUID) -> Unit = {},
     val to: (String) -> Unit = {},
     val cc: (String) -> Unit = {},
     val bcc: (String) -> Unit = {},
@@ -199,6 +201,8 @@ internal object MailComposeTags {
     fun format(format: TextFormat) = "mail-compose-format:$format"
 
     fun account(id: UUID) = "mail-compose-account:$id"
+
+    fun identity(id: UUID) = "mail-compose-identity:$id"
 
     fun attachment(partId: String) = "mail-compose-attachment:$partId"
 }
@@ -402,7 +406,7 @@ private fun Form(
 ) {
     fun shown(field: RecipientField) = if (suggestions.field == field) suggestions.items else emptyList()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        From(state, callbacks.account)
+        From(state, callbacks.account, callbacks.identity)
         HorizontalDivider()
         RecipientRow(
             R.string.mail_compose_to,
@@ -482,16 +486,19 @@ private fun Form(
 private fun From(
     state: MailComposeUiState,
     select: (UUID) -> Unit,
+    selectIdentity: (UUID) -> Unit,
 ) {
     val account = state.accounts.firstOrNull { it.id == state.accountId }
     if (account == null && state.accounts.isEmpty()) return
     var expanded by remember { mutableStateOf(false) }
-    val canPick = !state.accountLocked && state.accounts.size > 1 && state.editable
+    val identity = state.identities.firstOrNull { it.id == state.identityId } ?: state.identities.firstOrNull { it.isDefault }
+    val otherAccounts = if (state.accountLocked) emptyList() else state.accounts.filter { it.id != state.accountId }
+    val canPick = state.editable && (state.identities.size > 1 || otherAccounts.isNotEmpty())
     LabeledRow(R.string.mail_compose_from, isError = false) {
         Box(Modifier.weight(1f)) {
             TextButton(onClick = { expanded = true }, enabled = canPick, modifier = Modifier.testTag(MailComposeTags.ACCOUNT)) {
                 Text(
-                    account
+                    identity?.label ?: account
                         ?.let {
                             if (it.address.isNotBlank() &&
                                 it.address != it.name
@@ -508,7 +515,17 @@ private fun From(
                 if (canPick) Icon(Icons.Outlined.ArrowDropDown, contentDescription = null)
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                state.accounts.forEach { a ->
+                state.identities.forEach { i ->
+                    DropdownMenuItem(
+                        text = { Text(i.label) },
+                        onClick = {
+                            expanded = false
+                            selectIdentity(i.id)
+                        },
+                        modifier = Modifier.testTag(MailComposeTags.identity(i.id)),
+                    )
+                }
+                (if (state.identities.isEmpty() && !state.accountLocked) state.accounts else otherAccounts).forEach { a ->
                     DropdownMenuItem(
                         text = { Text(a.name) },
                         onClick = {

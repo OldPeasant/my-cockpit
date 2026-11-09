@@ -68,6 +68,10 @@ data class MailComposeUiState(
     val accountId: UUID? = null,
     /** The account can be changed only before the first save. */
     val accountLocked: Boolean = false,
+    /** The sending identities of [accountId] (empty: not loaded, or it has none: the account address is used). */
+    val identities: List<MailIdentity> = emptyList(),
+    /** The identity chosen in the From picker (`null`: the account's default one). */
+    val identityId: UUID? = null,
     val to: String = "",
     val cc: String = "",
     val bcc: String = "",
@@ -267,7 +271,22 @@ class MailComposeViewModel
         fun selectAccount(id: UUID) {
             val session = current ?: return
             if (session.value.accountLocked || session.value.accountId == id) return
-            session.update { it.copy(accountId = id, problem = it.problem.takeUnless { p -> p == ComposeProblem.NO_ACCOUNT }) }
+            session.update {
+                it.copy(
+                    accountId = id,
+                    identities = emptyList(),
+                    identityId = null,
+                    problem = it.problem.takeUnless { p -> p == ComposeProblem.NO_ACCOUNT },
+                )
+            }
+            session.loadIdentities(id)
+        }
+
+        /** Sends as identity [id] of the current account; the draft keeps it with the next save. */
+        fun selectIdentity(id: UUID) {
+            val session = current ?: return
+            if (session.value.identityId == id || session.value.identities.none { it.id == id }) return
+            session.edit { it.copy(identityId = id) }
         }
 
         fun removeAttachment(partId: String) = edit { s -> s.copy(attachments = s.attachments.filterNot { it.partId == partId }) }

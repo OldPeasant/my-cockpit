@@ -83,6 +83,7 @@ internal class ComposeSession(
                                 },
                         )
                     }
+                    value.accountId?.let { loadIdentities(it) }
                     return@launch
                 }
                 update { it.copy(phase = ComposePhase.STARTING, problem = null) }
@@ -114,8 +115,19 @@ internal class ComposeSession(
                 subject = draft.subject,
                 quotedText = draft.text.trim(),
                 attachments = draft.attachments,
+                identityId = draft.identityId,
                 draft = DraftState.SAVED,
             )
+        }
+        draft.accountId?.let { loadIdentities(it) }
+    }
+
+    /** Loads the identities of [accountId] for the From picker; a failure leaves only the account address. */
+    fun loadIdentities(accountId: java.util.UUID) {
+        scope.launch {
+            val result = repository.identities(accountId)
+            if (value.ended || value.accountId != accountId || result !is MailResult.Ok) return@launch
+            update { it.copy(identities = result.value) }
         }
     }
 
@@ -257,6 +269,7 @@ internal class ComposeSession(
             subject = s.subject,
             html = markupToHtml(s.body.text) + quotedHtml,
             keep = s.attachments.map { it.partId },
+            identityId = s.identityId,
         )
     }
 

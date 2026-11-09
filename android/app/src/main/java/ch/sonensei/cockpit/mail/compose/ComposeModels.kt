@@ -71,6 +71,8 @@ data class DraftAttachment(
 data class Draft(
     val id: UUID,
     val accountId: UUID?,
+    /** `null`: sent from the account's default identity. */
+    val identityId: UUID? = null,
     val etag: String,
     val to: List<Recipient>,
     val cc: List<Recipient>,
@@ -92,7 +94,21 @@ data class DraftContent(
     val keep: List<String>,
     /** Files of the cockpit drive to add as attachments. */
     val files: List<UUID> = emptyList(),
+    /** The identity to send as (`null`: the account's default one). */
+    val identityId: UUID? = null,
 )
+
+/** A sending identity of an account (SPEC.md §7.3). */
+data class MailIdentity(
+    val id: UUID,
+    val accountId: UUID,
+    val name: String,
+    val email: String,
+    val isDefault: Boolean,
+) {
+    /** "Name <address>", or the address alone. */
+    val label: String get() = if (name.isNotBlank() && name != email) "$name <$email>" else email
+}
 
 /** A file picked on the device, streamed when uploaded. */
 interface PickedFile {

@@ -50,6 +50,15 @@ class MailComposeRepository
         suspend fun accounts(): MailResult<List<MailAccount>> =
             mailCall { mailBody(api.accounts()).items.map { it.toAccount() }.sortedBy { it.name.lowercase() } }
 
+        /** The sending identities of [accountId], in their order. */
+        suspend fun identities(accountId: UUID): MailResult<List<MailIdentity>> =
+            mailCall {
+                mailBody(api.identities(accountId.toString())).items.mapNotNull { dto ->
+                    val id = runCatching { UUID.fromString(dto.id) }.getOrNull() ?: return@mapNotNull null
+                    MailIdentity(id, accountId, dto.name.orEmpty(), dto.email.orEmpty(), dto.isDefault)
+                }
+            }
+
         /** Starts a reply, reply to all or forward of a message as a new draft. */
         suspend fun start(mode: ComposeMode): MailResult<Draft> =
             mailCall {
@@ -71,6 +80,7 @@ class MailComposeRepository
                     api.create(
                         CreateDraftDto(
                             accountId = accountId.toString(),
+                            identityId = content.identityId?.toString(),
                             to = content.to.map { it.dto() },
                             cc = content.cc.map { it.dto() },
                             bcc = content.bcc.map { it.dto() },
@@ -101,6 +111,7 @@ class MailComposeRepository
                             attachments =
                                 content.keep.map { AttachmentRefDto(partId = it) } +
                                     content.files.map { AttachmentRefDto(fileId = it.toString()) },
+                            identityId = content.identityId?.toString(),
                         ),
                     ),
                 )
@@ -180,6 +191,7 @@ private fun DraftDto.toDraft(etag: String) =
     Draft(
         id = UUID.fromString(id),
         accountId = accountId?.let(UUID::fromString),
+        identityId = identityId?.let { runCatching { UUID.fromString(it) }.getOrNull() },
         etag = etag,
         to = to.mapNotNull { it.recipient() },
         cc = cc.mapNotNull { it.recipient() },
