@@ -21,7 +21,10 @@ import { previewKind } from './preview-kind';
 import { PreviewService, TextPreview } from './preview.service';
 
 export interface PreviewDialogData {
-  /** The files to page through (those without a preview are skipped). */
+  /**
+   * The files to page through (those without a preview are skipped, unless `id` is one of them:
+   * then it is shown alone).
+   */
   files: readonly FileResponse[];
   /** The id of the file shown first. */
   id: string;
@@ -32,6 +35,8 @@ export interface PreviewDialogData {
  * text and Markdown, audio and video with the browser's player. ←/→ and the side buttons move to
  * the previous/next previewable file of the folder; Esc closes. "Linked items" shows the file's
  * links (SPEC.md §4.3) beside it; following one closes the preview, so the linked item is seen.
+ * A file without a preview (a zip, a Word document) is shown alone with a "no preview" notice, its
+ * download and its linked items, like the Android app's "Unsupported" view.
  */
 @Component({
   selector: 'app-preview-dialog',
@@ -46,7 +51,7 @@ export class PreviewDialog {
   private readonly dialogRef = inject(MatDialogRef<PreviewDialog>);
   private readonly previews = inject(PreviewService);
 
-  protected readonly files = this.data.files.filter((file) => previewKind(file.mime, file.name));
+  protected readonly files = previewableOrAlone(this.data.files, this.data.id);
   protected readonly index = signal(
     Math.max(
       0,
@@ -127,6 +132,16 @@ export class PreviewDialog {
       if (this.file()?.id === id) this.textError.set(true);
     }
   }
+}
+
+/**
+ * The previewable ones of `files`; just the file `id` when it has no preview, so it can still be
+ * opened (its download and linked items) without paging to files of another kind.
+ */
+function previewableOrAlone(files: readonly FileResponse[], id: string): readonly FileResponse[] {
+  const shown = files.find((file) => file.id === id);
+  if (shown && !previewKind(shown.mime, shown.name)) return [shown];
+  return files.filter((file) => previewKind(file.mime, file.name));
 }
 
 /** Opens the preview of `id`, paging through the previewable ones of `files`. */

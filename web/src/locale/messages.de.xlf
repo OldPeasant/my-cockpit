@@ -4120,9 +4120,9 @@
           <context context-type="linenumber">286</context>
         </context-group>
       </trans-unit>
-      <trans-unit id="files.downloadFile" datatype="html">
-        <source>Download <x id="name" equiv-text="name"/></source>
-        <target state="translated"><x id="name" equiv-text="name"/> herunterladen</target>
+      <trans-unit id="files.openFile" datatype="html">
+        <source>Open <x id="name" equiv-text="name"/></source>
+        <target state="translated"><x id="name" equiv-text="name"/> öffnen</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.ts</context>
           <context context-type="linenumber">287</context>
@@ -16262,6 +16262,14 @@
       <trans-unit id="files.preview.links" datatype="html">
         <source> Linked items </source>
         <target state="translated"> Verknüpfte Elemente </target>
+      </trans-unit>
+      <trans-unit id="files.preview.unsupported" datatype="html">
+        <source>There is no preview for this type of file.</source>
+        <target state="translated">Für diesen Dateityp gibt es keine Vorschau.</target>
+      </trans-unit>
+      <trans-unit id="files.preview.downloadFile" datatype="html">
+        <source>Download the file</source>
+        <target state="translated">Datei herunterladen</target>
       </trans-unit>
       <trans-unit id="gtd.waiting.draftEmail" datatype="html">
         <source> Draft email </source>

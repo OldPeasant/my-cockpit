@@ -41,6 +41,14 @@
 
       <div class="content">
         @switch (kind()) {
+          @case (null) {
+            <div class="note unsupported" role="status">
+              <p i18n="@@files.preview.unsupported">There is no preview for this type of file.</p>
+              <a class="action" [href]="downloadUrl()" download i18n="@@files.preview.downloadFile"
+                >Download the file</a
+              >
+            </div>
+          }
           @case ('image') {
             @if (imageError()) {
               <p class="note" role="alert" i18n="@@files.preview.imageFailed">

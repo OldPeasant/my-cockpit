@@ -291,9 +291,33 @@ describe('PreviewDialog', () => {
     });
   });
 
-  it('starts at the first previewable file when the given one has no preview', async () => {
+  it('shows a file without a preview alone, with a notice, its download and its linked items', async () => {
     await open(FOLDER_FILES, ZIP.id);
-    expect(title()).toBe('Beach.png');
+    expect(title()).toBe('Archive.zip');
+    expect(el().querySelector('.preview')?.hasAttribute('data-kind')).toBe(false);
+    // No paging to the folder's previewable files.
+    expect(el().querySelector('.position')).toBeNull();
+    expect(prevButton()).toBeNull();
+    expect(nextButton()).toBeNull();
+    await key('ArrowRight');
+    expect(title()).toBe('Archive.zip');
+    const notice = el().querySelector('.unsupported')!;
+    expect(notice.getAttribute('role')).toBe('status');
+    expect(notice.textContent).toContain('There is no preview for this type of file.');
+    const download = notice.querySelector('a[download]')!;
+    expect(download.textContent?.trim()).toBe('Download the file');
+    expect(download.getAttribute('href')).toBe(`/api/v1/files/${ZIP.id}/content`);
+    expect(el().querySelector('app-linked-items')).toBeNull();
+    [...el().querySelectorAll<HTMLButtonElement>('button')]
+      .find((b) => b.textContent?.trim() === 'Linked items')!
+      .click();
+    await render();
+    expect(el().querySelector('#preview-links app-linked-items')).not.toBeNull();
+    const links = http.match((r) => r.method === 'GET' && r.url === '/api/v1/links');
+    expect(links.length).toBeGreaterThan(0);
+    expect(links[0].request.urlWithParams).toContain(ZIP.id);
+    links.forEach((r) => r.flush({ items: [] }));
+    await render();
   });
 
   it('shows no position nor side buttons for a single file', async () => {
@@ -308,9 +332,14 @@ describe('PreviewDialog', () => {
     expect(title()).toBe('Invoice.pdf');
   });
 
-  it('renders nothing when no file has a preview', async () => {
-    await open([ZIP], ZIP.id);
+  it('renders nothing when the given file is unknown and no file has a preview', async () => {
+    await open([ZIP], 'unknown');
     expect(el().querySelector('.preview')).toBeNull();
+  });
+
+  it('starts at the first previewable file when the given one is unknown', async () => {
+    await open(FOLDER_FILES, 'unknown');
+    expect(title()).toBe('Beach.png');
   });
 
   it('Close closes the dialog', async () => {

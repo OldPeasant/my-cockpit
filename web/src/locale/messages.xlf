@@ -67,7 +67,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/core/notifications/reminder-notifications.service.ts</context>
-          <context context-type="linenumber">129</context>
+          <context context-type="linenumber">139</context>
         </context-group>
       </trans-unit>
       <trans-unit id="reminders.toggle" datatype="html">
@@ -123,28 +123,28 @@
         <source>Weekly review</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/core/notifications/reminder-notifications.service.ts</context>
-          <context context-type="linenumber">25</context>
+          <context context-type="linenumber">26</context>
         </context-group>
       </trans-unit>
       <trans-unit id="reminders.notification.body" datatype="html">
         <source>Reminder from My Cockpit</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/core/notifications/reminder-notifications.service.ts</context>
-          <context context-type="linenumber">100</context>
+          <context context-type="linenumber">110</context>
         </context-group>
       </trans-unit>
       <trans-unit id="reminders.toast" datatype="html">
         <source>Reminder: <x id="title" equiv-text="title"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/core/notifications/reminder-notifications.service.ts</context>
-          <context context-type="linenumber">126</context>
+          <context context-type="linenumber">136</context>
         </context-group>
       </trans-unit>
       <trans-unit id="reminders.toast.open" datatype="html">
         <source>Open</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/core/notifications/reminder-notifications.service.ts</context>
-          <context context-type="linenumber">128</context>
+          <context context-type="linenumber">138</context>
         </context-group>
       </trans-unit>
       <trans-unit id="app.title" datatype="html">
@@ -3626,7 +3626,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.html</context>
-          <context context-type="linenumber">183,184</context>
+          <context context-type="linenumber">173,174</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.view" datatype="html">
@@ -3675,7 +3675,7 @@
         <source>Download</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.html</context>
-          <context context-type="linenumber">185,186</context>
+          <context context-type="linenumber">175,176</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/preview/preview-dialog.html</context>
@@ -3686,133 +3686,133 @@
         <source> Rename </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.html</context>
-          <context context-type="linenumber">190,191</context>
+          <context context-type="linenumber">180,181</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.move" datatype="html">
         <source> Move </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.html</context>
-          <context context-type="linenumber">193,194</context>
+          <context context-type="linenumber">183,184</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.delete" datatype="html">
         <source> Delete </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.html</context>
-          <context context-type="linenumber">202,203</context>
+          <context context-type="linenumber">192,193</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.loadMore" datatype="html">
         <source> Show more </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.html</context>
-          <context context-type="linenumber">218,219</context>
+          <context context-type="linenumber">208,209</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.emptyUpload" datatype="html">
         <source> This folder is empty. Drop files here or upload them to get started. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.html</context>
-          <context context-type="linenumber">227,230</context>
+          <context context-type="linenumber">217,220</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.loading" datatype="html">
         <source>Loading the folder…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.html</context>
-          <context context-type="linenumber">231,233</context>
+          <context context-type="linenumber">221,223</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.newFolder.title" datatype="html">
         <source>New folder</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.ts</context>
-          <context context-type="linenumber">207</context>
+          <context context-type="linenumber">210</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.newFolder.label" datatype="html">
         <source>Folder name</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.ts</context>
-          <context context-type="linenumber">208</context>
+          <context context-type="linenumber">211</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.newFolder.confirm" datatype="html">
         <source>Create</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.ts</context>
-          <context context-type="linenumber">209</context>
+          <context context-type="linenumber">212</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.rename.title" datatype="html">
         <source>Rename</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.ts</context>
-          <context context-type="linenumber">219</context>
+          <context context-type="linenumber">222</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.rename.label" datatype="html">
         <source>New name</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.ts</context>
-          <context context-type="linenumber">220</context>
+          <context context-type="linenumber">223</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.rename.confirm" datatype="html">
         <source>Rename</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.ts</context>
-          <context context-type="linenumber">221</context>
+          <context context-type="linenumber">224</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.moved" datatype="html">
         <source>Moved “<x id="name" equiv-text="name"/>”</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.ts</context>
-          <context context-type="linenumber">238</context>
+          <context context-type="linenumber">241</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.deleted" datatype="html">
         <source>Moved “<x id="name" equiv-text="name"/>” to the Trash</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.ts</context>
-          <context context-type="linenumber">250</context>
+          <context context-type="linenumber">253</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.actions" datatype="html">
         <source>Actions for <x id="name" equiv-text="name"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.ts</context>
-          <context context-type="linenumber">279</context>
+          <context context-type="linenumber">282</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.openFolder" datatype="html">
         <source>Open folder <x id="name" equiv-text="name"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.ts</context>
-          <context context-type="linenumber">284</context>
+          <context context-type="linenumber">287</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.previewFile" datatype="html">
         <source>Preview <x id="name" equiv-text="name"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.ts</context>
-          <context context-type="linenumber">286</context>
+          <context context-type="linenumber">289</context>
         </context-group>
       </trans-unit>
-      <trans-unit id="files.downloadFile" datatype="html">
-        <source>Download <x id="name" equiv-text="name"/></source>
+      <trans-unit id="files.openFile" datatype="html">
+        <source>Open <x id="name" equiv-text="name"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.ts</context>
-          <context context-type="linenumber">287</context>
+          <context context-type="linenumber">290</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.error" datatype="html">
         <source>Something went wrong.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/files-page.ts</context>
-          <context context-type="linenumber">325</context>
+          <context context-type="linenumber">328</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/browser/move-dialog.ts</context>
@@ -4006,46 +4006,60 @@
           <context context-type="linenumber">34,36</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="files.preview.unsupported" datatype="html">
+        <source>There is no preview for this type of file.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/files/preview/preview-dialog.html</context>
+          <context context-type="linenumber">46,47</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="files.preview.downloadFile" datatype="html">
+        <source>Download the file</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/files/preview/preview-dialog.html</context>
+          <context context-type="linenumber">48,51</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="files.preview.imageFailed" datatype="html">
         <source> The image could not be shown. Download it to open it. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/preview/preview-dialog.html</context>
-          <context context-type="linenumber">47,49</context>
+          <context context-type="linenumber">55,57</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.preview.textFailed" datatype="html">
         <source> The text could not be loaded. Download the file to open it. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/preview/preview-dialog.html</context>
-          <context context-type="linenumber">65,67</context>
+          <context context-type="linenumber">73,75</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.preview.contents" datatype="html">
         <source>Contents</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/preview/preview-dialog.html</context>
-          <context context-type="linenumber">72,74</context>
+          <context context-type="linenumber">80,82</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.preview.truncated" datatype="html">
         <source> Only the beginning of the file is shown. Download it to see all of it. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/preview/preview-dialog.html</context>
-          <context context-type="linenumber">81,82</context>
+          <context context-type="linenumber">89,90</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.preview.loading" datatype="html">
         <source>Loading…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/preview/preview-dialog.html</context>
-          <context context-type="linenumber">86,89</context>
+          <context context-type="linenumber">94,97</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.preview.next" datatype="html">
         <source>Next file</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/preview/preview-dialog.html</context>
-          <context context-type="linenumber">99,101</context>
+          <context context-type="linenumber">107,109</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.upload.dropHint" datatype="html">
@@ -4758,14 +4772,14 @@
         <source>Draft an email about “<x id="title" equiv-text="title"/>”</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/lists/waiting-page.ts</context>
-          <context context-type="linenumber">69</context>
+          <context context-type="linenumber">87</context>
         </context-group>
       </trans-unit>
       <trans-unit id="gtd.waiting.followUpLabel" datatype="html">
         <source>Follow up on “<x id="title" equiv-text="title"/>”</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/lists/waiting-page.ts</context>
-          <context context-type="linenumber">73</context>
+          <context context-type="linenumber">91</context>
         </context-group>
       </trans-unit>
       <trans-unit id="nav.waiting" datatype="html">
@@ -7746,7 +7760,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.ts</context>
-          <context context-type="linenumber">605</context>
+          <context context-type="linenumber">606</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.backAria" datatype="html">
@@ -7942,35 +7956,35 @@
         <source>Message sent</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.ts</context>
-          <context context-type="linenumber">324</context>
+          <context context-type="linenumber">325</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.sentNoCopy" datatype="html">
         <source>Message sent, but no copy was saved in Sent</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.ts</context>
-          <context context-type="linenumber">325</context>
+          <context context-type="linenumber">326</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.discarded" datatype="html">
         <source>Draft discarded</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.ts</context>
-          <context context-type="linenumber">344</context>
+          <context context-type="linenumber">345</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.invalidRecipient" datatype="html">
         <source><x id="address" equiv-text="address"/> is not a valid email address.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.ts</context>
-          <context context-type="linenumber">559</context>
+          <context context-type="linenumber">560</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.noRecipient" datatype="html">
         <source>Add a recipient in To.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.ts</context>
-          <context context-type="linenumber">561</context>
+          <context context-type="linenumber">562</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.invalidAddress" datatype="html">

@@ -343,12 +343,13 @@ describe('FilesPage', () => {
     expect(preview.getAttribute('aria-label')).toBe('Preview Report.pdf');
     expect(report.querySelector('a.open')).toBeNull();
     expect(report.querySelector('.size')?.textContent?.trim()).toBe('1.5 KB');
-    // A zip has none: its name stays a download link.
-    const download = archive.querySelector('a.open')!;
-    expect(download.getAttribute('href')).toBe(`/api/v1/files/${ARCHIVE}/content`);
-    expect(download.hasAttribute('download')).toBe(true);
-    expect(download.getAttribute('aria-label')).toBe('Download Taxes.zip');
-    expect(archive.querySelector('button.open')).toBeNull();
+    // A zip has none: its name still opens the preview dialog (download and linked items there),
+    // with the file icon instead of a thumbnail.
+    const opener = archive.querySelector('button.open')!;
+    expect(opener.getAttribute('aria-label')).toBe('Open Taxes.zip');
+    expect(opener.querySelector('app-item-type-icon')).not.toBeNull();
+    expect(opener.querySelector('app-file-thumb')).toBeNull();
+    expect(archive.querySelector('a.open')).toBeNull();
   });
 
   it('switches between list and grid and remembers the choice', async () => {

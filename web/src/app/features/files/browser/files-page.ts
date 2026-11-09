@@ -138,7 +138,10 @@ export default class FilesPage {
     input.value = '';
   }
 
-  /** Files open in the preview when there is one for their type, else they download. */
+  /**
+   * Whether there is a preview for the file's type (its thumbnail is shown). All files open in the
+   * preview dialog; one without a preview shows its download and linked items there.
+   */
   protected canPreview(entry: DriveEntry): boolean {
     return entry.kind === 'file' && !!previewKind(entry.file.mime, entry.name);
   }
@@ -284,7 +287,7 @@ export default class FilesPage {
     if (entry.kind === 'folder') return $localize`:@@files.openFolder:Open folder ${name}:name:`;
     return this.canPreview(entry)
       ? $localize`:@@files.previewFile:Preview ${name}:name:`
-      : $localize`:@@files.downloadFile:Download ${name}:name:`;
+      : $localize`:@@files.openFile:Open ${name}:name:`;
   }
 
   private async openName(data: NameDialogData): Promise<boolean> {

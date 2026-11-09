@@ -134,30 +134,20 @@
                   <span class="name">{{ entry.name }}</span>
                 </a>
                 <span class="meta"></span>
-              } @else if (canPreview(entry)) {
+              } @else {
                 <button
                   type="button"
                   class="open"
                   [attr.aria-label]="openLabel(entry)"
                   (click)="preview(entry)"
                 >
-                  <app-file-thumb [file]="entry.file" />
+                  @if (canPreview(entry)) {
+                    <app-file-thumb [file]="entry.file" />
+                  } @else {
+                    <app-item-type-icon type="FILE" />
+                  }
                   <span class="name">{{ entry.name }}</span>
                 </button>
-                <span class="meta">
-                  <span class="size">{{ formatBytes(entry.file.size) }}</span>
-                  <span class="date">{{ entry.file.updatedAt | date: 'mediumDate' }}</span>
-                </span>
-              } @else {
-                <a
-                  class="open"
-                  [href]="downloadUrl(entry)"
-                  download
-                  [attr.aria-label]="openLabel(entry)"
-                >
-                  <app-item-type-icon type="FILE" />
-                  <span class="name">{{ entry.name }}</span>
-                </a>
                 <span class="meta">
                   <span class="size">{{ formatBytes(entry.file.size) }}</span>
                   <span class="date">{{ entry.file.updatedAt | date: 'mediumDate' }}</span>
