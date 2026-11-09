@@ -19,7 +19,8 @@ SPEC.md §5.3 also wants waiting "follow up" to be able to draft an email to the
   - verified (2026-11-09 10:20+0100 by dell26/agent-1): web project-detail-page <app-linked-items PROJECT> + projects-states.spec.ts; Android ProjectLinksToggleTest (toggle shows LinkedItemsSection PROJECT) -> npm run check (web/) pass, focused gradle testDebugUnitTest pass, sh scripts/check.sh at 22c4b4728 -> all checks passed
 - [x] Web file details/preview and Android file preview show the linked-items panel
   - verified (2026-11-09 10:20+0100 by dell26/agent-1): web preview-dialog.spec.ts linked items (toggle, paging, close on NavigationStart); Android FilePreviewLinksTest + FilePreviewLinksRouteInAppTest (real panel for the file, linked note + Back keeps panel) -> pass in npm run check and gradle testDebugUnitTest; files without preview type deferred to web-file-links-nopreview
-- [ ] Waiting "Follow up" offers "Draft email" (prefilled To from the linked contact or waiting-for text, subject from the task) on web and Android
+- [x] Waiting "Follow up" offers "Draft email" (prefilled To from the linked contact or waiting-for text, subject from the task) on web and Android
+  - verified (2026-11-09 10:20+0100 by dell26/agent-1): web list-pages.spec.ts Waiting Draft email (To from contact, else waiting-for text, subject = title, /mail/compose?to&subject) + mail-compose-page.spec.ts prefill; Android WaitingDraftEmailTest + ListScreensTest (mailto To from waiting-for text, subject from task; linked contact deferred to and-waiting-contact-mail) -> all pass
 - [ ] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
 - [ ] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
 
