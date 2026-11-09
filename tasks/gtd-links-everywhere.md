@@ -1,14 +1,14 @@
 ---
 title: Linked items on projects and files; follow-up by mail (web + Android)
-status: in_progress
-owner: dell26/agent-1
+status: todo
+owner: 
 deps: [and-links-panel,web-projects-plus,and-project-tasks,and-files-preview,and-scheduled-list,web-task-actions]
 touches: [web/src/app/features/gtd/projects,web/src/app/features/files,web/src/app/features/gtd/lists,android/app/src/main/java/ch/sonensei/cockpit/gtd/projects,android/app/src/test/java/ch/sonensei/cockpit/gtd/projects,android/app/src/main/java/ch/sonensei/cockpit/files,android/app/src/test/java/ch/sonensei/cockpit/files,android/app/src/main/java/ch/sonensei/cockpit/gtd/lists,android/app/src/test/java/ch/sonensei/cockpit/gtd/lists,web/src/locale,android/app/src/main/res/values/strings_projects_lists.xml,android/app/src/main/res/values-de/strings_projects_lists.xml,android/app/src/main/res/values/strings_files.xml,android/app/src/main/res/values-de/strings_files.xml]
 prio: 3
-lease_until: 2026-11-09T08:54:06Z
-releases: 2
+lease_until: 
+releases: 3
 extended: 
-hold: 
+hold: given back 3 times; last: Done since last: final-pass test-writer (14 new tests, TW-4 web emailIn keeps ()/[], TW-5 trailing full stop both clients) + code-reviewer (CR-1=TW-4, CR-2 web preview dialog
 ---
 ## Goal
 SPEC.md §4.3 wants the linked-items panel on every detail view; projects and files have none on either client.
@@ -32,3 +32,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - release by dell26/agent-2: Done: merged wip, fixed old CR-2 (FilesScreen early return) + CR-3 (no-mail-app toast), re-extracted xlf (merge had dropped new units), 10 Android toggle tests (FilePreviewLinksTest, ProjectLinksToggleTest, pass), web npm run check passes. Fresh review.md (CR-1 P1 now addressed by tests; P3 CR-2 links panel state resets after returning from a linked item; P3 CR-3 web draftEmail navigates after leaving page / parallel lookups) and tests.md committed. LEFT (android check fails): TW-1 WaitingScreen EMAIL regex keeps parentheses '(anna@example.org)' -> ListScreensTest fails; TW-2 ProjectsScreen toggle row pushes tasks down -> ProjectsScreenTest 'Someday', ProjectTaskListTest drag, FabClearanceTest fail (make toggle compact, e.g. icon button in next-step row, don't weaken tests); TW-3 lint UseKtx Uri.parse -> toUri() in WaitingScreen.kt:125. Then fixer.md, rerun test-writer + code-reviewer, verify 5 criteria, quality.json, done.
 - release by dell26/agent-2: Done since last: TW-1 email regex, TW-2 compact IconToggleButton links toggle in project header, TW-3 toUri (3a36e2834, 99fe47199); fixer fixed CR-2 (links panel state survives linked item, Projects+Files) and CR-3 (web draftEmail guarded) and wrote fixes.md; fixer ran full sh scripts/check.sh -> all checks passed. LEFT: rerun test-writer + code-reviewer in parallel on final code (review.md/tests.md are stale), verify 5 criteria, quality.json (fixes_required true, fixer completed), done.
 - ASSUMPTION (2026-11-09 09:32+0100 by dell26/agent-1): CR-3 (Android Draft email ignores the linked waiting-for contact): deferred to new task and-waiting-contact-mail, because Android GtdTask/cache has no waitingForContactId and gtd/data is outside this task's touches; Android keeps parsing the address from the waiting-for text.
+- release by dell26/agent-1: Done since last: final-pass test-writer (14 new tests, TW-4 web emailIn keeps ()/[], TW-5 trailing full stop both clients) + code-reviewer (CR-1=TW-4, CR-2 web preview dialog stays open when a linked item is followed, CR-3 Android ignores linked contact -> deferred to new task and-waiting-contact-mail + assumption, CR-4 comment wrap); fixer fixed TW-4/CR-1, TW-5, CR-2 (close on NavigationStart + spec), CR-4 and wrote fixes.md (671a3cf49); web npm run check + focused Android tests pass; merged origin/main cleanly. review.md/tests.md are now STALE (code changed by fixer). LEFT: rerun test-writer + code-reviewer in parallel on final code, verify 5 criteria, quality.json (fixes_required true, fixer completed; findings TW-1..5, CR-1..4 with CR-3 deferred to and-waiting-contact-mail), sh scripts/check.sh, done.
