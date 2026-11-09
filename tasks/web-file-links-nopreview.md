@@ -1,10 +1,11 @@
 ---
 title: Web: linked items for files without a preview
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [gtd-links-everywhere]
 touches: [web/src/app/features/files,web/src/locale]
 prio: 2
+lease_until: 2026-11-09T10:30:41Z
 ---
 ## Goal
 gtd-links-everywhere put the web file linked-items panel into the preview dialog, but files without a
