@@ -9,14 +9,19 @@ import {
   BookmarkTagResponse,
   createBookmark,
   CreateBookmarkRequest,
+  createLink,
+  createTask,
   deleteBookmark,
   getBookmark,
   listBookmarks,
   listBookmarkTags,
   previewFile,
+  restoreTrashItem,
+  TaskResponse,
   updateBookmark,
 } from '../../api/generated';
 import { SILENT_ERRORS } from '../../core/http';
+import { MAX_TASK_TITLE } from './bookmark-display';
 
 /** Which bookmarks a list shows. */
 export type BookmarkView = 'queue' | 'all';
@@ -78,6 +83,51 @@ export class BookmarksService {
       { id: bookmark.id, 'If-Match': `"${bookmark.version}"` },
       silent(),
     );
+  }
+
+  /** Takes the bookmark back out of the Trash (the undo of `remove`). */
+  async restore(bookmark: Pick<BookmarkResponse, 'id'>): Promise<void> {
+    await this.api.invoke(restoreTrashItem, { type: 'BOOKMARK', id: bookmark.id }, silent());
+  }
+
+  /**
+   * Creates an Inbox task for the bookmark (its title, the address in the notes) and links the
+   * bookmark to it as its origin (SPEC.md §4.5). `taskId` is a client-generated UUIDv7: the create
+   * is idempotent, so a retry after a lost answer returns the same task. `linked` is false when the
+   * task exists but the link could not be made.
+   */
+  async toInbox(
+    bookmark: BookmarkResponse,
+    taskId: string,
+  ): Promise<{ task: TaskResponse; linked: boolean }> {
+    const task = await this.api.invoke(
+      createTask,
+      {
+        body: {
+          id: taskId,
+          title: bookmark.displayTitle.slice(0, MAX_TASK_TITLE),
+          notesMd: bookmark.url,
+          list: 'INBOX',
+        },
+      },
+      silent(),
+    );
+    try {
+      await this.api.invoke(
+        createLink,
+        {
+          body: {
+            source: { type: 'TASK', id: task.id },
+            target: { type: 'BOOKMARK', id: bookmark.id },
+            label: 'origin',
+          },
+        },
+        silent(),
+      );
+      return { task, linked: true };
+    } catch {
+      return { task, linked: false };
+    }
   }
 
   /** The readable copy stored as file `fileId`: its first 256 KB, decoded by the server. */

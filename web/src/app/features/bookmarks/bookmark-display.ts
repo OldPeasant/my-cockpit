@@ -44,3 +44,26 @@ export function parseTags(input: string): string[] {
 export function inQueue(bookmark: BookmarkResponse): boolean {
   return bookmark.readLater && !bookmark.readAt;
 }
+
+/**
+ * Whether the bookmark matches the search `query`: every word (case-insensitive) occurs in its
+ * title, URL, notes or tags (a word may start with `#` to look for a tag).
+ */
+export function matchesQuery(bookmark: BookmarkResponse, query: string): boolean {
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const text = [
+    bookmark.title,
+    bookmark.displayTitle,
+    bookmark.url,
+    bookmark.description,
+    bookmark.tags.map((t) => `#${t}`).join(' '),
+  ]
+    .filter(Boolean)
+    .join('\n')
+    .toLowerCase();
+  return words.every((word) => text.includes(word));
+}
+
+/** The longest task title the server takes. */
+export const MAX_TASK_TITLE = 500;

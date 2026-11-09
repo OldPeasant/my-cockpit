@@ -8,20 +8,34 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { BookmarkResponse, BookmarkTagResponse } from '../../api/generated';
 import { ChangeEventsService } from '../../core/events';
 import { ApiError, NotificationService } from '../../core/http';
-import { hostOf, inQueue, normalizeUrl, parseTags } from './bookmark-display';
+import { uuidv7 } from '../capture/uuidv7';
+import { hostOf, inQueue, matchesQuery, normalizeUrl, parseTags } from './bookmark-display';
 import { BookmarksService, BookmarkView } from './bookmarks.service';
 
 /** The item type of bookmarks in change events. */
 const BOOKMARK_TYPE = 'BOOKMARK';
 
+/** How long the undo snackbar after a delete stays (ms). */
+export const UNDO_DURATION_MS = 6000;
+
+/** The unsaved values of the bookmark editor. */
+interface Draft {
+  id: string;
+  title: string;
+  tags: string;
+  notes: string;
+}
+
 /**
  * Bookmarks (SPEC.md §8.4): the read-later queue (`/bookmarks`) and all bookmarks, optionally of
  * one tag (`/bookmarks?view=all&tag=…`). Add a URL, mark bookmarks read, move them into or out of
- * the queue, open their readable snapshot. Title, description and icon of a new bookmark arrive
+ * the queue, open their readable snapshot, search the loaded ones, edit title, tags and notes,
+ * undo a delete, and turn one into an Inbox task (SPEC.md §4.5). Title, description and icon of a new bookmark arrive
  * from the server in the background and replace it in place.
  */
 @Component({
@@ -29,11 +43,12 @@ const BOOKMARK_TYPE = 'BOOKMARK';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [MatButtonModule, RouterLink],
   templateUrl: './bookmarks-page.html',
-  styleUrl: './bookmarks-page.scss',
+  styleUrls: ['./bookmarks-page.scss', './bookmark-edit.scss'],
 })
 export default class BookmarksPage {
   private readonly service = inject(BookmarksService);
   private readonly notifications = inject(NotificationService);
+  private readonly snackBar = inject(MatSnackBar);
 
   protected readonly view = signal<BookmarkView>('queue');
   protected readonly tag = signal<string | null>(null);
@@ -55,6 +70,24 @@ export default class BookmarksPage {
   protected readonly busy = signal<ReadonlySet<string>>(new Set());
   /** The last failed change, by bookmark id. */
   protected readonly rowError = signal<{ id: string; message: string } | null>(null);
+
+  /** The search text: only loaded bookmarks matching every word are shown. */
+  protected readonly query = signal('');
+  /** The bookmarks of the view that match the search; null while they load. */
+  protected readonly shown = computed(() => {
+    const items = this.bookmarks();
+    const query = this.query();
+    return items && query.trim() ? items.filter((b) => matchesQuery(b, query)) : items;
+  });
+
+  /** The bookmark being edited, with its unsaved values. */
+  protected readonly draft = signal<Draft | null>(null);
+
+  /**
+   * The client id of the Inbox task to create for a bookmark, kept until it was created: a retry
+   * after a lost answer then returns the same task instead of a second one.
+   */
+  private readonly taskIds = new Map<string, string>();
 
   protected readonly hostOf = hostOf;
 
@@ -144,6 +177,14 @@ export default class BookmarksPage {
     this.tagsText.set((event.target as HTMLInputElement).value);
   }
 
+  protected setQuery(event: Event): void {
+    this.query.set((event.target as HTMLInputElement).value);
+  }
+
+  protected clearQuery(): void {
+    this.query.set('');
+  }
+
   protected setReadLater(event: Event): void {
     this.readLater.set((event.target as HTMLInputElement).checked);
   }
@@ -206,13 +247,104 @@ export default class BookmarksPage {
   }
 
   protected async remove(bookmark: BookmarkResponse): Promise<void> {
+    let removed = false;
     await this.run(bookmark, async () => {
       await this.service.remove(bookmark);
+      removed = true;
       this.drop(bookmark.id);
-      const title = bookmark.displayTitle;
-      this.notifications.info($localize`:@@bookmarks.trashed:Moved “${title}:title:” to the Trash`);
+      if (this.draft()?.id === bookmark.id) this.draft.set(null);
       void this.loadTags();
     });
+    if (removed) await this.offerUndo(bookmark);
+  }
+
+  /** Shows "Undo" after a delete; undoing restores the bookmark from the Trash. */
+  private async offerUndo(bookmark: BookmarkResponse): Promise<void> {
+    const title = bookmark.displayTitle;
+    const ref = this.snackBar.open(
+      $localize`:@@bookmarks.trashed:Moved “${title}:title:” to the Trash`,
+      $localize`:@@bookmarks.undo:Undo`,
+      { duration: UNDO_DURATION_MS },
+    );
+    const undone = await new Promise<boolean>((resolve) => {
+      const action = ref.onAction().subscribe(() => resolve(true));
+      ref.afterDismissed().subscribe(() => {
+        action.unsubscribe();
+        resolve(false);
+      });
+    });
+    if (!undone) return;
+    try {
+      await this.service.restore(bookmark);
+      this.noteChange();
+      await this.refreshOne(bookmark.id);
+      void this.loadTags();
+    } catch (error) {
+      this.notifications.error(
+        $localize`:@@bookmarks.restoreFailed:“${title}:title:” could not be restored: ${message(error)}:error:`,
+      );
+    }
+  }
+
+  /** Opens the editor for title, tags and notes of the bookmark. */
+  protected startEdit(bookmark: BookmarkResponse): void {
+    this.rowError.set(null);
+    this.draft.set({
+      id: bookmark.id,
+      title: bookmark.title ?? '',
+      tags: bookmark.tags.join(', '),
+      notes: bookmark.description ?? '',
+    });
+  }
+
+  protected cancelEdit(): void {
+    this.draft.set(null);
+  }
+
+  protected setDraft(field: 'title' | 'tags' | 'notes', event: Event): void {
+    const value = (event.target as HTMLInputElement | HTMLTextAreaElement).value;
+    this.draft.update((draft) => (draft ? { ...draft, [field]: value } : draft));
+  }
+
+  /** Saves the editor's values; a blank title or notes field clears it. The editor stays on failure. */
+  protected async saveEdit(bookmark: BookmarkResponse): Promise<void> {
+    const draft = this.draft();
+    if (!draft || draft.id !== bookmark.id) return;
+    await this.run(bookmark, async () => {
+      this.put(
+        await this.service.update(bookmark, {
+          title: draft.title.trim() || null,
+          description: draft.notes.trim() || null,
+          tags: parseTags(draft.tags),
+        }),
+      );
+      if (this.draft()?.id === bookmark.id) this.draft.set(null);
+      void this.loadTags();
+    });
+  }
+
+  /** Creates an Inbox task for the bookmark, linked to it as its origin (SPEC.md §4.5). */
+  protected async toInbox(bookmark: BookmarkResponse): Promise<void> {
+    let taskId = this.taskIds.get(bookmark.id);
+    if (!taskId) {
+      taskId = uuidv7();
+      this.taskIds.set(bookmark.id, taskId);
+    }
+    const id = taskId;
+    await this.run(bookmark, async () => {
+      const { task, linked } = await this.service.toInbox(bookmark, id);
+      this.taskIds.delete(bookmark.id);
+      const title = task.title;
+      this.notifications.info(
+        linked
+          ? $localize`:@@bookmarks.taskCreated:Added to Inbox: ${title}:title:`
+          : $localize`:@@bookmarks.taskCreatedUnlinked:Added to Inbox: ${title}:title: (the link to the bookmark could not be made)`,
+      );
+    });
+  }
+
+  protected isEditing(bookmark: BookmarkResponse): boolean {
+    return this.draft()?.id === bookmark.id;
   }
 
   protected isBusy(bookmark: BookmarkResponse): boolean {

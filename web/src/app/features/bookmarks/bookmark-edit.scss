@@ -1,0 +1,58 @@
+// Search field and the inline bookmark editor (kept apart from bookmarks-page.scss: style budget).
+.search,
+.edit label {
+  display: grid;
+  gap: var(--app-space-1);
+}
+
+.search {
+  max-width: 28rem;
+  margin-bottom: var(--app-space-4);
+}
+
+.search input,
+.edit input,
+.edit textarea {
+  min-width: 0;
+  padding: var(--app-space-2);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-bg);
+  color: inherit;
+  font: var(--mat-sys-body-large);
+
+  &:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: -1px;
+    border-color: transparent;
+  }
+}
+
+.search .label,
+.edit .label {
+  font: var(--mat-sys-label-medium);
+}
+
+// Below the row's actions, under title and actions.
+.edit {
+  display: grid;
+  grid-column: 2 / -1;
+  order: 1;
+  gap: var(--app-space-3);
+  padding: var(--app-space-3);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+
+  textarea {
+    resize: vertical;
+  }
+}
+
+.edit-actions {
+  display: flex;
+  gap: var(--app-space-2);
+}
+
+.bookmark .error {
+  order: 2;
+}

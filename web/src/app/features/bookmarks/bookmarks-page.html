@@ -61,6 +61,19 @@
     }
   </form>
 
+  <label class="search">
+    <span class="label" i18n="@@bookmarks.search">Search</span>
+    <input
+      type="search"
+      autocomplete="off"
+      [value]="query()"
+      (input)="setQuery($event)"
+      (keydown.escape)="clearQuery()"
+      i18n-placeholder="@@bookmarks.searchPlaceholder"
+      placeholder="Title, address, notes or #tag"
+    />
+  </label>
+
   @if (view() === 'all' && tags().length) {
     <nav class="tag-filter" i18n-aria-label="@@bookmarks.tagFilter" aria-label="Tags">
       @for (t of tags(); track t.tag) {
@@ -91,9 +104,13 @@
         Try again
       </button>
     </div>
-  } @else if (bookmarks(); as items) {
+  } @else if (shown(); as items) {
     @if (!items.length) {
-      @if (view() === 'queue') {
+      @if (query().trim()) {
+        <p class="empty" role="status" i18n="@@bookmarks.noMatch">
+          No loaded bookmark matches “{{ query().trim() }}”.
+        </p>
+      } @else if (view() === 'queue') {
         <p class="empty" i18n="@@bookmarks.emptyQueue">
           Nothing left to read. Save a link above with “Read later” to queue it here.
         </p>
@@ -141,6 +158,68 @@
                 </span>
               }
             </div>
+            @if (draft(); as d) {
+              @if (d.id === b.id) {
+                <form
+                  class="edit"
+                  (submit)="$event.preventDefault(); saveEdit(b)"
+                  (keydown.escape)="cancelEdit()"
+                >
+                  <label>
+                    <span class="label" i18n="@@bookmarks.edit.title">Title</span>
+                    <input
+                      class="edit-title"
+                      type="text"
+                      maxlength="500"
+                      [value]="d.title"
+                      (input)="setDraft('title', $event)"
+                      [placeholder]="hostOf(b.url)"
+                    />
+                  </label>
+                  <label>
+                    <span class="label" i18n="@@bookmarks.add.tags">Tags</span>
+                    <input
+                      class="edit-tags"
+                      type="text"
+                      autocomplete="off"
+                      [value]="d.tags"
+                      (input)="setDraft('tags', $event)"
+                      i18n-placeholder="@@bookmarks.add.tagsPlaceholder"
+                      placeholder="e.g. kotlin, design"
+                    />
+                  </label>
+                  <label>
+                    <span class="label" i18n="@@bookmarks.edit.notes">Notes</span>
+                    <textarea
+                      class="edit-notes"
+                      rows="3"
+                      [value]="d.notes"
+                      (input)="setDraft('notes', $event)"
+                    ></textarea>
+                  </label>
+                  <div class="edit-actions">
+                    <button
+                      mat-flat-button
+                      type="submit"
+                      class="edit-save"
+                      [disabled]="isBusy(b)"
+                      i18n="@@bookmarks.edit.save"
+                    >
+                      Save
+                    </button>
+                    <button
+                      mat-button
+                      type="button"
+                      class="edit-cancel"
+                      (click)="cancelEdit()"
+                      i18n="@@bookmarks.edit.cancel"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              }
+            }
             <div class="actions">
               @if (b.snapshotFileId) {
                 <a
@@ -178,6 +257,26 @@
                 } @else {
                   <ng-container i18n="@@bookmarks.queue">Read later</ng-container>
                 }
+              </button>
+              <button
+                mat-button
+                type="button"
+                class="edit-open"
+                [disabled]="isBusy(b) || isEditing(b)"
+                (click)="startEdit(b)"
+                i18n="@@bookmarks.edit"
+              >
+                Edit
+              </button>
+              <button
+                mat-button
+                type="button"
+                class="to-inbox"
+                [disabled]="isBusy(b)"
+                (click)="toInbox(b)"
+                i18n="@@bookmarks.toInbox"
+              >
+                To Inbox task
               </button>
               <button
                 mat-button
