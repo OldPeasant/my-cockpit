@@ -4,10 +4,13 @@ Date: 2026-11-09
 
 Task: web-file-links-nopreview - Web: linked items for files without a preview
 
-Scope: base ff39818981ace0c646932be1dbd8d79aed7cc4cd, task commit f3fff539f (rebased during this run to
-7959c4179aca975ebefd1388404a4da36d30ed0e on top of task-board-only commits 83e655a52 and 024077eae;
-`git diff f3fff539f 7959c4179 -- web` is empty, so the measured code is identical). Branch main.
-Uncommitted inputs: only the three spec files listed below (test-writer changes).
+Scope: base ff39818981ace0c646932be1dbd8d79aed7cc4cd, final code at HEAD
+3ad50d3193c98b09b60913984c4e0ed624f85632 on branch main (`git diff ff3981898 3ad50d319 -- web`).
+Task commits: 7959c4179 (implementation), ba206fb64 (test-writer tests and round-1 reports),
+3ad50d319 (fix CR-1: doc comment of `openPreview` in preview-dialog.ts). This is round 2: since
+round 1 (measured at 7959c4179 plus the tests of ba206fb64) the only production change is that
+comment (`git diff ba206fb64 3ad50d319 -- web` touches only preview-dialog.ts lines 147-150, comment
+lines). No uncommitted web changes during this run.
 
 Requirements:
 - tasks/web-file-links-nopreview.md acceptance criteria
@@ -16,13 +19,15 @@ Requirements:
 
 ## Test files changed
 
+No test file changed in round 2. The task's tests (committed in 7959c4179 and ba206fb64):
+
 - `web/src/app/features/files/browser/files-page.spec.ts`
 - `web/src/app/features/files/preview/preview-dialog.spec.ts`
 - `web/src/locale/messages-de.spec.ts`
 
 ## Tests added or updated
 
-Count: 4 added (in addition to the parent's updated tests in files-page.spec.ts and preview-dialog.spec.ts)
+Count: 0 in round 2 (the comment-only fix needs no new test). Round 1 added 4 tests, still present and passing:
 
 - files-page.spec.ts: `opens a file without a preview alone in the dialog, with its download and linked items`
   (clicks the "Open Cards.zip" row in a folder with two images; dialog shows Cards.zip alone, no
@@ -55,10 +60,7 @@ Command:
 
 Result:
 
-Pass - 14 files, 249 tests passed.
-
-Lint/format of the changed specs: `npx eslint --max-warnings=0` on the three specs -> no output (pass);
-`npx prettier --check` on them -> all files use Prettier code style.
+Pass - 14 files, 249 tests passed (started 11:18:11 +01:00).
 
 ## Full test execution
 
@@ -88,20 +90,22 @@ Status: verified
 Metric: whole-file coverage of task-changed production files.
 Changed-line coverage: statements on all changed executable lines are covered. Method: the
 provider's complete list of uncovered statements/branches in the scoped .ts files
-(coverage-final.json) was intersected with the task diff's added lines (files-page.ts 141-147 and
-290; preview-dialog.ts 24-27, 38-39, 54, 137-145); none of the uncovered locations (files-page.ts
-75, 100, 150, 178, 185, 187, 247; preview-dialog.ts 70, 74, 82) is a changed line. The two .html
-templates are 100% covered as whole files. Changed-branch coverage is not separately measured.
+(coverage-final.json) was intersected with the task diff's added lines at 3ad50d319
+(files-page.ts 141-144 and 290; preview-dialog.ts 24-27, 38-39, 54, 137-150); none of the
+uncovered locations (files-page.ts 75, 100, 150, 178, 185, 187, 247; preview-dialog.ts 70, 74, 82)
+is a changed line. The executable changed lines are files-page.ts 290 and preview-dialog.ts 54 and
+141-144 (`previewableOrAlone`); the rest are comments. The two .html templates are 100% covered as
+whole files. Changed-branch coverage is not separately measured.
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: web-file-links-nopreview; base ff39818981ace0c646932be1dbd8d79aed7cc4cd; HEAD 7959c4179aca975ebefd1388404a4da36d30ed0e (same web code as f3fff539f); task commit and scope from the parent and `git diff ff3981898 f3fff539f`.
-- Source/test snapshot identifier (including uncommitted inputs): sha256 (web/src/...) files-page.ts f1f74f9927b060e63e3476e922a91fbd1560aaf5f0defa425d3c8a9a88f5fe31, files-page.html 6e17a636b796a9f68cb06636693e009971ab00c42ef95e18a647ba78548f0518, preview-dialog.ts 91a7aa0d106a089b4da9d22b82c69be1c269db497527036add1c0ef67467793b, preview-dialog.html 94d51be27c61d39d213669379896733c0770189ec5285aa73fd1ba6a4877997a, files-page.spec.ts 851dda50ecd1a2071238235017f2c9a2fff8e2a874cb002537f9320443fa9283, preview-dialog.spec.ts dc8780882c51d49e78c8144fd81ec26560a01d803a178d9dd3bb04e8d0ab6be3, messages-de.spec.ts 66beb9fb516e580bd0b75e8c365410a75801cb04dc4aa29759fd52471ae65c06, messages.xlf e9ce4f019d95ca4ff1f89a536ca62dd125f994ce9c0abba90627a6ba815a34e2, messages.de.xlf eb8f8548ad4a04bccc48a8c7dc334e44eabef436c19576c56b201f32184d7f9f; identical before and after the run.
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: web-file-links-nopreview; base ff39818981ace0c646932be1dbd8d79aed7cc4cd; HEAD 3ad50d3193c98b09b60913984c4e0ed624f85632; task commits 7959c4179, ba206fb64, 3ad50d319 and the base from the parent, scope confirmed with `git diff ff3981898 3ad50d319 -- web`.
+- Source/test snapshot identifier (including uncommitted inputs): no uncommitted web inputs; sha256 (web/src/...) files-page.ts f1f74f9927b060e63e3476e922a91fbd1560aaf5f0defa425d3c8a9a88f5fe31, files-page.html 6e17a636b796a9f68cb06636693e009971ab00c42ef95e18a647ba78548f0518, preview-dialog.ts be415b4a89909934a7ec31e7440cb9b9916eb7ce0dc4bf672d067a136617aece (changed from round 1 by the CR-1 comment only), preview-dialog.html 94d51be27c61d39d213669379896733c0770189ec5285aa73fd1ba6a4877997a, files-page.spec.ts 851dda50ecd1a2071238235017f2c9a2fff8e2a874cb002537f9320443fa9283, preview-dialog.spec.ts dc8780882c51d49e78c8144fd81ec26560a01d803a178d9dd3bb04e8d0ab6be3, messages-de.spec.ts 66beb9fb516e580bd0b75e8c365410a75801cb04dc4aa29759fd52471ae65c06, messages.xlf e9ce4f019d95ca4ff1f89a536ca62dd125f994ce9c0abba90627a6ba815a34e2, messages.de.xlf eb8f8548ad4a04bccc48a8c7dc334e44eabef436c19576c56b201f32184d7f9f; identical before and after the run.
 - Exact included files: web/src/app/features/files/browser/files-page.ts, files-page.html, web/src/app/features/files/preview/preview-dialog.ts, preview-dialog.html. Excluded: preview-dialog.scss (styles, not executable), messages.xlf and messages.de.xlf (translation data, checked by messages-de.spec instead), spec files (tests). No renames or deletions.
 - Provider/version, command, working directory, and test selection: Vitest 5.0.5 with @vitest/coverage-v8 5.0.5; `npm run coverage`; web/; full web suite.
-- Run start/completion time and exit status: started 2026-11-09 11:15:02 +01:00, reports written 11:15:49 +01:00; exit 0 (196 files, 4815 tests passed).
-- Generated report paths and report hashes/run identifier: web/coverage/web/coverage-final.json (sha256 be8d4c35c5922fe6659f8580b934e4c3e87b724133ca51fdfcc9b30d675b76a1), web/coverage/web/coverage-summary.json (sha256 446e0f11ed4676e0151f2e30bc60f0900db471291b94e1c3697fc0379d7a760f), web/coverage/web/lcov.info.
-- Evidence outputs are fresh and inputs stayed unchanged: report files timestamped 11:15:49 within this run; input hashes identical before and after.
-- Final run after latest test additions and production fixes: yes (no production fixes were made).
+- Run start/completion time and exit status: started 2026-11-09 11:18:26 +01:00, reports written 11:20:02 +01:00; exit 0 (196 files, 4815 tests passed).
+- Generated report paths and report hashes/run identifier: web/coverage/web/coverage-final.json (sha256 db8234ee26848cf98ff17cf2060a88b8b584517bd20300d7cddb35a35800e421), web/coverage/web/coverage-summary.json (sha256 fb62d38e30518dc71d8d6c26d7eb4bb17bdbe9b6f6e91a4387cffa0780315969), web/coverage/web/lcov.info (sha256 b32ae903de91605e64d78a63774ab6398a3c0f74a4cb950cea5a5dfa63ea83e1).
+- Evidence outputs are fresh and inputs stayed unchanged: report files timestamped 11:20:02 within this run (new hashes differ from round 1); input hashes identical before and after.
+- Final run after latest test additions and production fixes: yes (run on 3ad50d319, which includes the CR-1 fix).
 
 Values below use covered/total (percentage).
 
@@ -125,4 +129,6 @@ Values below use covered/total (percentage).
 
 ## Summary
 
-Tests added and all validation passed. Tests and task-scoped coverage are sufficient; no production defects found.
+Tests and task-scoped coverage are sufficient; no production defects found. The round-2 change
+(CR-1, a doc comment) adds no behavior; the existing tests still cover the final code at 3ad50d319
+and all validation run here passed.

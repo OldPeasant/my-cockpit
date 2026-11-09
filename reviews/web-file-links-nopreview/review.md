@@ -4,21 +4,22 @@ Date: 2026-11-09
 
 Task: web-file-links-nopreview - Web: linked items for files without a preview
 
-Scope: committed task changes `git diff ff3981898 f3fff539f` (identical web code to the rebased HEAD 7959c4179, checked with `git diff --stat f3fff539f 7959c4179 -- web`, which is empty)
+Scope: committed task changes `git diff ff3981898 3ad50d319` (round 2). Round 1 reviewed the production code at 7959c4179; this round re-reads the full range and focuses on what changed since: the test-writer commit ba206fb64 (files-page.spec.ts, preview-dialog.spec.ts, messages-de.spec.ts) and the fixer commit 3ad50d319 (preview-dialog.ts doc comment).
 
 Requirements:
 - tasks/web-file-links-nopreview.md (acceptance criteria and recorded assumption)
 - SPEC.md §4.3 (links everywhere, Android parity), §8.2 (file preview)
 - AGENTS.md project notes (i18n, conventions, e2e selectors)
-- Parent instructions: correctness, a11y, i18n, tests, e2e selectors
+- reviews/web-file-links-nopreview/fixes.md (CR-1 fix)
+- Parent instructions for round 2
 
 Git range:
 - Branch: main
-- HEAD: 7959c4179 (rebased task commit; reviewed code commit f3fff539f)
+- HEAD: 3ad50d319
 - Base/start: ff3981898
-- Commits reviewed: 1
+- Commits reviewed: 5 (83e655a52 and 024077eae are task-board only; 7959c4179 implementation; ba206fb64 tests and reports; 3ad50d319 CR-1 fix)
 
-Summary: 0 P0, 0 P1, 0 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 ## P0 Critical
 
@@ -34,24 +35,20 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | openPreview doc comment no longer describes the single-file case**
-    - File: `web/src/app/features/files/preview/preview-dialog.ts:147`
-    - Category: Quality
-    - Problem: The comment still reads "Opens the preview of `id`, paging through the previewable ones of `files`." Since this change, when `id` has no preview type the dialog shows only that file (`previewableOrAlone`, line 141) and does not page. `PreviewDialogData.files` (line 24) and the class comment were updated, but the exported entry point's comment was not.
-    - Why it matters: `openPreview` is the function callers read; the comment suggests a non-previewable id would be skipped in favour of the folder's previewable files, which is the old behavior.
-    - Suggested fix: Extend the comment, e.g. "...; a file without a preview is shown alone (notice, download, linked items)."
+None.
+
+## Round-1 finding status
+
+- CR-1 (P3, openPreview doc comment no longer describes the single-file case): resolved. `web/src/app/features/files/preview/preview-dialog.ts:147-150` now says the dialog pages through the previewable files and that a file without a preview is shown alone (notice, download, linked items), which matches `previewableOrAlone`. The commit changes only the comment; no behavior changed.
 
 ## Notes (no findings)
 
-- Correctness: `previewableOrAlone` returns just the clicked file when it has no preview kind, so `kind()` is `null`, `@case (null)` renders the notice, the header keeps Linked items, Download and Close, and paging controls are hidden (`files.length > 1`). ArrowLeft/ArrowRight are no-ops with one file. An unknown id still falls back to the first previewable file, and an empty list still renders nothing; both are covered by the updated dialog spec. A null or missing mime yields `previewKind` null and therefore the notice, which is the intended fallback.
-- The linked-items panel for the file uses `{ type: 'FILE', id: f.id }`, unchanged from gtd-links-everywhere; the dialog spec verifies the `/api/v1/links` request carries the zip id.
-- Files page: every file row is now a `button.open` that calls `preview(entry)`; non-previewable files show the generic file icon instead of a thumbnail, so no thumbnail request is made for them. Download stays in the row menu (`files.download`) and in the dialog. This matches the recorded assumption.
-- A11y: the row button has an accessible name ("Open NAME" / "Preview NAME"); the notice uses `role="status"` like the existing loading note; the dialog keeps `ariaLabelledBy: 'preview-title'`.
-- i18n: `files.openFile`, `files.preview.unsupported` and `files.preview.downloadFile` are in both `messages.xlf` and `messages.de.xlf` with German targets; the removed `files.downloadFile` is gone from both. The `messages.xlf` diff otherwise only shifts line numbers (no units from other tasks were added).
-- E2E selectors: grepped `web/e2e` for `a.open`, row link/button names and `Download` locators. File rows are only addressed by `Preview invoice.pdf` (button, unchanged) and `.entries .entry .name` (still present); the `a.open` uses are mail rows. The files-browser e2e downloads through the row menu, which is unchanged. No e2e locator relies on the removed "Download NAME" row link.
-- Style budget: `preview-dialog.scss` is 3361 bytes source, under the 4 kB component warning.
-- Tests: the committed `files-page.spec.ts` change checks the label and icon of the non-previewable row but does not click it; uncommitted working-tree additions (by the test-writer, outside this committed scope) add a click-through test and a German locale check. Not reported as a finding since the dialog behavior itself is covered by the committed `preview-dialog.spec.ts` and the click handler is shared with the previewable path.
-- Evidence: `tasks.py verify` shows criterion 2 recorded, criteria 1 and 3 not yet recorded; the parent worker still has to record them.
+- Production code: the only production change since round 1 is the CR-1 comment. `git diff 7959c4179 3ad50d319 -- web` shows only the comment plus the three spec files. The round-1 correctness, a11y, i18n, e2e selector and style budget observations still apply.
+- files-page.spec.ts: the new test clicks the "Open Cards.zip" row in a folder that also has two images and checks the result. The dialog shows that file alone (no `.position`, no `button.step`, ArrowRight does nothing), shows the notice with a download link to `/api/v1/files/{id}/content`, and offers the Linked items toggle. No request starts with `/api/v1/files/{zip id}`, so opening it neither downloads the file nor fetches a preview. This covers the gap noted in round 1, where the row click was not exercised, and it covers criterion 1 end to end at unit level.
+- preview-dialog.spec.ts: the DOCX test covers a second unsupported MIME type. It checks that `kind()` is null, there is no viewer element, both download links (header and notice) point to the content URL, the dialog shows the file alone, and Close works. `http.verify` in afterEach checks that no preview was requested. The other new test checks that opening on a previewable file still skips the zip while paging, which guards the unchanged path against regression.
+- messages-de.spec.ts: the new test checks the English sources and German targets of the three new units. It also checks that the removed `files.downloadFile` unit is gone. The placeholder rendering in the expected strings uses the same notation as the existing `mail.olderFailed` test in that file.
+- The tests assert visible behavior: DOM text, accessible names, hrefs and HTTP traffic. They do not test internals, and no existing test was weakened or removed in the range.
+- Evidence: criterion 2 is recorded. Criteria 1 and 3 are still unticked in the task file, so the parent worker must record them with `tasks.py verify`, including a `sh scripts/check.sh` run for criterion 3. The fixer reports focused files-feature tests passing (13 files, 238 tests). I did not re-run tests in this round.
 
 ## Review conclusion
 

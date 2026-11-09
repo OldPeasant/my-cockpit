@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "task": "web-file-links-nopreview",
+  "reviewed_revision": "8f84d04016460d36d6c0634ef8417b3db8063eeb",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/web-file-links-nopreview/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-file-links-nopreview/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/web-file-links-nopreview/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "openPreview doc comment updated: a file without a preview is shown alone; round-2 review confirms"}
+  ],
+  "validation": [
+    {"command": "cd web && npx ng test --include='src/app/features/files/**/*.spec.ts' --include='src/locale/messages-de.spec.ts' --watch=false", "result": "pass"},
+    {"command": "cd web && npm run coverage", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
