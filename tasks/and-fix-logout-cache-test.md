@@ -20,7 +20,8 @@ every task's `done`.
 ## Acceptance criteria
 - [x] Logout clears the files cache actually used by the files feature (fix the code, or the test if only it is outdated)
   - verified (2026-11-09 02:33+0100 by dell26/agent-2): Logout clears the whole cacheDir (AuthModule.cacheDirectory); new SessionCacheTest 'the files feature's previewed and opened files go with the logout' creates files via PreviewFiles.target/OpenedFiles.target and asserts they are deleted: android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.*' -> pass (SessionCacheTest 3/3, AppStartRoutingTest 9/9). Production code unchanged; the test's cache wait was raised from 5s to 30s (timing under load)
-- [ ] `AppStartRoutingTest` passes; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] `AppStartRoutingTest` passes; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-09 02:33+0100 by dell26/agent-2): android/gradlew -p android testDebugUnitTest --tests AppStartRoutingTest -> pass; android/gradlew -p android -q ktlintCheck testDebugUnitTest lintDebug at 0fcb536 -> exit 0; sh scripts/check.sh -> all checks passed
 
 ## Notes
 - ASSUMPTION (2026-11-09 02:18+0100 by dell26/agent-2): Could not reproduce on main 86d52bead: AppStartRoutingTest passes (0.5s for the settings-logout test) 3x in isolation and in a full ktlintCheck testDebugUnitTest lintDebug --rerun-tasks; AuthModule.cacheDirectory deletes all of context.cacheDir incl. files/ preview dir, so the cleanup is not outdated. Failure is likely timing: a cache earlier in the sequential clearCaches loop (Room clearAllTables via GtdRefresh writeLock, push registrar, WorkManager) blocked >5s on a loaded host.
