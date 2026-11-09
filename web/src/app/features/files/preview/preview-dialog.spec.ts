@@ -186,8 +186,7 @@ describe('PreviewDialog', () => {
       [...el().querySelectorAll<HTMLButtonElement>('button')].find(
         (b) => b.textContent?.trim() === 'Linked items',
       )!;
-    const linkRequests = () =>
-      http.match((r) => r.method === 'GET' && r.url === '/api/v1/links');
+    const linkRequests = () => http.match((r) => r.method === 'GET' && r.url === '/api/v1/links');
 
     it('shows the file’s linked items beside it on demand and hides them again', async () => {
       await open([IMAGE], IMAGE.id);
@@ -212,6 +211,29 @@ describe('PreviewDialog', () => {
       await render();
       expect(el().querySelector('#preview-links')).toBeNull();
       expect(toggle().getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('keeps the panel open when paging and shows the next file’s links', async () => {
+      await open(FOLDER_FILES, AUDIO.id);
+      toggle().click();
+      await render();
+      const first = linkRequests();
+      expect(first.length).toBeGreaterThan(0);
+      expect(first[0].request.urlWithParams).toContain(AUDIO.id);
+      first.forEach((r) => r.flush({ items: [] }));
+      await render();
+
+      nextButton()!.click();
+      await render();
+
+      expect(title()).toBe('Clip.mp4');
+      expect(toggle().getAttribute('aria-pressed')).toBe('true');
+      expect(el().querySelector('#preview-links app-linked-items')).not.toBeNull();
+      const next = linkRequests();
+      expect(next.length).toBeGreaterThan(0);
+      expect(next.every((r) => r.request.urlWithParams.includes(VIDEO.id))).toBe(true);
+      next.forEach((r) => r.flush({ items: [] }));
+      await render();
     });
 
     it('leaves arrow keys typed in the linked-items panel to the panel', async () => {

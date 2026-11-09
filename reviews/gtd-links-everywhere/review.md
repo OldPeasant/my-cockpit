@@ -4,27 +4,27 @@ Date: 2026-11-09
 
 Task: gtd-links-everywhere - Linked items on projects and files; follow-up by mail (web + Android)
 
-Scope: `git diff 9453c6284..50ccac4f8 -- web android` (committed changes only; final reviewed revision 50ccac4f886e80d0cd77d9e79c36e1e5eaa95226). This is a re-review after the fixes in b2068fad9 and the messages.xlf re-extraction in 50ccac4f8.
+Scope: `git diff origin/main HEAD` excluding `tasks/` and `reviews/` (final code after the fixes in reviews/gtd-links-everywhere/fixes.md). Uncommitted working-tree test changes from the parallel test-writer were not reviewed.
 
 Requirements:
-- tasks/gtd-links-everywhere.md acceptance criteria and recorded assumptions (web compose `?to=&subject=` prefill, web preview side panel, Android collapsible project section, Android `mailto:` ACTION_SENDTO)
+- tasks/gtd-links-everywhere.md (acceptance criteria and recorded assumptions)
 - SPEC.md §4.3 (linked-items panel on every detail view), §5.3 (waiting follow-up)
-- AGENTS.md project notes (i18n en+de, lint, tests, feature folders)
-- Parent instructions: re-check previous CR-2/CR-3, review the whole final code, static review of Android (no Gradle run)
+- docs/ARCHITECTURE.md conventions (i18n en+de, lint, tests), AGENTS.md project notes
 
 Git range:
 - Branch: main
-- HEAD: 50ccac4f886e80d0cd77d9e79c36e1e5eaa95226
-- Base/start: 9453c6284581d85d7b0fab7c92fcf28e9931aff0
-- Commits reviewed: the task commits in 9453c6284..50ccac4f8 (the merge of origin/wip/gtd-links-everywhere, the b2068fad9 fix commit and the 50ccac4f8 xlf re-extraction). Git log was not available to this reviewer; the scope was resolved from the diff between the two hashes.
+- HEAD: 3f534445dfe04d71b7f0956e63e44d293c5f145a
+- Base/start: origin/main ce03deae60ce4cf8fa0a4e33c08789101bea00b2
+- Commits reviewed: 17 (including merges)
 
-Summary: 0 P0, 1 P1, 0 P2, 2 P3
+Summary: 0 P0, 0 P1, 3 P2, 1 P3
 
-## Status of the previous findings
-
-- Previous CR-1 (missing tests): partly resolved. The web specs now cover `emailIn`/`followUpMail` (list-views.spec.ts), `WaitingPage.draftEmail` with contact, contact without email, contact failure, and no contact (list-pages.spec.ts), compose prefill from `?to=`/`?subject=`, including a blank `to` (mail-compose-page.spec.ts), the preview toggle and arrow keys inside the panel (preview-dialog.spec.ts), and the project panel (projects-states.spec.ts). On Android only the waiting behavior is tested. See CR-1 below.
-- Previous CR-2 (linked item drawn over FilesContent): resolved. `FilesScreen.kt:173-178` now renders only `SearchItemScreen(..., modifier = modifier)` with its own `BackHandler` and returns early, like `ProjectsScreen.kt:379-383`.
-- Previous CR-3 (no feedback without a mail app): resolved. `WaitingScreen.kt:56-60` shows the `waiting_no_mail_app` toast (en/de) when `ContactIntents.launch` returns false. `launch` catches `ActivityNotFoundException`.
+Criteria check (from code and tests):
+- 1 Project detail panel: web `project-detail-page.html` renders `app-linked-items` (PROJECT); Android `ProjectsScreen.kt` has an icon toggle in the header and a `LinkedItemsSection(PROJECT)`. Tests: projects-states.spec.ts, ProjectLinksToggleTest. Met.
+- 2 File preview panel: web preview dialog has a "Linked items" toggle with a side panel (FILE); Android `FilePreviewView` has a toggle that shows the links instead of the content. Tests: preview-dialog.spec.ts, FilePreviewLinksTest. Met, but see CR-2 for what happens when a link is opened on the web.
+- 3 Draft email: web uses the linked contact, then the waiting-for text, then nothing. Android uses only the waiting-for text (see CR-3). The web parsing is weaker than the Android parsing (see CR-1).
+- 4 Strings en+de: the new units are in messages.xlf and messages.de.xlf; the Android strings are in values and values-de. Met.
+- 5 Tests: new tests on every changed part. Ran the changed web specs at HEAD with `npx ng test --watch=false --include` (lists, preview, projects-states, compose): the committed specs pass. The only 3 failures come from the test-writer's uncommitted additions to list-views.spec.ts, and they confirm CR-1. Gradle was not run, as the parent asked.
 
 ## P0 Critical
 
@@ -32,43 +32,40 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | The Android project-detail and file-preview links toggles have no unit tests**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/ProjectsScreen.kt:417-430`, `android/app/src/main/java/ch/sonensei/cockpit/files/FilePreviewView.kt:125-156`, `android/app/src/main/java/ch/sonensei/cockpit/files/FilePreviewView.kt:232-240`
-    - Category: Tests
-    - Problem: Criterion 5 asks for unit tests of the new behavior in each changed part. In the reviewed range, the only Android test change is `ListScreensTest` (waiting "Draft email"). No test under `android/app/src/test` references `ProjectsTags.LINKS_TOGGLE`, `PreviewTags.LINKS_TOGGLE`, `PreviewTags.LINKS` or the `linksPanel` parameter of `FilesContent`/`FilePreviewView`. Untested: toggling shows and hides the panel, the panel replaces the preview content, the toggle is missing when `linksPanel` is null, and the panel is keyed by file when stepping. The parent says a test-writer is adding these tests in parallel. They are not in the reviewed revision.
-    - Why it matters: Criterion 5 is not met for the Android projects and files parts until those tests are committed and pass.
-    - Suggested fix: Add Robolectric tests. `FilesContent`/`FilePreviewView` get a fake `linksPanel`: toggle shows the fake panel instead of the content and hides it again, and with `linksPanel = null` there is no `LINKS_TOGGLE`. The project-detail toggle flips between the show and hide labels. `LinkedItemsSection` renders nothing without Hilt, so this test can only check the toggle state, not the panel. Then re-review the final revision.
+None.
 
 ## P2 Medium
 
-None.
+- [ ] **CR-1 | Web emailIn keeps surrounding parentheses or brackets, so the To address is wrong**
+    - File: `web/src/app/features/gtd/lists/list-views.ts:69`
+    - Category: Correctness
+    - Problem: The character class `[^\s<>"',;]` does not exclude `(`, `)`, `[` or `]`. For a waiting-for text like "Anna (anna@example.org)", `emailIn` returns `(anna@example.org)` (checked with node). For "[bob@example.org]" it returns `[bob@example.org]`. The Android version was fixed for this in TW-1 (`WaitingScreen.kt:115` excludes `()[]`), but the web version was not. The uncommitted test-writer cases in list-views.spec.ts fail for this reason.
+    - Why it matters: "Draft email" pre-fills compose with an address that `isValidAddress` (recipient-input.ts:35) rejects. The recipient is then invalid or gets filtered out when the draft is saved, so the criterion's "prefilled To from the waiting-for text" fails for a common way of writing an address. Web and Android also behave differently for the same task.
+    - Suggested fix: Use the same character class as Android (also exclude `()[]`) and add the parentheses and brackets cases to list-views.spec.ts.
+
+- [ ] **CR-2 | Opening a linked item from the web file preview leaves the full-window dialog on top**
+    - File: `web/src/app/features/files/preview/preview-dialog.html:109` (with `openPreview` in `preview-dialog.ts:122`)
+    - Category: Correctness
+    - Problem: The panel's rows are `routerLink`s (`shared/links/linked-items.html:119`). The preview is a 100vw x 100vh MatDialog using the default `closeOnNavigation`. In the CDK this maps to `disposeOnNavigation: true`, which only reacts to `Location.subscribe`, that is popstate (`@angular/cdk` `_overlay-module-chunk.mjs:784-786`). A router navigation from a link click does not close it, and no code in the app closes dialogs when the router navigates. So the route changes underneath while the preview still covers the whole window.
+    - Why it matters: Clicking a linked item seems to do nothing. The user only sees the item after closing the preview, and Back then behaves unexpectedly. The other `app-linked-items` hosts are pages, not modal dialogs, so this case is new with this task.
+    - Suggested fix: Close the dialog when a link in the panel is followed. For example, close it on a click inside `.links a`, or subscribe to `Router.events` `NavigationStart` in `PreviewDialog` and call `dialogRef.close()`. Add a spec that clicks a linked row and expects the dialog to close.
+
+- [ ] **CR-3 | Android "Draft email" ignores the linked contact (criterion 3 only partly met)**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/lists/WaitingScreen.kt:121` (with `gtd/data/GtdModels.kt:42`)
+    - Category: Integration
+    - Problem: Criterion 3 asks for To "from the linked contact or waiting-for text" on web and Android. `followUpMailUri` and `followUpMailIntent` use only `emailIn(task.waitingForText)`. The Android `GtdTask` model does not map `waitingForContactId`, although the API exposes it (`api/openapi.yaml`, TaskResponse). The deviation is recorded as an assumption ("switch to in-app compose prefill later"), but no follow-up task exists for it.
+    - Why it matters: A task delegated to a contact without an address in its text gets an empty To on Android but a filled one on the web, which breaks the parity the task was planned for (docs/PARITY.md).
+    - Suggested fix: Map `waitingForContactId` into `GtdTask` and look up the contact's first email, or keep the recorded assumption and add a follow-up task (`tasks.py new`) so the gap stays visible. The parent worker decides.
 
 ## P3 Low
 
-- [ ] **CR-2 | Returning from a linked item collapses the linked-items panel it was opened from (Android)**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/projects/ProjectsScreen.kt:378-384`, `android/app/src/main/java/ch/sonensei/cockpit/files/FilesScreen.kt:173-178`, `android/app/src/main/java/ch/sonensei/cockpit/files/FilePreviewView.kt:125`
-    - Category: Correctness
-    - Problem: Both screens return early while `linked` is set. That removes the detail or preview from composition. `showLinks` (a `rememberSaveable` in `ProjectDetail` after the early return, and in `FilePreviewView`) is discarded with it, so Back shows the project or preview with the panel collapsed. In the file preview, the PDF page position (`PdfPagesView`'s `page`) is lost too, and the PDF is opened again. The comments promise "Back returns to the project/preview". The user does come back, but not to the panel they used.
-    - Why it matters: Opening several linked items one after another means re-opening the panel each time. This is a small UX regression introduced by the CR-2 fix, and no test covers it.
-    - Suggested fix: Move the toggle state above the early return. In `ProjectDetail`, declare `showLinks` before the `linked?.let { ... return }`. In Files, keep `showLinks` in `FilesRoute`, or pass it into `FilesContent`/`FilePreviewView` as state plus a callback. Optionally keep the page index in the preview state.
-
-- [ ] **CR-3 | Web "Draft email" can navigate to compose after the user has left the page**
-    - File: `web/src/app/features/gtd/lists/waiting-page.ts:397-408`
-    - Category: Correctness
-    - Problem: `draftEmail` awaits `getContact` and then always calls `router.navigate(['/mail/compose'], ...)`. Suppose the contact request is slow (bad network, waiting for a timeout) and the user navigates elsewhere meanwhile. When the request settles, the user is pulled to the compose page. There is no in-flight guard or busy state, so repeated clicks start parallel lookups and navigations.
-    - Why it matters: An unexpected navigation away from the page the user chose. The impact is low because the lookup is usually fast.
-    - Suggested fix: Skip the navigation if the component was destroyed meanwhile (`DestroyRef`), or if a newer draft request started. Optionally disable the button while the lookup runs.
+- [ ] **CR-4 | Compose page doc comment line is far longer than the rest of the comment**
+    - File: `web/src/app/features/mail/compose/mail-compose-page.ts:61`
+    - Category: Quality
+    - Problem: The inserted text "a new one may start with `?to=` and `?subject=`." was added to an existing line without re-wrapping it. The line is now about 140 characters, while the surrounding comment wraps at about 100.
+    - Why it matters: Small readability and style inconsistency (Prettier does not re-wrap comments).
+    - Suggested fix: Re-wrap the paragraph.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
-
-The blocking item is CR-1. It is resolved once the Android toggle tests that the parallel test-writer is adding are committed and pass. CR-2 and CR-3 are low priority.
-
-Verified without findings:
-- Criterion 1: web project detail renders `<app-linked-items [item]="{ type: 'PROJECT', id }">` (test asserts the PROJECT/p1 request). Android project detail has a collapsible `LinkedItemsSection(ItemRef("PROJECT", id))`. Linked items open via `SearchItemScreen`, and Back returns to the project.
-- Criterion 2: web preview has an `aria-pressed` "Linked items" toggle and an `<aside id="preview-links">` with `app-linked-items` (FILE). It follows the current file, because `LinkedItems.item` is a signal input read in an effect. Arrow keys inside `.links` are ignored. Android preview has a top-bar toggle, and the panel is keyed by file id.
-- Criterion 3: on the web, To is the linked contact's first email, else an address in the waiting-for text, else omitted. The subject is the task title. Router `queryParams` encode the values, and compose trims `to` and fills only a new draft. On Android, the `mailto:` To comes from the waiting-for text only, encoded with `Uri.encode`; the subject is set both in the URI and as `EXTRA_SUBJECT`. This matches the recorded assumption.
-- Criterion 4: Android strings `files_links_show/hide`, `projects_links_show/hide`, `waiting_draft_email`, `waiting_draft_email_label` and `waiting_no_mail_app` exist in `values` and `values-de`. Web: `files.preview.links`, `gtd.waiting.draftEmail` and `gtd.waiting.draftEmailLabel` are in `messages.xlf` (restored by 50ccac4f8) and in `messages.de.xlf` with German targets.
-- No secrets, no logging of user data, no unsafe HTML or URL construction introduced.
-- Not run by this reviewer: `sh scripts/check.sh`, `npm run check` and the Android Gradle checks (per parent instruction; Bash access was limited to read-only inspection).
+Material issues found; fix before completing the task. CR-1 and CR-2 are web defects in the behavior this task adds. CR-3 needs the parent worker to decide (implement it, or keep the assumption and add a follow-up task).

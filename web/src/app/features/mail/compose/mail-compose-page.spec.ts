@@ -323,6 +323,22 @@ describe('MailComposePage', () => {
       );
     });
 
+    it('shows the ?to= address as a recipient chip and ?subject= in the subject field', async () => {
+      await open({ to: 'anna@example.test', subject: 'Lease papers' });
+      expect(el().querySelector<HTMLInputElement>('input[name=subject]')?.value).toBe(
+        'Lease papers',
+      );
+      expect(el().querySelector('mat-chip-row')?.textContent).toContain('anna@example.test');
+    });
+
+    it('lets a reply keep its own recipients and subject over ?to= and ?subject=', async () => {
+      await open({ reply: MESSAGE, to: 'anna@example.test', subject: 'Lease papers' });
+      expect(service.responds).toEqual([{ id: MESSAGE, mode: 'reply' }]);
+      expect((page()['subject'] as () => string)()).toBe('Re: Budget');
+      const to = (page()['to'] as () => { address: string }[])();
+      expect(to.map((r) => r.address)).toEqual(['max@example.test']);
+    });
+
     it('leaves To empty for a blank ?to= and keeps ?subject=', async () => {
       await open({ to: '   ', subject: 'Parcel' });
       expect((page()['to'] as () => unknown[])()).toEqual([]);
@@ -1181,7 +1197,10 @@ describe('MailComposePage', () => {
       expect(service.creates).toEqual([]);
       expect(service.discards).toEqual([]);
       expect(service.updates).toEqual([
-        expect.objectContaining({ id: DRAFT, body: expect.objectContaining({ identityId: 'ident-1' }) }),
+        expect.objectContaining({
+          id: DRAFT,
+          body: expect.objectContaining({ identityId: 'ident-1' }),
+        }),
       ]);
     });
 
