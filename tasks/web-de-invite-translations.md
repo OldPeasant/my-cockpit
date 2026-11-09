@@ -18,3 +18,4 @@ dialog from itip-api: `web/src/app/features/calendar/edit/invitation-dialog.ts`,
 
 ## Notes
 Found 2026-11-08 by mail-images-web-settings. Add units by hand (a full `npm run i18n:extract` reorders the whole file).
+- ASSUMPTION (2026-11-09 01:41+0100 by dell26/agent-1): No code change: the 16 calendar.invite.* units and German targets were already added to main by mail-load-older-ui (ba52ebac3); this task only verifies build:de and records review evidence.
