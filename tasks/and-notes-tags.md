@@ -15,7 +15,8 @@ Part of `and-notes-editor` (Android note editor: tags, checklists, links, revisi
 Goal: Edit a note's tags in the Android editor as chips, with suggestions from existing tags (web: `note-editor-page.html`). Touches android/.../cockpit/notes, its tests and strings_notes.xml (en + de).
 
 ## Acceptance criteria
-- [ ] Edit tags (chips with suggestions from existing tags), saved with the note
+- [x] Edit tags (chips with suggestions from existing tags), saved with the note
+  - verified (2026-11-09 07:18+0100 by dell26/agent-1): NoteTagsEditor (chips + suggestions from tags in use) and NoteEditorViewModel tag save; android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.notes.*' -> 277 tests pass incl. NoteTagsEditorTest (add/remove/suggest Compose tests) and NoteEditorTagsViewModelTest (tags sent in PATCH/POST)
 - [x] New strings are in English and German (`res/values/strings_notes.xml` + `res/values-de/strings_notes.xml`)
   - verified (2026-11-09 07:10+0100 by dell26/agent-1): git diff 1bf4ebbbe HEAD -- android/**/strings*.xml -> notes_tag_add + notes_tag_remove added to values/strings_notes.xml (en) and values-de/strings_notes.xml (de), no other new strings; lintDebug (MissingTranslation) passes
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
