@@ -74,4 +74,6 @@
         <item quantity="one">%1$d Element in den Papierkorb verschoben</item>
         <item quantity="other">%1$d Elemente in den Papierkorb verschoben</item>
     </plurals>
+    <string name="files_links_show">Verknüpfte Elemente anzeigen</string>
+    <string name="files_links_hide">Verknüpfte Elemente ausblenden</string>
 </resources>

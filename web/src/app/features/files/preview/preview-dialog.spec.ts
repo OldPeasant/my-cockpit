@@ -1,6 +1,7 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { provideRouter, Router } from '@angular/router';
 import { FileResponse } from '../../../api/generated';
 import { NotificationService, provideHttp } from '../../../core/http';
 import { PdfJs, setPdfJsLoader } from './pdf-viewer';
@@ -47,6 +48,7 @@ describe('PreviewDialog', () => {
       providers: [
         provideHttp(),
         provideHttpClientTesting(),
+        provideRouter([{ path: '**', children: [] }]),
         { provide: NotificationService, useValue: { error: vi.fn(), info: vi.fn() } },
         { provide: MAT_DIALOG_DATA, useValue: { files, id } satisfies PreviewDialogData },
         { provide: MatDialogRef, useValue: { close } },
@@ -179,6 +181,114 @@ describe('PreviewDialog', () => {
     const event = await key('ArrowLeft', el().querySelector('video')!);
     expect(event.defaultPrevented).toBe(false);
     expect(title()).toBe('Clip.mp4');
+  });
+
+  describe('linked items', () => {
+    const toggle = () =>
+      [...el().querySelectorAll<HTMLButtonElement>('button')].find(
+        (b) => b.textContent?.trim() === 'Linked items',
+      )!;
+    const linkRequests = () => http.match((r) => r.method === 'GET' && r.url === '/api/v1/links');
+
+    it('shows the file’s linked items beside it on demand and hides them again', async () => {
+      await open([IMAGE], IMAGE.id);
+      expect(toggle().getAttribute('aria-pressed')).toBe('false');
+      expect(el().querySelector('#preview-links')).toBeNull();
+      expect(linkRequests()).toEqual([]);
+
+      toggle().click();
+      await render();
+
+      expect(toggle().getAttribute('aria-pressed')).toBe('true');
+      const panel = el().querySelector('#preview-links app-linked-items');
+      expect(panel).not.toBeNull();
+      const requests = linkRequests();
+      expect(requests.length).toBeGreaterThan(0);
+      expect(requests[0].request.urlWithParams).toContain(IMAGE.id);
+      expect(requests[0].request.urlWithParams).toContain('FILE');
+      requests.forEach((r) => r.flush({ items: [] }));
+      await render();
+
+      toggle().click();
+      await render();
+      expect(el().querySelector('#preview-links')).toBeNull();
+      expect(toggle().getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('keeps the panel open when paging and shows the next file’s links', async () => {
+      await open(FOLDER_FILES, AUDIO.id);
+      toggle().click();
+      await render();
+      const first = linkRequests();
+      expect(first.length).toBeGreaterThan(0);
+      expect(first[0].request.urlWithParams).toContain(AUDIO.id);
+      first.forEach((r) => r.flush({ items: [] }));
+      await render();
+
+      nextButton()!.click();
+      await render();
+
+      expect(title()).toBe('Clip.mp4');
+      expect(toggle().getAttribute('aria-pressed')).toBe('true');
+      expect(el().querySelector('#preview-links app-linked-items')).not.toBeNull();
+      const next = linkRequests();
+      expect(next.length).toBeGreaterThan(0);
+      expect(next.every((r) => r.request.urlWithParams.includes(VIDEO.id))).toBe(true);
+      next.forEach((r) => r.flush({ items: [] }));
+      await render();
+    });
+
+    it('closes the preview when a linked item is followed, so the item is not hidden under it', async () => {
+      const noteId = '0192f0c4-0000-7000-8000-0000000000b1';
+      await open([IMAGE], IMAGE.id);
+      toggle().click();
+      await render();
+      const self = { type: 'FILE' as const, id: IMAGE.id, available: true, title: 'Beach.png' };
+      const note = {
+        type: 'NOTE' as const,
+        id: noteId,
+        available: true,
+        title: 'Holiday ideas',
+        deepLink: `/notes/${noteId}`,
+      };
+      linkRequests().forEach((r) =>
+        r.flush({
+          items: [
+            {
+              id: '0192f0c4-0000-7000-8000-0000000000c1',
+              direction: 'OUTGOING',
+              origin: 'MANUAL',
+              createdAt: STAMP,
+              source: self,
+              target: note,
+            },
+          ],
+        }),
+      );
+      await render();
+      expect(close).not.toHaveBeenCalled();
+
+      const row = el().querySelector<HTMLAnchorElement>('#preview-links a.title')!;
+      expect(row.textContent?.trim()).toBe('Holiday ideas');
+      row.click();
+      await render();
+
+      expect(TestBed.inject(Router).url).toBe(`/notes/${noteId}`);
+      expect(close).toHaveBeenCalled();
+    });
+
+    it('leaves arrow keys typed in the linked-items panel to the panel', async () => {
+      await open(FOLDER_FILES, IMAGE.id);
+      toggle().click();
+      await render();
+      linkRequests().forEach((r) => r.flush({ items: [] }));
+      await render();
+
+      const event = await key('ArrowRight', el().querySelector<HTMLElement>('#preview-links')!);
+
+      expect(event.defaultPrevented).toBe(false);
+      expect(title()).toBe('Beach.png');
+    });
   });
 
   it('starts at the first previewable file when the given one has no preview', async () => {

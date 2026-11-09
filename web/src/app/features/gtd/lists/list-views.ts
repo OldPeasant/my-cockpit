@@ -64,6 +64,29 @@ export function followUpTask(task: TaskResponse): CreateTaskRequest {
   return { title, list: 'NEXT', projectId: task.projectId };
 }
 
+/**
+ * An email address inside free text such as `Anna <anna@example.org>` or `Anna (anna@example.org)`,
+ * or `undefined`. Surrounding brackets, quotes and separators and a trailing full stop are not part
+ * of it.
+ */
+export function emailIn(text: string | undefined): string | undefined {
+  return text?.match(
+    /[^\s<>"',;()[\]]+@[^\s<>"',;()[\]]+\.[^\s<>"',;()[\]]*[^\s<>"',;()[\].]/,
+  )?.[0];
+}
+
+/**
+ * The query of the compose page that "Draft email" opens for a waiting item: To is `address`
+ * (the linked contact's) or an address in the waiting-for text, the subject is the task's title.
+ */
+export function followUpMail(
+  task: TaskResponse,
+  address?: string,
+): { to?: string; subject: string } {
+  const to = address ?? emailIn(task.waitingForText);
+  return to ? { to, subject: task.title } : { subject: task.title };
+}
+
 /** How the ISO date `date` relates to `today`, for date headings; `undefined` for other days. */
 export function relativeDay(
   date: string,

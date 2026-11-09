@@ -25,12 +25,14 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AccountTree
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -58,6 +60,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.core.links.ItemRef
+import ch.sonensei.cockpit.core.links.LinkedItemsSection
 import ch.sonensei.cockpit.gtd.data.GtdProject
 import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.data.ProjectStatus
@@ -69,6 +73,8 @@ import ch.sonensei.cockpit.gtd.lists.LoadError
 import ch.sonensei.cockpit.gtd.lists.StaleBanner
 import ch.sonensei.cockpit.gtd.next.OfflineBanner
 import ch.sonensei.cockpit.notes.MarkdownView
+import ch.sonensei.cockpit.search.SearchItemScreen
+import ch.sonensei.cockpit.search.SearchTarget
 import ch.sonensei.cockpit.ui.LocalFabClearance
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import coil3.ImageLoader
@@ -170,6 +176,8 @@ object ProjectsTags {
     const val PROMPT_ADD = "next-step-add"
     const val PROMPT_SKIP = "next-step-skip"
     const val AREA_UNLOADED = "projects-area-unloaded"
+
+    const val LINKS_TOGGLE = "project-links-toggle"
 
     fun project(id: UUID) = "project-$id"
 
@@ -368,6 +376,15 @@ private fun ProjectDetail(
     imageLoader: ImageLoader?,
 ) {
     val project = detail.project
+    // A linked item opened from the panel, as "TYPE:id"; Back returns to the project.
+    var linked by rememberSaveable(project.id) { mutableStateOf<String?>(null) }
+    // Above the early return, so the panel is still open when Back returns from a linked item.
+    var showLinks by rememberSaveable(project.id) { mutableStateOf(false) }
+    linked?.split(':')?.let { (type, itemId) ->
+        BackHandler { linked = null }
+        SearchItemScreen(type, UUID.fromString(itemId), onClose = { linked = null })
+        return
+    }
     Column(Modifier.fillMaxSize().testTag(ProjectsTags.DETAIL)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = callbacks.close, modifier = Modifier.testTag(ProjectsTags.BACK)) {
@@ -383,6 +400,18 @@ private fun ProjectDetail(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+            // A compact toggle in the header, so the tasks keep their place below.
+            IconToggleButton(
+                checked = showLinks,
+                onCheckedChange = { showLinks = it },
+                modifier = Modifier.testTag(ProjectsTags.LINKS_TOGGLE),
+            ) {
+                Icon(
+                    Icons.Outlined.Link,
+                    contentDescription =
+                        stringResource(if (showLinks) R.string.projects_links_hide else R.string.projects_links_show),
+                )
             }
             ProjectMenu(state, detail, callbacks)
         }
@@ -400,6 +429,14 @@ private fun ProjectDetail(
             )
         }
         NextStepLine(state, detail, callbacks)
+        if (showLinks) {
+            // The panel scrolls on its own, so the tasks stay in view.
+            Column(Modifier.fillMaxWidth().heightIn(max = LINKS_MAX_HEIGHT).verticalScroll(rememberScrollState())) {
+                LinkedItemsSection(ItemRef("PROJECT", project.id), open = { target ->
+                    if (target is SearchTarget.InApp) linked = "${target.type}:${target.id}"
+                })
+            }
+        }
         HorizontalDivider()
         // The tasks shown are from an earlier load: say why changes are off, and offer to load them again. Offline, the
         // list's offline banner already says so: don't stack a second one.
@@ -526,3 +563,4 @@ private fun NextStepDialog(
 }
 
 private val DESCRIPTION_MAX_HEIGHT = 160.dp
+private val LINKS_MAX_HEIGHT = 360.dp

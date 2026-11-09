@@ -3679,7 +3679,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/preview/preview-dialog.html</context>
-          <context context-type="linenumber">10,11</context>
+          <context context-type="linenumber">20,21</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.rename" datatype="html">
@@ -3985,60 +3985,67 @@
           <context context-type="linenumber">7,9</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="files.preview.links" datatype="html">
+        <source> Linked items </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/files/preview/preview-dialog.html</context>
+          <context context-type="linenumber">18,20</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="files.preview.close" datatype="html">
         <source> Close </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/preview/preview-dialog.html</context>
-          <context context-type="linenumber">12,14</context>
+          <context context-type="linenumber">22,24</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.preview.prev" datatype="html">
         <source>Previous file</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/preview/preview-dialog.html</context>
-          <context context-type="linenumber">24,26</context>
+          <context context-type="linenumber">34,36</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.preview.imageFailed" datatype="html">
         <source> The image could not be shown. Download it to open it. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/preview/preview-dialog.html</context>
-          <context context-type="linenumber">37,39</context>
+          <context context-type="linenumber">47,49</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.preview.textFailed" datatype="html">
         <source> The text could not be loaded. Download the file to open it. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/preview/preview-dialog.html</context>
-          <context context-type="linenumber">55,57</context>
+          <context context-type="linenumber">65,67</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.preview.contents" datatype="html">
         <source>Contents</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/preview/preview-dialog.html</context>
-          <context context-type="linenumber">62,64</context>
+          <context context-type="linenumber">72,74</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.preview.truncated" datatype="html">
         <source> Only the beginning of the file is shown. Download it to see all of it. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/preview/preview-dialog.html</context>
-          <context context-type="linenumber">71,72</context>
+          <context context-type="linenumber">81,82</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.preview.loading" datatype="html">
         <source>Loading…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/preview/preview-dialog.html</context>
-          <context context-type="linenumber">76,79</context>
+          <context context-type="linenumber">86,89</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.preview.next" datatype="html">
         <source>Next file</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/files/preview/preview-dialog.html</context>
-          <context context-type="linenumber">89,91</context>
+          <context context-type="linenumber">99,101</context>
         </context-group>
       </trans-unit>
       <trans-unit id="files.upload.dropHint" datatype="html">
@@ -4519,7 +4526,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/lists/waiting-page.html</context>
-          <context context-type="linenumber">59,60</context>
+          <context context-type="linenumber">68,69</context>
         </context-group>
       </trans-unit>
       <trans-unit id="gtd.lists.retry" datatype="html">
@@ -4538,7 +4545,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/lists/waiting-page.html</context>
-          <context context-type="linenumber">61,63</context>
+          <context context-type="linenumber">70,72</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.html</context>
@@ -4546,7 +4553,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.html</context>
-          <context context-type="linenumber">307,310</context>
+          <context context-type="linenumber">309,312</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/projects-page.html</context>
@@ -4569,7 +4576,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/lists/waiting-page.html</context>
-          <context context-type="linenumber">65,68</context>
+          <context context-type="linenumber">74,77</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.html</context>
@@ -4577,7 +4584,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.html</context>
-          <context context-type="linenumber">311,313</context>
+          <context context-type="linenumber">313,315</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/projects-page.html</context>
@@ -4733,18 +4740,32 @@
           <context context-type="linenumber">48,50</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="gtd.waiting.draftEmail" datatype="html">
+        <source> Draft email </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/lists/waiting-page.html</context>
+          <context context-type="linenumber">57,59</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="gtd.waiting.empty" datatype="html">
         <source> Nothing to wait for. Use “Waiting” when you process the inbox to hand something off. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/lists/waiting-page.html</context>
-          <context context-type="linenumber">54,57</context>
+          <context context-type="linenumber">63,66</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="gtd.waiting.draftEmailLabel" datatype="html">
+        <source>Draft an email about “<x id="title" equiv-text="title"/>”</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/lists/waiting-page.ts</context>
+          <context context-type="linenumber">69</context>
         </context-group>
       </trans-unit>
       <trans-unit id="gtd.waiting.followUpLabel" datatype="html">
         <source>Follow up on “<x id="title" equiv-text="title"/>”</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/lists/waiting-page.ts</context>
-          <context context-type="linenumber">44</context>
+          <context context-type="linenumber">73</context>
         </context-group>
       </trans-unit>
       <trans-unit id="nav.waiting" datatype="html">
@@ -5297,21 +5318,21 @@
         <source> This project does not exist or is in the Trash. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.html</context>
-          <context context-type="linenumber">299,301</context>
+          <context context-type="linenumber">301,303</context>
         </context-group>
       </trans-unit>
       <trans-unit id="gtd.project.back" datatype="html">
         <source>All projects</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.html</context>
-          <context context-type="linenumber">301,303</context>
+          <context context-type="linenumber">303,305</context>
         </context-group>
       </trans-unit>
       <trans-unit id="gtd.projects.loadError" datatype="html">
         <source>The projects could not be loaded.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.html</context>
-          <context context-type="linenumber">305,306</context>
+          <context context-type="linenumber">307,308</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/projects-page.html</context>
@@ -5322,7 +5343,7 @@
         <source>Projects</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.ts</context>
-          <context context-type="linenumber">81</context>
+          <context context-type="linenumber">83</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/projects.routes.ts</context>
@@ -5337,42 +5358,42 @@
         <source>Waiting</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.ts</context>
-          <context context-type="linenumber">283</context>
+          <context context-type="linenumber">285</context>
         </context-group>
       </trans-unit>
       <trans-unit id="gtd.project.list.someday" datatype="html">
         <source>Someday</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.ts</context>
-          <context context-type="linenumber">285</context>
+          <context context-type="linenumber">287</context>
         </context-group>
       </trans-unit>
       <trans-unit id="gtd.project.list.scheduled" datatype="html">
         <source>Scheduled</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.ts</context>
-          <context context-type="linenumber">287</context>
+          <context context-type="linenumber">289</context>
         </context-group>
       </trans-unit>
       <trans-unit id="gtd.project.list.inbox" datatype="html">
         <source>Inbox</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.ts</context>
-          <context context-type="linenumber">289</context>
+          <context context-type="linenumber">291</context>
         </context-group>
       </trans-unit>
       <trans-unit id="gtd.project.deleted" datatype="html">
         <source>Moved “<x id="title" equiv-text="project.title"/>” to the Trash</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.ts</context>
-          <context context-type="linenumber">323</context>
+          <context context-type="linenumber">325</context>
         </context-group>
       </trans-unit>
       <trans-unit id="gtd.undo.action" datatype="html">
         <source>Undo</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.ts</context>
-          <context context-type="linenumber">324</context>
+          <context context-type="linenumber">326</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/ui/task-undo.ts</context>
@@ -5383,35 +5404,35 @@
         <source>Saved “<x id="title" equiv-text="project.title"/>”.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.ts</context>
-          <context context-type="linenumber">361</context>
+          <context context-type="linenumber">363</context>
         </context-group>
       </trans-unit>
       <trans-unit id="gtd.project.makeNextLabel" datatype="html">
         <source>Make “<x id="title" equiv-text="title"/>” the next step</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.ts</context>
-          <context context-type="linenumber">369</context>
+          <context context-type="linenumber">371</context>
         </context-group>
       </trans-unit>
       <trans-unit id="gtd.project.moveLabel" datatype="html">
         <source>Move “<x id="title" equiv-text="title"/>” (drag, or use the arrow keys)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.ts</context>
-          <context context-type="linenumber">373</context>
+          <context context-type="linenumber">375</context>
         </context-group>
       </trans-unit>
       <trans-unit id="gtd.project.nextStepSet" datatype="html">
         <source>“<x id="title" equiv-text="title"/>” is the next step.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.ts</context>
-          <context context-type="linenumber">377</context>
+          <context context-type="linenumber">379</context>
         </context-group>
       </trans-unit>
       <trans-unit id="gtd.project.moved" datatype="html">
         <source>Moved “<x id="title" equiv-text="title"/>” to position <x id="position" equiv-text="position"/> of <x id="count" equiv-text="count"/>.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/projects/project-detail-page.ts</context>
-          <context context-type="linenumber">381</context>
+          <context context-type="linenumber">383</context>
         </context-group>
       </trans-unit>
       <trans-unit id="gtd.project.form.title" datatype="html">
@@ -7725,7 +7746,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.ts</context>
-          <context context-type="linenumber">601</context>
+          <context context-type="linenumber">605</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.backAria" datatype="html">
@@ -7942,14 +7963,14 @@
         <source><x id="address" equiv-text="address"/> is not a valid email address.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.ts</context>
-          <context context-type="linenumber">555</context>
+          <context context-type="linenumber">559</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.noRecipient" datatype="html">
         <source>Add a recipient in To.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/compose/mail-compose-page.ts</context>
-          <context context-type="linenumber">557</context>
+          <context context-type="linenumber">561</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailCompose.invalidAddress" datatype="html">
