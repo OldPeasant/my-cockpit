@@ -3,6 +3,8 @@ package ch.sonensei.cockpit.core.spa
 import ch.sonensei.cockpit.core.auth.WithCockpitUser
 import ch.sonensei.cockpit.support.PostgresTestBase
 import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldNotContain
@@ -27,6 +29,8 @@ import org.springframework.web.servlet.resource.CachingResourceResolver
 import org.springframework.web.servlet.resource.ResourceHttpRequestHandler
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.attribute.FileTime
+import java.time.Instant
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -38,6 +42,9 @@ class SpaFallbackTests(
 	companion object {
 		private const val INDEX_HTML = "<!doctype html><title>Cockpit fixture</title><app-root></app-root>"
 		private const val LOGO_SVG = "<svg xmlns=\"http://www.w3.org/2000/svg\"/>"
+
+		private val JAR_TIME: FileTime = FileTime.from(Instant.parse("1980-02-01T00:00:00Z"))
+		private const val JAR_DATE = "Fri, 01 Feb 1980 00:00:00 GMT"
 
 		private const val SECRET = "fictitious-secret-outside-the-web-build"
 
@@ -53,6 +60,8 @@ class SpaFallbackTests(
 				Files.writeString(it.resolve("main-ABC123.js"), "console.log('fixture')")
 				Files.createDirectories(it.resolve("media"))
 				Files.writeString(it.resolve("media/logo-XYZ.svg"), LOGO_SVG)
+				// Like the reproducible boot jar: every entry has the same 1980 timestamp.
+				Files.walk(it).use { files -> files.forEach { f -> Files.setLastModifiedTime(f, JAR_TIME) } }
 			}
 
 		/** Runs also when a test failed, so no run leaves its fake web build behind. */
@@ -210,6 +219,94 @@ class SpaFallbackTests(
 		val handler = (mapping as SimpleUrlHandlerMapping).handlerMap["/**"] as ResourceHttpRequestHandler
 		handler.resourceResolvers.any { it is CachingResourceResolver } shouldBe false
 		handler.resourceResolvers.any { it is SpaFallbackResourceResolver } shouldBe true
+	}
+
+	private fun etagOf(path: String): String =
+		mockMvc
+			.get(path)
+			.andReturn()
+			.response
+			.getHeader("ETag")
+			.shouldNotBeNull()
+
+	/** Replaces index.html with same-size content and the same 1980 timestamp, runs [block], restores it. */
+	private fun withDeployedIndex(
+		html: String,
+		block: () -> Unit,
+	) {
+		val index = webBuild.resolve("index.html")
+		try {
+			Files.writeString(index, html)
+			Files.setLastModifiedTime(index, JAR_TIME)
+			block()
+		} finally {
+			Files.writeString(index, INDEX_HTML)
+			Files.setLastModifiedTime(index, JAR_TIME)
+		}
+	}
+
+	@Test
+	fun `changed index html is sent again despite the validators of the old one`() {
+		val oldEtag =
+			mockMvc
+				.get("/index.html")
+				.andReturn()
+				.response
+				.getHeader("ETag") ?: "\"old-build\""
+		// Same length and timestamp as the old file: only the content tells them apart.
+		val newHtml = INDEX_HTML.replace("fixture", "deploy2")
+		withDeployedIndex(newHtml) {
+			for (path in listOf("/index.html", "/inbox", "/projects/0192a4c0-0000-7000-8000-000000000001")) {
+				withClue(path) {
+					mockMvc
+						.get(path) {
+							header("If-None-Match", oldEtag)
+							header("If-Modified-Since", JAR_DATE)
+						}.andExpect {
+							status { isOk() }
+							content { string(newHtml) }
+						}
+					// A browser that only kept the date (no ETag yet) gets the new file too.
+					mockMvc.get(path) { header("If-Modified-Since", JAR_DATE) }.andExpect {
+						status { isOk() }
+						content { string(newHtml) }
+					}
+				}
+			}
+		}
+	}
+
+	@Test
+	fun `root forwards a conditional request to the current index html`() {
+		// The forward is not followed by MockMvc; `/index.html` with the same headers is covered above.
+		mockMvc.get("/") { header("If-Modified-Since", JAR_DATE) }.andExpect {
+			status { isOk() }
+			forwardedUrl("/index.html")
+		}
+	}
+
+	@Test
+	fun `unchanged files revalidate by content etag and send no last-modified`() {
+		for (path in listOf("/index.html", "/inbox", "/main-ABC123.js")) {
+			withClue(path) {
+				val response = mockMvc.get(path).andReturn().response
+				response.getHeader("Last-Modified").shouldBeNull()
+				response.getHeader("Cache-Control") shouldBe "no-cache"
+				val etag = response.getHeader("ETag").shouldNotBeNull()
+				mockMvc.get(path) { header("If-None-Match", etag) }.andExpect {
+					status { isNotModified() }
+				}
+			}
+		}
+		etagOf("/inbox") shouldBe etagOf("/index.html")
+		etagOf("/main-ABC123.js") shouldNotBe etagOf("/index.html")
+	}
+
+	@Test
+	fun `missing bundle stays 404 with old validators`() {
+		mockMvc.get("/main-GONE.js") { header("If-Modified-Since", JAR_DATE) }.andExpect {
+			status { isNotFound() }
+		}
 	}
 
 	// A test-only API endpoint: controllers must still win over the catch-all resource handler.
