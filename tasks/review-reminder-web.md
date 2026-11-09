@@ -16,7 +16,8 @@ Goal: web settings "General" gets a "Weekly review reminder" control: off, or we
   - verified (2026-11-09 04:50+0100 by dell26/agent-2): cd web && npx ng test --watch=false --include src/app/features/settings/general/general-settings.spec.ts (weekly review reminder block: shows stored day+time, off/unset, saves off, saves day with default time then changed time, empty time not saved, refused save restores, concurrency/edge cases) -> 2 files 92 passed incl. reminder-notifications spec
 - [x] reminder notification for WEEKLY_REVIEW navigates to /review (unit test)
   - verified (2026-11-09 04:50+0100 by dell26/agent-2): cd web && npx ng test --include src/app/core/notifications/reminder-notifications.service.spec.ts: WEEKLY_REVIEW reminder (deepLink /review from server WeeklyReviewItemResolver) -> notification click and toast Open both navigateByUrl('/review'), passed
-- [ ] English and German strings in web/src/locale; `cd web && npm run check` passes
+- [x] English and German strings in web/src/locale; `cd web && npm run check` passes
+  - verified (2026-11-09 04:52+0100 by dell26/agent-2): settings.reviewReminder{,.hint,.off,.time,.timeInvalid} in web/src/locale/messages.xlf and German targets in messages.de.xlf (messages-de.spec passes); npm --prefix web run check at 0df50ea38 -> lint, api check, 4768 tests, build all pass
 
 ## Notes
 - Work done on `review-reminder` before the split is on `origin/wip/review-reminder` (if it exists): merge it first if your part builds on it.
