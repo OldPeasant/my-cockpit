@@ -21,7 +21,8 @@ SPEC.md §5.3 also wants waiting "follow up" to be able to draft an email to the
   - verified (2026-11-09 10:20+0100 by dell26/agent-1): web preview-dialog.spec.ts linked items (toggle, paging, close on NavigationStart); Android FilePreviewLinksTest + FilePreviewLinksRouteInAppTest (real panel for the file, linked note + Back keeps panel) -> pass in npm run check and gradle testDebugUnitTest; files without preview type deferred to web-file-links-nopreview
 - [x] Waiting "Follow up" offers "Draft email" (prefilled To from the linked contact or waiting-for text, subject from the task) on web and Android
   - verified (2026-11-09 10:20+0100 by dell26/agent-1): web list-pages.spec.ts Waiting Draft email (To from contact, else waiting-for text, subject = title, /mail/compose?to&subject) + mail-compose-page.spec.ts prefill; Android WaitingDraftEmailTest + ListScreensTest (mailto To from waiting-for text, subject from task; linked contact deferred to and-waiting-contact-mail) -> all pass
-- [ ] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
+- [x] New strings in English and German on both clients (`web/src/locale`, `res/values{,-de}/`)
+  - verified (2026-11-09 10:20+0100 by dell26/agent-1): new units in web/src/locale/messages.xlf + messages.de.xlf, Android strings_projects_lists.xml/strings_files.xml in values and values-de -> npm run check i18n build + android lintDebug pass in sh scripts/check.sh
 - [ ] Unit tests cover the new behavior on each changed part; `sh scripts/check.sh` passes
 
 ## Notes
