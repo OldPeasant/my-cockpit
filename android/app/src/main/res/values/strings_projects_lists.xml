@@ -9,6 +9,8 @@
 
     <!-- Waiting For -->
     <string name="waiting_empty">Nothing to wait for. Delegated items show up here.</string>
+    <string name="waiting_draft_email">Draft email</string>
+    <string name="waiting_draft_email_label">Draft an email to follow up on %1$s</string>
     <string name="waiting_follow_up">Follow up</string>
     <string name="waiting_follow_up_label">Follow up on %1$s</string>
     <string name="waiting_follow_up_title">Follow up: %1$s</string>
@@ -143,4 +145,6 @@
     <string name="logbook_loading_more">Loading more…</string>
     <string name="logbook_more_offline">Offline: older tasks could not be loaded.</string>
     <string name="logbook_more_failed">Older tasks could not be loaded.</string>
+    <string name="projects_links_show">Linked items</string>
+    <string name="projects_links_hide">Hide linked items</string>
 </resources>

@@ -16251,6 +16251,18 @@
           <context context-type="linenumber">269</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="files.preview.links" datatype="html">
+        <source> Linked items </source>
+        <target state="translated"> Verknüpfte Elemente </target>
+      </trans-unit>
+      <trans-unit id="gtd.waiting.draftEmail" datatype="html">
+        <source> Draft email </source>
+        <target state="translated"> E-Mail entwerfen </target>
+      </trans-unit>
+      <trans-unit id="gtd.waiting.draftEmailLabel" datatype="html">
+        <source>Draft an email about “<x id="title" equiv-text="title"/>”</source>
+        <target state="translated">E-Mail zu „<x id="title" equiv-text="title"/>“ entwerfen</target>
+      </trans-unit>
     </body>
   </file>
 </xliff>

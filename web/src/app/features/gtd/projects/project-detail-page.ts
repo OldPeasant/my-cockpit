@@ -24,6 +24,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom, map } from 'rxjs';
 import { Api, ProjectResponse, restoreTrashItem, TaskResponse } from '../../../api/generated';
+import { LinkedItems } from '../../../shared/links';
 import { BackButton, BackNavigation } from '../../../shared/navigation';
 import { ContextStore, localDate, ProjectStore } from '../data';
 import { renderMarkdown, TaskRow, TaskUndo, UNDO_DURATION_MS } from '../ui';
@@ -49,6 +50,7 @@ import { ProjectTaskStore } from './project-task-store';
     CdkDragHandle,
     CdkDropList,
     DatePipe,
+    LinkedItems,
     MatMenuModule,
     ProjectForm,
     RouterLink,

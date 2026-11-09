@@ -3,6 +3,8 @@ import { localDate } from '../data';
 import {
   byWaitingSince,
   daysBetween,
+  emailIn,
+  followUpMail,
   followUpTask,
   groupByCompletedDay,
   groupByScheduledDate,
@@ -131,6 +133,45 @@ describe('followUpTask', () => {
       list: 'NEXT',
       projectId: undefined,
     });
+  });
+});
+
+describe('emailIn', () => {
+  it('finds an address in a name-and-address text', () => {
+    expect(emailIn('Anna Example <anna@example.test>')).toBe('anna@example.test');
+  });
+
+  it('takes the first of several addresses, without separators or quotes', () => {
+    expect(emailIn('"bob@example.test", carol@example.test')).toBe('bob@example.test');
+  });
+
+  it.each([undefined, '', 'Alex', 'alex@localhost', '@example.test'])(
+    'finds none in %j',
+    (text) => {
+      expect(emailIn(text)).toBeUndefined();
+    },
+  );
+});
+
+describe('followUpMail', () => {
+  it('addresses the given contact address before the waiting-for text', () => {
+    const t = task('t1', { title: 'Signed lease', waitingForText: 'bob@example.test' });
+    expect(followUpMail(t, 'anna@example.test')).toEqual({
+      to: 'anna@example.test',
+      subject: 'Signed lease',
+    });
+  });
+
+  it('falls back to the address in the waiting-for text', () => {
+    const t = task('t1', { title: 'Signed lease', waitingForText: 'Bob <bob@example.test>' });
+    expect(followUpMail(t)).toEqual({ to: 'bob@example.test', subject: 'Signed lease' });
+  });
+
+  it('leaves out To when there is no address', () => {
+    expect(followUpMail(task('t1', { title: 'Parcel', waitingForText: 'Alex' }))).toEqual({
+      subject: 'Parcel',
+    });
+    expect(followUpMail(task('t1', { title: 'Parcel' }))).toEqual({ subject: 'Parcel' });
   });
 });
 
