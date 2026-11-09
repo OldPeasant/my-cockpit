@@ -3,11 +3,13 @@ import { inject, Injectable } from '@angular/core';
 import {
   Api,
   createNote,
+  deleteNote,
   CreateNoteRequest,
   listNotes,
   listNoteTags,
   NoteResponse,
   NoteTagResponse,
+  restoreTrashItem,
   updateNote,
 } from '../../../api/generated';
 import { SILENT_ERRORS } from '../../../core/http';
@@ -68,6 +70,16 @@ export class NotesService {
 
   setArchived(note: NoteResponse, archived: boolean): Promise<NoteResponse> {
     return this.patch(note, { archived });
+  }
+
+  /** Moves the note to the Trash. */
+  async remove(note: Pick<NoteResponse, 'id' | 'version'>): Promise<void> {
+    await this.api.invoke(deleteNote, { id: note.id, 'If-Match': `"${note.version}"` }, silent());
+  }
+
+  /** Takes the note back out of the Trash (the undo of `remove`). */
+  async restore(note: Pick<NoteResponse, 'id'>): Promise<void> {
+    await this.api.invoke(restoreTrashItem, { type: 'NOTE', id: note.id }, silent());
   }
 
   private patch(

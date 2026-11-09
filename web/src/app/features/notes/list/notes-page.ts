@@ -13,6 +13,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { NoteResponse, NoteTagResponse } from '../../../api/generated';
 import { ApiError, NotificationService } from '../../../core/http';
 import { NoteCard } from './note-card';
+import { NoteTrash } from './note-trash';
 import { filterNotes, parseTags } from './notes-filter';
 import { NotesService } from './notes.service';
 
@@ -24,7 +25,8 @@ export const NOTES_VIEW_KEY = 'cockpit.notes.view';
 
 /**
  * The notes overview (SPEC.md §8.1): the notes as a masonry grid or a list of cards, pinned first,
- * filtered by tag, archived or not, and searched by text; pin, archive and write a new note. A card
+ * filtered by tag, archived or not, and searched by text; pin, archive, delete (with undo) and write
+ * a new note. A card
  * opens the note in the editor (`/notes/<id>`).
  */
 @Component({
@@ -37,6 +39,7 @@ export const NOTES_VIEW_KEY = 'cockpit.notes.view';
 export default class NotesPage implements OnInit {
   private readonly service = inject(NotesService);
   private readonly notifications = inject(NotificationService);
+  private readonly trash = inject(NoteTrash);
 
   private readonly composerBody = viewChild<ElementRef<HTMLTextAreaElement>>('composerBody');
 
@@ -188,6 +191,22 @@ export default class NotesPage implements OnInit {
           : $localize`:@@notes.unarchived:Moved “${title}:title:” back to Notes`,
       );
     });
+  }
+
+  /** Moves the note to the Trash and offers to undo it. */
+  protected async remove(note: NoteResponse): Promise<void> {
+    let removed = false;
+    await this.run(note, async () => {
+      await this.trash.remove(note);
+      removed = true;
+      this.notes.update((notes) => notes?.filter((n) => n.id !== note.id) ?? null);
+      void this.loadTags();
+    });
+    if (!removed) return;
+    if (await this.trash.offerUndo(note)) {
+      void this.load();
+      void this.loadTags();
+    }
   }
 
   protected isBusy(note: NoteResponse): boolean {

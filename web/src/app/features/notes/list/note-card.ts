@@ -6,7 +6,7 @@ import { excerpt } from './notes-filter';
 
 /**
  * One note of the overview: its title and text (opening the editor), tags, last change, and the pin
- * and archive buttons.
+ * archive and delete buttons.
  */
 @Component({
   selector: 'app-note-card',
@@ -62,6 +62,18 @@ import { excerpt } from './notes-filter';
             }
           </svg>
         </button>
+        <button
+          type="button"
+          class="delete"
+          [attr.aria-label]="deleteLabel()"
+          [title]="deleteLabel()"
+          [disabled]="busy()"
+          (click)="remove.emit()"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M9 3h6l1 1h4v2H4V4h4zM6 7h12l-1 14H7zm4 3v8h1.5v-8zm2.5 0v8H14v-8z" />
+          </svg>
+        </button>
       </div>
     </div>
   `,
@@ -77,6 +89,8 @@ export class NoteCard {
   readonly pin = output();
   /** The archive button was pressed: archive or unarchive the note. */
   readonly archive = output();
+  /** The delete button was pressed: move the note to the Trash. */
+  readonly remove = output();
 
   protected readonly text = computed(() => excerpt(this.note()));
 
@@ -93,4 +107,8 @@ export class NoteCard {
       ? $localize`:@@notes.unarchiveAria:Unarchive ${title}:title:`
       : $localize`:@@notes.archiveAria:Archive ${title}:title:`;
   });
+
+  protected readonly deleteLabel = computed(
+    () => $localize`:@@notes.deleteAria:Move ${this.note().displayTitle}:title: to the Trash`,
+  );
 }

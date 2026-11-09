@@ -105,3 +105,7 @@
 .pin[aria-pressed='true'] {
   color: var(--app-accent);
 }
+
+.actions .delete:hover:not(:disabled) {
+  color: var(--mat-sys-error);
+}

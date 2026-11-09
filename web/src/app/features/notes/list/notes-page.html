@@ -204,6 +204,7 @@
           [compact]="view() === 'list'"
           (pin)="togglePin(note)"
           (archive)="toggleArchived(note)"
+          (remove)="remove(note)"
         />
       </li>
     }
