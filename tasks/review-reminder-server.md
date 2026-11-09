@@ -21,7 +21,8 @@ Design: setting `weeklyReviewReminder` in the review module (e.g. `review/infra/
   - verified (2026-11-09 03:43+0100 by dell26/agent-2): cd server && ./gradlew test --tests '*WeeklyReviewSchedule*' -> nextAfter tests for Europe/Zurich and other zones, DST gap (shift forward) and overlap (first occurrence) pass
 - [x] pending reminder created/replaced/removed on setting change and re-armed after firing (Spring tests)
   - verified (2026-11-09 03:43+0100 by dell26/agent-2): cd server && ./gradlew test --tests '*WeeklyReviewReminderTests' (Spring, Postgres testcontainer) -> 15 pass: create/replace/off removes, timezone change moves, re-armed after fireDue, startup catch-up, overdue kept
-- [ ] regenerate api/openapi.yaml if the item type enum appears there; `cd server && ./gradlew check` passes
+- [x] regenerate api/openapi.yaml if the item type enum appears there; `cd server && ./gradlew check` passes
+  - verified (2026-11-09 03:45+0100 by dell26/agent-2): api/openapi.yaml contains WEEKLY_REVIEW in ItemType enums and web client regenerated (grep); server/gradlew -p server check (incl. OpenApiContractTest, ktlint, all tests) at b08b3fd2d -> exit 0
 
 ## Notes
 - Work done on `review-reminder` before the split is on `origin/wip/review-reminder` (if it exists): merge it first if your part builds on it.
