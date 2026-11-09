@@ -18,7 +18,8 @@ bookmark → Inbox task.
   - verified (2026-11-09 01:37+0100 by dell26/agent-1): same bookmarks spec run -> 132 passed; editor specs: opens with current values, PATCH title/description/tags with If-Match of the opened version, blank -> null, cancel by button/Escape, failure keeps editor, conflict keeps editor and retry saves
 - [x] Undo after delete; "To Inbox task" action
   - verified (2026-11-09 01:37+0100 by dell26/agent-1): same bookmarks spec run -> 132 passed; delete opens MatSnackBar 'Undo' -> POST /api/v1/trash/BOOKMARK/{id}/restore and row reloaded, dismissed -> no restore, failed restore -> error; 'To Inbox task' -> POST /api/v1/tasks (UUIDv7 id, list INBOX, notes = URL) + POST /api/v1/links origin, retry reuses id, unlinked and failed messages
-- [ ] New UI strings are in `web/src/locale` (English + German)
+- [x] New UI strings are in `web/src/locale` (English + German)
+  - verified (2026-11-09 01:37+0100 by dell26/agent-1): npm run i18n:extract in web/ -> only bookmarks.* units added to messages.xlf; grep of messages.de.xlf -> all 15 new ids (search, searchPlaceholder, noMatch, edit.*, edit.conflict, toInbox, undo, restoreFailed, taskCreated, taskCreatedUnlinked, taskFailed) with state=translated; ng build in npm run check -> no missing-translation errors
 - [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
 
 ## Notes
