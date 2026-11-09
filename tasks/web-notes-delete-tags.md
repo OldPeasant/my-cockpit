@@ -13,7 +13,8 @@ Web notes have no delete (API `deleteNote` unused) and tags can only be set when
 ## Acceptance criteria
 - [ ] Delete in the editor and on the note card (to Trash, with undo)
 - [ ] Tags editable in the editor (chips with suggestions)
-- [ ] New UI strings are in `web/src/locale` (English + German)
+- [x] New UI strings are in `web/src/locale` (English + German)
+  - verified (2026-11-09 01:56+0100 by dell26/agent-1): npm run i18n:extract -> 9 new notes.* units in src/locale/messages.xlf; German targets added in messages.de.xlf; ng test --include='src/locale/**/*.spec.ts' -> passed
 - [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
 
 ## Notes
