@@ -1,11 +1,11 @@
 ---
 title: Web: share renderMarkdown and Markdown styles between project description and task notes
-status: todo
-owner: 
+status: in_progress
+owner: felix/agent-1
 deps: [web-task-actions]
 touches: [web/src/app/features/gtd/ui,web/src/app/features/gtd/projects,web/src/app/features/gtd/task-detail]
 prio: 2
-lease_until: 
+lease_until: 2026-11-09T01:11:58Z
 releases: 1
 extended: 
 ---
