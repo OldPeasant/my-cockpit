@@ -16,7 +16,8 @@ For item type WEEKLY_REVIEW the clients show their own translated title.
 ## Acceptance criteria
 - [x] Web (in-app notification/toast and service worker push) shows the localized title for WEEKLY_REVIEW reminders (unit tests, en + de)
   - verified (2026-11-09 09:57+0100 by dell26/agent-1): cd web && npx ng test --watch=false --include='src/app/core/notifications/**/*.spec.ts' -> 8 files, 135 passed (reminder-notifications.service.spec: weekly review notification+toast en, de 'Wochenrückblick' with server English title; push-sw.spec: weekly review en/de, names match messages.xlf/messages.de.xlf)
-- [ ] Android (local alarm and UnifiedPush) shows review_reminder_title for WEEKLY_REVIEW reminders, also when the server sends a title (unit tests, en + de)
+- [x] Android (local alarm and UnifiedPush) shows review_reminder_title for WEEKLY_REVIEW reminders, also when the server sends a title (unit tests, en + de)
+  - verified (2026-11-09 09:57+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests '*ReminderAlarmsNotifierTest' --tests '*PushReminderDeliveryTest' -> pass (19+25 tests, 0 failures): local alarm and UnifiedPush show 'Weekly review' / de 'Wochenrückblick' for WEEKLY_REVIEW also when the server sends a title
 - [ ] `sh scripts/check.sh` passes
 
 ## Notes
