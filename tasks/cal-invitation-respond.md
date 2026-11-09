@@ -1,11 +1,11 @@
 ---
 title: Accept, decline or tentatively accept invitations (web + Android)
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-2
 deps: [and-cal-event-fields, cal-invitation-respond-web, cal-invitation-respond-android]
 touches: [web/src/app/features/calendar,android/app/src/main/java/ch/sonensei/cockpit/calendar/edit,android/app/src/test/java/ch/sonensei/cockpit/calendar/edit,android/app/src/main/res/values/strings_calendar_edit.xml,android/app/src/main/res/values-de/strings_calendar_edit.xml,web/src/locale]
 prio: 2
-lease_until: 
+lease_until: 2026-11-09T04:45:15Z
 subtasks: cal-invitation-respond-web, cal-invitation-respond-android
 releases: 1
 extended: 
