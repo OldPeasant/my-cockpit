@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "and-dashboard-actions",
-  "reviewed_revision": "78ac21c002c5f7f127adcbd0a34b0ad592ec300e",
+  "reviewed_revision": "928cb083dcbe556e940988b0fc74668eb4ab63e4",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/and-dashboard-actions/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/and-dashboard-actions/review.md"},
@@ -18,7 +18,7 @@
     {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted", "note": "Customize row label read twice by TalkBack and name not tappable; behaviour correct, non-blocking polish"}
   ],
   "validation": [
-    {"command": "cd android && ./gradlew ktlintCheck lintDebug", "result": "pass"},
-    {"command": "cd android && ./gradlew testDebugUnitTest (dashboard tests; only failure auth/AppStartRoutingTest also fails on origin/main without this task)", "result": "pass"}
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug --continue (merged with main incl. AppStartRoutingTest fix d9f0ada94; 406 test classes, 0 failures)", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
   ]
 }
