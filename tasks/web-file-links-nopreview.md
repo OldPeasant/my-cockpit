@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [gtd-links-everywhere]
 touches: [web/src/app/features/files,web/src/locale]
 prio: 2
-lease_until: 2026-11-09T10:34:57Z
+lease_until: 2026-11-09T10:40:00Z
 ---
 ## Goal
 gtd-links-everywhere put the web file linked-items panel into the preview dialog, but files without a
