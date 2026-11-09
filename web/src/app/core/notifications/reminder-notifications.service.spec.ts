@@ -254,6 +254,15 @@ describe('ReminderNotificationsService', () => {
         expect(browser.shown[0].title).toBe('Wochenrückblick');
       });
 
+      it('keeps the server title of other reminders', () => {
+        localStorage.setItem(REMINDER_NOTIFICATIONS_STORAGE_KEY, 'on');
+        create('granted');
+
+        fired.next(reminder());
+
+        expect(browser.shown[0].title).toBe('Call the plumber');
+      });
+
       it('toasts Wochenrückblick while notifications are off', () => {
         create();
 

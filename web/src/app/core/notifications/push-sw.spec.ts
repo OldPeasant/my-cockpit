@@ -379,4 +379,39 @@ describe('push service worker, weekly review reminder', () => {
 
     expect(w.shown().map(([title]) => title)).toEqual(['Weekly review', 'Weekly review']);
   });
+
+  it('keeps the title of other reminders in German', async () => {
+    const w = worker('de', [], DE_SCOPE);
+
+    await w.push({
+      ...weeklyReview,
+      data: {
+        id: 'r-task',
+        item: { ...weeklyReview.data.item, type: 'TASK', title: 'Call the plumber' },
+      },
+    });
+
+    expect(w.shown()[0][0]).toBe('Call the plumber');
+  });
+
+  // The worker cannot use $localize, so it keeps its own copy of the name: it must say what the app
+  // says for the same reminder (reminders.weeklyReview), or a push and an in-app toast disagree.
+  it('names the weekly review like the app translations, in English and German', async () => {
+    const target = (file: string, element: 'source' | 'target') => {
+      const xml = readFileSync(join(process.cwd(), 'src', 'locale', file), 'utf8');
+      const doc = new DOMParser().parseFromString(xml, 'application/xml');
+      const unit = Array.from(doc.getElementsByTagName('trans-unit')).find(
+        (u) => u.getAttribute('id') === 'reminders.weeklyReview',
+      );
+      return unit?.getElementsByTagName(element)[0]?.textContent;
+    };
+    const en = worker();
+    const de = worker('de', [], DE_SCOPE);
+
+    await en.push(weeklyReview);
+    await de.push(weeklyReview);
+
+    expect(en.shown()[0][0]).toBe(target('messages.xlf', 'source'));
+    expect(de.shown()[0][0]).toBe(target('messages.de.xlf', 'target'));
+  });
 });
