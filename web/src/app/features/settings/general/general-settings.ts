@@ -249,7 +249,10 @@ export default class GeneralSettings {
     }
     this.pending.set(field, (this.pending.get(field) ?? 1) - 1);
     const current = this.service.settings();
-    if (current) this.refresh(current);
+    if (!current) return;
+    this.refresh(current);
+    // A 412 reloads every setting, so the reminder row shows the stored value too.
+    if (!this.reminderPending) this.showReminder(current);
   }
 
   /**

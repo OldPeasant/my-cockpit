@@ -826,6 +826,47 @@ describe('GeneralSettings', () => {
       http.expectNone({ method: 'PATCH', url: PATH });
     });
 
+    it('asks for a time when the time field is emptied and left', async () => {
+      await setup([], fakeSettings({ weeklyReviewReminder: 'SUNDAY@18:00' }));
+      expect(root.querySelector('.reminder mat-error')).toBeNull();
+
+      const time = timeInput() as HTMLInputElement;
+      time.value = '';
+      time.dispatchEvent(new Event('input'));
+      time.dispatchEvent(new Event('change'));
+      time.dispatchEvent(new Event('blur'));
+      await tick();
+      await fixture.whenStable();
+
+      expect(root.querySelector('.reminder mat-error')?.textContent?.trim()).toBe('Enter a time.');
+      http.expectNone({ method: 'PATCH', url: PATH });
+    });
+
+    it('shows the reloaded reminder after another row saves into a 412', async () => {
+      await setup([], fakeSettings({ weeklyReviewReminder: 'SUNDAY@18:00' }));
+
+      toggle('Dark').click();
+      await tick();
+      http
+        .expectOne({ method: 'PATCH', url: PATH })
+        .flush(
+          { status: 412, title: 'Precondition Failed', detail: 'Changed elsewhere.' },
+          { status: 412, statusText: 'Precondition Failed' },
+        );
+      await tick();
+      // Another device changed the reminder meanwhile.
+      http
+        .expectOne({ method: 'GET', url: PATH })
+        .flush(fakeSettings({ weeklyReviewReminder: 'FRIDAY@08:00' }), {
+          headers: { ETag: '"7"' },
+        });
+      await tick();
+      await fixture.whenStable();
+
+      expect(daySelect().textContent).toContain('Friday');
+      expect(timeInput()?.value).toBe('08:00');
+    });
+
     it('puts the stored reminder back when the server refuses the save', async () => {
       await setup([], fakeSettings({ weeklyReviewReminder: 'SUNDAY@18:00' }));
 

@@ -128,6 +128,9 @@
                   i18n-aria-label="@@settings.reviewReminder.time"
                   (change)="saveReminder()"
                 />
+                @if (reminderForm.controls.time.invalid) {
+                  <mat-error i18n="@@settings.reviewReminder.timeInvalid">Enter a time.</mat-error>
+                }
               </mat-form-field>
             }
           </div>

@@ -11568,116 +11568,123 @@
           <context context-type="linenumber">127,128</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="settings.reviewReminder.timeInvalid" datatype="html">
+        <source>Enter a time.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
+          <context context-type="linenumber">132,134</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="settings.energyLabels" datatype="html">
         <source>Energy levels</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">142,143</context>
+          <context context-type="linenumber">145,146</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.energyLabels.hint" datatype="html">
         <source> How tasks are labelled when you pick them by energy, from lowest to highest. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">144,146</context>
+          <context context-type="linenumber">147,149</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.creativityLabels" datatype="html">
         <source>Creativity levels</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">171,172</context>
+          <context context-type="linenumber">174,175</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.creativityLabels.hint" datatype="html">
         <source> From routine work to work that needs fresh ideas. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">173,176</context>
+          <context context-type="linenumber">176,179</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.mailImages" datatype="html">
         <source>Remote images in mail</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">202,203</context>
+          <context context-type="linenumber">205,206</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.mailImages.hint" datatype="html">
         <source> Loading them lets senders see when you open a message. Images attached to the message always show. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">204,207</context>
+          <context context-type="linenumber">207,210</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.mailImageSenders" datatype="html">
         <source> Always load images from </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">228,230</context>
+          <context context-type="linenumber">231,233</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.mailImageSenders.hint" datatype="html">
         <source> Add a sender with &quot;Always load from this sender&quot; when reading a message. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">231,234</context>
+          <context context-type="linenumber">234,237</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.mailImageSenders.remove" datatype="html">
         <source> Remove </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">248,249</context>
+          <context context-type="linenumber">251,252</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.mailImageSenders.none" datatype="html">
         <source>No senders yet.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">254,258</context>
+          <context context-type="linenumber">257,261</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.androidApp" datatype="html">
         <source>Android app</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">261,262</context>
+          <context context-type="linenumber">264,265</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.androidApp.hint" datatype="html">
         <source> Install it on your phone from this server; no app store needed. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">263,265</context>
+          <context context-type="linenumber">266,268</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.labels.invalid" datatype="html">
         <source>Each label needs 1 to 40 characters.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">276,280</context>
+          <context context-type="linenumber">279,283</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.saving" datatype="html">
         <source>Saving…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">284,286</context>
+          <context context-type="linenumber">287,289</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.saved" datatype="html">
         <source>Saved</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">287,289</context>
+          <context context-type="linenumber">290,292</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.notSaved" datatype="html">
         <source>Not saved, previous value restored</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.html</context>
-          <context context-type="linenumber">290,293</context>
+          <context context-type="linenumber">293,296</context>
         </context-group>
       </trans-unit>
       <trans-unit id="settings.weekStart.monday" datatype="html">
@@ -11822,7 +11829,7 @@
         <source>Remove <x id="sender" equiv-text="sender"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/settings/general/general-settings.ts</context>
-          <context context-type="linenumber">294</context>
+          <context context-type="linenumber">297</context>
         </context-group>
       </trans-unit>
       <trans-unit id="gtdSettings.delete.title" datatype="html">
