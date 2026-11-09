@@ -143,4 +143,6 @@
     <string name="logbook_loading_more">Weitere werden geladen…</string>
     <string name="logbook_more_offline">Offline: ältere Aufgaben konnten nicht geladen werden.</string>
     <string name="logbook_more_failed">Ältere Aufgaben konnten nicht geladen werden.</string>
+    <string name="projects_links_show">Verknüpfte Elemente</string>
+    <string name="projects_links_hide">Verknüpfte Elemente ausblenden</string>
 </resources>

@@ -292,6 +292,8 @@
         </p>
       }
     </section>
+
+    <app-linked-items class="block" [item]="{ type: 'PROJECT', id: project.id }" />
   </article>
 } @else if (projects.loaded()) {
   <div class="page" role="alert">

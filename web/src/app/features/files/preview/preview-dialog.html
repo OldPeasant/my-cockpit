@@ -7,6 +7,16 @@
           >{{ index() + 1 }} of {{ files.length }}</span
         >
       }
+      <button
+        type="button"
+        class="action"
+        [attr.aria-pressed]="showLinks()"
+        aria-controls="preview-links"
+        (click)="showLinks.set(!showLinks())"
+        i18n="@@files.preview.links"
+      >
+        Linked items
+      </button>
       <a class="action" [href]="downloadUrl()" download i18n="@@files.download">Download</a>
       <button type="button" class="action" (click)="close()" i18n="@@files.preview.close">
         Close
@@ -92,6 +102,12 @@
             <path d="M8.6 16.6 10 18l6-6-6-6-1.4 1.4 4.6 4.6z" />
           </svg>
         </button>
+      }
+
+      @if (showLinks()) {
+        <aside id="preview-links" class="links">
+          <app-linked-items [item]="{ type: 'FILE', id: f.id }" />
+        </aside>
       }
     </div>
   </div>

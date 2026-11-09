@@ -143,4 +143,6 @@
     <string name="logbook_loading_more">Loading more…</string>
     <string name="logbook_more_offline">Offline: older tasks could not be loaded.</string>
     <string name="logbook_more_failed">Older tasks could not be loaded.</string>
+    <string name="projects_links_show">Linked items</string>
+    <string name="projects_links_hide">Hide linked items</string>
 </resources>

@@ -47,6 +47,15 @@
           >
             Follow up
           </button>
+          <button
+            type="button"
+            class="action"
+            [attr.aria-label]="draftEmailLabel(task.title)"
+            (click)="draftEmail(task)"
+            i18n="@@gtd.waiting.draftEmail"
+          >
+            Draft email
+          </button>
         </div>
       </div>
     } @empty {

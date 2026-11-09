@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { FileResponse } from '../../../api/generated';
+import { LinkedItems } from '../../../shared/links';
 import { renderMarkdown } from '../../gtd/projects/markdown';
 import { PdfViewer } from './pdf-viewer';
 import { previewKind } from './preview-kind';
@@ -25,12 +26,13 @@ export interface PreviewDialogData {
 /**
  * A full-window preview of a file (SPEC.md §8.2): images as a lightbox, PDFs with pdf.js,
  * text and Markdown, audio and video with the browser's player. ←/→ and the side buttons move to
- * the previous/next previewable file of the folder; Esc closes.
+ * the previous/next previewable file of the folder; Esc closes. "Linked items" shows the file's
+ * links (SPEC.md §4.3) beside it.
  */
 @Component({
   selector: 'app-preview-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PdfViewer],
+  imports: [LinkedItems, PdfViewer],
   templateUrl: './preview-dialog.html',
   styleUrl: './preview-dialog.scss',
   host: { '(keydown)': 'onKeydown($event)' },
@@ -48,6 +50,8 @@ export class PreviewDialog {
     ),
   );
   protected readonly file = computed(() => this.files[this.index()]);
+  /** Whether the linked-items panel is shown beside the file. */
+  protected readonly showLinks = signal(false);
   protected readonly kind = computed(() => {
     const file = this.file();
     return file ? previewKind(file.mime, file.name) : null;
@@ -96,8 +100,8 @@ export class PreviewDialog {
   }
 
   protected onKeydown(event: KeyboardEvent): void {
-    // Keys typed into the player's controls stay there.
-    if ((event.target as HTMLElement | null)?.closest('audio, video')) return;
+    // Keys typed into the player's controls or the linked-items panel stay there.
+    if ((event.target as HTMLElement | null)?.closest('audio, video, .links')) return;
     if (event.key === 'ArrowLeft') this.prev();
     else if (event.key === 'ArrowRight') this.next();
     else return;
