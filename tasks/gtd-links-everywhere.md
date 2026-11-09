@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-links-panel,web-projects-plus,and-project-tasks,and-files-preview,and-scheduled-list,web-task-actions]
 touches: [web/src/app/features/gtd/projects,web/src/app/features/files,web/src/app/features/gtd/lists,android/app/src/main/java/ch/sonensei/cockpit/gtd/projects,android/app/src/test/java/ch/sonensei/cockpit/gtd/projects,android/app/src/main/java/ch/sonensei/cockpit/files,android/app/src/test/java/ch/sonensei/cockpit/files,android/app/src/main/java/ch/sonensei/cockpit/gtd/lists,android/app/src/test/java/ch/sonensei/cockpit/gtd/lists,web/src/locale,android/app/src/main/res/values/strings_projects_lists.xml,android/app/src/main/res/values-de/strings_projects_lists.xml,android/app/src/main/res/values/strings_files.xml,android/app/src/main/res/values-de/strings_files.xml]
 prio: 3
-lease_until: 2026-11-09T08:38:13Z
+lease_until: 2026-11-09T08:49:03Z
 releases: 2
 extended: 
 hold: 
