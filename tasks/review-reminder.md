@@ -1,13 +1,13 @@
 ---
 title: Weekly review reminder on a configurable weekday
-status: in_progress
-owner: felix/agent-1
+status: todo
+owner: 
 deps: [and-review-flow, and-review-steps, web-small-gaps, review-reminder-server, review-reminder-web, review-reminder-android]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/review,server/src/test/kotlin/ch/sonensei/cockpit/review,web/src/app/features/settings/general,web/src/app/features/review,android/app/src/main/java/ch/sonensei/cockpit/review,android/app/src/test/java/ch/sonensei/cockpit/review,web/src/locale,android/app/src/main/res/values/strings_review.xml,android/app/src/main/res/values-de/strings_review.xml]
 prio: 3
-lease_until: 2026-11-09T05:41:59Z
+lease_until: 
 subtasks: review-reminder-server, review-reminder-web, review-reminder-android
-releases: 1
+releases: 2
 extended: 
 ---
 ## Goal
@@ -31,3 +31,4 @@ Planned 2026-11-08 from the owner's UX request (web/Android parity, mail images,
 - split by felix/agent-1: into review-reminder-server, review-reminder-web, review-reminder-android. No code yet; design explored (reminder pipeline, item resolvers with deepLink, Android ReminderOpenRequests). Split into server/web/android subtasks with the design in their goals. Once they are done, this task is only integration: merge what is left on wip/review-reminder (if anything), verify the acceptance criteria end to end, done.
 - ASSUMPTION (2026-11-09 05:30+0100 by felix/agent-1): Weekly review reminder notification title stays the server's English 'Weekly review' for now (CR-1/TW-1); localizing it on web and Android is deferred to new task review-reminder-title-l10n. German strings exist on both clients and are used in settings and as the Android fallback title.
 - release by felix/agent-1: Integration of server/web/android subtasks verified: criteria 1-4 verified via focused server/web/android tests on main; quality evidence (tests.md, review.md, quality.json, reviewed_revision 2abe6d094) committed; CR-1 deferred to new task review-reminder-title-l10n (assumption recorded). LEFT: criterion 5 - sh scripts/check.sh timed out (900s, during server ktlint+tests under machine load); rerun it, verify #5, then tasks.py done (no code change needed; if main moved only update reviewed_revision).
+- release by felix/agent-1: over budget after 2 sessions (~13 min) and a review that decided nothing; still resumable: continue from wip/review-reminder (see git log)
