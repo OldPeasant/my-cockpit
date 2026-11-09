@@ -93,7 +93,12 @@ type LoadKind = 'initial' | 'background' | 'conflict';
   ],
   providers: [TaskDetailService],
   templateUrl: './task-detail.html',
-  styleUrls: ['./controls.scss', './task-detail.scss', '../ui/markdown.scss', './task-detail-notes.scss'],
+  styleUrls: [
+    './controls.scss',
+    './task-detail.scss',
+    '../ui/markdown.scss',
+    './task-detail-notes.scss',
+  ],
   host: { '(keydown)': 'onKeydown($event)' },
 })
 export class TaskDetail {

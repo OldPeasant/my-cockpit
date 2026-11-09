@@ -1,7 +1,7 @@
 /**
- * A small Markdown subset as HTML, for previews of short texts (a project's description): `#`
- * headings, paragraphs, `-`/`*`/`1.` lists, `>` quotes, fenced code, `**bold**`, `*italic*`,
- * `` `code` ``, `~~strike~~` and `[links](https://…)`.
+ * The shared renderer of a small Markdown subset as HTML, for short texts such as project
+ * descriptions and task notes: `#` headings, paragraphs, `-`/`*`/`1.` lists, `>` quotes, fenced
+ * code, `**bold**`, `*italic*`, `` `code` ``, `~~strike~~` and `[links](https://…)`.
  *
  * Safe for `[innerHTML]`: all text is HTML-escaped before markup is added, and links only take
  * `http(s):` and `mailto:` targets (Angular's sanitizer runs on top).
@@ -26,7 +26,7 @@ export function renderMarkdown(source: string): string {
     }
     const heading = /^(#{1,6})\s+(.*)$/.exec(line);
     if (heading) {
-      // Headings of a description are below the page's own (h1/h2).
+      // Headings of a short text are below the page's own (h1/h2).
       const level = Math.min(heading[1].length + 2, 6);
       html.push(`<h${level}>${inline(heading[2].replace(/\s+#+\s*$/, ''))}</h${level}>`);
       i++;
