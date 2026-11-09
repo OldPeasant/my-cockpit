@@ -1,11 +1,11 @@
 ---
 title: Weekly review reminder opens the review on Android
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [and-review-flow, and-review-steps, web-small-gaps, review-reminder-server]
 prio: 3
 parent: review-reminder
-lease_until: 2026-11-09T03:46:23Z
+lease_until: 
 ---
 ## Goal
 Part of `review-reminder` (Weekly review reminder on a configurable weekday), which was split.
@@ -21,3 +21,4 @@ Goal: an Android reminder notification (local alarm or UnifiedPush) for item typ
 
 ## Notes
 - Work done on `review-reminder` before the split is on `origin/wip/review-reminder` (if it exists): merge it first if your part builds on it.
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 107s on ed4da79e0; criteria verified 3/3
