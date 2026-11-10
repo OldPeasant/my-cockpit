@@ -1,11 +1,11 @@
 ---
 title: Android mail body is blank: WebView refuses its own page (403 on data: URL)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailBodyView.kt,android/app/src/test/java/ch/sonensei/cockpit/mail/read/MailWebViewTest.kt]
 prio: 1
-lease_until: 2026-11-10T06:20:20Z
+lease_until: 
 ---
 ## Goal
 Since `and-mail-images` (f6cd5056d) the Android read view shows almost nothing of most mails: the WebView shows
@@ -41,3 +41,4 @@ Planned 2026-11-10 from the owner's bug report; diagnosis by an interactive sess
 change the image fetching, the banner or the CSP.
 - ASSUMPTION (2026-11-10 06:52+0100 by dell26/agent-1): Not checked on a device: assumed that returning null for data: URLs from shouldInterceptRequest lets Chromium load the loadDataWithBaseURL document and data: images (platform contract: null = WebView loads it itself); owner should re-check an HTML newsletter, a cid: image and Load images on a device
 - ASSUMPTION (2026-11-10 06:53+0100 by dell26/agent-1): data: URLs are left to the WebView regardless of HTTP method: a data: URL carries its content and never reaches the network, so the criterion's 'non-GET gets 403' is read as applying to network (non-data:) requests
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 76s on 567bb5d79; criteria verified 4/5, skipped #4
