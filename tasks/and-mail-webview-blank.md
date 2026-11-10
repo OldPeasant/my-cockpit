@@ -24,9 +24,10 @@ error page. Robolectric does not run Chromium, so the unit tests could not see i
       `data:` images load; server images still go through `MailImageFetcher`; every other request (other hosts and
       schemes, `MAIL_ORIGIN` paths that are not server images, non-GET) still gets the empty 403 without network access
   - verified (2026-11-10 06:55+0100 by dell26/agent-1): MailWebViewTest (Robolectric) via ./gradlew testDebugUnitTest --tests '*mail.read.*' at 8cb28d7df -> data:text/html main-frame and data:image subresource return null; server attachment via MockWebServer fetcher 200; other hosts/schemes, MAIL_ORIGIN non-image paths, POST/DELETE -> empty 403, strict OkHttp mock sees no call
-- [ ] Unit tests: a main-frame `data:text/html;...` request and a `data:image/png;base64,...` subresource request are
+- [x] Unit tests: a main-frame `data:text/html;...` request and a `data:image/png;base64,...` subresource request are
       not intercepted (null); the existing "other host is blocked" tests still pass; the override return type is
       nullable as in the platform API
+  - verified (2026-11-10 06:55+0100 by dell26/agent-1): ./gradlew testDebugUnitTest --tests '*mail.read.*' -> MailWebViewTest 12/12 pass incl. new data: null test and existing other-host-blocked tests; override signature now WebResourceResponse? (MailBodyView.kt)
 - [ ] No other security setting is loosened (JavaScript off, CSP unchanged, `shouldOverrideUrlLoading` unchanged)
 - [~] Manually verified on an emulator or device against a running server with an HTML newsletter, a `cid:` image and
       "Load images" (record what you ran); if no emulator is available, skip with reason and assume what you could not see
