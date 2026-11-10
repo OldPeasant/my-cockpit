@@ -9,6 +9,7 @@ import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -108,12 +109,27 @@ class MailWebViewTest {
             "https://server.invalid/api/v1/settings",
             "https://server.invalid/style.css",
             "file:///etc/hosts",
-            "data:image/png;base64,iVBORw0KGgo=",
+            "content://ch.sonensei.cockpit.files/x",
+            "javascript:alert(1)",
         ).forEach {
             val response = withImages.webViewClient.shouldInterceptRequest(withImages, pageRequest(it))
             assertNotNull(it, response)
             assertEquals(it, 403, response!!.statusCode)
             assertEquals(it, 0, response.data.readBytes().size)
+        }
+    }
+
+    @Test
+    fun `the mail document and data images are left to the web view, with and without an image fetcher`() {
+        // A strict mock: any network call through the app's client would fail the test.
+        val withImages = mailWebView(ApplicationProvider.getApplicationContext(), MailImageFetcher(mockk<OkHttpClient>())) {}
+        val document = "data:text/html;charset=utf-8;base64,PGh0bWw+PC9odG1sPg=="
+        listOf(withImages, view).forEach { webView ->
+            val client = webView.webViewClient
+            assertNull(document, client.shouldInterceptRequest(webView, request(document, gesture = false)))
+            listOf("data:image/png;base64,iVBORw0KGgo=", "DATA:image/gif;base64,R0lGODlh").forEach {
+                assertNull(it, client.shouldInterceptRequest(webView, pageRequest(it)))
+            }
         }
     }
 

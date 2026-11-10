@@ -43,7 +43,8 @@ fun WebSettings.lockDownForMail() {
 /**
  * Links are never followed inside the view: web and mail links the user tapped in the page go to [onLink] (another
  * app); the rest, including navigations the page starts by itself or in a frame and links to [MAIL_ORIGIN], is dropped.
- * Resource requests are answered by [images] (the server's images); without it, or for anything else, they are refused.
+ * `data:` requests (the mail document and its inline images) are left to the WebView; other resource requests are
+ * answered by [images] (the server's images); without it, or for anything else, they are refused.
  */
 class MailWebViewClient(
     private val images: MailImageFetcher?,
@@ -52,7 +53,13 @@ class MailWebViewClient(
     override fun shouldInterceptRequest(
         view: WebView,
         request: WebResourceRequest,
-    ): WebResourceResponse = images?.response(request) ?: blockedResponse()
+    ): WebResourceResponse? =
+        when {
+            // The mail document itself (loadDataWithBaseURL is a data: load) and data: images the CSP allows are
+            // handled by the WebView locally; refusing them replaces the page with an error page.
+            request.url.scheme.equals("data", ignoreCase = true) -> null
+            else -> images?.response(request) ?: blockedResponse()
+        }
 
     override fun shouldOverrideUrlLoading(
         view: WebView,
