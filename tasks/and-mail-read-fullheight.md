@@ -1,10 +1,11 @@
 ---
 title: Android read view: mail at full height in one page scroll, linked items below
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailReadScreen.kt,android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailBodyView.kt,android/app/src/test/java/ch/sonensei/cockpit/mail/read]
 prio: 1
+lease_until: 2026-11-10T06:49:01Z
 ---
 ## Goal
 Reading mail on the phone is tiring (owner report, 2026-11-10): the read view (`MailReadContent`/`Message` in
