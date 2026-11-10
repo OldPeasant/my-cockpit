@@ -30,7 +30,8 @@ scroll box), and the linked items come after the mail, reached by scrolling to t
 - [~] Wide newsletters stay fitted to the screen width (wide viewport / overview mode as today), and pinch zoom and
       horizontal panning still work. If full-height layout and zoom conflict, record the trade-off you chose with `assume`
   - skipped (2026-11-10 07:47+0100 by dell26/agent-1): wide viewport/overview/zoom settings are unchanged and asserted in MailWebViewTest, but pinch zoom and horizontal panning inside a Compose verticalScroll are touch behaviour that needs a real device; no emulator here, owner checks on the phone (trade-off recorded with assume)
-- [ ] A plain-text mail is part of the same page scroll (no nested scroll box) and stays selectable
+- [x] A plain-text mail is part of the same page scroll (no nested scroll box) and stays selectable
+  - verified (2026-11-10 07:56+0100 by dell26/agent-1): same mail.read Robolectric run: MailReadScreenTest long plain text sits in PAGE with no own scroll, inside SelectionContainer -> pass (332 tests, 0 failures)
 - [ ] The linked-items panel is no longer height-capped and shows all items at the end of the page; opening an item
       and back still work
 - [ ] The WebView lock-down is unchanged: `lockDownForMail`, CSP, `shouldInterceptRequest`, `shouldOverrideUrlLoading`
