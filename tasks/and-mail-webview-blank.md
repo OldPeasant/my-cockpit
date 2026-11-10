@@ -28,7 +28,8 @@ error page. Robolectric does not run Chromium, so the unit tests could not see i
       not intercepted (null); the existing "other host is blocked" tests still pass; the override return type is
       nullable as in the platform API
   - verified (2026-11-10 06:55+0100 by dell26/agent-1): ./gradlew testDebugUnitTest --tests '*mail.read.*' -> MailWebViewTest 12/12 pass incl. new data: null test and existing other-host-blocked tests; override signature now WebResourceResponse? (MailBodyView.kt)
-- [ ] No other security setting is loosened (JavaScript off, CSP unchanged, `shouldOverrideUrlLoading` unchanged)
+- [x] No other security setting is loosened (JavaScript off, CSP unchanged, `shouldOverrideUrlLoading` unchanged)
+  - verified (2026-11-10 06:55+0100 by dell26/agent-1): git diff f797ff557..8cb28d7df -- android -> only shouldInterceptRequest body + comments change; lockDownForMail settings, CSP in mailDocument and shouldOverrideUrlLoading untouched; MailWebViewTest settings/CSP/link tests pass
 - [~] Manually verified on an emulator or device against a running server with an HTML newsletter, a `cid:` image and
       "Load images" (record what you ran); if no emulator is available, skip with reason and assume what you could not see
   - skipped (2026-11-10 06:52+0100 by dell26/agent-1): no emulator, adb or device on this machine (which adb emulator -> not found); Robolectric does not run Chromium
