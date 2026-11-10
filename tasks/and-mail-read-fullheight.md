@@ -32,8 +32,9 @@ scroll box), and the linked items come after the mail, reached by scrolling to t
   - skipped (2026-11-10 07:47+0100 by dell26/agent-1): wide viewport/overview/zoom settings are unchanged and asserted in MailWebViewTest, but pinch zoom and horizontal panning inside a Compose verticalScroll are touch behaviour that needs a real device; no emulator here, owner checks on the phone (trade-off recorded with assume)
 - [x] A plain-text mail is part of the same page scroll (no nested scroll box) and stays selectable
   - verified (2026-11-10 07:56+0100 by dell26/agent-1): same mail.read Robolectric run: MailReadScreenTest long plain text sits in PAGE with no own scroll, inside SelectionContainer -> pass (332 tests, 0 failures)
-- [ ] The linked-items panel is no longer height-capped and shows all items at the end of the page; opening an item
+- [x] The linked-items panel is no longer height-capped and shows all items at the end of the page; opening an item
       and back still work
+  - verified (2026-11-10 07:56+0100 by dell26/agent-1): same run: MailReadNoteLinksTest 30 linked items laid out in full (1440dp, no 240dp cap), last reached by scrolling the page and opens on tap; existing open-item/back tests pass -> 0 failures (real Hilt panel back-navigation not driven on device)
 - [ ] The WebView lock-down is unchanged: `lockDownForMail`, CSP, `shouldInterceptRequest`, `shouldOverrideUrlLoading`
       (with the `data:` pass-through from `and-mail-webview-blank`)
 - [ ] Compose/Robolectric tests cover the new structure: one scroll container holding headers, body and links, no
