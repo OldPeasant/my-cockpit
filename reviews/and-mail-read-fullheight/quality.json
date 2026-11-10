@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "task": "and-mail-read-fullheight",
+  "reviewed_revision": "6225149a1d92599e9abe3a0e88dc84813700e9f7",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-mail-read-fullheight/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-mail-read-fullheight/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-mail-read-fullheight/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "missing tests for the page structure, links without cap and body height logic; added by test-writer rounds 1 and 2"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "accepted",
+     "note": "Chromium height measuring and zoom/pan touch behaviour need a device: criteria 2, 3 and 8 skipped with reason, zoom trade-off recorded with assume"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "MailWebView.forgetHeight clears a kept height when another mail loads"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "progress bar and notice stay fixed above the page; recorded with assume"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "attachment list keeps its 168dp nested scroll box (MailAttachments.kt, outside touches); recorded with assume"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.read.*'", "result": "pass"},
+    {"command": "cd android && ./gradlew createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
