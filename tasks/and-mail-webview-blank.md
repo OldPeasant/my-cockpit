@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailBodyView.kt,android/app/src/test/java/ch/sonensei/cockpit/mail/read/MailWebViewTest.kt]
 prio: 1
-lease_until: 2026-11-10T06:10:27Z
+lease_until: 2026-11-10T06:15:20Z
 ---
 ## Goal
 Since `and-mail-images` (f6cd5056d) the Android read view shows almost nothing of most mails: the WebView shows
