@@ -4,55 +4,68 @@ Date: 2026-11-10
 
 Task: and-mail-webview-blank - Android mail body is blank: WebView refuses its own page (403 on data: URL)
 
-Scope: task commit range f797ff557..ca187f390 (committed changes only)
+Scope: task commit range f797ff557..8cb28d7df, android changes (`git diff f797ff557..8cb28d7df -- android`), committed
+changes only. Round 2: final code after the round-1 review, the test-writer's additional tests and the CR-1 fix.
 
 Requirements:
-- tasks/and-mail-webview-blank.md acceptance criteria 1-5
-- AGENTS.md project notes (security conventions, lint contract)
+- tasks/and-mail-webview-blank.md acceptance criteria 1-5 and the two recorded assumptions
+- AGENTS.md project notes (security conventions, lint contract, fictitious test data)
 - SPEC.md section 3 "HTML email is untrusted" (as referenced by the KDoc of lockDownForMail)
+- reviews/and-mail-webview-blank/fixes.md (CR-1 resolution)
 
 Git range:
 - Branch: main
-- HEAD: ca187f3903c239a6b8c734f555abf6c9629457a9
+- HEAD: 8cb28d7df8934c0ed7be9dc20f46bb30992072b2
 - Base/start: f797ff55725968fe767d2daaec73297bba1c9505
-- Commits reviewed: 1 (ca187f390 "and-mail-webview-blank: leave data: requests to the WebView")
+- Commits reviewed: 3 code commits (2aeb07047 fix, b846a170b tests and round-1 reports, 8cb28d7df CR-1 comment fix);
+  the other commits in the range only touch `tasks/` (verify and assume entries)
+- Uncommitted changes: none
 
-Summary: 0 P0, 0 P1, 0 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
 Files reviewed in full: `android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailBodyView.kt`,
-`android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailImages.kt` (context, unchanged),
-`android/app/src/test/java/ch/sonensei/cockpit/mail/read/MailWebViewTest.kt`.
+`android/app/src/test/java/ch/sonensei/cockpit/mail/read/MailWebViewTest.kt`; context read:
+`android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailImages.kt`,
+`android/app/src/test/java/ch/sonensei/cockpit/mail/read/MailReadTestSupport.kt` (`pageRequest` helper),
+`android/app/src/main/java/ch/sonensei/cockpit/core/network/NetworkModule.kt` (`CockpitHttp.okHttpClient`).
 
-Gradle was not run for this review (the parent asked for a read-only review because another helper runs it).
+Gradle was not run for this review (the parent asked for a read-only review because the test-writer runs it).
 
 ## Verification notes
 
-Criterion 1 (data: returns null, everything else unchanged): `shouldInterceptRequest` (MailBodyView.kt:53-62) returns
-`null` only when `request.url.scheme` equals `data` case-insensitively; a null scheme (relative URL) compares false via
-Kotlin's nullable `String?.equals`, so it falls through to the old path. The `else` branch is byte-for-byte the previous
-expression (`images?.response(request) ?: blockedResponse()`), so server images still go through `MailImageFetcher`,
-and other hosts, schemes, non-image `MAIL_ORIGIN` paths and non-GET methods still get the empty 403 from
-`MailImageFetcher.response` / `blockedResponse()` (MailImages.kt:38-45, 83-84). The override's return type is now
-`WebResourceResponse?`, matching the platform signature.
+Criterion 1: `shouldInterceptRequest` (MailBodyView.kt:54-63) returns `null` only when `request.url.scheme` equals
+`data` case-insensitively (a null scheme compares false and falls through). The `else` branch is unchanged
+(`images?.response(request) ?: blockedResponse()`), so server images still go through `MailImageFetcher`, and other
+hosts and schemes, non-image `MAIL_ORIGIN` paths and non-GET requests still get the empty 403 (MailImages.kt:38-45).
+`data:` requests are not intercepted regardless of method, which matches the recorded assumption; a `data:` URL carries
+its payload inline and has no host, so this opens no network path.
 
-Security (criterion 3): the diff touches only `shouldInterceptRequest` and its KDoc. `lockDownForMail` (JS off, no
-file/content access, no multiple windows, no DOM storage), the CSP in `mailDocument`
-(`default-src 'none'; style-src 'unsafe-inline'; img-src MAIL_ORIGIN data:`), and `shouldOverrideUrlLoading` are
-unchanged. Returning null for a `data:` URL cannot reach the network: a `data:` URL carries its payload inline and is
-decoded by the renderer, it has no host. Navigations to `data:` documents initiated by the page still go through
-`shouldOverrideUrlLoading`, which returns true (dropped) for everything. A `data:text/html` subframe would need
-`frame-src`/`child-src`, which falls back to `default-src 'none'`; scripts are disabled anyway. Nothing loosened.
+Criterion 2: the override's return type is `WebResourceResponse?`, as in the platform API. Tests:
+- `the mail document and data images are left to the web view, with and without an image fetcher` asserts null for a
+  main-frame `data:text/html;charset=utf-8;base64,...` request and for `data:image/png` and upper-case `DATA:image/gif`
+  subresource requests, with a strict-mock `OkHttpClient` fetcher (any call would throw a non-IO exception and fail the
+  test) and without a fetcher.
+- `a scheme that only starts with data is still blocked` (new) covers `database:`, `datax:` and a server path
+  containing `data:`, all 403; this guards against a prefix-match regression.
+- `server images still go through the fetcher, other server paths and non-GET requests never reach it` (new) uses
+  MockWebServer with the app's `CockpitHttp.okHttpClient` (same pattern as TokenAuthenticatorTest): one attachment
+  image is fetched and returned with status 200 and its body; non-image server paths, a POST to the attachment and a
+  DELETE to the image proxy get an empty 403, and the request count stays at 1, so they never reached the network. The
+  server is closed in `finally`. Test data is fictitious.
+- The existing "other host is blocked" test keeps its intent: its `data:image/png` entry (now intentionally allowed)
+  moved to the new test and was replaced by `content://` and `javascript:` entries. "Without an image fetcher every
+  request is blocked" is unchanged.
 
-Criterion 2 (tests): the new test `the mail document and data images are left to the web view, with and without an
-image fetcher` (MailWebViewTest.kt:122-134) asserts null for a main-frame `data:text/html;charset=utf-8;base64,...`
-request and for `data:image/png` and upper-case `DATA:image/gif` subresource requests, for a view with a strict-mock
-`OkHttpClient` fetcher (any network call would throw) and for the view without a fetcher. The existing "other host is
-blocked" test keeps its intent: the `data:image/png` entry, which now must not be blocked, was moved to the new test and
-replaced by `content://` and `javascript:` entries, which strengthens the negative case rather than weakening it. The
-"without an image fetcher every request is blocked" test is unchanged.
+Criterion 3: only `shouldInterceptRequest` and two KDoc blocks changed. `lockDownForMail` settings, the CSP in
+`mailDocument` and `shouldOverrideUrlLoading` are unchanged; the existing tests for them still assert the same values.
 
-Criterion 4 is recorded as skipped in `tasks.py verify` (no device run); criterion 5 has no evidence recorded yet. Both
-are the parent worker's responsibility and not code findings.
+Round-1 CR-1: fixed. The `lockDownForMail` KDoc (MailBodyView.kt:19-25) now says the client answers every network
+request and that `data:` URLs are left to the WebView, matching the code and the class KDoc. The similar sentence in the
+`MailImageFetcher` KDoc (MailImages.kt:27) is still accurate for that class's own `response` function (it is called
+for the non-`data:` requests) and lies outside the task's touches; not reported.
+
+Criterion 4 is recorded as skipped (no emulator or device) with an assumption; criterion 5 (Gradle and `.taskcheck`)
+is evidence the parent worker records. Neither is a code finding.
 
 ## P0 Critical
 
@@ -68,18 +81,7 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | lockDownForMail KDoc still says the client answers every request**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailBodyView.kt:21`
-    - Category: Quality
-    - Problem: the KDoc of `lockDownForMail` (lines 21-23) says `MailWebViewClient` "answers every request itself" so
-      "the WebView never fetches anything on its own". After this change `data:` requests are deliberately left to the
-      WebView. The security conclusion (no network fetch) still holds, but the sentence no longer describes the code;
-      the class KDoc at lines 44-48 was updated, this one was not. The same wording exists in the `MailImageFetcher`
-      KDoc (MailImages.kt:27, "Answers every resource request of a mail page"), which is outside this task's touches.
-    - Why it matters: the next reader auditing the WebView's network surface may trust the comment and miss the `data:`
-      exception, or "fix" it back to blocking, which would reintroduce the blank-page bug.
-    - Suggested fix: reword to e.g. "answers every network request itself (... everything else refused; `data:` URLs,
-      which never touch the network, are left to the WebView)".
+None.
 
 ## Review conclusion
 

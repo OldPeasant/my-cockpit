@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "and-mail-webview-blank",
+  "reviewed_revision": "8cb28d7df8934c0ed7be9dc20f46bb30992072b2",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-mail-webview-blank/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-mail-webview-blank/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-mail-webview-blank/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "lockDownForMail KDoc now says data: URLs are left to the WebView; round-2 review confirms"},
+    {"id": "TW-1", "source": "test-writer", "severity": "P3", "disposition": "accepted",
+     "note": "non-GET data: request is not intercepted; recorded as assumption (data: never reaches the network)"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
