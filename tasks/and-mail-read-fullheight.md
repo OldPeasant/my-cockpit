@@ -44,7 +44,8 @@ scroll box), and the linked items come after the mail, reached by scrolling to t
 - [~] Manually verified on an emulator or device with a long HTML newsletter, a short mail, a plain-text mail and a mail
       with linked items (record what you ran). If no emulator is available, skip with reason; the owner checks on the phone
   - skipped (2026-11-10 07:31+0100 by dell26/agent-1): no Android emulator or device attached to this agent machine (no adb in the sandbox); owner checks on the phone with a long newsletter, a short mail, a plain-text mail and a mail with linked items
-- [ ] `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-10 07:57+0100 by dell26/agent-1): sh scripts/check.sh (includes cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug) at 4e599706c -> all checks passed
 
 ## Notes
 Planned 2026-11-10 from the owner's report. Android only; the web read view is not part of this task.
