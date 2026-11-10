@@ -22,9 +22,10 @@ scroll box), and the linked items come after the mail, reached by scrolling to t
 - [ ] Below the toolbar and the previous/next row, which stay fixed, the read view is one vertical scroll: headers,
       attachments, images banner, reply buttons, mail body, linked items, in that order. Scrolling the page past the
       headers leaves the mail filling the screen below the fixed bar
-- [ ] An HTML mail is shown at its full content height: the WebView does not scroll vertically by itself, and its height
+- [~] An HTML mail is shown at its full content height: the WebView does not scroll vertically by itself, and its height
       follows the rendered content, including after images load (cid, "Load images") and after "Load images" reloads the
       mail. Long newsletters and very short mails both work: no clipped bottom, no large empty space
+  - skipped (2026-11-10 07:47+0100 by dell26/agent-1): full content height comes from Chromium's own WRAP_CONTENT measuring, which Robolectric does not render; covered only by unit tests of the measure/keep-height logic (MailWebViewTest, MailBodyViewTest). No emulator here; owner checks long/short mails and Load images on the phone
 - [ ] Wide newsletters stay fitted to the screen width (wide viewport / overview mode as today), and pinch zoom and
       horizontal panning still work. If full-height layout and zoom conflict, record the trade-off you chose with `assume`
 - [ ] A plain-text mail is part of the same page scroll (no nested scroll box) and stays selectable
