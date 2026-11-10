@@ -27,8 +27,9 @@ error page. Robolectric does not run Chromium, so the unit tests could not see i
       not intercepted (null); the existing "other host is blocked" tests still pass; the override return type is
       nullable as in the platform API
 - [ ] No other security setting is loosened (JavaScript off, CSP unchanged, `shouldOverrideUrlLoading` unchanged)
-- [ ] Manually verified on an emulator or device against a running server with an HTML newsletter, a `cid:` image and
+- [~] Manually verified on an emulator or device against a running server with an HTML newsletter, a `cid:` image and
       "Load images" (record what you ran); if no emulator is available, skip with reason and assume what you could not see
+  - skipped (2026-11-10 06:52+0100 by dell26/agent-1): no emulator, adb or device on this machine (which adb emulator -> not found); Robolectric does not run Chromium
 - [ ] `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
