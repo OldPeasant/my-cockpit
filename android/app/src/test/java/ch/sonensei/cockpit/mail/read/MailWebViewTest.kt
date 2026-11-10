@@ -4,7 +4,11 @@ import android.net.Uri
 import android.webkit.WebResourceRequest
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import ch.sonensei.cockpit.core.network.CockpitHttp
+import ch.sonensei.cockpit.core.network.ServerUrlInterceptor
 import io.mockk.mockk
+import mockwebserver3.MockResponse
+import mockwebserver3.MockWebServer
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -130,6 +134,56 @@ class MailWebViewTest {
             listOf("data:image/png;base64,iVBORw0KGgo=", "DATA:image/gif;base64,R0lGODlh").forEach {
                 assertNull(it, client.shouldInterceptRequest(webView, pageRequest(it)))
             }
+        }
+    }
+
+    @Test
+    fun `a scheme that only starts with data is still blocked`() {
+        // A strict mock: any network call through the app's client would fail the test.
+        val withImages = mailWebView(ApplicationProvider.getApplicationContext(), MailImageFetcher(mockk<OkHttpClient>())) {}
+        listOf("database:x", "datax:image/png;base64,iVBORw0KGgo=", "https://server.invalid/data:image/png").forEach {
+            val response = withImages.webViewClient.shouldInterceptRequest(withImages, pageRequest(it))
+            assertEquals(it, 403, response?.statusCode)
+        }
+    }
+
+    @Test
+    fun `server images still go through the fetcher, other server paths and non-GET requests never reach it`() {
+        val server = MockWebServer()
+        server.start()
+        try {
+            val fetcher = MailImageFetcher(CockpitHttp.okHttpClient(ServerUrlInterceptor { server.url("/") }, null, null))
+            val withImages = mailWebView(ApplicationProvider.getApplicationContext(), fetcher) {}
+            val client = withImages.webViewClient
+            val attachment = "$MAIL_ORIGIN/api/v1/mail/messages/0190f3a2-0000-7000-8000-000000000001/attachments/2"
+            server.enqueue(
+                MockResponse
+                    .Builder()
+                    .code(200)
+                    .addHeader("Content-Type", "image/png")
+                    .body("fictitious-png-bytes")
+                    .build(),
+            )
+
+            val image = client.shouldInterceptRequest(withImages, pageRequest(attachment))
+            assertEquals(200, image?.statusCode)
+            assertEquals("fictitious-png-bytes", image!!.data.use { it.readBytes().decodeToString() })
+            assertEquals(1, server.requestCount)
+
+            listOf(
+                pageRequest("$MAIL_ORIGIN/api/v1/settings"),
+                pageRequest("$MAIL_ORIGIN/"),
+                pageRequest("$MAIL_ORIGIN/api/v1/mail/messages/0190f3a2-0000-7000-8000-000000000001"),
+                pageRequest(attachment, method = "POST"),
+                pageRequest("$MAIL_ORIGIN/api/v1/mail/image-proxy?url=x", method = "DELETE"),
+            ).forEach {
+                val response = client.shouldInterceptRequest(withImages, it)
+                assertEquals("${it.method} ${it.url}", 403, response?.statusCode)
+                assertEquals("${it.method} ${it.url}", 0, response!!.data.readBytes().size)
+            }
+            assertEquals(1, server.requestCount)
+        } finally {
+            server.close()
         }
     }
 
