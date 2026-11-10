@@ -1,11 +1,11 @@
 ---
 title: Android read view: mail at full height in one page scroll, linked items below
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailReadScreen.kt,android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailBodyView.kt,android/app/src/test/java/ch/sonensei/cockpit/mail/read]
 prio: 1
-lease_until: 2026-11-10T07:14:07Z
+lease_until: 
 ---
 ## Goal
 Reading mail on the phone is tiring (owner report, 2026-11-10): the read view (`MailReadContent`/`Message` in
@@ -56,3 +56,4 @@ no JS bridge for measuring. Keep the scroll position when only the images change
 - ASSUMPTION (2026-11-10 07:31+0100 by dell26/agent-1): Body height comes from Chromium's own wrap-content measuring (WebView with WRAP_CONTENT height under an unbounded Compose verticalScroll measures to its rendered content and re-measures on image loads/zoom), not from contentHeight*scale or a PictureListener; MailWebView only keeps its previous height during a same-mail reload (Load images) until onPageFinished so the page does not jump to the top. Zoom trade-off: pinch zoom grows the body height with the zoom factor (page scrolls), horizontal panning stays in the WebView.
 - ASSUMPTION (2026-11-10 07:35+0100 by dell26/agent-1): The progress bar and the notice line (task created / action failed) stay fixed above the scrolling page with the toolbar and previous/next row: they are short status feedback about actions in the toolbar and must stay visible while the mail is scrolled.
 - ASSUMPTION (2026-11-10 07:45+0100 by dell26/agent-1): The attachment list keeps its own 168dp scroll box inside the page (MailAttachments.kt, outside this task's touches): only mails with more than ~3 attachments get that short nested list; the mail body and links follow the single page scroll as asked. A follow-up can remove the cap if the owner wants it.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 76s on cefdb7369; criteria verified 6/9, skipped #2 #3 #8
