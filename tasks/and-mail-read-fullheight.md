@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailReadScreen.kt,android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailBodyView.kt,android/app/src/test/java/ch/sonensei/cockpit/mail/read]
 prio: 1
-lease_until: 2026-11-10T07:04:01Z
+lease_until: 2026-11-10T07:09:05Z
 ---
 ## Goal
 Reading mail on the phone is tiring (owner report, 2026-11-10): the read view (`MailReadContent`/`Message` in
