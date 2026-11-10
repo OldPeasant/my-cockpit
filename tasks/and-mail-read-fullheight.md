@@ -35,8 +35,9 @@ scroll box), and the linked items come after the mail, reached by scrolling to t
 - [x] The linked-items panel is no longer height-capped and shows all items at the end of the page; opening an item
       and back still work
   - verified (2026-11-10 07:56+0100 by dell26/agent-1): same run: MailReadNoteLinksTest 30 linked items laid out in full (1440dp, no 240dp cap), last reached by scrolling the page and opens on tap; existing open-item/back tests pass -> 0 failures (real Hilt panel back-navigation not driven on device)
-- [ ] The WebView lock-down is unchanged: `lockDownForMail`, CSP, `shouldInterceptRequest`, `shouldOverrideUrlLoading`
+- [x] The WebView lock-down is unchanged: `lockDownForMail`, CSP, `shouldInterceptRequest`, `shouldOverrideUrlLoading`
       (with the `data:` pass-through from `and-mail-webview-blank`)
+  - verified (2026-11-10 07:57+0100 by dell26/agent-1): git diff d773e6bd1..HEAD -- MailBodyView.kt: lockDownForMail, mailDocument CSP, shouldInterceptRequest (data: pass-through) and shouldOverrideUrlLoading lines untouched (only onPageFinished added); MailWebViewTest/MailBodyViewTest lock-down tests pass against MailWebView -> 0 failures
 - [ ] Compose/Robolectric tests cover the new structure: one scroll container holding headers, body and links, no
       `heightIn` cap on links, plus the body height logic where it can be tested outside Chromium
 - [~] Manually verified on an emulator or device with a long HTML newsletter, a short mail, a plain-text mail and a mail
