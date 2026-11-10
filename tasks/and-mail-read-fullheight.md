@@ -34,8 +34,9 @@ scroll box), and the linked items come after the mail, reached by scrolling to t
       (with the `data:` pass-through from `and-mail-webview-blank`)
 - [ ] Compose/Robolectric tests cover the new structure: one scroll container holding headers, body and links, no
       `heightIn` cap on links, plus the body height logic where it can be tested outside Chromium
-- [ ] Manually verified on an emulator or device with a long HTML newsletter, a short mail, a plain-text mail and a mail
+- [~] Manually verified on an emulator or device with a long HTML newsletter, a short mail, a plain-text mail and a mail
       with linked items (record what you ran). If no emulator is available, skip with reason; the owner checks on the phone
+  - skipped (2026-11-10 07:31+0100 by dell26/agent-1): no Android emulator or device attached to this agent machine (no adb in the sandbox); owner checks on the phone with a long newsletter, a short mail, a plain-text mail and a mail with linked items
 - [ ] `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
