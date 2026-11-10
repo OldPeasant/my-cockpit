@@ -19,9 +19,10 @@ attachments, banner and reply buttons scroll away at the top, the mail follows a
 scroll box), and the linked items come after the mail, reached by scrolling to the end.
 
 ## Acceptance criteria
-- [ ] Below the toolbar and the previous/next row, which stay fixed, the read view is one vertical scroll: headers,
+- [x] Below the toolbar and the previous/next row, which stay fixed, the read view is one vertical scroll: headers,
       attachments, images banner, reply buttons, mail body, linked items, in that order. Scrolling the page past the
       headers leaves the mail filling the screen below the fixed bar
+  - verified (2026-11-10 07:56+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.read.*' (MailReadScreenTest: page order headers/attachments/banner/reply/body/links inside PAGE, toolbar+nav outside and fixed, 2000dp body fills page after headers scroll away) -> 332 tests, 0 failures
 - [~] An HTML mail is shown at its full content height: the WebView does not scroll vertically by itself, and its height
       follows the rendered content, including after images load (cid, "Load images") and after "Load images" reloads the
       mail. Long newsletters and very short mails both work: no clipped bottom, no large empty space
