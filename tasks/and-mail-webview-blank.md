@@ -20,9 +20,10 @@ error page. Robolectric does not run Chromium, so the unit tests could not see i
 `and-mail-images` was skipped.
 
 ## Acceptance criteria
-- [ ] `shouldInterceptRequest` returns `null` (WebView handles it locally) for `data:` URLs, so the mail document and
+- [x] `shouldInterceptRequest` returns `null` (WebView handles it locally) for `data:` URLs, so the mail document and
       `data:` images load; server images still go through `MailImageFetcher`; every other request (other hosts and
       schemes, `MAIL_ORIGIN` paths that are not server images, non-GET) still gets the empty 403 without network access
+  - verified (2026-11-10 06:55+0100 by dell26/agent-1): MailWebViewTest (Robolectric) via ./gradlew testDebugUnitTest --tests '*mail.read.*' at 8cb28d7df -> data:text/html main-frame and data:image subresource return null; server attachment via MockWebServer fetcher 200; other hosts/schemes, MAIL_ORIGIN non-image paths, POST/DELETE -> empty 403, strict OkHttp mock sees no call
 - [ ] Unit tests: a main-frame `data:text/html;...` request and a `data:image/png;base64,...` subresource request are
       not intercepted (null); the existing "other host is blocked" tests still pass; the override return type is
       nullable as in the platform API
