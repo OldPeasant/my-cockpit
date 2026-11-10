@@ -35,3 +35,4 @@ error page. Robolectric does not run Chromium, so the unit tests could not see i
 ## Notes
 Planned 2026-11-10 from the owner's bug report; diagnosis by an interactive session. Keep the fix minimal: do not
 change the image fetching, the banner or the CSP.
+- ASSUMPTION (2026-11-10 06:52+0100 by dell26/agent-1): Not checked on a device: assumed that returning null for data: URLs from shouldInterceptRequest lets Chromium load the loadDataWithBaseURL document and data: images (platform contract: null = WebView loads it itself); owner should re-check an HTML newsletter, a cid: image and Load images on a device
