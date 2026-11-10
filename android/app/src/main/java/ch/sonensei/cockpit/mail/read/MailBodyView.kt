@@ -19,8 +19,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 /**
  * Settings for untrusted mail HTML (SPEC.md §3 "HTML email is untrusted"): the server already sanitized it, and the
  * WebView adds a second wall: no JavaScript, no file or content access, no popups, no storage. Network loads stay on
- * only so the page asks for its images at all: [MailWebViewClient] answers every request itself (the server's images
- * through [MailImageFetcher], everything else refused), so the WebView never fetches anything on its own.
+ * only so the page asks for its images at all: [MailWebViewClient] answers every network request itself (the server's
+ * images through [MailImageFetcher], everything else refused; `data:` URLs, which never touch the network, are left to
+ * the WebView), so the WebView never fetches anything from the network on its own.
  */
 fun WebSettings.lockDownForMail() {
     javaScriptEnabled = false
