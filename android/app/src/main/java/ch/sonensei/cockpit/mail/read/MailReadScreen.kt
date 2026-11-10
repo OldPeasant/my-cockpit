@@ -8,14 +8,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -52,6 +50,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
@@ -166,7 +165,7 @@ fun MailReadRoute(
         modifier = modifier,
         navigation = navigation,
         moveTargets = moveTargets(accounts, state.message),
-        body = { html, m -> MailBodyView(html, m, viewModel.images) },
+        body = { html, m -> MailBodyView(html, m, viewModel.images, key = state.message?.id) },
         linksPanel = {
             val messageId = state.message?.id
             if (links != null && messageId != null) {
@@ -268,6 +267,7 @@ internal object MailReadTags {
     const val FORWARD = "mail-read-forward"
     const val MORE = "mail-read-more"
     const val LINKS = "mail-read-links"
+    const val PAGE = "mail-read-page"
 
     fun gtd(action: MailGtdAction) = "mail-read-gtd:$action"
 
@@ -277,8 +277,9 @@ internal object MailReadTags {
 /**
  * The read view: toolbar (back, To task, To Waiting, archive, delete, a menu with "Create note", unread, flag, move and
  * spam), previous/next through the list it was opened from
- * ([navigation], when given), headers, then the sanitized HTML in [body] (a locked-down WebView; replaceable in tests)
- * or the plain text of a text-only mail, then the mail's linked items ([linksPanel]).
+ * ([navigation], when given), and below them one page that scrolls: headers, then the sanitized HTML in [body] (a
+ * locked-down WebView at its full height; replaceable in tests) or the plain text of a text-only mail, then the mail's
+ * linked items ([linksPanel]).
  */
 @Composable
 fun MailReadContent(
@@ -301,8 +302,17 @@ fun MailReadContent(
         val message = state.message
         when {
             message != null ->
-                Message(message, zone, body, callbacks.takeUnless { state.busy }, linksPanel) {
-                    AttachmentList(message.attachments, attachments, attachmentCallbacks, enabled = !state.busy)
+                // One scroll per mail: the next mail starts at its top.
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .verticalScroll(key(message.id) { rememberScrollState() })
+                        .testTag(MailReadTags.PAGE),
+                ) {
+                    Message(message, zone, body, callbacks.takeUnless { state.busy }, linksPanel) {
+                        AttachmentList(message.attachments, attachments, attachmentCallbacks, enabled = !state.busy)
+                    }
                 }
             state.error != null -> Error(state.error, callbacks.retry)
         }
@@ -540,7 +550,7 @@ private fun Error(
 }
 
 @Composable
-private fun ColumnScope.Message(
+private fun Message(
     message: MailMessage,
     zone: ZoneId,
     body: @Composable (String, Modifier) -> Unit,
@@ -570,25 +580,20 @@ private fun ColumnScope.Message(
     if (message.remoteImagesBlocked > 0) ImagesBanner(message, callbacks)
     ReplyButtons(message.id, callbacks?.compose)
     HorizontalDivider()
+    // The body at its full height: the page scrolls, not the body.
     if (message.html.isNotBlank()) {
-        body(message.html, Modifier.fillMaxWidth().weight(1f))
+        body(message.html, Modifier.fillMaxWidth())
     } else {
-        SelectionContainer(Modifier.weight(1f).fillMaxWidth()) {
+        SelectionContainer(Modifier.fillMaxWidth()) {
             Text(
                 message.text,
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.verticalScroll(rememberScrollState()).padding(16.dp).testTag(MailReadTags.TEXT),
+                modifier = Modifier.padding(16.dp).testTag(MailReadTags.TEXT),
             )
         }
     }
-    // Below the body (as in the web app), kept short so the mail stays readable.
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(max = 240.dp)
-            .verticalScroll(rememberScrollState())
-            .testTag(MailReadTags.LINKS),
-    ) {
+    // After the mail (as in the web app), all of them, reached by scrolling to the end.
+    Column(Modifier.fillMaxWidth().testTag(MailReadTags.LINKS)) {
         linksPanel()
     }
 }

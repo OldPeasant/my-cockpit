@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
+import android.view.View
+import android.view.ViewGroup
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
@@ -12,6 +14,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.viewinterop.AndroidView
@@ -72,6 +75,14 @@ class MailWebViewClient(
         return true
     }
 
+    /** The page has its layout: a [MailWebView] may now shrink to it (see [MailWebView.keepHeight]). */
+    override fun onPageFinished(
+        view: WebView,
+        url: String?,
+    ) {
+        (view as? MailWebView)?.pageFinished()
+    }
+
     private companion object {
         val EXTERNAL_SCHEMES = setOf("http", "https", "mailto")
     }
@@ -89,43 +100,103 @@ fun mailDocument(html: String): String =
         "<style>body{margin:0;padding:12px;overflow-wrap:anywhere;}img{max-width:100%;height:auto;}</style>" +
         "</head><body>$html</body></html>"
 
+/**
+ * The height a [MailWebView] takes: the [measured] height of its content, but not less than [kept] while a reload of the
+ * same mail (e.g. with its images) has not laid out yet, so the page around it keeps its scroll position.
+ */
+internal fun mailBodyHeight(
+    measured: Int,
+    kept: Int,
+): Int = maxOf(measured, kept)
+
+/**
+ * The WebView of a mail body, as tall as its content: laid out with a wrap-content height in a scrolling page, the
+ * WebView measures itself to the rendered content (and measures again when images load or the zoom changes), so it
+ * never scrolls vertically by itself. [keepHeight] holds the current height across a reload until [pageFinished].
+ */
+class MailWebView(
+    context: Context,
+) : WebView(context) {
+    /** The height kept while the next page loads; 0 for none. */
+    internal var keptHeight = 0
+        private set
+
+    /** Before reloading the same mail: keep the current height so the page does not jump back to the top. */
+    fun keepHeight() {
+        keptHeight = height
+    }
+
+    /** The reloaded page has its layout: from now on the content height alone counts. */
+    fun pageFinished() {
+        if (keptHeight != 0) {
+            keptHeight = 0
+            requestLayout()
+        }
+    }
+
+    override fun onMeasure(
+        widthMeasureSpec: Int,
+        heightMeasureSpec: Int,
+    ) {
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        val height = mailBodyHeight(measuredHeight, keptHeight)
+        if (height != measuredHeight && MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.UNSPECIFIED) {
+            setMeasuredDimension(measuredWidth, height)
+        }
+    }
+}
+
 /** Creates the WebView of a mail body with [lockDownForMail] settings; [images] loads the server's images. */
 fun mailWebView(
     context: Context,
     images: MailImageFetcher? = null,
     onLink: (Uri) -> Unit,
-): WebView =
-    WebView(context).apply {
+): MailWebView =
+    MailWebView(context).apply {
         settings.lockDownForMail()
         webViewClient = MailWebViewClient(images, onLink)
         // Mails are written for a white page, also in the dark theme.
         setBackgroundColor(Color.WHITE)
+        // As tall as its content (the page around it scrolls): no vertical scrolling or scroll bar of its own.
+        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        isVerticalScrollBarEnabled = false
+        overScrollMode = View.OVER_SCROLL_NEVER
     }
 
 /**
- * The sanitized [html] of a mail; tapped links open in the browser or mail app. Its images (inline parts, proxied remote
- * images) load through [images]; without it none load.
+ * The sanitized [html] of a mail at its full content height (it belongs in a vertically scrolling page); tapped links
+ * open in the browser or mail app. Its images (inline parts, proxied remote images) load through [images]; without it
+ * none load. [key] names the mail: when only its [html] changes (images loaded), the height is kept while it reloads.
  */
 @Composable
 fun MailBodyView(
     html: String,
     modifier: Modifier = Modifier,
     images: MailImageFetcher? = null,
+    key: Any? = null,
 ) {
     val document = remember(html) { mailDocument(html) }
     AndroidView(
         factory = { context -> mailWebView(context, images) { openExternally(context, it) } },
         update = { view ->
             // Loaded again only when the mail changes, not on every recomposition (that would reset scroll and zoom).
-            if (view.tag != document) {
-                view.tag = document
+            val loaded = view.tag as? LoadedMail
+            if (loaded?.document != document) {
+                if (loaded != null && loaded.key == key) view.keepHeight()
+                view.tag = LoadedMail(key, document)
                 // On the server's stand-in origin, so the server's image paths resolve and pass the CSP.
                 view.loadDataWithBaseURL("$MAIL_ORIGIN/", document, "text/html", "utf-8", null)
             }
         },
-        modifier = modifier.testTag(MailReadTags.BODY),
+        modifier = modifier.wrapContentHeight().testTag(MailReadTags.BODY),
     )
 }
+
+/** What a mail body's WebView shows: the document of the mail named [key]. */
+private data class LoadedMail(
+    val key: Any?,
+    val document: String,
+)
 
 private fun openExternally(
     context: Context,
