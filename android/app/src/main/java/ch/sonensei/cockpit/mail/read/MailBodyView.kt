@@ -112,7 +112,8 @@ internal fun mailBodyHeight(
 /**
  * The WebView of a mail body, as tall as its content: laid out with a wrap-content height in a scrolling page, the
  * WebView measures itself to the rendered content (and measures again when images load or the zoom changes), so it
- * never scrolls vertically by itself. [keepHeight] holds the current height across a reload until [pageFinished].
+ * never scrolls vertically by itself. [keepHeight] holds the current height across a reload until [pageFinished]
+ * (or [forgetHeight], when another mail loads).
  */
 class MailWebView(
     context: Context,
@@ -124,6 +125,14 @@ class MailWebView(
     /** Before reloading the same mail: keep the current height so the page does not jump back to the top. */
     fun keepHeight() {
         keptHeight = height
+    }
+
+    /** Before loading another mail: drop a height kept for the previous one, so the new mail starts at its own. */
+    fun forgetHeight() {
+        if (keptHeight != 0) {
+            keptHeight = 0
+            requestLayout()
+        }
     }
 
     /** The reloaded page has its layout: from now on the content height alone counts. */
@@ -182,7 +191,7 @@ fun MailBodyView(
             // Loaded again only when the mail changes, not on every recomposition (that would reset scroll and zoom).
             val loaded = view.tag as? LoadedMail
             if (loaded?.document != document) {
-                if (loaded != null && loaded.key == key) view.keepHeight()
+                if (loaded != null && loaded.key == key) view.keepHeight() else view.forgetHeight()
                 view.tag = LoadedMail(key, document)
                 // On the server's stand-in origin, so the server's image paths resolve and pass the CSP.
                 view.loadDataWithBaseURL("$MAIL_ORIGIN/", document, "text/html", "utf-8", null)

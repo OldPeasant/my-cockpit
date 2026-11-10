@@ -135,6 +135,26 @@ class MailBodyViewTest {
     }
 
     @Test
+    fun `another mail loaded before the reload finished drops the kept height`() {
+        val html = mutableStateOf("<p>Hello Anna</p>")
+        val key = mutableStateOf<Any?>("mail-1")
+        val view = showChanging(html, key)
+
+        html.value = "<p>Hello Anna</p><img src=\"/api/v1/mail/image-proxy?url=x\">"
+        composeRule.waitForIdle()
+        assertEquals(1800, view.keptHeight)
+
+        Snapshot.withMutableSnapshot {
+            key.value = "mail-2"
+            html.value = "<p>Hello Ben</p>"
+        }
+        composeRule.waitForIdle()
+
+        assertEquals(mailDocument("<p>Hello Ben</p>"), shadowOf(view).lastLoadDataWithBaseURL.data)
+        assertEquals(0, view.keptHeight)
+    }
+
+    @Test
     fun `a recomposition with the same document neither reloads nor keeps a height`() {
         val html = mutableStateOf("<p>Hello Anna</p>")
         val key = mutableStateOf<Any?>("mail-1")
