@@ -296,6 +296,44 @@ class MailWebViewTest {
     }
 
     @Test
+    fun `another mail drops a kept height at once, so it is measured at its own content height`() {
+        val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        val width = View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.EXACTLY)
+        view.measure(width, unspecified)
+        val content = view.measuredHeight
+        view.layout(0, 0, 400, content + 900)
+        layOutWebView(view, content + 900)
+        view.keepHeight()
+        view.forceLayout()
+        view.measure(width, unspecified)
+        view.layout(0, 0, 400, content + 900)
+        assertEquals(content + 900, view.measuredHeight)
+        assertFalse(view.isLayoutRequested)
+
+        view.forgetHeight()
+
+        assertEquals(0, view.keptHeight)
+        assertTrue("the new mail's own height counts", view.isLayoutRequested)
+        view.measure(width, unspecified)
+        assertEquals(content, view.measuredHeight)
+    }
+
+    @Test
+    fun `another mail without a kept height asks for no new layout`() {
+        view.measure(
+            View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        view.layout(0, 0, 400, 700)
+        assertFalse(view.isLayoutRequested)
+
+        view.forgetHeight()
+
+        assertFalse(view.isLayoutRequested)
+        assertEquals(0, view.keptHeight)
+    }
+
+    @Test
     fun `a finished page in a plain web view is ignored`() {
         val plain = WebView(ApplicationProvider.getApplicationContext())
         // Must not fail: only a MailWebView keeps heights.
