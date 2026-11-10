@@ -38,8 +38,9 @@ scroll box), and the linked items come after the mail, reached by scrolling to t
 - [x] The WebView lock-down is unchanged: `lockDownForMail`, CSP, `shouldInterceptRequest`, `shouldOverrideUrlLoading`
       (with the `data:` pass-through from `and-mail-webview-blank`)
   - verified (2026-11-10 07:57+0100 by dell26/agent-1): git diff d773e6bd1..HEAD -- MailBodyView.kt: lockDownForMail, mailDocument CSP, shouldInterceptRequest (data: pass-through) and shouldOverrideUrlLoading lines untouched (only onPageFinished added); MailWebViewTest/MailBodyViewTest lock-down tests pass against MailWebView -> 0 failures
-- [ ] Compose/Robolectric tests cover the new structure: one scroll container holding headers, body and links, no
+- [x] Compose/Robolectric tests cover the new structure: one scroll container holding headers, body and links, no
       `heightIn` cap on links, plus the body height logic where it can be tested outside Chromium
+  - verified (2026-11-10 07:57+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.read.*' -> 332 tests 0 failures; new tests: one PAGE container with headers/body/links, no heightIn cap on links, mailBodyHeight/keepHeight/forgetHeight/pageFinished/onMeasure logic; JaCoCo changed lines 48/48, branches 27/28
 - [~] Manually verified on an emulator or device with a long HTML newsletter, a short mail, a plain-text mail and a mail
       with linked items (record what you ran). If no emulator is available, skip with reason; the owner checks on the phone
   - skipped (2026-11-10 07:31+0100 by dell26/agent-1): no Android emulator or device attached to this agent machine (no adb in the sandbox); owner checks on the phone with a long newsletter, a short mail, a plain-text mail and a mail with linked items
