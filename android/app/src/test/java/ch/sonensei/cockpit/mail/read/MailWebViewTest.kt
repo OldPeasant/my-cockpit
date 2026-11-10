@@ -1,7 +1,10 @@
 package ch.sonensei.cockpit.mail.read
 
 import android.net.Uri
+import android.view.View
+import android.view.ViewGroup
 import android.webkit.WebResourceRequest
+import android.webkit.WebView
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.core.network.CockpitHttp
@@ -206,6 +209,97 @@ class MailWebViewTest {
         assertTrue(client.shouldOverrideUrlLoading(view, request("HTTPS://SERVER.INVALID/somewhere")))
         assertTrue(client.shouldOverrideUrlLoading(view, request("http://server.invalid/")))
 
+        assertEquals(emptyList<Uri>(), opened)
+    }
+
+    @Test
+    fun `wide newsletters stay fitted to the width and zoomable`() {
+        val settings = view.settings
+        assertTrue(settings.useWideViewPort)
+        assertTrue(settings.loadWithOverviewMode)
+        assertTrue(settings.supportZoom())
+        assertTrue(settings.builtInZoomControls)
+        assertFalse(settings.displayZoomControls)
+    }
+
+    @Test
+    fun `the web view is as tall as its content and does not scroll vertically by itself`() {
+        val params = view.layoutParams
+        assertNotNull(params)
+        assertEquals(ViewGroup.LayoutParams.MATCH_PARENT, params.width)
+        assertEquals(ViewGroup.LayoutParams.WRAP_CONTENT, params.height)
+        assertFalse(view.isVerticalScrollBarEnabled)
+        assertEquals(View.OVER_SCROLL_NEVER, view.overScrollMode)
+    }
+
+    @Test
+    fun `the body height is the content height, but not less than a kept height`() {
+        assertEquals(1200, mailBodyHeight(measured = 1200, kept = 0))
+        assertEquals(800, mailBodyHeight(measured = 300, kept = 800))
+        assertEquals(1500, mailBodyHeight(measured = 1500, kept = 800))
+        assertEquals(800, mailBodyHeight(measured = 800, kept = 800))
+        assertEquals(0, mailBodyHeight(measured = 0, kept = 0))
+    }
+
+    @Test
+    fun `a kept height holds the web view's height in a scrolling page until the page finished`() {
+        val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        val width = View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.EXACTLY)
+        view.measure(width, unspecified)
+        val content = view.measuredHeight
+        view.layout(0, 0, 400, content + 900)
+        layOutWebView(view, content + 900)
+        assertEquals(0, view.keptHeight)
+
+        view.keepHeight()
+        assertEquals(content + 900, view.keptHeight)
+        // The reload asks for a new layout (on a device Chromium does); without it View reuses the cached measure.
+        view.forceLayout()
+        view.measure(width, unspecified)
+        assertEquals(content + 900, view.measuredHeight)
+
+        view.layout(0, 0, 400, content + 900)
+        assertFalse(view.isLayoutRequested)
+        view.webViewClient.onPageFinished(view, "data:text/html")
+        assertEquals(0, view.keptHeight)
+        assertTrue("the content height counts again", view.isLayoutRequested)
+        view.measure(width, unspecified)
+        assertEquals(content, view.measuredHeight)
+    }
+
+    @Test
+    fun `a kept height never overrides a height the parent fixes`() {
+        val width = View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.EXACTLY)
+        layOutWebView(view, 900)
+        view.keepHeight()
+        assertEquals(900, view.keptHeight)
+
+        view.measure(width, View.MeasureSpec.makeMeasureSpec(300, View.MeasureSpec.EXACTLY))
+        assertEquals(300, view.measuredHeight)
+        view.measure(width, View.MeasureSpec.makeMeasureSpec(300, View.MeasureSpec.AT_MOST))
+        assertTrue(view.measuredHeight <= 300)
+    }
+
+    @Test
+    fun `a finished page without a kept height asks for no new layout`() {
+        view.measure(
+            View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        view.layout(0, 0, 400, 700)
+        assertFalse(view.isLayoutRequested)
+
+        view.pageFinished()
+
+        assertFalse(view.isLayoutRequested)
+        assertEquals(0, view.keptHeight)
+    }
+
+    @Test
+    fun `a finished page in a plain web view is ignored`() {
+        val plain = WebView(ApplicationProvider.getApplicationContext())
+        // Must not fail: only a MailWebView keeps heights.
+        MailWebViewClient(null) { opened += it }.onPageFinished(plain, "data:text/html")
         assertEquals(emptyList<Uri>(), opened)
     }
 

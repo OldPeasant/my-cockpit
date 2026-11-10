@@ -1,6 +1,9 @@
 package ch.sonensei.cockpit.mail.read
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -8,17 +11,25 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.mail.list.MailListAction
@@ -198,6 +209,55 @@ class MailReadNoteLinksTest {
                 .fetchSemanticsNode()
                 .boundsInRoot.top
         assertTrue(top(MailReadTags.BODY) < top(MailReadTags.LINKS))
+    }
+
+    @Test
+    fun `a long list of linked items is laid out in full, not capped, and its last item is reached by scrolling the page`() {
+        val items = 30
+        show(MailReadUiState(message = message)) {
+            Column {
+                (1..items).forEach {
+                    Text("Linked item $it", Modifier.height(48.dp).testTag("linked-$it"))
+                }
+            }
+        }
+
+        // Before: at most 240dp in a scroll box of its own; now all 30 items at 48dp.
+        composeRule.onNodeWithTag(MailReadTags.LINKS).assertHeightIsEqualTo((items * 48).dp)
+        composeRule
+            .onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
+            .assertCountEquals(1)
+        composeRule
+            .onNode(hasTestTag(MailReadTags.LINKS) and hasAnyAncestor(hasTestTag(MailReadTags.PAGE)))
+            .assertExists()
+
+        composeRule
+            .onNodeWithTag("linked-$items")
+            .assertIsNotDisplayed()
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.onNodeWithTag(MailReadTags.SUBJECT).assertIsNotDisplayed()
+    }
+
+    @Test
+    fun `a tapped linked item at the end of the page still opens it`() {
+        show(MailReadUiState(message = message)) {
+            Column {
+                (1..20).forEach { n ->
+                    Text(
+                        "Linked item $n",
+                        Modifier
+                            .height(48.dp)
+                            .clickable { calls += "open $n" }
+                            .testTag("linked-$n"),
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithTag("linked-20").performScrollTo().performClick()
+
+        assertEquals(listOf("open 20"), calls)
     }
 
     @Test

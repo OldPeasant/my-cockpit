@@ -1,17 +1,38 @@
 package ch.sonensei.cockpit.mail.read
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.mail.list.MailListAction
 import ch.sonensei.cockpit.mail.list.MailRepository
@@ -443,6 +464,192 @@ class MailReadScreenTest {
         assertEquals(emptyList<String>(), calls)
     }
 
+    /** A page whose body is a box [bodyHeight] tall (as a long mail's web view would be) and a short links panel. */
+    private fun showPage(
+        message: MailMessage,
+        bodyHeight: Dp = 2000.dp,
+        navigation: MailReadNavigation? = null,
+    ) = composeRule.setContent {
+        CockpitTheme {
+            MailReadContent(
+                MailReadUiState(message = message),
+                MailReadCallbacks(),
+                zone = ZoneId.of("Europe/Zurich"),
+                navigation = navigation,
+                body = { _, modifier -> Box(modifier.height(bodyHeight).testTag(MailReadTags.BODY)) },
+                linksPanel = { Text("Linked: Budget plan", Modifier.testTag(LINKED_ITEM)) },
+            )
+        }
+    }
+
+    /** Where [tag] is laid out in the root, in dp, also when it is scrolled out of view. */
+    private fun bounds(tag: String) =
+        composeRule.onNodeWithTag(tag).getUnclippedBoundsInRoot().let {
+            Rect(it.left.value, it.top.value, it.right.value, it.bottom.value)
+        }
+
+    private fun inPage(tag: String) = hasTestTag(tag) and hasAnyAncestor(hasTestTag(MailReadTags.PAGE))
+
+    private val scrollers = SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange)
+
+    private val fullMessage =
+        message.copy(
+            remoteImagesBlocked = 2,
+            fromAddress = "anna@example.org",
+            attachments = listOf(MailAttachment("2", "report.pdf", 1024)),
+        )
+
+    @Test
+    fun `headers, attachments, banner, reply buttons, body and links are one page in that order`() {
+        showPage(fullMessage)
+
+        val order =
+            listOf(
+                MailReadTags.HEADERS,
+                MailReadTags.ATTACHMENTS,
+                MailReadTags.IMAGES_BANNER,
+                MailReadTags.REPLY,
+                MailReadTags.BODY,
+                MailReadTags.LINKS,
+            )
+        order.forEach { composeRule.onNode(inPage(it)).assertExists() }
+        val tops = order.map { bounds(it).top }
+        assertEquals("top to bottom: $order -> $tops", tops.sorted(), tops)
+        assertEquals(tops.size, tops.distinct().size)
+        // Header, body and links have no scroll of their own: the page is the only one outside the attachment list
+        // (whose own short scroll box predates this change, see MailAttachments.kt).
+        val outsideAttachments = scrollers and !hasAnyAncestor(hasTestTag(MailReadTags.ATTACHMENTS))
+        composeRule.onAllNodes(outsideAttachments).assertCountEquals(1)
+        composeRule.onNode(outsideAttachments).assert(hasTestTag(MailReadTags.PAGE))
+    }
+
+    @Test
+    fun `the toolbar and the previous-next row stay outside the page`() {
+        showPage(message, navigation = MailReadNavigation(2, 5, id(2), id(3)) {})
+
+        listOf(MailReadTags.BACK, MailReadTags.MORE, MailReadTags.PREVIOUS, MailReadTags.NEXT, MailReadTags.POSITION).forEach {
+            composeRule.onNodeWithTag(it).assertExists()
+            composeRule.onNode(inPage(it)).assertDoesNotExist()
+        }
+        assertTrue(bounds(MailReadTags.NEXT).bottom <= bounds(MailReadTags.PAGE).top)
+    }
+
+    @Test
+    fun `the body gets its full height, and scrolling past the headers leaves it filling the page`() {
+        showPage(message, navigation = MailReadNavigation(2, 5, id(2), id(3)) {})
+        val back = bounds(MailReadTags.BACK)
+        val previous = bounds(MailReadTags.PREVIOUS)
+        val page = bounds(MailReadTags.PAGE)
+
+        // Not squeezed into what is left below the headers (the old weight(1f)): the page scrolls instead.
+        composeRule.onNodeWithTag(MailReadTags.BODY).assertHeightIsEqualTo(2000.dp)
+        assertTrue(page.height < 2000f)
+        composeRule.onNodeWithTag(MailReadTags.LINKS).assertIsNotDisplayed()
+
+        composeRule.onNodeWithTag(MailReadTags.BODY).performScrollTo()
+
+        val body = bounds(MailReadTags.BODY)
+        assertEquals(page.top, body.top, 1f)
+        assertTrue("the mail fills the page down to its bottom", body.bottom >= page.bottom)
+        composeRule.onNodeWithTag(MailReadTags.SUBJECT).assertIsNotDisplayed()
+        // The fixed bar did not move.
+        assertEquals(back, bounds(MailReadTags.BACK))
+        assertEquals(previous, bounds(MailReadTags.PREVIOUS))
+        composeRule.onNodeWithTag(MailReadTags.BACK).assertIsDisplayed()
+        composeRule.onNodeWithTag(MailReadTags.PREVIOUS).assertIsDisplayed()
+    }
+
+    @Test
+    fun `the links after a long mail are reached by scrolling to the end of the page`() {
+        showPage(message)
+        composeRule.onNodeWithTag(LINKED_ITEM).assertIsNotDisplayed()
+
+        composeRule.onNodeWithTag(MailReadTags.PAGE).performTouchInput { repeat(10) { swipeUp() } }
+
+        composeRule.onNodeWithTag(LINKED_ITEM).assertIsDisplayed()
+        composeRule.onNodeWithTag(MailReadTags.SUBJECT).assertIsNotDisplayed()
+        assertTrue(bounds(MailReadTags.BODY).bottom <= bounds(MailReadTags.LINKS).top)
+    }
+
+    @Test
+    fun `a short mail leaves no empty space before the links`() {
+        showPage(message, bodyHeight = 40.dp)
+
+        composeRule.onNodeWithTag(MailReadTags.BODY).assertHeightIsEqualTo(40.dp)
+        composeRule.onNodeWithTag(LINKED_ITEM).assertIsDisplayed()
+        assertEquals(bounds(MailReadTags.BODY).bottom, bounds(MailReadTags.LINKS).top, 1f)
+    }
+
+    @Test
+    fun `a long plain-text mail scrolls with the page, not in a box of its own`() {
+        val text = (1..200).joinToString("\n") { "Line $it of the fictitious minutes" }
+        showPage(message.copy(html = "", text = text))
+
+        composeRule.onNode(inPage(MailReadTags.TEXT)).assertExists()
+        composeRule.onAllNodes(scrollers).assertCountEquals(1)
+        composeRule.onNode(scrollers).assert(hasTestTag(MailReadTags.PAGE))
+        // The whole text is laid out: taller than the page, and the links follow it.
+        assertTrue(bounds(MailReadTags.TEXT).height > bounds(MailReadTags.PAGE).height)
+        assertTrue(bounds(MailReadTags.TEXT).bottom <= bounds(MailReadTags.LINKS).top)
+
+        composeRule.onNodeWithTag(LINKED_ITEM).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag(MailReadTags.SUBJECT).assertIsNotDisplayed()
+    }
+
+    @Test
+    fun `the next mail starts at the top of the page, images loading keep the position`() {
+        var shown by mutableStateOf(message)
+        composeRule.setContent {
+            CockpitTheme {
+                MailReadContent(
+                    MailReadUiState(message = shown),
+                    MailReadCallbacks(),
+                    zone = ZoneId.of("Europe/Zurich"),
+                    body = { _, modifier -> Box(modifier.height(2000.dp).testTag(MailReadTags.BODY)) },
+                    linksPanel = { Text("Linked: Budget plan", Modifier.testTag(LINKED_ITEM)) },
+                )
+            }
+        }
+
+        fun scrolled() =
+            composeRule
+                .onNodeWithTag(MailReadTags.PAGE)
+                .fetchSemanticsNode()
+                .config[SemanticsProperties.VerticalScrollAxisRange]
+                .value()
+
+        composeRule.onNodeWithTag(LINKED_ITEM).performScrollTo()
+        val end = scrolled()
+        assertTrue(end > 0f)
+
+        shown = message.copy(html = "<p>Hello</p><img src=\"/api/v1/mail/image-proxy?url=x\">")
+        composeRule.waitForIdle()
+        assertEquals(end, scrolled(), 0.5f)
+
+        shown = message.copy(id = id(2), subject = "Next mail")
+        composeRule.waitForIdle()
+        assertEquals(0f, scrolled(), 0.5f)
+        composeRule.onNodeWithTag(MailReadTags.SUBJECT).assertTextEquals("Next mail").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the route shows the real body inside the page, below the headers`() {
+        val reader = mockk<MailReadRepository>()
+        coEvery { reader.message(id(1)) } returns MailResult.Ok(message)
+        val vm = readViewModel(reader, mockk<MailRepository>())
+
+        composeRule.setContent {
+            CockpitTheme {
+                MailReadRoute(id = id(1), onClose = {}, viewModel = vm, attachmentsViewModel = attachmentsViewModel())
+            }
+        }
+        composeRule.waitForIdle()
+
+        // The real body: a web view inside the page, below the headers.
+        composeRule.onNode(inPage(MailReadTags.BODY)).assertExists()
+        assertTrue(bounds(MailReadTags.HEADERS).top < bounds(MailReadTags.BODY).top)
+    }
+
     @Test
     fun `the route's back button closes without removing`() {
         val reader = mockk<MailReadRepository>()
@@ -460,5 +667,9 @@ class MailReadScreenTest {
         composeRule.onNodeWithTag(MailReadTags.BACK).performClick()
 
         assertEquals(listOf("close"), calls)
+    }
+
+    private companion object {
+        const val LINKED_ITEM = "fake-linked-item"
     }
 }

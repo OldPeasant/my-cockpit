@@ -7,6 +7,9 @@ import android.view.ViewGroup
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
@@ -72,6 +75,77 @@ class MailBodyViewTest {
         assertEquals(Intent.ACTION_VIEW, started.action)
         assertEquals(Uri.parse("https://example.org/offer"), started.data)
         assertTrue(started.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
+    }
+
+    /** Shows [MailBodyView] with the html and key the test changes; returns its web view, given a laid-out height. */
+    private fun showChanging(
+        html: MutableState<String>,
+        key: MutableState<Any?>,
+    ): MailWebView {
+        composeRule.setContent { MailBodyView(html.value, key = key.value) }
+        composeRule.waitForIdle()
+        val view = webView() as MailWebView
+        // Robolectric renders no content: give the view the height a long mail would have on a device.
+        composeRule.runOnUiThread { layOutWebView(view, 1800) }
+        return view
+    }
+
+    @Test
+    fun `the body is a web view as tall as its content, without its own vertical scroll`() {
+        composeRule.setContent { MailBodyView("<p>Hello Anna</p>") }
+        composeRule.waitForIdle()
+
+        val view = webView()
+        assertTrue(view is MailWebView)
+        assertEquals(ViewGroup.LayoutParams.WRAP_CONTENT, view.layoutParams.height)
+        assertFalse(view.isVerticalScrollBarEnabled)
+        assertEquals(View.OVER_SCROLL_NEVER, view.overScrollMode)
+    }
+
+    @Test
+    fun `the same mail reloaded with its images keeps its height until the page finished`() {
+        val html = mutableStateOf("<p>Hello Anna</p>")
+        val key = mutableStateOf<Any?>("mail-1")
+        val view = showChanging(html, key)
+        assertEquals(0, view.keptHeight)
+
+        html.value = "<p>Hello Anna</p><img src=\"/api/v1/mail/image-proxy?url=x\">"
+        composeRule.waitForIdle()
+
+        assertEquals(mailDocument(html.value), shadowOf(view).lastLoadDataWithBaseURL.data)
+        assertEquals(1800, view.keptHeight)
+        composeRule.runOnUiThread { view.webViewClient.onPageFinished(view, "data:text/html") }
+        assertEquals(0, view.keptHeight)
+    }
+
+    @Test
+    fun `another mail starts at its own height`() {
+        val html = mutableStateOf("<p>Hello Anna</p>")
+        val key = mutableStateOf<Any?>("mail-1")
+        val view = showChanging(html, key)
+
+        Snapshot.withMutableSnapshot {
+            key.value = "mail-2"
+            html.value = "<p>Hello Ben</p>"
+        }
+        composeRule.waitForIdle()
+
+        assertEquals(mailDocument("<p>Hello Ben</p>"), shadowOf(view).lastLoadDataWithBaseURL.data)
+        assertEquals(0, view.keptHeight)
+    }
+
+    @Test
+    fun `a recomposition with the same document neither reloads nor keeps a height`() {
+        val html = mutableStateOf("<p>Hello Anna</p>")
+        val key = mutableStateOf<Any?>("mail-1")
+        val view = showChanging(html, key)
+        val first = shadowOf(view).lastLoadDataWithBaseURL
+
+        key.value = "mail-1b"
+        composeRule.waitForIdle()
+
+        assertTrue(first === shadowOf(view).lastLoadDataWithBaseURL)
+        assertEquals(0, view.keptHeight)
     }
 
     private fun request(url: String) =
