@@ -40,9 +40,10 @@ caddy:2 v2.11.7). The gap is in keeping the connection alive:
 - [ ] Unit tests (fake `EVENT_SOURCE_FACTORY`, fake timers): ping resets the watchdog; silence triggers a reconnect
       and `resync$`; `visibilitychange`/`online` after silence reconnects; logout stops the watchdog and listeners;
       server test: the heartbeat is sent as the named event.
-- [ ] Manually or with Playwright: with `/new` open, cut the stream (e.g. `context.setOffline(true)` for longer than
+- [x] Manually or with Playwright: with `/new` open, cut the stream (e.g. `context.setOffline(true)` for longer than
       the watchdog, then back online, or route-abort the events request without an error), deliver a mail, and it
       appears without a reload (record what you ran).
+  - verified (2026-11-14 21:28+0100 by dell26/agent-1): npm --prefix web run e2e -- e2e/new/live-watchdog.spec.ts --project=chromium (podman-compose e2e stack, GreenMail, real login): /new open, setOffline(true), mail appended + /api/test/mail/sync (refetch fails, row absent), setOffline(false) (row still absent: no needless reconnect), page.clock.fastForward(70s) = wake-up -> watchdog reconnects, resync, mail row visible with 0 navigations -> 36 passed (incl. phase-demos)
 - [ ] `cd web && npm run check`, `cd server && ./gradlew check` and `sh scripts/check.sh` pass
 
 ## Notes
