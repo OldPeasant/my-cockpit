@@ -1,16 +1,21 @@
 package ch.sonensei.cockpit.gtd.task
 
 import ch.sonensei.cockpit.auth.SessionCache
+import ch.sonensei.cockpit.core.network.generated.apis.ProjectsApi
 import ch.sonensei.cockpit.core.network.generated.apis.TasksApi
 import ch.sonensei.cockpit.core.network.generated.models.ChecklistItemResponse
 import ch.sonensei.cockpit.core.network.generated.models.ConvertToEventRequest
 import ch.sonensei.cockpit.core.network.generated.models.CreateChecklistItemRequest
+import ch.sonensei.cockpit.core.network.generated.models.CreateProjectRequest
 import ch.sonensei.cockpit.core.network.generated.models.MoveTaskRequest
 import ch.sonensei.cockpit.core.network.generated.models.TaskResponse
 import ch.sonensei.cockpit.gtd.data.GtdCacheDao
 import ch.sonensei.cockpit.gtd.data.GtdConnectivity
+import ch.sonensei.cockpit.gtd.data.GtdProject
 import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.data.HttpFailure
+import ch.sonensei.cockpit.gtd.data.ProjectRepository
+import ch.sonensei.cockpit.gtd.data.ProjectStatus
 import ch.sonensei.cockpit.gtd.data.RefreshResult
 import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.gtd.data.TaskRepository
@@ -216,6 +221,12 @@ interface TaskDetailSource {
     /** The calendars "To calendar" offers. */
     suspend fun calendars(): TaskResult<List<TargetCalendar>>
 
+    /**
+     * Creates an Active project without area with [title] ("New project…" of the project picker) and reloads the
+     * projects, so the picker and the Projects screen show it.
+     */
+    suspend fun createProject(title: String): TaskResult<GtdProject>
+
     /** Reloads the cached task views and tells the live lists, after a change. */
     suspend fun changed()
 }
@@ -239,6 +250,8 @@ class TaskDetailRepository
         private val connectivity: GtdConnectivity,
         private val tasks: TaskRepository,
         private val converter: TaskConverter,
+        private val projectsApi: ProjectsApi,
+        private val projects: ProjectRepository,
     ) : TaskDetailSource {
         override suspend fun load(id: UUID): TaskResult<TaskDetail> =
             coroutineScope {
@@ -349,6 +362,11 @@ class TaskDetailRepository
             } catch (_: Exception) {
                 TaskResult.Failed(null)
             }
+
+        override suspend fun createProject(title: String): TaskResult<GtdProject> =
+            call({ projectsApi.createProject(CreateProjectRequest(title)) }) { body ->
+                body!!.let { GtdProject(it.id, it.title, ProjectStatus.valueOf(it.status.value), it.stalled, it.version, it.areaId) }
+            }.also { if (it is TaskResult.Ok) projects.refresh() }
 
         override suspend fun changed() {
             TaskEdits.changed()

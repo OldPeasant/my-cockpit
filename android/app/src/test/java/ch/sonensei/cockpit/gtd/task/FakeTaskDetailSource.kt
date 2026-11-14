@@ -1,7 +1,9 @@
 package ch.sonensei.cockpit.gtd.task
 
 import ch.sonensei.cockpit.core.network.generated.models.ConvertToEventRequest
+import ch.sonensei.cockpit.gtd.data.GtdProject
 import ch.sonensei.cockpit.gtd.data.GtdTask
+import ch.sonensei.cockpit.gtd.data.ProjectStatus
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import java.util.UUID
@@ -151,5 +153,17 @@ class FakeTaskDetailSource(
 
     override suspend fun changed() {
         changes++
+    }
+
+    /** What createProject answers; `null` is an Active project with the title asked for. */
+    var createProjectResult: TaskResult<GtdProject>? = null
+    val createdProjects = mutableListOf<String>()
+
+    override suspend fun createProject(title: String): TaskResult<GtdProject> {
+        createdProjects += title
+        return createProjectResult
+            ?: TaskResult.Ok(
+                GtdProject(UUID.nameUUIDFromBytes(title.toByteArray()), title, ProjectStatus.ACTIVE, stalled = true, version = 0),
+            )
     }
 }

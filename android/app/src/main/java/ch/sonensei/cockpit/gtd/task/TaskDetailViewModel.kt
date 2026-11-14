@@ -254,6 +254,11 @@ sealed interface DetailMessage {
 
     data object Saved : DetailMessage
 
+    /** "New project…" could not create the project (the task's project is unchanged); [detail] is the server's reason. */
+    data class ProjectNotCreated(
+        val detail: String? = null,
+    ) : DetailMessage
+
     data object Completed : DetailMessage
 
     data object Reopened : DetailMessage
@@ -306,6 +311,8 @@ data class TaskDetailUiState(
     val calendarDialog: CalendarDialogState? = null,
     /** What the task was converted into here: it is in the Trash now, the screen offers to open the item, then closes. */
     val converted: ConvertedItem? = null,
+    /** Projects made here with "New project…": the picker shows them before the projects have reloaded. */
+    val createdProjects: List<GtdProject> = emptyList(),
 ) {
     /** Changes need the server and a loaded task. */
     val readOnly: Boolean get() = offline || detail == null || deleted || notFound || converted != null
@@ -366,8 +373,11 @@ class TaskDetailViewModel internal constructor(
             server.onStart { emit(null) },
         ) { s, projectList, contextList, url ->
             val own = s.detail?.task?.projectId
+            val known = projectList.map { it.id }.toSet()
             s.copy(
-                projects = projectList.filter { it.status == ProjectStatus.ACTIVE || it.id == own },
+                projects =
+                    projectList.filter { it.status == ProjectStatus.ACTIVE || it.id == own } +
+                        s.createdProjects.filter { it.id !in known },
                 contexts = contextList,
                 server = url,
             )
@@ -447,6 +457,49 @@ class TaskDetailViewModel internal constructor(
         }
 
     fun cancelEditing() = state.update { it.copy(draft = null, problems = emptyMap()) }
+
+    /**
+     * "New project…" of the picker: creates an Active project without area titled [title] and puts the task in it
+     * (saved with the form). A blank title does nothing. A project already made here with the same title is reused,
+     * so a retry never creates a second one; a failure shows an error and leaves the task's project as it was.
+     */
+    fun newProject(title: String) {
+        val trimmed = title.trim()
+        val s = state.value
+        if (trimmed.isEmpty() || s.draft == null || s.busy || s.readOnly) return
+        s.createdProjects.firstOrNull { it.title == trimmed }?.let { project ->
+            return edit { it.copy(projectId = project.id) }
+        }
+        state.update { it.copy(busy = true) }
+        viewModelScope.launch {
+            when (val result = source.createProject(trimmed)) {
+                is TaskResult.Ok ->
+                    state.update { st ->
+                        st.copy(
+                            busy = false,
+                            createdProjects = st.createdProjects + result.value,
+                            draft = st.draft?.copy(projectId = result.value.id),
+                            problems = st.problems - TaskField.PROJECT,
+                        )
+                    }
+                else ->
+                    state.update {
+                        it.copy(
+                            busy = false,
+                            message =
+                                when (result) {
+                                    TaskResult.Offline -> DetailMessage.Offline
+                                    is TaskResult.Invalid ->
+                                        DetailMessage.ProjectNotCreated(
+                                            result.fields.values.firstOrNull() ?: result.message,
+                                        )
+                                    else -> DetailMessage.ProjectNotCreated()
+                                },
+                        )
+                    }
+            }
+        }
+    }
 
     /**
      * Sends the form's changes with the loaded version as `If-Match`: first a move when the list or tickler changed,

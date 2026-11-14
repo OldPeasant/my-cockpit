@@ -33,6 +33,12 @@
     <string name="task_detail_project">Projekt</string>
     <string name="task_detail_project_none">Kein Projekt</string>
     <string name="task_detail_project_unknown">Unbekanntes Projekt</string>
+    <string name="task_detail_project_new">Neues Projekt…</string>
+    <string name="task_detail_project_new_title">Neues Projekt</string>
+    <string name="task_detail_project_new_label">Projekttitel</string>
+    <string name="task_detail_project_new_create">Erstellen</string>
+    <string name="task_detail_message_project_invalid">Projekt nicht erstellt: %1$s</string>
+    <string name="task_detail_message_project_failed">Projekt konnte nicht erstellt werden. Das Projekt der Aufgabe ist unverändert.</string>
     <string name="task_detail_contexts">Kontexte</string>
     <string name="task_detail_contexts_none">Noch keine Kontexte.</string>
     <string name="task_detail_due">Fällig</string>

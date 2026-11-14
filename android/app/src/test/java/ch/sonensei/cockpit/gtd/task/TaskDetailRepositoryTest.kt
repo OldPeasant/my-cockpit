@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.gtd.task
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.core.network.generated.apis.CalendarsApi
+import ch.sonensei.cockpit.core.network.generated.apis.ProjectsApi
 import ch.sonensei.cockpit.core.network.generated.apis.TasksApi
 import ch.sonensei.cockpit.core.network.generated.infrastructure.Serializer
 import ch.sonensei.cockpit.gtd.data.GtdHarness
@@ -76,6 +77,8 @@ class TaskDetailRepositoryTest {
                 harness.connectivity,
                 harness.tasks,
                 TaskConverter(retrofit.create(TasksApi::class.java), retrofit.create(CalendarsApi::class.java)),
+                retrofit.create(ProjectsApi::class.java),
+                harness.projects,
             )
     }
 

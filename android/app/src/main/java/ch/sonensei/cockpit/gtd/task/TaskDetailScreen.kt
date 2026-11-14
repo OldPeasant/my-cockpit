@@ -183,6 +183,8 @@ data class TaskDetailCallbacks(
     val startEditing: () -> Unit = {},
     val edit: ((TaskDraft) -> TaskDraft) -> Unit = {},
     val cancelEditing: () -> Unit = {},
+    /** "New project…" of the picker, with the title entered. */
+    val newProject: (String) -> Unit = {},
     val save: () -> Unit = {},
     val complete: () -> Unit = {},
     val reopen: () -> Unit = {},
@@ -212,6 +214,7 @@ data class TaskDetailCallbacks(
                 startEditing = vm::startEditing,
                 edit = vm::edit,
                 cancelEditing = vm::cancelEditing,
+                newProject = vm::newProject,
                 save = vm::save,
                 complete = vm::complete,
                 reopen = vm::reopen,
@@ -263,6 +266,9 @@ object TaskDetailTags {
     const val DUE_TIME_CLEAR = "task-detail-due-time-clear"
     const val PROJECT = "task-detail-project"
     const val NO_PROJECT = "task-detail-project-none"
+    const val NEW_PROJECT = "task-detail-project-new"
+    const val NEW_PROJECT_INPUT = "task-detail-project-new-input"
+    const val NEW_PROJECT_CONFIRM = "task-detail-project-new-confirm"
     const val SAVE = "task-detail-save"
     const val CANCEL = "task-detail-cancel"
     const val ADD_ITEM_INPUT = "task-detail-add-item-input"
@@ -996,6 +1002,7 @@ private fun ProjectPicker(
     enabled: Boolean,
 ) {
     var open by remember { mutableStateOf(false) }
+    var naming by rememberSaveable { mutableStateOf(false) }
     val current =
         draft.projectId?.let { id ->
             state.projects.firstOrNull { it.id == id }?.title
@@ -1025,9 +1032,56 @@ private fun ProjectPicker(
                         modifier = Modifier.testTag(TaskDetailTags.projectOption(project.id)),
                     )
                 }
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.task_detail_project_new)) },
+                    onClick = {
+                        open = false
+                        naming = true
+                    },
+                    modifier = Modifier.testTag(TaskDetailTags.NEW_PROJECT),
+                )
             }
         }
     }
+    if (naming) {
+        NewProjectDialog(
+            confirm = { title ->
+                naming = false
+                callbacks.newProject(title)
+            },
+            dismiss = { naming = false },
+        )
+    }
+}
+
+/** Asks for the title of a new project; nothing else (it is created Active, without area). */
+@Composable
+private fun NewProjectDialog(
+    confirm: (String) -> Unit,
+    dismiss: () -> Unit,
+) {
+    var title by rememberSaveable { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text(stringResource(R.string.task_detail_project_new_title)) },
+        text = {
+            OutlinedTextField(
+                value = title,
+                onValueChange = { title = it },
+                label = { Text(stringResource(R.string.task_detail_project_new_label)) },
+                singleLine = true,
+                modifier = Modifier.testTag(TaskDetailTags.NEW_PROJECT_INPUT),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { confirm(title.trim()) },
+                enabled = title.isNotBlank(),
+                modifier = Modifier.testTag(TaskDetailTags.NEW_PROJECT_CONFIRM),
+            ) { Text(stringResource(R.string.task_detail_project_new_create)) }
+        },
+        dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.task_detail_cancel)) } },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1168,6 +1222,14 @@ private fun MessageEffect(
                     message.detail?.takeIf { it.isNotBlank() }?.let { resources.getString(R.string.task_detail_message_invalid, it) }
                         ?: resources.getString(R.string.task_detail_message_failed)
                 DetailMessage.Saved -> resources.getString(R.string.task_detail_message_saved)
+                is DetailMessage.ProjectNotCreated ->
+                    message.detail?.takeIf { it.isNotBlank() }?.let {
+                        resources.getString(
+                            R.string.task_detail_message_project_invalid,
+                            it,
+                        )
+                    }
+                        ?: resources.getString(R.string.task_detail_message_project_failed)
                 DetailMessage.Completed -> resources.getString(R.string.task_detail_message_completed)
                 DetailMessage.Reopened -> resources.getString(R.string.task_detail_message_reopened)
                 is DetailMessage.Moved ->
