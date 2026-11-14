@@ -12,7 +12,8 @@ The task detail project picker (`task-detail.html` `#td-project`) offers only ex
 Inbox processing already has "New project…" (`gtd/inbox/inbox-page.ts`); reuse that behavior.
 
 ## Acceptance criteria
-- [ ] The project picker in task detail has "New project…"; it asks only for a title, creates the project (Active, no area) and assigns the task to it in one step
+- [x] The project picker in task detail has "New project…"; it asks only for a title, creates the project (Active, no area) and assigns the task to it in one step
+  - verified (2026-11-14 11:55+0100 by dell26/agent-1): cd web && npx ng test --watch=false --include src/app/features/gtd/task-detail/task-detail.spec.ts -> 167 passed; 'New project from the project picker' tests: picker offers New project…, only a title field, createProject body {title} (server default ACTIVE, no area), then one updateTask {projectId: new id}
 - [ ] Cancel or an empty title leaves the task's project unchanged; if creating the project or saving the task fails, an error is shown and a retry does not create a second project (same approach as Inbox processing)
 - [ ] The new project appears in the picker and the project list, and the task appears in the project detail
 - [ ] New UI strings are in `web/src/locale` (English + German)
