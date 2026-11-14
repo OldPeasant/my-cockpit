@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "task": "and-task-new-project",
+  "reviewed_revision": "833f2e2c3b4a222b6b4916055c2380837eba5ce3",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-task-new-project/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-task-new-project/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-task-new-project/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "no tests in the implementation commit; test-writer added ViewModel, Compose, repository and strings tests"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "new project stayed stalled; task becomes its next step after save, like Inbox"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "duplicated project mapping replaced by ProjectResponse.toDomain() in GtdMappers.kt"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.*' createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
