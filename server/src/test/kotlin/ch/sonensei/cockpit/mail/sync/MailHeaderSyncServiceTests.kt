@@ -303,6 +303,46 @@ class MailHeaderSyncServiceTests {
 	}
 
 	@Test
+	fun `a plain QRESYNC sync keeps a row whose expunge a racing sync already covered by the cached HIGHESTMODSEQ`() {
+		// A sync that read the folder before a move stored it afterwards with a HIGHESTMODSEQ past the expunge of UID 5.
+		cachedState(uidNext = 12, highestModSeq = 130)
+		remote.status = RemoteFolderStatus(7, 12, 130, condstore = true, qresync = true)
+		remote.qresyncChanges = QresyncChanges(emptySet(), emptyList())
+		every { store.locatedUids(folder.id) } returns listOf(3, 5, 8)
+		remote.uids = listOf(3, 8)
+
+		service.syncFolder(folder.id)
+
+		verify { store.reconcile(folder.id, emptyList(), emptySet()) }
+	}
+
+	@Test
+	fun `verifyFolder removes cached UIDs missing on the server even when QRESYNC reports nothing vanished`() {
+		cachedState(uidNext = 12, highestModSeq = 130)
+		remote.status = RemoteFolderStatus(7, 12, 130, condstore = true, qresync = true)
+		remote.qresyncChanges = QresyncChanges(emptySet(), emptyList())
+		every { store.locatedUids(folder.id) } returns listOf(3, 5, 8)
+		remote.uids = listOf(3, 8)
+
+		service.verifyFolder(folder.id)
+
+		verify { store.reconcile(folder.id, emptyList(), setOf(5L)) }
+		remote.calls shouldContainExactly listOf("uidsFrom 3")
+	}
+
+	@Test
+	fun `verifyFolder of a folder without cached messages reads no UID set`() {
+		cachedState(uidNext = 12, highestModSeq = 130)
+		remote.status = RemoteFolderStatus(7, 12, 130, condstore = true, qresync = true)
+		every { store.locatedUids(folder.id) } returns emptyList()
+
+		service.verifyFolder(folder.id)
+
+		verify { store.reconcile(folder.id, emptyList(), emptySet()) }
+		remote.calls shouldContainExactly emptyList()
+	}
+
+	@Test
 	fun `a folder without cached messages only looks for new ones`() {
 		cachedState(uidNext = 4)
 		every { store.locatedUids(folder.id) } returns emptyList()

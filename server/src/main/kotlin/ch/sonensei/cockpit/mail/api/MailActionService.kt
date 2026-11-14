@@ -213,9 +213,29 @@ class MailActionService(
 		val goneCountsAsDone = operation == Operation.Expunge && source.uidValidity != null
 		val stale = if (goneCountsAsDone) emptySet() else done.missing
 		updateCache(source, group.map { it.second }.filter { it.uid !in stale }, operation, done.newUids)
-		if (stale.isNotEmpty()) resync.request(source.id)
+		settle(source, operation, stale)
 		return group.map { (id, message) ->
 			if (message.uid in stale) failure(id, MailActionError.NOT_FOUND) else MailActionOutcome.ok(id)
+		}
+	}
+
+	/**
+	 * After a move or delete, the source folder (and the target of a move) is resynced in the background by UID set: a
+	 * sync of the source that ran concurrently, or a cache update that gave up after a conflict, can otherwise leave the
+	 * acted-on rows listed in the source until the next poll. A flag change only resyncs for [stale] rows.
+	 */
+	private fun settle(
+		source: MailFolder,
+		operation: Operation,
+		stale: Set<Long>,
+	) {
+		when (operation) {
+			is Operation.Move -> {
+				resync.requestVerified(source.id)
+				resync.requestVerified(operation.destination.id)
+			}
+			Operation.Expunge -> resync.requestVerified(source.id)
+			is Operation.SetFlag -> if (stale.isNotEmpty()) resync.request(source.id)
 		}
 	}
 

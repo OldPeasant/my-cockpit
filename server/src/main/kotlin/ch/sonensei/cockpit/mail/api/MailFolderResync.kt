@@ -13,8 +13,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
 
 /**
- * Syncs a folder in the background when a mail action found its cache stale (messages gone from the server), so the
- * stale rows disappear without waiting for the next poll. Runs through [MailHeaderSyncService], so the folder's sync
+ * Syncs a folder in the background when a mail action found its cache stale (messages gone from the server), or right
+ * after a move or delete ([requestVerified]), so stale rows disappear without waiting for the next poll. Runs through [MailHeaderSyncService], so the folder's sync
  * lock applies; the sync publishes the folder's change event when it removed rows. A request for a folder whose sync is
  * still pending is merged into it. A failing sync is logged and dropped: the next poll repairs the cache.
  */
@@ -27,11 +27,33 @@ class MailFolderResync internal constructor(
 	constructor(sync: MailHeaderSyncService) : this(sync, Executors.newVirtualThreadPerTaskExecutor())
 
 	private val log = LoggerFactory.getLogger(javaClass)
-	private val pending = ConcurrentHashMap.newKeySet<UUID>()
+	/** Folder id to whether its pending sync compares UID sets ([MailHeaderSyncService.verifyFolder]). */
+	private val pending = ConcurrentHashMap<UUID, Boolean>()
 
 	/** Starts a sync of [folderId] without waiting for it. */
-	fun request(folderId: UUID) {
-		if (!pending.add(folderId)) return
+	fun request(folderId: UUID) = enqueue(folderId, verify = false)
+
+	/**
+	 * Starts a sync of [folderId] that finds expunged messages by UID set ([MailHeaderSyncService.verifyFolder]), without
+	 * waiting for it; after a move or delete, so a concurrent sync cannot leave the acted-on rows in the folder.
+	 */
+	fun requestVerified(folderId: UUID) = enqueue(folderId, verify = true)
+
+	private fun enqueue(
+		folderId: UUID,
+		verify: Boolean,
+	) {
+		var start = false
+		// A request for a folder already pending is merged into it; the merged sync verifies when either did.
+		pending.compute(folderId) { _, queued ->
+			if (queued == null) {
+				start = true
+				verify
+			} else {
+				queued || verify
+			}
+		}
+		if (!start) return
 		try {
 			executor.execute { run(folderId) }
 		} catch (_: RejectedExecutionException) {
@@ -42,9 +64,9 @@ class MailFolderResync internal constructor(
 
 	private fun run(folderId: UUID) {
 		// Removed before the sync starts, so a request made while it runs is not lost.
-		pending.remove(folderId)
+		val verify = pending.remove(folderId) ?: false
 		try {
-			val result = sync.syncFolder(folderId)
+			val result = if (verify) sync.verifyFolder(folderId) else sync.syncFolder(folderId)
 			log.debug("Resynced mail folder {} after a stale action: {} removed", folderId, result.removed)
 		} catch (e: MailConnectionException) {
 			log.info("Resync of mail folder {} after a stale action failed: {}", folderId, e.error)
