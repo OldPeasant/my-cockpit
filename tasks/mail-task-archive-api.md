@@ -18,7 +18,8 @@ points (read view, New view row, mail list multi-select) and handles partial fai
 ## Acceptance criteria
 - [ ] One call takes mail ids (1..n), a target list (default `NEXT`) and `archive` (default true); per mail it creates a task titled with the subject, linked to the mail exactly as `to-task` does, then archives the mail via the existing ARCHIVE action
 - [ ] The response lists, per mail, the created task (id, title, list) and whether archiving succeeded, with the reason if not; a failed archive keeps the task (no rollback), an unknown/inaccessible mail id gives a Problem Details error without creating anything for it
-- [ ] After archiving, the task's link still resolves to the (moved) mail, also when the IMAP server lacks MOVE (GreenMail test)
+- [x] After archiving, the task's link still resolves to the (moved) mail, also when the IMAP server lacks MOVE (GreenMail test)
+  - verified (2026-11-14 08:30+0100 by dell26/agent-1): cd server && ./gradlew integrationTest --tests '*MailTaskArchiveGreenMailTests' (GreenMail; no-MOVE case via IMAPStore subclass hiding MOVE, COPY+EXPUNGE path) -> 4 tests, 0 failures; link resolves to the Archive copy before and after re-sync
 - [ ] The existing `to-task` (Inbox, no archive) is unchanged
 - [ ] `api/openapi.yaml` and `web/src/app/api/generated/` regenerated; SPEC.md §7.3 (GTD integration) and §7.4 describe the action
 - [ ] Tests cover single, multiple, partial archive failure (no Archive folder) and the link; `cd server && ./gradlew check` and `sh scripts/check.sh` pass
