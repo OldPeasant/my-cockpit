@@ -18,7 +18,8 @@ Inbox processing already has "New project" (`gtd/inbox/InboxRepository.kt`); reu
   - verified (2026-11-14 10:59+0100 by felix/agent-1): same gtd test run -> pass: Cancel/blank title keep project (Screen+VM tests); create failure/offline/422 show error with project unchanged; retry after failed create or failed save reuses created project, createProject called once (TaskDetailNewProjectViewModelTest)
 - [x] The new project appears in the picker and in Projects, and the task appears in the project's task list
   - verified (2026-11-14 10:59+0100 by felix/agent-1): same gtd test run -> pass: created project merged into picker without duplicate after refresh, projects.refresh() reloads Projects (RepositoryTest, MockWebServer), saved task carries projectId so it lists under the project; stalled new project gets the task as next step
-- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [x] New strings are in English and German (`res/values/` + `res/values-de/`)
+  - verified (2026-11-14 11:00+0100 by felix/agent-1): git diff base..HEAD -- android/app/src/main/res -> 6 strings each in values/strings_task_detail.xml and values-de/strings_task_detail.xml; TaskDetailStringsTest passes
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
