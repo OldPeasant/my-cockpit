@@ -6,6 +6,7 @@
     <string name="new_source_inbox">GTD-Eingang</string>
     <string name="new_source_mail">E-Mail</string>
     <string name="new_to_task">→ Aufgabe im Eingang</string>
+    <string name="new_next_action">→ Nächste Aktion &amp; archivieren</string>
     <string name="new_loading">Wird geladen…</string>
     <string name="new_empty">Nichts Neues. Erfasstes und eingehende E-Mails erscheinen hier.</string>
     <string name="new_offline">Offline: Es wird der zuletzt geladene Stand angezeigt. E-Mails sind schreibgeschützt, bis der Server erreichbar ist.</string>

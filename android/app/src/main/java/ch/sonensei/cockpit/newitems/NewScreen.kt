@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,6 +35,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -59,6 +61,7 @@ import ch.sonensei.cockpit.mail.compose.ComposeMode
 import ch.sonensei.cockpit.mail.compose.MailComposeRoute
 import ch.sonensei.cockpit.mail.list.MailSummary
 import ch.sonensei.cockpit.mail.read.MailReadRoute
+import ch.sonensei.cockpit.mail.read.notArchived
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
 import java.time.Clock
@@ -128,6 +131,13 @@ fun NewRoute(
         onPauseOrDispose {}
     }
     val compose = composing?.let(ComposeMode::parse)
+    // "Next action & archive" made a task: its detail opens, back returns to this list.
+    LaunchedEffect(state.openTask) {
+        state.openTask?.let { taskId ->
+            viewModel.taskOpened()
+            taskOpener?.open(taskId, null)
+        }
+    }
     when (val current = open?.let(NewOpen::parse)) {
         null ->
             NewContent(
@@ -138,6 +148,7 @@ fun NewRoute(
                         open = { open = it.encode() },
                         openTask = { task -> taskOpener?.open(task.id, task) },
                         toTask = viewModel::toTask,
+                        nextAction = viewModel::nextAction,
                         loadMore = viewModel::loadMore,
                         retry = viewModel::retry,
                         dismissNotice = viewModel::dismissNotice,
@@ -168,6 +179,8 @@ internal data class NewCallbacks(
     /** Opens an Inbox task in the task detail screen. */
     val openTask: (GtdTask) -> Unit = {},
     val toTask: (UUID) -> Unit = {},
+    /** "Next action & archive" for a mail. */
+    val nextAction: (UUID) -> Unit = {},
     val loadMore: () -> Unit = {},
     val retry: () -> Unit = {},
     val dismissNotice: () -> Unit = {},
@@ -190,6 +203,8 @@ internal object NewTags {
     fun source(row: NewRow) = "new-source:${row.key}"
 
     fun toTask(id: UUID) = "new-to-task:$id"
+
+    fun nextAction(id: UUID) = "new-next-action:$id"
 }
 
 /** The source filter, the banners and the merged rows, newest first. */
@@ -317,11 +332,20 @@ private fun MailRow(
     val mail = row.mail
     RowFrame(row, Icons.Outlined.Mail, R.string.new_source_mail, today, clock, onClick = { callbacks.open(NewOpen.Mail(mail.id)) }) {
         MailText(mail)
-        TextButton(
-            onClick = { callbacks.toTask(mail.id) },
-            enabled = state.canConvert && mail.id !in state.converting,
-            modifier = Modifier.testTag(NewTags.toTask(mail.id)),
-        ) { Text(stringResource(R.string.new_to_task)) }
+        val enabled = state.canConvert && mail.id !in state.converting
+        // Wraps to two lines on narrow screens (320dp) instead of squeezing the buttons.
+        FlowRow {
+            TextButton(
+                onClick = { callbacks.toTask(mail.id) },
+                enabled = enabled,
+                modifier = Modifier.testTag(NewTags.toTask(mail.id)),
+            ) { Text(stringResource(R.string.new_to_task)) }
+            TextButton(
+                onClick = { callbacks.nextAction(mail.id) },
+                enabled = enabled,
+                modifier = Modifier.testTag(NewTags.nextAction(mail.id)),
+            ) { Text(stringResource(R.string.new_next_action)) }
+        }
     }
 }
 
@@ -468,6 +492,8 @@ private fun Notice(
                     MaterialTheme.colorScheme.secondaryContainer
             NewNotice.TaskOffline -> stringResource(R.string.new_task_offline) to MaterialTheme.colorScheme.errorContainer
             NewNotice.TaskFailed -> stringResource(R.string.new_task_failed) to MaterialTheme.colorScheme.errorContainer
+            NewNotice.NextActionFailed -> stringResource(R.string.mail_next_action_failed) to MaterialTheme.colorScheme.errorContainer
+            is NewNotice.NotArchived -> notArchived(notice.subject, notice.errorCode) to MaterialTheme.colorScheme.errorContainer
         }
     Surface(color = color, modifier = Modifier.fillMaxWidth().testTag(NewTags.NOTICE)) {
         Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {

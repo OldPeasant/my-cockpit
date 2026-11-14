@@ -6,6 +6,7 @@
     <string name="new_source_inbox">GTD Inbox</string>
     <string name="new_source_mail">Mail</string>
     <string name="new_to_task">→ Inbox task</string>
+    <string name="new_next_action">→ Next action &amp; archive</string>
     <string name="new_loading">Loading…</string>
     <string name="new_empty">Nothing new. Captures and incoming mail show up here.</string>
     <string name="new_offline">Offline: showing what was loaded last. Mail is read-only until the server can be reached.</string>

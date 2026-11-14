@@ -34,6 +34,15 @@ sealed interface NewNotice {
     data object TaskOffline : NewNotice
 
     data object TaskFailed : NewNotice
+
+    /** "Next action & archive" could not create the task: the mail stays. */
+    data object NextActionFailed : NewNotice
+
+    /** "Next action & archive" created the task but could not archive the mail [subject] (server reason [errorCode]). */
+    data class NotArchived(
+        val subject: String,
+        val errorCode: String? = null,
+    ) : NewNotice
 }
 
 data class NewUiState(
@@ -59,6 +68,8 @@ data class NewUiState(
     /** The mails "→ Inbox task" runs for. */
     val converting: Set<UUID> = emptySet(),
     val notice: NewNotice? = null,
+    /** "Next action & archive" created this task: its detail opens (once, see [NewViewModel.taskOpened]). */
+    val openTask: UUID? = null,
 ) {
     val offline: Boolean get() = inboxOffline || mailOffline
 
@@ -101,6 +112,7 @@ class NewViewModel internal constructor(
         val failed: Boolean = false,
         val converting: Set<UUID> = emptySet(),
         val notice: NewNotice? = null,
+        val openTask: UUID? = null,
     )
 
     private val filter = MutableStateFlow(filterStore.read())
@@ -128,6 +140,7 @@ class NewViewModel internal constructor(
                 moreMail = m.nextCursor != null,
                 converting = m.converting,
                 notice = m.notice,
+                openTask = m.openTask,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), NewUiState(filter = filter.value))
 
@@ -228,6 +241,50 @@ class NewViewModel internal constructor(
             if (result is MailResult.Ok) tasks.refresh(TaskView.INBOX)
         }
     }
+
+    /**
+     * "Next action & archive" (SPEC.md §7.3): a Next action linked to mail [id], then the mail is archived and leaves
+     * the list; the task's detail opens ([NewUiState.openTask]). A failed archive keeps the task and the mail, with a
+     * notice; a failed creation leaves the mail with an error. Not offered offline.
+     */
+    fun nextAction(id: UUID) {
+        val m = mailPart.value
+        val subject = m.messages.firstOrNull { it.id == id }?.subject ?: return
+        if (m.offline || id in m.converting) return
+        mailPart.update { it.copy(converting = it.converting + id, notice = null) }
+        viewModelScope.launch {
+            val result = mail.toNextActions(listOf(id))
+            val created = (result as? MailResult.Ok)?.value?.firstOrNull()
+            mailPart.update {
+                when {
+                    created == null ->
+                        it.copy(
+                            converting = it.converting - id,
+                            notice = if (result is MailResult.Offline) NewNotice.TaskOffline else NewNotice.NextActionFailed,
+                        )
+                    created.archived ->
+                        it.copy(
+                            converting = it.converting - id,
+                            messages =
+                                it.messages.filterNot { mail ->
+                                    mail.id == id
+                                },
+                            openTask = created.taskId,
+                        )
+                    else ->
+                        it.copy(
+                            converting = it.converting - id,
+                            notice = NewNotice.NotArchived(subject, created.archiveErrorCode),
+                            openTask = created.taskId,
+                        )
+                }
+            }
+            if (created?.archived == true) remember()
+        }
+    }
+
+    /** The task detail opened for [NewUiState.openTask]. */
+    fun taskOpened() = mailPart.update { it.copy(openTask = null) }
 
     fun dismissNotice() = mailPart.update { it.copy(notice = null) }
 
