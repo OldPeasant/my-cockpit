@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "task": "and-mail-task-archive",
+  "reviewed_revision": "6f0ed410640e596e071ccd6db0a97f26a45bd7e3",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-mail-task-archive/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-mail-task-archive/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-mail-task-archive/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1 (first review)", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "task overlay in the read view now uses TaskDetailScreen with openItem; linked mail opens on its own keyed view models (45d06ed93), in-app test passes"},
+    {"id": "CR-2 (first review)", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "test-writer updated the toolbar tests and added tests for repository, view models, screens and in-app flows; full suite passes"},
+    {"id": "CR-3 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "links panel reloads on NotArchived too; in-app test added"},
+    {"id": "CR-4 (first review)", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "partial success over several 100-mail batches reported as failure; rare (100+ manual taps), recorded as assumption"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "accepted",
+     "note": "same as CR-4, recorded as assumption"},
+    {"id": "TW-2", "source": "test-writer", "severity": "High", "disposition": "fixed",
+     "note": "same as CR-1, fixed in 45d06ed93"},
+    {"id": "TW-3", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "subjectless mail named by the task title in read view and New view, unit tests added"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "task detail over the read view supports close and opening linked items (criterion 5); linked tasks, screen links and convert-to-note navigation there stay no-ops, beyond the acceptance criteria"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "cd android && ./gradlew lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
