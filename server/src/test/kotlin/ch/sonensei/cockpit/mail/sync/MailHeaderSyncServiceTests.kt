@@ -352,6 +352,8 @@ class MailHeaderSyncServiceTests {
 	fun `verifyFolder of a folder without cached messages reads no UID set`() {
 		cachedState(uidNext = 12, highestModSeq = 130)
 		remote.status = RemoteFolderStatus(7, 12, 130, condstore = true, qresync = true)
+		// QRESYNC answered as well, so the verified UID-set comparison would run if it ignored the empty cache.
+		remote.qresyncChanges = QresyncChanges(emptySet(), emptyList())
 		every { store.locatedUids(folder.id) } returns emptyList()
 
 		service.verifyFolder(folder.id)
