@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: []
 touches: [web/src/app/core/events,server/src/main/kotlin/ch/sonensei/cockpit/core/events/infra/SseEventHub.kt,server/src/test/kotlin/ch/sonensei/cockpit/core/events]
 prio: 2
-lease_until: 2026-11-14T20:15:00Z
+lease_until: 2026-11-14T20:20:00Z
 ---
 ## Goal
 Owner report (2026-11-14): in the web app a newly arrived mail sometimes does not appear in the open view (New, Mail
