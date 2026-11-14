@@ -46,6 +46,7 @@ describe('mailShortcutFor', () => {
       'a',
       'f',
       'c',
+      'T',
     ]);
   });
 
@@ -165,12 +166,14 @@ describe('mail shortcut help', () => {
       ['u'],
       ['s'],
       ['v'],
+      ['T'],
       ['j'],
       ['k'],
     ]);
     expect(describeKey(MAIL_READ_HELP, 'u')).toBe('Mark as unread');
     expect(describeKey(MAIL_READ_HELP, 's')).toBe('Star or unstar');
     expect(describeKey(MAIL_READ_HELP, 'v')).toBe('Move to folder');
+    expect(describeKey(MAIL_READ_HELP, 'T')).toBe('Next action & archive');
   });
 
   it('lists compose and search in the list, but not the read view keys r, a and f', () => {
