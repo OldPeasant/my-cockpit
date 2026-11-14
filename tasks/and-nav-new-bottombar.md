@@ -22,7 +22,8 @@ give New the bottom-bar slot and move Inbox to the More list.
   - verified (2026-11-14 11:02+0100 by dell26/agent-1): same suite: CockpitShellSelectionTest 21 tests (New highlighted on New, on task/mail/search opened from it; More on Inbox) + CockpitShellSelectionRestoreTest 3 (after recreation) -> pass
 - [x] Unchanged: the Dashboard Inbox card still opens the Inbox; deep links/routes `inbox` and `new` still work; Back from New/Inbox behaves like the other bottom-bar/More destinations
   - verified (2026-11-14 11:02+0100 by dell26/agent-1): same suite: CockpitShellTest/CockpitShellNavigationTest Dashboard Inbox card opens Inbox, routes inbox/new open their screens, system Back from New/Inbox and dashboardTabAfter*Card* tests -> pass
-- [ ] Tests updated (`CockpitDestinationTest`, shell/navigation tests); `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Tests updated (`CockpitDestinationTest`, shell/navigation tests); `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-14 11:02+0100 by dell26/agent-1): sh scripts/check.sh (includes android ktlintCheck testDebugUnitTest lintDebug) at f0ca14608 -> exit 0, 'all checks passed'; android/gradlew -p android createDebugUnitTestCoverageReport ktlintCheck -> 5517 tests pass
 
 ## Notes
 Requested by the owner 2026-11-14: New is more convenient than Inbox for daily use. Navigation-only change, no new
