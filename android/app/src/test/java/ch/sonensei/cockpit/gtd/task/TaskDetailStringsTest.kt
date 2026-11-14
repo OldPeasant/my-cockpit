@@ -86,6 +86,25 @@ class TaskDetailStringsTest {
     }
 
     @Test
+    fun `the New project texts exist in English and German, the error keeps the server's reason`() {
+        listOf(
+            "task_detail_project_new",
+            "task_detail_project_new_title",
+            "task_detail_project_new_label",
+            "task_detail_project_new_create",
+            "task_detail_message_project_invalid",
+            "task_detail_message_project_failed",
+        ).forEach { key ->
+            assertTrue(key, english.getValue(key).isNotBlank())
+            assertNotEquals(key, english.getValue(key), german.getValue(key))
+        }
+        assertEquals("New project…", english.getValue("task_detail_project_new"))
+        assertEquals("Neues Projekt…", german.getValue("task_detail_project_new"))
+        assertEquals(listOf("%1\$s"), placeholders(english.getValue("task_detail_message_project_invalid")))
+        assertEquals(listOf("%1\$s"), placeholders(german.getValue("task_detail_message_project_invalid")))
+    }
+
+    @Test
     fun `the inbox conversion buttons exist in English and German`() {
         val inboxEnglish = strings(File(res, "values/strings_inbox.xml"))
         val inboxGerman = strings(File(res, "values-de/strings_inbox.xml"))
