@@ -14,9 +14,10 @@ import java.util.concurrent.RejectedExecutionException
 
 /**
  * Syncs a folder in the background when a mail action found its cache stale (messages gone from the server), or right
- * after a move or delete ([requestVerified]), so stale rows disappear without waiting for the next poll. Runs through [MailHeaderSyncService], so the folder's sync
- * lock applies; the sync publishes the folder's change event when it removed rows. A request for a folder whose sync is
- * still pending is merged into it. A failing sync is logged and dropped: the next poll repairs the cache.
+ * after a move or delete ([requestVerified]), so stale rows disappear without waiting for the next poll. Runs through
+ * [MailHeaderSyncService], so the folder's sync lock applies; the sync publishes the folder's change event when it
+ * removed rows. A request for a folder whose sync is still pending is merged into it. A failing sync is logged and
+ * dropped: the next poll repairs the cache.
  */
 @Component
 class MailFolderResync internal constructor(

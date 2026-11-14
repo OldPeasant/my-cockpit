@@ -569,6 +569,7 @@ class MailActionServiceTests {
 
 		service.apply(listOf(message.id), MailAction.READ, null) shouldBe listOf(MailActionOutcome.ok(message.id))
 		verify(exactly = 0) { resync.request(any()) }
+		verify(exactly = 0) { resync.requestVerified(any()) }
 	}
 
 	@Test
@@ -632,6 +633,7 @@ class MailActionServiceTests {
 		onServer(remoteInbox, 7)
 		service.apply(listOf(present.id), MailAction.FLAG, null) shouldBe listOf(MailActionOutcome.ok(present.id))
 		verify(exactly = 0) { resync.request(any()) }
+		verify(exactly = 0) { resync.requestVerified(any()) }
 
 		val gone = cached(inbox, 8)
 		every { remoteInbox.getMessagesByUID(longArrayOf(8)) } returns arrayOf(null)

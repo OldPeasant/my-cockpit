@@ -365,8 +365,9 @@ class MailActionService(
 
 	/**
 	 * Applies what the server did to the cached rows [moved] (re-read in one transaction), then announces it. A
-	 * conflict with a concurrent writer is retried once on fresh rows, then left to the next sync; it never fails the
-	 * request, because the server already changed.
+	 * conflict with a concurrent writer is retried once on fresh rows, then given up: a resync repairs the cache (right
+	 * away for a move or delete, at the next sync for a flag change). It never fails the request, because the server
+	 * already changed.
 	 */
 	private fun updateCache(
 		source: MailFolder,
@@ -423,7 +424,7 @@ class MailActionService(
 		if (attempt < CACHE_ATTEMPTS) {
 			log.debug("A mail action's cache update conflicted with a concurrent change; retrying", e)
 		} else {
-			log.info("Mail action applied on the server; its cache update is left to the next sync after a concurrent change")
+			log.info("Mail action applied on the server; its cache update gave up after a concurrent change, a resync repairs it")
 			log.debug("Mail action cache update conflict", e)
 		}
 	}

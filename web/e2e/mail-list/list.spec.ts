@@ -4,9 +4,11 @@ import { GREENMAIL_SERVERS, Imap } from '../support/imap';
 
 /**
  * SPEC.md §7.3 mail list against GreenMail: a fresh mailbox with three messages and the folders
- * Archive and Projects is added as an account. In the list the test marks a message read
+ * Archive, Trash and Projects is added as an account. In the list the test marks a message read
  * (Shift+I), archives one (selection + toolbar) and moves one (`v` + the folder picker); GreenMail
- * shows each change. A message delivered afterwards appears without a reload (SSE).
+ * shows each change. A message delivered afterwards appears without a reload (SSE). A mail deleted
+ * from the list and one archived from the read view stay gone after going back, the change-event
+ * refetch and a reload.
  */
 test.describe('Mail list', () => {
   test.setTimeout(120_000);
@@ -29,6 +31,7 @@ test.describe('Mail list', () => {
     const imap = await Imap.login(address, password);
     try {
       await imap.create('Archive');
+      await imap.create('Trash');
       await imap.create('Projects');
       // Oldest first: the list shows the newest on top.
       for (const subject of [subjects.invoice, subjects.lunch, subjects.report]) {
@@ -86,7 +89,7 @@ test.describe('Mail list', () => {
         .getByRole('checkbox', { name: `Select “${subjects.lunch}” from Max Muster` })
         .check();
       await expect(page.getByText('1 selected')).toBeVisible();
-      await page.getByRole('button', { name: 'Archive' }).click();
+      await page.getByRole('button', { name: 'Archive', exact: true }).click();
       await expect(row(page, subjects.lunch)).toHaveCount(0);
       await expect
         .poll(() => imap.search('Archive', `SUBJECT "${subjects.lunch}"`))
@@ -139,16 +142,24 @@ test.describe('Mail list', () => {
       await page.getByRole('button', { name: 'Delete', exact: true }).click();
       await expect(row(page, subjects.memo)).toHaveCount(0);
       await expect.poll(() => imap.search('INBOX', `SUBJECT "${subjects.memo}"`)).toHaveLength(0);
+      await expect.poll(() => imap.search('Trash', `SUBJECT "${subjects.memo}"`)).toHaveLength(1);
 
       await row(page, subjects.note).locator('a.open').click();
       await expect(page).toHaveURL(/\/mail\/messages\//);
+      const noteUrl = page.url();
       await page.getByRole('button', { name: 'Archive', exact: true }).click();
       await expect.poll(() => imap.search('Archive', `SUBJECT "${subjects.note}"`)).toHaveLength(1);
       await expect.poll(() => imap.search('INBOX', `SUBJECT "${subjects.note}"`)).toHaveLength(0);
-      await page.goto(`/mail/folders/${inbox.id}`);
+      // The read view goes on to the next message of the list in place of the archived one; its
+      // back control returns to the list that is still loaded in this session (no page load).
+      await expect(page).not.toHaveURL(noteUrl);
+      await expect(page).toHaveURL(/\/mail\/messages\//);
+      await page.locator('a.back').click();
+      await expect(page).toHaveURL(new RegExp(`/mail/folders/${inbox.id}$`));
 
-      // The acted-on mails stay gone after the change-event refetch (the server resyncs the
-      // source and target folders in the background and announces them) and after a reload.
+      // The acted-on mails are gone right away, stay gone after the change-event refetch (the
+      // server resyncs the source and target folders in the background and announces them) and
+      // after a reload.
       const remaining = [subjects.late, subjects.report];
       await expect(subjectsShown(page)).toHaveText(remaining);
       await page.waitForTimeout(3_000);

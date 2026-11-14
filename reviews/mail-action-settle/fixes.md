@@ -104,3 +104,104 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+---
+
+# Fix Report (round 2)
+
+Date: 2026-11-14
+
+Task: mail-action-settle - Moved, archived or deleted mail must not come back in the source list until the next 5-min sync
+
+Scope: the second review's findings CR-1 (P2) and CR-2..CR-4 (P3) in `reviews/mail-action-settle/review.md`, at HEAD 8ca8ddb0d.
+
+## Fixed findings
+
+### CR-1 — The e2e check for "archive from the read view and going back" reloads the page instead of going back
+
+Files changed:
+- `web/e2e/mail-list/list.spec.ts`
+
+Problem:
+After the read-view Archive, the spec opened the folder with `page.goto`, which is a full page load. It never used the in-app back navigation.
+
+Fix:
+After Archive, the read view goes on to the next message of the list and replaces the URL (`MailReadPage.leave`). It goes back to the list only when no message is left. The spec now checks that the URL left the archived message and is still a message URL. Then it clicks the read view's back control (`a.back`), checks that the URL is the folder list again, and checks that the note is gone right away, again after 3 s (change-event refetch) and after `page.reload()`. The API listing check is unchanged.
+
+Running the spec found two other problems that stopped it before the CR-1 part. Both are fixed in the same file, test-only:
+- Line 89, `getByRole('button', { name: 'Archive' })`, matched 3 buttons (the folder tree's "Actions for Archive" and the toolbar's "→ Next action & archive", both added by other tasks). This is a strict-mode violation, so it now uses `exact: true`, as the read-view Archive and Delete locators already do. Main already had this problem before this task.
+- The list Delete added in commit 3aa5c98f1 never worked. The test mailbox had no Trash folder, so the server answered `NO_ROLE_FOLDER` (seen in the Playwright trace) and the row stayed. The setup now creates `Trash`, as `e2e/phase5/demo.spec.ts` does. The spec also asserts that the memo reached Trash on GreenMail. The class comment names the new folder and the delete/archive checks.
+
+Validation:
+- `cd web && npx eslint e2e/mail-list/list.spec.ts && npx prettier --check e2e/mail-list/list.spec.ts && npm run e2e:typecheck` — Pass
+- `cd web && npm run e2e -- e2e/mail-list/ --project=chromium` (`deploy/docker-compose.e2e.yml` stack built and started by `run-e2e.mjs`, GreenMail 2.1.5; the `phase-demos` project runs as well) — Pass, 36 passed (1.6m), `[chromium] mail-list/list.spec.ts` passed in 13.8s
+- Before the fixes, `npm run e2e -- mail-list` failed at line 89 (strict-mode violation). With only `exact: true` added, it failed at line 140 (memo row still shown, `NO_ROLE_FOLDER`).
+
+### CR-2 — `an action that finds all its messages starts no resync` checks only half of its name
+
+Files changed:
+- `server/src/test/kotlin/ch/sonensei/cockpit/mail/api/MailActionServiceTests.kt`
+
+Problem:
+The READ test and the first half of the flag test did not check that `requestVerified` was never called.
+
+Fix:
+Added `verify(exactly = 0) { resync.requestVerified(any()) }` after the READ action and after the first FLAG action.
+
+Validation:
+- `cd server && ./gradlew ktlintCheck test --tests '*MailActionServiceTests*' --tests '*MailFolderResyncTests*'` — Pass (MailActionServiceTests 51 tests, 0 failures; MailFolderResyncTests 8 tests, 0 failures)
+
+### CR-3 — A conflict log line and a KDoc still say a move's cache update is "left to the next sync"
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailActionService.kt`
+
+Problem:
+The `updateCache` KDoc and the INFO log line said "left to the next sync". Moves and deletes now get an immediate verified resync.
+
+Fix:
+The INFO log now reads "Mail action applied on the server; its cache update gave up after a concurrent change, a resync repairs it". The KDoc says that a resync repairs the cache: right away for a move or delete, at the next sync for a flag change. The log line has no new data.
+
+Validation:
+- same Gradle command as CR-2 — Pass
+
+### CR-4 — The class KDoc of `MailFolderResync` has an unwrapped 164-character line
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailFolderResync.kt`
+
+Problem:
+One KDoc line was 164 characters long.
+
+Fix:
+Rewrapped the paragraph to 120 columns. The text is unchanged.
+
+Validation:
+- same Gradle command as CR-2 (ktlintCheck) — Pass
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `cd server && ./gradlew ktlintCheck test --tests '*MailActionServiceTests*' --tests '*MailFolderResyncTests*'` — BUILD SUCCESSFUL (51/0 and 8/0)
+- `cd web && npx eslint e2e/mail-list/list.spec.ts`, `npx prettier --check e2e/mail-list/list.spec.ts`, `npm run e2e:typecheck` — Pass
+- `cd web && npm run e2e -- e2e/mail-list/ --project=chromium` — 36 passed
+
+Full test suite:
+- Covered by `.taskcheck` below
+
+Lint/type-check/build:
+- Covered by `.taskcheck` below
+
+`.taskcheck`:
+- TASKCHECK_RESULT
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed.
