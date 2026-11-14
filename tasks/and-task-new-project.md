@@ -22,7 +22,8 @@ Inbox processing already has "New project" (`gtd/inbox/InboxRepository.kt`); reu
   - verified (2026-11-14 10:59+0100 by felix/agent-1): same gtd test run -> pass: created project merged into picker without duplicate after refresh, projects.refresh() reloads Projects (RepositoryTest, MockWebServer), saved task carries projectId so it lists under the project; stalled new project gets the task as next step
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-14 11:00+0100 by felix/agent-1): git diff base..HEAD -- android/app/src/main/res -> 6 strings each in values/strings_task_detail.xml and values-de/strings_task_detail.xml; TaskDetailStringsTest passes
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-14 11:38+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> exit 0 (incl. TaskDetailNewProject Screen/ViewModel/Repository tests); sh scripts/check.sh -> all checks passed
 
 ## Notes
 Planned 2026-11-14 with the owner: from a mail, make a Next action and archive the mail in one step (mails already clarified should not pass through the cockpit Inbox again); create a project directly from the task detail.
