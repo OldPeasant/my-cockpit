@@ -250,7 +250,7 @@ class MailListViewModel
             load(mailbox)
         }
 
-        /** The list was scrolled near its end: appends the next page. */
+        /** The list was scrolled near its end: appends the next page, unless the list was replaced while it loaded. */
         fun loadMore() {
             val current = state.value
             val cursor = current.nextCursor ?: return
@@ -260,6 +260,10 @@ class MailListViewModel
                 viewModelScope.launch {
                     val result = repository.messages(current.mailbox, cursor)
                     state.update {
+                        // A quiet first-page reload replaced the list meanwhile: this page no longer follows it.
+                        if (it.mailbox != current.mailbox || it.nextCursor != cursor) {
+                            return@update it.copy(loadingMore = false)
+                        }
                         when (result) {
                             is MailResult.Ok ->
                                 it.copy(

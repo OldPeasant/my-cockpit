@@ -290,6 +290,57 @@ class MailListLiveRefreshTest {
         }
 
     @Test
+    fun `a load more answering after a full page of new mail replaced the list is dropped`() =
+        runTest(dispatcher) {
+            val nextPage = CompletableDeferred<MailResult<MailPage>>()
+            // The new first page holds no mail of the old one: the list and its cursor are replaced.
+            firstPages(page(1, 2, cursor = "c1"), page(8, 9, cursor = "c-new"))
+            coEvery { repo.messages(Mailbox.Unified, "c1") } coAnswers { nextPage.await() }
+            val vm = shown()
+            vm.loadMore()
+            advanceUntilIdle()
+
+            signal(ChangeSignal.Changed("EMAIL"))
+            quiet()
+            assertEquals(listOf(8, 9).map(::id), vm.ids())
+            assertTrue(vm.uiState.value.loadingMore)
+
+            nextPage.complete(page(3, cursor = "c2"))
+            advanceUntilIdle()
+
+            val state = vm.uiState.value
+            assertFalse(state.loadingMore)
+            assertEquals(listOf(8, 9).map(::id), vm.ids())
+            assertEquals("c-new", state.nextCursor)
+
+            // Paging goes on from the new list's cursor, so the mails of the old first page follow.
+            coEvery { repo.messages(Mailbox.Unified, "c-new") } returns page(1, 2, cursor = "c1")
+            vm.loadMore()
+            advanceUntilIdle()
+            assertEquals(listOf(8, 9, 1, 2).map(::id), vm.ids())
+        }
+
+    @Test
+    fun `a failed load more answering after the list was replaced shows no message`() =
+        runTest(dispatcher) {
+            val nextPage = CompletableDeferred<MailResult<MailPage>>()
+            firstPages(page(1, 2, cursor = "c1"), page(8, 9, cursor = "c-new"))
+            coEvery { repo.messages(Mailbox.Unified, "c1") } coAnswers { nextPage.await() }
+            val vm = shown()
+            vm.loadMore()
+            advanceUntilIdle()
+            signal(ChangeSignal.Changed("EMAIL"))
+            quiet()
+
+            nextPage.complete(MailResult.Failed(500))
+            advanceUntilIdle()
+
+            assertFalse(vm.uiState.value.loadingMore)
+            assertNull(vm.uiState.value.message)
+            assertEquals("c-new", vm.uiState.value.nextCursor)
+        }
+
+    @Test
     fun `an event reload outrun by load more and a folder switch does not overwrite the new folder`() =
         runTest(dispatcher) {
             val stale = CompletableDeferred<MailResult<MailPage>>()

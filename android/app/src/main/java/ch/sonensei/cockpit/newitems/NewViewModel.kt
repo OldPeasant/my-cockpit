@@ -233,7 +233,7 @@ class NewViewModel internal constructor(
         refresh()
     }
 
-    /** Appends the next page of mail. */
+    /** Appends the next page of mail, unless the list was replaced while it loaded. */
     fun loadMore() {
         val m = mailPart.value
         val cursor = m.nextCursor ?: return
@@ -243,6 +243,8 @@ class NewViewModel internal constructor(
             viewModelScope.launch {
                 val result = mail.messages(Mailbox.Unified, cursor)
                 mailPart.update {
+                    // A quiet first-page reload replaced the list meanwhile: this page no longer follows it.
+                    if (it.nextCursor != cursor) return@update it.copy(loadingMore = false)
                     when (result) {
                         is MailResult.Ok ->
                             it.copy(

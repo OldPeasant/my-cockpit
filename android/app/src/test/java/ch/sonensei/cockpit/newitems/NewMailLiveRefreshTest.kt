@@ -306,6 +306,58 @@ class NewMailLiveRefreshTest {
         }
 
     @Test
+    fun aLoadMoreAnsweringAfterAFullPageOfNewMailReplacedTheListIsDropped() =
+        runTest {
+            val nextPage = CompletableDeferred<MailResult<MailPage>>()
+            // The new first page holds no mail of the old one: the list and its cursor are replaced.
+            firstPages(ok(invoice, cursor = "page-2"), ok(dinner, party, cursor = "page-2-new"))
+            coEvery { mailRepo.messages(Mailbox.Unified, "page-2") } coAnswers { nextPage.await() }
+            val vm = viewModel()
+            shown(vm)
+            vm.refresh()
+            vm.loadMore()
+
+            signal(ChangeSignal.Changed("EMAIL"))
+            quiet()
+            assertTrue(vm.uiState.value.loadingMore)
+
+            nextPage.complete(ok(receipt, cursor = "page-3"))
+
+            assertFalse(vm.uiState.value.loadingMore)
+            // The older task waits behind the mail still to load.
+            assertEquals(listOf("mail:${dinner.id}", "mail:${party.id}"), vm.keys())
+            assertTrue(vm.uiState.value.moreMail)
+            assertEquals(listOf(dinner, party), cache.last?.messages)
+            assertEquals("page-2-new", cache.last?.nextCursor)
+
+            // Paging goes on from the new list's cursor, so the mails of the old first page follow.
+            coEvery { mailRepo.messages(Mailbox.Unified, "page-2-new") } returns ok(invoice, cursor = "page-2")
+            vm.loadMore()
+            assertEquals(listOf("mail:${dinner.id}", "mail:${party.id}", "mail:${invoice.id}"), vm.keys())
+        }
+
+    @Test
+    fun aFailedLoadMoreAnsweringAfterTheListWasReplacedRaisesNoBanner() =
+        runTest {
+            val nextPage = CompletableDeferred<MailResult<MailPage>>()
+            firstPages(ok(invoice, cursor = "page-2"), ok(dinner, party, cursor = "page-2-new"))
+            coEvery { mailRepo.messages(Mailbox.Unified, "page-2") } coAnswers { nextPage.await() }
+            val vm = viewModel()
+            shown(vm)
+            vm.refresh()
+            vm.loadMore()
+            signal(ChangeSignal.Changed("EMAIL"))
+            quiet()
+
+            nextPage.complete(MailResult.Offline)
+
+            assertFalse(vm.uiState.value.loadingMore)
+            assertFalse(vm.uiState.value.mailOffline)
+            assertFalse(vm.uiState.value.mailFailed)
+            assertTrue(vm.uiState.value.moreMail)
+        }
+
+    @Test
     fun aRefreshAfterLoadMoreDropsTheAnswerOfAnEarlierEventReload() =
         runTest {
             val stale = CompletableDeferred<MailResult<MailPage>>()
