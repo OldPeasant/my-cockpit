@@ -1,10 +1,11 @@
 ---
 title: Moved, archived or deleted mail must not come back in the source list until the next 5-min sync
-status: todo
-owner:
+status: in_progress
+owner: felix/agent-1
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailActionService.kt,server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailFolderResync.kt,server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncService.kt,server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderStore.kt,server/src/test/kotlin/ch/sonensei/cockpit/mail,web/src/app/features/mail/list/mail-list-store.ts,web/e2e/mail-list]
 prio: 2
+lease_until: 2026-11-14T20:11:06Z
 ---
 ## Goal
 Owner report (2026-11-14, web app, real mail account): after moving, archiving or deleting a mail, it stays in (or comes
