@@ -61,3 +61,13 @@ None.
 ## Review conclusion
 
 No material issues found. The earlier CR-1 is resolved, and every acceptance criterion is met by the committed code and tests. The one new finding is a P3 comment-accuracy issue in the e2e spec and is optional. The uncommitted spec edit in the working tree was outside this review. If it is committed, it changes only test code, and the parent worker should decide whether that needs a delta review.
+
+## Delta review (63e972f0d)
+
+Scope: `git show 63e972f0d -- web/`, two unit tests added to the watchdog block of `web/src/app/core/events/change-events.service.spec.ts` (+35 lines, no production code). This was the uncommitted edit mentioned above. With this delta, the review now covers HEAD `63e972f0df04fc59d6e3eb769433de56f5e476d9` (the later commit 52107bc2e touches only `reviews/`).
+
+- "treats a stream as silent on wake-up only after more than a heartbeat plus a check interval": checked against `wake()` (`change-events.service.ts:197-205`). The ping at t=0 sets `lastActivity`. The interval checks up to 30 s are on time (`late` = 0) and below the 65 s silence limit, so the stream stays open. At exactly 30 s, `online` keeps the stream (`<= healthyMs`). At 30 s + 1 ms it reconnects, and the test asserts that the old source is closed. The boundary is pinned on both sides.
+- "starts the backoff over after a wake-up reconnect": three failures give sources 2 and 3 after 1 s and 2 s, and leave a 4 s reconnect pending with `source` undefined. `online` then calls `wake()`, which cancels the timer, sets `failures` to 0 and connects (source 4). The next failure retries after exactly 1 s (999 ms: still 4, 1000 ms: 5). The test would catch a missing backoff reset or a reconnect timer that was not cleared. Session probes are answered, so `backend.verify()` in `afterEach` stays clean.
+- Conventions: the tests use the existing helpers (`connected`, `latest`, `answerProbes`, the mocked `visibilityState`) and fake timers. They assert observable behavior (number of sources, closed state), not internals, and use no real delays. Their names and comments match the surrounding tests.
+
+Findings: none. The conclusion above is unchanged: no material issues found.
