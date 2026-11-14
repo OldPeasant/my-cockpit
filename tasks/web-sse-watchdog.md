@@ -26,10 +26,11 @@ caddy:2 v2.11.7). The gap is in keeping the connection alive:
   problem: its stream client gives up after 2x the heartbeat interval plus a margin of silence.
 
 ## Acceptance criteria
-- [ ] The server sends the heartbeat so that the browser sees it, e.g. as a named SSE event `ping` (no data, or `{}`)
+- [x] The server sends the heartbeat so that the browser sees it, e.g. as a named SSE event `ping` (no data, or `{}`)
       instead of, or in addition to, the comment. Existing clients ignore unknown event names (the Android
       `GtdChangeStream` maps only `change`; confirm it still ignores `ping`, or keep the comment for it). If the event
       is part of the documented stream contract, regenerate `api/openapi.yaml`.
+  - verified (2026-11-14 22:09+0100 by dell26/agent-1): sh scripts/check.sh (server ./gradlew check incl. SseEventHubTests 'heartbeats are named ping events' + 'connected clients get heartbeat ping events'; android testDebugUnitTest incl. GtdChangeStreamTest 'event: other' ignored; api/openapi.yaml regenerated in 01c7f07c3) -> all checks passed
 - [ ] `ChangeEventsService` runs a watchdog: when nothing (no event, no ping) arrived for more than ~2.5 heartbeat
       intervals (configurable token, default about 65 s), it closes the `EventSource` and reconnects the way an
       error does (backoff, session check), so `resync$` emits and the stores refetch.
