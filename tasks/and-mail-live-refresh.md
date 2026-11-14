@@ -26,11 +26,12 @@ Cause (diagnosis by an interactive session):
   unread-mail count (`DashboardRepository`, loaded on resume).
 
 ## Acceptance criteria
-- [ ] While the New view is shown, an `EMAIL` or `MAIL_FOLDER` change event, or a reconnect of the change stream (it
+- [x] While the New view is shown, an `EMAIL` or `MAIL_FOLDER` change event, or a reconnect of the change stream (it
       does not replay events missed meanwhile), reloads the first mail page the way `refresh()` does (pages already
       loaded behind it stay, scroll position kept, a load in progress is not started twice). This works for every
       filter. Use the existing change stream: a mail flavour of `GtdRefreshTriggers` (e.g. `on("EMAIL", "MAIL_FOLDER")`
       without the GTD sync scheduling, or a small shared trigger next to it). No second SSE connection.
+  - verified (2026-11-14 20:58+0100 by dell26/agent-1): android testDebugUnitTest (via sh scripts/check.sh, exit 0; test-writer full run on same code) -> NewMailLiveRefreshTest 14/14 pass (EMAIL/MAIL_FOLDER/reconnect reload first page, pages kept, no double load), MailRefreshTriggersTest 7/7 pass
 - [ ] Same for the Mail list (`MailListViewModel`, current mailbox; the search results are not reloaded) and for the
       Today dashboard's unread-mail count.
 - [ ] Bursts are coalesced: a sync that brings N mails (N `EMAIL` events plus `MAIL_FOLDER`) triggers about one reload,
