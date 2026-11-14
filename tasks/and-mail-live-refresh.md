@@ -32,8 +32,9 @@ Cause (diagnosis by an interactive session):
       filter. Use the existing change stream: a mail flavour of `GtdRefreshTriggers` (e.g. `on("EMAIL", "MAIL_FOLDER")`
       without the GTD sync scheduling, or a small shared trigger next to it). No second SSE connection.
   - verified (2026-11-14 20:58+0100 by dell26/agent-1): android testDebugUnitTest (via sh scripts/check.sh, exit 0; test-writer full run on same code) -> NewMailLiveRefreshTest 14/14 pass (EMAIL/MAIL_FOLDER/reconnect reload first page, pages kept, no double load), MailRefreshTriggersTest 7/7 pass
-- [ ] Same for the Mail list (`MailListViewModel`, current mailbox; the search results are not reloaded) and for the
+- [x] Same for the Mail list (`MailListViewModel`, current mailbox; the search results are not reloaded) and for the
       Today dashboard's unread-mail count.
+  - verified (2026-11-14 20:58+0100 by dell26/agent-1): android testDebugUnitTest (via sh scripts/check.sh) -> MailListLiveRefreshTest 16/16 (current mailbox, search not reloaded), DashboardMailRefreshTest 8/8 (Inbox widget unread count) pass
 - [ ] Bursts are coalesced: a sync that brings N mails (N `EMAIL` events plus `MAIL_FOLDER`) triggers about one reload,
       not N (e.g. debounce ~1 s or conflate while a load runs). Events only reload while the screen is shown (collected
       with the lifecycle); nothing polls in the background.
