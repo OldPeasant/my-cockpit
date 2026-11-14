@@ -99,14 +99,8 @@ internal fun CockpitShellFrame(
     // Search, its opened items and the task detail screen lie on top of a screen: they get a Back arrow.
     val stacked = SearchRoutes.isSearch(route) || TaskRoutes.isDetail(route)
     // A stacked screen (a task opened from New, search) keeps the tab of the screen it lies on selected: each stacked
-    // entry inherits the destination below it, remembered per entry so a stack of stacked screens resolves too.
-    val underlyingOf = remember(navController) { mutableMapOf<String, CockpitDestination?>() }
-    val underlying =
-        current ?: backStackEntry?.let { entry ->
-            underlyingOf.getOrPut(entry.id) {
-                navController.previousBackStackEntry?.let { CockpitDestination.fromRoute(it.destination.route) ?: underlyingOf[it.id] }
-            }
-        }
+    // entry inherits the destination below it, stored on the entry so a stack of stacked screens resolves too.
+    val underlying = current ?: backStackEntry?.let { navController.underlyingDestination(it) }
     val selected = CockpitDestination.bottomBarItemFor(underlying)
     val showsFab = current != null && current !in CockpitDestination.withOwnFab
 
@@ -290,6 +284,23 @@ internal fun fabClearance(destination: CockpitDestination): Dp =
  */
 private fun NavHostController.close(entry: NavBackStackEntry) {
     if (currentBackStackEntry?.id == entry.id) navigateUp()
+}
+
+/** Key under which a stacked entry keeps the route of the cockpit destination it lies on (survives recreation). */
+private const val UNDERLYING_ROUTE_KEY = "cockpit.shell.underlyingRoute"
+
+/**
+ * The cockpit destination the stacked [entry] lies on: the one stored on the entry, else the entry below it (or the
+ * destination stored on that one, if it is stacked too). A resolved destination is stored on [entry]; null never is.
+ */
+private fun NavHostController.underlyingDestination(entry: NavBackStackEntry): CockpitDestination? {
+    CockpitDestination.fromRoute(entry.savedStateHandle.get<String>(UNDERLYING_ROUTE_KEY))?.let { return it }
+    val below = previousBackStackEntry ?: return null
+    val resolved =
+        CockpitDestination.fromRoute(below.destination.route)
+            ?: CockpitDestination.fromRoute(below.savedStateHandle.get<String>(UNDERLYING_ROUTE_KEY))
+    resolved?.let { entry.savedStateHandle[UNDERLYING_ROUTE_KEY] = it.route }
+    return resolved
 }
 
 /** Opens [destination] (from a notification, the More list, a Dashboard card): as a tab, or a More screen on top of the current one. */
