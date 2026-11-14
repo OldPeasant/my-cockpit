@@ -10,7 +10,9 @@ import {
   ChangeEventsService,
   EVENT_SOURCE_FACTORY,
   EVENTS_PATH,
+  PING_EVENT_NAME,
   RECONNECT_BACKOFF,
+  STREAM_WATCHDOG,
 } from './change-events.service';
 
 /** Minimal EventSource double: tests drive open, messages and errors by hand. */
@@ -598,6 +600,147 @@ describe('ChangeEventsService', () => {
     backend.verify();
     expect(sources).toHaveLength(2);
   });
+
+  describe('watchdog', () => {
+    let visibility: DocumentVisibilityState;
+
+    beforeEach(() => {
+      visibility = 'visible';
+      vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibility);
+    });
+    afterEach(() => vi.restoreAllMocks());
+
+    /** Opened stream with a resync spy; the default watchdog (25 s heartbeat, 65 s silence, 5 s checks). */
+    function connected(): { service: ChangeEventsService; resync: ReturnType<typeof vi.fn> } {
+      const service = create();
+      const resync = vi.fn();
+      service.resync$.subscribe(resync);
+      latest().open();
+      return { service, resync };
+    }
+
+    /** Answers every pending session probe with a valid session. */
+    function answerProbes(): void {
+      backend.match(ME_PATH).forEach((probe) => probe.flush({ username: 'demo' }));
+    }
+
+    it('keeps a stream that gets pings', () => {
+      connected();
+      for (let i = 0; i < 8; i++) {
+        vi.advanceTimersByTime(25_000);
+        latest().emit(PING_EVENT_NAME, '{}');
+      }
+      expect(sources).toHaveLength(1);
+      expect(latest().closed).toBe(false);
+    });
+
+    it('counts change events as signs of life too', () => {
+      connected();
+      for (let i = 0; i < 4; i++) {
+        vi.advanceTimersByTime(30_000);
+        latest().emit(CHANGE_EVENT_NAME, JSON.stringify(change('TASK')));
+      }
+      expect(sources).toHaveLength(1);
+    });
+
+    it('reconnects a silent stream after the backoff, re-checks the session and resyncs', async () => {
+      const { service, resync } = connected();
+      const first = latest();
+
+      await vi.advanceTimersByTimeAsync(65_000);
+      expect(first.closed).toBe(false);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(first.closed).toBe(true);
+      expect(service.connected()).toBe(false);
+      answerProbes();
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(sources).toHaveLength(2);
+      latest().open();
+      expect(resync).toHaveBeenCalledTimes(1);
+      expect(service.connected()).toBe(true);
+    });
+
+    it('reconnects at once when the tab becomes visible after a silence longer than a heartbeat', () => {
+      const { resync } = connected();
+      visibility = 'hidden';
+      vi.advanceTimersByTime(30_000);
+      expect(sources).toHaveLength(1);
+
+      visibility = 'visible';
+      document.dispatchEvent(new Event('visibilitychange'));
+      expect(sources[0].closed).toBe(true);
+      expect(sources).toHaveLength(2);
+      latest().open();
+      expect(resync).toHaveBeenCalledTimes(1);
+    });
+
+    it('reconnects at once when the browser goes back online after a silence', () => {
+      const { resync } = connected();
+      vi.advanceTimersByTime(30_000);
+
+      window.dispatchEvent(new Event('online'));
+      expect(sources).toHaveLength(2);
+      latest().open();
+      expect(resync).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips a pending backoff when the browser goes back online', () => {
+      connected();
+      latest().fail();
+      answerProbes();
+      vi.advanceTimersByTime(500);
+      expect(sources).toHaveLength(1);
+
+      window.dispatchEvent(new Event('online'));
+      expect(sources).toHaveLength(2);
+    });
+
+    it('leaves a healthy stream alone when the tab becomes visible or goes online', () => {
+      connected();
+      vi.advanceTimersByTime(20_000);
+      latest().emit(PING_EVENT_NAME, '{}');
+      vi.advanceTimersByTime(10_000);
+
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new Event('online'));
+      expect(sources).toHaveLength(1);
+      expect(latest().closed).toBe(false);
+    });
+
+    it('ignores visibilitychange to hidden', () => {
+      connected();
+      vi.advanceTimersByTime(30_000);
+      visibility = 'hidden';
+      document.dispatchEvent(new Event('visibilitychange'));
+      expect(sources).toHaveLength(1);
+    });
+
+    it('reconnects at once after a wake-up (a check that ran much later than planned)', () => {
+      const { resync } = connected();
+      vi.advanceTimersByTime(4_000);
+      latest().emit(PING_EVENT_NAME, '{}');
+      // The device slept: the clock jumps, but no timer ran in between.
+      vi.setSystemTime(Date.now() + 40_000);
+      vi.advanceTimersByTime(1_000);
+      expect(sources).toHaveLength(2);
+      latest().open();
+      expect(resync).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops the watchdog and its listeners on logout', () => {
+      connected();
+      loggedIn.set(false);
+      TestBed.tick();
+      expect(latest().closed).toBe(true);
+
+      vi.advanceTimersByTime(200_000);
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new Event('online'));
+      expect(sources).toHaveLength(1);
+      expect(vi.getTimerCount()).toBe(0);
+    });
+  });
 });
 
 describe('ChangeEventsService defaults', () => {
@@ -608,6 +751,14 @@ describe('ChangeEventsService defaults', () => {
 
   it('backs off from 1 s up to 30 s by default', () => {
     expect(TestBed.inject(RECONNECT_BACKOFF)).toEqual({ initialMs: 1000, maxMs: 30_000 });
+  });
+
+  it('treats ~2.5 heartbeats (65 s) of silence as a dead stream by default', () => {
+    expect(TestBed.inject(STREAM_WATCHDOG)).toEqual({
+      heartbeatMs: 25_000,
+      silenceMs: 65_000,
+      checkMs: 5_000,
+    });
   });
 
   it('opens a credentialed EventSource to the events endpoint by default', () => {

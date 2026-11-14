@@ -25,7 +25,9 @@ class EventsController(
 		description =
 			"A Server-Sent Events stream. Each committed change arrives as an event named `" +
 				SseEventHub.EVENT_NAME + "` whose data is a `ChangeEvent` JSON object; clients refetch the item. " +
-				"Comment lines (`:heartbeat`) arrive every 25 seconds and carry no data. Events are not replayed: " +
+				"Every 25 seconds an event named `" + SseEventHub.PING_EVENT_NAME + "` with data `{}` arrives as a " +
+				"heartbeat; a client that hears nothing for much longer may treat the stream as dead and reconnect. " +
+				"Events are not replayed: " +
 				"after a reconnect, clients refetch what they show. The server ends each stream after 15 minutes; " +
 				"clients reconnect (EventSource does so automatically), which checks the login again.",
 	)

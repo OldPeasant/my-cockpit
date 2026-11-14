@@ -31,12 +31,12 @@ class SseEventHubTests {
 	fun stop() = hub.destroy()
 
 	@Test
-	fun `connected clients get heartbeat comments`() {
+	fun `connected clients get heartbeat ping events`() {
 		val result = connect()
 		awaitUntil {
 			result.response
 				.getContentAsString(Charsets.UTF_8)
-				.split(":heartbeat\n\n")
+				.split(PING)
 				.size > 2
 		}
 	}
@@ -62,13 +62,14 @@ class SseEventHubTests {
 	}
 
 	@Test
-	fun `a new stream starts with a connected comment and heartbeats are comment lines without data`() {
+	fun `a new stream starts with a connected comment and heartbeats are named ping events`() {
 		val result = connect()
 
 		result.body() shouldStartWith ":connected\n\n"
-		awaitUntil { result.body().contains(":heartbeat\n\n") }
-		result.body() shouldNotContain "data:"
-		result.body() shouldNotContain "event:"
+		awaitUntil { result.body().contains(PING) }
+		// Only pings so far: no comment heartbeat, no change event.
+		result.body().removePrefix(":connected\n\n").replace(PING, "") shouldBe ""
+		result.body() shouldNotContain ":heartbeat"
 	}
 
 	@Test
@@ -121,7 +122,7 @@ class SseEventHubTests {
 
 		// No event is published: only the next heartbeat write can reveal the dead client.
 		awaitUntil { hub.clientCount == 1 }
-		awaitUntil { healthy.body().contains(":heartbeat\n\n") }
+		awaitUntil { healthy.body().contains(PING) }
 	}
 
 	@Test
@@ -194,5 +195,8 @@ class SseEventHubTests {
 	private companion object {
 		/** Not the default (15 min), to show the configured value is used. MockMvc never fires it on its own. */
 		val STREAM_TIMEOUT: Duration = Duration.ofSeconds(90)
+
+		/** One heartbeat as the browser's EventSource sees it: a named event with data, so it reaches JavaScript. */
+		const val PING = "event:ping\ndata:{}\n\n"
 	}
 }
