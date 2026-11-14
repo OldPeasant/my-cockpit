@@ -16,7 +16,8 @@ give New the bottom-bar slot and move Inbox to the More list.
 ## Acceptance criteria
 - [x] Bottom bar is Dashboard, New, Calendar, Mail, More (in that order), with New's existing label and icon; tapping New opens the New view
   - verified (2026-11-14 11:02+0100 by dell26/agent-1): android/gradlew -p android createDebugUnitTestCoverageReport (full unit suite, 5517 tests, 0 failures) at 04497c289: CockpitDestinationTest (order Dashboard,New,Calendar,Mail,More; New label/icon) and CockpitShellTest.bottomBarSwitchesBetweenAllMainDestinations / routesInboxAndNewStillOpenTheirScreens -> pass
-- [ ] Inbox is on the More screen (first entry, before Today) and opens the Inbox with processing as before; New is no longer listed on More
+- [x] Inbox is on the More screen (first entry, before Today) and opens the Inbox with processing as before; New is no longer listed on More
+  - verified (2026-11-14 11:02+0100 by dell26/agent-1): same suite: CockpitDestinationTest More list (Inbox first before Today, no New) and CockpitShellNavigationTest Inbox-from-More tests (13) -> pass
 - [ ] Bottom-bar selection: on the New view (and on a task/mail opened from it) New is highlighted; on the Inbox, More is highlighted
 - [ ] Unchanged: the Dashboard Inbox card still opens the Inbox; deep links/routes `inbox` and `new` still work; Back from New/Inbox behaves like the other bottom-bar/More destinations
 - [ ] Tests updated (`CockpitDestinationTest`, shell/navigation tests); `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
