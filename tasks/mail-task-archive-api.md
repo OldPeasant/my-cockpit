@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd,server/src/test/kotlin/ch/sonensei/cockpit/mail/gtd,api/openapi.yaml,web/src/app/api/generated,SPEC.md]
 prio: 2
-lease_until: 2026-11-14T07:41:54Z
+lease_until: 2026-11-14T07:46:50Z
 ---
 ## Goal
 Turning a mail into a task is the GTD clarify step, so the task goes straight to Next Actions and the mail
