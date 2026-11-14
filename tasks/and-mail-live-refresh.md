@@ -39,8 +39,9 @@ Cause (diagnosis by an interactive session):
       not N (e.g. debounce ~1 s or conflate while a load runs). Events only reload while the screen is shown (collected
       with the lifecycle); nothing polls in the background.
   - verified (2026-11-14 20:58+0100 by dell26/agent-1): android testDebugUnitTest (via sh scripts/check.sh) -> burst/quiet-time tests in NewMailLiveRefreshTest, MailListLiveRefreshTest, DashboardMailRefreshTest, MailRefreshTriggersTest pass; FollowMailChangesTest 2/2 (repeatOnLifecycle STARTED gating) pass
-- [ ] A reload triggered by an event that fails offline or with an error keeps the shown mails and does not raise an
+- [x] A reload triggered by an event that fails offline or with an error keeps the shown mails and does not raise an
       error notice or banner on top of what is already there beyond what a manual refresh shows today.
+  - verified (2026-11-14 20:58+0100 by dell26/agent-1): android testDebugUnitTest (via sh scripts/check.sh) -> offline/failed event reload tests (New, Mail list, Dashboard: shown mails kept, no banner, no spinner) pass
 - [ ] Unit tests: a `MAIL_FOLDER`/`EMAIL` signal reloads the New view's mail part (new mail at the top, with filter
       All and Mail); a burst gives one reload; a `TASK` signal does not reload mail; the same for the Mail list.
 - [~] Manually verified on an emulator or device against a running server: New view open, a mail delivered to the
