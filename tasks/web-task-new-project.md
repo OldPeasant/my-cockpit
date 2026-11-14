@@ -1,10 +1,11 @@
 ---
 title: Web task detail: create a new project from the project picker
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [web/src/app/features/gtd/task-detail,web/src/locale]
 prio: 2
+lease_until: 2026-11-14T11:02:55Z
 ---
 ## Goal
 The task detail project picker (`task-detail.html` `#td-project`) offers only existing projects or "No project".
