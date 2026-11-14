@@ -117,7 +117,7 @@
           mat-stroked-button
           type="button"
           class="unread"
-          [disabled]="!!triaging()"
+          [disabled]="!!triaging() || makingNextAction()"
           (click)="markUnread()"
           i18n-title="@@mailRead.unreadTitle"
           title="Mark unread (u)"
@@ -129,7 +129,7 @@
           mat-stroked-button
           type="button"
           class="flag"
-          [disabled]="!!triaging()"
+          [disabled]="!!triaging() || makingNextAction()"
           [attr.aria-pressed]="!!message()?.flagged"
           (click)="toggleFlag()"
           i18n-title="@@mailRead.flagTitle"
@@ -142,7 +142,7 @@
           mat-stroked-button
           type="button"
           class="move"
-          [disabled]="!!triaging()"
+          [disabled]="!!triaging() || makingNextAction()"
           (click)="move()"
           i18n-title="@@mailRead.moveTitle"
           title="Move to folder (v)"
@@ -154,7 +154,7 @@
           mat-stroked-button
           type="button"
           class="archive"
-          [disabled]="!!triaging()"
+          [disabled]="!!triaging() || makingNextAction()"
           (click)="triage('ARCHIVE')"
           i18n-title="@@mailRead.archiveTitle"
           title="Archive (e)"
@@ -166,7 +166,7 @@
           mat-stroked-button
           type="button"
           class="spam"
-          [disabled]="!!triaging()"
+          [disabled]="!!triaging() || makingNextAction()"
           (click)="triage('SPAM')"
           i18n-title="@@mailRead.spamTitle"
           title="Spam (!)"
@@ -178,7 +178,7 @@
           mat-stroked-button
           type="button"
           class="delete"
-          [disabled]="!!triaging()"
+          [disabled]="!!triaging() || makingNextAction()"
           (click)="triage('DELETE')"
           i18n-title="@@mailRead.deleteTitle"
           title="Delete (#)"

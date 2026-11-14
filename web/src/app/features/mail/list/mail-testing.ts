@@ -1,5 +1,10 @@
 import { filter, Subject } from 'rxjs';
-import { ChangeEvent, MailAccountResponse, MailFolderResponse } from '../../../api/generated';
+import {
+  ChangeEvent,
+  MailAccountResponse,
+  MailFolderResponse,
+  MailToTaskResultResponse,
+} from '../../../api/generated';
 import { MailAction, MailPage, MailScope, MailSearchResult, MailSummary } from './mail.service';
 
 // Test doubles of the mail list specs.
@@ -21,6 +26,23 @@ export function summary(id: string, extra: Partial<MailSummary> = {}): MailSumma
     flagged: false,
     from: [{ name: 'Max Muster', address: 'max@example.test' }],
     ...extra,
+  };
+}
+
+/** A "→ Next action & archive" result of message `id`; not archived with `archiveDetail`. */
+export function toTaskResult(
+  id: string,
+  archived = true,
+  archiveDetail: string | null = null,
+): MailToTaskResultResponse {
+  return {
+    id,
+    messageId: id,
+    linkId: `link-${id}`,
+    archived,
+    archiveErrorCode: archived ? null : 'NO_ROLE_FOLDER',
+    archiveDetail: archived ? null : archiveDetail,
+    task: { id: `task-${id}`, list: 'NEXT', title: `Subject ${id}` },
   };
 }
 
@@ -80,6 +102,16 @@ export class FakeMail {
 
   thread(id: string): Promise<MailSummary[]> {
     return Promise.resolve(this.threads.get(id) ?? []);
+  }
+
+  toTasks: {
+    ids: readonly string[];
+    resolve: (results: MailToTaskResultResponse[]) => void;
+    reject: (e: unknown) => void;
+  }[] = [];
+
+  toNextActions(ids: readonly string[]): Promise<MailToTaskResultResponse[]> {
+    return new Promise((resolve, reject) => this.toTasks.push({ ids, resolve, reject }));
   }
 
   accounts: () => Promise<MailAccountResponse[]> = () => Promise.resolve([]);

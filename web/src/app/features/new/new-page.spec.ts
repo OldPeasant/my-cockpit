@@ -1,3 +1,5 @@
+import { Location } from '@angular/common';
+import { provideLocationMocks } from '@angular/common/testing';
 import { TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { provideRouter, Router } from '@angular/router';
@@ -8,12 +10,14 @@ import {
   ListMailMessages$Params,
   listTasks,
   mailToTask,
+  mailToTasks,
+  MailToTaskResultResponse,
   TaskResponse,
 } from '../../api/generated';
 import { ChangeEventsService } from '../../core/events';
 import { ApiError, NotificationService } from '../../core/http';
 import { MAIL_FOLDER_EVENT, REFRESH_DEBOUNCE_MS } from '../mail/list/mail-list-store';
-import { FakeEvents, summary } from '../mail/list/mail-testing';
+import { FakeEvents, summary, toTaskResult } from '../mail/list/mail-testing';
 import { MailSummary } from '../mail/list/mail.service';
 import NewPage from './new-page';
 
@@ -42,6 +46,9 @@ describe('NewPage', () => {
   let mailCalls: ListMailMessages$Params[];
   let toTaskCalls: string[];
   let toTaskAnswer: (id: string) => Promise<unknown>;
+  /** The bodies of the "→ Next action & archive" requests, and what they answer. */
+  let nextActionCalls: { ids: string[]; list: string; archive: boolean }[];
+  let nextActionAnswer: (ids: string[]) => Promise<MailToTaskResultResponse[]>;
   /** When set, the task list / mail list requests fail with it. */
   let taskFailure: unknown;
   let mailFailure: unknown;
@@ -71,6 +78,8 @@ describe('NewPage', () => {
       tasks = [...tasks, task(`from-${id}`, '2026-10-21T08:00:00Z')];
       return { id: `from-${id}`, linkId: 'l1', messageId: id, title: `Mail ${id}`, type: 'TASK' };
     };
+    nextActionCalls = [];
+    nextActionAnswer = async (ids) => ids.map((id) => toTaskResult(id));
     taskFailure = null;
     mailFailure = null;
     mailGate = null;
@@ -94,6 +103,11 @@ describe('NewPage', () => {
           const id = params['id'] as string;
           toTaskCalls.push(id);
           return toTaskAnswer(id);
+        }
+        if (fn === mailToTasks) {
+          const body = params['body'] as { ids: string[]; list: string; archive: boolean };
+          nextActionCalls.push(body);
+          return { results: await nextActionAnswer(body.ids) };
         }
         throw new Error('unexpected call');
       },
@@ -306,6 +320,120 @@ describe('NewPage', () => {
     expect(button('Inbox task', row('mail:m1')!)!.disabled).toBe(false);
     // The mail stays in the list next to its new task.
     expect(rowKeys()).toEqual(['task:from-m1', 'task:t1', 'mail:m1', 'mail:m2']);
+  });
+
+  describe('→ Next action & archive', () => {
+    const LABEL = 'Next action & archive';
+
+    it('is offered on mail rows only, with Shift+T in its title', async () => {
+      await open();
+      expect(button(LABEL, row('task:t1')!)).toBeUndefined();
+      const action = button(LABEL, row('mail:m1')!)!;
+      expect(action.textContent!.trim()).toBe('→ Next action & archive');
+      expect(action.getAttribute('title')).toBe('Shift+T');
+      // "→ Inbox task" stays next to it.
+      expect(button('Inbox task', row('mail:m1')!)).toBeDefined();
+      expect(element.querySelector('p.keys')!.textContent).toContain('Shift+T');
+    });
+
+    it('creates a Next action, archives the mail and opens the task detail', async () => {
+      await open();
+      button(LABEL, row('mail:m2')!)!.click();
+      await refresh();
+      expect(nextActionCalls).toEqual([{ ids: ['m2'], list: 'NEXT', archive: true }]);
+      expect(toTaskCalls).toEqual([]);
+      expect(TestBed.inject(Router).url).toBe('/tasks/task-m2');
+      expect(errors).toEqual([]);
+    });
+
+    it('keeps the New view in the history, so Back returns to it', async () => {
+      TestBed.configureTestingModule({ providers: [provideLocationMocks()] });
+      await open('/new?source=mail');
+      button(LABEL, row('mail:m1')!)!.click();
+      await refresh();
+      const location = TestBed.inject(Location);
+      expect(location.path()).toBe('/tasks/task-m1');
+      location.back();
+      expect(location.path()).toBe('/new?source=mail');
+    });
+
+    it('runs on the cursor row with Shift+T, not on a task row, not with modifiers', async () => {
+      await open();
+      const onTask = await press('T', document.body, { shiftKey: true });
+      expect(onTask.defaultPrevented).toBe(false);
+      await press('j');
+      expect(row('task:t1')!.getAttribute('aria-current')).toBe('true');
+      await press('T', document.body, { shiftKey: true });
+      expect(nextActionCalls).toEqual([]);
+      await press('j');
+      expect(row('mail:m1')!.getAttribute('aria-current')).toBe('true');
+      await press('T', document.body, { shiftKey: true, ctrlKey: true });
+      await press('T', document.body, { shiftKey: true, repeat: true });
+      expect(nextActionCalls).toEqual([]);
+      const event = await press('T', document.body, { shiftKey: true });
+      expect(event.defaultPrevented).toBe(true);
+      expect(nextActionCalls.map((call) => call.ids)).toEqual([['m1']]);
+      expect(TestBed.inject(Router).url).toBe('/tasks/task-m1');
+    });
+
+    it('still opens the task when the archive failed, with an error naming the mail', async () => {
+      nextActionAnswer = async (ids) => ids.map((id) => toTaskResult(id, false, 'No Archive'));
+      await open();
+      button(LABEL, row('mail:m1')!)!.click();
+      await refresh();
+      expect(errors).toEqual([
+        'The next action was created, but “Mail m1” could not be archived: No Archive',
+      ]);
+      expect(TestBed.inject(Router).url).toBe('/tasks/task-m1');
+    });
+
+    it('stays with the mail in place and the error when the task could not be created', async () => {
+      nextActionAnswer = () => Promise.reject(new ApiError(404, 'Not found', 'The message is gone.'));
+      await open();
+      button(LABEL, row('mail:m1')!)!.click();
+      await refresh();
+      expect(errors).toEqual(['The next action could not be created: The message is gone.']);
+      expect(TestBed.inject(Router).url).toBe('/new');
+      expect(rowKeys()).toEqual(['task:t1', 'mail:m1', 'mail:m2']);
+      expect(button(LABEL, row('mail:m1')!)!.disabled).toBe(false);
+    });
+
+    it('reports an unexpected failure or a missing result in general words', async () => {
+      nextActionAnswer = () => Promise.reject(new Error('socket closed'));
+      await open();
+      button(LABEL, row('mail:m1')!)!.click();
+      await refresh();
+      nextActionAnswer = async () => [];
+      button(LABEL, row('mail:m2')!)!.click();
+      await refresh();
+      expect(errors).toEqual([
+        'The next action could not be created: Something went wrong.',
+        'The next action could not be created: Something went wrong.',
+      ]);
+      expect(TestBed.inject(Router).url).toBe('/new');
+    });
+
+    it('sends once while it runs, and blocks "→ Inbox task" on the same mail', async () => {
+      let finish!: () => void;
+      nextActionAnswer = (ids) =>
+        new Promise((resolve) => (finish = () => resolve(ids.map((id) => toTaskResult(id)))));
+      await open();
+      await press('j');
+      await press('j');
+      const action = button(LABEL, row('mail:m1')!)!;
+      action.click();
+      action.click();
+      await refresh();
+      expect(button(LABEL, row('mail:m1')!)!.disabled).toBe(true);
+      expect(button('Inbox task', row('mail:m1')!)!.disabled).toBe(true);
+      await press('T', document.body, { shiftKey: true });
+      await press('t');
+      expect(nextActionCalls).toHaveLength(1);
+      expect(toTaskCalls).toEqual([]);
+      finish();
+      await refresh();
+      expect(TestBed.inject(Router).url).toBe('/tasks/task-m1');
+    });
   });
 
   it('shows sender, snippet, a subject fallback and the read state of mail rows', async () => {

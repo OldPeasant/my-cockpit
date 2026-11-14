@@ -16299,6 +16299,18 @@
         <source><x id="count" equiv-text="count"/> next actions created</source>
         <target state="translated"><x id="count" equiv-text="count"/> nächste Aktionen erstellt</target>
       </trans-unit>
+      <trans-unit id="mail.nextAction.createdCount" datatype="html">
+        <source><x id="count" equiv-text="created"/> next actions created.</source>
+        <target state="translated"><x id="count" equiv-text="created"/> nächste Aktionen erstellt.</target>
+      </trans-unit>
+      <trans-unit id="mail.nextAction.notArchived" datatype="html">
+        <source>Not archived: <x id="subjects" equiv-text="subjects"/>.</source>
+        <target state="translated">Nicht archiviert: <x id="subjects" equiv-text="subjects"/>.</target>
+      </trans-unit>
+      <trans-unit id="mail.nextAction.notCreated" datatype="html">
+        <source><x id="count" equiv-text="notCreated"/> mails got no next action: <x id="reason" equiv-text="reason"/></source>
+        <target state="translated">Für <x id="count" equiv-text="notCreated"/> Mails wurde keine nächste Aktion erstellt: <x id="reason" equiv-text="reason"/></target>
+      </trans-unit>
       <trans-unit id="mail.nextAction.open" datatype="html">
         <source>Next Actions</source>
         <target state="translated">Nächste Aktionen</target>

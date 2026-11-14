@@ -236,7 +236,7 @@ export default class MailReadPage {
    */
   protected async toNextAction(): Promise<void> {
     const id = this.message()?.id;
-    if (!id || !this.canAct() || this.makingNextAction()) return;
+    if (!id || !this.canAct()) return;
     const subject = this.subject();
     this.makingNextAction.set(true);
     try {
@@ -329,8 +329,9 @@ export default class MailReadPage {
     await this.run('MOVE', id, () => this.leave(id), target);
   }
 
+  /** No mail action is running: neither a triage action nor "→ Next action & archive". */
   private canAct(): boolean {
-    return this.state() === 'ready' && !this.triaging();
+    return this.state() === 'ready' && !this.triaging() && !this.makingNextAction();
   }
 
   /**

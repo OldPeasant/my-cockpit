@@ -8209,7 +8209,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.ts</context>
-          <context context-type="linenumber">104</context>
+          <context context-type="linenumber">105</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.folder.newSubfolder" datatype="html">
@@ -8620,39 +8620,28 @@
         <source>an account</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.ts</context>
-          <context context-type="linenumber">91</context>
+          <context context-type="linenumber">92</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.folder" datatype="html">
         <source>Folder</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.ts</context>
-          <context context-type="linenumber">103</context>
+          <context context-type="linenumber">104</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.shortcutsTitle" datatype="html">
         <source>Mail</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.ts</context>
-          <context context-type="linenumber">135</context>
-        </context-group>
-      </trans-unit>
-      <trans-unit id="mail.nextAction.unexpected" datatype="html">
-        <source>Something went wrong.</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.ts</context>
-          <context context-type="linenumber">340</context>
-        </context-group>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/features/mail/list/mail-next-action.ts</context>
-          <context context-type="linenumber">13</context>
+          <context context-type="linenumber">136</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.noSubject" datatype="html">
         <source>(no subject)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.ts</context>
-          <context context-type="linenumber">494</context>
+          <context context-type="linenumber">513</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/new/new-page.ts</context>
@@ -8663,35 +8652,46 @@
         <source>Select “<x id="subject" equiv-text="subject"/>” from <x id="sender" equiv-text="sender"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.ts</context>
-          <context context-type="linenumber">512</context>
+          <context context-type="linenumber">531</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.unknownSender" datatype="html">
         <source>(unknown sender)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.ts</context>
-          <context context-type="linenumber">521</context>
+          <context context-type="linenumber">540</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.nextAction.unexpected" datatype="html">
+        <source>Something went wrong.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-list-page.ts</context>
+          <context context-type="linenumber">573</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-next-action.ts</context>
+          <context context-type="linenumber">13</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.list.nothingOlder" datatype="html">
         <source>There are no older messages on the server.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-store.ts</context>
-          <context context-type="linenumber">284</context>
+          <context context-type="linenumber">307</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.list.actionFailed" datatype="html">
         <source>Not every message could be changed: <x id="reason" equiv-text="reason"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-store.ts</context>
-          <context context-type="linenumber">475</context>
+          <context context-type="linenumber">498</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mail.list.error" datatype="html">
         <source>Something went wrong.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-list-store.ts</context>
-          <context context-type="linenumber">715</context>
+          <context context-type="linenumber">776</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/new/new-page.ts</context>
@@ -8754,11 +8754,32 @@
           <context context-type="linenumber">24</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="mail.nextAction.createdCount" datatype="html">
+        <source><x id="count" equiv-text="created"/> next actions created.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-next-action.ts</context>
+          <context context-type="linenumber">38</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.nextAction.notArchived" datatype="html">
+        <source>Not archived: <x id="subjects" equiv-text="subjects"/>.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-next-action.ts</context>
+          <context context-type="linenumber">41</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="mail.nextAction.notCreated" datatype="html">
+        <source><x id="count" equiv-text="notCreated"/> mails got no next action: <x id="reason" equiv-text="reason"/></source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/mail/list/mail-next-action.ts</context>
+          <context context-type="linenumber">45</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="mail.nextAction.open" datatype="html">
         <source>Next Actions</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/list/mail-next-action.ts</context>
-          <context context-type="linenumber">28</context>
+          <context context-type="linenumber">52</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailShortcuts.next" datatype="html">
@@ -9315,74 +9336,74 @@
         <source>Something went wrong.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.ts</context>
-          <context context-type="linenumber">350</context>
+          <context context-type="linenumber">351</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.ts</context>
-          <context context-type="linenumber">622</context>
+          <context context-type="linenumber">623</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailRead.savedToFiles" datatype="html">
         <source>Saved to Files: <x id="name" equiv-text="name"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.ts</context>
-          <context context-type="linenumber">502</context>
+          <context context-type="linenumber">503</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailRead.noSubject" datatype="html">
         <source>(no subject)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.ts</context>
-          <context context-type="linenumber">533</context>
+          <context context-type="linenumber">534</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailRead.archiveFailed" datatype="html">
         <source>The message could not be archived: <x id="reason" equiv-text="reason"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.ts</context>
-          <context context-type="linenumber">603</context>
+          <context context-type="linenumber">604</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailRead.spamFailed" datatype="html">
         <source>The message could not be marked as spam: <x id="reason" equiv-text="reason"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.ts</context>
-          <context context-type="linenumber">605</context>
+          <context context-type="linenumber">606</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailRead.deleteFailed" datatype="html">
         <source>The message could not be deleted: <x id="reason" equiv-text="reason"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.ts</context>
-          <context context-type="linenumber">607</context>
+          <context context-type="linenumber">608</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailRead.unreadFailed" datatype="html">
         <source>The message could not be marked as unread: <x id="reason" equiv-text="reason"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.ts</context>
-          <context context-type="linenumber">609</context>
+          <context context-type="linenumber">610</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailRead.flagFailed" datatype="html">
         <source>The message could not be starred: <x id="reason" equiv-text="reason"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.ts</context>
-          <context context-type="linenumber">611</context>
+          <context context-type="linenumber">612</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailRead.unflagFailed" datatype="html">
         <source>The star could not be removed: <x id="reason" equiv-text="reason"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.ts</context>
-          <context context-type="linenumber">613</context>
+          <context context-type="linenumber">614</context>
         </context-group>
       </trans-unit>
       <trans-unit id="mailRead.moveFailed" datatype="html">
         <source>The message could not be moved: <x id="reason" equiv-text="reason"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/mail/read/mail-read-page.ts</context>
-          <context context-type="linenumber">615</context>
+          <context context-type="linenumber">616</context>
         </context-group>
       </trans-unit>
       <trans-unit id="nav.new" datatype="html">

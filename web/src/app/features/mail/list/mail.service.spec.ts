@@ -284,6 +284,71 @@ describe('MailService', () => {
     });
   });
 
+  describe('next action & archive', () => {
+    const result = (id: string, archived = true) => ({
+      id,
+      messageId: id,
+      linkId: `link-${id}`,
+      archived,
+      archiveErrorCode: archived ? null : 'NO_ROLE_FOLDER',
+      archiveDetail: null,
+      task: { id: `task-${id}`, list: 'NEXT' as const, title: `Subject ${id}` },
+    });
+
+    it('posts the ids as Next actions to archive, silently, and returns the results', async () => {
+      const done = service.toNextActions(['m-1', 'm-2']);
+      const req = await request('/api/v1/mail/messages/to-tasks');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({ ids: ['m-1', 'm-2'], list: 'NEXT', archive: true });
+      expect(req.request.context.get(SILENT_ERRORS)).toBe(true);
+      req.flush({ results: [result('m-1'), result('m-2', false)] });
+      expect(await done).toEqual([result('m-1'), result('m-2', false)]);
+    });
+
+    it('sends at most 100 ids per request, in order, and joins the results', async () => {
+      const ids = Array.from({ length: 201 }, (_, i) => `m-${i}`);
+      const done = service.toNextActions(ids);
+      const first = await request('/api/v1/mail/messages/to-tasks');
+      expect(first.request.body.ids).toEqual(ids.slice(0, 100));
+      first.flush({ results: ids.slice(0, 100).map((id) => result(id)) });
+      const second = await request('/api/v1/mail/messages/to-tasks');
+      expect(second.request.body.ids).toEqual(ids.slice(100, 200));
+      second.flush({ results: ids.slice(100, 200).map((id) => result(id)) });
+      const third = await request('/api/v1/mail/messages/to-tasks');
+      expect(third.request.body).toEqual({ ids: ['m-200'], list: 'NEXT', archive: true });
+      third.flush({ results: [result('m-200')] });
+      expect((await done).map((r) => r.id)).toEqual(ids);
+    });
+
+    it('sends exactly 100 ids in one request', async () => {
+      const ids = Array.from({ length: 100 }, (_, i) => `m-${i}`);
+      const done = service.toNextActions(ids);
+      const req = await request('/api/v1/mail/messages/to-tasks');
+      expect(req.request.body.ids).toHaveLength(100);
+      req.flush({ results: [] });
+      expect(await done).toEqual([]);
+    });
+
+    it('sends no request for no ids', async () => {
+      expect(await service.toNextActions([])).toEqual([]);
+      await tick();
+      http.expectNone('/api/v1/mail/messages/to-tasks');
+    });
+
+    it('rejects a failed request with the ApiError, without a toast', async () => {
+      const done = service.toNextActions(['m-1']);
+      const req = await request('/api/v1/mail/messages/to-tasks');
+      req.flush(
+        { status: 404, title: 'Not Found', detail: 'Message not found' },
+        { status: 404, statusText: 'Not Found' },
+      );
+      const error = await done.catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(ApiError);
+      expect((error as ApiError).userMessage).toBe('Message not found');
+      expect(notifications.error).not.toHaveBeenCalled();
+    });
+  });
+
   it('rejects with an ApiError and does not toast', async () => {
     const result = service.apply('READ', ['m-1']);
     const req = await request('/api/v1/mail/messages/actions');

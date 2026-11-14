@@ -22,12 +22,13 @@ import { MailAddressResponse } from '../../../api/generated';
 import { folderLabel, MailFolderTree } from './mail-folder-tree';
 import { MailFoldersStore } from './mail-folders-store';
 import { MailListSession } from './mail-list-session';
-import { MailListStore } from './mail-list-store';
+import { MailListStore, NextActionOutcome, NextActionsPartlyFailedError } from './mail-list-store';
 import { MailMoveDialog, MailMoveDialogData } from './mail-move-dialog';
 import {
   nextActionArchiveFailed,
   nextActionFailed,
   nextActionsCreated,
+  nextActionsIncomplete,
   OPEN_NEXT_ACTIONS,
 } from './mail-next-action';
 import { ApiError, NotificationService } from '../../../core/http';
@@ -311,35 +312,53 @@ export default class MailListPage {
    * "→ Next action & archive" on the selection (else the message under the cursor): a Next action
    * per mail, then the mails are archived. One mail opens its task's detail (Back returns here);
    * several stay in the list with a message linking to Next Actions. A mail whose archive failed
-   * keeps its task and stays in the list, with an error naming it.
+   * keeps its task and stays in the list, with an error naming it; with several mails, a single
+   * error names every mail not archived (and those that got no task), since each snack bar
+   * replaces the one before.
    */
   protected async toNextActions(): Promise<void> {
     if (this.makingNextActions()) return;
     this.makingNextActions.set(true);
     try {
-      const outcome = await this.store.toNextActions();
-      if (!outcome?.length) return;
-      for (const { item, result } of outcome) {
+      let created: readonly NextActionOutcome[];
+      let notCreated: readonly MailSummary[] = [];
+      let reason = '';
+      try {
+        created = (await this.store.toNextActions()) ?? [];
+      } catch (error) {
+        // A later request failed: the earlier ones' tasks exist and are reported with it.
+        if (!(error instanceof NextActionsPartlyFailedError)) throw error;
+        created = error.outcome;
+        notCreated = error.failed;
+        reason = failureMessage(error.failure);
+      }
+      if (!created.length && !notCreated.length) return;
+      const notArchived = created.filter(({ result }) => !result.archived);
+      if (created.length === 1 && !notCreated.length) {
+        const [{ item, result }] = created;
         if (!result.archived) {
           this.notifications.error(nextActionArchiveFailed(this.subject(item), result));
         }
+        await this.router.navigate(['/tasks', result.task.id]);
+        return;
       }
-      if (outcome.length === 1) {
-        await this.router.navigate(['/tasks', outcome[0].result.task.id]);
+      if (notArchived.length || notCreated.length) {
+        this.notifications.error(
+          nextActionsIncomplete(
+            created.length,
+            notArchived.map(({ item }) => this.subject(item)),
+            notCreated.length,
+            reason,
+          ),
+        );
         return;
       }
       this.snackBar
-        .open(nextActionsCreated(outcome.length), OPEN_NEXT_ACTIONS, { duration: 8000 })
+        .open(nextActionsCreated(created.length), OPEN_NEXT_ACTIONS, { duration: 8000 })
         .onAction()
         .subscribe(() => void this.router.navigate(['/next']));
     } catch (error) {
-      this.notifications.error(
-        nextActionFailed(
-          error instanceof ApiError
-            ? error.userMessage
-            : $localize`:@@mail.nextAction.unexpected:Something went wrong.`,
-        ),
-      );
+      this.notifications.error(nextActionFailed(failureMessage(error)));
     } finally {
       this.makingNextActions.set(false);
     }
@@ -545,6 +564,13 @@ function scrollContainer(element: HTMLElement): Element {
     if (overflow === 'auto' || overflow === 'scroll') return node;
   }
   return document.scrollingElement ?? document.documentElement;
+}
+
+/** What a failed "→ Next action & archive" request says to the user. */
+function failureMessage(error: unknown): string {
+  return error instanceof ApiError
+    ? error.userMessage
+    : $localize`:@@mail.nextAction.unexpected:Something went wrong.`;
 }
 
 function storedThreaded(): boolean {

@@ -35,6 +35,21 @@ export const MAIL_MAX_ACTION_IDS = 1000;
 
 export type MailAction = MailActionRequest['action'];
 
+/**
+ * A later "→ Next action & archive" request failed after earlier ones succeeded. `results` are
+ * those of the earlier requests (their tasks exist, their mails were archived as each result
+ * says); the other ids got no task. `failure` is what the failed request threw.
+ */
+export class PartialNextActionsError extends Error {
+  constructor(
+    readonly results: readonly MailToTaskResultResponse[],
+    readonly failure: unknown,
+  ) {
+    super('Not every next action could be created');
+    this.name = 'PartialNextActionsError';
+  }
+}
+
 /** A list entry whose id is known (the generated model marks every field optional). */
 export type MailSummary = MailMessageSummaryResponse & { id: string };
 
@@ -200,18 +215,26 @@ export class MailService {
   /**
    * "→ Next action & archive": a Next action per message, linked to it, then the messages move to
    * the Archive. One result per distinct id; a failed archive keeps its task. Sent in requests of
-   * at most {@link MAIL_MAX_TO_TASK_IDS} ids.
+   * at most {@link MAIL_MAX_TO_TASK_IDS} ids, one after the other. A failed first request rejects
+   * with its error (no task was created); a failed later one rejects with a
+   * {@link PartialNextActionsError} carrying the earlier requests' results, so the tasks they
+   * created are not lost (and not created again on a retry).
    */
   async toNextActions(ids: readonly string[]): Promise<MailToTaskResultResponse[]> {
     const results: MailToTaskResultResponse[] = [];
     for (let i = 0; i < ids.length; i += MAIL_MAX_TO_TASK_IDS) {
       const chunk = ids.slice(i, i + MAIL_MAX_TO_TASK_IDS);
-      const response = await this.api.invoke(
-        mailToTasks,
-        { body: { ids: chunk, list: 'NEXT', archive: true } },
-        silent(),
-      );
-      results.push(...response.results);
+      try {
+        const response = await this.api.invoke(
+          mailToTasks,
+          { body: { ids: chunk, list: 'NEXT', archive: true } },
+          silent(),
+        );
+        results.push(...response.results);
+      } catch (error) {
+        if (i === 0) throw error;
+        throw new PartialNextActionsError(results, error);
+      }
     }
     return results;
   }

@@ -9,7 +9,7 @@ import {
   THREAD_LOOKUP_CONCURRENCY,
   withAction,
 } from './mail-list-store';
-import { FakeEvents, FakeMail, INBOX, OTHER, summary } from './mail-testing';
+import { FakeEvents, FakeMail, INBOX, OTHER, summary, toTaskResult } from './mail-testing';
 import {
   MAIL_MAX_ACTION_IDS,
   MAIL_MAX_PAGE_SIZE,
@@ -178,6 +178,142 @@ describe('MailListStore', () => {
       await loaded([]);
       expect(await store.apply('READ')).toBe(false);
       expect(mail.applies).toEqual([]);
+    });
+  });
+
+  describe('next action & archive', () => {
+    beforeEach(() => loaded([summary('a'), summary('b'), summary('c'), summary('d')]));
+
+    it('sends the selection in list order and removes the archived mails', async () => {
+      store.toggleSelected('c');
+      store.toggleSelected('a');
+      const done = store.toNextActions();
+      await flush();
+      expect(mail.toTasks.map((call) => call.ids)).toEqual([['a', 'c']]);
+      // Nothing leaves the list before the server answered.
+      expect(ids()).toEqual(['a', 'b', 'c', 'd']);
+      mail.toTasks[0].resolve([toTaskResult('c'), toTaskResult('a')]);
+      const outcome = await done;
+      expect(outcome!.map(({ item, result }) => [item.id, result.task.id])).toEqual([
+        ['a', 'task-a'],
+        ['c', 'task-c'],
+      ]);
+      expect(ids()).toEqual(['b', 'd']);
+      expect(store.selection()).toEqual([]);
+      expect(errors).toEqual([]);
+    });
+
+    it('targets the item under the cursor without a selection, and moves the cursor on', async () => {
+      store.setCursor('b');
+      const done = store.toNextActions();
+      await flush();
+      expect(mail.toTasks[0].ids).toEqual(['b']);
+      mail.toTasks[0].resolve([toTaskResult('b')]);
+      await done;
+      expect(ids()).toEqual(['a', 'c', 'd']);
+      expect(store.cursorId()).toBe('c');
+    });
+
+    it('keeps a mail whose archive failed in the list, still selected, and reports both', async () => {
+      store.toggleSelected('a');
+      store.toggleSelected('b');
+      const done = store.toNextActions();
+      await flush();
+      mail.toTasks[0].resolve([toTaskResult('a'), toTaskResult('b', false, 'No Archive')]);
+      const outcome = await done;
+      expect(outcome!.map(({ result }) => [result.id, result.archived])).toEqual([
+        ['a', true],
+        ['b', false],
+      ]);
+      expect(ids()).toEqual(['b', 'c', 'd']);
+      expect(store.selection().map((item) => item.id)).toEqual(['b']);
+      // The page reports it, not the store.
+      expect(errors).toEqual([]);
+    });
+
+    it('leaves the list unchanged when no archive succeeded', async () => {
+      const done = store.toNextActions();
+      await flush();
+      mail.toTasks[0].resolve([toTaskResult('a', false)]);
+      expect((await done)!.length).toBe(1);
+      expect(ids()).toEqual(['a', 'b', 'c', 'd']);
+    });
+
+    it('drops targets the server returned no result for', async () => {
+      store.toggleSelected('a');
+      store.toggleSelected('b');
+      const done = store.toNextActions();
+      await flush();
+      mail.toTasks[0].resolve([toTaskResult('b')]);
+      expect((await done)!.map(({ item }) => item.id)).toEqual(['b']);
+      expect(ids()).toEqual(['a', 'c', 'd']);
+    });
+
+    it('throws a failed request and leaves the mails in place', async () => {
+      store.toggleSelected('a');
+      store.toggleSelected('b');
+      const done = store.toNextActions();
+      await flush();
+      const failure = new ApiError(404, 'Not Found', 'Message not found');
+      mail.toTasks[0].reject(failure);
+      await expect(done).rejects.toBe(failure);
+      expect(ids()).toEqual(['a', 'b', 'c', 'd']);
+      expect(store.selection().map((item) => item.id)).toEqual(['a', 'b']);
+    });
+
+    it('answers null without targets and sends nothing', async () => {
+      await loaded([]);
+      expect(await store.toNextActions()).toBeNull();
+      expect(mail.toTasks).toEqual([]);
+    });
+
+    describe('with live updates', () => {
+      beforeEach(() => vi.useFakeTimers());
+      afterEach(() => vi.useRealTimers());
+
+      async function emit() {
+        events.changes.next({ at: '', op: 'UPDATED', id: INBOX, type: MAIL_FOLDER_EVENT });
+        await vi.advanceTimersByTimeAsync(REFRESH_DEBOUNCE_MS);
+      }
+
+      it('waits with a refetch until it is done, then refetches', async () => {
+        const done = store.toNextActions();
+        await flush();
+        await emit();
+        expect(mail.lists).toHaveLength(1);
+        mail.toTasks[0].resolve([toTaskResult('a')]);
+        await done;
+        expect(mail.lists).toHaveLength(2);
+        mail.lists[1].resolve({ items: [summary('b'), summary('c')], nextCursor: null });
+        await flush();
+        expect(ids()).toEqual(['b', 'c']);
+      });
+
+      it('runs a waiting refetch also after a failed request', async () => {
+        const done = store.toNextActions();
+        await flush();
+        await emit();
+        mail.toTasks[0].reject(new Error('offline'));
+        await expect(done).rejects.toThrow('offline');
+        expect(mail.lists).toHaveLength(2);
+      });
+
+      it('drops a refetch answer that started before it, so the archived mail stays gone', async () => {
+        await emit();
+        expect(mail.lists).toHaveLength(2);
+        const done = store.toNextActions();
+        await flush();
+        mail.toTasks[0].resolve([toTaskResult('a')]);
+        await done;
+        // The stale answer still has `a`.
+        mail.lists[1].resolve({
+          items: [summary('a'), summary('b'), summary('c'), summary('d')],
+          nextCursor: null,
+        });
+        await flush();
+        expect(ids()).toEqual(['b', 'c', 'd']);
+        expect(mail.lists).toHaveLength(3);
+      });
     });
   });
 

@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import {
   ActivatedRoute,
   convertToParamMap,
@@ -12,7 +13,7 @@ import { ChangeEvent, MailAccountResponse, MailFolderResponse } from '../../../a
 import { ChangeEventsService } from '../../../core/events';
 import { NotificationService } from '../../../core/http';
 import MailListPage, { senderName, THREADED_KEY } from './mail-list-page';
-import { FakeEvents, FakeMail, summary } from './mail-testing';
+import { FakeEvents, FakeMail, summary, toTaskResult } from './mail-testing';
 import { ApiError } from '../../../core/http';
 import { PageShortcuts } from '../../../shell/page-shortcuts';
 import { MailListSession } from './mail-list-session';
@@ -1702,6 +1703,176 @@ describe('MailListPage', () => {
       expect(listStore().cursorId()).toBeNull();
       await flush();
       expect(mail.applies[0]).toMatchObject({ action: 'ARCHIVE', ids: ['only'] });
+    });
+  });
+
+  describe('→ Next action & archive', () => {
+    const LABEL = '→ Next action & archive';
+    const ids = () => rows().map((row) => row.dataset['id']);
+    let navigate: ReturnType<typeof vi.spyOn>;
+    let snackOpen: ReturnType<typeof vi.spyOn>;
+    let snackAction: Subject<void>;
+
+    async function open(options: Parameters<typeof create>[1] = {}) {
+      await create('inbox-1', options);
+      navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      snackAction = new Subject<void>();
+      snackOpen = vi
+        .spyOn(TestBed.inject(MatSnackBar), 'open')
+        .mockReturnValue({ onAction: () => snackAction.asObservable() } as never);
+    }
+
+    async function answer(results: ReturnType<typeof toTaskResult>[] | Error, index = 0) {
+      await flush();
+      if (results instanceof Error) mail.toTasks[index].reject(results);
+      else mail.toTasks[index].resolve(results);
+      await flush();
+      fixture.detectChanges();
+    }
+
+    it('is a toolbar button with Shift+T in its title, and listed in the key overview', async () => {
+      await open();
+      expect(button(LABEL).getAttribute('title')).toBe('Shift+T');
+      expect(button(LABEL).disabled).toBe(false);
+      expect(MAIL_LIST_HELP.some((info) => info.keys.includes('T'))).toBe(true);
+    });
+
+    it('is disabled in an empty folder', async () => {
+      await open({ firstPage: { items: [], nextCursor: null } });
+      expect(button(LABEL).disabled).toBe(true);
+      press('T', { shiftKey: true });
+      await flush();
+      expect(mail.toTasks).toEqual([]);
+    });
+
+    it('creates one Next action per selected mail, archives them and stays in the list', async () => {
+      await open();
+      listStore().toggleSelected('a');
+      listStore().toggleSelected('c');
+      fixture.detectChanges();
+      button(LABEL).click();
+      await answer([toTaskResult('a'), toTaskResult('c')]);
+      expect(mail.toTasks.map((call) => call.ids)).toEqual([['a', 'c']]);
+      expect(ids()).toEqual(['b']);
+      expect(navigate).not.toHaveBeenCalled();
+      expect(errors).toEqual([]);
+      expect(snackOpen).toHaveBeenCalledExactlyOnceWith('2 next actions created', 'Next Actions', {
+        duration: 8000,
+      });
+    });
+
+    it('opens Next Actions from the message', async () => {
+      await open();
+      listStore().toggleAll();
+      fixture.detectChanges();
+      press('T', { shiftKey: true });
+      await answer([toTaskResult('a'), toTaskResult('b'), toTaskResult('c')]);
+      expect(snackOpen).toHaveBeenCalledWith('3 next actions created', 'Next Actions', {
+        duration: 8000,
+      });
+      expect(navigate).not.toHaveBeenCalled();
+      snackAction.next();
+      expect(navigate).toHaveBeenCalledExactlyOnceWith(['/next']);
+    });
+
+    it('opens the task of a single mail (the one under the cursor) with Shift+T', async () => {
+      await open();
+      press('j');
+      const event = press('T', { shiftKey: true });
+      expect(event.defaultPrevented).toBe(true);
+      await answer([toTaskResult('b')]);
+      expect(mail.toTasks.map((call) => call.ids)).toEqual([['b']]);
+      expect(navigate).toHaveBeenCalledExactlyOnceWith(['/tasks', 'task-b']);
+      expect(snackOpen).not.toHaveBeenCalled();
+      expect(ids()).toEqual(['a', 'c']);
+    });
+
+    it('does not run on t, as a chord, repeated or while typing', async () => {
+      await open();
+      const input = document.createElement('input');
+      document.body.appendChild(input);
+      try {
+        press('t');
+        press('T', { shiftKey: true, metaKey: true });
+        press('T', { shiftKey: true, repeat: true });
+        press('T', { shiftKey: true }, input);
+        await flush();
+        expect(mail.toTasks).toEqual([]);
+      } finally {
+        input.remove();
+      }
+    });
+
+    it('keeps a mail whose archive failed in the list, with an error naming it', async () => {
+      await open();
+      listStore().toggleSelected('a');
+      listStore().toggleSelected('b');
+      fixture.detectChanges();
+      button(LABEL).click();
+      await answer([toTaskResult('a'), toTaskResult('b', false, 'No Archive folder')]);
+      // The archived mail left the list; the other one stays (its task is kept).
+      expect(ids()).toEqual(['b', 'c']);
+      expect(navigate).not.toHaveBeenCalled();
+      // One error names the mail that was not archived, and only that one.
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain('“Lunch”');
+      expect(errors[0]).not.toContain('Report');
+    });
+
+    it('still opens the task of a single mail whose archive failed', async () => {
+      await open();
+      button(LABEL).click();
+      await answer([toTaskResult('a', false, 'No Archive folder')]);
+      expect(errors).toEqual([
+        'The next action was created, but “Report” could not be archived: No Archive folder',
+      ]);
+      expect(navigate).toHaveBeenCalledExactlyOnceWith(['/tasks', 'task-a']);
+      expect(ids()).toEqual(['a', 'b', 'c']);
+    });
+
+    it('leaves the mails in place with the error when the request fails', async () => {
+      await open();
+      listStore().toggleSelected('a');
+      listStore().toggleSelected('b');
+      fixture.detectChanges();
+      button(LABEL).click();
+      await answer(new ApiError(404, 'Not Found', 'Message not found'));
+      expect(ids()).toEqual(['a', 'b', 'c']);
+      expect(errors).toEqual(['The next action could not be created: Message not found']);
+      expect(navigate).not.toHaveBeenCalled();
+      expect(snackOpen).not.toHaveBeenCalled();
+      expect(button(LABEL).disabled).toBe(false);
+    });
+
+    it('reports an unexpected failure in general words', async () => {
+      await open();
+      button(LABEL).click();
+      await answer(new TypeError('Failed to fetch'));
+      expect(errors).toEqual(['The next action could not be created: Something went wrong.']);
+    });
+
+    it('does nothing more when the server returned no result', async () => {
+      await open();
+      button(LABEL).click();
+      await answer([]);
+      expect(navigate).not.toHaveBeenCalled();
+      expect(snackOpen).not.toHaveBeenCalled();
+      expect(errors).toEqual([]);
+      expect(button(LABEL).disabled).toBe(false);
+    });
+
+    it('is disabled while it runs, so a second click or Shift+T does not run it twice', async () => {
+      await open();
+      button(LABEL).click();
+      fixture.detectChanges();
+      expect(button(LABEL).disabled).toBe(true);
+      button(LABEL).click();
+      press('T', { shiftKey: true });
+      await flush();
+      expect(mail.toTasks).toHaveLength(1);
+      await answer([toTaskResult('a')]);
+      expect(navigate).toHaveBeenCalledTimes(1);
+      expect(button(LABEL).disabled).toBe(false);
     });
   });
 

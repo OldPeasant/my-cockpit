@@ -16,6 +16,7 @@ import {
   ItemRefDto,
   MailFolderResponse,
   MailMessageResponse,
+  MailToTaskResultResponse,
   Settings,
   SettingsPatch,
 } from '../../../api/generated';
@@ -28,7 +29,7 @@ import { PageShortcuts } from '../../../shell/page-shortcuts';
 import { MailListSession, SavedMailList } from '../list/mail-list-session';
 import { MailMoveDialog, MailMoveDialogData } from '../list/mail-move-dialog';
 import { MAIL_READ_HELP } from '../list/mail-shortcuts';
-import { summary } from '../list/mail-testing';
+import { summary, toTaskResult } from '../list/mail-testing';
 import { MailAction, MailService, MailSummary } from '../list/mail.service';
 import { IMAGE_ALLOWLIST_KEY } from './image-allowlist';
 import { MAIL_FRAME_SANDBOX } from './mail-frame';
@@ -149,6 +150,18 @@ class FakeMailService {
   async apply(action: MailAction, ids: string[], target?: string) {
     this.applies.push(target === undefined ? { action, ids } : { action, ids, target });
     const answer = (await this.answer) ?? ids.map((id) => ({ id, ok: true }));
+    if (answer instanceof Error) throw answer;
+    return answer;
+  }
+
+  /** The ids of each "→ Next action & archive" request. */
+  toTasks: string[][] = [];
+  /** The answer of the next `toNextActions`; by default every id gets a task and is archived. */
+  toTaskAnswer?: MailToTaskResultResponse[] | Error | Promise<MailToTaskResultResponse[] | Error>;
+
+  async toNextActions(ids: readonly string[]) {
+    this.toTasks.push([...ids]);
+    const answer = (await this.toTaskAnswer) ?? ids.map((id) => toTaskResult(id));
     if (answer instanceof Error) throw answer;
     return answer;
   }
@@ -1658,6 +1671,204 @@ describe('MailReadPage', () => {
     });
   });
 
+  describe('→ Next action & archive', () => {
+    const LABEL = '→ Next action & archive';
+    const press = (key: string, init: KeyboardEventInit = {}, target: EventTarget = document) => {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+      target.dispatchEvent(event);
+      return event;
+    };
+    let navigate: ReturnType<typeof vi.spyOn>;
+    let removed: ReturnType<typeof vi.spyOn>;
+
+    async function open(...answers: Answer[]) {
+      await create(...answers);
+      navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      removed = vi.spyOn(TestBed.inject(MailListSession), 'remove');
+    }
+
+    it('sits right after "→ Inbox task", which stays, with Shift+T in its title', async () => {
+      await open();
+      const inboxTask = button('→ Inbox task')!;
+      expect(inboxTask).toBeDefined();
+      expect(inboxTask.nextElementSibling).toBe(button(LABEL)!);
+      expect(button(LABEL)!.getAttribute('title')).toBe('Shift+T');
+    });
+
+    it('creates the Next action, then opens its detail in place of the message', async () => {
+      await open();
+      button(LABEL)!.click();
+      await flush();
+      expect(mail.toTasks).toEqual([[ID]]);
+      expect(navigate).toHaveBeenCalledExactlyOnceWith(['/tasks', `task-${ID}`], {
+        replaceUrl: true,
+      });
+      expect(removed).toHaveBeenCalledWith(ID);
+      expect(notifications.error).not.toHaveBeenCalled();
+      // "→ Inbox task" is a different call, untouched.
+      expect(service.gtds).toEqual([]);
+    });
+
+    it('runs with Shift+T, but not with t or as a chord or repeat', async () => {
+      await open();
+      press('t');
+      press('T', { shiftKey: true, ctrlKey: true });
+      press('T', { shiftKey: true, repeat: true });
+      await flush();
+      expect(mail.toTasks).toEqual([]);
+      const event = press('T', { shiftKey: true });
+      await flush();
+      expect(event.defaultPrevented).toBe(true);
+      expect(mail.toTasks).toEqual([[ID]]);
+      expect(navigate).toHaveBeenCalledWith(['/tasks', `task-${ID}`], { replaceUrl: true });
+    });
+
+    it('ignores Shift+T while typing in an input', async () => {
+      await open();
+      const input = document.createElement('input');
+      document.body.append(input);
+      try {
+        expect(press('T', { shiftKey: true }, input).defaultPrevented).toBe(false);
+        await flush();
+        expect(mail.toTasks).toEqual([]);
+      } finally {
+        input.remove();
+      }
+    });
+
+    it('is not run before the message has loaded', async () => {
+      await open(deferred<MailMessageResponse>().promise);
+      expect(button(LABEL)).toBeUndefined();
+      expect(press('T', { shiftKey: true }).defaultPrevented).toBe(false);
+      await flush();
+      expect(mail.toTasks).toEqual([]);
+    });
+
+    it('still opens the task when the archive failed, with an error naming the mail', async () => {
+      await open();
+      mail.toTaskAnswer = [toTaskResult(ID, false, 'The account has no Archive folder')];
+      button(LABEL)!.click();
+      await flush();
+      expect(notifications.error).toHaveBeenCalledExactlyOnceWith(
+        'The next action was created, but “Quarterly report” could not be archived: ' +
+          'The account has no Archive folder',
+      );
+      expect(navigate).toHaveBeenCalledExactlyOnceWith(['/tasks', `task-${ID}`], {
+        replaceUrl: true,
+      });
+      // The mail is still in the list it was opened from.
+      expect(removed).not.toHaveBeenCalled();
+    });
+
+    it('names the error code when the failed archive has no message, and a subjectless mail', async () => {
+      await open(message({ subject: '' }));
+      mail.toTaskAnswer = [toTaskResult(ID, false)];
+      press('T', { shiftKey: true });
+      await flush();
+      expect(notifications.error).toHaveBeenCalledExactlyOnceWith(
+        'The next action was created, but “(no subject)” could not be archived: NO_ROLE_FOLDER',
+      );
+      expect(navigate).toHaveBeenCalledTimes(1);
+    });
+
+    it('stays on the message with the API error when the task could not be created', async () => {
+      await open();
+      mail.toTaskAnswer = new ApiError(404, 'Not Found', 'Message not found');
+      button(LABEL)!.click();
+      await flush();
+      fixture.detectChanges();
+      expect(notifications.error).toHaveBeenCalledExactlyOnceWith(
+        'The next action could not be created: Message not found',
+      );
+      expect(navigate).not.toHaveBeenCalled();
+      expect(removed).not.toHaveBeenCalled();
+      expect(el().querySelector('h1')?.textContent?.trim()).toBe('Quarterly report');
+      expect(button(LABEL)!.disabled).toBe(false);
+    });
+
+    it('reports an unexpected failure or a missing result in general words', async () => {
+      await open();
+      mail.toTaskAnswer = new TypeError('Failed to fetch');
+      button(LABEL)!.click();
+      await flush();
+      expect(notifications.error).toHaveBeenLastCalledWith(
+        'The next action could not be created: Something went wrong.',
+      );
+      mail.toTaskAnswer = [];
+      fixture.detectChanges();
+      button(LABEL)!.click();
+      await flush();
+      expect(notifications.error).toHaveBeenLastCalledWith(
+        'The next action could not be created: Something went wrong.',
+      );
+      expect(mail.toTasks).toEqual([[ID], [ID]]);
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('is disabled while it runs, so a second click or Shift+T does not run it twice', async () => {
+      await open();
+      const pending = deferred<MailToTaskResultResponse[] | Error>();
+      mail.toTaskAnswer = pending.promise;
+      button(LABEL)!.click();
+      fixture.detectChanges();
+      expect(button(LABEL)!.disabled).toBe(true);
+      button(LABEL)!.click();
+      press('T', { shiftKey: true });
+      await flush();
+      expect(mail.toTasks).toEqual([[ID]]);
+      pending.resolve([toTaskResult(ID)]);
+      await flush();
+      fixture.detectChanges();
+      expect(navigate).toHaveBeenCalledTimes(1);
+      expect(button(LABEL)!.disabled).toBe(false);
+    });
+
+    it('is disabled while an archive runs', async () => {
+      await open();
+      const pending = deferred<ActionAnswer>();
+      mail.answer = pending.promise;
+      button('Archive')!.click();
+      fixture.detectChanges();
+      expect(button(LABEL)!.disabled).toBe(true);
+      press('T', { shiftKey: true });
+      await flush();
+      expect(mail.toTasks).toEqual([]);
+      pending.resolve([{ id: ID, ok: true }]);
+      await flush();
+    });
+
+    it('does not navigate when the page was left while it ran', async () => {
+      await open();
+      const pending = deferred<MailToTaskResultResponse[] | Error>();
+      mail.toTaskAnswer = pending.promise;
+      button(LABEL)!.click();
+      fixture.destroy();
+      pending.resolve([toTaskResult(ID)]);
+      await flush();
+      expect(navigate).not.toHaveBeenCalled();
+      expect(notifications.error).not.toHaveBeenCalled();
+    });
+
+    it('does not leave a message the user moved to while it ran', async () => {
+      await open();
+      const pending = deferred<MailToTaskResultResponse[] | Error>();
+      mail.toTaskAnswer = pending.promise;
+      button(LABEL)!.click();
+      service.answers.push(message({ id: 'other' }));
+      params.next(convertToParamMap({ id: 'other' }));
+      await flush();
+      pending.resolve([toTaskResult(ID)]);
+      await flush();
+      expect(navigate).not.toHaveBeenCalled();
+      // The created task's mail still leaves the list it was opened from.
+      expect(removed).toHaveBeenCalledWith(ID);
+    });
+
+    it('is listed in the keyboard help', () => {
+      expect(MAIL_READ_HELP.some((info) => info.keys.includes('T'))).toBe(true);
+    });
+  });
+
   describe('Mark unread, Star and Move', () => {
     const press = (key: string, init: KeyboardEventInit = {}, target: EventTarget = document) => {
       const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
@@ -2197,6 +2408,7 @@ describe('MailReadPage Archive, Spam and Delete: back to where it was opened fro
           { path: 'notes', component: StubList },
           { path: 'mail/compose', component: StubList },
           { path: 'mail/messages/:id', component: MailReadPage },
+          { path: 'tasks/:id', component: StubList },
         ]),
         provideLocationMocks(),
         provideBackNavigation(),
@@ -2369,6 +2581,34 @@ describe('MailReadPage Archive, Spam and Delete: back to where it was opened fro
       const harness = await openFrom('/mail/folders/f-work');
       mail.answer = new Error('offline');
       expect(await clickAction(harness, 'Mark unread')).toBe(`/mail/messages/${ID}`);
+    });
+  });
+
+  describe('→ Next action & archive', () => {
+    const LABEL = '→ Next action & archive';
+
+    it('opens the task in place of the message, so Back returns to the folder', async () => {
+      const harness = await openFrom('/notes', '/mail/folders/f-work');
+      expect(await clickAction(harness, LABEL)).toBe(`/tasks/task-${ID}`);
+      expect(mail.toTasks).toEqual([[ID]]);
+      const location = TestBed.inject(Location);
+      location.back();
+      expect(location.path()).toBe('/mail/folders/f-work');
+    });
+
+    it('opens the task when the archive failed, and Back returns to the New view', async () => {
+      const harness = await openFrom('/new?filter=mail');
+      mail.toTaskAnswer = [toTaskResult(ID, false, 'No Archive folder')];
+      expect(await clickAction(harness, LABEL)).toBe(`/tasks/task-${ID}`);
+      const location = TestBed.inject(Location);
+      location.back();
+      expect(location.path()).toBe('/new?filter=mail');
+    });
+
+    it('stays on the message when the task could not be created', async () => {
+      const harness = await openFrom('/mail/folders/f-work');
+      mail.toTaskAnswer = new ApiError(503, 'Unavailable', 'Mail server unreachable');
+      expect(await clickAction(harness, LABEL)).toBe(`/mail/messages/${ID}`);
     });
   });
 

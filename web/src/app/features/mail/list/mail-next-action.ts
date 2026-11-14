@@ -24,5 +24,29 @@ export function nextActionsCreated(count: number): string {
   return $localize`:@@mail.nextAction.created:${count}:count: next actions created`;
 }
 
+/**
+ * Several mails, not all of them done: one message (a snack bar replaces the one before) saying
+ * how many Next actions were created, which mails were not archived (by subject), and how many
+ * mails got no Next action and why.
+ */
+export function nextActionsIncomplete(
+  created: number,
+  notArchived: readonly string[],
+  notCreated: number,
+  reason: string,
+): string {
+  const parts = [$localize`:@@mail.nextAction.createdCount:${created}:count: next actions created.`];
+  if (notArchived.length) {
+    const subjects = notArchived.map((subject) => `“${subject}”`).join(', ');
+    parts.push($localize`:@@mail.nextAction.notArchived:Not archived: ${subjects}:subjects:.`);
+  }
+  if (notCreated) {
+    parts.push(
+      $localize`:@@mail.nextAction.notCreated:${notCreated}:count: mails got no next action: ${reason}:reason:`,
+    );
+  }
+  return parts.join(' ');
+}
+
 /** The action of the "N next actions created" message. */
 export const OPEN_NEXT_ACTIONS = $localize`:@@mail.nextAction.open:Next Actions`;

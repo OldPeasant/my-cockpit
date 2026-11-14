@@ -12,8 +12,31 @@ import {
   MailScope,
   MailService,
   MailSummary,
+  PartialNextActionsError,
 } from './mail.service';
 import { MailToTaskResultResponse } from '../../../api/generated';
+
+/** A target of "→ Next action & archive" with its result. */
+export interface NextActionOutcome {
+  item: MailSummary;
+  result: MailToTaskResultResponse;
+}
+
+/**
+ * "→ Next action & archive" created tasks for some targets only: a later request failed.
+ * `outcome` are the targets that got a task (handled like a success: the archived ones left the
+ * list), `failed` the targets that did not (they stay), `failure` what the failed request threw.
+ */
+export class NextActionsPartlyFailedError extends Error {
+  constructor(
+    readonly outcome: readonly NextActionOutcome[],
+    readonly failed: readonly MailSummary[],
+    readonly failure: unknown,
+  ) {
+    super('Not every next action could be created');
+    this.name = 'NextActionsPartlyFailedError';
+  }
+}
 
 /** Change event type of a folder whose messages changed (server: `MailFolderService.FOLDER_EVENT`). */
 export const MAIL_FOLDER_EVENT = 'MAIL_FOLDER';
@@ -485,31 +508,69 @@ export class MailListStore {
    * "→ Next action & archive" on the targets (the selection, else the item under the cursor): a
    * Next action per message, then the messages move to the Archive. The archived ones leave the
    * list; one whose archive failed stays (its task is kept). Returns each target with its result,
-   * in list order, or `null` without targets. A failed request (no task was created) throws.
+   * in list order, or `null` without targets. A failed request (no task was created) throws; when
+   * only a later request failed, a {@link NextActionsPartlyFailedError} carries what was created.
+   *
+   * In the threaded view the task is made for the conversation's listed message (one task per
+   * row); once that message is archived, the conversation's other messages in the shown folder are
+   * archived too, like Archive does, so the row stays gone. If that fails, the list is refetched and
+   * shows the conversation again with the messages that are still there.
    */
-  async toNextActions(): Promise<{ item: MailSummary; result: MailToTaskResultResponse }[] | null> {
+  async toNextActions(): Promise<NextActionOutcome[] | null> {
     const targets = this.targets();
     if (!targets.length) return null;
     this.running++;
     this.mutationSeq++;
     try {
-      const results = await this.mail.toNextActions(targets.map((item) => item.id));
-      const byId = new Map(results.map((result) => [result.id, result]));
-      const archived = new Set(
-        targets.filter((item) => byId.get(item.id)?.archived).map((item) => item.id),
-      );
-      if (archived.size) {
-        this.mutationSeq++;
-        this.applyOptimistic('ARCHIVE', archived);
+      let results: readonly MailToTaskResultResponse[];
+      let partial: PartialNextActionsError | null = null;
+      try {
+        results = await this.mail.toNextActions(targets.map((item) => item.id));
+      } catch (error) {
+        if (!(error instanceof PartialNextActionsError)) throw error;
+        partial = error;
+        results = error.results;
       }
-      return targets.flatMap((item) => {
+      const byId = new Map(results.map((result) => [result.id, result]));
+      const archived = targets.filter((item) => byId.get(item.id)?.archived);
+      if (archived.length) {
+        this.mutationSeq++;
+        this.applyOptimistic('ARCHIVE', new Set(archived.map((item) => item.id)));
+        await this.archiveRestOfConversations(archived);
+      }
+      const outcome = targets.flatMap((item) => {
         const result = byId.get(item.id);
         return result ? [{ item, result }] : [];
       });
+      if (partial) {
+        const failed = targets.filter((item) => !byId.has(item.id));
+        throw new NextActionsPartlyFailedError(outcome, failed, partial.failure);
+      }
+      return outcome;
     } finally {
       this.running--;
       this.settle();
     }
+  }
+
+  /**
+   * Archives the other messages in the shown folder of the conversations behind `items` (threaded
+   * view only), whose listed message was archived already. If that fails, a refetch is queued so
+   * the server's state settles what the list shows.
+   */
+  private async archiveRestOfConversations(items: MailSummary[]): Promise<void> {
+    const conversations = items.filter((item) => (item.threadSize ?? 1) > 1);
+    if (!this.scope().threaded || !conversations.length) return;
+    const listed = new Set(items.map((item) => item.id));
+    try {
+      const rest = (await this.messageIds(conversations)).flat().filter((id) => !listed.has(id));
+      if (!rest.length) return;
+      const outcome = await this.send('ARCHIVE', [...new Set(rest)]);
+      if (!outcome.failed.size) return;
+    } catch {
+      // Falls through to the refetch.
+    }
+    this.refreshQueued = true;
   }
 
   /** Wakes those waiting for the actions to finish, then runs a refresh that waited for them. */
