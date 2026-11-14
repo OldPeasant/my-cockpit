@@ -6,6 +6,7 @@ deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/ui,android/app/src/test/java/ch/sonensei/cockpit/ui]
 prio: 2
 lease_until: 2026-11-14T10:08:11Z
+extended: dell26/agent-1
 ---
 ## Goal
 The bottom bar (`ui/navigation/CockpitDestination.kt`) holds Dashboard, Inbox, Calendar, Mail, More; New is on the More
@@ -24,3 +25,4 @@ Requested by the owner 2026-11-14: New is more convenient than Inbox for daily u
 strings. SPEC.md §12 (web left navigation) is unaffected; record the Android bottom-bar choice with `tasks.py assume`.
 - ASSUMPTION (2026-11-14 09:54+0100 by dell26/agent-1): Android bottom bar is Dashboard, New, Calendar, Mail, More; Inbox is the first More entry (owner request 2026-11-14). Web left navigation (SPEC.md §12) unchanged. Stacked screens (task detail, search, opened items) highlight the tab of the nearest destination below them on the back stack, so a task opened from New keeps New selected.
 - ASSUMPTION (2026-11-14 10:26+0100 by dell26/agent-1): Re-tapping the selected New/Calendar/Mail tab while a stacked screen (task, search) is open on it restores that stacked screen (standard saveState/restoreState), unlike Dashboard/More which return to their root; the criteria don't define reselect, left as is (review CR-2)
+- extended by dell26/agent-1: Implementation, tests, test-writer and code-review rounds done (final delta review at 3ec48717a: no material findings; CR-2/CR-3 optional P3 left open). Left: run android ktlintCheck testDebugUnitTest lintDebug + scripts/check.sh, record verify for criteria 1-5, write quality.json (reviewed_revision = final code commit, CR-2/CR-3 dispositions, fixes.md exists), commit, then tasks.py done.
