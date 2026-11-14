@@ -106,7 +106,19 @@ class MailHeaderSyncService(
 	 * @throws RemoteFolderNotFoundException when the folder no longer exists on the server
 	 * @throws ch.sonensei.cockpit.mail.imap.MailConnectionException when the server cannot be reached
 	 */
-	fun syncFolder(folderId: UUID): FolderSyncResult =
+	fun syncFolder(folderId: UUID): FolderSyncResult = sync(folderId, verifyUids = false)
+
+	/**
+	 * Like [syncFolder], but finds expunged messages by comparing the cached UIDs with the UIDs on the server, not by
+	 * the changes since the cached HIGHESTMODSEQ. Used right after a mail action moved or deleted messages: a sync that
+	 * read the folder before the action and stored its state afterwards cannot hide the expunge from this one.
+	 */
+	fun verifyFolder(folderId: UUID): FolderSyncResult = sync(folderId, verifyUids = true)
+
+	private fun sync(
+		folderId: UUID,
+		verifyUids: Boolean,
+	): FolderSyncResult =
 		lock(folderId).withLock {
 			val folder = folder(folderId)
 			val account = account(folder.accountId)
@@ -115,7 +127,7 @@ class MailHeaderSyncService(
 			val known = folder.uidValidity?.let { validity -> folder.highestModSeq?.let { KnownFolderState(validity, it) } }
 			val result =
 				mailbox.withFolder(account, folder.path, known) { remote ->
-					if (folder.uidValidity != remote.status.uidValidity) full(account, folder, remote) else incremental(account, folder, remote)
+					if (folder.uidValidity != remote.status.uidValidity) full(account, folder, remote) else incremental(account, folder, remote, verifyUids)
 				}
 			announce(result)
 			if (result.arrived.isNotEmpty()) announcer.announce(account, folder, result.arrived)
@@ -314,6 +326,7 @@ class MailHeaderSyncService(
 		account: MailAccount,
 		folder: MailFolder,
 		remote: RemoteFolder,
+		verifyUids: Boolean = false,
 	): FolderSyncResult {
 		val status = remote.status
 		val cached = store.locatedUids(folder.id)
@@ -333,7 +346,8 @@ class MailHeaderSyncService(
 					states to (cached.toSet() - states.map { it.uid }.toSet())
 				}
 			}
-		val counts = store.reconcile(folder.id, flagChanges, vanished)
+		val gone = if (verifyUids && lowest != null) vanished + (cached.toSet() - remote.uidsFrom(lowest).toSet()) else vanished
+		val counts = store.reconcile(folder.id, flagChanges, gone)
 		val previousNext = folder.uidNext ?: 1
 		val arrivals =
 			if (status.uidNext > previousNext) {

@@ -23,6 +23,32 @@ class MailFolderResyncTests {
 
 	init {
 		every { sync.syncFolder(any()) } answers { FolderSyncResult(firstArg(), full = false, 0, 0, 1) }
+		every { sync.verifyFolder(any()) } answers { FolderSyncResult(firstArg(), full = false, 0, 0, 1) }
+	}
+
+	@Test
+	fun `a verified request runs the UID-set sync in the background`() {
+		resync.requestVerified(folderId)
+		verify(exactly = 0) { sync.verifyFolder(any()) }
+
+		executor.runAll()
+		verify(exactly = 1) { sync.verifyFolder(folderId) }
+		verify(exactly = 0) { sync.syncFolder(any()) }
+	}
+
+	@Test
+	fun `a plain and a verified request for a pending folder merge into one verified sync, in either order`() {
+		val other = UUID.randomUUID()
+		resync.request(folderId)
+		resync.requestVerified(folderId)
+		resync.requestVerified(other)
+		resync.request(other)
+
+		executor.tasks.size shouldBe 2
+		executor.runAll()
+		verify(exactly = 1) { sync.verifyFolder(folderId) }
+		verify(exactly = 1) { sync.verifyFolder(other) }
+		verify(exactly = 0) { sync.syncFolder(any()) }
 	}
 
 	@Test
