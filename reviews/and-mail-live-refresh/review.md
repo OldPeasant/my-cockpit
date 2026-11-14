@@ -4,7 +4,7 @@ Date: 2026-11-14
 
 Task: and-mail-live-refresh - Android: mail views reload when new mail syncs (New, Mail list, Today), not only on resume
 
-Scope: re-review of the final code, `git diff 2c363a763cb34a2fce40ad68afafa0778036c597 094d34bda -- android` (task commits ee50ac07f..094d34bda). Committed changes only; uncommitted test edits present in the working tree at review time (DashboardMailRefreshTest.kt, MailListLiveRefreshTest.kt, from a helper running in parallel) were not reviewed.
+Scope: re-review of the final code, `git diff 2c363a763cb34a2fce40ad68afafa0778036c597 094d34bda -- android` (task commits ee50ac07f..094d34bda), plus the test-only delta in d8d028764 (see "Delta review" below). Committed changes only.
 
 Requirements:
 - tasks/and-mail-live-refresh.md (acceptance criteria and recorded assumptions, including the superseding one of 20:47)
@@ -14,9 +14,9 @@ Requirements:
 
 Git range:
 - Branch: main
-- HEAD: 094d34bda9ab79d99b44ee89af7614050f43af4a
+- HEAD: d8d0287643dfae377825ffd381d2387067200223
 - Base/start: 2c363a763cb34a2fce40ad68afafa0778036c597
-- Commits reviewed: 4 (ee50ac07f, c137dce61, 7fffc4fd0, 094d34bda; c137dce61 touches reviews only)
+- Commits reviewed: 5 (ee50ac07f, c137dce61, 7fffc4fd0, 094d34bda, d8d028764; c137dce61 touches reviews only, d8d028764 touches tests and reviews only)
 
 Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
@@ -50,6 +50,15 @@ None.
     - Why it matters: Mails silently missing from the middle of the list until the next manual refresh. Needs a large sync burst during a pending page load, so it is rare; no data is lost on the server.
     - Suggested fix: In both `loadMore()` result handlers, apply the page only when the state's `nextCursor` still equals the cursor the request used (otherwise just clear `loadingMore`); add a regression test with a non-overlapping event reload finishing before the page answer.
 
+## Delta review (d8d028764)
+
+Reviewed revision is now d8d0287643dfae377825ffd381d2387067200223. The delta since 094d34bda changes no production code; under `android/` it only adds two tests (`git show d8d028764 -- android`). Gradle was not run by the reviewer (a check was running in the clone); the test-writer reported both tests green.
+
+- `MailListLiveRefreshTest` "an event while a newly opened folder loads reloads that folder once it ends, not the unified inbox": holds the folder's first page open, emits MAIL_FOLDER, and asserts no extra load starts during the running first-page load, then exactly one follow-up load of the selected folder (not Unified), the follow-up answer shown, and `loading` cleared. This matches the `reloadPending` loop in `MailListViewModel.load` (lines 743-753), which reloads `state.value.mailbox`. Meaningful regression coverage for CR-3 on folder switch.
+- `DashboardMailRefreshTest` "a refresh during an event reload drops the event reload's older answer": holds the event-triggered INBOX reload open, runs a manual refresh that answers first, then completes the stale answer and asserts the refresh result stays and only three loads happened. This asserts the TW-1 behavior (refresh cancels the event reload). Because the cancelled coroutine never resumes, completing the deferred afterwards is a no-op; the assertion would also catch a regression where the event reload is not cancelled.
+
+Both tests assert observable state rather than internals, use the existing helpers (`shown`, `signal`, `quiet`, `firstPages`), and introduce no new findings. CR-4 remains open as before.
+
 ## Review conclusion
 
-No material issues found. The earlier findings CR-1, CR-2, CR-3 and TW-1 are resolved in 094d34bda; CR-4 is a low-priority edge case the parent may fix or record.
+No material issues found. The earlier findings CR-1, CR-2, CR-3 and TW-1 are resolved; the test-only delta in d8d028764 adds valid regression tests and no new findings. CR-4 is a low-priority edge case the parent may fix or record.
