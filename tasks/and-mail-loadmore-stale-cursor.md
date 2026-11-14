@@ -19,7 +19,8 @@ middle of the list until the next manual refresh (`NewViewModel.loadMore`, `Mail
   - verified (2026-11-14 21:18+0100 by dell26/agent-1): Guard in NewViewModel.loadMore / MailListViewModel.loadMore (cursor+mailbox compare); ./gradlew testDebugUnitTest --tests '*NewMailLiveRefreshTest' --tests '*MailListLiveRefreshTest' -> pass, incl. tests that a kept cursor still appends and a stale answer only ends loadingMore; code review 0 P0-P2
 - [x] Unit tests reproduce the race (full page of new mail during a pending load more) for both view models.
   - verified (2026-11-14 21:18+0100 by dell26/agent-1): New race tests (full page of new mail during pending load more) in NewMailLiveRefreshTest + MailListLiveRefreshTest: pass with fix; with production change stashed the same run gives 3 AssertionErrors
-- [ ] `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-14 21:18+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD OK; sh scripts/check.sh -> all checks passed
 
 ## Notes
 Rare (needs a full page of new mail at the wrong moment); nothing is lost on the server.
