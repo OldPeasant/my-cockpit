@@ -17,7 +17,8 @@ middle of the list until the next manual refresh (`NewViewModel.loadMore`, `Mail
 - [x] A load-more answer is applied only while the list's cursor is still the one the request used; otherwise it only
       ends the loading-more state (New view and Mail list).
   - verified (2026-11-14 21:18+0100 by dell26/agent-1): Guard in NewViewModel.loadMore / MailListViewModel.loadMore (cursor+mailbox compare); ./gradlew testDebugUnitTest --tests '*NewMailLiveRefreshTest' --tests '*MailListLiveRefreshTest' -> pass, incl. tests that a kept cursor still appends and a stale answer only ends loadingMore; code review 0 P0-P2
-- [ ] Unit tests reproduce the race (full page of new mail during a pending load more) for both view models.
+- [x] Unit tests reproduce the race (full page of new mail during a pending load more) for both view models.
+  - verified (2026-11-14 21:18+0100 by dell26/agent-1): New race tests (full page of new mail during pending load more) in NewMailLiveRefreshTest + MailListLiveRefreshTest: pass with fix; with production change stashed the same run gives 3 AssertionErrors
 - [ ] `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
