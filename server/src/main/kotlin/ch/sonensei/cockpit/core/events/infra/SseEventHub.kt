@@ -21,8 +21,9 @@ import java.util.concurrent.TimeUnit
  * - [onChange] forwards every [ChangeEvent] after the publishing transaction commits; an event published in a
  *   transaction that rolls back is dropped. An event published outside a transaction is forwarded right away.
  * - [onNotification] does the same for a [ClientNotification], under its own event name (e.g. `reminder`).
- * - Every [heartbeat] (default 25 s) each client gets a comment line, which keeps proxies from closing an idle
- *   stream and reveals clients that went away.
+ * - Every [heartbeat] (default 25 s) each client gets an event named [PING_EVENT_NAME] with data `{}`, which keeps
+ *   proxies from closing an idle stream, reveals clients that went away and, unlike a comment line, reaches the
+ *   browser's JavaScript, so a client can tell a silent (dead) stream from an idle one.
  * - Every stream ends after [streamTimeout] (default 15 min). EventSource clients reconnect on their own, and each
  *   reconnect passes the authorization filters again, so a stream outlives the end of its login (logout, expiry,
  *   revocation) by at most that time.
@@ -99,7 +100,14 @@ class SseEventHub(
 	}
 
 	private fun sendHeartbeat() {
-		emitters.forEach { emitter -> trySend(emitter) { SseEmitter.event().comment("heartbeat") } }
+		emitters.forEach { emitter ->
+			trySend(emitter) {
+				SseEmitter
+					.event()
+					.name(PING_EVENT_NAME)
+					.data(PING_DATA, MediaType.APPLICATION_JSON)
+			}
+		}
 	}
 
 	/** Sends one event; a client that cannot be written to is dropped. Builders are single-use, hence the factory. */
@@ -126,5 +134,11 @@ class SseEventHub(
 	companion object {
 		/** The SSE `event:` name of a [ChangeEvent]. */
 		const val EVENT_NAME = "change"
+
+		/** The SSE `event:` name of the heartbeat; clients that only listen to [EVENT_NAME] ignore it. */
+		const val PING_EVENT_NAME = "ping"
+
+		/** The heartbeat's data: browsers dispatch no event without a `data:` line. */
+		private const val PING_DATA = "{}"
 	}
 }
