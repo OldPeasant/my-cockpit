@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [web/src/app/core/events,server/src/main/kotlin/ch/sonensei/cockpit/core/events/infra/SseEventHub.kt,server/src/test/kotlin/ch/sonensei/cockpit/core/events]
 prio: 2
-lease_until: 2026-11-14T20:52:08Z
+lease_until: 2026-11-14T20:57:12Z
 releases: 2
 extended: 
 ---
