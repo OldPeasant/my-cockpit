@@ -720,6 +720,41 @@ describe('ChangeEventsService', () => {
       expect(latest().closed).toBe(false);
     });
 
+    it('treats a stream as silent on wake-up only after more than a heartbeat plus a check interval', () => {
+      connected();
+      latest().emit(PING_EVENT_NAME, '{}');
+      // 25 s heartbeat + 5 s check margin: exactly 30 s is still healthy.
+      vi.advanceTimersByTime(30_000);
+      window.dispatchEvent(new Event('online'));
+      expect(sources).toHaveLength(1);
+
+      vi.advanceTimersByTime(1);
+      window.dispatchEvent(new Event('online'));
+      expect(sources).toHaveLength(2);
+      expect(sources[0].closed).toBe(true);
+    });
+
+    it('starts the backoff over after a wake-up reconnect', () => {
+      connected();
+      latest().fail();
+      vi.advanceTimersByTime(1000);
+      latest().fail();
+      vi.advanceTimersByTime(2000);
+      latest().fail();
+      answerProbes();
+      expect(sources).toHaveLength(3);
+
+      // The next backoff would be 4 s; going online reconnects at once with a fresh backoff.
+      window.dispatchEvent(new Event('online'));
+      expect(sources).toHaveLength(4);
+      latest().fail();
+      answerProbes();
+      vi.advanceTimersByTime(999);
+      expect(sources).toHaveLength(4);
+      vi.advanceTimersByTime(1);
+      expect(sources).toHaveLength(5);
+    });
+
     it('ignores visibilitychange to hidden', () => {
       connected();
       vi.advanceTimersByTime(35_000);
