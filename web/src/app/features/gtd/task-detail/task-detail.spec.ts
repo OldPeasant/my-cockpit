@@ -30,6 +30,7 @@ import {
 } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
 import { ApiError, SILENT_ERRORS } from '../../../core/http';
+import { ProjectStore } from '../data';
 import { TaskUndo } from '../ui';
 import { CONFLICT_MESSAGE, TaskDetail } from './task-detail';
 import { ToCalendarData, ToCalendarDialog } from './to-calendar-dialog';
@@ -3252,6 +3253,238 @@ describe('TaskDetail', () => {
       expect(callsOf(createProject)).toHaveLength(1);
       expect(callsOf(updateTask).at(-1)!.params['body']).toEqual({ projectId: 'p9' });
       expect(element.querySelector('[role=alert]')).toBeNull();
+    });
+
+    it('after a failed save, Save retries with the created project without creating another', async () => {
+      answerCreate();
+      let saveFailures = 1;
+      const creating = answer!;
+      answer = (fn, params) => {
+        if (fn === updateTask && saveFailures-- > 0) throw new ApiError(500, 'Server error');
+        return creating(fn, params);
+      };
+      await render();
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Garage');
+      await create();
+      expect(element.querySelector('[role=alert]')).not.toBeNull();
+      expect(saveButton().disabled).toBe(false);
+
+      await save();
+      expect(callsOf(createProject)).toHaveLength(1);
+      expect(callsOf(updateTask)).toHaveLength(2);
+      expect(callsOf(updateTask)[1].params['body']).toEqual({ projectId: 'p9' });
+      expect(element.querySelector('[role=alert]')).toBeNull();
+      expect(field<HTMLSelectElement>('#td-project').value).toBe('p9');
+    });
+
+    it('choosing another project after a failed save forgets the created one', async () => {
+      const shed = { id: 'p10', title: 'Shed', status: 'ACTIVE' } as ProjectResponse;
+      let saveFailures = 1;
+      const bodies: unknown[] = [];
+      answer = (fn, params) => {
+        if (fn === createProject) {
+          bodies.push(params['body']);
+          return bodies.length === 1 ? created : shed;
+        }
+        if (fn === updateTask && saveFailures-- > 0) throw new ApiError(500, 'Server error');
+        return undefined;
+      };
+      await render();
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Garage');
+      await create();
+      expect(element.querySelector('[role=alert]')).not.toBeNull();
+
+      // Choosing an existing project drops the remembered one ...
+      await choose('#td-project', 'p1');
+      // ... so "New project…" creates a fresh project again.
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Shed');
+      await create();
+
+      expect(bodies).toEqual([{ title: 'Garage' }, { title: 'Shed' }]);
+      expect(callsOf(updateTask).at(-1)!.params['body']).toEqual({ projectId: 'p10' });
+      expect(field<HTMLSelectElement>('#td-project').value).toBe('p10');
+    });
+
+    it('Escape in the title field cancels without closing anything else', async () => {
+      answerCreate();
+      await render(task({ projectId: 'p1' }));
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Garage');
+      const outer = vi.fn();
+      element.addEventListener('keydown', outer);
+
+      const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true });
+      field('#td-new-project').dispatchEvent(escape);
+      await refresh();
+
+      expect(outer).not.toHaveBeenCalled();
+      expect(element.querySelector('#td-new-project')).toBeNull();
+      expect(field<HTMLSelectElement>('#td-project').value).toBe('p1');
+      expect(callsOf(createProject)).toHaveLength(0);
+      expect(saveButton().disabled).toBe(true);
+    });
+
+    it('Enter in the title field creates the project', async () => {
+      answerCreate();
+      await render();
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Garage');
+      field('#td-new-project').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      await refresh();
+
+      expect(callsOf(createProject).map((call) => call.params['body'])).toEqual([
+        { title: 'Garage' },
+      ]);
+      expect(callsOf(updateTask)[0].params['body']).toEqual({ projectId: 'p9' });
+    });
+
+    it('choosing "New project…" alone changes nothing to save', async () => {
+      await render(task({ projectId: 'p1' }));
+      await choose('#td-project', 'new-project');
+      expect(field<HTMLSelectElement>('#td-project').value).toBe('new-project');
+      expect(saveButton().disabled).toBe(true);
+      expect(text()).not.toContain('Unsaved changes');
+    });
+
+    it('the new project is offered in the picker and kept in the project list', async () => {
+      answerCreate();
+      await render();
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Garage');
+      await create();
+
+      const options = [...field<HTMLSelectElement>('#td-project').options].map((o) => o.value);
+      expect([...options].sort()).toEqual(['', 'new-project', 'p1', 'p9']);
+      expect(options.at(-1)).toBe('new-project');
+      expect(
+        TestBed.inject(ProjectStore)
+          .items()
+          .map((project) => project.id),
+      ).toContain('p9');
+      expect(server.projectId).toBe('p9');
+    });
+
+    it('saves other unsaved edits together with the new project', async () => {
+      answerCreate();
+      await render();
+      await type('#td-title', 'Call the plumber today');
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Garage');
+      await create();
+
+      expect(callsOf(updateTask)).toHaveLength(1);
+      expect(callsOf(updateTask)[0].params['body']).toEqual({
+        title: 'Call the plumber today',
+        projectId: 'p9',
+      });
+    });
+
+    it('locks the picker and buttons while the project is being created', async () => {
+      let finish!: (project: ProjectResponse) => void;
+      answer = (fn) =>
+        fn === createProject
+          ? new Promise<ProjectResponse>((resolve) => (finish = resolve))
+          : undefined;
+      await render(task({ projectId: 'p1' }));
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Garage');
+      await create();
+
+      expect(field<HTMLSelectElement>('#td-project').disabled).toBe(true);
+      expect(field('#td-new-project').disabled).toBe(true);
+      expect(field<HTMLButtonElement>('.pair button.primary').disabled).toBe(true);
+      expect(field<HTMLButtonElement>('.pair button.quiet').disabled).toBe(true);
+      // Escape while creating does not drop the running creation.
+      field('#td-new-project').dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+      );
+      // A second Enter does not create a second project.
+      field('#td-new-project').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      await refresh();
+      expect(element.querySelector('#td-new-project')).not.toBeNull();
+      expect(callsOf(createProject)).toHaveLength(1);
+
+      finish(created);
+      await refresh();
+      expect(callsOf(createProject)).toHaveLength(1);
+      expect(callsOf(updateTask)[0].params['body']).toEqual({ projectId: 'p9' });
+      expect(field<HTMLSelectElement>('#td-project').disabled).toBe(false);
+      expect(field<HTMLSelectElement>('#td-project').value).toBe('p9');
+    });
+
+    it('switching to another task while creating does not assign the project to it', async () => {
+      let finish!: (project: ProjectResponse) => void;
+      answer = (fn) =>
+        fn === createProject
+          ? new Promise<ProjectResponse>((resolve) => (finish = resolve))
+          : undefined;
+      await render();
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Garage');
+      await create();
+
+      server = task({ id: 't2', title: 'Buy paint', projectId: 'p1' });
+      host.id.set('t2');
+      await refresh();
+      expect(element.querySelector('#td-new-project')).toBeNull();
+
+      finish(created);
+      await refresh();
+      expect(callsOf(updateTask)).toHaveLength(0);
+      expect(field<HTMLTextAreaElement>('#td-title').value).toBe('Buy paint');
+      expect(field<HTMLSelectElement>('#td-project').value).toBe('p1');
+      expect(element.querySelector('[role=alert]')).toBeNull();
+    });
+
+    it('switching to another task while creating fails shows no error there', async () => {
+      let fail!: (error: unknown) => void;
+      answer = (fn) =>
+        fn === createProject
+          ? new Promise<ProjectResponse>((_, reject) => (fail = reject))
+          : undefined;
+      await render();
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Garage');
+      await create();
+
+      server = task({ id: 't2', title: 'Buy paint' });
+      host.id.set('t2');
+      await refresh();
+      fail(new ApiError(500, 'Server error'));
+      await refresh();
+
+      expect(element.querySelector('[role=alert]')).toBeNull();
+      expect(callsOf(updateTask)).toHaveLength(0);
+    });
+
+    it('a project remembered for one task is not reused for another', async () => {
+      const shed = { id: 'p10', title: 'Shed', status: 'ACTIVE' } as ProjectResponse;
+      let saveFailures = 1;
+      let creates = 0;
+      answer = (fn) => {
+        if (fn === createProject) return ++creates === 1 ? created : shed;
+        if (fn === updateTask && saveFailures-- > 0) throw new ApiError(500, 'Server error');
+        return undefined;
+      };
+      await render();
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Garage');
+      await create();
+      expect(element.querySelector('[role=alert]')).not.toBeNull();
+
+      server = task({ id: 't2', title: 'Buy paint' });
+      host.id.set('t2');
+      await refresh();
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Shed');
+      await create();
+
+      expect(creates).toBe(2);
+      const last = callsOf(updateTask).at(-1)!;
+      expect(last.params).toMatchObject({ id: 't2', body: { projectId: 'p10' } });
     });
   });
 });
