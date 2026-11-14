@@ -302,12 +302,14 @@ private fun NavHostController.open(destination: CockpitDestination) {
  * `saveState` applies to the tab being left (the entries popped here), so it is always on, also when the target
  * is More. Only More itself is never restored, so selecting More (from one of its screens or from another tab)
  * always opens the More list; the state saved for More is simply replaced the next time More is left.
+ * The start destination is never restored either: it stays at the bottom of the stack with its own state, and the
+ * state saved for it is that of the screens popped above it (e.g. the Inbox opened from its card), which would come back.
  */
 private fun NavHostController.navigateToTopLevel(destination: CockpitDestination) {
     navigate(destination.route) {
         popUpTo(graph.findStartDestination().id) { saveState = true }
         launchSingleTop = true
-        restoreState = destination != CockpitDestination.More
+        restoreState = destination != CockpitDestination.More && destination != CockpitDestination.start
     }
 }
 
