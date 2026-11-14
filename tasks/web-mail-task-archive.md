@@ -22,3 +22,4 @@ opens right away so the owner can fix title, context and project. Several mails:
 
 ## Notes
 Planned 2026-11-14 with the owner: from a mail, make a Next action and archive the mail in one step (mails already clarified should not pass through the cockpit Inbox again); create a project directly from the task detail.
+- ASSUMPTION (2026-11-14 11:08+0100 by dell26/agent-1): Mail list: the action applies to the list items (selection, else cursor); in threaded view one Next action per conversation item (its listed message), not per message of the thread. With exactly one target the list also opens the task detail, like the read view.
