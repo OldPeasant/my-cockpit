@@ -14,7 +14,8 @@ Android part of "→ Next action & archive" (server call from `mail-task-archive
 `web-mail-task-archive`.
 
 ## Acceptance criteria
-- [ ] Mail read view: "Next action & archive" action next to "To task" (which stays unchanged); on success the new task's detail opens, and Back returns to where the mail was opened from
+- [x] Mail read view: "Next action & archive" action next to "To task" (which stays unchanged); on success the new task's detail opens, and Back returns to where the mail was opened from
+  - verified (2026-11-14 09:50+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest (MailNextActionInAppTest read-view tests: TaskAlt next to To task, new task detail opens, Back returns to origin; MailReadNextActionRouteTest, MailReadScreenTest) -> pass, 5492 tests 0 failures
 - [ ] New view: mail rows offer the same action, with the same result as in the read view
 - [ ] Mail list multi-select: the action creates one Next action per selected mail and archives them; the list stays, the mails leave it, and a snackbar "N next actions created" offers to open Next Actions
 - [ ] Archive failure: the task is kept (single mail: its detail still opens) and a message says which mail was not archived; a failed task creation leaves the mail in place with an error
