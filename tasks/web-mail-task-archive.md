@@ -21,7 +21,8 @@ opens right away so the owner can fix title, context and project. Several mails:
 - [x] Archive failure: the task is kept (single mail: its detail still opens) and an error says which mail was not archived; a failed task creation leaves the mail in place with an error
   - verified (2026-11-14 11:26+0100 by dell26/agent-1): same spec run -> 583 passed; archived=false: task detail still opens (single) and error names the mail; several: one combined error naming mails not archived; request failure: error, mail stays, no navigation; partial chunk failure reported
 - [ ] The task detail's linked items show the mail, and opening it shows the archived mail
-- [ ] New UI strings are in `web/src/locale` (English + German); shortcut listed in the keyboard help where shortcuts are listed
+- [x] New UI strings are in `web/src/locale` (English + German); shortcut listed in the keyboard help where shortcuts are listed
+  - verified (2026-11-14 11:26+0100 by dell26/agent-1): new trans-units mail.nextAction.*, mail.action.nextAction, mailShortcuts.nextAction, mailRead.toNextAction, new.toNextAction in messages.xlf + messages.de.xlf; cd web && npm run build:de -> bundle complete, no missing translation; mail-shortcuts.spec: T listed in MAIL_LIST_HELP and MAIL_READ_HELP (? help), New view keys hint mentions Shift+T
 - [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
 
 ## Notes
