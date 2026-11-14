@@ -5,6 +5,7 @@ import { ApiError, NotificationService } from '../../../core/http';
 import {
   MAIL_FOLDER_EVENT,
   MailListStore,
+  NextActionsPartlyFailedError,
   REFRESH_DEBOUNCE_MS,
   THREAD_LOOKUP_CONCURRENCY,
   withAction,
@@ -17,6 +18,7 @@ import {
   MailScope,
   MailService,
   MailSummary,
+  PartialNextActionsError,
 } from './mail.service';
 
 const flush = async () => {
@@ -265,6 +267,132 @@ describe('MailListStore', () => {
       await loaded([]);
       expect(await store.toNextActions()).toBeNull();
       expect(mail.toTasks).toEqual([]);
+    });
+
+    it('keeps what a partly failed run created: archived mails leave, the rest stays', async () => {
+      store.toggleAll();
+      const done = store.toNextActions();
+      await flush();
+      const failure = new ApiError(503, 'Service Unavailable', 'Mail server unreachable');
+      mail.toTasks[0].reject(
+        new PartialNextActionsError([toTaskResult('a'), toTaskResult('b', false)], failure),
+      );
+      const error = await done.catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(NextActionsPartlyFailedError);
+      const partly = error as NextActionsPartlyFailedError;
+      expect(partly.outcome.map(({ item, result }) => [item.id, result.archived])).toEqual([
+        ['a', true],
+        ['b', false],
+      ]);
+      expect(partly.failed.map((item) => item.id)).toEqual(['c', 'd']);
+      expect(partly.failure).toBe(failure);
+      expect(ids()).toEqual(['b', 'c', 'd']);
+      expect(errors).toEqual([]);
+    });
+
+    describe('in the threaded view', () => {
+      const threaded = { folderId: INBOX, threaded: true };
+
+      beforeEach(async () => {
+        await loaded(
+          [summary('a', { threadSize: 3 }), summary('b'), summary('c', { threadSize: 2 })],
+          threaded,
+        );
+        mail.threads.set('a', [summary('a0'), summary('sent', { folderId: OTHER }), summary('a')]);
+        mail.threads.set('c', [summary('c'), summary('c1')]);
+      });
+
+      it('makes one task per row and archives the rest of its conversation in the folder', async () => {
+        store.toggleAll();
+        const done = store.toNextActions();
+        await flush();
+        expect(mail.toTasks[0].ids).toEqual(['a', 'b', 'c']);
+        const pages = mail.lists.length;
+        mail.toTasks[0].resolve([toTaskResult('a'), toTaskResult('b'), toTaskResult('c')]);
+        await flush();
+        await flush();
+        expect(ids()).toEqual([]);
+        expect(mail.applies).toHaveLength(1);
+        expect(mail.applies[0]).toMatchObject({ action: 'ARCHIVE', ids: ['a0', 'c1'] });
+        mail.succeed();
+        expect((await done)!).toHaveLength(3);
+        expect(ids()).toEqual([]);
+        // Nothing to settle: no refetch.
+        expect(mail.lists).toHaveLength(pages);
+      });
+
+      it('leaves the conversation of a mail whose archive failed alone', async () => {
+        const done = store.toNextActions(); // a, under the cursor
+        await flush();
+        mail.toTasks[0].resolve([toTaskResult('a', false)]);
+        await done;
+        expect(mail.applies).toEqual([]);
+        expect(ids()).toEqual(['a', 'b', 'c']);
+      });
+
+      it('sends no archive when the conversation has no other message in the folder', async () => {
+        mail.threads.set('a', [summary('a'), summary('sent', { folderId: OTHER })]);
+        const pages = mail.lists.length;
+        const done = store.toNextActions();
+        await flush();
+        mail.toTasks[0].resolve([toTaskResult('a')]);
+        await done;
+        expect(mail.applies).toEqual([]);
+        expect(ids()).toEqual(['b', 'c']);
+        expect(mail.lists).toHaveLength(pages);
+      });
+
+      it('sends no archive for single messages', async () => {
+        store.setCursor('b');
+        const done = store.toNextActions();
+        await flush();
+        mail.toTasks[0].resolve([toTaskResult('b')]);
+        await done;
+        expect(mail.applies).toEqual([]);
+        expect(ids()).toEqual(['a', 'c']);
+      });
+
+      it('refetches the list when archiving the rest of a conversation failed', async () => {
+        const pages = mail.lists.length;
+        const done = store.toNextActions();
+        await flush();
+        mail.toTasks[0].resolve([toTaskResult('a')]);
+        await flush();
+        await flush();
+        expect(mail.applies[0]).toMatchObject({ action: 'ARCHIVE', ids: ['a0'] });
+        mail.succeed(0, ['a0']);
+        await done;
+        expect(mail.lists).toHaveLength(pages + 1);
+        expect(mail.lists[pages].scope).toEqual(threaded);
+        mail.lists[pages].resolve({
+          items: [summary('a0'), summary('b'), summary('c')],
+          nextCursor: null,
+        });
+        await flush();
+        expect(ids()).toEqual(['a0', 'b', 'c']);
+        // The page reports the task; the store shows no action error of its own.
+        expect(errors).toEqual([]);
+      });
+
+      it('refetches the list when the conversation could not be looked up', async () => {
+        mail.thread = () => Promise.reject(new Error('offline'));
+        const pages = mail.lists.length;
+        const done = store.toNextActions();
+        await flush();
+        mail.toTasks[0].resolve([toTaskResult('a')]);
+        await done;
+        expect(mail.applies).toEqual([]);
+        expect(mail.lists).toHaveLength(pages + 1);
+      });
+
+      it('does not archive conversations in the flat view', async () => {
+        await loaded([summary('a', { threadSize: 3 })]);
+        const done = store.toNextActions();
+        await flush();
+        mail.toTasks[0].resolve([toTaskResult('a')]);
+        await done;
+        expect(mail.applies).toEqual([]);
+      });
     });
 
     describe('with live updates', () => {

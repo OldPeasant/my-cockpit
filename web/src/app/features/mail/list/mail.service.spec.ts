@@ -3,7 +3,12 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { ApiError, NotificationService, provideHttp, SILENT_ERRORS } from '../../../core/http';
 import { summary } from './mail-testing';
-import { MAIL_LOAD_OLDER_LIMIT, MAIL_PAGE_SIZE, MailService } from './mail.service';
+import {
+  MAIL_LOAD_OLDER_LIMIT,
+  MAIL_PAGE_SIZE,
+  MailService,
+  PartialNextActionsError,
+} from './mail.service';
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve));
 
@@ -318,6 +323,51 @@ describe('MailService', () => {
       expect(third.request.body).toEqual({ ids: ['m-200'], list: 'NEXT', archive: true });
       third.flush({ results: [result('m-200')] });
       expect((await done).map((r) => r.id)).toEqual(ids);
+    });
+
+    it.each([
+      [2, 200],
+      [1, 100],
+    ])(
+      'keeps the earlier results when request %i fails after others succeeded (%i results)',
+      async (failing, kept) => {
+        const ids = Array.from({ length: 201 }, (_, i) => `m-${i}`);
+        const done = service.toNextActions(ids);
+        for (let index = 0; index < failing; index++) {
+          const req = await request('/api/v1/mail/messages/to-tasks');
+          req.flush({ results: req.request.body.ids.map((id: string) => result(id)) });
+        }
+        const failed = await request('/api/v1/mail/messages/to-tasks');
+        failed.flush(
+          { status: 503, title: 'Service Unavailable', detail: 'Mail server unreachable' },
+          { status: 503, statusText: 'Service Unavailable' },
+        );
+        const error = await done.catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(PartialNextActionsError);
+        const partial = error as PartialNextActionsError;
+        expect(partial.results.map((r) => r.id)).toEqual(ids.slice(0, kept));
+        expect(partial.failure).toBeInstanceOf(ApiError);
+        expect((partial.failure as ApiError).userMessage).toBe('Mail server unreachable');
+        // No request follows the failed one.
+        await tick();
+        http.expectNone('/api/v1/mail/messages/to-tasks');
+        expect(notifications.error).not.toHaveBeenCalled();
+      },
+    );
+
+    it('rejects a failed first request with its own error: no task was created', async () => {
+      const ids = Array.from({ length: 150 }, (_, i) => `m-${i}`);
+      const done = service.toNextActions(ids);
+      const req = await request('/api/v1/mail/messages/to-tasks');
+      req.flush(
+        { status: 404, title: 'Not Found', detail: 'Message not found' },
+        { status: 404, statusText: 'Not Found' },
+      );
+      const error = await done.catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error).not.toBeInstanceOf(PartialNextActionsError);
+      await tick();
+      http.expectNone('/api/v1/mail/messages/to-tasks');
     });
 
     it('sends exactly 100 ids in one request', async () => {

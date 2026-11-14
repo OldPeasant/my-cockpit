@@ -19,7 +19,13 @@ import { PageShortcuts } from '../../../shell/page-shortcuts';
 import { MailListSession } from './mail-list-session';
 import { MAIL_LIST_HELP } from './mail-shortcuts';
 import { MAIL_FOLDER_EVENT, MailListStore, REFRESH_DEBOUNCE_MS } from './mail-list-store';
-import { MAIL_MAX_PAGE_SIZE, MailPage, MailService, MailSummary } from './mail.service';
+import {
+  MAIL_MAX_PAGE_SIZE,
+  MailPage,
+  MailService,
+  MailSummary,
+  PartialNextActionsError,
+} from './mail.service';
 
 const flush = async () => {
   for (let i = 0; i < 10; i++) await Promise.resolve();
@@ -1813,10 +1819,65 @@ describe('MailListPage', () => {
       // The archived mail left the list; the other one stays (its task is kept).
       expect(ids()).toEqual(['b', 'c']);
       expect(navigate).not.toHaveBeenCalled();
-      // One error names the mail that was not archived, and only that one.
-      expect(errors).toHaveLength(1);
-      expect(errors[0]).toContain('“Lunch”');
-      expect(errors[0]).not.toContain('Report');
+      // One message (a snack bar replaces the one before): the count, and the mail not archived.
+      expect(errors).toEqual(['2 next actions created. Not archived: “Lunch”.']);
+      expect(snackOpen).not.toHaveBeenCalled();
+    });
+
+    it('names every mail not archived in the one error', async () => {
+      await open();
+      listStore().toggleAll();
+      fixture.detectChanges();
+      button(LABEL).click();
+      await answer([toTaskResult('a', false), toTaskResult('b'), toTaskResult('c', false)]);
+      expect(ids()).toEqual(['a', 'c']);
+      expect(errors).toEqual(['3 next actions created. Not archived: “Report”, “Invoice”.']);
+      expect(snackOpen).not.toHaveBeenCalled();
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('reports created tasks and the mails left without one when a later request failed', async () => {
+      await open();
+      listStore().toggleAll();
+      fixture.detectChanges();
+      button(LABEL).click();
+      await flush();
+      mail.toTasks[0].reject(
+        new PartialNextActionsError(
+          [toTaskResult('a'), toTaskResult('b', false)],
+          new ApiError(503, 'Service Unavailable', 'Mail server unreachable'),
+        ),
+      );
+      await flush();
+      fixture.detectChanges();
+      // a got its task and was archived; b got its task but stays; c got no task and stays.
+      expect(ids()).toEqual(['b', 'c']);
+      expect(errors).toEqual([
+        '2 next actions created. Not archived: “Lunch”. 1 mails got no next action: ' +
+          'Mail server unreachable',
+      ]);
+      expect(navigate).not.toHaveBeenCalled();
+      expect(snackOpen).not.toHaveBeenCalled();
+      expect(button(LABEL).disabled).toBe(false);
+    });
+
+    it('does not open the one created task when other mails got none', async () => {
+      await open();
+      listStore().toggleSelected('a');
+      listStore().toggleSelected('b');
+      fixture.detectChanges();
+      button(LABEL).click();
+      await flush();
+      mail.toTasks[0].reject(
+        new PartialNextActionsError([toTaskResult('a')], new TypeError('Failed to fetch')),
+      );
+      await flush();
+      fixture.detectChanges();
+      expect(ids()).toEqual(['b', 'c']);
+      expect(errors).toEqual([
+        '1 next actions created. 1 mails got no next action: Something went wrong.',
+      ]);
+      expect(navigate).not.toHaveBeenCalled();
     });
 
     it('still opens the task of a single mail whose archive failed', async () => {

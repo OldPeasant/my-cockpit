@@ -388,7 +388,8 @@ describe('NewPage', () => {
     });
 
     it('stays with the mail in place and the error when the task could not be created', async () => {
-      nextActionAnswer = () => Promise.reject(new ApiError(404, 'Not found', 'The message is gone.'));
+      nextActionAnswer = () =>
+        Promise.reject(new ApiError(404, 'Not found', 'The message is gone.'));
       await open();
       button(LABEL, row('mail:m1')!)!.click();
       await refresh();

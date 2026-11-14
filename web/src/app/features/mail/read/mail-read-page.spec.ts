@@ -1771,6 +1771,30 @@ describe('MailReadPage', () => {
       expect(navigate).toHaveBeenCalledTimes(1);
     });
 
+    it('falls back to general words when the failed archive has no code or message', async () => {
+      await open();
+      mail.toTaskAnswer = [{ ...toTaskResult(ID, false), archiveErrorCode: null }];
+      button(LABEL)!.click();
+      await flush();
+      expect(notifications.error).toHaveBeenCalledExactlyOnceWith(
+        'The next action was created, but “Quarterly report” could not be archived: ' +
+          'Something went wrong.',
+      );
+      expect(navigate).toHaveBeenCalledTimes(1);
+    });
+
+    it('still opens the task when updating the list it was opened from fails', async () => {
+      await open();
+      removed.mockRejectedValue(new Error('storage unavailable'));
+      button(LABEL)!.click();
+      await flush();
+      expect(removed).toHaveBeenCalledWith(ID);
+      expect(navigate).toHaveBeenCalledExactlyOnceWith(['/tasks', `task-${ID}`], {
+        replaceUrl: true,
+      });
+      expect(notifications.error).not.toHaveBeenCalled();
+    });
+
     it('stays on the message with the API error when the task could not be created', async () => {
       await open();
       mail.toTaskAnswer = new ApiError(404, 'Not Found', 'Message not found');
@@ -1821,6 +1845,23 @@ describe('MailReadPage', () => {
       fixture.detectChanges();
       expect(navigate).toHaveBeenCalledTimes(1);
       expect(button(LABEL)!.disabled).toBe(false);
+    });
+
+    it('blocks Archive, Spam, Delete, Mark unread, Star and Move while it runs', async () => {
+      await open();
+      const pending = deferred<MailToTaskResultResponse[] | Error>();
+      mail.toTaskAnswer = pending.promise;
+      button(LABEL)!.click();
+      fixture.detectChanges();
+      const manage = ['Mark unread', '☆ Star', 'Move', 'Archive', 'Spam', 'Delete'];
+      expect(manage.map((label) => button(label)!.disabled)).toEqual(manage.map(() => true));
+      for (const key of ['e', '!', '#', 'u', 's']) press(key);
+      await flush();
+      expect(mail.applies).toEqual([]);
+      pending.resolve([toTaskResult(ID)]);
+      await flush();
+      fixture.detectChanges();
+      expect(manage.map((label) => button(label)!.disabled)).toEqual(manage.map(() => false));
     });
 
     it('is disabled while an archive runs', async () => {
