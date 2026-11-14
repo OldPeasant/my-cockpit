@@ -568,6 +568,74 @@ class MailActionServiceTests {
 	}
 
 	@Test
+	fun `a move resyncs the source and the target folder by UID set in the background`() {
+		val message = cached(inbox, 7)
+		val found = onServer(remoteInbox, 7)
+		every { remoteInbox.moveUIDMessages(found, remoteProjects) } returns arrayOf(AppendUID(UIDVALIDITY, 41))
+
+		service.apply(listOf(message.id), MailAction.MOVE, projects.id) shouldBe listOf(MailActionOutcome.ok(message.id))
+
+		verify(exactly = 1) { resync.requestVerified(inbox.id) }
+		verify(exactly = 1) { resync.requestVerified(projects.id) }
+		verify(exactly = 0) { resync.request(any()) }
+	}
+
+	@Test
+	fun `a delete outside Trash resyncs the source and Trash by UID set in the background`() {
+		val message = cached(inbox, 7)
+		val found = onServer(remoteInbox, 7)
+		every { remoteInbox.moveUIDMessages(found, remoteTrash) } returns arrayOf(AppendUID(UIDVALIDITY, 12))
+
+		service.apply(listOf(message.id), MailAction.DELETE, null) shouldBe listOf(MailActionOutcome.ok(message.id))
+
+		verify(exactly = 1) { resync.requestVerified(inbox.id) }
+		verify(exactly = 1) { resync.requestVerified(trash.id) }
+		verify(exactly = 0) { resync.request(any()) }
+	}
+
+	@Test
+	fun `a delete in Trash resyncs only Trash by UID set in the background`() {
+		val message = cached(trash, 3)
+		onServer(remoteTrash, 3)
+
+		service.apply(listOf(message.id), MailAction.DELETE, null) shouldBe listOf(MailActionOutcome.ok(message.id))
+
+		verify(exactly = 1) { resync.requestVerified(trash.id) }
+		verify(exactly = 0) { resync.requestVerified(inbox.id) }
+		verify(exactly = 0) { resync.request(any()) }
+	}
+
+	@Test
+	fun `a flag change starts no UID-set resync, and only a plain resync when its message is gone`() {
+		val present = cached(inbox, 7)
+		onServer(remoteInbox, 7)
+		service.apply(listOf(present.id), MailAction.FLAG, null) shouldBe listOf(MailActionOutcome.ok(present.id))
+		verify(exactly = 0) { resync.request(any()) }
+
+		val gone = cached(inbox, 8)
+		every { remoteInbox.getMessagesByUID(longArrayOf(8)) } returns arrayOf(null)
+		service.apply(listOf(gone.id), MailAction.FLAG, null).single().errorCode shouldBe "NOT_FOUND"
+
+		verify(exactly = 1) { resync.request(inbox.id) }
+		verify(exactly = 0) { resync.requestVerified(any()) }
+	}
+
+	@Test
+	fun `a move whose cache update gives up after conflicts still resyncs the source by UID set so the row cannot stay`() {
+		// Regression for mail-action-settle: a concurrent sync of the source keeps conflicting with the cache update, which
+		// leaves the moved row in the source. Without the verified resync it stayed listed until the next poll.
+		val message = cached(inbox, 7)
+		val found = onServer(remoteInbox, 7)
+		every { remoteInbox.moveUIDMessages(found, remoteProjects) } returns arrayOf(AppendUID(UIDVALIDITY, 41))
+		flushConflicts(Int.MAX_VALUE, ::versionConflict)
+
+		service.apply(listOf(message.id), MailAction.MOVE, projects.id) shouldBe listOf(MailActionOutcome.ok(message.id))
+
+		verify(exactly = 1) { resync.requestVerified(inbox.id) }
+		verify(exactly = 1) { resync.requestVerified(projects.id) }
+	}
+
+	@Test
 	fun `a delete in Trash of a message already gone from Trash is ok and removes the row like an expunge`() {
 		val gone = cached(trash, 3)
 		every { remoteTrash.getMessagesByUID(longArrayOf(3)) } returns arrayOf(null)
