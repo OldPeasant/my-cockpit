@@ -1,11 +1,13 @@
 ---
 title: Android task detail: create a new project from the project picker
-status: in_progress
-owner: felix/agent-1
+status: todo
+owner: 
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/test/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml]
 prio: 2
-lease_until: 2026-11-14T10:29:00Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 The task detail `ProjectPicker` (`gtd/task/TaskDetailScreen.kt`) offers only existing projects or "No project".
@@ -27,3 +29,4 @@ Planned 2026-11-14 with the owner: from a mail, make a Next action and archive t
 - ASSUMPTION (2026-11-14 10:13+0100 by felix/agent-1): New project… sets the new project in the edit form's draft; the task is assigned when the form is saved (like picking any project in the picker). A failed save keeps the project in the draft, so Save again creates no second project; a project already created in this screen with the same title is reused.
 - ASSUMPTION (2026-11-14 10:14+0100 by felix/agent-1): If the form is cancelled after New project…, the project stays (Active, empty); no automatic delete.
 - ASSUMPTION (2026-11-14 10:28+0100 by felix/agent-1): Added ProjectResponse.toDomain() to gtd/data/GtdMappers.kt (outside touches, 3 lines) to avoid a duplicate project mapping (review CR-3).
+- release by felix/agent-1: over budget after 2 sessions (~52 min) and a review that decided nothing; still resumable: continue from wip/and-task-new-project (see git log)
