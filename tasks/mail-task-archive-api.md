@@ -1,11 +1,11 @@
 ---
 title: Mail → Next action & archive: server call
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd,server/src/test/kotlin/ch/sonensei/cockpit/mail/gtd,api/openapi.yaml,web/src/app/api/generated,SPEC.md]
 prio: 2
-lease_until: 2026-11-14T08:32:19Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -33,3 +33,4 @@ points (read view, New view row, mail list multi-select) and handles partial fai
 Planned 2026-11-14 with the owner: from a mail, make a Next action and archive the mail in one step (mails already clarified should not pass through the cockpit Inbox again); create a project directly from the task detail.
 - ASSUMPTION (2026-11-14 08:27+0100 by dell26/agent-1) [confirmed 2026-11-14 08:57+0100 by Peter Gürtler]: Endpoint is POST /api/v1/mail/messages/to-tasks {ids (1..100), list (default NEXT; only NEXT, INBOX, SOMEDAY allowed, WAITING/SCHEDULED -> 400 since they need fields a mail does not give), archive (default true)}; 200 with one result per distinct id; any unknown id -> 404 and nothing created for any id (all ids resolved before creating); ids resolving to the same message share one task
 - release by dell26/agent-1: Done: MailGtdService.toTasks + MailTaskArchiveController (POST /api/v1/mail/messages/to-tasks), MailTaskArchiveWebTests (6 pass: ./gradlew test --tests '*MailTaskArchiveWebTests'), MailTaskArchiveGreenMailTests (3/4 pass via ./gradlew integrationTest --tests '*MailTaskArchiveGreenMailTests'). Left: (1) the 'without MOVE' GreenMail test fails with StackOverflowError because mockkConstructor(IMAPStore) recurses in Angus; replace it (e.g. check whether GreenMail advertises MOVE at all, else a test IMAPStore subclass overriding hasCapability or a spy around MailSessions) ; (2) regenerate api/openapi.yaml + web generated client (api/README.md, npm run api:gen); (3) SPEC.md 7.3/7.4 text; (4) test-writer + code-reviewer + quality.json, verify, done. Existing MailGtdWebTests still pass (to-task unchanged).
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 73s on 50efcec04; criteria verified 6/6
