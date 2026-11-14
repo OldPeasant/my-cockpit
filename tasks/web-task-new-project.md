@@ -20,3 +20,4 @@ Inbox processing already has "New project…" (`gtd/inbox/inbox-page.ts`); reuse
 
 ## Notes
 Planned 2026-11-14 with the owner: from a mail, make a Next action and archive the mail in one step (mails already clarified should not pass through the cockpit Inbox again); create a project directly from the task detail.
+- ASSUMPTION (2026-11-14 11:45+0100 by dell26/agent-1): Task detail 'New project…' asks for the title inline below the picker (as Inbox processing does) with Create/Cancel; Create assigns the project and saves the whole form (other unsaved edits included), since the editor has one Save for all fields.
