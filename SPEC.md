@@ -402,6 +402,11 @@ POST       /api/v1/calendar/sources/{id}/sync
   e.g. Gmail). Recipient autocomplete from Contacts + recent correspondents.
 - GTD integration: "→ Inbox task", "→ Waiting For" (from sent mails: waiting for reply from
   recipient), "Create note", link email to project. Linked tasks show a link back to the mail.
+  **"→ Next action & archive"** (read view, New view row, list multi-select) is the GTD
+  clarify step in one call: per mail a task titled with the subject goes to Next Actions
+  (Inbox or Someday on request), linked like "→ Inbox task", then the mail is archived (as
+  the archive action). A failed archive keeps its task and is reported per mail; the link
+  keeps resolving to the moved mail (also on servers without IMAP MOVE).
 - Search: server-side over cached headers/bodies; option "search on server" (IMAP SEARCH)
   for older mail.
 
@@ -414,6 +419,9 @@ GET   /api/v1/mail/messages?accountId=&folderId=&unified=true&cursor=&q=
 GET   /api/v1/mail/messages/{id}        (headers + sanitized body + attachments meta)
 GET   /api/v1/mail/messages/{id}/attachments/{partId}
 POST  /api/v1/mail/messages/actions     {ids, action: READ|UNREAD|FLAG|UNFLAG|MOVE|ARCHIVE|DELETE|SPAM, targetFolderId?}
+POST  /api/v1/mail/messages/{id}/to-task (linked Inbox task, mail stays)
+POST  /api/v1/mail/messages/to-tasks    {ids, list?: NEXT|INBOX|SOMEDAY (default NEXT), archive? (default true)}
+                                        -> per mail {task, archived, archiveErrorCode?}; unknown id -> 404, nothing created
 POST  /api/v1/mail/drafts, PUT /api/v1/mail/drafts/{id}, POST /api/v1/mail/drafts/{id}/send
 ```
 

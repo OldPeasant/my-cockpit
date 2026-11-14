@@ -297,6 +297,8 @@ export type { ListMailMessages$Params as ListMailMessages$Params } from './fn/ma
 export { listMailMessages as listMailMessages } from './fn/mail-messages/list-mail-messages';
 export type { ApplyMailAction$Params as ApplyMailAction$Params } from './fn/mail-messages/apply-mail-action';
 export { applyMailAction as applyMailAction } from './fn/mail-messages/apply-mail-action';
+export type { MailToTasks$Params as MailToTasks$Params } from './fn/mail-messages/mail-to-tasks';
+export { mailToTasks as mailToTasks } from './fn/mail-messages/mail-to-tasks';
 export type { GetMailMessage$Params as GetMailMessage$Params } from './fn/mail-messages/get-mail-message';
 export { getMailMessage as getMailMessage } from './fn/mail-messages/get-mail-message';
 export type { DownloadMailAttachment$Params as DownloadMailAttachment$Params } from './fn/mail-messages/download-mail-attachment';
