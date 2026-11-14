@@ -1,11 +1,11 @@
 ---
 title: Android: mail views reload when new mail syncs (New, Mail list, Today), not only on resume
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/newitems,android/app/src/main/java/ch/sonensei/cockpit/mail/list,android/app/src/main/java/ch/sonensei/cockpit/dashboard,android/app/src/main/java/ch/sonensei/cockpit/gtd/data/GtdRefresh.kt,android/app/src/test/java/ch/sonensei/cockpit/newitems,android/app/src/test/java/ch/sonensei/cockpit/mail/list,android/app/src/test/java/ch/sonensei/cockpit/dashboard]
 prio: 2
-lease_until: 2026-11-14T20:21:52Z
+lease_until: 
 ---
 ## Goal
 Owner report (2026-11-14): with the Android New view open (filter All, GTD Inbox or Mail, switching makes no
@@ -61,3 +61,4 @@ gap, note it as a separate task rather than fixing it here.
 - ASSUMPTION (2026-11-14 20:29+0100 by dell26/agent-1): Events are collected per screen with repeatOnLifecycle(STARTED) (new FollowMailChanges composable in mail/list); the Today dashboard reloads only its Today widget (the one with the unread count) on mail events.
 - ASSUMPTION (2026-11-14 20:29+0100 by dell26/agent-1): Not seen on a device: assumed the server's EMAIL CREATED / MAIL_FOLDER UPDATED events reach the shared GtdChangeStream on Android as the GTD views' TASK events do (same SSE endpoint, type filter only).
 - ASSUMPTION (2026-11-14 20:47+0100 by dell26/agent-1): Supersedes earlier assumptions: the dashboard's unread-mail count is in the Inbox widget, so mail events reload only that widget (not Today); a mail event during a running first-page load is deferred (one follow-up quiet reload when it ends), during paging it reloads at once.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 320s on c31799cce; criteria verified 6/7, skipped #6
