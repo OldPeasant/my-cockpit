@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailActionService.kt,server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailFolderResync.kt,server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncService.kt,server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderStore.kt,server/src/test/kotlin/ch/sonensei/cockpit/mail,web/src/app/features/mail/list/mail-list-store.ts,web/e2e/mail-list]
 prio: 2
-lease_until: 2026-11-14T21:07:50Z
+lease_until: 2026-11-14T21:12:55Z
 releases: 2
 extended: 
 ---
