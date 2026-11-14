@@ -358,6 +358,34 @@ class NewMailLiveRefreshTest {
         }
 
     @Test
+    fun aLoadMoreAnsweringAfterAFailedEventReloadKeptTheCursorIsStillAppended() =
+        runTest {
+            val nextPage = CompletableDeferred<MailResult<MailPage>>()
+            firstPages(ok(party, invoice, cursor = "page-2"), MailResult.Failed(503))
+            coEvery { mailRepo.messages(Mailbox.Unified, "page-2") } coAnswers { nextPage.await() }
+            val vm = viewModel()
+            shown(vm)
+            vm.refresh()
+            vm.loadMore()
+
+            signal(ChangeSignal.Changed("EMAIL"))
+            quiet()
+            coVerify(exactly = 2) { mailRepo.messages(Mailbox.Unified, null) }
+            assertTrue(vm.uiState.value.loadingMore)
+
+            nextPage.complete(ok(receipt, cursor = "page-3"))
+
+            assertFalse(vm.uiState.value.loadingMore)
+            assertFalse(vm.uiState.value.mailFailed)
+            assertEquals(
+                listOf("mail:${party.id}", "mail:${invoice.id}", "task:${plumber.id}", "mail:${receipt.id}"),
+                vm.keys(),
+            )
+            assertEquals(listOf(party, invoice, receipt), cache.last?.messages)
+            assertEquals("page-3", cache.last?.nextCursor)
+        }
+
+    @Test
     fun aRefreshAfterLoadMoreDropsTheAnswerOfAnEarlierEventReload() =
         runTest {
             val stale = CompletableDeferred<MailResult<MailPage>>()

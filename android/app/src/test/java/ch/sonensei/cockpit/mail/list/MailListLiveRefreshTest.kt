@@ -341,6 +341,56 @@ class MailListLiveRefreshTest {
         }
 
     @Test
+    fun `a load more answering after an offline event reload kept the cursor is still appended`() =
+        runTest(dispatcher) {
+            val nextPage = CompletableDeferred<MailResult<MailPage>>()
+            firstPages(page(1, 2, cursor = "c1"), MailResult.Offline)
+            coEvery { repo.messages(Mailbox.Unified, "c1") } coAnswers { nextPage.await() }
+            val vm = shown()
+            vm.loadMore()
+            advanceUntilIdle()
+
+            signal(ChangeSignal.Changed("EMAIL"))
+            quiet()
+            coVerify(exactly = 2) { repo.messages(Mailbox.Unified, null) }
+            assertEquals("c1", vm.uiState.value.nextCursor)
+
+            nextPage.complete(page(3, cursor = "c2"))
+            advanceUntilIdle()
+
+            val state = vm.uiState.value
+            assertFalse(state.loadingMore)
+            assertEquals(listOf(1, 2, 3).map(::id), vm.ids())
+            assertEquals("c2", state.nextCursor)
+            assertNull(state.message)
+        }
+
+    @Test
+    fun `a load more of the unified inbox never lands in a folder opened meanwhile with an equal cursor`() =
+        runTest(dispatcher) {
+            val nextPage = CompletableDeferred<MailResult<MailPage>>()
+            firstPages(page(1, 2, cursor = "c1"))
+            coEvery { repo.messages(Mailbox.Unified, "c1") } coAnswers { nextPage.await() }
+            // The folder's first page happens to carry the same opaque cursor text.
+            coEvery { repo.messages(box, null) } returns page(5, 6, cursor = "c1")
+            val vm = shown()
+            vm.loadMore()
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.loadingMore)
+
+            vm.select(box)
+            advanceUntilIdle()
+            nextPage.complete(page(3, cursor = "c2"))
+            advanceUntilIdle()
+
+            val state = vm.uiState.value
+            assertEquals(box, state.mailbox)
+            assertEquals(listOf(5, 6).map(::id), vm.ids())
+            assertEquals("c1", state.nextCursor)
+            assertFalse(state.loadingMore)
+        }
+
+    @Test
     fun `an event reload outrun by load more and a folder switch does not overwrite the new folder`() =
         runTest(dispatcher) {
             val stale = CompletableDeferred<MailResult<MailPage>>()
