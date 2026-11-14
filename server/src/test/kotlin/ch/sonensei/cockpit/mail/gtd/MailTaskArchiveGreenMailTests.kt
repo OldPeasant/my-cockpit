@@ -4,8 +4,8 @@ import ch.sonensei.cockpit.core.auth.WithCockpitUser
 import ch.sonensei.cockpit.mail.imap.ImapConnectionPool
 import ch.sonensei.cockpit.mail.imap.MailAccountService
 import ch.sonensei.cockpit.mail.imap.MailFolderService
-import ch.sonensei.cockpit.mail.imap.MailSessions
 import ch.sonensei.cockpit.mail.imap.MailServer
+import ch.sonensei.cockpit.mail.imap.MailSessions
 import ch.sonensei.cockpit.mail.imap.NewMailAccount
 import ch.sonensei.cockpit.mail.model.MailAccount
 import ch.sonensei.cockpit.mail.model.MailAccountType
@@ -20,9 +20,9 @@ import ch.sonensei.cockpit.support.ExternalTest
 import ch.sonensei.cockpit.support.PostgresTestBase
 import com.icegreen.greenmail.junit5.GreenMailExtension
 import com.icegreen.greenmail.util.ServerSetupTest
+import com.ninjasquad.springmockk.MockkSpyBean
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
-import com.ninjasquad.springmockk.MockkSpyBean
 import io.mockk.every
 import jakarta.mail.Folder
 import jakarta.mail.Message
