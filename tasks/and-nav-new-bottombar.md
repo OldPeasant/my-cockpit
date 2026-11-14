@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/ui,android/app/src/test/java/ch/sonensei/cockpit/ui]
 prio: 2
-lease_until: 2026-11-14T09:32:55Z
+lease_until: 2026-11-14T09:37:58Z
 ---
 ## Goal
 The bottom bar (`ui/navigation/CockpitDestination.kt`) holds Dashboard, Inbox, Calendar, Mail, More; New is on the More
