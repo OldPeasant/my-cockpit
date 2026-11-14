@@ -26,7 +26,8 @@ Android part of "→ Next action & archive" (server call from `mail-task-archive
   - verified (2026-11-14 09:50+0100 by dell26/agent-1): testDebugUnitTest MailNextActionInAppTest 'links show the mail' + 'opening the linked mail from the new task's detail shows the archived mail' (after CR-1 fix) -> pass
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`); touch targets ≥ 48dp, actions fit at 320dp width (overflow menu if needed)
   - verified (2026-11-14 09:50+0100 by dell26/agent-1): lintDebug (MissingTranslation, EN+DE strings_mail/strings_new) pass; MailReadNoteLinksTest 320dp toolbar, NewNextActionScreenTest/MailNextActionsScreenTest 320dp + 48dp touch target -> pass
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-14 09:51+0100 by dell26/agent-1): sh scripts/check.sh (incl. cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug) at 6f0ed4106 -> all checks passed
 
 ## Notes
 Planned 2026-11-14 with the owner: from a mail, make a Next action and archive the mail in one step (mails already clarified should not pass through the cockpit Inbox again); create a project directly from the task detail.
