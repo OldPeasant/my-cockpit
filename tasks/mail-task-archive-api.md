@@ -21,7 +21,8 @@ points (read view, New view row, mail list multi-select) and handles partial fai
 - [x] After archiving, the task's link still resolves to the (moved) mail, also when the IMAP server lacks MOVE (GreenMail test)
   - verified (2026-11-14 08:30+0100 by dell26/agent-1): cd server && ./gradlew integrationTest --tests '*MailTaskArchiveGreenMailTests' (GreenMail; no-MOVE case via IMAPStore subclass hiding MOVE, COPY+EXPUNGE path) -> 4 tests, 0 failures; link resolves to the Archive copy before and after re-sync
 - [ ] The existing `to-task` (Inbox, no archive) is unchanged
-- [ ] `api/openapi.yaml` and `web/src/app/api/generated/` regenerated; SPEC.md §7.3 (GTD integration) and §7.4 describe the action
+- [x] `api/openapi.yaml` and `web/src/app/api/generated/` regenerated; SPEC.md §7.3 (GTD integration) and §7.4 describe the action
+  - verified (2026-11-14 08:30+0100 by dell26/agent-1): cd server && ./gradlew updateOpenApi; cd web && npm run api:gen -> openapi.yaml gains only POST /api/v1/mail/messages/to-tasks + 4 schemas, generated fn mail-to-tasks.ts and models; SPEC.md 7.3 (Next action & archive) and 7.4 (to-task, to-tasks) updated
 - [ ] Tests cover single, multiple, partial archive failure (no Archive folder) and the link; `cd server && ./gradlew check` and `sh scripts/check.sh` pass
 
 ## Notes
