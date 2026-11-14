@@ -49,3 +49,4 @@ Planned 2026-11-14 from the owner's report; the e2e probe that showed the happy 
 `resync$`. Android has its own read-timeout watchdog; the Android mail views not listening at all is
 `and-mail-live-refresh`.
 - ASSUMPTION (2026-11-14 20:57+0100 by dell26/agent-2): Heartbeat comment replaced by a named 'ping' event with data {} (browsers drop data-less events); also updated the stream description in EventsController.kt (outside touches) so the openapi contract documents it. Android ignores non-'change' events (GtdChangeStreamTest 'event: other' case).
+- ASSUMPTION (2026-11-14 20:58+0100 by dell26/agent-2): Watchdog: 5 s check interval; wake-up = check ran >1 heartbeat (25 s) late while visible (hidden tabs are throttled, so ignored there); visibility/online/wake reconnect at once and skip a pending backoff; silence reconnect goes through the normal error path (backoff + session probe).
