@@ -1,11 +1,11 @@
 ---
 title: Android: drop a stale load-more answer after a quiet first-page reload replaced the list (New, Mail list)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-mail-live-refresh]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/newitems,android/app/src/main/java/ch/sonensei/cockpit/mail/list,android/app/src/test/java/ch/sonensei/cockpit/newitems,android/app/src/test/java/ch/sonensei/cockpit/mail/list]
 prio: 2
-lease_until: 2026-11-14T20:36:58Z
+lease_until: 
 ---
 ## Goal
 Follow-up of CR-4 in reviews/and-mail-live-refresh/review.md. Since mail change events reload the first page quietly
@@ -25,3 +25,4 @@ middle of the list until the next manual refresh (`NewViewModel.loadMore`, `Mail
 ## Notes
 Rare (needs a full page of new mail at the wrong moment); nothing is lost on the server.
 - ASSUMPTION (2026-11-14 21:08+0100 by dell26/agent-1): A stale load-more answer that failed or was offline is dropped silently (no banner/message): its error concerns a list that no longer exists, and the replaced list's cursor stays for the next attempt.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 73s on 49fbd71f0; criteria verified 3/3
