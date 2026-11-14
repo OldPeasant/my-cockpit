@@ -23,3 +23,4 @@ points (read view, New view row, mail list multi-select) and handles partial fai
 
 ## Notes
 Planned 2026-11-14 with the owner: from a mail, make a Next action and archive the mail in one step (mails already clarified should not pass through the cockpit Inbox again); create a project directly from the task detail.
+- ASSUMPTION (2026-11-14 08:27+0100 by dell26/agent-1): Endpoint is POST /api/v1/mail/messages/to-tasks {ids (1..100), list (default NEXT; only NEXT, INBOX, SOMEDAY allowed, WAITING/SCHEDULED -> 400 since they need fields a mail does not give), archive (default true)}; 200 with one result per distinct id; any unknown id -> 404 and nothing created for any id (all ids resolved before creating); ids resolving to the same message share one task
