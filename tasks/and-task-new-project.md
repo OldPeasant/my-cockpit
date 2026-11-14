@@ -1,10 +1,11 @@
 ---
 title: Android task detail: create a new project from the project picker
-status: todo
-owner:
+status: in_progress
+owner: felix/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/test/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml]
 prio: 2
+lease_until: 2026-11-14T09:28:45Z
 ---
 ## Goal
 The task detail `ProjectPicker` (`gtd/task/TaskDetailScreen.kt`) offers only existing projects or "No project".
