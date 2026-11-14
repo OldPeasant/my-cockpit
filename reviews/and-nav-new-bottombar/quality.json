@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "task": "and-nav-new-bottombar",
+  "reviewed_revision": "04497c2891356eed121a608f3556ebcc94b09160",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-nav-new-bottombar/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-nav-new-bottombar/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-nav-new-bottombar/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "stacked screen's tab stored in entry.savedStateHandle; restore tests added"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "CockpitShellSelectionTest covers tab selection for stacked screens"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "reselect behaviour not defined by the criteria; recorded as assumption"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "android/README.md is outside the task's touches; docs-only drift left as is"}
+  ],
+  "validation": [
+    {"command": "android/gradlew -p android createDebugUnitTestCoverageReport ktlintCheck", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
