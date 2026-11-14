@@ -4,22 +4,30 @@ Date: 2026-11-14
 
 Task: and-mail-live-refresh - Android: mail views reload when new mail syncs (New, Mail list, Today), not only on resume
 
-Scope: `git diff fef29f97665731ff3675310fe7d8338ca46b762f e3b261d19` (one implementation commit, Android only). The same code change was later rebased as 31835c3a8 on top of board-only commits (tasks/ changes); the code diff is identical.
+Scope: re-review of the final code, `git diff 2c363a763cb34a2fce40ad68afafa0778036c597 094d34bda -- android` (task commits ee50ac07f..094d34bda). Committed changes only; uncommitted test edits present in the working tree at review time (DashboardMailRefreshTest.kt, MailListLiveRefreshTest.kt, from a helper running in parallel) were not reviewed.
 
 Requirements:
-- tasks/and-mail-live-refresh.md acceptance criteria
-- AGENTS.md project notes and conventions
-- Existing code conventions (GtdRefreshTriggers, GtdChangeStream, the view models touched)
+- tasks/and-mail-live-refresh.md (acceptance criteria and recorded assumptions, including the superseding one of 20:47)
+- SPEC.md section 2 (SSE while the app is in the foreground)
+- AGENTS.md project notes (conventions, lint, feature folders)
+- Earlier review (CR-1, CR-2, CR-3), tests.md (TW-1), fixes.md
 
 Git range:
 - Branch: main
-- HEAD: e3b261d1920136448bb6d8b5621a72e10e9ffa5c (reviewed commit; rebased copy 31835c3a8f84c73ec9bd319366a337c7377c352b)
-- Base/start: fef29f97665731ff3675310fe7d8338ca46b762f
-- Commits reviewed: 1
+- HEAD: 094d34bda9ab79d99b44ee89af7614050f43af4a
+- Base/start: 2c363a763cb34a2fce40ad68afafa0778036c597
+- Commits reviewed: 4 (ee50ac07f, c137dce61, 7fffc4fd0, 094d34bda; c137dce61 touches reviews only)
 
-Review method: code reading only (the parent asked not to run Gradle while another helper builds in this clone). No tests were executed by this review.
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-Summary: 0 P0, 1 P1, 1 P2, 1 P3
+## Status of earlier findings
+
+- CR-1 (missing tests): resolved. NewMailLiveRefreshTest (EMAIL with filter All, MAIL_FOLDER with filter Mail, burst, TASK ignored, reconnect, offline/failed quiet reload, no spinner, deferred event, paging races), MailListLiveRefreshTest (same set for the Mail list plus folder shown, search not reloaded, selection kept, message handling), DashboardMailRefreshTest, MailRefreshTriggersTest and FollowMailChangesTest cover the criteria.
+- CR-2 (orphaned quiet reload): resolved. First-page loads now own `firstPageJob` (NewViewModel.kt:131, MailListViewModel.kt:200); every first-page load cancels it, manual loads also cancel paging. The Mail list additionally drops an answer for a mailbox no longer shown (MailListViewModel.kt:765). Regression tests `aRefreshAfterLoadMoreDropsTheAnswerOfAnEarlierEventReload` and "an event reload outrun by load more and a folder switch does not overwrite the new folder" assert this.
+- CR-3 (events dropped during paging): resolved. Events during paging start a quiet first-page load at once; events during a first-page load set `reloadPending` and the running job loops once more (NewViewModel.kt:190-197, MailListViewModel.kt:743-753). Dashboard defers via `mailPending` (DashboardViewModel.kt:129-160). All state is touched only on the main dispatcher (viewModelScope and LaunchedEffect), so the flags need no synchronisation.
+- TW-1 (dashboard reloaded TODAY): resolved. `reloadInbox()` reloads only `WidgetId.INBOX`, which holds `unreadMail` (DashboardViewModel.kt:150-160); a refresh cancels the event reload and clears the pending flag, so an older event answer cannot overwrite a newer refresh.
+
+Other checks done on the final code: debounce of 1 s on EMAIL/MAIL_FOLDER/Reconnected over the shared `GtdChangeStream.signals` (no second SSE connection, no GTD sync scheduling, first connection does not emit); collection via `repeatOnLifecycle(STARTED)`; quiet reloads keep shown mails and existing flags/messages on failure and clear only the outdated OFFLINE/FAILED state on success; `folderGeneration` interplay with `reloadFolders()` still drops older account lists correctly; Hilt constructors (default `NONE` on Dashboard/MailList, required parameter on New) are consistent with the existing `projectRequests` pattern.
 
 ## P0 Critical
 
@@ -27,33 +35,21 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | Required unit tests for the live refresh are absent at the reviewed revision**
-    - File: `android/app/src/test/java/ch/sonensei/cockpit/newitems`, `android/app/src/test/java/ch/sonensei/cockpit/mail/list` (no test references `followMailChanges` or `MailRefreshTriggers`; `grep -rln` over `android/app/src/test` returns nothing)
-    - Category: Tests
-    - Problem: Criterion 5 requires unit tests: an `EMAIL`/`MAIL_FOLDER` signal reloads the New view's mail part (new mail on top, filters All and Mail), a burst gives one reload, a `TASK` signal does not reload, and the same for the Mail list. The reviewed commit adds no tests; the debounce, the type filter, the quiet failure path (no banner, list kept) and the "not started twice" guard are all unverified.
-    - Why it matters: An acceptance criterion is unmet, and the coalescing and quiet-failure behavior is exactly what regresses silently.
-    - Suggested fix: Add the tests named in criterion 5 (the `internal` `MailRefreshTriggers(signals, quietMs)` constructor with a `MutableSharedFlow` and virtual time makes this straightforward), plus a quiet offline/failed reload keeping rows and flags, and the Dashboard Today reload. If the parallel test-writer run adds them, this finding is resolved by that work; the code then needs a fresh review per docs/QUALITY.md only if production code changes.
+None.
 
 ## P2 Medium
 
-- [ ] **CR-2 | A quiet reload can be orphaned by loadMore/loadOlder and later overwrite a newer mailbox or refresh**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/mail/list/MailListViewModel.kt:223-226`, `:720-758` (also `android/app/src/main/java/ch/sonensei/cockpit/newitems/NewViewModel.kt:164-203`, `:212-217`)
-    - Category: Correctness
-    - Problem: A quiet load no longer sets `loading = true`. `loadMore()` (guarded only by `loading || loadingMore`) and `loadOlder()` (guarded by `canLoadOlder`, which checks `!loading`) can therefore start while the quiet load runs, and both overwrite the shared `loadJob` field. The quiet job is then no longer referenced; a following `select(otherMailbox)` or `refresh()` cancels only the paging job via `loadJob?.cancel()`, while the quiet job keeps running. Its `Ok` branch does not check that `current.mailbox` still equals the `mailbox` it loaded: `mergeFirstPage` returns `page.items to page.nextCursor` when the mailboxes differ, so the previous mailbox's mails, with its cursor, are written into the newly selected mailbox with `loading = false, loaded = true`. If it finishes after the new mailbox's load, the wrong mails stay shown, and the next `loadMore` uses the old mailbox's cursor for the new mailbox. Before this change it could not happen, because a running first-page load always set `loading = true` and so blocked loadMore/loadOlder from replacing `loadJob`. In NewViewModel (single mailbox) the same orphaning lets an older quiet answer land after a pull-to-refresh and end its spinner early (`loading = false` in the quiet `Ok` branch).
-    - Why it matters: Wrong mailbox content after an ordinary sequence (new-mail event, scroll to the end, switch folder). This is the out-of-order async result case: an older request overwrites a newer one. The window is narrow (one network round trip) but real on slow connections.
-    - Suggested fix: Keep the quiet reload in its own job field that `load()`/`select()`/`refresh()` cancel as well, or give each first-page load a generation number and drop an answer that is no longer the newest. In MailListViewModel, also discard the answer when `current.mailbox != mailbox`.
+None.
 
 ## P3 Low
 
-- [ ] **CR-3 | A mail event that arrives while any load runs is dropped, not deferred**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/newitems/NewViewModel.kt:166`, `android/app/src/main/java/ch/sonensei/cockpit/mail/list/MailListViewModel.kt:225`, `android/app/src/main/java/ch/sonensei/cockpit/dashboard/DashboardViewModel.kt:135`
+- [ ] **CR-4 | A quiet reload that replaces the whole list while "load more" runs lets the page answer append after a gap**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/newitems/NewViewModel.kt:237`, `android/app/src/main/java/ch/sonensei/cockpit/mail/list/MailListViewModel.kt:262`
     - Category: Correctness
-    - Problem: The guard `loadJob?.isActive != true` skips the debounced trigger when `loadJob` is a `loadMore`/`loadOlder` job, or a first-page load that may have read the server before the new mail was stored. The trigger is not remembered, so the new mail stays invisible until the next `EMAIL`/`MAIL_FOLDER` event or resume. That can take many minutes, because the server sends `MAIL_FOLDER` only when a sync changed something. The criterion says "a load in progress is not started twice", which concerns the first-page load, not paging.
-    - Why it matters: In rare timings, the owner's reported symptom (new mail not shown while the view stays open) comes back.
-    - Suggested fix: Skip only when a first-page load is running, or set a "reload pending" flag that the running load checks when it finishes (a conflate-style approach, which the criterion also allows).
+    - Problem: Quiet first-page loads now intentionally leave a running `loadMore()` alive. When the new first page does not overlap the mails shown (at least a full page, 50, of new mail arrived), the first-page merge replaces the list with the new page and its own cursor (NewViewModel.kt:207-211, `mergeFirstPage` at MailListViewModel.kt:796-810). If the older `loadMore()` answer (requested with the previous cursor) arrives afterwards, it is appended unconditionally and sets `nextCursor` to its own next cursor, so the list shows the new first page followed directly by the old page two: the mails of the old first page are missing and further paging continues from there. Before this task this could not happen, because every first-page load cancelled paging.
+    - Why it matters: Mails silently missing from the middle of the list until the next manual refresh. Needs a large sync burst during a pending page load, so it is rare; no data is lost on the server.
+    - Suggested fix: In both `loadMore()` result handlers, apply the page only when the state's `nextCursor` still equals the cursor the request used (otherwise just clear `loadingMore`); add a regression test with a non-overlapping event reload finishing before the page answer.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
-
-Notes on criteria checked without findings: a single shared SSE connection is reused (`MailRefreshTriggers` wraps `GtdChangeStream.signals`, no second connection, no sync scheduling). `Reconnected` and the `EMAIL`/`MAIL_FOLDER` types trigger reloads, and the first `Connected` does not. Bursts are debounced for 1 s. Collection runs only while the screen is STARTED (`repeatOnLifecycle` in `FollowMailChanges`), so nothing polls in the background. A quiet failure leaves rows, flags and messages unchanged in all three view models. A quiet success clears only the stale OFFLINE/FAILED message in the Mail list. Search results are not reloaded, and the pages loaded behind the first one are kept through the existing merge logic. The Dashboard reloads only the Today widget and skips this when the widget is hidden. Criterion 6 (manual device check) and criterion 7 (Gradle and check.sh) were not assessed by this code-reading review.
+No material issues found. The earlier findings CR-1, CR-2, CR-3 and TW-1 are resolved in 094d34bda; CR-4 is a low-priority edge case the parent may fix or record.
