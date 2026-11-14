@@ -1,12 +1,12 @@
 ---
 title: Web: detect a dead change-event stream (sleep, network change) and resync
-status: in_progress
-owner: dell26/agent-1
+status: todo
+owner: 
 deps: []
 touches: [web/src/app/core/events,server/src/main/kotlin/ch/sonensei/cockpit/core/events/infra/SseEventHub.kt,server/src/test/kotlin/ch/sonensei/cockpit/core/events]
 prio: 2
-lease_until: 2026-11-14T20:47:06Z
-releases: 1
+lease_until: 
+releases: 2
 extended: 
 ---
 ## Goal
@@ -55,3 +55,4 @@ Planned 2026-11-14 from the owner's report; the e2e probe that showed the happy 
 - ASSUMPTION (2026-11-14 20:58+0100 by dell26/agent-2): Watchdog: 5 s check interval; wake-up = check ran >1 heartbeat (25 s) late while visible (hidden tabs are throttled, so ignored there); visibility/online/wake reconnect at once and skip a pending backoff; silence reconnect goes through the normal error path (backoff + session probe).
 - release by dell26/agent-2: Done: server ping event (+openapi), web watchdog (STREAM_WATCHDOG, silence/visibility/online/wake reconnect), unit tests (55 pass), test-writer tests.md, code review (CR-1 P3) fixed by fixer (fixes.md). LEFT: (1) e2e/new/live-watchdog.spec.ts FAILS: after setOffline 70s + online the mail row never shows within 40s (server log in that run: 'Test mail sync: 1 accounts, 0 new messages' -> maybe IDLE/initial sync took the mail, or the offline stream never errored/reconnected; inspect the Playwright trace, check /api/v1/events requests after online and whether the mail is in /api/v1/mail). Also consider: resync only fires if a stream was open before (wasOpen). (2) re-run test-writer + code-reviewer on final code (fix commit came after review), verify criteria, quality.json, done.
 - ASSUMPTION (2026-11-14 21:26+0100 by dell26/agent-1): E2E (criterion 5): Chromium's offline emulation keeps an already-open SSE connection alive (trace: /api/v1/events stays 200, the change event arrives, only its refetch fails with ERR_INTERNET_DISCONNECTED), so setOffline cannot cut the stream; the spec instead goes offline (refetch fails), back online, then page.clock.fastForward(70s) simulates the wake-up after a sleep, and the watchdog's late check reconnects + resyncs.
+- release by dell26/agent-1: Done: server ping event (+openapi), web watchdog, unit tests, CR-1 fix (fixes.md). e2e/new/live-watchdog.spec.ts now PASSES (criterion 5 verified): the old version failed because Chromium's setOffline keeps an already-open SSE connection (trace: events stayed 200, the event arrived, only its refetch failed), so the spec now simulates the wake-up with page.clock.fastForward(70s) after going back online (assumption recorded). LEFT: (1) re-run test-writer + code-reviewer on the final code (CR-1 fix and the e2e rewrite came after the review); (2) verify criteria 1-4 and 6 (unit tests, server SseEventHubTests, npm run check, gradlew check, scripts/check.sh); (3) quality.json (reviewed_revision = final hash, fixes_required true with fixes.md for CR-1); (4) done.
