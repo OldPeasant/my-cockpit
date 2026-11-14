@@ -7,6 +7,7 @@ import ch.sonensei.cockpit.core.settings.SettingsUpdateResult
 import ch.sonensei.cockpit.core.settings.UserSettingsChange
 import ch.sonensei.cockpit.core.settings.UserSettingsRepository
 import ch.sonensei.cockpit.mail.list.MailListAction
+import ch.sonensei.cockpit.mail.list.MailNextAction
 import ch.sonensei.cockpit.mail.list.MailRepository
 import ch.sonensei.cockpit.mail.list.MailResult
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -39,6 +40,15 @@ sealed interface MailReadNotice {
         val errorCode: String? = null,
     ) : MailReadNotice
 
+    /** "Next action & archive" could not create the task: the mail stays where it is. */
+    data object NextActionFailed : MailReadNotice
+
+    /** "Next action & archive" created the task [title] but could not archive the mail (server reason [errorCode]). */
+    data class NotArchived(
+        val title: String,
+        val errorCode: String? = null,
+    ) : MailReadNotice
+
     /** "Load images" failed: the mail stays shown without its remote images. */
     data object ImagesFailed : MailReadNotice
 
@@ -59,6 +69,8 @@ data class MailReadUiState(
     val unread: Boolean = false,
     /** The last flag change the server took, for the list to show; [MailMark.seq] tells two equal ones apart. */
     val mark: MailMark? = null,
+    /** "Next action & archive" created this task: its detail opens over the mail. */
+    val nextAction: MailNextAction? = null,
 )
 
 /** [action] (FLAG or UNFLAG) was done on the open mail. */
@@ -140,6 +152,30 @@ class MailReadViewModel
                     )
                 }
             }
+
+        /**
+         * "Next action & archive": a Next action linked to the mail, then the mail is archived. The task's detail opens
+         * ([MailReadUiState.nextAction]); when archiving failed the mail stays and a notice says so.
+         */
+        fun nextAction() =
+            run { messageId, opened ->
+                val result = mail.toNextActions(listOf(messageId))
+                val created = (result as? MailResult.Ok)?.value?.firstOrNull()
+                updateFor(opened) {
+                    when {
+                        created == null -> it.copy(notice = MailReadNotice.NextActionFailed)
+                        created.archived -> it.copy(nextAction = created)
+                        else ->
+                            it.copy(
+                                nextAction = created,
+                                notice = MailReadNotice.NotArchived(it.message?.subject.orEmpty(), created.archiveErrorCode),
+                            )
+                    }
+                }
+            }
+
+        /** The task detail opened by [nextAction] closed. */
+        fun nextActionShown() = state.update { it.copy(nextAction = null) }
 
         /**
          * Archive, delete, spam and move ([target] for MOVE) close the view; mark unread returns to the list; flag and

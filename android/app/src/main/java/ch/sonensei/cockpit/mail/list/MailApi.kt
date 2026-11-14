@@ -85,6 +85,12 @@ interface MailApi {
         @Path("id") id: String,
     ): Response<MailGtdItemDto>
 
+    /** "Next action & archive": a Next action per message, then the messages are archived (SPEC.md §7.3). */
+    @POST("api/v1/mail/messages/to-tasks")
+    suspend fun toTasks(
+        @Body request: MailToTasksRequestDto,
+    ): Response<MailToTasksResponseDto>
+
     @POST("api/v1/mail/messages/{id}/to-waiting")
     suspend fun toWaiting(
         @Path("id") id: String,
@@ -193,6 +199,38 @@ data class MailServerSearchDto(
 data class MailServerSearchFailureDto(
     val accountId: String? = null,
     val errorCode: String? = null,
+)
+
+@Serializable
+data class MailToTasksRequestDto(
+    val ids: List<String>,
+    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    val list: String = "NEXT",
+    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    val archive: Boolean = true,
+)
+
+@Serializable
+data class MailToTasksResponseDto(
+    val results: List<MailToTaskResultDto> = emptyList(),
+)
+
+@Serializable
+data class MailToTaskResultDto(
+    val id: String,
+    val task: MailToTaskTaskDto? = null,
+    val archived: Boolean = false,
+    val archiveErrorCode: String? = null,
+    val archiveDetail: String? = null,
+)
+
+@Serializable
+data class MailToTaskTaskDto(
+    val id: String,
+    val title: String? = null,
+    val list: String? = null,
 )
 
 @Serializable

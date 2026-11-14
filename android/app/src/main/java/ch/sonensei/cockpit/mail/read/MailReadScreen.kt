@@ -37,6 +37,7 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.NoteAdd
 import androidx.compose.material.icons.outlined.OutlinedFlag
 import androidx.compose.material.icons.outlined.Report
+import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -120,6 +121,21 @@ fun MailReadRoute(
     // One view model for all mails (cleared with the Mail screen); it drops the mail when the view closes.
     LaunchedEffect(viewModel, id) { viewModel.open(id) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    // "Next action & archive" opens the new task; back leaves it for where the mail was opened from (an archived mail
+    // left its list) or, when archiving failed, for the mail with the notice.
+    state.nextAction?.let { created ->
+        val leave = {
+            viewModel.nextActionShown()
+            if (created.archived) {
+                onRemoved(id)
+                viewModel.close()
+                onClose()
+            }
+        }
+        BackHandler(onBack = leave)
+        SearchItemScreen(TASK_ITEM_TYPE, created.taskId, onClose = leave, modifier = modifier)
+        return
+    }
     val links = mailLinks(state.message?.id)
     // A task or note made from the mail is linked to it: show it in the panel.
     LaunchedEffect(state.notice) { if (state.notice is MailReadNotice.Created) links?.reload() }
@@ -156,6 +172,7 @@ fun MailReadRoute(
                 back = close,
                 retry = viewModel::retry,
                 gtd = viewModel::gtd,
+                nextAction = viewModel::nextAction,
                 act = { viewModel.act(it) },
                 move = { viewModel.act(MailListAction.MOVE, it.id) },
                 compose = onCompose,
@@ -181,6 +198,9 @@ fun MailReadRoute(
 
 /** The search/links type of a mail. */
 private const val MAIL_ITEM_TYPE = "EMAIL"
+
+/** The search/links type of a task. */
+private const val TASK_ITEM_TYPE = "TASK"
 
 /** The links panel's view model of the shown mail; `null` without a mail or without Hilt (screen tests with fake view models). */
 @Composable
@@ -234,6 +254,8 @@ data class MailReadCallbacks(
     val back: () -> Unit = {},
     val retry: () -> Unit = {},
     val gtd: (MailGtdAction) -> Unit = {},
+    /** "Next action & archive". */
+    val nextAction: () -> Unit = {},
     val act: (MailListAction) -> Unit = {},
     /** "Move to folder" picked [MailFolder]. */
     val move: (MailFolder) -> Unit = {},
@@ -268,6 +290,7 @@ internal object MailReadTags {
     const val MORE = "mail-read-more"
     const val LINKS = "mail-read-links"
     const val PAGE = "mail-read-page"
+    const val NEXT_ACTION = "mail-read-next-action"
 
     fun gtd(action: MailGtdAction) = "mail-read-gtd:$action"
 
@@ -334,8 +357,8 @@ private fun Toolbar(
         ToolbarButton(Icons.Outlined.Inbox, R.string.mail_read_to_task, MailReadTags.gtd(MailGtdAction.TASK), enabled) {
             callbacks.gtd(MailGtdAction.TASK)
         }
-        ToolbarButton(Icons.Outlined.HourglassEmpty, R.string.mail_read_to_waiting, MailReadTags.gtd(MailGtdAction.WAITING), enabled) {
-            callbacks.gtd(MailGtdAction.WAITING)
+        ToolbarButton(Icons.Outlined.TaskAlt, R.string.mail_next_action_archive, MailReadTags.NEXT_ACTION, enabled) {
+            callbacks.nextAction()
         }
         ToolbarButton(Icons.Outlined.Archive, R.string.mail_archive, MailReadTags.action(MailListAction.ARCHIVE), enabled) {
             callbacks.act(MailListAction.ARCHIVE)
@@ -367,6 +390,9 @@ private fun MoreMenu(
     Box {
         ToolbarButton(Icons.Outlined.MoreVert, R.string.mail_more_actions, MailReadTags.MORE, enabled) { open = true }
         DropdownMenu(expanded = open && enabled, onDismissRequest = { open = false }) {
+            MenuItem(Icons.Outlined.HourglassEmpty, R.string.mail_read_to_waiting, MailReadTags.gtd(MailGtdAction.WAITING)) {
+                pick { callbacks.gtd(MailGtdAction.WAITING) }
+            }
             MenuItem(Icons.Outlined.NoteAdd, R.string.mail_read_to_note, MailReadTags.gtd(MailGtdAction.NOTE)) {
                 pick { callbacks.gtd(MailGtdAction.NOTE) }
             }
@@ -484,6 +510,8 @@ private fun Notice(notice: MailReadNotice) {
                     MailGtdAction.NOTE -> stringResource(R.string.mail_read_note_failed)
                 }
             is MailReadNotice.ActionFailed -> actionFailed(notice)
+            MailReadNotice.NextActionFailed -> stringResource(R.string.mail_next_action_failed)
+            is MailReadNotice.NotArchived -> notArchived(notice.title, notice.errorCode)
             MailReadNotice.ImagesFailed -> stringResource(R.string.mail_read_images_failed)
             MailReadNotice.SenderNotSaved -> stringResource(R.string.mail_read_sender_not_saved)
         }
@@ -517,6 +545,22 @@ private fun actionFailed(notice: MailReadNotice.ActionFailed): String {
             else -> stringResource(R.string.mail_read_action_error, code)
         }
     return if (reason == null) failed else "$failed $reason"
+}
+
+/** "Next action created, but … could not be archived", followed by the server's reason when it gave one. */
+@Composable
+internal fun notArchived(
+    subject: String,
+    errorCode: String?,
+): String {
+    val text = stringResource(R.string.mail_not_archived, subject)
+    val reason =
+        when (errorCode) {
+            null -> null
+            NO_ROLE_FOLDER -> stringResource(R.string.mail_read_no_role_folder, stringResource(R.string.mail_folder_archive))
+            else -> stringResource(R.string.mail_read_action_error, errorCode)
+        }
+    return if (reason == null) text else "$text $reason"
 }
 
 private const val NO_ROLE_FOLDER = "NO_ROLE_FOLDER"

@@ -144,4 +144,14 @@
     <string name="mail_nothing_older">There are no older messages on the server.</string>
     <string name="mail_older_offline">No connection: nothing older was loaded.</string>
     <string name="mail_older_failed">The older messages could not be loaded.</string>
+    <!-- Next action & archive (SPEC.md §7.3) -->
+    <string name="mail_next_action_archive">Next action &amp; archive</string>
+    <string name="mail_next_action_failed">The next action could not be created; the mail stays where it is.</string>
+    <string name="mail_not_archived">Next action created, but “%1$s” could not be archived.</string>
+    <plurals name="mail_next_actions_created">
+        <item quantity="one">%d next action created</item>
+        <item quantity="other">%d next actions created</item>
+    </plurals>
+    <string name="mail_open_next_actions">Open Next Actions</string>
+    <string name="mail_next_actions_failed">The next actions could not be created; the mails stay where they are.</string>
 </resources>

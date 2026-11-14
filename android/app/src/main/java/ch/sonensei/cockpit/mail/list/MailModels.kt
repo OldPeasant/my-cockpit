@@ -202,3 +202,13 @@ fun MailAddressDto.display(): String = name?.takeIf { it.isNotBlank() } ?: addre
 
 /** An ISO-8601 date of the server; an unreadable one is treated as missing. */
 fun parseDate(value: String?): Instant? = value?.let { runCatching { OffsetDateTime.parse(it).toInstant() }.getOrNull() }
+
+/** A Next action made from mail [mailId] by "Next action & archive"; [archived] false when the mail stayed in place. */
+data class MailNextAction(
+    val mailId: UUID,
+    val taskId: UUID,
+    val title: String,
+    val archived: Boolean,
+    /** The server's reason the archive failed (e.g. `NO_ROLE_FOLDER`), `null` when it was archived. */
+    val archiveErrorCode: String? = null,
+)

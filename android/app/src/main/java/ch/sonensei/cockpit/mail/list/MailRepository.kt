@@ -148,6 +148,27 @@ class MailRepository
                 done
             }
 
+        /**
+         * "Next action & archive" (SPEC.md §7.3): one Next action per mail of [ids], linked to it, then the mails are
+         * archived, at most [MAX_TASK_IDS] per request. A failed archive keeps its task ([MailNextAction.archived]
+         * false); a request that fails as a whole (e.g. a mail that is gone) fails the call, nothing was created for
+         * its batch.
+         */
+        suspend fun toNextActions(ids: List<UUID>): MailResult<List<MailNextAction>> =
+            mailCall {
+                ids.distinct().chunked(MAX_TASK_IDS).flatMap { batch ->
+                    mailBody(api.toTasks(MailToTasksRequestDto(batch.map { it.toString() }))).results.map {
+                        MailNextAction(
+                            mailId = UUID.fromString(it.id),
+                            taskId = UUID.fromString(requireNotNull(it.task) { "no task" }.id),
+                            title = it.task.title.orEmpty(),
+                            archived = it.archived,
+                            archiveErrorCode = it.archiveErrorCode?.takeUnless { _ -> it.archived },
+                        )
+                    }
+                }
+            }
+
         private suspend fun act(
             id: UUID,
             action: String,
@@ -196,6 +217,9 @@ class MailRepository
 
             /** The most ids the server takes in one action request. */
             const val MAX_ACTION_IDS = 1000
+
+            /** The server takes at most 100 mails per "Next action & archive" request. */
+            const val MAX_TASK_IDS = 100
         }
     }
 
