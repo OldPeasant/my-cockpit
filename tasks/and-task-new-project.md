@@ -12,7 +12,8 @@ The task detail `ProjectPicker` (`gtd/task/TaskDetailScreen.kt`) offers only exi
 Inbox processing already has "New project" (`gtd/inbox/InboxRepository.kt`); reuse that behavior.
 
 ## Acceptance criteria
-- [ ] The project picker in task detail has "New project…"; it asks only for a title, creates the project (Active, no area) and assigns the task to it
+- [x] The project picker in task detail has "New project…"; it asks only for a title, creates the project (Active, no area) and assigns the task to it
+  - verified (2026-11-14 10:59+0100 by felix/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.*' -> 1243 tests pass, incl. TaskDetailNewProjectScreenTest (New project… entry after projects, title-only dialog) and TaskDetailNewProjectViewModelTest/RepositoryTest (CreateProjectRequest(title) only -> Active, no area; task saved with projectId)
 - [ ] Cancel or an empty title leaves the task's project unchanged; if creating the project or saving the task fails, an error is shown and a retry does not create a second project (same approach as Inbox processing)
 - [ ] The new project appears in the picker and in Projects, and the task appears in the project's task list
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
