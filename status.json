@@ -1,0 +1,1 @@
+{"owner": "felix/agent-1", "state": "working", "task": "mail-action-settle", "doing": "$ cd server && timeout 600 ./gradlew test --tests '*MailActionServiceTests' --tests '*MailFolderResyncTests' --tests '*MailHeaderSyncServiceT\u2026", "doing_at": 1794686671, "updated": 1794686671, "error": null}
