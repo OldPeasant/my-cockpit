@@ -16,7 +16,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -99,9 +98,15 @@ internal fun CockpitShellFrame(
     val current = CockpitDestination.fromRoute(route)
     // Search, its opened items and the task detail screen lie on top of a screen: they get a Back arrow.
     val stacked = SearchRoutes.isSearch(route) || TaskRoutes.isDetail(route)
-    // A stacked screen (a task opened from New, search) keeps the tab of the screen it lies on selected.
-    val backStack by navController.currentBackStack.collectAsState()
-    val underlying = backStack.asReversed().firstNotNullOfOrNull { CockpitDestination.fromRoute(it.destination.route) }
+    // A stacked screen (a task opened from New, search) keeps the tab of the screen it lies on selected: each stacked
+    // entry inherits the destination below it, remembered per entry so a stack of stacked screens resolves too.
+    val underlyingOf = remember(navController) { mutableMapOf<String, CockpitDestination?>() }
+    val underlying =
+        current ?: backStackEntry?.let { entry ->
+            underlyingOf.getOrPut(entry.id) {
+                navController.previousBackStackEntry?.let { CockpitDestination.fromRoute(it.destination.route) ?: underlyingOf[it.id] }
+            }
+        }
     val selected = CockpitDestination.bottomBarItemFor(underlying)
     val showsFab = current != null && current !in CockpitDestination.withOwnFab
 
