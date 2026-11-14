@@ -4,45 +4,43 @@ Date: 2026-11-14
 
 Task: mail-action-settle - Moved, archived or deleted mail must not come back in the source list until the next 5-min sync
 
-Scope: task commits 480868337, 3aa5c98f1, d2df50384 (reports only), 1f4e045f8 (review fixes) on main; base 480868337^; measured HEAD 1f4e045f8db5ae1711a323f7c2453f9045a678ce plus one uncommitted test edit by this run (see Coverage). This is a re-run on the final code; the earlier tests.md was stale.
+Scope: base 27e0adeb471ce5293b9c420635eb3b807596d5b8 to HEAD d1c6b807c052fa1263e00a1191d217ce5c150881. Task commits 279194eea, 9a8fc9e88, 9441010af, 33fdebc17, eeb3acb13, efb91651c, d1c6b807c (the parent supplied this list; it matches the task's `touches`). The working tree was clean, so there are no uncommitted inputs. This re-run replaces the earlier report, which was written at 1f4e045f8. The newest commit, d1c6b807c (fixes "round 2"), changed only KDoc and log wording in `MailActionService.kt` and `MailFolderResync.kt`, added two `requestVerified` not-called asserts in `MailActionServiceTests`, and changed the e2e `list.spec.ts`.
 
 Requirements:
 - `tasks/mail-action-settle.md` acceptance criteria
 - `docs/ARCHITECTURE.md` "Coverage"
-- `reviews/mail-action-settle/fixes.md` (what CR-1..CR-5 changed)
+- `reviews/mail-action-settle/fixes.md` (rounds 1 and 2)
 
 ## Test files changed
 
-- `server/src/test/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncServiceTests.kt`
+- None in this run. The tests come from the task commits, including efb91651c (the earlier test-writer tightening) and d1c6b807c (the fixer's asserts).
 
 ## Tests added or updated
 
-Count: 1 (strengthened, not weakened)
+Count: 0
 
-`verifyFolder of a folder without cached messages reads no UID set` now also sets `remote.qresyncChanges`. Before, the QRESYNC changes were null, so the test never reached the `lowest != null` guard of the verified UID-set comparison (`MailHeaderSyncService.kt:351`). JaCoCo showed that branch as missed. Now the test fails if the guard is dropped, because `checkNotNull(lowest)` would throw for an empty folder on a QRESYNC server. The existing tests from the task and the fixer already cover every other criterion, so I added nothing else.
+The coverage counters match the earlier run exactly, and the only production change since then was wording. The new code has no meaningful uncovered branch left (see Coverage), so no test was needed.
 
 ## Requirement coverage
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1: reproduce the stale source row with a server test that fails before the fix (cache-conflict path or race) | `MailActionServiceTests`: `a move whose cache update gives up after conflicts still resyncs the source by UID set so the row cannot stay` (cache-conflict path, no resync was requested on it before the fix). `MailHeaderSyncServiceTests`: `after a racing sync covered an expunge by the cached HIGHESTMODSEQ, the verified resync after the action removes the row` (the race with QRESYNC). The root cause on the real server was not reproduced; that is recorded as an ASSUMPTION in the task file. | focused Gradle command below | Pass |
-| AC2: after move/archive/spam/delete, resync the source (and the target of a move) in the background, with vanished detection that does not depend on modseq | `a move resyncs the source and the target folder by UID set in the background`, `a delete outside Trash resyncs the source and Trash by UID set in the background`, `a delete in Trash resyncs only Trash by UID set in the background`, `archive and spam resync the source and their role folder by UID set in the background`, `a flag change starts no UID-set resync, and only a plain resync when its message is gone`, plus 4 updated existing tests (CR-1). `MailFolderResyncTests`: `a verified request runs the UID-set sync in the background`, `a plain and a verified request for a pending folder merge into one verified sync, in either order`. `MailHeaderSyncServiceTests`: `verifyFolder removes cached UIDs missing on the server even when QRESYNC reports nothing vanished`, `verifyFolder with CONDSTORE but no QRESYNC reads the UID set only once`, `verifyFolder of a folder without cached messages reads no UID set` | focused Gradle command below | Pass |
-| AC2: announces `MAIL_FOLDER` | Covered by the existing `MailHeaderSyncService` announce tests (the verify path reuses `announce(result)`) and by the existing action-announce tests in `MailActionServiceTests` | focused Gradle command below | Pass |
+| AC1: a server test reproduces the stale source row and fails before the fix | `MailActionServiceTests`: `a move whose cache update gives up after conflicts still resyncs the source by UID set so the row cannot stay` (cache-conflict path). `MailHeaderSyncServiceTests`: `after a racing sync covered an expunge by the cached HIGHESTMODSEQ, the verified resync after the action removes the row` (QRESYNC race). The real-server root cause was not reproduced; the task file records this as an ASSUMPTION. | focused Gradle command below | Pass |
+| AC2: background resync of the source (and target) after move/archive/spam/delete, with UID-set vanished detection | `MailActionServiceTests`: the move / delete outside Trash / delete in Trash / archive and spam resync tests, `a flag change starts no UID-set resync, and only a plain resync when its message is gone`, plus the flag-path `requestVerified` not-called asserts (round 2 CR-2). `MailFolderResyncTests`: verified request in the background; plain and verified requests merge in either order. `MailHeaderSyncServiceTests`: the `verifyFolder` tests (QRESYNC reports nothing vanished, CONDSTORE-only reads the UID set once, an empty folder reads no UID set) | focused Gradle command below | Pass |
+| AC2: announces `MAIL_FOLDER` | The existing announce tests in `MailHeaderSyncServiceTests` (the verify path reuses `announce`) and the action-announce tests in `MailActionServiceTests` | focused Gradle command below | Pass |
 | AC3: a sync never brings back a row the action removed (regression for the race) | `after a racing sync covered an expunge by the cached HIGHESTMODSEQ, the verified resync after the action removes the row` | focused Gradle command below | Pass |
-| AC4: web e2e for mail-list (refetch + reload, archive from the read view) | `web/e2e/mail-list/list.spec.ts` (commit 3aa5c98f1) | none | Not run: the parent told me not to run e2e; the parent runs it |
-| AC5: `./gradlew check`, `npm run check`, `scripts/check.sh`, GreenMail mail tests | none | none | Not run: left to the parent as instructed (GreenMail and the full checks are out of my scope) |
+| AC4: web e2e mail-list (refetch + reload, archive from the read view with in-app back) | `web/e2e/mail-list/list.spec.ts` | none by me | Not run: the parent told me not to. The fixer reports `npm run e2e -- e2e/mail-list/ --project=chromium -> 36 passed`; the parent records it |
+| AC5: `./gradlew check`, `npm run check`, `scripts/check.sh`, GreenMail mail tests | none | none | Not run: left to the parent as instructed |
 
 ## Focused test execution
 
 Command (cwd `server/`):
 
-`./gradlew test --tests '*MailActionServiceTests' --tests '*MailFolderResyncTests' --tests '*MailHeaderSyncServiceTests' jacocoTestReport ktlintCheck`
+`./gradlew ktlintCheck test --tests '*MailActionServiceTests' --tests '*MailFolderResyncTests' --tests '*MailHeaderSyncServiceTests' jacocoTestReport`
 
 Result:
 
-Pass. BUILD SUCCESSFUL. MailActionServiceTests 51/0 failures, MailFolderResyncTests 8/0, MailHeaderSyncServiceTests 48/0, no skips. ktlintCheck passed, including the edited test file.
-
-Note: the first attempt failed with `NoSuchFileException .../build/test-results/test/binary/in-progress-results-generic.bin`. Another Gradle daemon was busy in the same `server/build` directory at the time (probably the parent's integration run), so this was an environmental conflict, not a test failure. The retry before the edit (unmodified HEAD) passed with the same counts.
+Pass. BUILD SUCCESSFUL in 27s; `:test` re-executed and was not up-to-date. MailActionServiceTests 51 tests / 0 failures / 0 errors / 0 skipped; MailFolderResyncTests 8/0/0/0; MailHeaderSyncServiceTests 48/0/0/0, 107 in total. ktlintCheck passed (UP-TO-DATE against the current sources).
 
 ## Full test execution
 
@@ -52,7 +50,7 @@ Command:
 
 Result:
 
-Not run. That was out of scope per the parent's instructions, and a concurrent Gradle build was using the same build directory. The parent runs it.
+Not run (the parent runs it, per instructions).
 
 ## .taskcheck
 
@@ -66,47 +64,44 @@ None.
 
 ## Coverage
 
-Status: verified (focused selection: the three test classes above; JaCoCo report from the final run after the test edit)
+Status: verified for the focused selection (the three test classes above)
 
 Metric: whole-file coverage of task-changed production files. Old code in these files counts too.
-Changed-line coverage: not measured with tooling. A manual check of the JaCoCo line data shows the changed hunks fully covered: `MailActionService.kt` `settle` lines 234-242, `MailHeaderSyncService.kt` lines 108-131 dispatch and 350-353. The only exceptions are the partial branches listed below.
+Changed-line coverage: not measured with tooling. A manual check of the JaCoCo line data against the task diff found no missed instruction in `settle` (`MailActionService.kt:234-241`). In `MailHeaderSyncService.kt`, the verified comparison (lines 351-352) is covered except for the unreachable null branch described below.
 
 Evidence:
-- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: mail-action-settle; base 480868337^ (the parent of the first task commit); HEAD 1f4e045f8db5ae1711a323f7c2453f9045a678ce. Task ownership comes from the parent's commit list (480868337, 3aa5c98f1, d2df50384, 1f4e045f8), checked against the `touches` list in the task file.
-- Source/test snapshot identifier (including uncommitted inputs): HEAD 1f4e045f8 + uncommitted `server/src/test/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncServiceTests.kt` sha256 45b6365735917fb0c812446ce9e4a4cbdfa88d6a2cb3cfcb87e20d4394479232. The `reviews/mail-action-settle/review.md` working-tree change belongs to the parent and is not a code input.
-- Exact included files; renamed/deleted/excluded files and reasons: included `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailActionService.kt`, `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailFolderResync.kt`, `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncService.kt`. Excluded: `server/.tmp_dummy` (an empty file, not code), `web/e2e/mail-list/list.spec.ts` (test code), `reviews/` (reports). No renames or deletions.
-- Provider/version, command, working directory, and test selection: JaCoCo through the Gradle `jacoco` plugin (Gradle 9.8.1). Command `./gradlew test --tests '*MailActionServiceTests' --tests '*MailFolderResyncTests' --tests '*MailHeaderSyncServiceTests' jacocoTestReport ktlintCheck`, run in `server/`. The test-results directory contained only these three suites.
-- Run start/completion time and exit status: about 2026-11-14T21:11:00+01:00 to 21:12:00+01:00 (suite timestamps 20:11:27Z-20:11:42Z); exit 0.
-- Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml` sha256 d8b801453f8e091ee5c0ea4318218a97767797fca9c3c7f8696b5601d3767467 (from `server/build/jacoco/test.exec`).
-- Evidence outputs are fresh and inputs stayed unchanged: yes. The test task re-executed because of the edited test, and the report was regenerated in the same build (the hash differs from the pre-edit run fdaf155f...). No code inputs changed during the run.
-- Final run after latest test additions and production fixes: yes (it includes fixes 1f4e045f8 and this run's test edit).
+- Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: mail-action-settle; base 27e0adeb471ce5293b9c420635eb3b807596d5b8; HEAD d1c6b807c052fa1263e00a1191d217ce5c150881. The task commits come from the parent and were checked against the task's `touches`; `git diff --stat base..HEAD` shows only task files.
+- Source/test snapshot identifier (including uncommitted inputs): HEAD d1c6b807c with a clean working tree (`git status --short` showed nothing after the run).
+- Exact included files; renamed/deleted/excluded files and reasons: included `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailActionService.kt`, `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailFolderResync.kt` and `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncService.kt`. Excluded: test files, `web/e2e/mail-list/list.spec.ts` (test code) and `reviews/` (reports). No renames or deletions.
+- Provider/version, command, working directory, and test selection: JaCoCo through the Gradle `jacoco` plugin (Gradle 9.8.1), with the command above, in `server/`. `build/test-results/test/` held only these three suites.
+- Run start/completion time and exit status: suite timestamps 2026-11-14T20:48:23Z to 20:48:36Z; report written at 2026-11-14 21:48:40 +0100; BUILD SUCCESSFUL (exit 0).
+- Generated report paths and report hashes/run identifier: `server/build/reports/jacoco/test/jacocoTestReport.xml` sha256 2bd16d1a14abb4675c0f9728a9d585ceeb281770b8ef5cc2dbc67dccc74c25e6.
+- Evidence outputs are fresh and inputs stayed unchanged: yes. `:test` and `:jacocoTestReport` executed in this run ("2 executed"), and the working tree was clean after the run.
+- Final run after latest test additions and production fixes: yes (HEAD d1c6b807c, which includes the round-2 fixes).
 
-Values below use covered/total (percentage).
+Values below use covered/total (percentage). JaCoCo has no statement counter, so instructions are shown in its place.
 
 | Changed file | Instructions | Branches | Methods | Lines |
 |---|---:|---:|---:|---:|
 | `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailActionService.kt` | 1491/1641 (90.9%) | 138/162 (85.2%) | 39/43 (90.7%) | 208/211 (98.6%) |
 | `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailFolderResync.kt` | 176/186 (94.6%) | 11/12 (91.7%) | 9/10 (90.0%) | 35/36 (97.2%) |
 | `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncService.kt` | 1360/1392 (97.7%) | 114/116 (98.3%) | 36/40 (90.0%) | 181/183 (98.9%) |
-| Aggregate (summed counters, all 3 scoped files measured, none missing) | 3027/3219 (94.0%) | 263/290 (90.7%) | 84/93 (90.3%) | 424/430 (98.6%) |
-
-JaCoCo has no separate statement counter; instructions are shown in its place.
+| Aggregate (summed counters; all 3 scoped files measured, none missing or excluded) | 3027/3219 (94.0%) | 263/290 (90.7%) | 84/93 (90.3%) | 424/430 (98.6%) |
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `MailHeaderSyncService.kt:351` (`lowest != null` guard of the verified comparison) | Verified resync of an empty folder on a QRESYNC server must not throw | Now covered: the strengthened `verifyFolder of a folder without cached messages reads no UID set` test |
-| `MailHeaderSyncService.kt:352` (null branch of `checkNotNull(lowest)`) | Unreachable: line 351 already guarantees `lowest != null` | Justified gap |
-| `MailHeaderSyncService.kt:354` (`folder.uidNext ?: 1`), lines 38/44/48, 326 | Code from before the task (constructor defaults, unrelated helpers) | Outside the task |
-| `MailFolderResync.kt:68` (`pending.remove(folderId) ?: false`) | Defensive: the entry is always present when `run` starts, because only `enqueue` schedules runs | Justified gap |
-| `MailFolderResync.kt:27` (public constructor with the virtual-thread executor) | Spring wiring; the tests use the internal constructor with a direct executor | Justified gap (bootstrap) |
-| `MailActionService.kt` partial branches at 76-78, 154-193, 251-263, 292, 323, 378, 443-447, 484-485 | Code from before the task (validation, grouping, UID mapping) that is outside the changed `settle` / `updateCache` call | Outside the task; the changed `settle` (lines 234-242) is fully covered |
+| `MailHeaderSyncService.kt:352` (null branch of `checkNotNull(lowest)`) | Unreachable, because line 351 already requires `lowest != null` | Justified gap |
+| `MailHeaderSyncService.kt:354` (`folder.uidNext ?: 1`), lines 38/44/48, 326, 330 | Code from before the task (constructor defaults, unrelated helpers) | Outside the task |
+| `MailFolderResync.kt:69` (`pending.remove(folderId) ?: false`) | Defensive: the entry always exists when `run` starts, because only `enqueue` schedules runs | Justified gap |
+| `MailFolderResync.kt:28` (Spring constructor with the virtual-thread executor) | Bootstrap wiring; the tests use the internal constructor with a direct executor | Justified gap |
+| `MailActionService.kt` partial branches at 76-78, 154-193, 251-263, 292, 323, 379, 444-448, 485-486 | Code from before the task (validation, grouping, UID mapping, the conflict-retry log branch) | Outside the changed `settle`, which has no missed lines; the give-up path is exercised by the cache-conflict test |
 
 ## Unable to test
 
-- AC4 web e2e (`web/e2e/mail-list/list.spec.ts`): not run. The parent told me not to, and the parent runs it.
-- AC5 full checks and the GreenMail suites (`MailActionGreenMailTests`, `HeaderSyncGreenMailTests`, `MailIdle*`): not run, per the parent's instructions.
-- The race against a real IMAP server: GreenMail and the unit fakes cannot reproduce the owner's real-server timing. Unit tests cover it with a simulated racing sync; the task file records this as an ASSUMPTION.
+- AC4 web e2e: not run by me, per instructions. The fixer reports 36 passed; the parent records it.
+- AC5 full checks and the GreenMail suites: not run, per instructions; the parent runs them.
+- The race against the owner's real IMAP server cannot be reproduced with GreenMail or the unit fakes. The unit tests simulate it, and the task file records this as an ASSUMPTION.
 
 ## Summary
 
-Tests and task-scoped coverage are sufficient; no production defects found. I strengthened one test to cover the last meaningful new branch. The focused suites (107 tests) and ktlintCheck pass. The e2e, GreenMail and full-check criteria still need the parent's runs.
+Tests and task-scoped coverage are sufficient, and no production defects were found. The focused suites (107 tests) and ktlintCheck pass at HEAD d1c6b807c. The e2e, GreenMail and full-check criteria still depend on the parent's runs.

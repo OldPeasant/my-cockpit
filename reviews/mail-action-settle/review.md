@@ -4,31 +4,38 @@ Date: 2026-11-14
 
 Task: mail-action-settle - Moved, archived or deleted mail must not come back in the source list until the next 5-min sync
 
-Scope: the task's code commits 480868337, 3aa5c98f1 and 1f4e045f8 (1f4e045f8 fixes CR-1..CR-5 of the previous review), as listed by the parent worker. The final code at HEAD 1f4e045f8 was read in `server/` and `web/e2e/mail-list`. Commit d2df50384 holds only reports and was not reviewed.
+Scope: the full task diff `git diff 27e0adeb4..HEAD -- server web` (commits 279194eea, 9a8fc9e88, 9441010af, 33fdebc17, eeb3acb13, efb91651c, d1c6b807c). I checked the round-2 fixes in d1c6b807c against the previous review. Report-only files under `reviews/` were read but not reviewed as code.
 
 Requirements:
 - tasks/mail-action-settle.md: acceptance criteria and the recorded assumption
 - AGENTS.md project notes (conventions, lint, tests, evidence)
-- Previous review and reviews/mail-action-settle/fixes.md
-- Existing code conventions in the server `mail` module and in `web/e2e`
+- Previous review and reviews/mail-action-settle/fixes.md ("round 2")
+- Existing code conventions in the server `mail` module, `web/src/app/features/mail/read`, `web/src/app/shared/navigation` and `web/e2e`
 
 Git range:
 - Branch: main
-- HEAD: 1f4e045f8
-- Base/start: 02562a63b^ (supplied by the parent worker)
-- Commits reviewed: 3
+- HEAD: d1c6b807c
+- Base/start: 27e0adeb471ce5293b9c420635eb3b807596d5b8
+- Commits reviewed: 7
+- Uncommitted changes: none at the start of the review
 
-Summary: 0 P0, 0 P1, 1 P2, 3 P3
+Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-Note: Bash was denied in this session (only a few read-only `grep`/`awk` calls ran). This review therefore read the current files directly. It did not compute `git diff`, run Gradle or npm, or inspect the evidence recorded with `tasks.py verify`. The test results quoted below come from fixes.md, not from my own runs. The parent worker must check the recorded criterion evidence before running `done`.
+Note: As the parent worker asked, I did not run Gradle, because the test-writer uses the same build directory at the same time. I did not run npm or Playwright either. The test results quoted here come from fixes.md, not from my own runs. The parent worker must still record evidence for each criterion with `tasks.py verify`.
 
 ## Status of previous findings
 
-- CR-1 (P1, tests still expected `resync.request`): fixed. `MailActionServiceTests.kt:511-524`, `:544-561`, `:695-711` and `:758-768` now verify `requestVerified` for the source and target, and verify that `request` is never called. fixes.md reports 48/48 passing.
-- CR-2 (P1, no tests for the resync wiring): fixed. The new tests cover MOVE (`:575`), DELETE outside Trash (`:588`), DELETE in Trash (`:601`), ARCHIVE and SPAM (`:613`), a flag change (`:630`) and the cache-conflict path (`:645`).
-- CR-3 (P2, a test locked in the stale behavior): fixed. `MailHeaderSyncServiceTests.kt:306-322` now ends with `verifyFolder` removing UID 5. The plain-sync assertion is labelled as the known limitation. The conflict test at `MailActionServiceTests.kt:645` reproduces candidate 1 and could not pass before the fix.
-- CR-4 (P3, extra UID SEARCH): fixed. `MailHeaderSyncService.kt:351` limits the extra comparison to `verifyUids && qresync != null && lowest != null`. The test at `MailHeaderSyncServiceTests.kt:325` asserts a single `uidsFrom`.
-- CR-5 (P3, stale log and KDoc text): mostly fixed. `MailFolderResync.kt:73,76` and the class KDoc of `MailActionService` (`:114-119`) are updated. One stale log line and KDoc remain (see CR-3 below).
+- CR-1 (P2, the e2e test reached the list with `page.goto` instead of going back in the app): fixed. `web/e2e/mail-list/list.spec.ts:150-158` archives the note from the read view and checks that the page moved on to another message (`not.toHaveURL(noteUrl)`). This matches `MailReadPage.leave`, which goes to the next message with `replaceUrl`. The test then clicks `a.back`, the anchor rendered by `app-back-button` (`shared/navigation/back-button.ts:21`), and checks the folder URL. It checks the list right away, again after 3 s, after `page.reload()`, and through the API. The in-session path the owner reported is now covered.
+- CR-2 (P3, the tests did not check that `requestVerified` is never called): fixed. The fix adds `verify(exactly = 0) { resync.requestVerified(any()) }` at `MailActionServiceTests.kt:572` and `:636`.
+- CR-3 (P3, a stale "left to the next sync" text): fixed. The `updateCache` KDoc (`MailActionService.kt:366-370`) and the INFO log (`:427`) now say that a resync repairs the cache. The log line adds no message data.
+- CR-4 (P3, an unwrapped KDoc line): fixed. The class KDoc of `MailFolderResync.kt:15-21` is now wrapped at 120 columns.
+
+## Re-check of the full diff
+
+- `MailActionService.settle` (`:224-242`) requests a verified resync of the source after every Move (archive, spam and move are all `Operation.Move`) and of the destination. It does the same for the source of an Expunge. A flag change resyncs only when the cache was stale, as before. The request does not wait for the resync, as criterion 2 requires.
+- `MailFolderResync.enqueue` merges requests with `ConcurrentHashMap.compute`. A merged request verifies when either request asked for it. `run` removes the entry before it syncs, so a request made during a running sync is not lost. A rejected execution is handled as before.
+- `MailHeaderSyncService.verifyFolder` runs under the folder's sync lock, so it starts after any sync that raced the action. On the QRESYNC path it also compares UID sets (`:350-353`). The CONDSTORE and plain paths already compared UID sets, so they skip the extra SEARCH. Rows of UIDs that are gone are removed even when a racing sync advanced HIGHESTMODSEQ, which covers criterion 3. `announce` publishes `MAIL_FOLDER` only when rows changed. The action has already announced both folders.
+- Criterion 4: moved (`v` and the picker), archived (toolbar and read view) and deleted (toolbar) mails are all absent from the final list. The test checks this in the UI after back navigation, after a wait, after a reload, and in `GET /api/v1/mail/messages`.
 
 ## P0 Critical
 
@@ -40,36 +47,17 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | The e2e check for "archive from the read view and going back" reloads the page instead of going back**
-    - File: `web/e2e/mail-list/list.spec.ts:143-157`
-    - Category: Tests
-    - Problem: Criterion 4 asks for the same check "for archiving from the read view and going back". After archiving from the read view, the spec runs `page.goto(`/mail/folders/${inbox.id}`)` (line 148). That is a full page load, which starts the app again with a new store. It never uses the in-app back navigation (the read view's back control, or `page.goBack()`), which keeps the client-side list state. So the spec does not cover the path where the mail could "come back" in an already loaded list after returning from the read view. The later `page.reload()` (line 156) only repeats what the `goto` already checked.
-    - Why it matters: The owner's report is about the list in a running session. The current spec would pass even if the back navigation showed a stale cached list, because a full reload always reads the list fresh from the server.
-    - Suggested fix: After the read-view Archive, go back the way a user would (the read view's back control, or `page.goBack()`). Assert that the note is missing right away, again after the change-event refetch, and then after `page.reload()`. Keep the API listing check.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | `an action that finds all its messages starts no resync` checks only half of what its name says**
-    - File: `server/src/test/kotlin/ch/sonensei/cockpit/mail/api/MailActionServiceTests.kt:566-572` (the same gap is at `:633-634`)
+- [ ] **CR-1 | The "after the change-event refetch" check uses a fixed 3-second wait without confirming that a refetch happened**
+    - File: `web/e2e/mail-list/list.spec.ts:163-165`
     - Category: Tests
-    - Problem: The test runs READ with every message present but only verifies `resync.request(any())` with `exactly = 0`. It does not check that `requestVerified` was never called. The flag case at `:630` checks `requestVerified` only after its second action.
-    - Why it matters: If a regression made flag changes start a UID-set resync (an extra UID SEARCH for every read or flag), these tests would not catch it.
-    - Suggested fix: Add `verify(exactly = 0) { resync.requestVerified(any()) }` to both places.
-
-- [ ] **CR-3 | A conflict log line and a KDoc still say a move's cache update is "left to the next sync"**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailActionService.kt:368`, `:426`
-    - Category: Quality
-    - Problem: The `updateCache` KDoc says a conflict is "then left to the next sync". The INFO log at `:426` says "its cache update is left to the next sync after a concurrent change". For moves and deletes, `settle` now starts a verified background resync right away (the class KDoc at `:117-119` already says so). Only flag changes are still left to the next poll.
-    - Why it matters: An operator who sees this INFO line after a move is told the opposite of what happens. That makes it harder to diagnose the owner's issue if it comes back.
-    - Suggested fix: Make the text depend on the operation, or keep it neutral (for example, "cache update gave up after a concurrent change; a resync repairs it"). Update the KDoc to match.
-
-- [ ] **CR-4 | The class KDoc of `MailFolderResync` has an unwrapped 164-character line**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailFolderResync.kt:17`
-    - Category: Quality
-    - Problem: The fix put the `requestVerified` sentence into line 17 without rewrapping the paragraph. The line is 164 characters long and the lines around it are about 120. ktlint does not flag it, because the existing long KDoc line at `MailHeaderSyncService.kt:240` passes as well.
-    - Why it matters: Readability only. It is inconsistent with the wrapping in the rest of the module.
-    - Suggested fix: Rewrap the KDoc paragraph.
+    - Problem: The test checks the list, waits `page.waitForTimeout(3_000)`, and checks it again. Nothing confirms that a `MAIL_FOLDER` event arrived or that the list was fetched again in those 3 s. The archive's change events were published while the read view was open. The verified resync announces only when it removed rows, which does not happen on GreenMail. So the second check may just repeat the first one.
+    - Why it matters: The test is weaker than its comment claims. The reload and API checks that follow still cover the server-side behaviour, which is the actual fix, so this does not block the task.
+    - Suggested fix: Optional. Wait for a list response, for example with `page.waitForResponse` on `/api/v1/mail/messages?folderId=…` around a step that triggers it, before the second check. Otherwise, reword the comment so it does not claim a refetch was observed.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 (P2) leaves part of criterion 4 ("going back" from the read view) without a real check. Either fix it or have the parent worker record a reasoned disposition. CR-2 to CR-4 are small cleanups. The server fix is correct as far as I could read it. Moves and deletes request a UID-set resync of the source, and for a move also of the target. That resync waits for the folder's sync lock, so it runs after a sync that was racing the action. It finds vanished rows without relying on the cached HIGHESTMODSEQ. All earlier P1 findings are resolved in code. Running the tests and checking the recorded evidence remain the parent worker's job.
+No material issues found. The round-2 fixes are correct. The only new finding is an optional P3 about how strong one test step is. The parent worker must still run the required test suites and record evidence for each criterion (GreenMail suites, `npm run e2e` for mail-list, `./gradlew check`, `npm run check`, `scripts/check.sh`).
