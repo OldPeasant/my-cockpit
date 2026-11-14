@@ -129,4 +129,60 @@ class TaskDetailNewProjectRepositoryTest {
 
             assertEquals(0, projectLoads())
         }
+
+    private val projectId = UUID.fromString(uuid(50))
+    private val taskId = UUID.fromString(uuid(1))
+
+    private fun stalledKitchen() = json(projectJson(50, "Kitchen").replace("\"stalled\":false", "\"stalled\":true"))
+
+    private fun nextStepCalls() = dispatcher.requests.filter { it.url.encodedPath == "$PROJECTS/$projectId/next-step" }
+
+    @Test
+    fun `a stalled project gets the task as its next step with If-Match, then the projects reload`() =
+        runBlocking {
+            dispatcher.enqueue("$PROJECTS/$projectId", stalledKitchen())
+            dispatcher.enqueue("$PROJECTS/$projectId/next-step", json(projectJson(50, "Kitchen")))
+            dispatcher.enqueue(PROJECTS, json(taskPage(projectJson(50, "Kitchen"))))
+
+            repository.makeNextStepIfStalled(projectId, taskId)
+
+            val call = nextStepCalls().single()
+            assertEquals("POST", call.method)
+            assertEquals("\"2\"", call.headers["If-Match"])
+            assertEquals(JsonPrimitive(taskId.toString()), Json.parseToJsonElement(call.body!!.utf8()).jsonObject["taskId"])
+            assertEquals(1, projectLoads())
+        }
+
+    @Test
+    fun `a project that is not stalled keeps its next step`() =
+        runBlocking {
+            dispatcher.enqueue("$PROJECTS/$projectId", json(projectJson(50, "Kitchen")))
+
+            repository.makeNextStepIfStalled(projectId, taskId)
+
+            assertTrue(nextStepCalls().isEmpty())
+            assertEquals(0, projectLoads())
+        }
+
+    @Test
+    fun `failures are ignored and reload nothing`() =
+        runBlocking {
+            // Unreachable while reading the project.
+            dispatcher.enqueue("$PROJECTS/$projectId", status(503))
+            repository.makeNextStepIfStalled(projectId, taskId)
+            assertTrue(nextStepCalls().isEmpty())
+
+            // Changed elsewhere while setting the next step.
+            dispatcher.enqueue("$PROJECTS/$projectId", stalledKitchen())
+            dispatcher.enqueue("$PROJECTS/$projectId/next-step", status(412))
+            repository.makeNextStepIfStalled(projectId, taskId)
+            assertEquals(1, nextStepCalls().size)
+
+            // An unreadable answer.
+            dispatcher.enqueue("$PROJECTS/$projectId", json("""{"id":"oops"}"""))
+            repository.makeNextStepIfStalled(projectId, taskId)
+
+            assertEquals(1, nextStepCalls().size)
+            assertEquals(0, projectLoads())
+        }
 }

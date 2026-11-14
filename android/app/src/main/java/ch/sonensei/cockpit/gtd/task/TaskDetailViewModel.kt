@@ -552,6 +552,11 @@ class TaskDetailViewModel internal constructor(
                             message = DetailMessage.Saved,
                         )
                     }
+                    // A project made here with "New project…" has no next step yet: the task becomes it (as in the Inbox).
+                    val projectId = result.value.projectId
+                    if (projectId != null && state.value.createdProjects.any { it.id == projectId }) {
+                        source.makeNextStepIfStalled(projectId, result.value.id)
+                    }
                     source.changed()
                 }
                 else -> {

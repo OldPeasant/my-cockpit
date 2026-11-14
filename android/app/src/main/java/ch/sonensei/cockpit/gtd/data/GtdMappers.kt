@@ -69,6 +69,9 @@ internal fun ProjectResponse.toEntity(ordinal: Int) =
         descriptionMd = descriptionMd,
     )
 
+/** The project of a server answer, as [toEntity] then [CachedProjectEntity.toDomain] would give it. */
+internal fun ProjectResponse.toDomain() = toEntity(0).toDomain()
+
 internal fun CachedProjectEntity.toDomain() =
     GtdProject(
         id = UUID.fromString(id),

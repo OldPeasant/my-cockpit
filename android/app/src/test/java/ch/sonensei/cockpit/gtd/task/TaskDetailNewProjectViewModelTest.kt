@@ -84,6 +84,53 @@ class TaskDetailNewProjectViewModelTest {
         }
 
     @Test
+    fun `saving into a project made here makes the task its next step if it is stalled`() =
+        runTest {
+            val vm = editing()
+            vm.newProject("Kitchen")
+            assertTrue("not before the task is saved", source.nextSteps.isEmpty())
+            vm.save()
+
+            assertEquals(listOf(kitchenId to task.id), source.nextSteps)
+        }
+
+    @Test
+    fun `saving into an existing project leaves its next step alone`() =
+        runTest {
+            val bathroom = GtdProject(id(21), "Bathroom", ProjectStatus.ACTIVE, stalled = true, version = 1)
+            projects.value = listOf(garden, bathroom)
+            val vm = editing()
+            vm.edit { it.copy(projectId = bathroom.id) }
+            vm.save()
+
+            assertEquals(1, source.updates.size)
+            assertTrue(source.nextSteps.isEmpty())
+        }
+
+    @Test
+    fun `a project made here but not chosen in the end gets no next step`() =
+        runTest {
+            val vm = editing()
+            vm.newProject("Kitchen")
+            vm.edit { it.copy(title = "Buy more seeds", projectId = garden.id) }
+            vm.save()
+
+            assertEquals(1, source.updates.size)
+            assertTrue(source.nextSteps.isEmpty())
+        }
+
+    @Test
+    fun `a failed save into a project made here sets no next step`() =
+        runTest {
+            val vm = editing()
+            vm.newProject("Kitchen")
+            source.updateResult = TaskResult.Offline
+            vm.save()
+
+            assertTrue(source.nextSteps.isEmpty())
+        }
+
+    @Test
     fun `once the projects reload with the new project it is offered only once`() =
         runTest {
             val vm = editing()

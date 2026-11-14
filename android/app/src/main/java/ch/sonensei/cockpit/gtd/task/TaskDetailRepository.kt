@@ -8,6 +8,7 @@ import ch.sonensei.cockpit.core.network.generated.models.ConvertToEventRequest
 import ch.sonensei.cockpit.core.network.generated.models.CreateChecklistItemRequest
 import ch.sonensei.cockpit.core.network.generated.models.CreateProjectRequest
 import ch.sonensei.cockpit.core.network.generated.models.MoveTaskRequest
+import ch.sonensei.cockpit.core.network.generated.models.NextStepRequest
 import ch.sonensei.cockpit.core.network.generated.models.TaskResponse
 import ch.sonensei.cockpit.gtd.data.GtdCacheDao
 import ch.sonensei.cockpit.gtd.data.GtdConnectivity
@@ -15,11 +16,11 @@ import ch.sonensei.cockpit.gtd.data.GtdProject
 import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.data.HttpFailure
 import ch.sonensei.cockpit.gtd.data.ProjectRepository
-import ch.sonensei.cockpit.gtd.data.ProjectStatus
 import ch.sonensei.cockpit.gtd.data.RefreshResult
 import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.gtd.data.TaskRepository
 import ch.sonensei.cockpit.gtd.data.TaskView
+import ch.sonensei.cockpit.gtd.data.body
 import ch.sonensei.cockpit.gtd.data.toDomain
 import ch.sonensei.cockpit.gtd.lists.toTask
 import dagger.Module
@@ -30,6 +31,7 @@ import dagger.multibindings.IntoSet
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -48,6 +50,7 @@ import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
 import java.io.IOException
+import java.time.DateTimeException
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
@@ -227,6 +230,15 @@ interface TaskDetailSource {
      */
     suspend fun createProject(title: String): TaskResult<GtdProject>
 
+    /**
+     * Makes the task [taskId] the next step of the project [projectId] if that project is stalled (e.g. one just made
+     * with "New project…"), as Inbox processing does; a failure is ignored.
+     */
+    suspend fun makeNextStepIfStalled(
+        projectId: UUID,
+        taskId: UUID,
+    )
+
     /** Reloads the cached task views and tells the live lists, after a change. */
     suspend fun changed()
 }
@@ -364,9 +376,31 @@ class TaskDetailRepository
             }
 
         override suspend fun createProject(title: String): TaskResult<GtdProject> =
-            call({ projectsApi.createProject(CreateProjectRequest(title)) }) { body ->
-                body!!.let { GtdProject(it.id, it.title, ProjectStatus.valueOf(it.status.value), it.stalled, it.version, it.areaId) }
-            }.also { if (it is TaskResult.Ok) projects.refresh() }
+            call({ projectsApi.createProject(CreateProjectRequest(title)) }) { it!!.toDomain() }
+                .also { if (it is TaskResult.Ok) projects.refresh() }
+
+        /**
+         * Best effort, as Inbox processing does: a failure (no connection, an error status, an unreadable answer)
+         * leaves the project stalled, which the Projects screen shows; the task itself is saved either way.
+         */
+        override suspend fun makeNextStepIfStalled(
+            projectId: UUID,
+            taskId: UUID,
+        ) {
+            try {
+                val project = body(projectsApi.getProject(projectId))
+                if (!project.stalled) return
+                body(projectsApi.setProjectNextStep(projectId, NextStepRequest(taskId), etag(project.version)))
+                projects.refresh()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: IOException) {
+            } catch (_: HttpFailure) {
+            } catch (_: SerializationException) {
+            } catch (_: IllegalArgumentException) {
+            } catch (_: DateTimeException) {
+            }
+        }
 
         override suspend fun changed() {
             TaskEdits.changed()

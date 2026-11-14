@@ -6,6 +6,7 @@ import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.data.ProjectStatus
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import java.util.UUID
 
 /** Answers like the server with [detail]; records what the view model asked for. */
@@ -45,7 +46,13 @@ class FakeTaskDetailSource(
     ): TaskResult<GtdTask> {
         updates += task to patch
         val title = (patch["title"] as? JsonPrimitive)?.content ?: task.title
-        return updateResult ?: TaskResult.Ok(task.copy(title = title, version = task.version + 1))
+        val projectId =
+            when (val value = patch["projectId"]) {
+                null -> task.projectId
+                is JsonPrimitive -> value.contentOrNull?.let(UUID::fromString)
+                else -> null
+            }
+        return updateResult ?: TaskResult.Ok(task.copy(title = title, projectId = projectId, version = task.version + 1))
     }
 
     override suspend fun complete(task: GtdTask): TaskResult<Unit> {
@@ -165,5 +172,15 @@ class FakeTaskDetailSource(
             ?: TaskResult.Ok(
                 GtdProject(UUID.nameUUIDFromBytes(title.toByteArray()), title, ProjectStatus.ACTIVE, stalled = true, version = 0),
             )
+    }
+
+    /** The (project, task) pairs makeNextStepIfStalled was called with. */
+    val nextSteps = mutableListOf<Pair<UUID, UUID>>()
+
+    override suspend fun makeNextStepIfStalled(
+        projectId: UUID,
+        taskId: UUID,
+    ) {
+        nextSteps += projectId to taskId
     }
 }
