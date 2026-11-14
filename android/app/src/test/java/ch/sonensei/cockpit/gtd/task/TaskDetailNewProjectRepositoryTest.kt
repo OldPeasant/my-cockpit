@@ -185,4 +185,14 @@ class TaskDetailNewProjectRepositoryTest {
             assertEquals(1, nextStepCalls().size)
             assertEquals(0, projectLoads())
         }
+
+    @Test
+    fun `no connection at all is ignored too`() =
+        runBlocking {
+            server.close()
+
+            repository.makeNextStepIfStalled(projectId, taskId)
+
+            assertTrue(nextStepCalls().isEmpty())
+        }
 }

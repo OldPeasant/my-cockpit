@@ -170,6 +170,42 @@ class GtdMappersTest {
     }
 
     @Test
+    fun `a project answer maps straight to the same domain project as through the cache row`() {
+        val full =
+            project(ProjectResponse.Status.SOMEDAY).copy(
+                stalled = true,
+                areaId = id(10),
+                nextTaskId = id(11),
+                dueDate = LocalDate.of(2026, 12, 24),
+                reviewDate = LocalDate.of(2026, 12, 1),
+                descriptionMd = "Bake *cookies*",
+            )
+
+        assertEquals(
+            GtdProject(
+                id = id(2),
+                title = "Plan the trip",
+                status = ProjectStatus.SOMEDAY,
+                stalled = true,
+                version = 5,
+                areaId = id(10),
+                nextTaskId = id(11),
+                dueDate = LocalDate.of(2026, 12, 24),
+                reviewDate = LocalDate.of(2026, 12, 1),
+                descriptionMd = "Bake *cookies*",
+            ),
+            full.toDomain(),
+        )
+        assertEquals(
+            GtdProject(id = id(2), title = "Plan the trip", status = ProjectStatus.ACTIVE, stalled = false, version = 5),
+            project().toDomain(),
+        )
+        ProjectResponse.Status.entries.forEach { status ->
+            assertEquals(project(status).toEntity(3).toDomain(), project(status).toDomain())
+        }
+    }
+
+    @Test
     fun `a context without a color maps to null`() {
         val context = ContextResponse(id = id(3), name = "@errands", position = 2, version = 1)
 
