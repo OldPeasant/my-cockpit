@@ -20,7 +20,8 @@ Android part of "→ Next action & archive" (server call from `mail-task-archive
   - verified (2026-11-14 09:50+0100 by dell26/agent-1): testDebugUnitTest NewNextActionScreenTest + NewNextActionViewModelTest (row action opens task via LocalTaskOpener, archived mail removed) -> pass
 - [x] Mail list multi-select: the action creates one Next action per selected mail and archives them; the list stays, the mails leave it, and a snackbar "N next actions created" offers to open Next Actions
   - verified (2026-11-14 09:50+0100 by dell26/agent-1): testDebugUnitTest MailNextActionsViewModelTest/MailNextActionsScreenTest + MailNextActionInAppTest 'multi-selection ... snackbar opens Next Actions' (2 next actions created, rows gone, Open Next Actions navigates) -> pass
-- [ ] Archive failure: the task is kept (single mail: its detail still opens) and a message says which mail was not archived; a failed task creation leaves the mail in place with an error
+- [x] Archive failure: the task is kept (single mail: its detail still opens) and a message says which mail was not archived; a failed task creation leaves the mail in place with an error
+  - verified (2026-11-14 09:50+0100 by dell26/agent-1): testDebugUnitTest MailReadNextActionViewModelTest/NewNextActionViewModelTest/MailNextActionsViewModelTest not-archived + creation-failed cases, MailNextActionInAppTest not-archived back shows notice -> pass
 - [ ] The task detail's linked items show the mail, and opening it shows the archived mail
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`); touch targets ≥ 48dp, actions fit at 320dp width (overflow menu if needed)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
