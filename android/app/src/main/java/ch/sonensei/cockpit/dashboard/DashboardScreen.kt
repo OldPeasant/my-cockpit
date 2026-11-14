@@ -77,6 +77,7 @@ import ch.sonensei.cockpit.calendar.edit.EventEditorCallbacks
 import ch.sonensei.cockpit.calendar.edit.EventEditorContent
 import ch.sonensei.cockpit.calendar.edit.EventEditorViewModel
 import ch.sonensei.cockpit.gtd.task.LocalTaskOpener
+import ch.sonensei.cockpit.mail.list.FollowMailChanges
 import ch.sonensei.cockpit.notes.NoteEditorRoute
 import ch.sonensei.cockpit.ui.LocalFabClearance
 import ch.sonensei.cockpit.ui.PlaceholderScreen
@@ -162,6 +163,8 @@ fun DashboardRoute(
         viewModel.refresh()
         onPauseOrDispose {}
     }
+    // While shown, new mail synced on the server updates the unread-mail count (SPEC.md §2: SSE in the foreground).
+    FollowMailChanges(viewModel) { viewModel.followMailChanges() }
     // A closed event editor may have changed the event.
     LaunchedEffect(editor) {
         snapshotFlow { editorState.open }.drop(1).filter { !it }.collect { viewModel.refresh() }

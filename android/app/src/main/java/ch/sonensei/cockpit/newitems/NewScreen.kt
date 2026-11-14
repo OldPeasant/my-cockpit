@@ -59,6 +59,7 @@ import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.task.LocalTaskOpener
 import ch.sonensei.cockpit.mail.compose.ComposeMode
 import ch.sonensei.cockpit.mail.compose.MailComposeRoute
+import ch.sonensei.cockpit.mail.list.FollowMailChanges
 import ch.sonensei.cockpit.mail.list.MailSummary
 import ch.sonensei.cockpit.mail.read.MailReadRoute
 import ch.sonensei.cockpit.mail.read.notArchived
@@ -130,6 +131,8 @@ fun NewRoute(
         viewModel.refresh()
         onPauseOrDispose {}
     }
+    // While shown, new mail synced on the server reloads the newest mails (SPEC.md §2: SSE in the foreground).
+    FollowMailChanges(viewModel) { viewModel.followMailChanges() }
     val compose = composing?.let(ComposeMode::parse)
     // "Next action & archive" made a task: its detail opens, back returns to this list.
     LaunchedEffect(state.openTask) {

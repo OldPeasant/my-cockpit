@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.sonensei.cockpit.calendar.agenda.CalendarInfo
 import ch.sonensei.cockpit.calendar.agenda.Occurrence
+import ch.sonensei.cockpit.gtd.data.MailRefreshTriggers
 import ch.sonensei.cockpit.gtd.projects.ProjectOpenRequests
 import ch.sonensei.cockpit.ui.navigation.CockpitDestination
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -72,11 +73,13 @@ class DashboardViewModel
     constructor(
         private val dashboard: DashboardRepository,
         private val projectRequests: ProjectOpenRequests = ProjectOpenRequests(),
+        private val mailChanges: MailRefreshTriggers = MailRefreshTriggers.NONE,
     ) : ViewModel() {
         private val state = MutableStateFlow(DashboardUiState())
         val uiState: StateFlow<DashboardUiState> = state.asStateFlow()
 
         private var loadJob: Job? = null
+        private var mailJob: Job? = null
 
         /** Layout saves run one after the other, each applying its change to the layout stored by then. */
         private val saving = Mutex()
@@ -99,6 +102,7 @@ class DashboardViewModel
          */
         fun refresh(pulled: Boolean = false) {
             loadJob?.cancel()
+            mailJob?.cancel()
             loadJob =
                 viewModelScope.launch {
                     state.update { it.copy(refreshing = pulled) }
@@ -120,6 +124,22 @@ class DashboardViewModel
                     state.update { it.copy(refreshing = false) }
                 }
         }
+
+        /**
+         * Reloads the Today widget (its unread-mail count) on every mail change on the server while collected; the
+         * screen collects it only while shown. Nothing starts while a load runs, and a failed reload keeps the widget
+         * as shown (no loading state, no error).
+         */
+        suspend fun followMailChanges() =
+            mailChanges.changes().collect {
+                if (loadJob?.isActive == true || mailJob?.isActive == true) return@collect
+                if (WidgetId.TODAY !in state.value.widgets) return@collect
+                mailJob =
+                    viewModelScope.launch {
+                        val result = dashboard.load(WidgetId.TODAY) as? DashboardResult.Ok ?: return@launch
+                        state.update { it.copy(states = it.states + (WidgetId.TODAY to WidgetState(result.value, loading = false))) }
+                    }
+            }
 
         /** Shows or hides the layout editor. */
         fun customize(on: Boolean) = state.update { it.copy(customizing = on && it.layoutLoaded, layoutError = null) }

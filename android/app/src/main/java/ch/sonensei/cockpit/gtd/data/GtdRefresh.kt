@@ -5,7 +5,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -184,7 +186,39 @@ class GtdRefreshTriggers
             ).onStart { scheduler.ensureScheduled() }
     }
 
+/**
+ * When the open mail views (New, Mail list, Today's unread count) reload while shown: on every new or changed mail
+ * (`EMAIL`, `MAIL_FOLDER`) and after every reconnect of the shared change stream (no second connection). Unlike
+ * [GtdRefreshTriggers] it does not emit at once (the views load when they are shown) and schedules no sync. A burst
+ * (a sync bringing many mails) is coalesced into one emission after [quietMs] without further events.
+ */
+@OptIn(kotlinx.coroutines.FlowPreview::class)
+class MailRefreshTriggers internal constructor(
+    private val signals: Flow<ChangeSignal>,
+    private val quietMs: Long = MAIL_QUIET_MS,
+) {
+    @Inject
+    constructor(changes: GtdChangeStream) : this(changes.signals)
+
+    fun changes(): Flow<Unit> =
+        signals
+            .filter { it is ChangeSignal.Reconnected || (it is ChangeSignal.Changed && it.type in MAIL_TYPES) }
+            .map { }
+            .debounce(quietMs)
+
+    companion object {
+        /** No events: for views built without the change stream (tests). */
+        val NONE = MailRefreshTriggers(emptyFlow())
+
+        private const val MAIL_QUIET_MS = 1_000L
+        private val MAIL_TYPES = setOf(ChangeTypes.EMAIL, ChangeTypes.MAIL_FOLDER)
+    }
+}
+
 internal object ChangeTypes {
+    const val EMAIL = "EMAIL"
+    const val MAIL_FOLDER = "MAIL_FOLDER"
+
     const val TASK = "TASK"
     const val PROJECT = "PROJECT"
     const val CONTEXT = "CONTEXT"

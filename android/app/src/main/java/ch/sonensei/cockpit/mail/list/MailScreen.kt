@@ -154,6 +154,8 @@ fun MailRoute(
         viewModel.refresh()
         onPauseOrDispose {}
     }
+    // While shown, new mail synced on the server reloads the current mailbox (SPEC.md §2: SSE in the foreground).
+    FollowMailChanges(viewModel) { viewModel.followMailChanges() }
     val current = open?.let(UUID::fromString)
     val compose = composing?.let(ComposeMode::parse)
     if (compose != null) {

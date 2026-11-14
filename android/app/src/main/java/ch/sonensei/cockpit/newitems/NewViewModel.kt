@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.newitems
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ch.sonensei.cockpit.gtd.data.MailRefreshTriggers
 import ch.sonensei.cockpit.gtd.data.TaskRepository
 import ch.sonensei.cockpit.gtd.data.TaskView
 import ch.sonensei.cockpit.mail.list.MailRepository
@@ -92,6 +93,7 @@ class NewViewModel internal constructor(
     private val cache: NewMailCache,
     private val filterStore: NewFilterStore,
     private val clock: Clock,
+    private val mailChanges: MailRefreshTriggers = MailRefreshTriggers.NONE,
 ) : ViewModel() {
     @Inject
     constructor(
@@ -100,7 +102,8 @@ class NewViewModel internal constructor(
         reader: MailReadRepository,
         cache: NewMailCache,
         filterStore: NewFilterStore,
-    ) : this(tasks, mail, reader, cache, filterStore, Clock.systemUTC())
+        mailChanges: MailRefreshTriggers,
+    ) : this(tasks, mail, reader, cache, filterStore, Clock.systemUTC(), mailChanges)
 
     private data class MailPart(
         val messages: List<MailSummary> = emptyList(),
@@ -151,9 +154,21 @@ class NewViewModel internal constructor(
     }
 
     /** Loads the newest mails again; the pages already loaded behind them stay. */
-    fun refresh() {
+    fun refresh() = loadFirstPage(quiet = false)
+
+    /**
+     * Reloads the newest mails (like [refresh]) on every mail change on the server while collected; the screen collects
+     * it only while shown. A load already running is not started again, and a failed reload keeps what is shown as it
+     * is (no loading indicator, no new error banner).
+     */
+    suspend fun followMailChanges() =
+        mailChanges.changes().collect {
+            if (loadJob?.isActive != true) loadFirstPage(quiet = true)
+        }
+
+    private fun loadFirstPage(quiet: Boolean) {
         loadJob?.cancel()
-        mailPart.update { it.copy(loading = true, loadingMore = false) }
+        if (!quiet) mailPart.update { it.copy(loading = true, loadingMore = false) }
         loadJob =
             viewModelScope.launch {
                 val result = mail.messages(Mailbox.Unified, null)
@@ -179,8 +194,8 @@ class NewViewModel internal constructor(
                                 failed = false,
                             )
                         }
-                        MailResult.Offline -> m.copy(loading = false, offline = true, failed = false)
-                        is MailResult.Failed -> m.copy(loading = false, offline = false, failed = true)
+                        MailResult.Offline -> if (quiet) m else m.copy(loading = false, offline = true, failed = false)
+                        is MailResult.Failed -> if (quiet) m else m.copy(loading = false, offline = false, failed = true)
                     }
                 }
                 remember()

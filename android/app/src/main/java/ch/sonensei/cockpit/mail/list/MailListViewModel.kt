@@ -2,6 +2,7 @@ package ch.sonensei.cockpit.mail.list
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ch.sonensei.cockpit.gtd.data.MailRefreshTriggers
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -187,6 +188,7 @@ class MailListViewModel
     @Inject
     constructor(
         private val repository: MailRepository,
+        private val mailChanges: MailRefreshTriggers = MailRefreshTriggers.NONE,
     ) : ViewModel() {
         private val state = MutableStateFlow(MailListUiState())
         val uiState: StateFlow<MailListUiState> = state.asStateFlow()
@@ -212,6 +214,16 @@ class MailListViewModel
 
         /** Loads the accounts and the first page of the current mailbox again. */
         fun refresh() = load(state.value.mailbox)
+
+        /**
+         * Reloads the first page of the current mailbox (like [refresh]) on every mail change on the server while
+         * collected; the screen collects it only while shown. Search results are not reloaded, a load already running is
+         * not started again, and a failed reload keeps what is shown (no loading indicator, no new error message).
+         */
+        suspend fun followMailChanges() =
+            mailChanges.changes().collect {
+                if (loadJob?.isActive != true) load(state.value.mailbox, quiet = true)
+            }
 
         /** Shows [mailbox] from its newest mail. */
         fun select(mailbox: Mailbox) {
@@ -708,9 +720,12 @@ class MailListViewModel
         private fun load(
             mailbox: Mailbox,
             message: MailListMessage? = null,
+            quiet: Boolean = false,
         ) {
             loadJob?.cancel()
-            state.update { it.copy(loading = true, loadingMore = false, loadingOlder = false, olderMessage = null) }
+            if (!quiet) {
+                state.update { it.copy(loading = true, loadingMore = false, loadingOlder = false, olderMessage = null) }
+            }
             loadJob =
                 viewModelScope.launch {
                     val generation = ++folderGeneration
@@ -730,11 +745,14 @@ class MailListViewModel
                                     nextCursor = cursor,
                                     loading = false,
                                     loaded = true,
-                                    message = message,
+                                    // A quiet reload keeps an action's message; only "outdated" is no longer true.
+                                    message = if (quiet) current.message.takeUnless { it in STALE } else message,
                                 )
                             }
-                            MailResult.Offline -> withAccounts.copy(loading = false, message = MailListMessage.OFFLINE)
-                            is MailResult.Failed -> withAccounts.copy(loading = false, message = MailListMessage.FAILED)
+                            MailResult.Offline ->
+                                if (quiet) withAccounts else withAccounts.copy(loading = false, message = MailListMessage.OFFLINE)
+                            is MailResult.Failed ->
+                                if (quiet) withAccounts else withAccounts.copy(loading = false, message = MailListMessage.FAILED)
                         }
                     }
                 }
@@ -759,6 +777,9 @@ class MailListViewModel
             return if (older.isEmpty()) page.items to page.nextCursor else (page.items + older) to current.nextCursor
         }
     }
+
+/** The messages saying the list may be outdated: a successful reload ends them. */
+private val STALE = setOf(MailListMessage.OFFLINE, MailListMessage.FAILED)
 
 /** Why "load older" added nothing: [added] failed or was zero, or reading the list afterwards ([listed]) failed. */
 private fun olderFailure(
