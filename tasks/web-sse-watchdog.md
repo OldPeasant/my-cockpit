@@ -48,3 +48,4 @@ Planned 2026-11-14 from the owner's report; the e2e probe that showed the happy 
 (not committed). Keep the scope to the shared events service and the heartbeat; feature stores already refetch on
 `resync$`. Android has its own read-timeout watchdog; the Android mail views not listening at all is
 `and-mail-live-refresh`.
+- ASSUMPTION (2026-11-14 20:57+0100 by dell26/agent-2): Heartbeat comment replaced by a named 'ping' event with data {} (browsers drop data-less events); also updated the stream description in EventsController.kt (outside touches) so the openapi contract documents it. Android ignores non-'change' events (GtdChangeStreamTest 'event: other' case).
