@@ -3546,6 +3546,36 @@ describe('TaskDetail', () => {
       expect(field<HTMLSelectElement>('#td-project').value).toBe('p9');
     });
 
+    it('a project created by a retry with another title is the one a later retry reuses', async () => {
+      const garden = { id: 'p11', title: 'Garden', status: 'ACTIVE' } as ProjectResponse;
+      let saveFailures = 2;
+      const bodies: unknown[] = [];
+      answer = (fn, params) => {
+        if (fn === createProject) {
+          bodies.push(params['body']);
+          return bodies.length === 1 ? created : garden;
+        }
+        if (fn === updateTask && saveFailures-- > 0) throw new ApiError(500, 'Server error');
+        return undefined;
+      };
+      await render();
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Garage');
+      await create();
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Garden');
+      await create();
+      expect(element.querySelector('[role=alert]')).not.toBeNull();
+
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Garden');
+      await create();
+
+      expect(bodies).toEqual([{ title: 'Garage' }, { title: 'Garden' }]);
+      expect(callsOf(updateTask).at(-1)!.params['body']).toEqual({ projectId: 'p11' });
+      expect(element.querySelector('[role=alert]')).toBeNull();
+    });
+
     it('Discard after a failed save forgets the created project', async () => {
       let saveFailures = 1;
       const bodies: unknown[] = [];
