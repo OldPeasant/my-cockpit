@@ -175,6 +175,28 @@ class DashboardMailRefreshTest {
         }
 
     @Test
+    fun `a refresh during an event reload drops the event reload's older answer`() =
+        runTest(dispatcher) {
+            val stale = CompletableDeferred<DashboardResult<WidgetData>>()
+            coEvery { repo.load(WidgetId.INBOX) } returns
+                DashboardResult.Ok(oneUnread) coAndThen { stale.await() } andThen DashboardResult.Ok(threeUnread)
+            val vm = shown()
+
+            signal(ChangeSignal.Changed("EMAIL"))
+            quiet()
+            coVerify(exactly = 2) { repo.load(WidgetId.INBOX) }
+            vm.refresh()
+            advanceUntilIdle()
+            assertEquals(WidgetState(threeUnread, loading = false), vm.uiState.value.state(WidgetId.INBOX))
+
+            stale.complete(DashboardResult.Ok(oneUnread))
+            advanceUntilIdle()
+
+            assertEquals(WidgetState(threeUnread, loading = false), vm.uiState.value.state(WidgetId.INBOX))
+            coVerify(exactly = 3) { repo.load(WidgetId.INBOX) }
+        }
+
+    @Test
     fun `a dashboard without mail widgets loads nothing on a mail event`() =
         runTest(dispatcher) {
             coEvery { repo.layout() } returns DashboardResult.Ok(layoutOf(WidgetId.WEEKLY_REVIEW))

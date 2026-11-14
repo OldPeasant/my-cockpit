@@ -241,6 +241,31 @@ class MailListLiveRefreshTest {
         }
 
     @Test
+    fun `an event while a newly opened folder loads reloads that folder once it ends, not the unified inbox`() =
+        runTest(dispatcher) {
+            val opening = CompletableDeferred<MailResult<MailPage>>()
+            firstPages(page(1, 2))
+            coEvery { repo.messages(box, null) } coAnswers { opening.await() } andThen page(6, 5)
+            val vm = shown()
+            vm.select(box)
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.loading)
+
+            signal(ChangeSignal.Changed("MAIL_FOLDER"))
+            quiet()
+            coVerify(exactly = 1) { repo.messages(box, null) }
+
+            opening.complete(page(5))
+            advanceUntilIdle()
+
+            assertEquals(box, vm.uiState.value.mailbox)
+            assertEquals(listOf(6, 5).map(::id), vm.ids())
+            assertFalse(vm.uiState.value.loading)
+            coVerify(exactly = 2) { repo.messages(box, null) }
+            coVerify(exactly = 1) { repo.messages(Mailbox.Unified, null) }
+        }
+
+    @Test
     fun `an event during load more still reloads the first page`() =
         runTest(dispatcher) {
             val nextPage = CompletableDeferred<MailResult<MailPage>>()
