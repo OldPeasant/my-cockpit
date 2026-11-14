@@ -8,7 +8,6 @@ import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollToNode
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.testing.WorkManagerTestInitHelper
@@ -120,9 +119,7 @@ class NewScreenInAppTest {
 
     private fun openNew() {
         scenario = ActivityScenario.launch(MainActivity::class.java)
-        composeRule.onNode(hasText("More") and isSelectable()).performClick()
-        composeRule.onNodeWithTag(screenTag(CockpitDestination.More)).performScrollToNode(hasText("New"))
-        composeRule.onNodeWithText("New").performClick()
+        composeRule.onNode(hasText("New") and isSelectable()).performClick()
         composeRule.onNodeWithTag(screenTag(CockpitDestination.New)).assertExists()
     }
 

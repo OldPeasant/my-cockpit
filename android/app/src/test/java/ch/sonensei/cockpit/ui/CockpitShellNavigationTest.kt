@@ -105,7 +105,7 @@ class CockpitShellNavigationTest {
 
     @Test
     fun systemBackFromATabReturnsToDashboard() {
-        tab("Inbox").performClick()
+        tab("New").performClick()
         tab("Mail").performClick()
 
         pressSystemBack()
@@ -116,9 +116,9 @@ class CockpitShellNavigationTest {
 
     @Test
     fun switchingTabsKeepsOnlyDashboardBelowTheCurrentTab() {
-        tab("Inbox").performClick()
+        tab("New").performClick()
         tab("Calendar").performClick()
-        tab("Inbox").performClick()
+        tab("New").performClick()
         tab("Mail").performClick()
         composeRule.waitForIdle()
 
@@ -128,11 +128,11 @@ class CockpitShellNavigationTest {
 
     @Test
     fun reselectingTheCurrentTabDoesNotStackItTwice() {
-        tab("Inbox").performClick()
-        tab("Inbox").performClick()
+        tab("New").performClick()
+        tab("New").performClick()
         composeRule.waitForIdle()
 
-        assertEquals("inbox", currentRoute())
+        assertEquals("new", currentRoute())
         assertEquals("dashboard", previousRoute())
     }
 
@@ -162,7 +162,7 @@ class CockpitShellNavigationTest {
      */
     @Test
     fun tabKeepsItsSavedStateAcrossAVisitToMore() {
-        listOf("Inbox", "Calendar", "Mail").forEach { label ->
+        listOf("New", "Calendar", "Mail").forEach { label ->
             tab(label).performClick()
             composeRule.waitForIdle()
             val entryId = currentEntryId()
@@ -185,7 +185,7 @@ class CockpitShellNavigationTest {
         composeRule.waitForIdle()
         val moreEntryId = currentEntryId()
 
-        tab("Inbox").performClick()
+        tab("New").performClick()
         tab("More").performClick()
         composeRule.waitForIdle()
 
@@ -195,20 +195,20 @@ class CockpitShellNavigationTest {
 
     @Test
     fun tabKeepsItsSavedStateAcrossAVisitToAMoreSubScreen() {
-        tab("Inbox").performClick()
+        tab("New").performClick()
         composeRule.waitForIdle()
         val entryId = currentEntryId()
-        composeRule.runOnUiThread { navController.currentBackStackEntry!!.savedStateHandle["probe"] = "inbox-draft" }
+        composeRule.runOnUiThread { navController.currentBackStackEntry!!.savedStateHandle["probe"] = "new-draft" }
 
         openMoreItem("Notes")
         assertShown(CockpitDestination.Notes)
-        tab("Inbox").performClick()
+        tab("New").performClick()
         composeRule.waitForIdle()
 
-        assertShown(CockpitDestination.Inbox)
+        assertShown(CockpitDestination.New)
         assertEquals(entryId, currentEntryId())
         assertEquals(
-            "inbox-draft",
+            "new-draft",
             composeRule.runOnUiThread { navController.currentBackStackEntry!!.savedStateHandle.get<String>("probe") },
         )
         assertEquals("dashboard", previousRoute())
@@ -217,7 +217,7 @@ class CockpitShellNavigationTest {
     @Test
     fun moreListReopenedAfterASubScreenHasOnlyDashboardBelowIt() {
         openMoreItem("Habits")
-        tab("Inbox").performClick()
+        tab("New").performClick()
         tab("More").performClick()
         composeRule.waitForIdle()
 
@@ -233,7 +233,7 @@ class CockpitShellNavigationTest {
     @Test
     fun leavingMoreFromASubScreenAndComingBackShowsTheMoreList() {
         openMoreItem("Habits")
-        tab("Inbox").performClick()
+        tab("New").performClick()
         tab("More").performClick()
         composeRule.waitForIdle()
 

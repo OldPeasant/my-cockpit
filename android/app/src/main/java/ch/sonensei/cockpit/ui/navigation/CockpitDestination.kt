@@ -38,14 +38,18 @@ enum class CockpitDestination(
     val section: NavSection,
 ) {
     Dashboard("dashboard", R.string.nav_dashboard, Icons.Outlined.Dashboard, NavSection.BottomBar),
-    Inbox("inbox", R.string.nav_inbox, Icons.Outlined.Inbox, NavSection.BottomBar),
+
+    // New lists GTD Inbox items and the mail inbox together, so it got Inbox's slot; Inbox heads the More list.
+    New("new", R.string.nav_new, Icons.Outlined.NewReleases, NavSection.BottomBar),
     Calendar("calendar", R.string.nav_calendar, Icons.Outlined.CalendarMonth, NavSection.BottomBar),
     Mail("mail", R.string.nav_mail, Icons.Outlined.Mail, NavSection.BottomBar),
     More("more", R.string.nav_more, Icons.Outlined.MoreHoriz, NavSection.BottomBar),
 
+    // Inbox is also opened by the Dashboard's Inbox card.
+    Inbox("inbox", R.string.nav_inbox, Icons.Outlined.Inbox, NavSection.More),
+
     // Today left the bottom bar for the Dashboard (five items at most); the Dashboard's Today card opens it too.
     Today("today", R.string.nav_today, Icons.Outlined.Today, NavSection.More),
-    New("new", R.string.nav_new, Icons.Outlined.NewReleases, NavSection.More),
     Next("next", R.string.nav_next, Icons.Outlined.Checklist, NavSection.More),
     Projects("projects", R.string.nav_projects, Icons.Outlined.AccountTree, NavSection.More),
     Waiting("waiting", R.string.nav_waiting, Icons.Outlined.HourglassEmpty, NavSection.More),

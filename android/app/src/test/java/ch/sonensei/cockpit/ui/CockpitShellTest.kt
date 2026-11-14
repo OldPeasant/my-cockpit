@@ -49,13 +49,13 @@ class CockpitShellTest {
     fun startsOnDashboardWithDashboardSelected() {
         assertShown(CockpitDestination.Dashboard)
         tab("Dashboard").assertIsSelected()
-        tab("Inbox").assertIsNotSelected()
+        tab("New").assertIsNotSelected()
     }
 
     @Test
     fun bottomBarSwitchesBetweenAllMainDestinations() {
         listOf(
-            "Inbox" to CockpitDestination.Inbox,
+            "New" to CockpitDestination.New,
             "Calendar" to CockpitDestination.Calendar,
             "Mail" to CockpitDestination.Mail,
             "More" to CockpitDestination.More,
@@ -74,6 +74,8 @@ class CockpitShellTest {
         tab("More").performClick()
 
         listOf(
+            "Inbox",
+            "Today",
             "Next",
             "Projects",
             "Waiting",
@@ -138,10 +140,10 @@ class CockpitShellTest {
 
     @Test
     fun tabKeepsItsPlaceWhenComingBack() {
-        tab("Inbox").performClick()
+        tab("New").performClick()
         tab("Calendar").performClick()
-        tab("Inbox").performClick()
+        tab("New").performClick()
 
-        assertShown(CockpitDestination.Inbox)
+        assertShown(CockpitDestination.New)
     }
 }

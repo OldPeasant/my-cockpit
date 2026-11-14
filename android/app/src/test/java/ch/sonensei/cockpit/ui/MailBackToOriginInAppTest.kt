@@ -6,7 +6,6 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
@@ -145,8 +144,7 @@ class MailBackToOriginInAppTest {
 
     private fun openNew() {
         launch()
-        composeRule.onNode(hasText("More") and isSelectable()).performClick()
-        composeRule.onNodeWithText("New").performClick()
+        composeRule.onNode(hasText("New") and isSelectable()).performClick()
         waitFor(screenTag(CockpitDestination.New))
         waitFor("new-row:mail:${id(1)}")
     }

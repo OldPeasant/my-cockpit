@@ -153,7 +153,7 @@ class DashboardInAppTest {
     }
 
     @Test
-    fun `the Inbox card switches to the Inbox tab, and the Dashboard tab returns to the dashboard`() {
+    fun `the Inbox card opens the Inbox under More, and the Dashboard tab returns to the dashboard`() {
         launch()
         scrollToTop()
 
@@ -161,7 +161,7 @@ class DashboardInAppTest {
         composeRule.waitForIdle()
 
         composeRule.onNodeWithTag(screenTag(CockpitDestination.Inbox)).assertIsDisplayed()
-        tab("Inbox").assertIsSelected()
+        tab("More").assertIsSelected()
         tab("Dashboard").assertIsNotSelected()
 
         tab("Dashboard").performClick()

@@ -8,11 +8,11 @@ import org.junit.Test
 
 class CockpitDestinationTest {
     @Test
-    fun bottomBarHoldsDashboardInboxCalendarMailMoreInThatOrder() {
+    fun bottomBarHoldsDashboardNewCalendarMailMoreInThatOrder() {
         assertEquals(
             listOf(
                 CockpitDestination.Dashboard,
-                CockpitDestination.Inbox,
+                CockpitDestination.New,
                 CockpitDestination.Calendar,
                 CockpitDestination.Mail,
                 CockpitDestination.More,
@@ -25,8 +25,8 @@ class CockpitDestinationTest {
     fun moreListsTheSecondaryDestinationsInTheSpecifiedOrder() {
         assertEquals(
             listOf(
+                CockpitDestination.Inbox,
                 CockpitDestination.Today,
-                CockpitDestination.New,
                 CockpitDestination.Next,
                 CockpitDestination.Projects,
                 CockpitDestination.Waiting,
@@ -103,6 +103,12 @@ class CockpitDestinationTest {
         CockpitDestination.moreItems.forEach {
             assertSame(CockpitDestination.More, CockpitDestination.bottomBarItemFor(it))
         }
+    }
+
+    @Test
+    fun newIsHighlightedAsItselfAndInboxUnderMore() {
+        assertSame(CockpitDestination.New, CockpitDestination.bottomBarItemFor(CockpitDestination.New))
+        assertSame(CockpitDestination.More, CockpitDestination.bottomBarItemFor(CockpitDestination.Inbox))
     }
 
     @Test

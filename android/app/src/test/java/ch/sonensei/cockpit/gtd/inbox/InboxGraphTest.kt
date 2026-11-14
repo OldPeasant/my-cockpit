@@ -61,11 +61,12 @@ class InboxGraphTest {
     }
 
     @Test
-    fun `the inbox tab of the app shows the inbox, not the placeholder`() {
+    fun `the inbox entry on More shows the inbox, not the placeholder`() {
         tokenStore.login(AuthTokens("fictitious-access", "fictitious-refresh"), null)
         scenario = ActivityScenario.launch(MainActivity::class.java)
 
-        composeRule.onNode(hasText("Inbox") and isSelectable()).performClick()
+        composeRule.onNode(hasText("More") and isSelectable()).performClick()
+        composeRule.onNodeWithText("Inbox").performClick()
         composeRule.waitForIdle()
 
         composeRule.onNodeWithTag(InboxTags.PROCESS).assertExists()
