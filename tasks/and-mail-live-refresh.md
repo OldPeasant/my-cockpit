@@ -1,10 +1,11 @@
 ---
 title: Android: mail views reload when new mail syncs (New, Mail list, Today), not only on resume
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/newitems,android/app/src/main/java/ch/sonensei/cockpit/mail/list,android/app/src/main/java/ch/sonensei/cockpit/dashboard,android/app/src/main/java/ch/sonensei/cockpit/gtd/data/GtdRefresh.kt,android/app/src/test/java/ch/sonensei/cockpit/newitems,android/app/src/test/java/ch/sonensei/cockpit/mail/list,android/app/src/test/java/ch/sonensei/cockpit/dashboard]
 prio: 2
+lease_until: 2026-11-14T19:46:37Z
 ---
 ## Goal
 Owner report (2026-11-14): with the Android New view open (filter All, GTD Inbox or Mail, switching makes no
