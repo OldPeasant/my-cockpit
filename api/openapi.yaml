@@ -13207,16 +13207,14 @@ components:
             type: string
             format: uuid
           maxItems: 100
-          minItems: 0
+          minItems: 1
         list:
           type: string
           description: "The list of the new tasks: NEXT (default), INBOX or SOMEDAY"
           enum:
-          - INBOX
           - NEXT
-          - WAITING
+          - INBOX
           - SOMEDAY
-          - SCHEDULED
       required:
       - ids
     MailToTasksResponse:

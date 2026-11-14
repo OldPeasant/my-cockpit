@@ -9,7 +9,7 @@ import io.swagger.v3.oas.annotations.media.Schema.RequiredMode
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
-import jakarta.validation.constraints.NotEmpty
+import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Size
 import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.PostMapping
@@ -78,11 +78,14 @@ class MailTaskArchiveController(
 
 // Nullable fields so a missing value reaches Bean Validation (400 with field errors) instead of failing in Jackson.
 class MailToTasksRequest(
-	@field:NotEmpty
-	@field:Size(max = MAX_IDS)
+	@field:NotNull
+	@field:Size(min = 1, max = MAX_IDS)
 	@field:Schema(requiredMode = RequiredMode.REQUIRED, description = "Message ids, at most $MAX_IDS")
 	val ids: List<UUID?>?,
-	@field:Schema(description = "The list of the new tasks: NEXT (default), INBOX or SOMEDAY")
+	@field:Schema(
+		allowableValues = ["NEXT", "INBOX", "SOMEDAY"],
+		description = "The list of the new tasks: NEXT (default), INBOX or SOMEDAY",
+	)
 	val list: TaskList? = null,
 	@field:Schema(description = "Archive the messages after creating the tasks (default true)")
 	val archive: Boolean? = null,

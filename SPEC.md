@@ -421,7 +421,8 @@ GET   /api/v1/mail/messages/{id}/attachments/{partId}
 POST  /api/v1/mail/messages/actions     {ids, action: READ|UNREAD|FLAG|UNFLAG|MOVE|ARCHIVE|DELETE|SPAM, targetFolderId?}
 POST  /api/v1/mail/messages/{id}/to-task (linked Inbox task, mail stays)
 POST  /api/v1/mail/messages/to-tasks    {ids, list?: NEXT|INBOX|SOMEDAY (default NEXT), archive? (default true)}
-                                        -> per mail {task, archived, archiveErrorCode?}; unknown id -> 404, nothing created
+                                        -> {results: [{id, messageId, linkId, task {id, title, list}, archived, archiveErrorCode, archiveDetail}]}
+                                           (error fields null when archived); unknown id -> 404, nothing created
 POST  /api/v1/mail/drafts, PUT /api/v1/mail/drafts/{id}, POST /api/v1/mail/drafts/{id}/send
 ```
 

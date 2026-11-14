@@ -16,5 +16,5 @@ export interface MailToTasksRequest {
   /**
    * The list of the new tasks: NEXT (default), INBOX or SOMEDAY
    */
-  list?: 'INBOX' | 'NEXT' | 'WAITING' | 'SOMEDAY' | 'SCHEDULED';
+  list?: 'NEXT' | 'INBOX' | 'SOMEDAY';
 }
