@@ -119,6 +119,17 @@
       >
         Spam
       </button>
+      <button
+        mat-stroked-button
+        type="button"
+        class="next-action"
+        [disabled]="!hasTargets() || makingNextActions()"
+        (click)="toNextActions()"
+        title="Shift+T"
+        i18n="@@mail.action.nextAction"
+      >
+        → Next action &amp; archive
+      </button>
       <form class="search" role="search" (submit)="submitSearch($event, searchInput.value)">
         <input
           #searchInput

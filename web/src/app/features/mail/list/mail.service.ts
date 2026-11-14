@@ -15,6 +15,8 @@ import {
   MailActionResultResponse,
   MailFolderResponse,
   MailMessageSummaryResponse,
+  mailToTasks,
+  MailToTaskResultResponse,
   searchMail,
   updateMailFolder,
 } from '../../../api/generated';
@@ -26,6 +28,8 @@ export const MAIL_PAGE_SIZE = 50;
 export const MAIL_MAX_PAGE_SIZE = 200;
 /** Messages one "load older from server" caches (the server's default). */
 export const MAIL_LOAD_OLDER_LIMIT = 100;
+/** The most ids one "→ Next action & archive" request may carry (`MailToTasksRequest.ids`). */
+export const MAIL_MAX_TO_TASK_IDS = 100;
 /** The most ids one action request may carry (`MailActionRequest.ids`). */
 export const MAIL_MAX_ACTION_IDS = 1000;
 
@@ -191,6 +195,25 @@ export class MailService {
       silent(),
     );
     return response.results;
+  }
+
+  /**
+   * "→ Next action & archive": a Next action per message, linked to it, then the messages move to
+   * the Archive. One result per distinct id; a failed archive keeps its task. Sent in requests of
+   * at most {@link MAIL_MAX_TO_TASK_IDS} ids.
+   */
+  async toNextActions(ids: readonly string[]): Promise<MailToTaskResultResponse[]> {
+    const results: MailToTaskResultResponse[] = [];
+    for (let i = 0; i < ids.length; i += MAIL_MAX_TO_TASK_IDS) {
+      const chunk = ids.slice(i, i + MAIL_MAX_TO_TASK_IDS);
+      const response = await this.api.invoke(
+        mailToTasks,
+        { body: { ids: chunk, list: 'NEXT', archive: true } },
+        silent(),
+      );
+      results.push(...response.results);
+    }
+    return results;
   }
 }
 

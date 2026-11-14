@@ -17,7 +17,8 @@ export type MailShortcut =
   | 'reply'
   | 'replyAll'
   | 'forward'
-  | 'compose';
+  | 'compose'
+  | 'nextAction';
 
 /** Gmail-like keys (SPEC.md §7.3); the `?` overview shows them through {@link MAIL_LIST_HELP} and {@link MAIL_READ_HELP}. */
 export const MAIL_SHORTCUTS: readonly { key: string; shortcut: MailShortcut }[] = [
@@ -37,6 +38,7 @@ export const MAIL_SHORTCUTS: readonly { key: string; shortcut: MailShortcut }[] 
   { key: 'a', shortcut: 'replyAll' },
   { key: 'f', shortcut: 'forward' },
   { key: 'c', shortcut: 'compose' },
+  { key: 'T', shortcut: 'nextAction' },
 ];
 
 const BY_KEY = new Map(MAIL_SHORTCUTS.map(({ key, shortcut }) => [key, shortcut]));
@@ -86,6 +88,7 @@ const DESCRIPTIONS: Record<MailShortcut, string> = {
   replyAll: $localize`:@@mailShortcuts.replyAll:Reply all`,
   forward: $localize`:@@mailShortcuts.forward:Forward`,
   compose: $localize`:@@mailShortcuts.compose:Write a new message`,
+  nextAction: $localize`:@@mailShortcuts.nextAction:Next action & archive`,
 };
 
 function help(shortcuts: readonly MailShortcut[]): readonly ShortcutInfo[] {
@@ -110,6 +113,7 @@ export const MAIL_LIST_HELP: readonly ShortcutInfo[] = [
     'read',
     'flag',
     'move',
+    'nextAction',
     'compose',
   ]),
   { keys: ['/'], description: $localize`:@@mailShortcuts.search:Search mail` },
@@ -127,6 +131,7 @@ export const MAIL_READ_HELP: readonly ShortcutInfo[] = help([
   'unread',
   'flag',
   'move',
+  'nextAction',
   'next',
   'previous',
 ]);

@@ -15,6 +15,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom, merge } from 'rxjs';
 import { MailAddressResponse } from '../../../api/generated';
@@ -23,6 +24,13 @@ import { MailFoldersStore } from './mail-folders-store';
 import { MailListSession } from './mail-list-session';
 import { MailListStore } from './mail-list-store';
 import { MailMoveDialog, MailMoveDialogData } from './mail-move-dialog';
+import {
+  nextActionArchiveFailed,
+  nextActionFailed,
+  nextActionsCreated,
+  OPEN_NEXT_ACTIONS,
+} from './mail-next-action';
+import { ApiError, NotificationService } from '../../../core/http';
 import { isTypingTarget } from '../../../shell/hotkeys';
 import { PageShortcuts } from '../../../shell/page-shortcuts';
 import { MAIL_LIST_HELP, mailShortcutFor, MailShortcut } from './mail-shortcuts';
@@ -54,6 +62,8 @@ export default class MailListPage {
   protected readonly store = inject(MailListStore);
   protected readonly folders = inject(MailFoldersStore);
   private readonly dialog = inject(MatDialog);
+  private readonly snackBar = inject(MatSnackBar);
+  private readonly notifications = inject(NotificationService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly session = inject(MailListSession);
@@ -294,6 +304,47 @@ export default class MailListPage {
     void this.store.apply(action);
   }
 
+  /** "→ Next action & archive" (`Shift+T`) is running. */
+  protected readonly makingNextActions = signal(false);
+
+  /**
+   * "→ Next action & archive" on the selection (else the message under the cursor): a Next action
+   * per mail, then the mails are archived. One mail opens its task's detail (Back returns here);
+   * several stay in the list with a message linking to Next Actions. A mail whose archive failed
+   * keeps its task and stays in the list, with an error naming it.
+   */
+  protected async toNextActions(): Promise<void> {
+    if (this.makingNextActions()) return;
+    this.makingNextActions.set(true);
+    try {
+      const outcome = await this.store.toNextActions();
+      if (!outcome?.length) return;
+      for (const { item, result } of outcome) {
+        if (!result.archived) {
+          this.notifications.error(nextActionArchiveFailed(this.subject(item), result));
+        }
+      }
+      if (outcome.length === 1) {
+        await this.router.navigate(['/tasks', outcome[0].result.task.id]);
+        return;
+      }
+      this.snackBar
+        .open(nextActionsCreated(outcome.length), OPEN_NEXT_ACTIONS, { duration: 8000 })
+        .onAction()
+        .subscribe(() => void this.router.navigate(['/next']));
+    } catch (error) {
+      this.notifications.error(
+        nextActionFailed(
+          error instanceof ApiError
+            ? error.userMessage
+            : $localize`:@@mail.nextAction.unexpected:Something went wrong.`,
+        ),
+      );
+    } finally {
+      this.makingNextActions.set(false);
+    }
+  }
+
   protected toggleFlag(): void {
     this.act(this.allFlagged() ? 'UNFLAG' : 'FLAG');
   }
@@ -376,6 +427,9 @@ export default class MailListPage {
       }
       case 'compose':
         void this.router.navigate(['/mail/compose']);
+        return;
+      case 'nextAction':
+        void this.toNextActions();
         return;
     }
   }

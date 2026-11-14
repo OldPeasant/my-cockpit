@@ -13,6 +13,7 @@ import {
   MailService,
   MailSummary,
 } from './mail.service';
+import { MailToTaskResultResponse } from '../../../api/generated';
 
 /** Change event type of a folder whose messages changed (server: `MailFolderService.FOLDER_EVENT`). */
 export const MAIL_FOLDER_EVENT = 'MAIL_FOLDER';
@@ -476,13 +477,49 @@ export class MailListStore {
       // Overlapping actions on the same items: the server's state settles what the view shows.
       this.refreshQueued = true;
     }
+    this.settle();
+    return failed.length === 0;
+  }
+
+  /**
+   * "→ Next action & archive" on the targets (the selection, else the item under the cursor): a
+   * Next action per message, then the messages move to the Archive. The archived ones leave the
+   * list; one whose archive failed stays (its task is kept). Returns each target with its result,
+   * in list order, or `null` without targets. A failed request (no task was created) throws.
+   */
+  async toNextActions(): Promise<{ item: MailSummary; result: MailToTaskResultResponse }[] | null> {
+    const targets = this.targets();
+    if (!targets.length) return null;
+    this.running++;
+    this.mutationSeq++;
+    try {
+      const results = await this.mail.toNextActions(targets.map((item) => item.id));
+      const byId = new Map(results.map((result) => [result.id, result]));
+      const archived = new Set(
+        targets.filter((item) => byId.get(item.id)?.archived).map((item) => item.id),
+      );
+      if (archived.size) {
+        this.mutationSeq++;
+        this.applyOptimistic('ARCHIVE', archived);
+      }
+      return targets.flatMap((item) => {
+        const result = byId.get(item.id);
+        return result ? [{ item, result }] : [];
+      });
+    } finally {
+      this.running--;
+      this.settle();
+    }
+  }
+
+  /** Wakes those waiting for the actions to finish, then runs a refresh that waited for them. */
+  private settle(): void {
     if (this.running === 0) {
       const waiters = this.settledWaiters;
       this.settledWaiters = [];
       waiters.forEach((resolve) => resolve());
     }
     this.runQueuedRefresh();
-    return failed.length === 0;
   }
 
   /** The loaded items among `ids`, in list order. */
