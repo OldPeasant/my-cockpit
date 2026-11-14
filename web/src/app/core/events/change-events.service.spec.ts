@@ -740,6 +740,73 @@ describe('ChangeEventsService', () => {
       expect(sources).toHaveLength(1);
       expect(vi.getTimerCount()).toBe(0);
     });
+
+    it('gives up on a connection that never opens after the silence and retries', async () => {
+      create();
+      const stuck = latest();
+
+      await vi.advanceTimersByTimeAsync(65_000);
+      expect(stuck.closed).toBe(false);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(stuck.closed).toBe(true);
+      answerProbes();
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(sources).toHaveLength(2);
+    });
+
+    it('counts named messages$ events as signs of life', () => {
+      const { service } = connected();
+      const reminders = vi.fn();
+      service.messages$('reminder').subscribe(reminders);
+      for (let i = 0; i < 4; i++) {
+        vi.advanceTimersByTime(30_000);
+        latest().emit('reminder', '{"id":"r-1"}');
+      }
+      expect(reminders).toHaveBeenCalledTimes(4);
+      expect(sources).toHaveLength(1);
+    });
+
+    it('does not treat a late check in a hidden tab as a wake-up', () => {
+      connected();
+      vi.advanceTimersByTime(4_000);
+      latest().emit(PING_EVENT_NAME, '{}');
+      visibility = 'hidden';
+      // A throttled hidden tab: the check runs 40 s late, but the stream is not silent long enough.
+      vi.setSystemTime(Date.now() + 40_000);
+      vi.advanceTimersByTime(1_000);
+      expect(sources).toHaveLength(1);
+      expect(latest().closed).toBe(false);
+    });
+
+    it('does not reconnect at once while hidden, even after a long silence offline', () => {
+      connected();
+      visibility = 'hidden';
+      vi.advanceTimersByTime(30_000);
+      window.dispatchEvent(new Event('online'));
+      expect(sources).toHaveLength(1);
+    });
+
+    it('does not resync on a wake-up reconnect until the new stream opens', () => {
+      const { resync } = connected();
+      vi.advanceTimersByTime(30_000);
+      window.dispatchEvent(new Event('online'));
+      expect(sources).toHaveLength(2);
+      expect(resync).not.toHaveBeenCalled();
+      // A wake-up does not re-check the session: only failures do.
+      backend.expectNone(ME_PATH);
+    });
+
+    it('uses a configured STREAM_WATCHDOG', () => {
+      TestBed.overrideProvider(STREAM_WATCHDOG, {
+        useValue: { heartbeatMs: 1_000, silenceMs: 3_000, checkMs: 500 },
+      });
+      connected();
+      vi.advanceTimersByTime(3_000);
+      expect(latest().closed).toBe(false);
+      vi.advanceTimersByTime(500);
+      expect(sources[0].closed).toBe(true);
+    });
   });
 });
 
