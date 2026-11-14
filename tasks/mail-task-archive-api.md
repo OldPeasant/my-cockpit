@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd,server/src/test/kotlin/ch/sonensei/cockpit/mail/gtd,api/openapi.yaml,web/src/app/api/generated,SPEC.md]
 prio: 2
-lease_until: 2026-11-14T08:07:00Z
+lease_until: 2026-11-14T08:12:00Z
 releases: 1
 extended: 
 ---
