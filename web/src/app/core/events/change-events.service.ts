@@ -30,7 +30,10 @@ export const PING_EVENT_NAME = 'ping';
  * change, a half-open TCP connection a middlebox dropped).
  */
 export interface StreamWatchdog {
-  /** The server's heartbeat interval (25 s): a stream silent for longer is suspect on wake-up. */
+  /**
+   * The server's heartbeat interval (25 s): a stream silent for longer than this plus
+   * {@link checkMs} (a margin for a late ping) is suspect on wake-up.
+   */
   heartbeatMs: number;
   /** Silence (no event, no ping) after which the stream is reconnected: ~2.5 heartbeats. */
   silenceMs: number;
@@ -62,7 +65,8 @@ export const EVENT_SOURCE_FACTORY = new InjectionToken<(url: string) => EventSou
  * - A watchdog reconnects a stream that went silent without an error: no event and no `ping`
  *   heartbeat for {@link StreamWatchdog.silenceMs}. When the tab becomes visible again, the browser
  *   goes back online or a timer fires much later than planned (the device slept), a stream silent
- *   for more than one heartbeat is reconnected at once; a healthy one is left alone.
+ *   for more than one heartbeat plus a check interval (margin for a late ping) is reconnected at
+ *   once; a healthy one is left alone.
  * - The server does not replay missed events, so after every reconnect (not the first connect)
  *   {@link resync$} emits: stores refetch what they show.
  *
@@ -186,12 +190,14 @@ export class ChangeEventsService {
   }
 
   /**
-   * The page is back (visible, online, woke up): a stream silent for more than a heartbeat may be
-   * dead, so it is replaced right away instead of after the watchdog's silence or the backoff.
+   * The page is back (visible, online, woke up): a stream silent for more than a heartbeat (plus a
+   * check interval as margin for a late ping) may be dead, so it is replaced right away instead of
+   * after the watchdog's silence or the backoff.
    */
   private wake(): void {
     if (this.hidden()) return;
-    if (this.source && Date.now() - this.lastActivity <= this.watchdog.heartbeatMs) return;
+    const healthyMs = this.watchdog.heartbeatMs + this.watchdog.checkMs;
+    if (this.source && Date.now() - this.lastActivity <= healthyMs) return;
     clearTimeout(this.reconnectTimer);
     this.reconnectTimer = undefined;
     this.close();

@@ -664,7 +664,7 @@ describe('ChangeEventsService', () => {
     it('reconnects at once when the tab becomes visible after a silence longer than a heartbeat', () => {
       const { resync } = connected();
       visibility = 'hidden';
-      vi.advanceTimersByTime(30_000);
+      vi.advanceTimersByTime(35_000);
       expect(sources).toHaveLength(1);
 
       visibility = 'visible';
@@ -677,7 +677,7 @@ describe('ChangeEventsService', () => {
 
     it('reconnects at once when the browser goes back online after a silence', () => {
       const { resync } = connected();
-      vi.advanceTimersByTime(30_000);
+      vi.advanceTimersByTime(35_000);
 
       window.dispatchEvent(new Event('online'));
       expect(sources).toHaveLength(2);
@@ -708,9 +708,21 @@ describe('ChangeEventsService', () => {
       expect(latest().closed).toBe(false);
     });
 
+    it('allows a late ping a margin before treating the stream as silent on wake-up', () => {
+      connected();
+      latest().emit(PING_EVENT_NAME, '{}');
+      // The next ping is due at 25 s but is a little late: 26 s is still within heartbeat + check.
+      vi.advanceTimersByTime(26_000);
+
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new Event('online'));
+      expect(sources).toHaveLength(1);
+      expect(latest().closed).toBe(false);
+    });
+
     it('ignores visibilitychange to hidden', () => {
       connected();
-      vi.advanceTimersByTime(30_000);
+      vi.advanceTimersByTime(35_000);
       visibility = 'hidden';
       document.dispatchEvent(new Event('visibilitychange'));
       expect(sources).toHaveLength(1);
@@ -782,14 +794,14 @@ describe('ChangeEventsService', () => {
     it('does not reconnect at once while hidden, even after a long silence offline', () => {
       connected();
       visibility = 'hidden';
-      vi.advanceTimersByTime(30_000);
+      vi.advanceTimersByTime(35_000);
       window.dispatchEvent(new Event('online'));
       expect(sources).toHaveLength(1);
     });
 
     it('does not resync on a wake-up reconnect until the new stream opens', () => {
       const { resync } = connected();
-      vi.advanceTimersByTime(30_000);
+      vi.advanceTimersByTime(35_000);
       window.dispatchEvent(new Event('online'));
       expect(sources).toHaveLength(2);
       expect(resync).not.toHaveBeenCalled();
