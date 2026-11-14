@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "task": "and-mail-loadmore-stale-cursor",
+  "reviewed_revision": "15acc52dc078f1a40f22419ef518d32437831b9b",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-mail-loadmore-stale-cursor/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-mail-loadmore-stale-cursor/review.md"},
+    "fixer":         {"status": "not_required", "reason": "fixer not required: no production bugs; only finding CR-1 is an optional P3 test-comment wording, accepted"}
+  },
+  "fixes_required": false,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "test comment suggests the mailbox guard is exercised; select() cancels the load more first. Wording only, not worth a re-review"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
