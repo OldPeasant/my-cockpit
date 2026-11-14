@@ -31,9 +31,10 @@ caddy:2 v2.11.7). The gap is in keeping the connection alive:
       `GtdChangeStream` maps only `change`; confirm it still ignores `ping`, or keep the comment for it). If the event
       is part of the documented stream contract, regenerate `api/openapi.yaml`.
   - verified (2026-11-14 22:09+0100 by dell26/agent-1): sh scripts/check.sh (server ./gradlew check incl. SseEventHubTests 'heartbeats are named ping events' + 'connected clients get heartbeat ping events'; android testDebugUnitTest incl. GtdChangeStreamTest 'event: other' ignored; api/openapi.yaml regenerated in 01c7f07c3) -> all checks passed
-- [ ] `ChangeEventsService` runs a watchdog: when nothing (no event, no ping) arrived for more than ~2.5 heartbeat
+- [x] `ChangeEventsService` runs a watchdog: when nothing (no event, no ping) arrived for more than ~2.5 heartbeat
       intervals (configurable token, default about 65 s), it closes the `EventSource` and reconnects the way an
       error does (backoff, session check), so `resync$` emits and the stores refetch.
+  - verified (2026-11-14 22:10+0100 by dell26/agent-1): sh scripts/check.sh web vitest (change-events.service.spec.ts watchdog: silent stream reconnects after backoff + session probe + resync$, configurable STREAM_WATCHDOG, 65 s default) -> 196 files / 4923 tests passed
 - [ ] When the page becomes visible again (`visibilitychange`) or the browser goes back `online`, and the stream was
       silent for longer than one heartbeat interval, or a wake-up is detected (a timer fired much later than
       scheduled), the service reconnects at once and stores resync. A visible tab with a healthy stream does not
