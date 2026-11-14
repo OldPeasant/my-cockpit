@@ -16,7 +16,8 @@ opens right away so the owner can fix title, context and project. Several mails:
   - verified (2026-11-14 11:26+0100 by dell26/agent-1): cd web && npx ng test --watch=false --include mail-read-page.spec.ts (+5 related specs) -> 583 passed; read-view tests: button next to Inbox task, Shift+T, opens /tasks/<id> with replaceUrl, router-harness Back returns to the mail folder
 - [x] New view: mail rows offer the same action (and `Shift+T` on the selected row), with the same result as in the read view
   - verified (2026-11-14 11:26+0100 by dell26/agent-1): cd web && npx ng test --watch=false --include new-page.spec.ts (with 5 related specs) -> 583 passed; New view row button and Shift+T on cursor mail open the task detail, Back returns to /new?filter=mail
-- [ ] Mail list: with several mails selected, the action creates one Next action per mail and archives them; the list stays, the mails leave it, and a message "N next actions created" links to Next Actions
+- [x] Mail list: with several mails selected, the action creates one Next action per mail and archives them; the list stays, the mails leave it, and a message "N next actions created" links to Next Actions
+  - verified (2026-11-14 11:26+0100 by dell26/agent-1): cd web && npx ng test --watch=false --include mail-list-page.spec.ts --include mail-list-store.spec.ts --include mail.service.spec.ts -> pass (583 total); several selected: one task per mail via POST to-tasks list NEXT archive true, archived rows leave the list, snackbar 'N next actions created' action navigates to /next
 - [ ] Archive failure: the task is kept (single mail: its detail still opens) and an error says which mail was not archived; a failed task creation leaves the mail in place with an error
 - [ ] The task detail's linked items show the mail, and opening it shows the archived mail
 - [ ] New UI strings are in `web/src/locale` (English + German); shortcut listed in the keyboard help where shortcuts are listed
