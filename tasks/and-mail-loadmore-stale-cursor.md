@@ -21,3 +21,4 @@ middle of the list until the next manual refresh (`NewViewModel.loadMore`, `Mail
 
 ## Notes
 Rare (needs a full page of new mail at the wrong moment); nothing is lost on the server.
+- ASSUMPTION (2026-11-14 21:08+0100 by dell26/agent-1): A stale load-more answer that failed or was offline is dropped silently (no banner/message): its error concerns a list that no longer exists, and the replaced list's cursor stays for the next attempt.
