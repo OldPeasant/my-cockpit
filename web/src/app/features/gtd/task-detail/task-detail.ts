@@ -158,10 +158,10 @@ export class TaskDetail {
   protected readonly creatingProject = signal(false);
   protected readonly newProject = NEW_PROJECT;
   /**
-   * The project "New project…" created for a task whose save then failed: a retry assigns it
-   * instead of creating a second one (as Inbox processing does).
+   * The project "New project…" created for a task whose save then failed: a retry with the same
+   * title assigns it instead of creating a second one (as Inbox processing does).
    */
-  private createdProject: { taskId: string; projectId: string } | null = null;
+  private createdProject: { taskId: string; title: string; projectId: string } | null = null;
   /** Saving, converting or another action runs: the actions and the save button wait. */
   protected readonly busy = computed(
     () =>
@@ -282,7 +282,8 @@ export class TaskDetail {
   /**
    * Creates the project titled in "New project…" (Active, no area), assigns the task to it and
    * saves the task. An empty title changes nothing. When the save fails, the project stays chosen
-   * and remembered: a retry assigns it again instead of creating another.
+   * and remembered: a retry with the same title assigns it again instead of creating another; a
+   * different title creates that project instead.
    */
   async createProject(): Promise<void> {
     const task = this.task();
@@ -292,14 +293,17 @@ export class TaskDetail {
       this.newProjectTitle.set(null);
       return;
     }
+    const remembered = this.createdProject;
     let projectId =
-      this.createdProject?.taskId === task.id ? this.createdProject.projectId : undefined;
+      remembered?.taskId === task.id && remembered.title === title
+        ? remembered.projectId
+        : undefined;
     if (!projectId) {
       this.creatingProject.set(true);
       this.saveError.set(null);
       try {
         projectId = (await this.projects.create({ title })).id;
-        this.createdProject = { taskId: task.id, projectId };
+        this.createdProject = { taskId: task.id, title, projectId };
       } catch (error) {
         // The title stays: Create again retries.
         if (task.id === this.taskId()) this.saveError.set(messageOf(error));
@@ -467,6 +471,8 @@ export class TaskDetail {
   protected discard(): void {
     const task = this.task();
     if (task) this.draft.set(draftOf(task));
+    // The project a failed save left chosen is dropped with the rest of the form.
+    this.createdProject = null;
     this.editingNotes.set(false);
     this.serverErrors.set({});
     this.saveError.set(null);

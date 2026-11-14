@@ -3486,5 +3486,94 @@ describe('TaskDetail', () => {
       const last = callsOf(updateTask).at(-1)!;
       expect(last.params).toMatchObject({ id: 't2', body: { projectId: 'p10' } });
     });
+
+    /** Answers creates with Garage, then Garden; the first task save meets a 412 (conflict). */
+    function answerConflictOnce(): unknown[] {
+      const garden = { id: 'p11', title: 'Garden', status: 'ACTIVE' } as ProjectResponse;
+      let conflicts = 1;
+      const bodies: unknown[] = [];
+      answer = (fn, params) => {
+        if (fn === createProject) {
+          bodies.push(params['body']);
+          return bodies.length === 1 ? created : garden;
+        }
+        if (fn === updateTask && conflicts-- > 0) {
+          server = task({ version: 5 });
+          return Promise.reject(new ApiError(412, 'Precondition Failed'));
+        }
+        return undefined;
+      };
+      return bodies;
+    }
+
+    it('after a failed save, a retry with a different title creates that project', async () => {
+      const bodies = answerConflictOnce();
+      await render();
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Garage');
+      await create();
+      expect(text()).toContain(CONFLICT_MESSAGE);
+
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', ' Garden ');
+      await create();
+
+      expect(bodies).toEqual([{ title: 'Garage' }, { title: 'Garden' }]);
+      expect(callsOf(updateTask).at(-1)!.params).toMatchObject({
+        'If-Match': '"5"',
+        body: { projectId: 'p11' },
+      });
+      expect(field<HTMLSelectElement>('#td-project').value).toBe('p11');
+    });
+
+    it('after a conflict, a retry with the same title reuses the created project', async () => {
+      const bodies = answerConflictOnce();
+      await render();
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Garage');
+      await create();
+      expect(text()).toContain(CONFLICT_MESSAGE);
+
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', '  Garage ');
+      await create();
+
+      expect(bodies).toEqual([{ title: 'Garage' }]);
+      expect(callsOf(updateTask).at(-1)!.params).toMatchObject({
+        'If-Match': '"5"',
+        body: { projectId: 'p9' },
+      });
+      expect(field<HTMLSelectElement>('#td-project').value).toBe('p9');
+    });
+
+    it('Discard after a failed save forgets the created project', async () => {
+      let saveFailures = 1;
+      const bodies: unknown[] = [];
+      // A plain failure (no reload): the created project stays chosen until Discard.
+      answer = (fn, params) => {
+        if (fn === createProject) {
+          bodies.push(params['body']);
+          return created;
+        }
+        if (fn === updateTask && saveFailures-- > 0) throw new ApiError(500, 'Server error');
+        return undefined;
+      };
+      await render();
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Garage');
+      await create();
+      expect(field<HTMLSelectElement>('#td-project').value).toBe('p9');
+
+      [...element.querySelectorAll('button')]
+        .find((b) => b.textContent?.includes('Discard'))!
+        .click();
+      await refresh();
+      expect(field<HTMLSelectElement>('#td-project').value).toBe('');
+
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Garage');
+      await create();
+      expect(bodies).toEqual([{ title: 'Garage' }, { title: 'Garage' }]);
+    });
   });
 });
