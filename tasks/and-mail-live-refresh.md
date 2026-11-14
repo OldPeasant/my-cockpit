@@ -50,3 +50,4 @@ Planned 2026-11-14 from the owner's bug report. Android only; the server already
 new periodic mail polling, no changes to the push (UnifiedPush) handling. If the web New view or mail list has the same
 gap, note it as a separate task rather than fixing it here.
 - ASSUMPTION (2026-11-14 20:29+0100 by dell26/agent-1): Event-triggered mail reloads are quiet: no loading indicator, and an offline/failed reload leaves the shown mails and existing flags/messages unchanged (no new banner); a manual refresh still shows them as before.
+- ASSUMPTION (2026-11-14 20:29+0100 by dell26/agent-1): Coalescing: MailRefreshTriggers debounces EMAIL/MAIL_FOLDER/Reconnected signals by 1 s, and a signal arriving while any load (incl. load more) runs is dropped rather than queued; the next event or resume catches up.
