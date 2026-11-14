@@ -20,7 +20,8 @@ Inbox processing already has "New project…" (`gtd/inbox/inbox-page.ts`); reuse
   - verified (2026-11-14 11:55+0100 by dell26/agent-1): task-detail.spec.ts (167 passed): after Create the new project is selected in #td-project and is in the root ProjectStore (which projects-page.ts lists from); the task is saved with updateTask {projectId} — project-detail-page loads tasks by projectId from the server, so it shows the task. Not checked in a browser (no e2e for this criterion).
 - [x] New UI strings are in `web/src/locale` (English + German)
   - verified (2026-11-14 11:55+0100 by dell26/agent-1): grep taskDetail.newProject|newProjectTitle|createProject|cancelNewProject in web/src/locale/messages.xlf and messages.de.xlf -> 4 units each, German targets translated (Neues Projekt…, Titel des neuen Projekts, Erstellen, Abbrechen); ng extract-i18n sources match
-- [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+- [x] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+  - verified (2026-11-14 11:56+0100 by dell26/agent-1): sh scripts/check.sh (runs cd web && npm run -s check: api:check, lint, e2e:typecheck, test:ci, ng build; plus tfp/server/android) -> exit 0, 'all checks passed', web 196 files / 4903 tests passed; task-detail.spec.ts 167 passed with 15 new-behavior tests
 
 ## Notes
 Planned 2026-11-14 with the owner: from a mail, make a Next action and archive the mail in one step (mails already clarified should not pass through the cockpit Inbox again); create a project directly from the task detail.
