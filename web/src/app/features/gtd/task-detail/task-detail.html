@@ -225,17 +225,72 @@
               }
               <div class="row">
                 <label for="td-project" i18n="@@taskDetail.project">Project</label>
-                <select id="td-project" (change)="edit({ projectId: text($event) })">
-                  <option value="" [selected]="!d.projectId" i18n="@@taskDetail.noProject">
+                <select
+                  id="td-project"
+                  [disabled]="creatingProject()"
+                  (change)="pickProject($event)"
+                >
+                  <option
+                    value=""
+                    [selected]="newProjectTitle() === null && !d.projectId"
+                    i18n="@@taskDetail.noProject"
+                  >
                     No project
                   </option>
                   @for (project of projectOptions(); track project.id) {
-                    <option [value]="project.id" [selected]="project.id === d.projectId">
+                    <option
+                      [value]="project.id"
+                      [selected]="newProjectTitle() === null && project.id === d.projectId"
+                    >
                       {{ project.title }}
                     </option>
                   }
+                  <option
+                    [value]="newProject"
+                    [selected]="newProjectTitle() !== null"
+                    i18n="@@taskDetail.newProject"
+                  >
+                    New project…
+                  </option>
                 </select>
               </div>
+              @if (newProjectTitle() !== null) {
+                <div class="row">
+                  <label for="td-new-project" i18n="@@taskDetail.newProjectTitle">
+                    New project title
+                  </label>
+                  <div class="pair">
+                    <input
+                      id="td-new-project"
+                      type="text"
+                      required
+                      [value]="newProjectTitle()"
+                      [disabled]="creatingProject()"
+                      (input)="newProjectTitle.set(text($event))"
+                      (keydown.enter)="$event.preventDefault(); createProject()"
+                      (keydown.escape)="$event.stopPropagation(); cancelNewProject()"
+                    />
+                    <button
+                      type="button"
+                      class="primary"
+                      [disabled]="busy() || !newProjectTitle()?.trim()"
+                      (click)="createProject()"
+                      i18n="@@taskDetail.createProject"
+                    >
+                      Create
+                    </button>
+                    <button
+                      type="button"
+                      class="quiet"
+                      [disabled]="creatingProject()"
+                      (click)="cancelNewProject()"
+                      i18n="@@taskDetail.cancelNewProject"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              }
               <div class="row wide">
                 <span class="label" i18n="@@taskDetail.contexts">Contexts</span>
                 <app-context-chips

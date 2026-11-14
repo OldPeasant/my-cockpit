@@ -152,9 +152,23 @@ export class TaskDetail {
     const action = this.action();
     return action?.id === this.taskId() ? action.kind : null;
   });
+  /** The title asked for by the project picker's "New project…" (`null`: not asking). */
+  protected readonly newProjectTitle = signal<string | null>(null);
+  /** The project of "New project…" is being created. */
+  protected readonly creatingProject = signal(false);
+  protected readonly newProject = NEW_PROJECT;
+  /**
+   * The project "New project…" created for a task whose save then failed: a retry assigns it
+   * instead of creating a second one (as Inbox processing does).
+   */
+  private createdProject: { taskId: string; projectId: string } | null = null;
   /** Saving, converting or another action runs: the actions and the save button wait. */
   protected readonly busy = computed(
-    () => this.saving() || this.converting() !== null || this.acting() !== null,
+    () =>
+      this.saving() ||
+      this.creatingProject() ||
+      this.converting() !== null ||
+      this.acting() !== null,
   );
   /** The notes are edited as Markdown source (else shown rendered, when there are any). */
   protected readonly editingNotes = signal(false);
@@ -201,6 +215,7 @@ export class TaskDetail {
       const id = this.taskId();
       untracked(() => {
         this.editingNotes.set(false);
+        this.newProjectTitle.set(null);
         if (id !== this.deletedId) this.deletedId = null;
         void this.load(id, 'initial');
       });
@@ -240,6 +255,64 @@ export class TaskDetail {
 
   protected text(event: Event): string {
     return (event.target as HTMLInputElement).value;
+  }
+
+  /** A choice in the project picker: a project, "No project", or "New project…" (asks for a title). */
+  protected pickProject(event: Event): void {
+    const value = this.text(event);
+    if (value !== NEW_PROJECT) {
+      this.newProjectTitle.set(null);
+      this.createdProject = null;
+      this.edit({ projectId: value });
+      return;
+    }
+    this.newProjectTitle.set('');
+    afterNextRender(
+      () => this.host.nativeElement.querySelector<HTMLElement>('#td-new-project')?.focus(),
+      { injector: this.injector },
+    );
+  }
+
+  /** Drops "New project…": the task's project stays as it was. */
+  protected cancelNewProject(): void {
+    if (this.creatingProject()) return;
+    this.newProjectTitle.set(null);
+  }
+
+  /**
+   * Creates the project titled in "New project…" (Active, no area), assigns the task to it and
+   * saves the task. An empty title changes nothing. When the save fails, the project stays chosen
+   * and remembered: a retry assigns it again instead of creating another.
+   */
+  async createProject(): Promise<void> {
+    const task = this.task();
+    const title = this.newProjectTitle()?.trim() ?? '';
+    if (!task || this.busy()) return;
+    if (!title) {
+      this.newProjectTitle.set(null);
+      return;
+    }
+    let projectId =
+      this.createdProject?.taskId === task.id ? this.createdProject.projectId : undefined;
+    if (!projectId) {
+      this.creatingProject.set(true);
+      this.saveError.set(null);
+      try {
+        projectId = (await this.projects.create({ title })).id;
+        this.createdProject = { taskId: task.id, projectId };
+      } catch (error) {
+        // The title stays: Create again retries.
+        if (task.id === this.taskId()) this.saveError.set(messageOf(error));
+        return;
+      } finally {
+        this.creatingProject.set(false);
+      }
+    }
+    // The editor switched to another task meanwhile: the project stays for a retry there.
+    if (task.id !== this.taskId()) return;
+    this.newProjectTitle.set(null);
+    this.edit({ projectId });
+    if (await this.save()) this.createdProject = null;
   }
 
   protected setList(list: TaskListName): void {
@@ -573,6 +646,9 @@ export class TaskDetail {
     this.savedTimer = setTimeout(() => this.saved.set(false), 2500);
   }
 }
+
+/** Value of the project picker's "New project…" (no project id looks like it). */
+const NEW_PROJECT = 'new-project';
 
 /** What a task can be converted into. */
 type ConversionTarget = 'note' | 'event';

@@ -9,6 +9,7 @@ import {
   ChangeEvent,
   ChecklistItemResponse,
   completeTask,
+  createProject,
   convertTaskToEvent,
   convertTaskToNote,
   ConvertToEventRequest,
@@ -3153,6 +3154,104 @@ describe('TaskDetail', () => {
 
       expect(source()!.value).toBe('Too long, pretend');
       expect(text()).toContain('Notes are too long.');
+    });
+  });
+
+  describe('New project from the project picker', () => {
+    const created = { id: 'p9', title: 'Garage', status: 'ACTIVE' } as ProjectResponse;
+
+    function answerCreate(fail = 0): void {
+      let failures = fail;
+      answer = (fn) => {
+        if (fn !== createProject) return undefined;
+        if (failures-- > 0) throw new ApiError(500, 'Server error');
+        return created;
+      };
+    }
+
+    async function create(): Promise<void> {
+      field<HTMLButtonElement>('.pair button.primary').click();
+      await refresh();
+    }
+
+    it('asks for a title, creates the project and assigns the task in one step', async () => {
+      answerCreate();
+      await render();
+      await choose('#td-project', 'new-project');
+      expect(field('#td-new-project')).not.toBeNull();
+      expect(document.activeElement).toBe(field('#td-new-project'));
+      await type('#td-new-project', '  Garage  ');
+      await create();
+
+      expect(callsOf(createProject).map((call) => call.params['body'])).toEqual([
+        { title: 'Garage' },
+      ]);
+      expect(callsOf(updateTask)[0].params['body']).toEqual({ projectId: 'p9' });
+      expect(element.querySelector('#td-new-project')).toBeNull();
+      expect(field<HTMLSelectElement>('#td-project').value).toBe('p9');
+      expect(text()).toContain('Garage');
+      expect(saveButton().disabled).toBe(true);
+    });
+
+    it('Cancel or an empty title leave the project unchanged', async () => {
+      answerCreate();
+      await render(task({ projectId: 'p1' }));
+      await choose('#td-project', 'new-project');
+      field<HTMLButtonElement>('.pair button.quiet').click();
+      await refresh();
+      expect(element.querySelector('#td-new-project')).toBeNull();
+      expect(field<HTMLSelectElement>('#td-project').value).toBe('p1');
+
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', '   ');
+      expect(field<HTMLButtonElement>('.pair button.primary').disabled).toBe(true);
+      field('#td-new-project').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      await refresh();
+      expect(element.querySelector('#td-new-project')).toBeNull();
+      expect(field<HTMLSelectElement>('#td-project').value).toBe('p1');
+      expect(callsOf(createProject)).toHaveLength(0);
+      expect(callsOf(updateTask)).toHaveLength(0);
+    });
+
+    it('shows an error when creating fails; Create again retries', async () => {
+      answerCreate(1);
+      await render();
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Garage');
+      await create();
+      expect(element.querySelector('[role=alert]')).not.toBeNull();
+      expect(field('#td-new-project').value).toBe('Garage');
+      expect(callsOf(updateTask)).toHaveLength(0);
+
+      await create();
+      expect(callsOf(createProject)).toHaveLength(2);
+      expect(callsOf(updateTask)[0].params['body']).toEqual({ projectId: 'p9' });
+    });
+
+    it('a failed save keeps the new project chosen; a retry does not create another', async () => {
+      answerCreate();
+      let saveFailures = 1;
+      const create = answer!;
+      answer = (fn, params) => {
+        if (fn === updateTask && saveFailures-- > 0) throw new ApiError(500, 'Server error');
+        return create(fn, params);
+      };
+      await render();
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Garage');
+      field<HTMLButtonElement>('.pair button.primary').click();
+      await refresh();
+      expect(element.querySelector('[role=alert]')).not.toBeNull();
+      expect(field<HTMLSelectElement>('#td-project').value).toBe('p9');
+
+      // Retrying with "New project…" again reuses the project created before.
+      await choose('#td-project', 'new-project');
+      await type('#td-new-project', 'Garage');
+      field<HTMLButtonElement>('.pair button.primary').click();
+      await refresh();
+      expect(callsOf(createProject)).toHaveLength(1);
+      expect(callsOf(updateTask).at(-1)!.params['body']).toEqual({ projectId: 'p9' });
+      expect(element.querySelector('[role=alert]')).toBeNull();
     });
   });
 });

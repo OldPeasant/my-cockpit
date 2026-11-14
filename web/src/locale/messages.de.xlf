@@ -6548,6 +6548,38 @@
           <context context-type="linenumber">181,182</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="taskDetail.newProject" datatype="html">
+        <source> New project… </source>
+        <target state="translated">Neues Projekt…</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
+          <context context-type="linenumber">253,254</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="taskDetail.newProjectTitle" datatype="html">
+        <source> New project title </source>
+        <target state="translated">Titel des neuen Projekts</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
+          <context context-type="linenumber">260,261</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="taskDetail.createProject" datatype="html">
+        <source> Create </source>
+        <target state="translated">Erstellen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
+          <context context-type="linenumber">280,281</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="taskDetail.cancelNewProject" datatype="html">
+        <source> Cancel </source>
+        <target state="translated">Abbrechen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
+          <context context-type="linenumber">289,290</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="taskDetail.contexts" datatype="html">
         <source>Contexts</source>
         <target state="translated">Kontexte</target>
