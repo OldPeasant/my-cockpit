@@ -35,9 +35,10 @@ Cause (diagnosis by an interactive session):
 - [x] Same for the Mail list (`MailListViewModel`, current mailbox; the search results are not reloaded) and for the
       Today dashboard's unread-mail count.
   - verified (2026-11-14 20:58+0100 by dell26/agent-1): android testDebugUnitTest (via sh scripts/check.sh) -> MailListLiveRefreshTest 16/16 (current mailbox, search not reloaded), DashboardMailRefreshTest 8/8 (Inbox widget unread count) pass
-- [ ] Bursts are coalesced: a sync that brings N mails (N `EMAIL` events plus `MAIL_FOLDER`) triggers about one reload,
+- [x] Bursts are coalesced: a sync that brings N mails (N `EMAIL` events plus `MAIL_FOLDER`) triggers about one reload,
       not N (e.g. debounce ~1 s or conflate while a load runs). Events only reload while the screen is shown (collected
       with the lifecycle); nothing polls in the background.
+  - verified (2026-11-14 20:58+0100 by dell26/agent-1): android testDebugUnitTest (via sh scripts/check.sh) -> burst/quiet-time tests in NewMailLiveRefreshTest, MailListLiveRefreshTest, DashboardMailRefreshTest, MailRefreshTriggersTest pass; FollowMailChangesTest 2/2 (repeatOnLifecycle STARTED gating) pass
 - [ ] A reload triggered by an event that fails offline or with an error keeps the shown mails and does not raise an
       error notice or banner on top of what is already there beyond what a manual refresh shows today.
 - [ ] Unit tests: a `MAIL_FOLDER`/`EMAIL` signal reloads the New view's mail part (new mail at the top, with filter
