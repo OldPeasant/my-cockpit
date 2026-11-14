@@ -22,3 +22,4 @@ Android part of "→ Next action & archive" (server call from `mail-task-archive
 
 ## Notes
 Planned 2026-11-14 with the owner: from a mail, make a Next action and archive the mail in one step (mails already clarified should not pass through the cockpit Inbox again); create a project directly from the task detail.
+- ASSUMPTION (2026-11-14 09:17+0100 by dell26/agent-1): Read view toolbar: 'To Waiting' moved into the overflow menu so 'Next action & archive' (TaskAlt icon) sits next to 'To task' and the toolbar still fits 320dp; when archiving fails the task detail still opens and Back returns to the (unarchived) mail, which shows the notice naming it
