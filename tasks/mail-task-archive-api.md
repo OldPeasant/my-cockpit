@@ -16,7 +16,8 @@ creates a linked Inbox task; archiving is a separate mail action. One server cal
 points (read view, New view row, mail list multi-select) and handles partial failure once.
 
 ## Acceptance criteria
-- [ ] One call takes mail ids (1..n), a target list (default `NEXT`) and `archive` (default true); per mail it creates a task titled with the subject, linked to the mail exactly as `to-task` does, then archives the mail via the existing ARCHIVE action
+- [x] One call takes mail ids (1..n), a target list (default `NEXT`) and `archive` (default true); per mail it creates a task titled with the subject, linked to the mail exactly as `to-task` does, then archives the mail via the existing ARCHIVE action
+  - verified (2026-11-14 09:06+0100 by dell26/agent-1): cd server && ./gradlew test --rerun --tests '*MailTaskArchive*' -> MailTaskArchiveWebTests 10/10 pass (single/multiple mails, default NEXT, archive default true, subject title, link like to-task, ARCHIVE action); ./gradlew integrationTest --rerun --tests '*MailTaskArchive*' -> GreenMail 4/4 pass
 - [ ] The response lists, per mail, the created task (id, title, list) and whether archiving succeeded, with the reason if not; a failed archive keeps the task (no rollback), an unknown/inaccessible mail id gives a Problem Details error without creating anything for it
 - [x] After archiving, the task's link still resolves to the (moved) mail, also when the IMAP server lacks MOVE (GreenMail test)
   - verified (2026-11-14 08:30+0100 by dell26/agent-1): cd server && ./gradlew integrationTest --tests '*MailTaskArchiveGreenMailTests' (GreenMail; no-MOVE case via IMAPStore subclass hiding MOVE, COPY+EXPUNGE path) -> 4 tests, 0 failures; link resolves to the Archive copy before and after re-sync
