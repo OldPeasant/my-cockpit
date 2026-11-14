@@ -4,58 +4,70 @@ Date: 2026-11-14
 
 Task: and-nav-new-bottombar - Android: New replaces Inbox in the bottom bar (Inbox moves to More)
 
-Scope: committed task changes `git diff 5e380566b..ce37b058c` (commits 24ba5b930, b0bdab0d3, 195a0dfeb, ce37b058c). Round 1 reviewed 5e380566b..b0bdab0d3. Round 2 reviewed 195a0dfeb, which added `CockpitShellSelectionTest.kt` and changed no production code. This round (round 3) reviews ce37b058c. That commit changes only `android/app/src/main/java/ch/sonensei/cockpit/ui/CockpitShell.kt` (and this report). Lint (RestrictedApi) had rejected `navController.currentBackStack`, so the selected tab is now derived from `current`. For a stacked entry, it comes from `navController.previousBackStackEntry`, cached per entry id in a remembered map. The working tree was clean. This review is by reading code only. Gradle was not run, because the test-writer runs it in parallel. The parent worker reports that `ktlintCheck lintDebug` and the ui/newitems/inbox/dashboard unit tests pass on this code.
+Scope: committed task changes `git diff 5e380566b..f5d6690c4`. Earlier rounds:
+- Round 1 reviewed 5e380566b..b0bdab0d3.
+- Round 2 reviewed 195a0dfeb, which added `CockpitShellSelectionTest.kt` and changed no production code.
+- Round 3 reviewed ce37b058c (selected tab without the restricted `currentBackStack` API) and raised CR-4.
+
+This round (round 4) is a delta review of two commits:
+- 87f7bff0b: test-writer additions, namely the new `CockpitShellSelectionRestoreTest.kt` and four extra chain cases in `CockpitShellSelectionTest.kt`. No production code changed.
+- f5d6690c4: the fix for CR-4 in `android/app/src/main/java/ch/sonensei/cockpit/ui/CockpitShell.kt`, plus `fixes.md`.
+
+The working tree was clean. This review is by reading code only. Gradle was not run, because the test-writer runs it in parallel. The fixer reports that `ktlintCheck lintDebug` and `testDebugUnitTest --tests 'ch.sonensei.cockpit.ui.*'` pass on f5d6690c4 (CockpitShellSelectionRestoreTest 3/3, CockpitShellSelectionTest 21/21).
 
 Requirements:
 - tasks/and-nav-new-bottombar.md (acceptance criteria, notes, recorded assumption)
 - AGENTS.md project notes (conventions, touches, lint)
-- Existing shell/navigation code and tests (CockpitShell.kt, CockpitDestination.kt, MoreScreen.kt, ReminderOpenRequests.kt, DashboardScreen.kt, CockpitShellNavigationTest.kt, CockpitShellSelectionTest.kt, MailOriginShellTest.kt)
-- Navigation Compose 2.9.6 (android/gradle/libs.versions.toml) semantics of popUpTo/saveState/restoreState, `previousBackStackEntry` and entry ids
-- android/app/src/main/AndroidManifest.xml (MainActivity declares no `configChanges`, so a rotation recreates the activity and its composition)
+- reviews/and-nav-new-bottombar/fixes.md
+- Existing shell/navigation code and tests (CockpitShell.kt, CockpitDestination.kt, CockpitShellSelectionTest.kt, CockpitShellSelectionRestoreTest.kt)
+- Navigation Compose 2.9.6 (android/gradle/libs.versions.toml): semantics of `previousBackStackEntry`, `NavBackStackEntry.savedStateHandle`, and saving and restoring back stack entry state
 
 Git range:
 - Branch: main
-- HEAD: ce37b058ca39f8267cae62eda499338d81e5d4e0
+- HEAD: f5d6690c4c18eb79a2bdad30d1987073eec237e6
 - Base/start: 5e380566bfd26ba3f0683b7d903ac60dcc029eb8
-- Commits reviewed: 4
+- Commits reviewed: 7 in total; this round covers 87f7bff0b and f5d6690c4
 
-Summary: 0 P0, 0 P1, 1 P2, 2 P3 (CR-1 resolved by 195a0dfeb; CR-4 new in ce37b058c)
+Summary: 0 P0, 0 P1, 0 P2, 2 P3 open (CR-1 and CR-4 resolved; CR-2 and CR-3 open and optional)
 
 ## Acceptance criteria check
 
-1. Bottom bar order is Dashboard, New, Calendar, Mail, More. New keeps its existing label (`R.string.nav_new`) and icon (`NewReleases`). Met by the enum reorder in `CockpitDestination.kt:40-46`. `bottomBar` is derived from enum order. Tapping New goes through `navigateToTopLevel`. Covered by `CockpitDestinationTest`, `CockpitShellTest.bottomBarSwitchesBetweenAllMainDestinations` (which also asserts New is selected), `NewScreenInAppTest`, `MailBackToOriginInAppTest` and `CockpitShellSelectionTest.routesInboxAndNewStillOpenTheirScreens`.
-2. Inbox is first on More, before Today, and New is no longer on More. Met (`CockpitDestination.kt:49`; `MoreScreen` renders `moreItems` in enum order). Inbox still maps to `InboxScreen` with processing (`InboxGraphTest` reaches `InboxTags.PROCESS` via More). `CockpitDestinationTest.moreListsTheSecondaryDestinationsInTheSpecifiedOrder` asserts the exact list, so New's absence is covered. `CockpitShellSelectionTest` opens Inbox through the real More list.
-3. Selection:
-   - On New, New is highlighted.
-   - On the Inbox, More is highlighted.
-   - A task opened from New: `TaskOpener` pushes `TaskRoutes.detail` on top of `new`. Since ce37b058c, `CockpitShell.kt:103-109` resolves the stacked entry to the destination directly below it (`previousBackStackEntry` is `new`), so New stays highlighted. Nested stacked screens (an item or task opened from a task on New) inherit the cached value of the stacked entry below them. This works while the map holds that entry. See CR-4 for when it does not.
-   - A mail opened from New is shown inside the New screen (the route stays `new`), so New stays highlighted.
+1. Bottom bar order is Dashboard, New, Calendar, Mail, More. Met (enum order in `CockpitDestination.kt`). This round did not change it.
+2. Inbox is first on More, before Today, and New is no longer on More. Met. This round did not change it.
+3. Selection: New is highlighted on New, and More is highlighted on the Inbox. Screens stacked on a tab keep that tab highlighted. This covers a task opened from New, and nested chains such as a mail or task opened from a task on New. Since f5d6690c4, this also holds after the activity is recreated (see the CR-4 verification below). A mail opened from New stays inside the New route.
+4. Unchanged behaviour (Dashboard Inbox card, routes `inbox` and `new`, reminder mapping): not affected by this round.
+5. Tests are updated. This round adds a recreation test class and four chain cases. The fixer reports they pass. This review did not run Gradle.
 
-   `CockpitShellSelectionTest` pins these cases. Each case asserts that exactly one tab is selected. The parent reports these tests pass at ce37b058c.
-4. Unchanged behaviour:
-   - The Dashboard Inbox card calls `onOpen(Inbox)`. That now pushes Inbox on top of Dashboard (More section) instead of switching tabs. Back and the Back arrow return to Dashboard.
-   - Routes `inbox` and `new` are unchanged, and no Android deep-link intent filters exist for them. The reminder mapping never targets Inbox or New.
-   - The start destination's saved state is no longer restored (b0bdab0d3). `DashboardInAppTest` and the four `dashboardTab...` tests in `CockpitShellSelectionTest` cover this.
-5. Tests are updated (`CockpitDestinationTest`, `CockpitShellTest`, `CockpitShellNavigationTest`, in-app tests, `CockpitShellSelectionTest`). This review did not run Gradle. The parent worker records the runs.
+## Delta review of f5d6690c4 (CR-4 fix)
 
-Other checks:
-- The change stays inside the task's `touches`.
-- No new strings. No lint suppressions: ce37b058c removes the restricted API instead of suppressing the warning, which follows the project lint convention.
-- `previousBackStackEntry` and `NavBackStackEntry.id` are public, non-restricted APIs.
-- The Review wizard's "push Mail on top of Review" (and-review-flow assumption) still highlights Mail, because `current` is non-null there and the map is not consulted.
+What the new code does. `CockpitShell.kt:103` uses `current` when the route is a cockpit destination. Otherwise it calls `NavHostController.underlyingDestination(entry)` (`CockpitShell.kt:296-304`). That function resolves in this order:
+1. It returns the route stored on the entry under `UNDERLYING_ROUTE_KEY`.
+2. Otherwise it takes the route of `previousBackStackEntry`. If that entry is stacked too, it takes the route stored on that entry.
+3. It writes a non-null result to `entry.savedStateHandle`. A null result is never stored.
 
-## Delta review of ce37b058c (selected tab without `currentBackStack`)
+The remembered map is gone.
 
-What the new code does. If `current` is a cockpit destination, it is used directly. Otherwise, for the current entry, `getOrPut(entry.id)` computes the value once. It takes the route destination of `navController.previousBackStackEntry`, or, if that entry is stacked too, the value cached for it. The value is then remembered for the lifetime of the composition.
+Checked:
+- CR-4 scenario. Take the back stack dashboard, new, task, mail item, and recreate the activity. `rememberNavController` restores the entries with the same ids and their `savedStateHandle` contents. The task entry was composed when it was on top, so it holds `new`, and the mail item resolves through it to New. On a configuration change, the entries' ViewModel-backed handles survive anyway. After process death, Navigation restores the handle from the entry's saved state. Resolved.
+- Cached null. A null result is no longer written, so a later recomposition can still resolve the entry. The earlier "stuck with no highlight" failure is gone.
+- Map growth. There is no composition-level map. The stored value lives and dies with its entry: it is dropped on pop, and it is saved and restored with `popUpTo(saveState)` and `restoreState` tab switches, because a `NavBackStackEntryState` includes the entry's saved state. So restored tab stacks keep their chain values. `aTaskOpenedFromATaskOnNewIsRestoredWithNewSelectedAndBackWalksDownWithNewSelected` covers this.
+- `savedStateHandle` access. `entry` is the current entry from `currentBackStackEntryAsState()`, and `below` comes from the live back stack. Both are on the back stack, so their saved state registry is attached and they are not destroyed. Reading or writing the handle of current and previous entries from composition is the documented Navigation result-passing pattern.
+- Writing during composition. The write is a plain `SavedStateHandle.set` of a String. It is not snapshot state, so it does not trigger a recomposition or a recomposition loop. It happens once per entry (later reads return early), and it is deterministic and idempotent. A discarded composition would leave a value that is still correct. This is acceptable, and it is not reported.
+- Stale state frame. Suppose the state value lags the live stack, for example when two stacked pushes happen before a recomposition. Then `previousBackStackEntry` may be the entry itself. Its stored value is returned first. If it has none yet, the result is null and nothing is stored, so a wrong value cannot be cached. When the state catches up, the entry resolves correctly. Stored values come first and are never overwritten. An entry's underlying destination is fixed for its lifetime, so a stored value cannot go stale.
+- Same task on two tabs. Different entries have different ids and handles, so each resolves to its own tab. `theSameTaskOpenedOnTwoTabsKeepsTheTabItLiesOnSelected` covers this.
+- Key collision. `cockpit.shell.underlyingRoute` is private to the shell. A grep finds no other reader or writer, and screens use their own ViewModel handles, not the entry handle under this key.
+- Lint and conventions. No restricted API and no suppression. A private constant and a private extension function, documented. No new strings or dependencies. The change stays inside the task's `touches`.
 
-Checked cases:
-- Single stacked screen (task or search over New, Dashboard, Calendar, Mail, a More screen): correct. `previousBackStackEntry` is read from the live back stack when the composition sees the new entry. For a single push, that is the entry the screen was opened from. This also holds after rotation or process recreation, because a cache miss recomputes from the live stack.
-- Nested stacked screens pushed one per frame (search, then a search item; task, then a linked mail, then another task): correct while the composition lives. Each intermediate entry is composed and cached before the next push. `aMailOrTaskOpenedFromATaskOnNewKeepsNewSelected` covers this (its `open` helper waits for idle after each push).
-- Back through nested stacked screens: correct. The entry revealed by Back keeps its id and its cached value.
-- Restored tab stacks (`restoreState`, e.g. `newTabRestoresTheTaskLeftOpenOnIt`): correct. Navigation restores entries from `NavBackStackEntryState` with their original ids, so a cached value is found. For a single stacked level, a miss recomputes correctly from the restored stack. An entry's underlying destination never changes during its lifetime: a stack only grows or shrinks at the top, and a save or restore keeps the order. So a cached value cannot go stale.
-- Reminder path (`open(destination)` then `navigate(TaskRoutes.detail)` in one coroutine step): the composition sees only the task, and its previous entry is the destination. Correct for one stacked level.
-- Process recreation and configuration change with nested stacked screens: incorrect. See CR-4.
-- Map growth: one entry per stacked entry ever composed in this composition. Entries are never removed when they leave the back stack. In practice this is a few dozen short strings per session, and it is dropped with the composition (every rotation). The memory impact is negligible and not reported on its own. The fix suggested in CR-4 also removes it.
+## Delta review of 87f7bff0b (tests)
+
+- `CockpitShellSelectionRestoreTest` uses `StateRestorationTester.emulateSavedInstanceStateRestore()` around the real `CockpitShellFrame`. It covers a single task on New, and a mail item over a task on New, which is the exact CR-4 scenario. It also covers a task over a task on Calendar, then recreation, then Back. Each case asserts that exactly one tab is selected. The nested cases would fail against ce37b058c, where the remembered map is empty after restore, so they pin the fix. The tester emulates a configuration change (ViewModels survive). Process-death restore of the handle is Navigation library behaviour and is not exercised separately. That is a reasonable limit, not a finding.
+- The four new `CockpitShellSelectionTest` cases cover:
+  - Restored tab stacks with chained stacked entries, followed by Back.
+  - The same task opened on two tabs.
+  - A three-level chain: search, then item, then task.
+  - The Inbox opened from the Dashboard card with a chain on top, followed by Dashboard reselect.
+
+  They assert the back stack routes as well as the selection. They contain no weakened or skipped tests. Test ids are fictitious UUIDs.
 
 ## P0 Critical
 
@@ -70,36 +82,37 @@ None.
 - [x] **CR-1 | Back-stack-derived tab selection for stacked screens has no committed test** (resolved in 195a0dfeb)
     - File: `android/app/src/main/java/ch/sonensei/cockpit/ui/CockpitShell.kt:103`
     - Category: Tests
-    - Problem: At b0bdab0d3, no committed test opened a task or search on top of New, or on top of any other screen, and asserted the selected tab. That rule directly implements the criterion 3 clause "on a task ... opened from [New] New is highlighted".
-    - Why it matters: A regression, such as going back to `current` or scanning the stack in the wrong direction, would have passed the whole suite.
-    - Suggested fix: Add a Robolectric shell test that asserts the selected tab for a task or search over New, and for a task over a More screen.
-    - Status: Resolved. `CockpitShellSelectionTest.kt` (195a0dfeb) covers these cases with assertions that exactly one tab is selected. It still pins the ce37b058c implementation: reverting to `bottomBarItemFor(current)` or dropping the cache lookup for nested entries would fail `aTaskOpenedOnTopOfNewKeepsNewSelected` or `aMailOrTaskOpenedFromATaskOnNewKeepsNewSelected`.
+    - Problem: At b0bdab0d3, no committed test asserted the selected tab for a task or search opened on top of New or another screen.
+    - Why it matters: A regression in criterion 3 would have passed the suite.
+    - Suggested fix: Add shell tests asserting the selected tab for stacked screens.
+    - Status: Resolved. `CockpitShellSelectionTest.kt` covers these cases, and 87f7bff0b extends it with chains. It still pins the f5d6690c4 implementation.
 
-- [ ] **CR-4 | Nested stacked screens lose the highlighted tab after rotation or process recreation** (new in ce37b058c, open)
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/ui/CockpitShell.kt:103-109`
+- [x] **CR-4 | Nested stacked screens lose the highlighted tab after rotation or process recreation** (new in ce37b058c, resolved in f5d6690c4)
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/ui/CockpitShell.kt:103`, `:289-304`
     - Category: Correctness
-    - Problem: `underlyingOf` is a plain `remember` map. `MainActivity` declares no `configChanges`, so a rotation, a dark-mode or locale switch, or process death recreates the composition with an empty map. Meanwhile the NavController (via `rememberNavController`, which is saveable) restores the full back stack with the same entry ids. Take a nested stack, for example `[dashboard, new, task, mail item]` (the `aMailOrTaskOpenedFromATaskOnNewKeepsNewSelected` flow) or `[dashboard, new, search, search item]`. After recreation, the top entry misses the map. Its `previousBackStackEntry` is the stacked `task` or `search` entry, so `fromRoute` returns null and `underlyingOf[it.id]` is empty. The result is null, and `getOrPut` caches that null for the top entry. `bottomBarItemFor(null)` then selects no tab, and it stays that way for this entry until it is popped. The same miss happens if two stacked screens are pushed before one recomposition, for example a reminder that restores a tab stack ending in a stacked screen and then pushes a task on top. At 195a0dfeb the full back-stack scan handled all of these cases, so this is a regression introduced by the lint fix.
-    - Why it matters: Criterion 3 requires that a screen opened from New keeps New highlighted. The tested nested case (a mail or task opened from a task on New) silently loses its highlight after a common event such as a rotation. The cached null also hides the problem from any later recomposition.
-    - Suggested fix: Store the resolved tab with the entry rather than in composition memory, for example in `entry.savedStateHandle` (a route string under a shell-private key). Write it the first time the stacked entry is seen, and read it for a stacked previous entry. `savedStateHandle` survives configuration changes and process death together with the back stack, and it is discarded when the entry is popped, which also ends the map growth. A `rememberSaveable` map keyed by entry id would be a smaller alternative. Then add a `StateRestorationTester` (or activity `recreate()`) case to `CockpitShellSelectionTest` that recreates on a nested stacked screen over New and asserts New is the only selected tab.
+    - Problem: At ce37b058c, the resolved tab was cached in a plain `remember` map. Recreation emptied the map while the NavController restored the back stack. The top entry of a nested stack (for example dashboard, new, task, mail item) then resolved to null, and the null was cached, so no tab was highlighted.
+    - Why it matters: Criterion 3 says a screen opened from New keeps New highlighted. A rotation broke that for nested screens.
+    - Suggested fix: Store the resolved tab in the entry's `savedStateHandle` and add a recreation test.
+    - Status: Resolved. f5d6690c4 stores the route in `entry.savedStateHandle` under a shell-private key and never stores null. `CockpitShellSelectionRestoreTest.aMailOpenedFromATaskOnNewKeepsNewSelectedAfterRecreation` and `aTaskOpenedFromATaskOnCalendarKeepsCalendarSelectedAfterRecreationAndBack` cover the scenario.
 
 ## P3 Low
 
 - [ ] **CR-2 | Tapping the now-highlighted tab on a stacked screen restores the stacked screen instead of returning to the tab's root** (open, optional)
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/ui/CockpitShell.kt:177` (`onClick`), `:313-317` (`navigateToTopLevel`)
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/ui/CockpitShell.kt` (bottom-bar `onClick` and `navigateToTopLevel`)
     - Category: Correctness
-    - Problem: On a task detail or search opened from New (or Calendar/Mail), New is now shown selected. Tapping it runs `navigateToTopLevel(New)`. `popUpTo(start) { saveState = true }` saves `[new, task]` under New's id, then `restoreState = true` restores that same stack, so the stacked screen stays in view. For Dashboard (since b0bdab0d3) and More, the same tap goes to the root screen.
-    - Why it matters: Tapping the selected tab is a common way to get back to that tab's root (Material's reselect convention). The shell now handles this tap differently for Dashboard/More than for New/Calendar/Mail. This is a minor UX inconsistency, not a criterion failure: the criteria do not define reselect behaviour.
-    - Suggested fix: Optional. In the bottom-bar `onClick`, when `destination == selected` and the current entry is a stacked screen, pop back to that destination (`popBackStack(destination.route, inclusive = false)`) instead of calling `navigateToTopLevel`. Alternatively, record the current behaviour as an accepted assumption.
-    - Status: Unchanged at ce37b058c (only the line numbers moved).
+    - Problem: On a task detail or search opened from New (or Calendar or Mail), New is shown selected. Tapping it runs `navigateToTopLevel(New)`. That saves and then restores the same stack, so the stacked screen stays in view. For Dashboard and More, the same tap goes to the root screen.
+    - Why it matters: This is a minor inconsistency in reselect behaviour. The criteria do not define reselect behaviour, so it is not a criterion failure.
+    - Suggested fix: Optional. When `destination == selected` and the current entry is stacked, pop back to that destination's route. Alternatively, record the current behaviour as an accepted assumption.
+    - Status: Unchanged at f5d6690c4.
 
 - [ ] **CR-3 | android/README.md still describes the old bottom bar** (open, optional)
     - File: `android/README.md:17`
     - Category: Quality
-    - Problem: README line 18 says the bottom bar holds "Today, Inbox, Calendar, Mail and More". The destinations table lists Inbox as "bottom bar" (line 30) and has no New row. After this task the bottom bar is Dashboard, New, Calendar, Mail, More.
+    - Problem: The README still lists the bottom bar as "Today, Inbox, Calendar, Mail and More". Its destinations table shows Inbox in the bottom bar and has no New row.
     - Why it matters: Developer docs that describe the navigation contradict the code.
-    - Suggested fix: Update the sentence and the Section column (Dashboard and New in the bottom bar, Inbox and Today under More). The file is outside the task's `touches`, so the parent worker may leave it for a docs follow-up instead.
-    - Status: Unchanged at ce37b058c.
+    - Suggested fix: Update the sentence and the Section column. The file is outside the task's `touches`, so the parent worker may leave it for a docs follow-up.
+    - Status: Unchanged at f5d6690c4.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. Within one composition, the ce37b058c replacement for the restricted `currentBackStack` API selects the right tab for single and nested stacked screens, for Back, and for restored tab stacks, and the existing selection tests still pin it. But its plain `remember` cache loses nested stacked screens on rotation or process recreation and caches a null, so no tab stays highlighted (CR-4, P2). This is a regression from 195a0dfeb. Storing the resolved tab in the entry's `savedStateHandle` fixes it and the map growth together, and a recreation test should be added. CR-1 stays resolved. CR-2 and CR-3 remain optional low-priority items.
+No material issues found. f5d6690c4 resolves CR-4. The tab a stacked entry lies on is now stored in that entry's saved state, so it survives recreation and tab save and restore, and it is discarded on pop. A null is never stored. The new recreation tests pin the nested scenario. Accessing `savedStateHandle` on the current and previous entries is safe here. The one-time write during composition is idempotent and does not cause recomposition. No new issue was found. CR-1 and CR-4 are resolved. CR-2 and CR-3 remain optional low-priority items.
