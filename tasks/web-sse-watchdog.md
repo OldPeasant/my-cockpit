@@ -1,11 +1,11 @@
 ---
 title: Web: detect a dead change-event stream (sleep, network change) and resync
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [web/src/app/core/events,server/src/main/kotlin/ch/sonensei/cockpit/core/events/infra/SseEventHub.kt,server/src/test/kotlin/ch/sonensei/cockpit/core/events]
 prio: 2
-lease_until: 
+lease_until: 2026-11-14T20:40:09Z
 releases: 1
 extended: 
 ---
