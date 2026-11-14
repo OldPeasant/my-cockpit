@@ -4,6 +4,7 @@ import ch.sonensei.cockpit.core.auth.WithCockpitUser
 import ch.sonensei.cockpit.mail.imap.ImapConnectionPool
 import ch.sonensei.cockpit.mail.imap.MailAccountService
 import ch.sonensei.cockpit.mail.imap.MailFolderService
+import ch.sonensei.cockpit.mail.imap.MailSessions
 import ch.sonensei.cockpit.mail.imap.MailServer
 import ch.sonensei.cockpit.mail.imap.NewMailAccount
 import ch.sonensei.cockpit.mail.model.MailAccount
@@ -21,14 +22,13 @@ import com.icegreen.greenmail.junit5.GreenMailExtension
 import com.icegreen.greenmail.util.ServerSetupTest
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
+import com.ninjasquad.springmockk.MockkSpyBean
 import io.mockk.every
-import io.mockk.mockkConstructor
-import io.mockk.unmockkConstructor
-import io.mockk.verify
 import jakarta.mail.Folder
 import jakarta.mail.Message
 import jakarta.mail.Session
 import jakarta.mail.Store
+import jakarta.mail.URLName
 import jakarta.mail.internet.InternetAddress
 import jakarta.mail.internet.MimeMessage
 import org.eclipse.angus.mail.imap.IMAPStore
@@ -69,6 +69,9 @@ class MailTaskArchiveGreenMailTests(
 	@Autowired private val pool: ImapConnectionPool,
 	@Autowired private val locator: MailMessageLocator,
 ) : PostgresTestBase() {
+	@MockkSpyBean
+	private lateinit var sessions: MailSessions
+
 	private lateinit var account: MailAccount
 
 	@BeforeEach
@@ -86,9 +89,6 @@ class MailTaskArchiveGreenMailTests(
 		greenMail.setUser(EMAIL, USER, PASSWORD)
 		account = account(EMAIL, USER)
 	}
-
-	@AfterEach
-	fun unmock() = unmockkConstructor(IMAPStore::class)
 
 	private fun account(
 		email: String,
@@ -255,13 +255,19 @@ class MailTaskArchiveGreenMailTests(
 	@Test
 	fun `without MOVE the mail is copied and expunged, and the link still resolves to the archived mail`() {
 		pool.evict(account.id)
-		mockkConstructor(IMAPStore::class)
-		every { anyConstructed<IMAPStore>().hasCapability("MOVE") } returns false
+		val stores = mutableListOf<NoMoveImapStore>()
+		every { sessions.connectImap(any()) } answers {
+			val of = firstArg<MailAccount>()
+			NoMoveImapStore(Session.getInstance(sessions.imapProperties(of, false))).apply {
+				connect(of.imapHost, of.imapPort, USER, PASSWORD)
+				stores += this
+			}
+		}
 		val (mail) = inboxWith(1)
 
 		val result = toTasks(mail.id)["results"].single()
 
-		verify { anyConstructed<IMAPStore>().hasCapability("MOVE") }
+		stores.any { it.askedForMove } shouldBe true
 		result["archived"].asBoolean() shouldBe true
 		subjectsOnServer("INBOX").shouldBeEmpty()
 		subjectsOnServer("Archive") shouldBe setOf("Fictitious request 1")
@@ -272,6 +278,21 @@ class MailTaskArchiveGreenMailTests(
 		cached(account, "Archive").single().subject shouldBe "Fictitious request 1"
 		result["archiveErrorCode"].isNull shouldBe true
 		cached(account, "INBOX").shouldBeEmpty()
+	}
+
+	/** An IMAP store that hides the server's MOVE capability, so moves fall back to COPY + EXPUNGE. */
+	private class NoMoveImapStore(
+		session: Session,
+	) : IMAPStore(session, URLName("imap", null, -1, null, null, null)) {
+		@Volatile var askedForMove = false
+
+		override fun hasCapability(capability: String): Boolean {
+			if (capability.equals("MOVE", ignoreCase = true)) {
+				askedForMove = true
+				return false
+			}
+			return super.hasCapability(capability)
+		}
 	}
 
 	companion object {
