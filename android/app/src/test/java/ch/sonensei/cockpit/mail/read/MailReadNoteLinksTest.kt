@@ -172,7 +172,7 @@ class MailReadNoteLinksTest {
             listOf(
                 MailReadTags.BACK,
                 MailReadTags.gtd(MailGtdAction.TASK),
-                MailReadTags.gtd(MailGtdAction.WAITING),
+                MailReadTags.NEXT_ACTION,
                 MailReadTags.action(MailListAction.ARCHIVE),
                 MailReadTags.action(MailListAction.DELETE),
                 MailReadTags.MORE,

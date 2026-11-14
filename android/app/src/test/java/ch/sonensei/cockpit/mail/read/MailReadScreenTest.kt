@@ -85,6 +85,7 @@ class MailReadScreenTest {
                         back = { calls += "back" },
                         retry = { calls += "retry" },
                         gtd = { calls += "gtd $it" },
+                        nextAction = { calls += "next action" },
                         act = { calls += "act $it" },
                         loadImages = { calls += "load images" },
                         alwaysLoadImages = { calls += "always images" },
@@ -101,7 +102,7 @@ class MailReadScreenTest {
     private val actionTags =
         listOf(
             MailReadTags.gtd(MailGtdAction.TASK),
-            MailReadTags.gtd(MailGtdAction.WAITING),
+            MailReadTags.NEXT_ACTION,
             MailReadTags.action(MailListAction.ARCHIVE),
             MailReadTags.action(MailListAction.DELETE),
             MailReadTags.MORE,
@@ -155,15 +156,86 @@ class MailReadScreenTest {
     }
 
     @Test
-    fun `the toolbar asks for back, the GTD actions, archive, delete and spam from its menu`() {
+    fun `the toolbar asks for back, the GTD actions, archive, delete, and waiting and spam from its menu`() {
         show(MailReadUiState(message = message))
 
         composeRule.onNodeWithTag(MailReadTags.BACK).performClick()
-        // The last tag is the menu button: it opens the menu with spam.
+        // The last tag is the menu button: it opens the menu with "To Waiting" and spam.
         actionTags.forEach { composeRule.onNodeWithTag(it).assertIsEnabled().performClick() }
+        composeRule.onNodeWithTag(MailReadTags.gtd(MailGtdAction.WAITING)).performClick()
+        composeRule.onNodeWithTag(MailReadTags.MORE).performClick()
         composeRule.onNodeWithTag(MailReadTags.action(MailListAction.SPAM)).performClick()
 
-        assertEquals(listOf("back", "gtd TASK", "gtd WAITING", "act ARCHIVE", "act DELETE", "act SPAM"), calls)
+        assertEquals(
+            listOf("back", "gtd TASK", "next action", "act ARCHIVE", "act DELETE", "gtd WAITING", "act SPAM"),
+            calls,
+        )
+    }
+
+    @Test
+    fun `next action and archive sits right after To task, labelled, and To Waiting is only in the menu`() {
+        show(MailReadUiState(message = message))
+
+        fun left(tag: String) =
+            composeRule
+                .onNodeWithTag(tag)
+                .fetchSemanticsNode()
+                .boundsInRoot.left
+        assertTrue(left(MailReadTags.gtd(MailGtdAction.TASK)) < left(MailReadTags.NEXT_ACTION))
+        assertTrue(left(MailReadTags.NEXT_ACTION) < left(MailReadTags.action(MailListAction.ARCHIVE)))
+        composeRule.onNodeWithContentDescription("Next action & archive").assertIsEnabled()
+        composeRule.onNodeWithTag(MailReadTags.gtd(MailGtdAction.WAITING)).assertDoesNotExist()
+        composeRule.onNodeWithTag(MailReadTags.MORE).performClick()
+        composeRule.onNodeWithTag(MailReadTags.gtd(MailGtdAction.WAITING)).assertIsDisplayed()
+    }
+
+    @Test
+    fun `next action and archive has a 48dp touch target`() {
+        show(MailReadUiState(message = message))
+        val node = composeRule.onNodeWithTag(MailReadTags.NEXT_ACTION).fetchSemanticsNode()
+        val minimum = with(composeRule.density) { 48.dp.toPx() }
+        // The touch bounds include the minimum interactive size even when the drawn button is 40dp.
+        assertTrue(node.touchBoundsInRoot.width >= minimum - 0.5f)
+        assertTrue(node.touchBoundsInRoot.height >= minimum - 0.5f)
+    }
+
+    @Test
+    fun `a failed next action is reported, the mail stays`() {
+        show(MailReadUiState(message = message, notice = MailReadNotice.NextActionFailed))
+        composeRule
+            .onNodeWithTag(MailReadTags.NOTICE)
+            .assertTextEquals("The next action could not be created; the mail stays where it is.")
+        composeRule.onNodeWithTag(MailReadTags.SUBJECT).assertTextEquals("Quarterly report")
+    }
+
+    @Test
+    fun `a mail not archived after its next action is named, with the server's reason`() {
+        var notice by mutableStateOf<MailReadNotice>(MailReadNotice.NotArchived("Quarterly report", "NO_ROLE_FOLDER"))
+        composeRule.setContent {
+            CockpitTheme {
+                MailReadContent(
+                    MailReadUiState(message = message, notice = notice),
+                    MailReadCallbacks(),
+                    zone = ZoneId.of("Europe/Zurich"),
+                    body = { _, modifier -> Box(modifier) },
+                )
+            }
+        }
+        composeRule
+            .onNodeWithTag(MailReadTags.NOTICE)
+            .assertTextEquals("Next action created, but “Quarterly report” could not be archived. This account has no Archive folder.")
+
+        notice = MailReadNotice.NotArchived("Quarterly report", "CONNECTION_FAILED")
+        composeRule.waitForIdle()
+        composeRule
+            .onNodeWithTag(MailReadTags.NOTICE)
+            .assertTextEquals("Next action created, but “Quarterly report” could not be archived. Server error: CONNECTION_FAILED")
+
+        notice = MailReadNotice.NotArchived("Quarterly report")
+        composeRule.waitForIdle()
+        composeRule
+            .onNodeWithTag(MailReadTags.NOTICE)
+            .assertTextEquals("Next action created, but “Quarterly report” could not be archived.")
     }
 
     @Test
