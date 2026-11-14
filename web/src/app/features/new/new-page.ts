@@ -19,7 +19,8 @@ import { isTypingTarget } from '../../shell/hotkeys';
 import { TaskStore } from '../gtd/data';
 import { senderName } from '../mail/list/mail-list-page';
 import { MailListStore } from '../mail/list/mail-list-store';
-import { MailSummary } from '../mail/list/mail.service';
+import { nextActionArchiveFailed, nextActionFailed } from '../mail/list/mail-next-action';
+import { MailService, MailSummary } from '../mail/list/mail.service';
 import { MailReadService } from '../mail/read/mail-read.service';
 import { FILTER_PARAM, mergeNew, NewFilter, NewRow, parseFilter } from './new-feed';
 
@@ -46,6 +47,7 @@ export default class NewPage {
   protected readonly tasks = inject(TaskStore);
   protected readonly mail = inject(MailListStore);
   private readonly reader = inject(MailReadService);
+  private readonly mailService = inject(MailService);
   private readonly notifications = inject(NotificationService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -158,6 +160,28 @@ export default class NewPage {
     }
   }
 
+  /**
+   * "→ Next action & archive" (`Shift+T`): a Next action linked to `mail`, then the mail moves to the
+   * Archive and its task's detail opens (Back returns here). A failed archive keeps the task (its
+   * detail still opens) and says so; a failed task creation leaves the mail in place.
+   */
+  protected async toNextAction(mail: MailSummary): Promise<void> {
+    if (this.converting().has(mail.id)) return;
+    this.converting.update((ids) => new Set([...ids, mail.id]));
+    try {
+      const [result] = await this.mailService.toNextActions([mail.id]);
+      if (!result) throw new Error('no result');
+      if (!result.archived) {
+        this.notifications.error(nextActionArchiveFailed(this.subject(mail), result));
+      }
+      await this.router.navigate(['/tasks', result.task.id]);
+    } catch (error) {
+      this.notifications.error(nextActionFailed(errorMessage(error)));
+    } finally {
+      this.converting.update((ids) => new Set([...ids].filter((id) => id !== mail.id)));
+    }
+  }
+
   protected retry(): void {
     if (this.taskError()) void this.tasks.refresh();
     if (this.mailError()) void this.mail.reload();
@@ -191,6 +215,11 @@ export default class NewPage {
         if (cursor?.kind !== 'mail') return;
         event.preventDefault();
         void this.toTask(cursor.mail);
+        return;
+      case 'T':
+        if (cursor?.kind !== 'mail') return;
+        event.preventDefault();
+        void this.toNextAction(cursor.mail);
         return;
     }
   }

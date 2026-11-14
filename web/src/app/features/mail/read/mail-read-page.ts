@@ -29,6 +29,7 @@ import { folderTree, moveTargetsOf } from '../list/mail-folders-store';
 import { MailListSession } from '../list/mail-list-session';
 import { MailMoveDialog, MailMoveDialogData } from '../list/mail-move-dialog';
 import { MailAction, MailService } from '../list/mail.service';
+import { nextActionArchiveFailed, nextActionFailed } from '../list/mail-next-action';
 import { MAIL_READ_HELP, MailShortcut, mailShortcutFor } from '../list/mail-shortcuts';
 import { formatBytes } from './format-bytes';
 import { ImageAllowlist } from './image-allowlist';
@@ -224,6 +225,38 @@ export default class MailReadPage {
     }
   }
 
+  /** "→ Next action & archive" (`Shift+T`) is running. */
+  protected readonly makingNextAction = signal(false);
+
+  /**
+   * "→ Next action & archive": a Next action linked to the message, then the message moves to the
+   * Archive. The task's detail opens in place of the message, so Back returns to where the message
+   * was opened from. A failed archive keeps the task (its detail still opens) and says so; a failed
+   * task creation keeps the message open.
+   */
+  protected async toNextAction(): Promise<void> {
+    const id = this.message()?.id;
+    if (!id || !this.canAct() || this.makingNextAction()) return;
+    const subject = this.subject();
+    this.makingNextAction.set(true);
+    try {
+      const [result] = await this.mail.toNextActions([id]);
+      if (!result) throw new Error('no result');
+      if (result.archived) {
+        // The list it was opened from no longer shows it.
+        void this.session.remove(id).catch(() => undefined);
+      } else {
+        this.notifications.error(nextActionArchiveFailed(subject, result));
+      }
+      if (this.destroyed || this.message()?.id !== id) return;
+      await this.router.navigate(['/tasks', result.task.id], { replaceUrl: true });
+    } catch (error) {
+      this.notifications.error(nextActionFailed(messageOf(error)));
+    } finally {
+      this.makingNextAction.set(false);
+    }
+  }
+
   /**
    * Archives, marks as spam or deletes the message with the list's mail action (the server moves it
    * to the account's Archive, Spam or Trash folder, or removes it from Trash) and returns to the list
@@ -409,6 +442,8 @@ export default class MailReadPage {
         return () => this.toggleFlag();
       case 'move':
         return () => this.move();
+      case 'nextAction':
+        return () => this.toNextAction();
       default:
         return null;
     }

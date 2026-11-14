@@ -85,6 +85,17 @@
         <button
           mat-stroked-button
           type="button"
+          class="next-action"
+          [disabled]="makingNextAction() || !!triaging()"
+          (click)="toNextAction()"
+          title="Shift+T"
+          i18n="@@mailRead.toNextAction"
+        >
+          → Next action &amp; archive
+        </button>
+        <button
+          mat-stroked-button
+          type="button"
           [disabled]="!!busy()"
           (click)="gtd('waiting')"
           i18n="@@mailRead.toWaiting"

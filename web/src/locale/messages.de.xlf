@@ -9773,8 +9773,8 @@
         </context-group>
       </trans-unit>
       <trans-unit id="new.keysHint" datatype="html">
-        <source> Keys: 1 all, 2 GTD Inbox, 3 mail, j/k next/previous, o open, t make an Inbox task </source>
-        <target state="translated">Tasten: 1 alle, 2 GTD-Eingang, 3 E-Mail, j/k nächster/vorheriger, o öffnen, t Aufgabe im Eingang erstellen</target>
+        <source> Keys: 1 all, 2 GTD Inbox, 3 mail, j/k next/previous, o open, t make an Inbox task, Shift+T make a next action and archive the mail </source>
+        <target state="translated">Tasten: 1 alle, 2 GTD-Eingang, 3 E-Mail, j/k nächster/vorheriger, o öffnen, t Aufgabe im Eingang erstellen, Shift+T nächste Aktion erstellen und E-Mail archivieren</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/new/new-page.html</context>
           <context context-type="linenumber">122,125</context>
@@ -16278,6 +16278,42 @@
       <trans-unit id="gtd.waiting.draftEmailLabel" datatype="html">
         <source>Draft an email about “<x id="title" equiv-text="title"/>”</source>
         <target state="translated">E-Mail zu „<x id="title" equiv-text="title"/>“ entwerfen</target>
+      </trans-unit>
+      <trans-unit id="mail.action.nextAction" datatype="html">
+        <source> → Next action &amp; archive </source>
+        <target state="translated">→ Nächste Aktion &amp; archivieren</target>
+      </trans-unit>
+      <trans-unit id="mail.nextAction.unexpected" datatype="html">
+        <source>Something went wrong.</source>
+        <target state="translated">Etwas ist schiefgelaufen.</target>
+      </trans-unit>
+      <trans-unit id="mail.nextAction.archiveFailed" datatype="html">
+        <source>The next action was created, but “<x id="subject" equiv-text="subject"/>” could not be archived: <x id="reason" equiv-text="reason"/></source>
+        <target state="translated">Die nächste Aktion wurde erstellt, aber „<x id="subject" equiv-text="subject"/>“ konnte nicht archiviert werden: <x id="reason" equiv-text="reason"/></target>
+      </trans-unit>
+      <trans-unit id="mail.nextAction.failed" datatype="html">
+        <source>The next action could not be created: <x id="reason" equiv-text="reason"/></source>
+        <target state="translated">Die nächste Aktion konnte nicht erstellt werden: <x id="reason" equiv-text="reason"/></target>
+      </trans-unit>
+      <trans-unit id="mail.nextAction.created" datatype="html">
+        <source><x id="count" equiv-text="count"/> next actions created</source>
+        <target state="translated"><x id="count" equiv-text="count"/> nächste Aktionen erstellt</target>
+      </trans-unit>
+      <trans-unit id="mail.nextAction.open" datatype="html">
+        <source>Next Actions</source>
+        <target state="translated">Nächste Aktionen</target>
+      </trans-unit>
+      <trans-unit id="mailShortcuts.nextAction" datatype="html">
+        <source>Next action &amp; archive</source>
+        <target state="translated">Nächste Aktion &amp; archivieren</target>
+      </trans-unit>
+      <trans-unit id="mailRead.toNextAction" datatype="html">
+        <source> → Next action &amp; archive </source>
+        <target state="translated">→ Nächste Aktion &amp; archivieren</target>
+      </trans-unit>
+      <trans-unit id="new.toNextAction" datatype="html">
+        <source> → Next action &amp; archive </source>
+        <target state="translated">→ Nächste Aktion &amp; archivieren</target>
       </trans-unit>
     </body>
   </file>

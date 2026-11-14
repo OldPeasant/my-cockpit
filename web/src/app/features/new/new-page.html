@@ -91,6 +91,17 @@
             >
               → Inbox task
             </button>
+            <button
+              mat-stroked-button
+              type="button"
+              class="next-action"
+              title="Shift+T"
+              [disabled]="converting().has(row.mail.id)"
+              (click)="toNextAction(row.mail)"
+              i18n="@@new.toNextAction"
+            >
+              → Next action &amp; archive
+            </button>
           }
         </li>
       }
@@ -119,6 +130,7 @@
   }
 
   <p class="keys" i18n="@@new.keysHint">
-    Keys: 1 all, 2 GTD Inbox, 3 mail, j/k next/previous, o open, t make an Inbox task
+    Keys: 1 all, 2 GTD Inbox, 3 mail, j/k next/previous, o open, t make an Inbox task, Shift+T
+    make a next action and archive the mail
   </p>
 </section>
