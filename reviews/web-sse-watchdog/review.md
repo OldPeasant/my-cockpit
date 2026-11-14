@@ -4,56 +4,38 @@ Date: 2026-11-14
 
 Task: web-sse-watchdog - Web: detect a dead change-event stream (sleep, network change) and resync
 
-Scope: task commits ee6903c3d and f0273eaf1 on base fd7cbec709075d6ac8641bcf2a600edd594709c7 (`git diff fd7cbec70..f0273eaf1`), as supplied by the parent worker. Reviewed from the current working-tree files, because shell access (git diff/log) was denied in this review session.
+Scope: re-review of the final task code, `git diff 88e8f67da HEAD -- . ':!tasks' ':!reviews'` (task commits 1f76628ad..5c77f6835, including the CR-1 fix 9e8677237 and the e2e rewrite 5c77f6835). Committed changes only; an uncommitted edit of `web/src/app/core/events/change-events.service.spec.ts` (+35 lines, test-writer work in progress) was not reviewed.
 
 Requirements:
 - tasks/web-sse-watchdog.md acceptance criteria and recorded assumptions
-- AGENTS.md project notes (conventions, generated files, logging)
-- Parent worker instructions (reconnect/resync semantics, listener cleanup, hidden-tab throttling, backoff and session probe interplay, Android compatibility)
+- SPEC.md (SSE change notifications, section on the events channel)
+- docs/ARCHITECTURE.md and AGENTS.md project notes (generated files, logging, conventions)
+- Parent worker instructions (re-review, confirm CR-1 resolved)
 
 Git range:
 - Branch: main
-- HEAD: f0273eaf1 per the parent worker (the session snapshot showed the same changes as 1db4068f0 and 434efb97f; the hashes could not be resolved here without shell access)
-- Base/start: fd7cbec709075d6ac8641bcf2a600edd594709c7
-- Commits reviewed: 2
+- HEAD: 9fa283a8b8df95d824589ed52e501eeaf947869c
+- Base/start: 88e8f67da645d7574f4e97bf1059d0ad61dc14ee
+- Commits reviewed: 9 (7 with code changes; the others are board/report commits and the merge of the wip branch)
 
 Summary: 0 P0, 0 P1, 0 P2, 1 P3
 
-Files read in full:
-- server/src/main/kotlin/ch/sonensei/cockpit/core/events/infra/SseEventHub.kt
-- server/src/main/kotlin/ch/sonensei/cockpit/core/events/api/EventsController.kt
-- web/src/app/core/events/change-events.service.ts
-- web/src/app/core/events/change-events.service.spec.ts
+Files read in full: `SseEventHub.kt`, `EventsController.kt` (changed part), `SseEventHubTests.kt` (changed parts), `change-events.service.ts`, the watchdog section of `change-events.service.spec.ts`, `web/e2e/new/live-watchdog.spec.ts`, the `api/openapi.yaml` hunk, `web/src/app/core/events/index.ts`; plus the Android `GtdChangeStream.kt` event mapping and its test for compatibility.
 
-Review limitations (not findings): shell access was denied, so I could not run the exact diff, list the server
-test directory, search api/openapi.yaml, or open the Android GtdChangeStream sources. I did not independently
-verify the server heartbeat test, the regenerated openapi.yaml or the Android `event: other` test. I took the
-Android compatibility claim from the task's recorded assumption. The parent worker should confirm these three
-with its own evidence.
+## Earlier finding CR-1 (previous review): resolved
 
-What was verified:
-- Server: the heartbeat is now a named `ping` event with data `{}` (SseEventHub.kt:102-111). Without a `data:` line,
-  browsers do not dispatch an event, so the `{}` data is needed. It runs on the same single sender thread as
-  broadcasts, and a write failure still drops the client. The controller description documents the event
-  (EventsController.kt:28-29).
-- Web watchdog: the watchdog starts with the first connect and stops only on disconnect (logout or destroy).
-  The interval and the `visibilitychange`/`online` listeners are removed through the same stable `onWake`
-  reference (change-events.service.ts:163-176). The test at spec:731-742 covers this with `vi.getTimerCount() === 0`.
-- Silence goes through `fail()`, which closes the stream, starts the backoff and probes the session
-  (service.ts:185, 155-160). `onopen` emits `resync$` because `wasOpen` stays true across reconnects. A wake
-  reconnect cancels a pending backoff, resets `failures` and skips the probe; a later failure probes again.
-  This matches the recorded assumption.
-- Hidden tabs: when the tab is hidden, a late check is not treated as a wake-up (service.ts:184). `wake()` does
-  nothing while the tab is hidden (service.ts:193). The silence check still applies, and EventSource network
-  events keep updating `lastActivity` in a hidden tab.
-- During a backoff, `check()` returns early (`source` is undefined) but still advances `lastCheck`, so a long
-  backoff is not later mistaken for a wake-up. A connection that never opens is caught by the silence check,
-  because `lastActivity` is set at connect (covered by spec:744-756).
-- Change events, named `messages$` events and pings all count as activity. The listeners of closed sources are
-  never called again, because the sources are closed.
-- Tests cover each unit-test point of the criteria: a ping resets the watchdog; silence leads to a reconnect and
-  `resync$`; `visibilitychange`/`online` after silence reconnects; a healthy stream is left alone; a wake-up is
-  detected; logout cleanup; and a configurable token.
+`wake()` now keeps a stream healthy while `Date.now() - lastActivity <= heartbeatMs + checkMs` (30 s with the defaults, `change-events.service.ts:199-200`). Tests cover the margin: a 26 s old ping on `visibilitychange`/`online` keeps the stream (spec "allows a late ping a margin..."), exactly 30 s keeps it and 30 s + 1 ms reconnects (spec "treats a stream as silent on wake-up only after more than a heartbeat plus a check interval"). The fix report matches the code.
+
+## What was verified
+
+- Criterion 1 (server ping): `sendHeartbeat` sends `event:ping` with data `{}` through the same `trySend` path as change events, so a dead client is still dropped (`SseEventHub.kt:102-111`). The `{}` data is needed because browsers dispatch no event without a `data:` line. The comment heartbeat is removed. The Android `GtdChangeStream.toSignal` returns null for any event not named `change` (line 133), and `GtdChangeStreamTest` covers an `event: other` case, so Android ignores `ping`. The only other consumer of `/api/v1/events` is the web service. The controller description and the regenerated `api/openapi.yaml` say the same thing, and the generated web client has no copy of the text. Server tests assert the exact wire form `event:ping\ndata:{}\n\n` and that no `:heartbeat` comment remains.
+- Criterion 2 (silence watchdog): `STREAM_WATCHDOG` token (25 s / 65 s / 5 s defaults, configurable). `check()` calls `fail()` after the silence limit. `fail()` is the same path as `onerror`: close, backoff, session probe. `wasOpen` stays true, so the next `onopen` emits `resync$`. A connection that never opens is also caught, because `lastActivity` is set at connect.
+- Criterion 3 (visibility/online/wake-up): `wake()` does nothing while the tab is hidden. It keeps a healthy stream, and otherwise cancels a pending backoff and reconnects at once. A late check is not taken as a wake-up in hidden tabs (timer throttling). `check()` returns early during a backoff but still advances `lastCheck`, so a long backoff is not later read as a sleep. Pings, change events and `messages$` events all count as activity.
+- Cleanup: `stopWatchdog()` clears the interval and removes both listeners through the same `onWake` reference. `disconnect()` (logout, destroy) calls it. The logout test checks that `vi.getTimerCount()` is 0.
+- Criterion 4 (unit tests): every listed case has a test: a ping resets the watchdog; silence leads to a reconnect, a session probe and `resync$`; `visibilitychange`/`online` after silence reconnect; a healthy stream is left alone; a wake-up is detected with a clock jump; logout stops everything; the token can be configured. There is also a server test for the named event.
+- Criterion 5 (e2e): the spec runs against the real stack (GreenMail, real login, test sync hook) and checks that the page did not navigate. As the recorded assumption says, Chromium's offline emulation does not cut the open SSE connection. The spec therefore shows the stale list (the refetch fails while offline) and then recovery through the wake-up path (`page.clock.fastForward`). It does not run the silent-stream path end to end; that path is unit-tested. The recorded assumption flags this gap for humans, so it is not a code finding.
+- Security and logging: nothing sensitive is logged. The ping carries no data. Authorization and the stream timeout are unchanged.
+- Design notes, recorded as assumptions and not defects: a wake-up resets the backoff counter and skips the session probe. If the server stays down, the next `onerror` probes the session again and starts the backoff from 1 s.
 
 ## P0 Critical
 
@@ -69,24 +51,13 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | Wake-up threshold equals the heartbeat interval, so a healthy stream can be reconnected needlessly at the edge**
-    - File: `web/src/app/core/events/change-events.service.ts:194` (also used at `:184`)
-    - Category: Correctness
-    - Problem: `wake()` keeps the stream only if `Date.now() - lastActivity <= heartbeatMs`, and `heartbeatMs` is
-      exactly the server's ping period (25 s, SseEventHub `scheduleAtFixedRate`). Just before each ping arrives,
-      the time since the last one is 25 s plus network and scheduling jitter. The ping also shares the single
-      `sse-events` sender thread with change broadcasts, so a busy broadcast delays it further. A
-      `visibilitychange`/`online` event, or a late check, that lands in that window treats a healthy stream as
-      silent. The service then closes it, reconnects, and every store refetches through `resync$`.
-    - Why it matters: the criterion says "A visible tab with a healthy stream does not reconnect needlessly". The
-      window is small (milliseconds to seconds per 25 s period), but no margin is built in, and each false
-      positive refetches all open views.
-    - Suggested fix: compare against the heartbeat plus a margin (e.g. `heartbeatMs + checkMs`, or a separate
-      grace value in `STREAM_WATCHDOG`). Add a test where `visibilitychange` fires 25-26 s after the last ping and
-      the stream is kept.
+- [ ] **CR-1 | E2E comments attribute the recovery to the 65 s silence limit, but the wake-up path triggers it**
+    - File: `web/e2e/new/live-watchdog.spec.ts:8` and `web/e2e/new/live-watchdog.spec.ts:61`
+    - Category: Quality
+    - Problem: The header says "the page clock jumps past the watchdog's silence limit, so its check fires far too late". The step comment says "the watchdog's check runs 70 s late (longer than the 65 s silence limit)". In `check()` (`change-events.service.ts:188`), a check that runs more than `heartbeatMs` (25 s) late in a visible tab goes to `wake()`. `wake()` then reconnects because the last activity is older than 30 s. The 65 s `silenceMs` branch is never reached in this scenario, so a jump of about 35 s would already reconnect.
+    - Why it matters: Readers may think the e2e test covers the silence (no ping) reconnect. It covers the wake-up reconnect. That makes it harder to see which path has end-to-end coverage, and the gap is already the subject of a recorded assumption.
+    - Suggested fix: Reword both comments to say the jump is a wake-up: a check far later than one heartbeat, with the stream silent for longer than a heartbeat plus a check interval. Optional: keep 70 s, but do not tie it to the silence limit.
 
 ## Review conclusion
 
-No material issues found. One low-priority robustness improvement (CR-1) is optional. The parent worker should
-confirm the unverified items listed under "Review limitations" (server ping test, regenerated openapi.yaml,
-Android ignoring `ping`) with its own evidence.
+No material issues found. The earlier CR-1 is resolved, and every acceptance criterion is met by the committed code and tests. The one new finding is a P3 comment-accuracy issue in the e2e spec and is optional. The uncommitted spec edit in the working tree was outside this review. If it is committed, it changes only test code, and the parent worker should decide whether that needs a delta review.
