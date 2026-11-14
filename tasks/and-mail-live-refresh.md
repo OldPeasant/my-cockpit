@@ -42,8 +42,9 @@ Cause (diagnosis by an interactive session):
 - [x] A reload triggered by an event that fails offline or with an error keeps the shown mails and does not raise an
       error notice or banner on top of what is already there beyond what a manual refresh shows today.
   - verified (2026-11-14 20:58+0100 by dell26/agent-1): android testDebugUnitTest (via sh scripts/check.sh) -> offline/failed event reload tests (New, Mail list, Dashboard: shown mails kept, no banner, no spinner) pass
-- [ ] Unit tests: a `MAIL_FOLDER`/`EMAIL` signal reloads the New view's mail part (new mail at the top, with filter
+- [x] Unit tests: a `MAIL_FOLDER`/`EMAIL` signal reloads the New view's mail part (new mail at the top, with filter
       All and Mail); a burst gives one reload; a `TASK` signal does not reload mail; the same for the Mail list.
+  - verified (2026-11-14 20:58+0100 by dell26/agent-1): android testDebugUnitTest (via sh scripts/check.sh) -> New: EMAIL filter All + MAIL_FOLDER filter Mail new mail on top, burst one reload, TASK no reload; same set in MailListLiveRefreshTest; 47 task tests, 0 failures
 - [~] Manually verified on an emulator or device against a running server: New view open, a mail delivered to the
       account, it appears without leaving the view (record what you ran); if no emulator or device is available, skip
       with reason and assume what you could not see
