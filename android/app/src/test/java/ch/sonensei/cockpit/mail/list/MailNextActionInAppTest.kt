@@ -212,6 +212,31 @@ class MailNextActionInAppTest {
     }
 
     @Test
+    fun `back from the task of a mail that was not archived shows the mail with its notice and the new task in its links`() {
+        // CR-3: the mail's links panel reloads after a Next action whose archive failed.
+        val toTask = LinkedItem(id(71), "TASK", taskId, "Subject 1", null, "/tasks/$taskId", available = true, manual = false)
+        coEvery { links.list(ItemRef("EMAIL", id(1))) } returnsMany
+            listOf(LinksResult.Ok(emptyList()), LinksResult.Ok(listOf(toTask)))
+        coEvery { mail.toNextActions(listOf(id(1))) } returns
+            MailResult.Ok(listOf(MailNextAction(id(1), taskId, "Subject 1", archived = false)))
+        openMailTab()
+        composeRule.onNodeWithTag(MailListTags.row(id(1))).performClick()
+        waitFor(MailReadTags.TEXT)
+        composeRule.onNodeWithTag(LinkedItemsTags.link(toTask)).assertDoesNotExist()
+        composeRule.onNodeWithTag(MailReadTags.NEXT_ACTION).performClick()
+        waitFor(TaskDetailTags.TITLE)
+
+        pressBack()
+
+        waitFor(MailReadTags.TEXT)
+        val notice = hasText("Next action created, but “Subject 1” could not be archived.")
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodes(notice).fetchSemanticsNodes().isNotEmpty() }
+        waitFor(LinkedItemsTags.link(toTask))
+        composeRule.onNodeWithTag(TaskDetailTags.TITLE).assertDoesNotExist()
+        coVerify(exactly = 1) { mail.toNextActions(listOf(id(1))) }
+    }
+
+    @Test
     fun `the multi-selection's next actions leave the list and the snackbar opens Next Actions`() {
         coEvery { mail.toNextActions(listOf(id(1), id(2))) } returns
             MailResult.Ok(listOf(MailNextAction(id(1), taskId, "Subject 1", true), MailNextAction(id(2), id(60), "Subject 2", true)))
