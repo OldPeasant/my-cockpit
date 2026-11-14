@@ -35,10 +35,11 @@ caddy:2 v2.11.7). The gap is in keeping the connection alive:
       intervals (configurable token, default about 65 s), it closes the `EventSource` and reconnects the way an
       error does (backoff, session check), so `resync$` emits and the stores refetch.
   - verified (2026-11-14 22:10+0100 by dell26/agent-1): sh scripts/check.sh web vitest (change-events.service.spec.ts watchdog: silent stream reconnects after backoff + session probe + resync$, configurable STREAM_WATCHDOG, 65 s default) -> 196 files / 4923 tests passed
-- [ ] When the page becomes visible again (`visibilitychange`) or the browser goes back `online`, and the stream was
+- [x] When the page becomes visible again (`visibilitychange`) or the browser goes back `online`, and the stream was
       silent for longer than one heartbeat interval, or a wake-up is detected (a timer fired much later than
       scheduled), the service reconnects at once and stores resync. A visible tab with a healthy stream does not
       reconnect needlessly.
+  - verified (2026-11-14 22:10+0100 by dell26/agent-1): sh scripts/check.sh web vitest (visibilitychange/online after silence reconnect at once, healthy visible stream untouched, wake-up via clock jump, 30 s boundary test) -> 4923 passed; e2e live-watchdog.spec.ts wake-up path -> passed (see #5)
 - [ ] Unit tests (fake `EVENT_SOURCE_FACTORY`, fake timers): ping resets the watchdog; silence triggers a reconnect
       and `resync$`; `visibilitychange`/`online` after silence reconnects; logout stops the watchdog and listeners;
       server test: the heartbeat is sent as the named event.
