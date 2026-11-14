@@ -124,7 +124,15 @@ class NewViewModel internal constructor(
     private val session = cache.session()
     private val mailPart =
         MutableStateFlow(cache.last?.let { MailPart(it.messages, it.nextCursor, it.loadedAt) } ?: MailPart())
+
+    /** The running "next page" load. */
     private var loadJob: Job? = null
+
+    /** The running load of the newest mails (manual or after a mail change); only one runs at a time. */
+    private var firstPageJob: Job? = null
+
+    /** A mail change arrived while [firstPageJob] ran: it loads the newest mails once more when done. */
+    private var reloadPending = false
 
     val uiState: StateFlow<NewUiState> =
         combine(tasks.observe(TaskView.INBOX), mailPart, filter) { inbox, m, f ->
@@ -158,48 +166,65 @@ class NewViewModel internal constructor(
 
     /**
      * Reloads the newest mails (like [refresh]) on every mail change on the server while collected; the screen collects
-     * it only while shown. A load already running is not started again, and a failed reload keeps what is shown as it
-     * is (no loading indicator, no new error banner).
+     * it only while shown. A change arriving while the newest mails load is not loaded twice at once: it reloads them
+     * once more when that load ends. A failed reload keeps what is shown as it is (no loading indicator, no new error
+     * banner).
      */
     suspend fun followMailChanges() =
         mailChanges.changes().collect {
-            if (loadJob?.isActive != true) loadFirstPage(quiet = true)
+            if (firstPageJob?.isActive == true) reloadPending = true else loadFirstPage(quiet = true)
         }
 
+    /**
+     * Loads the newest mails, then again (quietly) as long as a mail change arrived meanwhile. A [quiet] load leaves a
+     * page load running; a manual one replaces it.
+     */
     private fun loadFirstPage(quiet: Boolean) {
-        loadJob?.cancel()
-        if (!quiet) mailPart.update { it.copy(loading = true, loadingMore = false) }
-        loadJob =
+        firstPageJob?.cancel()
+        if (!quiet) {
+            loadJob?.cancel()
+            mailPart.update { it.copy(loading = true, loadingMore = false) }
+        }
+        firstPageJob =
             viewModelScope.launch {
-                val result = mail.messages(Mailbox.Unified, null)
-                mailPart.update { m ->
-                    when (result) {
-                        is MailResult.Ok -> {
-                            val page = result.value
-                            val ids = page.items.mapTo(HashSet()) { it.id }
-                            val oldest = page.items.lastOrNull()?.let { last -> m.messages.indexOfFirst { it.id == last.id } } ?: -1
-                            // Keeps the pages behind the first one when the new page ends inside them.
-                            val (messages, cursor) =
-                                if (page.nextCursor != null && oldest >= 0) {
-                                    (page.items + m.messages.drop(oldest + 1).filterNot { it.id in ids }) to m.nextCursor
-                                } else {
-                                    page.items to page.nextCursor
-                                }
-                            m.copy(
-                                messages = messages,
-                                nextCursor = cursor,
-                                loadedAt = clock.instant(),
-                                loading = false,
-                                offline = false,
-                                failed = false,
-                            )
-                        }
-                        MailResult.Offline -> if (quiet) m else m.copy(loading = false, offline = true, failed = false)
-                        is MailResult.Failed -> if (quiet) m else m.copy(loading = false, offline = false, failed = true)
-                    }
-                }
-                remember()
+                var quietly = quiet
+                do {
+                    reloadPending = false
+                    loadFirstPageOnce(quietly)
+                    quietly = true
+                } while (reloadPending)
             }
+    }
+
+    private suspend fun loadFirstPageOnce(quiet: Boolean) {
+        val result = mail.messages(Mailbox.Unified, null)
+        mailPart.update { m ->
+            when (result) {
+                is MailResult.Ok -> {
+                    val page = result.value
+                    val ids = page.items.mapTo(HashSet()) { it.id }
+                    val oldest = page.items.lastOrNull()?.let { last -> m.messages.indexOfFirst { it.id == last.id } } ?: -1
+                    // Keeps the pages behind the first one when the new page ends inside them.
+                    val (messages, cursor) =
+                        if (page.nextCursor != null && oldest >= 0) {
+                            (page.items + m.messages.drop(oldest + 1).filterNot { it.id in ids }) to m.nextCursor
+                        } else {
+                            page.items to page.nextCursor
+                        }
+                    m.copy(
+                        messages = messages,
+                        nextCursor = cursor,
+                        loadedAt = clock.instant(),
+                        loading = false,
+                        offline = false,
+                        failed = false,
+                    )
+                }
+                MailResult.Offline -> if (quiet) m else m.copy(loading = false, offline = true, failed = false)
+                is MailResult.Failed -> if (quiet) m else m.copy(loading = false, offline = false, failed = true)
+            }
+        }
+        remember()
     }
 
     /** Reloads both parts (the error banner's retry). */

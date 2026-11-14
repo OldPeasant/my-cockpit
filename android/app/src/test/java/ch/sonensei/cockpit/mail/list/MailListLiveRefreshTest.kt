@@ -213,7 +213,7 @@ class MailListLiveRefreshTest {
         }
 
     @Test
-    fun `an event during a running load does not start a second one`() =
+    fun `an event during a running load does not start a second one but reloads once it ends`() =
         runTest(dispatcher) {
             val manual = CompletableDeferred<MailResult<MailPage>>()
             coEvery { repo.messages(Mailbox.Unified, null) } returns page(1) coAndThen { manual.await() } andThen page(9, 1)
@@ -224,16 +224,76 @@ class MailListLiveRefreshTest {
 
             signal(ChangeSignal.Changed("EMAIL"))
             quiet()
+            signal(ChangeSignal.Changed("MAIL_FOLDER"))
+            quiet()
             coVerify(exactly = 2) { repo.messages(Mailbox.Unified, null) }
 
+            // The running load may have read the server before the new mail was stored: one more reload follows it.
             manual.complete(page(1))
             advanceUntilIdle()
             assertFalse(vm.uiState.value.loading)
+            coVerify(exactly = 3) { repo.messages(Mailbox.Unified, null) }
+            assertEquals(listOf(9, 1).map(::id), vm.ids())
+
+            advanceTimeBy(10 * QUIET_MS)
+            advanceUntilIdle()
+            coVerify(exactly = 3) { repo.messages(Mailbox.Unified, null) }
+        }
+
+    @Test
+    fun `an event during load more still reloads the first page`() =
+        runTest(dispatcher) {
+            val nextPage = CompletableDeferred<MailResult<MailPage>>()
+            firstPages(page(1, 2, cursor = "c1"), page(9, 1, cursor = "c1-new"))
+            coEvery { repo.messages(Mailbox.Unified, "c1") } coAnswers { nextPage.await() }
+            val vm = shown()
+            vm.loadMore()
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.loadingMore)
 
             signal(ChangeSignal.Changed("EMAIL"))
             quiet()
-            coVerify(exactly = 3) { repo.messages(Mailbox.Unified, null) }
-            assertEquals(listOf(9, 1).map(::id), vm.ids())
+
+            coVerify(exactly = 2) { repo.messages(Mailbox.Unified, null) }
+            assertEquals(listOf(9, 1, 2).map(::id), vm.ids())
+            assertTrue(vm.uiState.value.loadingMore)
+
+            nextPage.complete(page(3))
+            advanceUntilIdle()
+            assertFalse(vm.uiState.value.loadingMore)
+            assertEquals(listOf(9, 1, 2, 3).map(::id), vm.ids())
+        }
+
+    @Test
+    fun `an event reload outrun by load more and a folder switch does not overwrite the new folder`() =
+        runTest(dispatcher) {
+            val stale = CompletableDeferred<MailResult<MailPage>>()
+            val folder = CompletableDeferred<MailResult<MailPage>>()
+            coEvery { repo.messages(Mailbox.Unified, null) } returns page(1, 2, cursor = "c1") coAndThen { stale.await() }
+            coEvery { repo.messages(Mailbox.Unified, "c1") } returns page(3)
+            coEvery { repo.messages(box, null) } coAnswers { folder.await() }
+            val vm = shown()
+
+            // An event reload runs, a page is loaded meanwhile, then another folder is opened.
+            signal(ChangeSignal.Changed("EMAIL"))
+            quiet()
+            vm.loadMore()
+            advanceUntilIdle()
+            vm.select(box)
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.loading)
+
+            stale.complete(page(9, 1, cursor = "c-unified"))
+            advanceUntilIdle()
+            assertEquals(box, vm.uiState.value.mailbox)
+            assertEquals(emptyList<UUID>(), vm.ids())
+            assertTrue(vm.uiState.value.loading)
+
+            folder.complete(page(5, 6))
+            advanceUntilIdle()
+            assertEquals(listOf(5, 6).map(::id), vm.ids())
+            assertNull(vm.uiState.value.nextCursor)
+            assertFalse(vm.uiState.value.loading)
         }
 
     @Test

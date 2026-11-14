@@ -129,7 +129,7 @@ class DashboardMailRefreshTest {
         }
 
     @Test
-    fun `an event while the dashboard loads starts no second load`() =
+    fun `an event while the dashboard loads starts no second load but reloads the count once it ends`() =
         runTest(dispatcher) {
             val slow = CompletableDeferred<DashboardResult<WidgetData>>()
             coEvery { repo.load(WidgetId.INBOX) } returns DashboardResult.Ok(oneUnread) coAndThen { slow.await() }
@@ -139,11 +139,38 @@ class DashboardMailRefreshTest {
 
             signal(ChangeSignal.Changed("EMAIL"))
             quiet()
+            signal(ChangeSignal.Changed("MAIL_FOLDER"))
+            quiet()
 
             coVerify(exactly = 2) { repo.load(WidgetId.INBOX) }
             coVerify(exactly = 2) { repo.load(WidgetId.TODAY) }
             slow.complete(DashboardResult.Ok(threeUnread))
             advanceUntilIdle()
+            assertEquals(WidgetState(threeUnread, loading = false), vm.uiState.value.state(WidgetId.INBOX))
+            // The load may have read the count before the new mail was stored: the count alone reloads once more.
+            coVerify(exactly = 3) { repo.load(WidgetId.INBOX) }
+            coVerify(exactly = 2) { repo.load(WidgetId.TODAY) }
+            coVerify(exactly = 2) { repo.layout() }
+        }
+
+    @Test
+    fun `an event during an event reload reloads the count once more afterwards`() =
+        runTest(dispatcher) {
+            val slow = CompletableDeferred<DashboardResult<WidgetData>>()
+            coEvery { repo.load(WidgetId.INBOX) } returns
+                DashboardResult.Ok(oneUnread) coAndThen { slow.await() } andThen DashboardResult.Ok(threeUnread)
+            val vm = shown()
+
+            signal(ChangeSignal.Changed("EMAIL"))
+            quiet()
+            signal(ChangeSignal.Changed("EMAIL"))
+            quiet()
+            coVerify(exactly = 2) { repo.load(WidgetId.INBOX) }
+
+            slow.complete(DashboardResult.Ok(oneUnread))
+            advanceUntilIdle()
+
+            coVerify(exactly = 3) { repo.load(WidgetId.INBOX) }
             assertEquals(WidgetState(threeUnread, loading = false), vm.uiState.value.state(WidgetId.INBOX))
         }
 

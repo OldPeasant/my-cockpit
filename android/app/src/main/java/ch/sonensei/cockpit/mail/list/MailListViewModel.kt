@@ -193,7 +193,15 @@ class MailListViewModel
         private val state = MutableStateFlow(MailListUiState())
         val uiState: StateFlow<MailListUiState> = state.asStateFlow()
 
+        /** The running "next page" or "load older" load. */
         private var loadJob: Job? = null
+
+        /** The running load of the first page (manual or after a mail change); only one runs at a time. */
+        private var firstPageJob: Job? = null
+
+        /** A mail change arrived while [firstPageJob] ran: it loads the first page once more when done. */
+        private var reloadPending = false
+
         private var folderJob: Job? = null
         private var searchJob: Job? = null
 
@@ -217,12 +225,13 @@ class MailListViewModel
 
         /**
          * Reloads the first page of the current mailbox (like [refresh]) on every mail change on the server while
-         * collected; the screen collects it only while shown. Search results are not reloaded, a load already running is
-         * not started again, and a failed reload keeps what is shown (no loading indicator, no new error message).
+         * collected; the screen collects it only while shown. Search results are not reloaded. A change arriving while the
+         * first page loads is not loaded twice at once: it reloads the page once more when that load ends. A failed reload
+         * keeps what is shown (no loading indicator, no new error message).
          */
         suspend fun followMailChanges() =
             mailChanges.changes().collect {
-                if (loadJob?.isActive != true) load(state.value.mailbox, quiet = true)
+                if (firstPageJob?.isActive == true) reloadPending = true else load(state.value.mailbox, quiet = true)
             }
 
         /** Shows [mailbox] from its newest mail. */
@@ -716,46 +725,68 @@ class MailListViewModel
                 }
         }
 
-        /** Loads the accounts and the first page of [mailbox], then shows [message]; a load still running is dropped. */
+        /**
+         * Loads the accounts and the first page of [mailbox], then shows [message]; a first-page load still running is
+         * dropped. A [quiet] load leaves a page load running; a manual one replaces it. As long as a mail change arrived
+         * meanwhile, the first page of the mailbox shown then loads once more, quietly.
+         */
         private fun load(
             mailbox: Mailbox,
             message: MailListMessage? = null,
             quiet: Boolean = false,
         ) {
-            loadJob?.cancel()
+            firstPageJob?.cancel()
             if (!quiet) {
+                loadJob?.cancel()
                 state.update { it.copy(loading = true, loadingMore = false, loadingOlder = false, olderMessage = null) }
             }
-            loadJob =
+            firstPageJob =
                 viewModelScope.launch {
-                    val generation = ++folderGeneration
-                    val accounts = repository.accounts()
-                    val result = repository.messages(mailbox, null)
-                    state.update { current ->
-                        val withAccounts =
-                            (accounts as? MailResult.Ok)
-                                ?.takeIf { generation == folderGeneration }
-                                ?.let { current.copy(accounts = it.value) } ?: current
-                        when (result) {
-                            is MailResult.Ok -> {
-                                val (messages, cursor) = mergeFirstPage(current, mailbox, result.value)
-                                withAccounts.copy(
-                                    messages = messages,
-                                    selected = current.selected.filterTo(HashSet()) { id -> messages.any { it.id == id } },
-                                    nextCursor = cursor,
-                                    loading = false,
-                                    loaded = true,
-                                    // A quiet reload keeps an action's message; only "outdated" is no longer true.
-                                    message = if (quiet) current.message.takeUnless { it in STALE } else message,
-                                )
-                            }
-                            MailResult.Offline ->
-                                if (quiet) withAccounts else withAccounts.copy(loading = false, message = MailListMessage.OFFLINE)
-                            is MailResult.Failed ->
-                                if (quiet) withAccounts else withAccounts.copy(loading = false, message = MailListMessage.FAILED)
-                        }
-                    }
+                    var next = mailbox
+                    var quietly = quiet
+                    do {
+                        reloadPending = false
+                        loadFirstPage(next, message.takeUnless { quietly }, quietly)
+                        next = state.value.mailbox
+                        quietly = true
+                    } while (reloadPending)
                 }
+        }
+
+        private suspend fun loadFirstPage(
+            mailbox: Mailbox,
+            message: MailListMessage?,
+            quiet: Boolean,
+        ) {
+            val generation = ++folderGeneration
+            val accounts = repository.accounts()
+            val result = repository.messages(mailbox, null)
+            state.update { current ->
+                // The answer for a mailbox no longer shown is dropped.
+                if (current.mailbox != mailbox) return@update current
+                val withAccounts =
+                    (accounts as? MailResult.Ok)
+                        ?.takeIf { generation == folderGeneration }
+                        ?.let { current.copy(accounts = it.value) } ?: current
+                when (result) {
+                    is MailResult.Ok -> {
+                        val (messages, cursor) = mergeFirstPage(current, mailbox, result.value)
+                        withAccounts.copy(
+                            messages = messages,
+                            selected = current.selected.filterTo(HashSet()) { id -> messages.any { it.id == id } },
+                            nextCursor = cursor,
+                            loading = false,
+                            loaded = true,
+                            // A quiet reload keeps an action's message; only "outdated" is no longer true.
+                            message = if (quiet) current.message.takeUnless { it in STALE } else message,
+                        )
+                    }
+                    MailResult.Offline ->
+                        if (quiet) withAccounts else withAccounts.copy(loading = false, message = MailListMessage.OFFLINE)
+                    is MailResult.Failed ->
+                        if (quiet) withAccounts else withAccounts.copy(loading = false, message = MailListMessage.FAILED)
+                }
+            }
         }
 
         /**

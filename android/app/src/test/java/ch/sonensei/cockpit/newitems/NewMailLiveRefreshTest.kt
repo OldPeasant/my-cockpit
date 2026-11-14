@@ -253,7 +253,7 @@ class NewMailLiveRefreshTest {
         }
 
     @Test
-    fun anEventDuringARunningLoadDoesNotStartASecondOne() =
+    fun anEventDuringARunningLoadDoesNotStartASecondOneButReloadsOnceItEnds() =
         runTest {
             val manual = CompletableDeferred<MailResult<MailPage>>()
             coEvery { mailRepo.messages(Mailbox.Unified, null) } coAnswers { manual.await() } andThen ok(dinner, party)
@@ -263,18 +263,78 @@ class NewMailLiveRefreshTest {
 
             signal(ChangeSignal.Changed("EMAIL"))
             quiet()
+            signal(ChangeSignal.Changed("MAIL_FOLDER"))
+            quiet()
             coVerify(exactly = 1) { mailRepo.messages(Mailbox.Unified, null) }
             assertTrue(vm.uiState.value.loading)
 
+            // The running load may have read the server before the new mail was stored: one more reload follows it.
             manual.complete(ok(party))
             assertFalse(vm.uiState.value.loading)
-            assertEquals(listOf("mail:${party.id}", "task:${plumber.id}"), vm.keys())
-
-            // Once that load is over, the next event reloads again.
-            signal(ChangeSignal.Changed("EMAIL"))
-            quiet()
             coVerify(exactly = 2) { mailRepo.messages(Mailbox.Unified, null) }
             assertEquals(listOf("mail:${dinner.id}", "mail:${party.id}", "task:${plumber.id}"), vm.keys())
+
+            advanceTimeBy(10 * QUIET_MS)
+            coVerify(exactly = 2) { mailRepo.messages(Mailbox.Unified, null) }
+        }
+
+    @Test
+    fun anEventDuringALoadMoreStillReloadsTheNewestMails() =
+        runTest {
+            val nextPage = CompletableDeferred<MailResult<MailPage>>()
+            firstPages(ok(party, invoice, cursor = "page-2"), ok(dinner, party, cursor = "page-2-new"))
+            coEvery { mailRepo.messages(Mailbox.Unified, "page-2") } coAnswers { nextPage.await() }
+            val vm = viewModel()
+            shown(vm)
+            vm.refresh()
+            vm.loadMore()
+            assertTrue(vm.uiState.value.loadingMore)
+
+            signal(ChangeSignal.Changed("EMAIL"))
+            quiet()
+
+            coVerify(exactly = 2) { mailRepo.messages(Mailbox.Unified, null) }
+            assertEquals("mail:${dinner.id}", vm.keys().first())
+            assertTrue(vm.uiState.value.loadingMore)
+
+            nextPage.complete(ok(receipt))
+            assertFalse(vm.uiState.value.loadingMore)
+            assertEquals(
+                listOf("mail:${dinner.id}", "mail:${party.id}", "mail:${invoice.id}", "task:${plumber.id}", "mail:${receipt.id}"),
+                vm.keys(),
+            )
+        }
+
+    @Test
+    fun aRefreshAfterLoadMoreDropsTheAnswerOfAnEarlierEventReload() =
+        runTest {
+            val stale = CompletableDeferred<MailResult<MailPage>>()
+            val fresh = CompletableDeferred<MailResult<MailPage>>()
+            coEvery { mailRepo.messages(Mailbox.Unified, null) } returns
+                ok(party, invoice, cursor = "page-2") coAndThen { stale.await() } coAndThen { fresh.await() }
+            coEvery { mailRepo.messages(Mailbox.Unified, "page-2") } returns ok(receipt)
+            val vm = viewModel()
+            shown(vm)
+            vm.refresh()
+
+            // An event reload runs, a page is loaded meanwhile, then the user pulls to refresh.
+            signal(ChangeSignal.Changed("EMAIL"))
+            quiet()
+            vm.loadMore()
+            vm.refresh()
+            assertTrue(vm.uiState.value.loading)
+
+            stale.complete(ok(party))
+            assertTrue(vm.uiState.value.loading)
+            assertEquals(
+                listOf("mail:${party.id}", "mail:${invoice.id}", "task:${plumber.id}", "mail:${receipt.id}"),
+                vm.keys(),
+            )
+
+            fresh.complete(ok(dinner, party, invoice))
+            assertFalse(vm.uiState.value.loading)
+            assertEquals(listOf("mail:${dinner.id}", "mail:${party.id}", "mail:${invoice.id}", "task:${plumber.id}"), vm.keys())
+            coVerify(exactly = 3) { mailRepo.messages(Mailbox.Unified, null) }
         }
 
     @Test

@@ -81,6 +81,9 @@ class DashboardViewModel
         private var loadJob: Job? = null
         private var mailJob: Job? = null
 
+        /** A mail change arrived while a load ran: the Inbox widget reloads once more when it ends. */
+        private var mailPending = false
+
         /** Layout saves run one after the other, each applying its change to the layout stored by then. */
         private val saving = Mutex()
 
@@ -103,6 +106,7 @@ class DashboardViewModel
         fun refresh(pulled: Boolean = false) {
             loadJob?.cancel()
             mailJob?.cancel()
+            mailPending = false
             loadJob =
                 viewModelScope.launch {
                     state.update { it.copy(refreshing = pulled) }
@@ -122,24 +126,39 @@ class DashboardViewModel
                         .map { widget -> launch { load(widget) } }
                         .forEach { it.join() }
                     state.update { it.copy(refreshing = false) }
+                    // A mail change during the load may have come after the server answered.
+                    if (mailPending) reloadInbox()
                 }
         }
 
         /**
-         * Reloads the Today widget (its unread-mail count) on every mail change on the server while collected; the
-         * screen collects it only while shown. Nothing starts while a load runs, and a failed reload keeps the widget
-         * as shown (no loading state, no error).
+         * Reloads the Inbox widget (its unread-mail count) on every mail change on the server while collected; the
+         * screen collects it only while shown. A change arriving while a load runs is not loaded twice at once: the
+         * widget reloads once more when that load ends. A failed reload keeps the widget as shown (no loading state, no
+         * error).
          */
         suspend fun followMailChanges() =
             mailChanges.changes().collect {
-                if (loadJob?.isActive == true || mailJob?.isActive == true) return@collect
-                if (WidgetId.TODAY !in state.value.widgets) return@collect
-                mailJob =
-                    viewModelScope.launch {
-                        val result = dashboard.load(WidgetId.TODAY) as? DashboardResult.Ok ?: return@launch
-                        state.update { it.copy(states = it.states + (WidgetId.TODAY to WidgetState(result.value, loading = false))) }
-                    }
+                if (loadJob?.isActive == true || mailJob?.isActive == true) {
+                    mailPending = true
+                    return@collect
+                }
+                reloadInbox()
             }
+
+        /** Reloads the Inbox widget quietly while it is shown, once more as long as a mail change arrived meanwhile. */
+        private fun reloadInbox() {
+            mailPending = false
+            if (WidgetId.INBOX !in state.value.widgets) return
+            mailJob =
+                viewModelScope.launch {
+                    do {
+                        mailPending = false
+                        val result = dashboard.load(WidgetId.INBOX) as? DashboardResult.Ok ?: continue
+                        state.update { it.copy(states = it.states + (WidgetId.INBOX to WidgetState(result.value, loading = false))) }
+                    } while (mailPending)
+                }
+        }
 
         /** Shows or hides the layout editor. */
         fun customize(on: Boolean) = state.update { it.copy(customizing = on && it.layoutLoaded, layoutError = null) }
