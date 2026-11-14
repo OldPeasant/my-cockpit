@@ -40,9 +40,10 @@ Cause (diagnosis by an interactive session):
       error notice or banner on top of what is already there beyond what a manual refresh shows today.
 - [ ] Unit tests: a `MAIL_FOLDER`/`EMAIL` signal reloads the New view's mail part (new mail at the top, with filter
       All and Mail); a burst gives one reload; a `TASK` signal does not reload mail; the same for the Mail list.
-- [ ] Manually verified on an emulator or device against a running server: New view open, a mail delivered to the
+- [~] Manually verified on an emulator or device against a running server: New view open, a mail delivered to the
       account, it appears without leaving the view (record what you ran); if no emulator or device is available, skip
       with reason and assume what you could not see
+  - skipped (2026-11-14 20:29+0100 by dell26/agent-1): no Android emulator/device or mail server delivery available in this agent environment
 - [ ] `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
