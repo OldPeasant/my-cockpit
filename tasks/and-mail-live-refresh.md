@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/newitems,android/app/src/main/java/ch/sonensei/cockpit/mail/list,android/app/src/main/java/ch/sonensei/cockpit/dashboard,android/app/src/main/java/ch/sonensei/cockpit/gtd/data/GtdRefresh.kt,android/app/src/test/java/ch/sonensei/cockpit/newitems,android/app/src/test/java/ch/sonensei/cockpit/mail/list,android/app/src/test/java/ch/sonensei/cockpit/dashboard]
 prio: 2
-lease_until: 2026-11-14T20:06:43Z
+lease_until: 2026-11-14T20:11:48Z
 ---
 ## Goal
 Owner report (2026-11-14): with the Android New view open (filter All, GTD Inbox or Mail, switching makes no
