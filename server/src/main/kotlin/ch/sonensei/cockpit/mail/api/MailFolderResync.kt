@@ -27,6 +27,7 @@ class MailFolderResync internal constructor(
 	constructor(sync: MailHeaderSyncService) : this(sync, Executors.newVirtualThreadPerTaskExecutor())
 
 	private val log = LoggerFactory.getLogger(javaClass)
+
 	/** Folder id to whether its pending sync compares UID sets ([MailHeaderSyncService.verifyFolder]). */
 	private val pending = ConcurrentHashMap<UUID, Boolean>()
 
@@ -67,12 +68,12 @@ class MailFolderResync internal constructor(
 		val verify = pending.remove(folderId) ?: false
 		try {
 			val result = if (verify) sync.verifyFolder(folderId) else sync.syncFolder(folderId)
-			log.debug("Resynced mail folder {} after a stale action: {} removed", folderId, result.removed)
+			log.debug("Resynced mail folder {} (verified: {}): {} removed", folderId, verify, result.removed)
 		} catch (e: MailConnectionException) {
-			log.info("Resync of mail folder {} after a stale action failed: {}", folderId, e.error)
+			log.info("Resync of mail folder {} failed: {}", folderId, e.error)
 			log.debug("Resync failure", e.cause)
 		} catch (e: Exception) {
-			log.warn("Resync of mail folder {} after a stale action failed ({})", folderId, e.javaClass.simpleName)
+			log.warn("Resync of mail folder {} failed ({})", folderId, e.javaClass.simpleName)
 			log.debug("Resync failure", e)
 		}
 	}

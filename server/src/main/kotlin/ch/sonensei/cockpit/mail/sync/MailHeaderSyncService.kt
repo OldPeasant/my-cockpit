@@ -127,7 +127,8 @@ class MailHeaderSyncService(
 			val known = folder.uidValidity?.let { validity -> folder.highestModSeq?.let { KnownFolderState(validity, it) } }
 			val result =
 				mailbox.withFolder(account, folder.path, known) { remote ->
-					if (folder.uidValidity != remote.status.uidValidity) full(account, folder, remote) else incremental(account, folder, remote, verifyUids)
+					val sameValidity = folder.uidValidity == remote.status.uidValidity
+					if (sameValidity) incremental(account, folder, remote, verifyUids) else full(account, folder, remote)
 				}
 			announce(result)
 			if (result.arrived.isNotEmpty()) announcer.announce(account, folder, result.arrived)
@@ -346,7 +347,9 @@ class MailHeaderSyncService(
 					states to (cached.toSet() - states.map { it.uid }.toSet())
 				}
 			}
-		val gone = if (verifyUids && lowest != null) vanished + (cached.toSet() - remote.uidsFrom(lowest).toSet()) else vanished
+		// Only QRESYNC reports vanished UIDs instead of comparing UID sets; a verified sync compares them as well.
+		val compareUids = verifyUids && qresync != null && lowest != null
+		val gone = if (compareUids) vanished + (cached.toSet() - remote.uidsFrom(checkNotNull(lowest)).toSet()) else vanished
 		val counts = store.reconcile(folder.id, flagChanges, gone)
 		val previousNext = folder.uidNext ?: 1
 		val arrivals =

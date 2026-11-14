@@ -303,17 +303,35 @@ class MailHeaderSyncServiceTests {
 	}
 
 	@Test
-	fun `a plain QRESYNC sync keeps a row whose expunge a racing sync already covered by the cached HIGHESTMODSEQ`() {
-		// A sync that read the folder before a move stored it afterwards with a HIGHESTMODSEQ past the expunge of UID 5.
+	fun `after a racing sync covered an expunge by the cached HIGHESTMODSEQ, the verified resync after the action removes the row`() {
+		// Regression for mail-action-settle: a sync that read the folder before a move stored it afterwards with a
+		// HIGHESTMODSEQ past the expunge of UID 5, so QRESYNC reports nothing vanished for the row the move removed.
 		cachedState(uidNext = 12, highestModSeq = 130)
 		remote.status = RemoteFolderStatus(7, 12, 130, condstore = true, qresync = true)
 		remote.qresyncChanges = QresyncChanges(emptySet(), emptyList())
 		every { store.locatedUids(folder.id) } returns listOf(3, 5, 8)
 		remote.uids = listOf(3, 8)
 
+		// Known limitation of a plain QRESYNC sync, which is why the action requests verifyFolder: it cannot see the gap.
 		service.syncFolder(folder.id)
-
 		verify { store.reconcile(folder.id, emptyList(), emptySet()) }
+
+		// The verified resync the action requests compares UID sets and removes the row.
+		service.verifyFolder(folder.id)
+		verify { store.reconcile(folder.id, emptyList(), setOf(5L)) }
+	}
+
+	@Test
+	fun `verifyFolder with CONDSTORE but no QRESYNC reads the UID set only once`() {
+		cachedState(uidNext = 12, highestModSeq = 100)
+		remote.status = RemoteFolderStatus(7, 12, 100, condstore = true, qresync = false)
+		every { store.locatedUids(folder.id) } returns listOf(3, 5, 8)
+		remote.uids = listOf(3, 8)
+
+		service.verifyFolder(folder.id)
+
+		verify { store.reconcile(folder.id, emptyList(), setOf(5L)) }
+		remote.calls shouldContainExactly listOf("uidsFrom 3")
 	}
 
 	@Test

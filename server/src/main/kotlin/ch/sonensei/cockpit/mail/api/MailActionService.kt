@@ -113,8 +113,10 @@ data class MailActionOutcome(
  *
  * The cache is updated after the server command, per source folder, without the lock of the header sync. When a
  * concurrent writer (another action, a sync) changed the same rows, the update is retried once on freshly read rows;
- * if that fails as well, the cache is left as it is and the next sync of the folders concerned repairs it. Either way
- * the ids count as done, because the server already applied the action.
+ * if that fails as well, the cache is left as it is. Either way the ids count as done, because the server already
+ * applied the action. After every move or delete, the source folder (and the target of a move) is resynced in the
+ * background by UID set ([MailFolderResync.requestVerified]), which removes rows that a conflicting update or a
+ * concurrent sync left behind; a flag change only resyncs the source when it had stale rows.
  */
 @Service
 class MailActionService(

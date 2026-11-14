@@ -23,6 +23,7 @@ import ch.sonensei.cockpit.mail.model.MailSecurity
 import ch.sonensei.cockpit.mail.search.MailSearchIndex
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -507,7 +508,7 @@ class MailActionServiceTests {
 	}
 
 	@Test
-	fun `when no requested message is on the server any more nothing is sent and the cache is left to the next sync`() {
+	fun `when no requested message is on the server any more nothing is sent and the folders are resynced by UID set`() {
 		val gone = cached(inbox, 7)
 		every { remoteInbox.getMessagesByUID(longArrayOf(7)) } returns arrayOf(null)
 
@@ -518,7 +519,9 @@ class MailActionServiceTests {
 		gone.folderId shouldBe inbox.id
 		gone.uid shouldBe 7
 		verify(exactly = 0) { changes.publish(any<Enum<*>>(), any(), any()) }
-		verify(exactly = 1) { resync.request(inbox.id) }
+		verify(exactly = 1) { resync.requestVerified(inbox.id) }
+		verify(exactly = 1) { resync.requestVerified(trash.id) }
+		verify(exactly = 0) { resync.request(any()) }
 	}
 
 	@Test
@@ -538,7 +541,7 @@ class MailActionServiceTests {
 	}
 
 	@Test
-	fun `a move with a message gone from its folder moves the present one by its COPYUID and fails the gone one with a resync`() {
+	fun `a move with a message gone from its folder moves the present one by its COPYUID and fails the gone one with a UID-set resync`() {
 		val gone = cached(inbox, 7)
 		val present = cached(inbox, 8)
 		val onlyPresent = mockk<Message>()
@@ -553,8 +556,9 @@ class MailActionServiceTests {
 		gone.folderId shouldBe inbox.id
 		gone.uid shouldBe 7
 		verify(exactly = 0) { messages.delete(any()) }
-		verify(exactly = 1) { resync.request(inbox.id) }
-		verify(exactly = 0) { resync.request(projects.id) }
+		verify(exactly = 1) { resync.requestVerified(inbox.id) }
+		verify(exactly = 1) { resync.requestVerified(projects.id) }
+		verify(exactly = 0) { resync.request(any()) }
 		verify { changes.publish(MailFolderService.FOLDER_EVENT, projects.id, ChangeOp.UPDATED) }
 	}
 
@@ -603,6 +607,23 @@ class MailActionServiceTests {
 		verify(exactly = 1) { resync.requestVerified(trash.id) }
 		verify(exactly = 0) { resync.requestVerified(inbox.id) }
 		verify(exactly = 0) { resync.request(any()) }
+	}
+
+	@Test
+	fun `archive and spam resync the source and their role folder by UID set in the background`() {
+		listOf(MailAction.ARCHIVE to MailFolderRole.ARCHIVE, MailAction.SPAM to MailFolderRole.SPAM).forEach { (action, role) ->
+			clearMocks(resync, answers = false)
+			projects.role = role
+			val message = cached(inbox, 7)
+			val found = onServer(remoteInbox, 7)
+			every { remoteInbox.moveUIDMessages(found, remoteProjects) } returns arrayOf(AppendUID(UIDVALIDITY, 41))
+
+			service.apply(listOf(message.id), action, null) shouldBe listOf(MailActionOutcome.ok(message.id))
+
+			verify(exactly = 1) { resync.requestVerified(inbox.id) }
+			verify(exactly = 1) { resync.requestVerified(projects.id) }
+			verify(exactly = 0) { resync.request(any()) }
+		}
 	}
 
 	@Test
@@ -671,7 +692,7 @@ class MailActionServiceTests {
 	}
 
 	@Test
-	fun `one delete of messages gone from Trash and from the Inbox is ok for Trash and NOT_FOUND with a resync for the Inbox`() {
+	fun `one delete of messages gone from Trash and from the Inbox is ok for Trash and NOT_FOUND for the Inbox, both resynced by UID set`() {
 		val goneFromTrash = cached(trash, 3)
 		val goneFromInbox = cached(inbox, 7)
 		every { remoteTrash.getMessagesByUID(longArrayOf(3)) } returns arrayOf(null)
@@ -684,8 +705,10 @@ class MailActionServiceTests {
 		verify(exactly = 0) { messages.delete(goneFromInbox) }
 		goneFromInbox.folderId shouldBe inbox.id
 		goneFromInbox.uid shouldBe 7
-		verify(exactly = 1) { resync.request(inbox.id) }
-		verify(exactly = 0) { resync.request(trash.id) }
+		verify(exactly = 1) { resync.requestVerified(inbox.id) }
+		// Once as the target of the Inbox delete, once as the source of the expunge; the resync merges the requests.
+		verify(exactly = 2) { resync.requestVerified(trash.id) }
+		verify(exactly = 0) { resync.request(any()) }
 		verify(exactly = 1) { changes.publish(MailFolderService.FOLDER_EVENT, trash.id, ChangeOp.UPDATED) }
 		verify(exactly = 0) { changes.publish(MailFolderService.FOLDER_EVENT, inbox.id, any()) }
 	}
@@ -741,7 +764,8 @@ class MailActionServiceTests {
 
 		verify(exactly = 0) { messages.delete(any()) }
 		message.uid shouldBe 3
-		verify { resync.request(trash.id) }
+		verify(exactly = 1) { resync.requestVerified(trash.id) }
+		verify(exactly = 0) { resync.request(any()) }
 	}
 
 	@Test

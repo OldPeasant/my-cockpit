@@ -1,0 +1,106 @@
+# Fix Report
+
+Date: 2026-11-14
+
+Task: mail-action-settle - Moved, archived or deleted mail must not come back in the source list until the next 5-min sync
+
+Scope: current task, findings CR-1 to CR-5 of `reviews/mail-action-settle/review.md` (based on HEAD b73e7b2b8)
+
+## Fixed findings
+
+### CR-1 — Existing MailActionServiceTests still expect `resync.request` where the code now calls `requestVerified`
+
+Files changed:
+- `server/src/test/kotlin/ch/sonensei/cockpit/mail/api/MailActionServiceTests.kt`
+
+Problem:
+`MailActionService.settle` calls `resync.requestVerified` for every move (MOVE/ARCHIVE/SPAM/DELETE outside Trash) and for an expunge (delete in Trash). Four tests still verified `resync.request`, and the parent's Gradle run showed them failing.
+
+Fix:
+The four tests now expect what `settle` intends to do. `requestVerified` is called for the source, and for the target of a move or delete outside Trash. `request` is never called on these paths. The mixed Trash/Inbox delete expects `requestVerified(trash)` twice: once as the target of the Inbox delete and once as the expunge source. `MailFolderResync` merges the two requests. Test names that no longer fit were changed: "...the cache is left to the next sync" became "...the folders are resynced by UID set", and the other two names now say "UID-set resync" or "both resynced by UID set". No assertion was weakened.
+
+Validation:
+- `./gradlew test --tests '*MailActionServiceTests' ...` — Pass (48 tests, 0 failures)
+
+### CR-2 — No test covers resync after move, archive, spam or delete
+
+Files changed:
+- `server/src/test/kotlin/ch/sonensei/cockpit/mail/api/MailActionServiceTests.kt`
+
+Problem:
+Before this fix, the suite already covered MOVE, DELETE outside Trash, DELETE in Trash, flag changes with and without stale rows, and the cache-conflict path. The conflict test is `a move whose cache update gives up after conflicts still resyncs the source by UID set so the row cannot stay`. It fails the flush on every attempt, and it would fail without the fix because no resync was requested on that path. ARCHIVE and SPAM were not covered.
+
+Fix:
+Added `archive and spam resync the source and their role folder by UID set in the background`. For each of the two actions, the test makes the `projects` folder the ARCHIVE or SPAM role folder. It then asserts `requestVerified` on the source and on the role folder, and asserts that `request` is never called.
+
+Validation:
+- `./gradlew test --tests '*MailActionServiceTests'` — Pass
+
+### CR-3 — The "race" test locked in the stale plain-sync behavior
+
+Files changed:
+- `server/src/test/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncServiceTests.kt`
+
+Problem:
+`a plain QRESYNC sync keeps a row whose expunge a racing sync already covered...` only asserted that the stale row is kept.
+
+Fix:
+Replaced it with the regression test `after a racing sync covered an expunge by the cached HIGHESTMODSEQ, the verified resync after the action removes the row`. The setup is the same. The plain `syncFolder` assertion is still there, but a comment now names it as the known limitation that the verified resync covers. The test then runs `verifyFolder` and asserts that UID 5 is removed.
+
+Validation:
+- `./gradlew test --tests '*MailHeaderSyncServiceTests'` — Pass (51 tests, 0 failures)
+
+### CR-4 — Verify mode ran a second UID SEARCH on the CONDSTORE and plain paths
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncService.kt`
+- `server/src/test/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncServiceTests.kt`
+
+Problem:
+`incremental` called `remote.uidsFrom(lowest)` again in verify mode, even when the CONDSTORE or plain branch had already compared UID sets.
+
+Fix:
+The extra comparison now runs only when `verifyUids && qresync != null && lowest != null`. Added the test `verifyFolder with CONDSTORE but no QRESYNC reads the UID set only once`, which asserts that the remote calls are exactly `uidsFrom 3`. Before the fix there were two calls. `ktlintFormat` had wrapped the over-long `full`/`incremental` dispatch line nearby into an awkward shape, so I rewrote that line by hand as a short `sameValidity` local. The behavior is unchanged.
+
+Validation:
+- `./gradlew test --tests '*MailHeaderSyncServiceTests' ktlintCheck` — Pass
+
+### CR-5 — Logs and KDoc still described the resync as only after a stale action
+
+Files changed:
+- `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailFolderResync.kt`
+- `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailActionService.kt`
+
+Problem:
+The log messages said "after a stale action". The class KDoc said a cache update that gives up after a conflict is "left to the next sync".
+
+Fix:
+The log text is now neutral ("Resync of mail folder {} failed..."). The DEBUG success line also logs whether the resync was verified. No new data is logged, only the folder id, a boolean and a count. The KDoc now describes the verified background resync of the source, and of the target of a move, after every move or delete, and the plain resync of a flag change only when there are stale rows. `ktlintFormat` also added one blank line after the `log` property in `MailFolderResync.kt`, which ktlint requires.
+
+Validation:
+- `./gradlew ktlintCheck` — Pass
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `cd server && ./gradlew test --tests '*MailActionServiceTests' --tests '*MailFolderResyncTests' --tests '*MailHeaderSyncServiceTests' ktlintCheck` — BUILD SUCCESSFUL (MailActionServiceTests 48/0 failures, MailFolderResyncTests 8/0, MailHeaderSyncServiceTests 51/0)
+
+Full test suite:
+- Not run (time budget; the parent worker runs `./gradlew check` and `.taskcheck`)
+
+Lint/type-check/build:
+- `./gradlew ktlintFormat ktlintCheck` — Pass
+
+`.taskcheck`:
+- Not run (left to the parent worker)
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed.
