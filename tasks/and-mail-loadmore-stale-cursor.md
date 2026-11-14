@@ -1,10 +1,11 @@
 ---
 title: Android: drop a stale load-more answer after a quiet first-page reload replaced the list (New, Mail list)
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [and-mail-live-refresh]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/newitems,android/app/src/main/java/ch/sonensei/cockpit/mail/list,android/app/src/test/java/ch/sonensei/cockpit/newitems,android/app/src/test/java/ch/sonensei/cockpit/mail/list]
 prio: 2
+lease_until: 2026-11-14T20:24:45Z
 ---
 ## Goal
 Follow-up of CR-4 in reviews/and-mail-live-refresh/review.md. Since mail change events reload the first page quietly
