@@ -109,6 +109,8 @@ class MailTaskArchiveWebTests(
 			.response.contentAsString
 			.let(json::readTree)
 
+	private fun JsonNode.items(): List<JsonNode> = (0 until size()).map { this[it] }
+
 	private fun getJson(url: String): JsonNode =
 		mockMvc
 			.get(url)
@@ -144,8 +146,8 @@ class MailTaskArchiveWebTests(
 		val results = ok(mapOf("ids" to listOf(archived.id, other.id, archived.id)))["results"]
 
 		results.size() shouldBe 2
-		results.map { it["id"].asString() } shouldBe listOf(archived.id.toString(), other.id.toString())
-		results.map { it["task"]["title"].asString() } shouldBe listOf("Already filed", "Still in Inbox")
+		results.items().map { it["id"].asString() } shouldBe listOf(archived.id.toString(), other.id.toString())
+		results.items().map { it["task"]["title"].asString() } shouldBe listOf("Already filed", "Still in Inbox")
 		results[0]["archived"].asBoolean() shouldBe true
 		results[0]["archiveErrorCode"].isNull shouldBe true
 		count("task") shouldBe 2

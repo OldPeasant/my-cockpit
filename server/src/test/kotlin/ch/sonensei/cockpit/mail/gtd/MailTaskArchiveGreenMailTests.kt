@@ -182,6 +182,8 @@ class MailTaskArchiveGreenMailTests(
 			.response.contentAsString
 			.let(json::readTree)
 
+	private fun JsonNode.items(): List<JsonNode> = (0 until size()).map { this[it] }
+
 	private fun getJson(url: String): JsonNode =
 		mockMvc
 			.get(url)
@@ -223,11 +225,11 @@ class MailTaskArchiveGreenMailTests(
 
 		val results = toTasks(first.id, second.id)["results"]
 
-		results.map { it["id"].asString() } shouldBe listOf(first.id.toString(), second.id.toString())
-		results.map { it["archived"].asBoolean() } shouldBe listOf(true, true)
-		results.map { it["task"]["title"].asString() } shouldBe listOf("Fictitious request 1", "Fictitious request 2")
+		results.items().map { it["id"].asString() } shouldBe listOf(first.id.toString(), second.id.toString())
+		results.items().map { it["archived"].asBoolean() } shouldBe listOf(true, true)
+		results.items().map { it["task"]["title"].asString() } shouldBe listOf("Fictitious request 1", "Fictitious request 2")
 		subjectsOnServer("Archive") shouldBe setOf("Fictitious request 1", "Fictitious request 2")
-		results.forEach { result ->
+		results.items().forEach { result ->
 			resolvedFolder(linkedMail(result["task"]["id"].asString())["id"].asString()) shouldBe folder(account, "Archive").id.toString()
 		}
 	}

@@ -106,7 +106,10 @@ data class MailToTaskResultResponse(
 	val task: MailCreatedTaskResponse,
 	@field:Schema(requiredMode = RequiredMode.REQUIRED, description = "The link between the task and the message")
 	val linkId: UUID,
-	@field:Schema(requiredMode = RequiredMode.REQUIRED, description = "Whether the message is in the Archive now; false when not asked to archive")
+	@field:Schema(
+		requiredMode = RequiredMode.REQUIRED,
+		description = "Whether the message is in the Archive now; false when not asked to archive",
+	)
 	val archived: Boolean,
 	@field:Schema(
 		requiredMode = RequiredMode.REQUIRED,
