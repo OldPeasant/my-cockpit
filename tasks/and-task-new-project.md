@@ -1,11 +1,11 @@
 ---
 title: Android task detail: create a new project from the project picker
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/test/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml]
 prio: 2
-lease_until: 2026-11-14T10:58:33Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -31,3 +31,4 @@ Planned 2026-11-14 with the owner: from a mail, make a Next action and archive t
 - ASSUMPTION (2026-11-14 10:14+0100 by felix/agent-1): If the form is cancelled after New project…, the project stays (Active, empty); no automatic delete.
 - ASSUMPTION (2026-11-14 10:28+0100 by felix/agent-1): Added ProjectResponse.toDomain() to gtd/data/GtdMappers.kt (outside touches, 3 lines) to avoid a duplicate project mapping (review CR-3).
 - release by felix/agent-1: over budget after 2 sessions (~52 min) and a review that decided nothing; still resumable: continue from wip/and-task-new-project (see git log)
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 74s on 2c1b0dc0a; criteria verified 5/5
