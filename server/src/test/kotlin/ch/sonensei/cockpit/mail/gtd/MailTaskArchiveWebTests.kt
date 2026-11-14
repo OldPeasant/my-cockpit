@@ -86,10 +86,11 @@ class MailTaskArchiveWebTests(
 	private fun message(
 		folder: MailFolder,
 		subject: String = "Quarterly report",
+		messageId: String = "<${UUID.randomUUID()}@example.test>",
 	) = messages.save(
 		MailMessage(account.id, folder.id, nextUid++).apply {
 			this.subject = subject
-			this.messageIdHeader = "<${UUID.randomUUID()}@example.test>"
+			this.messageIdHeader = messageId
 		},
 	)
 
@@ -193,6 +194,67 @@ class MailTaskArchiveWebTests(
 		post(mapOf("ids" to listOf(mail.id), "list" to "SCHEDULED")).andExpect { status { isBadRequest() } }
 		post(mapOf("ids" to listOf(mail.id), "list" to "NOPE")).andExpect { status { isBadRequest() } }
 		post(mapOf("ids" to (1..101).map { UUID.randomUUID() })).andExpect { status { isBadRequest() } }
+
+		count("task") shouldBe 0
+	}
+
+	@Test
+	fun `the old id of a moved mail and its current id share one task linked to the current copy`() {
+		val archive = folder("Archive", MailFolderRole.ARCHIVE)
+		val original = message(inbox, messageId = "<moved-to-tasks@example.test>")
+		messages.save(original.apply { detach() })
+		val copy = message(archive, messageId = "<moved-to-tasks@example.test>")
+
+		val results = ok(mapOf("ids" to listOf(original.id, copy.id)))["results"]
+
+		results.items().map { it["id"].asString() } shouldBe listOf(original.id.toString(), copy.id.toString())
+		results.items().map { it["messageId"].asString() } shouldBe listOf(copy.id.toString(), copy.id.toString())
+		results[0]["task"]["id"].asString() shouldBe results[1]["task"]["id"].asString()
+		results.items().map { it["archived"].asBoolean() } shouldBe listOf(true, true)
+		count("task") shouldBe 1
+		count("link") shouldBe 1
+		val link = getJson("/api/v1/links?type=TASK&id=${results[0]["task"]["id"].asString()}")["items"].single()
+		val mailEnd = if (link["source"]["type"].asString() == "EMAIL") link["source"] else link["target"]
+		mailEnd["id"].asString() shouldBe copy.id.toString()
+	}
+
+	@Test
+	fun `a mail that is no longer on the server among known ones gives 404 and creates nothing`() {
+		val known = message(inbox, "Still here")
+		val gone = message(inbox, "Gone")
+		messages.save(gone.apply { detach() })
+
+		post(mapOf("ids" to listOf(known.id, gone.id)))
+			.andExpect {
+				status { isNotFound() }
+				content { contentType(MediaType.APPLICATION_PROBLEM_JSON) }
+			}
+
+		count("task") shouldBe 0
+		count("link") shouldBe 0
+	}
+
+	@Test
+	fun `SOMEDAY and an explicit NEXT are accepted lists`() {
+		val someday = message(inbox, "Maybe later")
+		val next = message(inbox, "Do soon")
+
+		val somedayResult =
+			ok(mapOf("ids" to listOf(someday.id), "list" to "SOMEDAY", "archive" to false))["results"].single()
+		val nextResult = ok(mapOf("ids" to listOf(next.id), "list" to "NEXT", "archive" to false))["results"].single()
+
+		somedayResult["task"]["list"].asString() shouldBe "SOMEDAY"
+		getJson("/api/v1/tasks/${somedayResult["task"]["id"].asString()}")["list"].asString() shouldBe "SOMEDAY"
+		nextResult["task"]["list"].asString() shouldBe "NEXT"
+		getJson("/api/v1/tasks/${nextResult["task"]["id"].asString()}")["list"].asString() shouldBe "NEXT"
+	}
+
+	@Test
+	fun `exactly 100 ids pass validation and are resolved`() {
+		val mail = message(inbox)
+		// 99 unknown ids plus one known: the size limit admits the request, the unknown ids then give 404.
+		post(mapOf("ids" to listOf(mail.id) + (1..99).map { UUID.randomUUID() }))
+			.andExpect { status { isNotFound() } }
 
 		count("task") shouldBe 0
 	}
