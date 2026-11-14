@@ -1,11 +1,11 @@
 ---
 title: Web: mail → Next action & archive (read view, New view, mail list)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [mail-task-archive-api]
 touches: [web/src/app/features/mail/read,web/src/app/features/mail/list,web/src/app/features/new,web/src/locale]
 prio: 2
-lease_until: 2026-11-14T10:48:28Z
+lease_until: 
 ---
 ## Goal
 Web part of "→ Next action & archive" (server call from `mail-task-archive-api`). Single mail: the task detail
@@ -33,3 +33,4 @@ Planned 2026-11-14 with the owner: from a mail, make a Next action and archive t
 - ASSUMPTION (2026-11-14 11:08+0100 by dell26/agent-1): Read view: the task detail replaces the mail in the history (replaceUrl), so Back returns to where the mail was opened from; New view pushes the detail normally (Back returns to New). The 'N next actions created' message is a snackbar whose action opens /next. New view has no ? help registration, so Shift+T is listed in its keys hint line; mail list and read view list it in the ? help.
 - ASSUMPTION (2026-11-14 11:16+0100 by dell26/agent-1): Threaded mail list: after the listed message of a conversation is turned into a Next action and archived, the conversation's other messages in the shown folder are archived too (like Archive does), so the row does not come back; one task per row.
 - ASSUMPTION (2026-11-14 11:27+0100 by dell26/agent-1): Criterion 5 (task detail linked items show the archived mail) relies on the server's to-tasks link (mail-task-archive-api) and the existing LinkedItems panel; not verified end-to-end in a browser here.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 72s on fcadf7915; criteria verified 6/7, skipped #5
