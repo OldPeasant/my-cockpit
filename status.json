@@ -1,0 +1,1 @@
+{"owner": "dell26/agent-1", "state": "working", "task": "and-mail-loadmore-stale-cursor", "doing": "$ python - <<'EOF' import re p='android/app/src/main/java/ch/sonensei/cockpit/newitems/NewViewModel.kt' s=open(p).read() old=\"\"\" mailPart.upd\u2026", "doing_at": 1794686701, "updated": 1794686701, "error": null}
