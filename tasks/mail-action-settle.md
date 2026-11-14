@@ -38,11 +38,12 @@ What an interactive session found (2026-11-14):
       `syncFolder` of the source concurrently with a MOVE/ARCHIVE/DELETE (latch-controlled interleaving), or the
       cache-conflict path. It must fail before the fix. If none of the candidates reproduces, record that with
       `tasks.py assume` and still do the next criterion.
-- [ ] Belt and braces: after every move/archive/delete (and spam) the server immediately resyncs the source folder,
+- [x] Belt and braces: after every move/archive/delete (and spam) the server immediately resyncs the source folder,
       and for a move the target folder too, in the background (`MailFolderResync.request`, no wait in the request).
       That sync uses vanished detection that does not depend on a modseq the racing sync may have advanced, e.g. a
       UID-set comparison like the non-CONDSTORE path for this resync. It announces the folders with `MAIL_FOLDER`, so
       open clients converge within seconds and never wait for the 5-min poll. Fix the root cause found above as well.
+  - verified (2026-11-14 22:01+0100 by felix/agent-1): cd server && ./gradlew test --tests '*MailActionServiceTests' --tests '*MailFolderResyncTests' --tests '*MailHeaderSyncServiceTests' at d1c6b807c -> 107 passed (settle -> requestVerified for source+target on move/archive/spam, source on delete; verifyFolder UID-set comparison)
 - [ ] A sync of a folder never brings back a row the action removed for a message that is no longer in that folder
       on the server (regression test for the found race).
 - [x] Web: `mail-list` e2e checks that the archived/deleted/moved mail is still gone after the change-event refetch
