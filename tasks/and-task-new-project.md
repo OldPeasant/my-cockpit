@@ -20,3 +20,4 @@ Inbox processing already has "New project" (`gtd/inbox/InboxRepository.kt`); reu
 
 ## Notes
 Planned 2026-11-14 with the owner: from a mail, make a Next action and archive the mail in one step (mails already clarified should not pass through the cockpit Inbox again); create a project directly from the task detail.
+- ASSUMPTION (2026-11-14 10:13+0100 by felix/agent-1): New project… sets the new project in the edit form's draft; the task is assigned when the form is saved (like picking any project in the picker). A failed save keeps the project in the draft, so Save again creates no second project; a project already created in this screen with the same title is reused.
