@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "task": "and-mail-live-refresh",
+  "reviewed_revision": "4988248fdbd428dabed77f6f7f80a9f41c6fb485",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-mail-live-refresh/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-mail-live-refresh/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-mail-live-refresh/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "unit tests for the live refresh added (round-1 test-writer, fixer, round-2 tests); re-review confirms resolved"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "first-page loads own firstPageJob; Mail list drops answers for a mailbox no longer shown"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "events during a first-page load are deferred to one follow-up reload; during paging they reload at once"},
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "dashboard mail events now reload the Inbox widget holding the unread-mail count"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "deferred",
+     "note": "rare stale load-more append after a quiet reload replaced the list; follow-up task and-mail-loadmore-stale-cursor"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew testDebugUnitTest lintDebug createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
