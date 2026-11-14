@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "mail-task-archive-api",
+  "reviewed_revision": "c6ddc601d05b209e259eab0f8b2013f949ae53e8",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/mail-task-archive-api/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-task-archive-api/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/mail-task-archive-api/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "request schema restricts list to NEXT/INBOX/SOMEDAY and ids to 1..100; OpenAPI and web client regenerated (6f65ebca5, 8a2a1bdb9); confirmed fixed by the final review"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "SPEC.md 7.4 describes the real response shape (6f65ebca5, 8a2a1bdb9); confirmed fixed by the final review"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --rerun --tests '*MailTaskArchive*' --tests '*OpenApiContractTest' ktlintCheck", "result": "pass"},
+    {"command": "cd server && ./gradlew integrationTest --rerun --tests '*MailTaskArchive*'", "result": "pass"},
+    {"command": "cd server && ./gradlew test --rerun jacocoTestReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
