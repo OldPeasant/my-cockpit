@@ -4,31 +4,44 @@ Date: 2026-11-14
 
 Task: mail-task-archive-api - Mail → Next action & archive: server call
 
-Scope: committed changes of the task, `git diff e7419167b..fcd6b0a21` (static review; Gradle not run by request, another helper was running it)
+Scope: committed changes of the task, `git diff 6d395d2bd..8a2a1bdb9` (commits eb4075cc9..8a2a1bdb9). Static review; Gradle was not run by request (a parallel test-writer was using the build directory). This is a re-review after the fixes for CR-1 and CR-2 of the previous review round.
 
 Requirements:
-- tasks/mail-task-archive-api.md acceptance criteria and recorded assumption (POST /api/v1/mail/messages/to-tasks, ids 1..100, list NEXT/INBOX/SOMEDAY, unknown id -> 404 with nothing created, duplicate ids share one task)
+- tasks/mail-task-archive-api.md acceptance criteria and the recorded assumption (POST /api/v1/mail/messages/to-tasks, ids 1..100, list NEXT/INBOX/SOMEDAY, unknown id gives 404 with nothing created, ids resolving to the same message share one task)
 - SPEC.md §7.3, §7.4, §4.2 (Problem Details)
-- AGENTS.md project notes (module boundaries via services, generated OpenAPI/client, lint)
-- Existing code: MailActionService (ARCHIVE action, outcomes), MailMessageLocator, MailGtdService.toTask
+- AGENTS.md project notes (module boundaries via services, generated OpenAPI and client, lint)
+- reviews/mail-task-archive-api/fixes.md
+- Existing code: MailActionService (ARCHIVE action, per-id outcomes), MailMessageLocator, MailGtdService.toTask, MailGtdController
 
 Git range:
 - Branch: main
-- HEAD: fcd6b0a21b8ae2c322853352ea8560a23ffc300b
-- Base/start: e7419167baed7fc2a04732c5ca0a764e975ffa6d
-- Commits reviewed: 6 (0c5b460bb, 5804e0186, c82d480d0, dcb18d7df, 6cc27fe4c, fcd6b0a21)
-- Uncommitted changes: `MailTaskArchiveWebTests.kt` is modified in the working tree (the parallel test-writer's work); not part of this review.
+- HEAD: 8a2a1bdb9be5438b0901bd4b505a66bb4c80ca41
+- Base/start: 6d395d2bd84636c15ff3750b26c75f8016031359
+- Commits reviewed: 10 (eb4075cc9, 240c0e31d, 5bff30f56, b18de39c9, 0d6c4a47b, 27f232fb8, 8764922ca, f3ad794b2, 6f65ebca5, 8a2a1bdb9)
+- Uncommitted changes: none at the start of the review
 
-Summary: 0 P0, 0 P1, 0 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
+
+## Status of previous findings
+
+- CR-1 (P3, OpenAPI request schema advertised values the server rejects): resolved. `MailToTasksRequest.list` now carries `@field:Schema(allowableValues = ["NEXT", "INBOX", "SOMEDAY"])` and `ids` uses `@field:NotNull` plus `@field:Size(min = 1, max = MAX_IDS)` (`MailTaskArchiveController.kt:82-90`). The regenerated `api/openapi.yaml` has `minItems: 1`, `maxItems: 100` and `enum: [NEXT, INBOX, SOMEDAY]`; the generated type is `list?: 'NEXT' | 'INBOX' | 'SOMEDAY'`. Runtime behaviour is unchanged: missing and empty `ids` still give 400 Problem Details on field `ids`, and WAITING/SCHEDULED are still rejected by `MailGtdService.toTasks`. `MailTaskArchiveWebTests` now asserts content type and field for the empty and missing cases (lines 189-196).
+- CR-2 (P3, SPEC §7.4 response summary did not match the response shape): resolved. `SPEC.md` §7.4 now lists `{results: [{id, messageId, linkId, task {id, title, list}, archived, archiveErrorCode, archiveDetail}]}`, notes that the error fields are null unless archiving failed (true also for `archive=false`), and documents the 404-nothing-created behaviour. This matches `MailToTasksResponse` and `MailToTaskResultResponse` field for field.
 
 ## Acceptance criteria check
 
-1. One call with ids (1..n), list (default NEXT), archive (default true); per mail a subject-titled task linked like `to-task`, then ARCHIVE: met. `MailGtdService.toTasks` resolves all ids, creates tasks via `TaskService.create` and links via the same `linked` helper as `toTask`, then calls `MailActionService.apply(..., MailAction.ARCHIVE, null)`. Defaults applied in `MailTaskArchiveController.toTasks`.
-2. Per-mail result (task id/title/list, archived, reason); failed archive keeps task; unknown id -> Problem Details, nothing created: met. Resolution and creation run in one transaction, so a `NotFoundException` from `current` rolls back every task and link; archiving runs after the commit and `apply` turns connection, rejection and missing-folder failures into outcomes rather than exceptions. A row moved or removed by archiving is relocated or kept detached while linked (`MailActionService.remove`), so the link stays valid. Tested for an unknown id (404, problem+json, 0 tasks/links) and for NO_ROLE_FOLDER.
-3. Link resolves after archiving, also without MOVE: met. The GreenMail test's `NoMoveImapStore` overrides `hasCapability("MOVE")`, which is the exact check `MailActionService.move` uses to pick the COPY+EXPUNGE path, and the test asserts the hook was hit.
-4. `to-task` unchanged: met. `MailGtdController` and `MailGtdService.toTask` are untouched in the diff; the only constructor change is an added dependency.
-5. OpenAPI and generated client regenerated; SPEC §7.3/§7.4 updated: met. See CR-1 and CR-2 for small contract-text inaccuracies.
-6. Tests for single, multiple, partial archive failure and link: present in both test classes. Running `./gradlew check` / `scripts/check.sh` was not checked in this static review.
+1. One call with ids (1..n), list (default NEXT), archive (default true); per mail a subject-titled task linked like `to-task`, then ARCHIVE: met in code. Defaults are applied in `MailTaskArchiveController.toTasks`; `MailGtdService.toTasks` uses the same `titleOf` and `linked` helpers as `toTask` and then calls `MailActionService.apply(..., MailAction.ARCHIVE, null)`.
+2. Per-mail result with task id/title/list, archived flag and reason; failed archive keeps the task; unknown or no-longer-present id gives Problem Details and creates nothing: met in code. All ids are resolved inside the creating transaction before the first task is created, so a `NotFoundException` rolls back everything; archiving runs after the commit and `MailActionService.apply` reports failures as per-id outcomes. Outcomes are keyed by the linked current message id, which is exactly the id passed to `apply`, so the lookup in `toTasks` is consistent. Tests cover unknown id, detached (gone) row, and NO_ROLE_FOLDER both without a server and against GreenMail with a second account.
+3. Link resolves after archiving, also without MOVE: met and verified by the recorded GreenMail run. `NoMoveImapStore` overrides `hasCapability("MOVE")` and the test asserts that the hook was hit, then checks the link resolution before and after a re-sync.
+4. `to-task` unchanged: met. `MailGtdController` and `MailGtdService.toTask` are not modified in the diff; the only change to the service is an added constructor dependency on `MailActionService` (no cycle: `MailActionService` does not depend on the GTD integration).
+5. OpenAPI and generated client regenerated; SPEC §7.3 and §7.4 updated: met. The generated files contain only the new operation and its four schemas. The 200 response also advertising `application/problem+json` and the generated `accept: 'application/problem+json'` match the existing `to-task` endpoint and other controllers using `produces = [APPLICATION_JSON, PROBLEM_JSON]`, so this is project convention, not a new inconsistency.
+6. Tests cover single, multiple, partial archive failure and the link: present (`MailTaskArchiveWebTests` 10 tests, `MailTaskArchiveGreenMailTests` 4 tests). Whether `./gradlew check` and `sh scripts/check.sh` pass on HEAD was not checked in this static review; criteria 1, 2, 4 and 6 still need their `tasks.py verify` evidence recorded by the parent worker before `done`.
+
+## Other checks
+
+- Security: endpoint is under the authenticated API with CSRF (tested: missing token gives 403); no logging of subjects or bodies added; error details come from the existing `MailActionOutcome` texts.
+- Validation: null elements in `ids` give 400 via `InvalidRequestException`; malformed UUIDs, unknown list values and more than 100 ids give 400; tested.
+- Duplicate and moved ids: deduplicated by requested id and by resolved message, one task per message, one result per distinct requested id in request order; tested with the old id of a moved message.
+- Partial failure semantics: an unexpected exception thrown by `apply` after the commit would surface as 500 with the tasks kept. This is the same failure mode as the actions endpoint and is within the "no rollback" requirement; not reported as a finding.
 
 ## P0 Critical
 
@@ -44,20 +57,8 @@ None.
 
 ## P3 Low
 
-- [ ] **CR-1 | OpenAPI request schema advertises values the server rejects**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/gtd/MailTaskArchiveController.kt:80` (generated: `api/openapi.yaml:13209-13219`, `web/src/app/api/generated/models/mail-to-tasks-request.ts:19`)
-    - Category: Integration
-    - Problem: `list` is typed as the full `TaskList` enum, so the contract and the generated TypeScript type allow `WAITING` and `SCHEDULED`, which `MailGtdService.toTasks` rejects with 400. `ids` comes out as `minItems: 0` although `@NotEmpty` rejects an empty list.
-    - Why it matters: the generated client type lets frontend code compile calls that always fail. Only the description text states the real limits.
-    - Suggested fix: restrict the schema, e.g. `@field:Schema(allowableValues = ["NEXT", "INBOX", "SOMEDAY"])` on `list` and `@field:Size(min = 1, max = MAX_IDS)` (or an `ArraySchema` with `minItems = 1`) on `ids`, then regenerate `api/openapi.yaml` and the web client.
-
-- [ ] **CR-2 | SPEC §7.4 response summary does not match the response shape**
-    - File: `SPEC.md:424`
-    - Category: Quality
-    - Problem: the line reads `-> per mail {task, archived, archiveErrorCode?}`. The real result also has `id`, `messageId`, `linkId` and `archiveDetail`, and `archiveErrorCode` is always present and nullable, not optional (the `?` suggests it is omitted). Results are also wrapped in `{results: [...]}`.
-    - Why it matters: SPEC.md is the source of truth that client tasks (web, Android) will read for this endpoint.
-    - Suggested fix: describe it as `-> {results: [{id, messageId, task {id, title, list}, linkId, archived, archiveErrorCode|null, archiveDetail|null}]}`, or point to the OpenAPI schema.
+None.
 
 ## Review conclusion
 
-No material issues found. The two P3 findings are contract-text precision issues and can be fixed cheaply with the next regeneration. They do not block the acceptance criteria.
+No material issues found. Both previous findings (CR-1, CR-2) are resolved in 6f65ebca5 and 8a2a1bdb9. The remaining step for the parent worker is recording evidence for criteria 1, 2, 4 and 6 (including `./gradlew check` and `sh scripts/check.sh` on the final code).
