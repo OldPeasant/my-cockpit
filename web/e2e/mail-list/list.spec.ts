@@ -22,6 +22,8 @@ test.describe('Mail list', () => {
       lunch: `Lunch on Friday ${run}`,
       invoice: `Server invoice ${run}`,
       late: `Late arrival ${run}`,
+      memo: `Old memo ${run}`,
+      note: `Short note ${run}`,
     };
 
     const imap = await Imap.login(address, password);
@@ -113,6 +115,51 @@ test.describe('Mail list', () => {
       });
       await syncMail(page.request);
       await expect(subjectsShown(page)).toHaveText([subjects.late, subjects.report]);
+
+      // Delete from the list and archive from the read view.
+      for (const subject of [subjects.memo, subjects.note]) {
+        await imap.append('INBOX', {
+          from: 'Max Muster <max.muster@example.test>',
+          to: address,
+          subject,
+          text: `Body of ${subject}`,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 1100));
+      }
+      await syncMail(page.request);
+      await expect(subjectsShown(page)).toHaveText([
+        subjects.note,
+        subjects.memo,
+        subjects.late,
+        subjects.report,
+      ]);
+      await page
+        .getByRole('checkbox', { name: `Select “${subjects.memo}” from Max Muster` })
+        .check();
+      await page.getByRole('button', { name: 'Delete', exact: true }).click();
+      await expect(row(page, subjects.memo)).toHaveCount(0);
+      await expect.poll(() => imap.search('INBOX', `SUBJECT "${subjects.memo}"`)).toHaveLength(0);
+
+      await row(page, subjects.note).locator('a.open').click();
+      await expect(page).toHaveURL(/\/mail\/messages\//);
+      await page.getByRole('button', { name: 'Archive', exact: true }).click();
+      await expect.poll(() => imap.search('Archive', `SUBJECT "${subjects.note}"`)).toHaveLength(1);
+      await expect.poll(() => imap.search('INBOX', `SUBJECT "${subjects.note}"`)).toHaveLength(0);
+      await page.goto(`/mail/folders/${inbox.id}`);
+
+      // The acted-on mails stay gone after the change-event refetch (the server resyncs the
+      // source and target folders in the background and announces them) and after a reload.
+      const remaining = [subjects.late, subjects.report];
+      await expect(subjectsShown(page)).toHaveText(remaining);
+      await page.waitForTimeout(3_000);
+      await expect(subjectsShown(page)).toHaveText(remaining);
+      await page.reload();
+      await expect(subjectsShown(page)).toHaveText(remaining);
+      const listed = await get<{ items: { subject: string }[] }>(
+        page.request,
+        `/api/v1/mail/messages?folderId=${inbox.id}`,
+      );
+      expect(listed.items.map((item) => item.subject)).toEqual(remaining);
     } finally {
       await imap.logout();
     }
