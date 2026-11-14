@@ -49,7 +49,8 @@ Cause (diagnosis by an interactive session):
       account, it appears without leaving the view (record what you ran); if no emulator or device is available, skip
       with reason and assume what you could not see
   - skipped (2026-11-14 20:29+0100 by dell26/agent-1): no Android emulator/device or mail server delivery available in this agent environment
-- [ ] `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-14 20:58+0100 by dell26/agent-1): sh scripts/check.sh (runs cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug) -> all checks passed, exit 0
 
 ## Notes
 Planned 2026-11-14 from the owner's bug report. Android only; the server already sends the events. Keep it small: no
