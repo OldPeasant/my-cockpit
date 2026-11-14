@@ -1,10 +1,11 @@
 ---
 title: Web: mail → Next action & archive (read view, New view, mail list)
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [mail-task-archive-api]
 touches: [web/src/app/features/mail/read,web/src/app/features/mail/list,web/src/app/features/new,web/src/locale]
 prio: 2
+lease_until: 2026-11-14T10:24:06Z
 ---
 ## Goal
 Web part of "→ Next action & archive" (server call from `mail-task-archive-api`). Single mail: the task detail
