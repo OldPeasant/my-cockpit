@@ -9,6 +9,10 @@ import ch.sonensei.cockpit.gtd.domain.Change
 import ch.sonensei.cockpit.gtd.domain.TaskChanges
 import ch.sonensei.cockpit.gtd.domain.TaskList
 import ch.sonensei.cockpit.gtd.domain.TaskService
+import ch.sonensei.cockpit.core.web.InvalidRequestException
+import ch.sonensei.cockpit.mail.api.MailAction
+import ch.sonensei.cockpit.mail.api.MailActionOutcome
+import ch.sonensei.cockpit.mail.api.MailActionService
 import ch.sonensei.cockpit.mail.api.MailReadService
 import ch.sonensei.cockpit.mail.model.MailAccountRepository
 import ch.sonensei.cockpit.mail.model.MailAddress
@@ -41,6 +45,17 @@ data class MailGtdItem(
 )
 
 /**
+ * The result of "→ task & archive" for one requested mail: the task created for it (in [list]) and, when archiving was
+ * asked for, its outcome ([archive] is `null` when it was not).
+ */
+data class MailTaskArchiveResult(
+	val requestedId: UUID,
+	val task: MailGtdItem,
+	val list: TaskList,
+	val archive: MailActionOutcome?,
+)
+
+/**
  * GTD integration of mail (SPEC.md §7.3): turns a message into an Inbox task, a Waiting For task or a note, each with a
  * manual link to the message so the item shows a link back to the mail. The link points at the message's current copy;
  * it survives later moves because the EMAIL resolver re-resolves the row by Message-ID ([MailMessageLocator]).
@@ -57,6 +72,7 @@ class MailGtdService(
 	private val links: LinkService,
 	private val settings: SettingsService,
 	private val transactions: TransactionTemplate,
+	private val actions: MailActionService,
 ) {
 	/** An Inbox task titled with the message's subject. */
 	fun toTask(messageId: UUID): MailGtdItem =
@@ -65,6 +81,47 @@ class MailGtdService(
 			val task = tasks.create(null, TaskList.INBOX, TaskChanges(title = Change(titleOf(message, TaskService.MAX_TITLE_LENGTH))))
 			linked(message, ItemRef(ItemType.TASK, task.task.id), task.task.title)
 		}
+
+	/**
+	 * The GTD clarify step for mails (SPEC.md §7.3): per mail a task in [list] titled with the subject and linked like
+	 * [toTask], then, when [archive] is set, the mails are archived with [MailAction.ARCHIVE]. Every id is resolved
+	 * before anything is created, so an unknown id fails the whole request and creates nothing. The tasks are created in
+	 * one transaction; archiving runs after it, per mail, and a failed archive keeps its task. Ids that resolve to the
+	 * same message (duplicates, an old id of a moved message) get one task. Results are in request order, one per
+	 * distinct requested id.
+	 *
+	 * @throws InvalidRequestException for a list other than [TASK_ARCHIVE_LISTS]
+	 * @throws NotFoundException when a message does not exist or is no longer on the server
+	 */
+	fun toTasks(
+		messageIds: List<UUID>,
+		list: TaskList,
+		archive: Boolean,
+	): List<MailTaskArchiveResult> {
+		if (list !in TASK_ARCHIVE_LISTS) {
+			throw InvalidRequestException("list", "must be one of ${TASK_ARCHIVE_LISTS.joinToString()}")
+		}
+		val requested = messageIds.distinct()
+		val created =
+			inTransaction {
+				val located = requested.associateWith(::current)
+				val byMessage = LinkedHashMap<UUID, MailGtdItem>()
+				for (message in located.values) {
+					byMessage.getOrPut(message.id) {
+						val task = tasks.create(null, list, TaskChanges(title = Change(titleOf(message, TaskService.MAX_TITLE_LENGTH))))
+						linked(message, ItemRef(ItemType.TASK, task.task.id), task.task.title)
+					}
+				}
+				requested.map { checkNotNull(byMessage[located.getValue(it).id]) }
+			}
+		val outcomes =
+			if (archive) {
+				actions.apply(created.map { it.messageId }.distinct(), MailAction.ARCHIVE, null).associateBy { it.id }
+			} else {
+				emptyMap()
+			}
+		return requested.zip(created) { id, item -> MailTaskArchiveResult(id, item, list, outcomes[item.messageId]) }
+	}
 
 	/**
 	 * A Waiting For task titled with the subject, waiting since the mail's date. For a mail the user sent (in the Sent
@@ -160,6 +217,9 @@ class MailGtdService(
 
 	private companion object {
 		const val MESSAGE_NOT_FOUND = "Message not found"
+
+		/** The lists "→ task & archive" may put tasks in: Waiting For and Scheduled need fields a mail does not give. */
+		val TASK_ARCHIVE_LISTS = listOf(TaskList.NEXT, TaskList.INBOX, TaskList.SOMEDAY)
 		const val NO_SUBJECT = "(no subject)"
 		val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 		val BLOCKS =
