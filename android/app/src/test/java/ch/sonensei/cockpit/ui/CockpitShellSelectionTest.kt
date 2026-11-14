@@ -337,6 +337,78 @@ class CockpitShellSelectionTest {
         assertOnlySelected("New")
     }
 
+    // Chains of stacked screens: each entry inherits the destination of the screen below it.
+
+    @Test
+    fun aTaskOpenedFromATaskOnNewIsRestoredWithNewSelectedAndBackWalksDownWithNewSelected() {
+        clickTab("New")
+        open(TaskRoutes.detail(task))
+        open(TaskRoutes.detail(otherTask))
+        clickTab("Calendar")
+        assertOnlySelected("Calendar")
+
+        clickTab("New")
+
+        assertEquals(listOf("dashboard", "new", TaskRoutes.DETAIL, TaskRoutes.DETAIL), backStackRoutes())
+        assertOnlySelected("New")
+        pressSystemBack()
+        assertEquals(listOf("dashboard", "new", TaskRoutes.DETAIL), backStackRoutes())
+        assertOnlySelected("New")
+        pressSystemBack()
+        assertEquals(CockpitDestination.New.route, currentRoute())
+        assertOnlySelected("New")
+    }
+
+    @Test
+    fun theSameTaskOpenedOnTwoTabsKeepsTheTabItLiesOnSelected() {
+        clickTab("New")
+        open(TaskRoutes.detail(task))
+        clickTab("Calendar")
+        open(TaskRoutes.detail(task))
+        assertEquals(CockpitDestination.Calendar.route, previousRoute())
+        assertOnlySelected("Calendar")
+
+        clickTab("New")
+        assertEquals(CockpitDestination.New.route, previousRoute())
+        assertOnlySelected("New")
+
+        clickTab("Calendar")
+        assertEquals(listOf("dashboard", "calendar", TaskRoutes.DETAIL), backStackRoutes())
+        assertOnlySelected("Calendar")
+    }
+
+    @Test
+    fun aTaskOpenedFromASearchItemOpenedFromSearchOnNewKeepsNewSelected() {
+        clickTab("New")
+        composeRule.onNodeWithTag(SEARCH_ACTION_TAG).performClick()
+        composeRule.waitForIdle()
+        open(SearchRoutes.item("EMAIL", mail))
+        assertOnlySelected("New")
+
+        open(TaskRoutes.detail(task))
+
+        assertEquals(listOf("dashboard", "new", SearchRoutes.SEARCH, SearchRoutes.ITEM, TaskRoutes.DETAIL), backStackRoutes())
+        assertOnlySelected("New")
+        pressSystemBack()
+        pressSystemBack()
+        assertEquals(SearchRoutes.SEARCH, currentRoute())
+        assertOnlySelected("New")
+    }
+
+    @Test
+    fun anItemOpenedFromATaskOnTheInboxOpenedFromTheCardKeepsMoreSelected() {
+        clickCard(INBOX_CARD)
+        open(TaskRoutes.detail(task))
+        open(SearchRoutes.item("EMAIL", mail))
+
+        assertEquals(listOf("dashboard", "inbox", TaskRoutes.DETAIL, SearchRoutes.ITEM), backStackRoutes())
+        assertOnlySelected("More")
+
+        clickTab("Dashboard")
+        assertEquals(listOf("dashboard"), backStackRoutes())
+        assertOnlySelected("Dashboard")
+    }
+
     private companion object {
         const val INBOX_CARD = "test-card-inbox"
         const val TODAY_CARD = "test-card-today"
