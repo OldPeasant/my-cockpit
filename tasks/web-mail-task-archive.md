@@ -24,7 +24,8 @@ opens right away so the owner can fix title, context and project. Several mails:
   - skipped (2026-11-14 11:27+0100 by dell26/agent-1): No e2e run here for linking: the web code creates the link only through the server's to-tasks endpoint (mail-task-archive-api, whose contract says the link keeps resolving to the moved message); the unchanged task-detail LinkedItems panel shows it. Needs a Playwright run against the real stack with an IMAP account.
 - [x] New UI strings are in `web/src/locale` (English + German); shortcut listed in the keyboard help where shortcuts are listed
   - verified (2026-11-14 11:26+0100 by dell26/agent-1): new trans-units mail.nextAction.*, mail.action.nextAction, mailShortcuts.nextAction, mailRead.toNextAction, new.toNextAction in messages.xlf + messages.de.xlf; cd web && npm run build:de -> bundle complete, no missing translation; mail-shortcuts.spec: T listed in MAIL_LIST_HELP and MAIL_READ_HELP (? help), New view keys hint mentions Shift+T
-- [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+- [x] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+  - verified (2026-11-14 11:30+0100 by dell26/agent-1): 69 new unit tests (tests.md, changed lines 135/135 covered); cd web && npm run check -> 4884 tests passed, lint clean, build ok; sh scripts/check.sh -> exit 0
 
 ## Notes
 Planned 2026-11-14 with the owner: from a mail, make a Next action and archive the mail in one step (mails already clarified should not pass through the cockpit Inbox again); create a project directly from the task detail.
