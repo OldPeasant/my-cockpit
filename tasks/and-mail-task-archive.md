@@ -1,11 +1,11 @@
 ---
 title: Android: mail → Next action & archive (read view, New view, mail list)
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: [mail-task-archive-api]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/read,android/app/src/main/java/ch/sonensei/cockpit/mail/list,android/app/src/main/java/ch/sonensei/cockpit/newitems,android/app/src/test/java/ch/sonensei/cockpit/mail,android/app/src/test/java/ch/sonensei/cockpit/newitems,android/app/src/main/res/values/strings_mail.xml,android/app/src/main/res/values-de/strings_mail.xml,android/app/src/main/res/values/strings_new.xml,android/app/src/main/res/values-de/strings_new.xml]
 prio: 2
-lease_until: 
+lease_until: 2026-11-14T08:56:42Z
 releases: 2
 extended: 
 ---
