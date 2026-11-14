@@ -22,3 +22,4 @@ give New the bottom-bar slot and move Inbox to the More list.
 ## Notes
 Requested by the owner 2026-11-14: New is more convenient than Inbox for daily use. Navigation-only change, no new
 strings. SPEC.md §12 (web left navigation) is unaffected; record the Android bottom-bar choice with `tasks.py assume`.
+- ASSUMPTION (2026-11-14 09:54+0100 by dell26/agent-1): Android bottom bar is Dashboard, New, Calendar, Mail, More; Inbox is the first More entry (owner request 2026-11-14). Web left navigation (SPEC.md §12) unchanged. Stacked screens (task detail, search, opened items) highlight the tab of the nearest destination below them on the back stack, so a task opened from New keeps New selected.
