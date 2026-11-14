@@ -26,7 +26,8 @@ points (read view, New view row, mail list multi-select) and handles partial fai
   - verified (2026-11-14 09:06+0100 by dell26/agent-1): git diff 6d395d2bd..HEAD shows MailGtdController/toTask unchanged; cd server && ./gradlew test --rerun jacocoTestReport -> 5274 tests, 0 failures incl. existing MailGtdWebTests to-task tests
 - [x] `api/openapi.yaml` and `web/src/app/api/generated/` regenerated; SPEC.md §7.3 (GTD integration) and §7.4 describe the action
   - verified (2026-11-14 08:30+0100 by dell26/agent-1): cd server && ./gradlew updateOpenApi; cd web && npm run api:gen -> openapi.yaml gains only POST /api/v1/mail/messages/to-tasks + 4 schemas, generated fn mail-to-tasks.ts and models; SPEC.md 7.3 (Next action & archive) and 7.4 (to-task, to-tasks) updated
-- [ ] Tests cover single, multiple, partial archive failure (no Archive folder) and the link; `cd server && ./gradlew check` and `sh scripts/check.sh` pass
+- [x] Tests cover single, multiple, partial archive failure (no Archive folder) and the link; `cd server && ./gradlew check` and `sh scripts/check.sh` pass
+  - verified (2026-11-14 09:12+0100 by dell26/agent-1): Tests single/multiple/partial archive failure (NO_ROLE_FOLDER)/link in MailTaskArchiveWebTests (10) + MailTaskArchiveGreenMailTests (4, no-MOVE server) all pass; sh scripts/check.sh at c6ddc601d (runs cd server && ./gradlew check, web check, android ktlint/tests/lint) -> all checks passed, exit 0
 
 ## Notes
 Planned 2026-11-14 with the owner: from a mail, make a Next action and archive the mail in one step (mails already clarified should not pass through the cockpit Inbox again); create a project directly from the task detail.
