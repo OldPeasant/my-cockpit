@@ -186,8 +186,14 @@ class MailTaskArchiveWebTests(
 	fun `invalid requests give 400 and create nothing`() {
 		val mail = message(inbox)
 
-		post(mapOf("ids" to emptyList<UUID>())).andExpect { status { isBadRequest() } }
-		post(mapOf<String, Any>()).andExpect { status { isBadRequest() } }
+		// Empty and missing ids are rejected by Bean Validation (@NotNull, @Size(min = 1)) as Problem Details on "ids".
+		for (body in listOf(mapOf("ids" to emptyList<UUID>()), mapOf<String, Any>())) {
+			post(body).andExpect {
+				status { isBadRequest() }
+				content { contentType(MediaType.APPLICATION_PROBLEM_JSON) }
+				jsonPath("$.errors[0].field") { value("ids") }
+			}
+		}
 		post("""{"ids":[null]}""").andExpect { status { isBadRequest() } }
 		post("""{"ids":["not-a-uuid"]}""").andExpect { status { isBadRequest() } }
 		post(mapOf("ids" to listOf(mail.id), "list" to "WAITING")).andExpect { status { isBadRequest() } }
