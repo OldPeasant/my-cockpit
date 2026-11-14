@@ -1,12 +1,12 @@
 ---
 title: Moved, archived or deleted mail must not come back in the source list until the next 5-min sync
-status: in_progress
-owner: felix/agent-1
+status: todo
+owner: 
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailActionService.kt,server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailFolderResync.kt,server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncService.kt,server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderStore.kt,server/src/test/kotlin/ch/sonensei/cockpit/mail,web/src/app/features/mail/list/mail-list-store.ts,web/e2e/mail-list]
 prio: 2
-lease_until: 2026-11-14T20:29:10Z
-releases: 1
+lease_until: 
+releases: 2
 extended: 
 ---
 ## Goal
@@ -57,3 +57,4 @@ fix without client changes. If the owner's server log is needed (mail provider, 
 instead of waiting.
 - ASSUMPTION (2026-11-14 20:54+0100 by felix/agent-1): Root cause not reproduced against GreenMail by the earlier probe; most plausible real-server cause is candidate 1/2 (cache update giving up after conflicts with a concurrent IDLE-triggered Inbox sync, or a QRESYNC sync whose stored HIGHESTMODSEQ hides the expunge). Fixed generically: after MOVE/ARCHIVE/SPAM/DELETE the source (and target) folder is resynced in the background via MailHeaderSyncService.verifyFolder, which detects vanished UIDs by UID-set comparison independent of modseq. The verify resync publishes MAIL_FOLDER only when it changed rows (the action already announced the folders).
 - release by felix/agent-1: Done: verified UID-set resync of source+target after move/archive/spam/delete (MailActionService.settle -> MailFolderResync.requestVerified -> MailHeaderSyncService.verifyFolder); unit tests in MailFolderResyncTests/MailHeaderSyncServiceTests; new settle tests in MailActionServiceTests (NOT RUN: Gradle denied to helpers); e2e mail-list extended (delete, archive from read view, check after refetch+reload) - not yet run to completion. Review (reviews/mail-action-settle/review.md) P1 CR-1: 4 existing MailActionServiceTests (lines ~521,556,619,676) still expect resync.request on move/delete paths -> update to requestVerified. CR-3: replace 'plain QRESYNC sync keeps a row' (locks in bug) by a proper fail-before-fix repro (cache-conflict path is unit-reproducible). P3: CR-4 extra UID search in verify mode on CONDSTORE/plain paths; CR-5 stale log/KDoc wording. Left: run fixer, gradle tests + GreenMail tests (MailActionGreenMailTests, HeaderSyncGreenMailTests, MailIdle*), npm run e2e -- mail-list mail-read, rerun test-writer+code-reviewer on final code, quality.json, verify criteria, done.
+- release by felix/agent-1: Done: review findings CR-1..5 fixed (1f4e045f8). Re-review (review.md): 0 P0/P1; open P2 CR-1: web/e2e/mail-list/list.spec.ts:143-157 archives from read view and then page.goto()s the folder instead of in-app back navigation -> change to in-app back (e.g. back button/history) and assert gone; P3 CR-2 (assert requestVerified not called on flag paths, MailActionServiceTests ~566,633), CR-3 (stale 'left to next sync' KDoc/log MailActionService.kt:368,426), CR-4 (rewrap KDoc MailFolderResync.kt:17). Test-writer re-run (tests.md, e92099f82 tightened one test): focused unit tests 107/107 pass, coverage 94% instr. GreenMail ran by me at 1f4e045f8: ./gradlew integrationTest --tests MailActionGreenMailTests(20) HeaderSyncGreenMailTests(15) MailIdleGreenMailTests(4) MailIdlePushGreenMailTests(1) MailTaskArchiveGreenMailTests(4) -> all pass. Left: fixer for review CR-1..4, run npm run e2e mail-list (+ mail-read), rerun test-writer+code-reviewer if code changes, ./gradlew check, npm run check, scripts/check.sh, verify criteria 1-5, quality.json, done. Note: don't run gradle concurrently with helpers in same build dir (EOFException).
