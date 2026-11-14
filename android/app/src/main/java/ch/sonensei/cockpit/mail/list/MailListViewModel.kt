@@ -23,7 +23,18 @@ enum class MailListMessage {
     MOVE_FAILED,
     MARK_FAILED,
     UNDO_FAILED,
+    NEXT_ACTIONS_FAILED,
 }
+
+/**
+ * The answer of "Next action & archive" on the selection: [created] Next actions, and the subjects of the mails whose
+ * task was made but which could not be archived ([notArchived], they stay in the list). [id] tells two answers apart.
+ */
+data class MailNextActionsDone(
+    val created: Int,
+    val notArchived: List<String> = emptyList(),
+    val id: Long = 0,
+)
 
 /** Why "load older from server" showed nothing new: no connection, a refusal, or nothing older on the server. */
 enum class OlderMessage { OFFLINE, FAILED, NOTHING_OLDER }
@@ -102,6 +113,10 @@ data class MailListUiState(
     val selected: Set<UUID> = emptySet(),
     /** The last action that can be undone, offered until the next one or until dismissed. */
     val undo: MailUndo? = null,
+    /** The last "Next action & archive" on the selection, shown as a snackbar until dismissed. */
+    val nextActions: MailNextActionsDone? = null,
+    /** "Next action & archive" on the selection is waiting for the server. */
+    val makingNextActions: Boolean = false,
 ) {
     val selecting: Boolean get() = selected.isNotEmpty()
 
@@ -308,6 +323,43 @@ class MailListViewModel
             if (state.value.moveTargets.none { it.id == folder.id }) return
             perform(state.value.selection.map { it.id }, MailListAction.MOVE, folder.id)
         }
+
+        /**
+         * "Next action & archive" (SPEC.md §7.3) on the selected mails: one Next action per mail, then the mails are
+         * archived and leave the list, which stays shown. The selection ends; a mail that could not be archived stays and
+         * is named in the answer, a failed call leaves every mail in place with a message.
+         */
+        fun nextActionsForSelection() {
+            val before = state.value
+            val ids = before.selection.map { it.id }
+            if (ids.isEmpty() || before.makingNextActions) return
+            val subjects = before.selection.associate { it.id to it.subject }
+            state.update { it.copy(selected = emptySet(), makingNextActions = true) }
+            viewModelScope.launch {
+                val result = repository.toNextActions(ids)
+                state.update { s ->
+                    when (result) {
+                        is MailResult.Ok -> {
+                            val archived = result.value.filter { it.archived }.mapTo(HashSet()) { it.mailId }
+                            val kept =
+                                result.value.filterNot { it.archived }.map {
+                                    subjects[it.mailId]?.takeIf { t -> t.isNotBlank() }
+                                        ?: it.title
+                                }
+                            s.copy(
+                                messages = s.messages.filterNot { it.id in archived },
+                                makingNextActions = false,
+                                nextActions = MailNextActionsDone(result.value.size, kept, ++undoCount),
+                            )
+                        }
+                        else -> s.copy(makingNextActions = false, message = MailListMessage.NEXT_ACTIONS_FAILED)
+                    }
+                }
+            }
+        }
+
+        /** The "N next actions created" snackbar was closed. */
+        fun dismissNextActions(done: MailNextActionsDone) = state.update { if (it.nextActions == done) it.copy(nextActions = null) else it }
 
         /** The undo was not taken: forgets it. */
         fun dismissUndo(undo: MailUndo) = state.update { if (it.undo == undo) it.copy(undo = null) else it }

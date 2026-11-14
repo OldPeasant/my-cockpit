@@ -42,6 +42,7 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.OutlinedFlag
 import androidx.compose.material.icons.outlined.Report
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -115,9 +116,12 @@ import java.util.UUID
  * previews) it shows the placeholder instead of failing.
  */
 @Composable
-fun MailScreen(modifier: Modifier = Modifier) {
+fun MailScreen(
+    modifier: Modifier = Modifier,
+    openNext: () -> Unit = {},
+) {
     if (LocalActivity.current is GeneratedComponentManagerHolder) {
-        MailRoute(modifier)
+        MailRoute(modifier, openNext = openNext)
     } else {
         PlaceholderScreen(R.string.nav_mail, Icons.Outlined.Mail, modifier)
     }
@@ -128,6 +132,7 @@ fun MailScreen(modifier: Modifier = Modifier) {
 fun MailRoute(
     modifier: Modifier = Modifier,
     viewModel: MailListViewModel = hiltViewModel(),
+    openNext: () -> Unit = {},
 ) {
     var open by rememberSaveable { mutableStateOf<String?>(null) }
     var composing by rememberSaveable { mutableStateOf<String?>(null) }
@@ -189,7 +194,10 @@ fun MailRoute(
                             clear = viewModel::clearSelection,
                             act = viewModel::actOnSelection,
                             move = viewModel::moveSelection,
+                            nextActions = viewModel::nextActionsForSelection,
                         ),
+                    openNext = openNext,
+                    dismissNextActions = viewModel::dismissNextActions,
                     undo = viewModel::undo,
                     dismissUndo = viewModel::dismissUndo,
                 ),
@@ -243,6 +251,9 @@ data class MailListCallbacks(
     val selection: SelectionCallbacks = SelectionCallbacks(),
     val undo: (MailUndo) -> Unit = {},
     val dismissUndo: (MailUndo) -> Unit = {},
+    /** Opens the Next Actions list (offered after "Next action & archive"). */
+    val openNext: () -> Unit = {},
+    val dismissNextActions: (MailNextActionsDone) -> Unit = {},
 )
 
 /** The multi-selection started by a long press, and its bulk actions. */
@@ -253,6 +264,8 @@ data class SelectionCallbacks(
     /** A bulk action other than move. */
     val act: (MailListAction) -> Unit = {},
     val move: (MailFolder) -> Unit = {},
+    /** "Next action & archive" for every selected mail. */
+    val nextActions: () -> Unit = {},
 )
 
 /** The search box and its results. */
@@ -327,6 +340,7 @@ internal object MailListTags {
     const val SELECTION_CLOSE = "mail-selection-close"
     const val SELECTION_COUNT = "mail-selection-count"
     const val SELECTION_MORE = "mail-selection-more"
+    const val SELECTION_NEXT_ACTIONS = "mail-selection-next-actions"
 
     fun selectionAction(action: MailListAction) = "mail-selection-action:$action"
 }
@@ -362,6 +376,7 @@ fun MailListContent(
 ) {
     val snackbarHost = remember { SnackbarHostState() }
     UndoSnackbarEffect(state.undo, snackbarHost, callbacks.undo, callbacks.dismissUndo)
+    NextActionsSnackbarEffect(state.nextActions, snackbarHost, callbacks.openNext, callbacks.dismissNextActions)
     // Back ends a multi-selection before it leaves the screen.
     BackHandler(enabled = state.selecting && state.search == null, onBack = callbacks.selection.clear)
     Box(modifier.fillMaxSize()) {
@@ -403,6 +418,34 @@ private fun UndoSnackbarEffect(
                 duration = SnackbarDuration.Long,
             )
         if (result == SnackbarResult.ActionPerformed) onUndo(undo) else onDismiss(undo)
+    }
+}
+
+/**
+ * "N next actions created  Open Next Actions" after "Next action & archive" on the selection, naming each mail that
+ * could not be archived.
+ */
+@Composable
+private fun NextActionsSnackbarEffect(
+    done: MailNextActionsDone?,
+    host: SnackbarHostState,
+    onOpen: () -> Unit,
+    onDismiss: (MailNextActionsDone) -> Unit,
+) {
+    val resources = LocalResources.current
+    LaunchedEffect(done) {
+        if (done == null) return@LaunchedEffect
+        val created = resources.getQuantityString(R.plurals.mail_next_actions_created, done.created, done.created)
+        val kept = done.notArchived.map { resources.getString(R.string.mail_subject_not_archived, it) }
+        val result =
+            host.showSnackbar(
+                message = (listOf(created) + kept).joinToString("\n"),
+                actionLabel = resources.getString(R.string.mail_open_next_actions),
+                withDismissAction = true,
+                duration = if (kept.isEmpty()) SnackbarDuration.Long else SnackbarDuration.Indefinite,
+            )
+        onDismiss(done)
+        if (result == SnackbarResult.ActionPerformed) onOpen()
     }
 }
 
@@ -500,6 +543,16 @@ private fun SelectionBar(
                 Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.mail_more_actions))
             }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.mail_next_action_archive)) },
+                    leadingIcon = { Icon(Icons.Outlined.TaskAlt, contentDescription = null) },
+                    enabled = !state.makingNextActions,
+                    onClick = {
+                        menu = false
+                        callbacks.nextActions()
+                    },
+                    modifier = Modifier.testTag(MailListTags.SELECTION_NEXT_ACTIONS),
+                )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.mail_move)) },
                     leadingIcon = { Icon(Icons.AutoMirrored.Outlined.DriveFileMove, contentDescription = null) },
@@ -1051,6 +1104,7 @@ internal fun ListMessage(
             MailListMessage.MOVE_FAILED -> R.string.mail_move_failed
             MailListMessage.MARK_FAILED -> R.string.mail_mark_failed
             MailListMessage.UNDO_FAILED -> R.string.mail_undo_failed
+            MailListMessage.NEXT_ACTIONS_FAILED -> R.string.mail_next_actions_failed
         }
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(

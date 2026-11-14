@@ -318,7 +318,7 @@ private fun DestinationContent(
         CockpitDestination.Today -> TodayScreen(modifier, openNext = { onOpen(CockpitDestination.Next) })
         CockpitDestination.Inbox -> InboxScreen(modifier)
         CockpitDestination.Calendar -> CalendarScreen(modifier)
-        CockpitDestination.Mail -> MailScreen(modifier)
+        CockpitDestination.Mail -> MailScreen(modifier, openNext = { onOpen(CockpitDestination.Next) })
         CockpitDestination.More -> MoreScreen(onOpen, modifier)
         CockpitDestination.New -> NewScreen(modifier)
         CockpitDestination.Next -> NextScreen(modifier)

@@ -152,6 +152,7 @@
         <item quantity="one">%d nächste Aktion erstellt</item>
         <item quantity="other">%d nächste Aktionen erstellt</item>
     </plurals>
+    <string name="mail_subject_not_archived">„%1$s“ konnte nicht archiviert werden.</string>
     <string name="mail_open_next_actions">Nächste Aktionen öffnen</string>
     <string name="mail_next_actions_failed">Die nächsten Aktionen konnten nicht erstellt werden; die Mails bleiben, wo sie sind.</string>
 </resources>
