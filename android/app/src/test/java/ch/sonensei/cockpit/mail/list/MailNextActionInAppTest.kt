@@ -192,8 +192,7 @@ class MailNextActionInAppTest {
 
     @Test
     fun `opening the linked mail from the new task's detail shows the archived mail`() {
-        // Acceptance criterion 5. Fails while the read view opens the task through SearchItemScreen, whose
-        // TaskDetailNavigation has no openItem (see the test report, TW-2).
+        // Acceptance criterion 5 (TW-2): the task overlay of the read view opens its linked items; back returns to the task.
         coEvery { reader.message(id(1)) } returns MailResult.Ok(message(1, folder = archive))
         nextActionFromTheReadView()
         waitFor(LinkedItemsTags.link(toMail))
@@ -202,6 +201,14 @@ class MailNextActionInAppTest {
 
         waitFor(MailReadTags.TEXT)
         composeRule.onNodeWithText("Body 1").assertExists()
+        composeRule.onNodeWithTag(TaskDetailTags.TITLE).assertDoesNotExist()
+
+        pressBack()
+
+        waitFor(TaskDetailTags.TITLE)
+        composeRule.onNodeWithTag(TaskDetailTags.TITLE).assertTextEquals("Subject 1")
+        composeRule.onNodeWithTag(MailReadTags.TEXT).assertDoesNotExist()
+        coVerify(exactly = 1) { mail.toNextActions(listOf(id(1))) }
     }
 
     @Test

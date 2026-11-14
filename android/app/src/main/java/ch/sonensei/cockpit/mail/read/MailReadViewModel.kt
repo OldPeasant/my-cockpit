@@ -168,7 +168,11 @@ class MailReadViewModel
                         else ->
                             it.copy(
                                 nextAction = created,
-                                notice = MailReadNotice.NotArchived(it.message?.subject.orEmpty(), created.archiveErrorCode),
+                                notice =
+                                    MailReadNotice.NotArchived(
+                                        it.message?.subject?.takeIf { s -> s.isNotBlank() } ?: created.title,
+                                        created.archiveErrorCode,
+                                    ),
                             )
                     }
                 }

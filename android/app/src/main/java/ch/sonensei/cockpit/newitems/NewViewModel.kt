@@ -274,7 +274,7 @@ class NewViewModel internal constructor(
                     else ->
                         it.copy(
                             converting = it.converting - id,
-                            notice = NewNotice.NotArchived(subject, created.archiveErrorCode),
+                            notice = NewNotice.NotArchived(subject.ifBlank { created.title }, created.archiveErrorCode),
                             openTask = created.taskId,
                         )
                 }

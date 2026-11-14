@@ -126,6 +126,20 @@ class NewNextActionViewModelTest {
         }
 
     @Test
+    fun aFailedArchiveOfAMailWithoutSubjectNamesItByTheTaskTitle() =
+        runTest {
+            val blank = mail("", "2026-10-20T10:00:00Z", 5)
+            coEvery { mailRepo.messages(Mailbox.Unified, null) } returns MailResult.Ok(MailPage(listOf(party, blank, invoice), null))
+            coEvery { mailRepo.toNextActions(listOf(blank.id)) } returns
+                MailResult.Ok(listOf(MailNextAction(blank.id, taskId, "Mail from Ada Example", archived = false)))
+            val vm = loaded()
+
+            vm.nextAction(blank.id)
+
+            assertEquals(NewNotice.NotArchived("Mail from Ada Example", null), vm.uiState.value.notice)
+        }
+
+    @Test
     fun aFailedCreationLeavesTheMailWithAnError() =
         runTest {
             coEvery { mailRepo.toNextActions(listOf(invoice.id)) } returns MailResult.Failed(404)

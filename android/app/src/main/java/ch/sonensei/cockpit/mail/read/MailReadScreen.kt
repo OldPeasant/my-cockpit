@@ -77,6 +77,8 @@ import ch.sonensei.cockpit.core.links.linksViewModelKey
 import ch.sonensei.cockpit.files.OpenedFiles
 import ch.sonensei.cockpit.files.discardDocument
 import ch.sonensei.cockpit.files.openForWriting
+import ch.sonensei.cockpit.gtd.task.TaskDetailNavigation
+import ch.sonensei.cockpit.gtd.task.TaskDetailScreen
 import ch.sonensei.cockpit.mail.compose.ComposeMode
 import ch.sonensei.cockpit.mail.list.MailAccountFolders
 import ch.sonensei.cockpit.mail.list.MailFolder
@@ -133,12 +135,14 @@ fun MailReadRoute(
             }
         }
         BackHandler(onBack = leave)
-        SearchItemScreen(TASK_ITEM_TYPE, created.taskId, onClose = leave, modifier = modifier)
+        NextActionTask(created.taskId, leave, modifier)
         return
     }
     val links = mailLinks(state.message?.id)
-    // A task or note made from the mail is linked to it: show it in the panel.
-    LaunchedEffect(state.notice) { if (state.notice is MailReadNotice.Created) links?.reload() }
+    // A task or note made from the mail is linked to it (also a Next action whose mail was not archived): show it in the panel.
+    LaunchedEffect(state.notice) {
+        if (state.notice is MailReadNotice.Created || state.notice is MailReadNotice.NotArchived) links?.reload()
+    }
     val close = {
         viewModel.close()
         onClose()
@@ -196,11 +200,45 @@ fun MailReadRoute(
     )
 }
 
+/**
+ * The task made by "Next action & archive"; [leave] closes it. An item opened from its links panel shows over it, and
+ * back returns to the task. Its mail is shown with view models of its own: the read view's one still holds the task.
+ */
+@Composable
+private fun NextActionTask(
+    taskId: UUID,
+    leave: () -> Unit,
+    modifier: Modifier,
+) {
+    var linked by rememberSaveable(taskId) { mutableStateOf<String?>(null) }
+    val item = linked?.split(':')?.let { (type, itemId) -> type to UUID.fromString(itemId) }
+    if (item == null) {
+        TaskDetailScreen(
+            taskId,
+            TaskDetailNavigation(close = leave, openItem = { type, itemId -> linked = "$type:$itemId" }),
+            modifier,
+        )
+        return
+    }
+    val back = { linked = null }
+    BackHandler(onBack = back)
+    val (type, itemId) = item
+    if (type == MAIL_ITEM_TYPE) {
+        MailReadRoute(
+            id = itemId,
+            onClose = back,
+            modifier = modifier,
+            onRemoved = { back() },
+            viewModel = hiltViewModel(key = "mail-next-action-linked:$itemId"),
+            attachmentsViewModel = hiltViewModel(key = "mail-next-action-linked-attachments:$itemId"),
+        )
+    } else {
+        SearchItemScreen(type, itemId, onClose = back, modifier = modifier)
+    }
+}
+
 /** The search/links type of a mail. */
 private const val MAIL_ITEM_TYPE = "EMAIL"
-
-/** The search/links type of a task. */
-private const val TASK_ITEM_TYPE = "TASK"
 
 /** The links panel's view model of the shown mail; `null` without a mail or without Hilt (screen tests with fake view models). */
 @Composable

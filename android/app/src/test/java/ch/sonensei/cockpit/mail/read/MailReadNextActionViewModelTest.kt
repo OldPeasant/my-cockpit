@@ -106,6 +106,21 @@ class MailReadNextActionViewModelTest {
         }
 
     @Test
+    fun `a failed archive of a mail without subject names it by the task's title`() =
+        runTest(dispatcher) {
+            coEvery { reader.message(id(1)) } returns MailResult.Ok(message(1).copy(subject = " "))
+            coEvery { mail.toNextActions(listOf(id(1))) } returns
+                MailResult.Ok(listOf(MailNextAction(id(1), taskId, "Mail from Anna Example", archived = false)))
+            val vm = opened()
+            advanceUntilIdle()
+
+            vm.nextAction()
+            advanceUntilIdle()
+
+            assertEquals(MailReadNotice.NotArchived("Mail from Anna Example", null), vm.uiState.value.notice)
+        }
+
+    @Test
     fun `a failed creation leaves the mail in place with an error`() =
         runTest(dispatcher) {
             val failures =
