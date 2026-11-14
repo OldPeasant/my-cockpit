@@ -40,9 +40,10 @@ caddy:2 v2.11.7). The gap is in keeping the connection alive:
       scheduled), the service reconnects at once and stores resync. A visible tab with a healthy stream does not
       reconnect needlessly.
   - verified (2026-11-14 22:10+0100 by dell26/agent-1): sh scripts/check.sh web vitest (visibilitychange/online after silence reconnect at once, healthy visible stream untouched, wake-up via clock jump, 30 s boundary test) -> 4923 passed; e2e live-watchdog.spec.ts wake-up path -> passed (see #5)
-- [ ] Unit tests (fake `EVENT_SOURCE_FACTORY`, fake timers): ping resets the watchdog; silence triggers a reconnect
+- [x] Unit tests (fake `EVENT_SOURCE_FACTORY`, fake timers): ping resets the watchdog; silence triggers a reconnect
       and `resync$`; `visibilitychange`/`online` after silence reconnects; logout stops the watchdog and listeners;
       server test: the heartbeat is sent as the named event.
+  - verified (2026-11-14 22:10+0100 by dell26/agent-1): npx ng test --watch=false --include src/app/core/events (fake EVENT_SOURCE_FACTORY, vi fake timers) -> 57 passed (test-writer); full sh scripts/check.sh -> 4923 web tests passed, server SseEventHubTests passed; logout test asserts vi.getTimerCount()==0
 - [x] Manually or with Playwright: with `/new` open, cut the stream (e.g. `context.setOffline(true)` for longer than
       the watchdog, then back online, or route-abort the events request without an error), deliver a mail, and it
       appears without a reload (record what you ran).
