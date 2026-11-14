@@ -1,11 +1,13 @@
 ---
 title: Moved, archived or deleted mail must not come back in the source list until the next 5-min sync
-status: in_progress
-owner: felix/agent-1
+status: todo
+owner: 
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailActionService.kt,server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailFolderResync.kt,server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncService.kt,server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderStore.kt,server/src/test/kotlin/ch/sonensei/cockpit/mail,web/src/app/features/mail/list/mail-list-store.ts,web/e2e/mail-list]
 prio: 2
-lease_until: 2026-11-14T20:16:02Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 Owner report (2026-11-14, web app, real mail account): after moving, archiving or deleting a mail, it stays in (or comes
@@ -54,3 +56,4 @@ committed). Android shares the server; its lists remove acted mails optimistical
 fix without client changes. If the owner's server log is needed (mail provider, capabilities), record an assumption
 instead of waiting.
 - ASSUMPTION (2026-11-14 20:54+0100 by felix/agent-1): Root cause not reproduced against GreenMail by the earlier probe; most plausible real-server cause is candidate 1/2 (cache update giving up after conflicts with a concurrent IDLE-triggered Inbox sync, or a QRESYNC sync whose stored HIGHESTMODSEQ hides the expunge). Fixed generically: after MOVE/ARCHIVE/SPAM/DELETE the source (and target) folder is resynced in the background via MailHeaderSyncService.verifyFolder, which detects vanished UIDs by UID-set comparison independent of modseq. The verify resync publishes MAIL_FOLDER only when it changed rows (the action already announced the folders).
+- release by felix/agent-1: Done: verified UID-set resync of source+target after move/archive/spam/delete (MailActionService.settle -> MailFolderResync.requestVerified -> MailHeaderSyncService.verifyFolder); unit tests in MailFolderResyncTests/MailHeaderSyncServiceTests; new settle tests in MailActionServiceTests (NOT RUN: Gradle denied to helpers); e2e mail-list extended (delete, archive from read view, check after refetch+reload) - not yet run to completion. Review (reviews/mail-action-settle/review.md) P1 CR-1: 4 existing MailActionServiceTests (lines ~521,556,619,676) still expect resync.request on move/delete paths -> update to requestVerified. CR-3: replace 'plain QRESYNC sync keeps a row' (locks in bug) by a proper fail-before-fix repro (cache-conflict path is unit-reproducible). P3: CR-4 extra UID search in verify mode on CONDSTORE/plain paths; CR-5 stale log/KDoc wording. Left: run fixer, gradle tests + GreenMail tests (MailActionGreenMailTests, HeaderSyncGreenMailTests, MailIdle*), npm run e2e -- mail-list mail-read, rerun test-writer+code-reviewer on final code, quality.json, verify criteria, done.
