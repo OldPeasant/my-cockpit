@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [mail-task-archive-api]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/read,android/app/src/main/java/ch/sonensei/cockpit/mail/list,android/app/src/main/java/ch/sonensei/cockpit/newitems,android/app/src/test/java/ch/sonensei/cockpit/mail,android/app/src/test/java/ch/sonensei/cockpit/newitems,android/app/src/main/res/values/strings_mail.xml,android/app/src/main/res/values-de/strings_mail.xml,android/app/src/main/res/values/strings_new.xml,android/app/src/main/res/values-de/strings_new.xml]
 prio: 2
-lease_until: 2026-11-14T08:42:24Z
+lease_until: 2026-11-14T08:47:25Z
 releases: 1
 extended: 
 ---
