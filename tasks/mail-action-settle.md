@@ -52,8 +52,9 @@ What an interactive session found (2026-11-14):
 - [x] Web: `mail-list` e2e checks that the archived/deleted/moved mail is still gone after the change-event refetch
       and after a page reload (not only right after the click). Same for archiving from the read view and going back.
   - verified (2026-11-14 22:01+0100 by felix/agent-1): cd web && npm run e2e -- e2e/mail-list/ --project=chromium (docker-compose.e2e stack via run-e2e.mjs, GreenMail 2.1.5) at d1c6b807c -> 36 passed; list.spec.ts checks deleted/archived/moved mail gone after 3s refetch wait, reload and API, incl. read-view archive + in-app back (a.back)
-- [ ] `cd server && ./gradlew check`, `cd web && npm run check`, `sh scripts/check.sh` pass; the server GreenMail
+- [x] `cd server && ./gradlew check`, `cd web && npm run check`, `sh scripts/check.sh` pass; the server GreenMail
       tests that touch mail actions/sync pass (record which you ran).
+  - verified (2026-11-15 06:32+0100 by Peter Gürtler): at 40869d4ca (task code = d1c6b807c): cd server && ./gradlew check -> BUILD SUCCESSFUL; cd web && npm run check -> pass; sh scripts/check.sh -> all checks passed; cd server && ./gradlew integrationTest --tests MailActionGreenMailTests HeaderSyncGreenMailTests MailIdleGreenMailTests MailIdlePushGreenMailTests MailTaskArchiveGreenMailTests -> 20+15+4+1+4 = 44 passed, 0 failed
 
 ## Notes
 Planned 2026-11-14 from the owner's report; diagnosis by an interactive session (probe specs were temporary, not
