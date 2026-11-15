@@ -46,8 +46,9 @@ What an interactive session found (2026-11-14):
       UID-set comparison like the non-CONDSTORE path for this resync. It announces the folders with `MAIL_FOLDER`, so
       open clients converge within seconds and never wait for the 5-min poll. Fix the root cause found above as well.
   - verified (2026-11-14 22:01+0100 by felix/agent-1): cd server && ./gradlew test --tests '*MailActionServiceTests' --tests '*MailFolderResyncTests' --tests '*MailHeaderSyncServiceTests' at d1c6b807c -> 107 passed (settle -> requestVerified for source+target on move/archive/spam, source on delete; verifyFolder UID-set comparison)
-- [ ] A sync of a folder never brings back a row the action removed for a message that is no longer in that folder
+- [x] A sync of a folder never brings back a row the action removed for a message that is no longer in that folder
       on the server (regression test for the found race).
+  - verified (2026-11-15 06:20+0100 by Peter Gürtler): Regression test MailHeaderSyncServiceTests 'after a racing sync covered an expunge by the cached HIGHESTMODSEQ, the verified resync after the action removes the row' + 'verifyFolder removes cached UIDs missing on the server even when QRESYNC reports nothing vanished': both fail with verifyFolder's UID compare disabled, pass at 40869d4ca (cd server && ./gradlew test --tests '*MailHeaderSyncServiceTests' -> 48/48)
 - [x] Web: `mail-list` e2e checks that the archived/deleted/moved mail is still gone after the change-event refetch
       and after a page reload (not only right after the click). Same for archiving from the read view and going back.
   - verified (2026-11-14 22:01+0100 by felix/agent-1): cd web && npm run e2e -- e2e/mail-list/ --project=chromium (docker-compose.e2e stack via run-e2e.mjs, GreenMail 2.1.5) at d1c6b807c -> 36 passed; list.spec.ts checks deleted/archived/moved mail gone after 3s refetch wait, reload and API, incl. read-view archive + in-app back (a.back)
