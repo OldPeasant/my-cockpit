@@ -6,9 +6,9 @@ deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailActionService.kt,server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailFolderResync.kt,server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderSyncService.kt,server/src/main/kotlin/ch/sonensei/cockpit/mail/sync/MailHeaderStore.kt,server/src/test/kotlin/ch/sonensei/cockpit/mail,web/src/app/features/mail/list/mail-list-store.ts,web/e2e/mail-list]
 prio: 2
 lease_until: 
-releases: 3
+releases: 0
 extended: 
-hold: given back 3 times; last: Done at d1c6b807c+: round-2 review fixes; final code-reviewer (0 P0-P2, 1 optional P3: list.spec.ts:163 refetch step is a fixed 3s wait, reload+API checks still cover it -> d
+hold: 
 ---
 ## Goal
 Owner report (2026-11-14, web app, real mail account): after moving, archiving or deleting a mail, it stays in (or comes
