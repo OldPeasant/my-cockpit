@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "task": "mail-action-settle",
+  "reviewed_revision": "d1c6b807c052fa1263e00a1191d217ce5c150881",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/mail-action-settle/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-action-settle/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/mail-action-settle/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1-r1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "round 1: existing MailActionServiceTests expected resync.request instead of requestVerified; updated by fixer (fixes.md round 1)"},
+    {"id": "CR-2-r1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "round 1: no test for resync after move/archive/spam/delete; settle tests added (fixes.md round 1)"},
+    {"id": "CR-3-r1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: race test locked in stale behaviour; replaced by fail-before-fix repros (cache-conflict + QRESYNC race), shown red with the fix disabled"},
+    {"id": "CR-4-r1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: extra UID SEARCH in verify mode on CONDSTORE/plain paths removed"},
+    {"id": "CR-5-r1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: log/KDoc wording updated"},
+    {"id": "CR-1-r2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 2: e2e read-view archive now goes back in-app (a.back) instead of page.goto (fixes.md round 2)"},
+    {"id": "CR-2-r2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 2: tests assert requestVerified not called on flag paths"},
+    {"id": "CR-3-r2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 2: stale 'left to the next sync' KDoc/log reworded"},
+    {"id": "CR-4-r2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 2: MailFolderResync class KDoc rewrapped"},
+    {"id": "CR-1-r3", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "final review: list.spec.ts refetch step is a fixed 3 s wait without observing a refetch; optional per reviewer, the following reload and API checks cover the server-side fix"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests '*MailActionServiceTests' --tests '*MailFolderResyncTests' --tests '*MailHeaderSyncServiceTests'", "result": "pass"},
+    {"command": "cd server && ./gradlew integrationTest --tests '*MailActionGreenMailTests' --tests '*HeaderSyncGreenMailTests' --tests '*MailIdleGreenMailTests' --tests '*MailIdlePushGreenMailTests' --tests '*MailTaskArchiveGreenMailTests'", "result": "pass"},
+    {"command": "npm --prefix web run e2e -- e2e/mail-list/ --project=chromium (e2e compose stack, run by fixer at d1c6b807c)", "result": "pass"},
+    {"command": "cd server && ./gradlew check", "result": "pass"},
+    {"command": "cd web && npm run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
