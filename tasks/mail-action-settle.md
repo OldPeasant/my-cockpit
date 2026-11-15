@@ -35,10 +35,11 @@ What an interactive session found (2026-11-14):
      group the cache update handles.
 
 ## Acceptance criteria
-- [ ] Find the actual cause. Write a server test that reproduces the stale source row: e.g. a GreenMail test that runs
+- [x] Find the actual cause. Write a server test that reproduces the stale source row: e.g. a GreenMail test that runs
       `syncFolder` of the source concurrently with a MOVE/ARCHIVE/DELETE (latch-controlled interleaving), or the
       cache-conflict path. It must fail before the fix. If none of the candidates reproduces, record that with
       `tasks.py assume` and still do the next criterion.
+  - verified (2026-11-15 06:20+0100 by Peter Gürtler): Real-server root cause not reproduced on GreenMail (ASSUMPTION recorded); repro tests: MailActionServiceTests 'a move whose cache update gives up after conflicts still resyncs the source by UID set...' (cache-conflict path) + MailHeaderSyncServiceTests 'after a racing sync covered an expunge by the cached HIGHESTMODSEQ...' (QRESYNC race). Fail-before-fix: with settle() reverted to stale-only resync.request and verifyFolder using verifyUids=false, cd server && ./gradlew test --tests '*MailActionServiceTests' --tests '*MailHeaderSyncServiceTests' -> 99 tests, 11 failed incl. both repros; restored at HEAD 40869d4ca (code = d1c6b807c) -> 107/107 pass (incl. MailFolderResyncTests)
 - [x] Belt and braces: after every move/archive/delete (and spam) the server immediately resyncs the source folder,
       and for a move the target folder too, in the background (`MailFolderResync.request`, no wait in the request).
       That sync uses vanished detection that does not depend on a modseq the racing sync may have advanced, e.g. a
