@@ -25,3 +25,4 @@ should open where the entries are: the earliest timed entry visible, and as many
 ## Notes
 Planned 2026-11-22 from the owner's calendar usability request; the design decisions in the criteria were confirmed by the owner.
 - ASSUMPTION (2026-11-22 09:17+0100 by dell26/agent-1): 'Full hour before now' read as the current hour floored (15:40 -> 15:00), consistent with the entry rule (14:20 -> 14:00).
+- ASSUMPTION (2026-11-22 09:17+0100 by dell26/agent-1): A period is (view, first day, last day): pressing Today while today's period is already shown is not a period change and does not move the scroll position.
