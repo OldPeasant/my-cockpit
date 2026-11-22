@@ -28,8 +28,9 @@ task file to main by hand.
   - verified (2026-11-22 13:36+0100 by dell26/agent-1): python3 tests/test_new_task.py -> OK: creator HEAD = work commit on top of 'new: c' commit, tasks/c.md in history once, HEAD..origin/main empty, later pull/push of own work without conflict
 - [x] If the push fails (no access, offline), `new` says so clearly and how to retry; it never leaves a half-created task
   - verified (2026-11-22 13:36+0100 by dell26/agent-1): python3 tests/test_new_task.py -> OK: refused push (pre-receive hook), 5 lost races and offline remote each print PUSH FAILED/NOT created + retry command, no file in clone or on main, HEAD unchanged
-- [ ] AGENTS.md step 7 describes the new behaviour (no manual "commit, push" for the task file), kept in sync with
+- [x] AGENTS.md step 7 describes the new behaviour (no manual "commit, push" for the task file), kept in sync with
   `tfp/` as described for back-ports
+  - verified (2026-11-22 13:36+0100 by dell26/agent-1): read AGENTS.md step 7 (git diff e6dd4d5b1 HEAD -- AGENTS.md) -> describes --body, automatic commit+push to main, NOT created/retry; tfp/ clone absent here, back-port left to a human (recorded assumption)
 - [ ] Tests in `tests/` cover: new task visible on origin/main while the creator's work stays on `wip/<id>`; another
   clone can `claim` it right away; push race with another agent
 - [ ] `sh scripts/check.sh` passes
