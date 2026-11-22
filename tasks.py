@@ -10,7 +10,7 @@ Leases: with TASK_LEASE=<seconds> set (agents.py does this), a claim records
 lease has expired is "stale" and can be claimed again (a takeover), so a crashed
 machine cannot block the board. Claims without TASK_LEASE (humans) never expire.
 """
-import argparse, calendar, json, os, re, subprocess, sys, time
+import argparse, calendar, json, os, re, shlex, subprocess, sys, time
 from pathlib import Path
 
 if __name__ == "__main__" and os.name == "nt" and not sys.flags.utf8_mode:  # Windows: UTF-8 for files,
@@ -614,9 +614,41 @@ def cmd_new(a):
     if a.quality_exempt is not None and not a.quality_exempt.strip():
         sys.exit("--quality-exempt needs a reason (why this task produces no code to test and review)")
     exempt = f"quality: exempt\nquality_reason: {a.quality_exempt.strip()}\n" if a.quality_exempt else ""
-    write(p, f"---\ntitle: {a.title}\nstatus: todo\nowner:\ndeps: [{a.deps}]\n{touches}{exempt}prio: {a.prio}\n---\n"
-                 "## Goal\n\n## Acceptance criteria\n- [ ] \n\n## Notes\n")
-    print(f"created {p.relative_to(ROOT)}")
+    body = "## Goal\n\n## Acceptance criteria\n- [ ] \n\n## Notes\n"
+    if a.body:
+        try:
+            body = Path(a.body).read_text(encoding="utf-8").strip("\n") + "\n"
+        except OSError as e:
+            sys.exit(f"--body: cannot read {a.body}: {e.strerror}")
+    text = f"---\ntitle: {a.title}\nstatus: todo\nowner:\ndeps: [{a.deps}]\n{touches}{exempt}prio: {a.prio}\n---\n{body}"
+    rel, m = p.relative_to(ROOT).as_posix(), f"new: {a.id} by {me()}"
+    if not upstream():  # no remote (yet): a local commit of just the task file
+        write(p, text)
+        git("add", "--", rel)
+        git("commit", "-qm", m, "--", rel)
+        return print(f"created {rel}")
+    # Publish the task file to main at once, in its own commit (publish(): built on the upstream, never carrying
+    # the creator's unfinished work), so other agents can claim it now, not only when the creator's task is
+    # done. The creator's local commits are replayed on top of it, so the file is in its history exactly once.
+    retry = f"python tasks.py {' '.join(shlex.quote(x) for x in sys.argv[1:])}"
+    for _ in range(5):
+        try:
+            sync()
+        except SystemExit as e:  # offline, or a conflict in the creator's own work: nothing was created
+            sys.exit(f"{e.code}\nTask {a.id} was NOT created (could not catch up with main first). Retry with: {retry}")
+        if p.exists():
+            sys.exit(f"exists: {rel} (another agent may have just created it)")
+        write(p, text)
+        if publish([str(p)], m):  # on failure publish() removes the file again: nothing half-created
+            return print(f"created {rel} and pushed it to {upstream()} (claimable now)")
+        if refused():
+            break
+        if not lost_race():
+            time.sleep(RETRY_PAUSE)
+    why = ("the remote refuses the push (auth, permissions, a protected branch, a hook?)" if refused() else
+           f"{RACE_HINT} 5 times" if lost_race() else "the push failed (offline?)")
+    sys.exit(f"PUSH FAILED: {push_error[0] or 'unknown error'}\nTask {a.id} was NOT created: {why}. Nothing changed "
+             f"on the board or in your clone. Retry later with: {retry}")
 
 
 def cmd_list(a):
@@ -1420,6 +1452,8 @@ def main():
     s.add_argument("--deps", default=""); s.add_argument("--prio", type=int, default=2)
     s.add_argument("--touches", default="", help="files/folders it changes, e.g. frontend/src/app/state,docs/adr: "
                    "agents then avoid working on two such tasks at once")
+    s.add_argument("--body", metavar="FILE", help="the task's text (## Goal, ## Acceptance criteria, ## Notes) "
+                   "from FILE: the task is pushed to main at once, so write it before, not after")
     s.add_argument("--quality-exempt", metavar="REASON", help="classify a non-implementation task (no code to "
                    "test or review) as exempt from the review-evidence gate, with the reason; decided while planning")
     s.set_defaults(f=cmd_new)

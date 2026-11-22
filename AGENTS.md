@@ -21,8 +21,11 @@ Work is tracked in `tasks/*.md`, one file per task. Git is the only source of tr
    times out, see "Evidence". Then go to step 1.
 6. Stuck or abandoning? Commit your work, then `python tasks.py release <id> --note "<what is done, what blocks>"`.
    Your unfinished commits go to `wip/<id>` for the next owner, not to main.
-7. Missing task discovered? `python tasks.py new <id> "<title>" --deps a,b --touches <folders/files>`,
-   commit, push. `--touches` names what the task will change, so agents avoid working on two tasks that
+7. Missing task discovered? Write its Goal and Acceptance criteria into a file (e.g. `.tmp/<id>.md`), then
+   `python tasks.py new <id> "<title>" --deps a,b --touches <folders/files> --body .tmp/<id>.md`. `new` commits
+   and pushes the task file to main by itself, in its own commit (not with your work), so another agent can claim
+   it right away; your own commits are replayed on top of it. Don't commit or push it yourself. If it prints
+   `PUSH FAILED`, nothing was created: retry the command it prints later. `--touches` names what the task will change, so agents avoid working on two tasks that
    touch the same files at the same time; `python tasks.py check` warns about such tasks without a dep.
 8. If any command prints `REFUSED` or `LOST`, the task was taken over by someone else (your lease
    expired) or a human changed the plan (dropped it or put it on hold): stop working on it immediately.
