@@ -25,7 +25,8 @@ let a tap bring them into view.
   - verified (2026-11-22 10:41+0100 by dell26/agent-1): HiddenEntryChipsTest asserts content descriptions e.g. '2 events earlier, show' (en) and German descriptions (de-rDE-w360dp-h640dp) -> pass
 - [x] The visibility calculation is a pure function (entries, scroll offset, viewport height) with unit tests
   - verified (2026-11-22 10:41+0100 by dell26/agent-1): hiddenEntries(entries, scrollOffset, viewportHeight, margin) in HiddenEntries.kt is pure; HiddenEntriesTest 21 unit tests -> pass, JaCoCo 100% lines and branches of HiddenEntries.kt
-- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [x] New strings are in English and German (`res/values/` + `res/values-de/`)
+  - verified (2026-11-22 10:42+0100 by dell26/agent-1): strings in res/values/strings_calendar_agenda.xml and res/values-de/; HiddenEntryStringsTest en-rUS and de-rDE -> 2/2 pass; lintDebug clean
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
