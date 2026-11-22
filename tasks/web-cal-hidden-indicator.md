@@ -15,9 +15,10 @@ scrolls vertically, but nothing shows that entries are above or below the visibl
 task `and-cal-hidden-indicator`.
 
 ## Acceptance criteria
-- [ ] Day and week view: each day column shows a small chip at the top edge of the scroll area when n of its timed
+- [x] Day and week view: each day column shows a small chip at the top edge of the scroll area when n of its timed
   entries are entirely above the visible part, and at the bottom edge when entirely below; partly visible entries count
   as visible; no chip when n = 0; the chips update while scrolling, on resize and when the period or events change
+  - verified (2026-11-22 09:53+0100 by dell26/agent-2): cd web && npm run e2e -- --no-deps --project=chromium --grep 'hidden-entry chips' with reviews/web-cal-hidden-indicator/browser-check.spec.ts.txt copied to web/e2e/calendar-views/ (real stack via podman compose, chromium, 1280x800 and 360x640) -> 1 passed: day+week show per-column '▲ 2'/'▼ 1' for 01:00,02:00 (above) and 22:00 (below) entries; chips update after scroll and disappear after resize to 3000px height; calendar-view.spec.ts chip tests cover period/event changes
 - [ ] The chip shows arrow + count ("▲ 2" / "▼ 1"); where the column is wide enough it may say more ("2 earlier" /
   "1 later"); it does not cover the all-day row or the column headers, and fits a 360px-wide mobile viewport
 - [ ] Clicking a chip scrolls (smoothly) so the nearest hidden entry in that direction is in view
