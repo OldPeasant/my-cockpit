@@ -25,7 +25,8 @@ months like a pager, with the content following the finger.
 - [x] The neighbouring periods are preloaded (cache/network) so a swipe usually shows data immediately; if not loaded,
   the neighbour shows an empty grid that fills when its data arrives
   - verified (2026-11-22 11:50+0100 by dell26/agent-2): same run -> pass; CalendarViewModel preload test (neighbours loaded after a successful load, move seeds preloaded occurrences) and the late-data test (neighbour shows empty grid, fills when data arrives)
-- [ ] Arrows, Today and the range title keep working and stay in sync with the pager; the agenda view is unchanged
+- [x] Arrows, Today and the range title keep working and stay in sync with the pager; the agenda view is unchanged
+  - verified (2026-11-22 11:50+0100 by dell26/agent-2): same run -> pass; CalendarSwipeInteractionTest: arrows/Today/quick taps/mid-slide taps/drag interrupting a slide keep the pager, title and VM anchor in sync (incl. round-3 CR-1 snap-back fix); 'the agenda view has no pager'
 - [ ] Taps on entries, day headers and month days still work; the initial scroll position (`and-cal-initial-scroll`) and
   the hidden-entry chips (`and-cal-hidden-indicator`) work on the page that is settled on
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
