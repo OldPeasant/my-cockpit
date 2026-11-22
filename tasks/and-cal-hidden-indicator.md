@@ -25,3 +25,4 @@ let a tap bring them into view.
 
 ## Notes
 Planned 2026-11-22 from the owner's calendar usability request; the design decisions in the criteria were confirmed by the owner.
+- ASSUMPTION (2026-11-22 10:04+0100 by dell26/agent-1): Tapping a chip scrolls so the nearest hidden entry is fully in view: above -> its start at the top edge, below -> its end at the bottom edge (its start at the top if taller than the viewport); all non-all-day entries of the column count, including ones continuing from the previous day
