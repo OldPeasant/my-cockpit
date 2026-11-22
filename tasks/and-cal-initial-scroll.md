@@ -20,9 +20,10 @@ should open where the entries are: the earliest timed entry visible, and as many
   - verified (2026-11-22 09:39+0100 by dell26/agent-1): CalendarGridScrollTest 'entries continuing from an earlier day and all-day entries are ignored' + 'the week ignores an entry continuing from the previous week' -> passed
 - [x] No timed entry in the shown period: scroll to the current time (full hour before now) if today is shown, else 07:00
   - verified (2026-11-22 09:39+0100 by dell26/agent-1): CalendarGridScrollTest 'without a timed entry today opens at the current hour' (15:40 -> 15:00) and 'another day opens at seven' -> passed
-- [ ] The position is applied when the view opens and on every period change (arrows, Today, view switch, later swipe),
+- [x] The position is applied when the view opens and on every period change (arrows, Today, view switch, later swipe),
   once the period's first data (cache or network) is there; a background refresh/reload of the same period does not
   move the scroll position
+  - verified (2026-11-22 09:39+0100 by dell26/agent-1): CalendarGridScrollTest period-change test (waits for data, arrows, view switch, same-period refresh keeps user scroll), Today with cached data then network, StateRestorationTester restore test (fails with plain remember) -> passed; swipe navigation does not exist yet, same period key covers it
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
