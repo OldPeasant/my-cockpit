@@ -28,3 +28,4 @@ task `and-cal-hidden-indicator`.
 Planned 2026-11-22 from the owner's request to have the Android hidden-entry indicator in the web app too; design as
 confirmed for Android (per-column chips with counts, click scrolls to the nearest hidden entry).
 - ASSUMPTION (2026-11-22 09:27+0100 by dell26/agent-2): Chips count only timed calendar occurrences of visible calendars; task-overlay marks are not counted (they are markers, not entries). Column/scroller found via FullCalendar's [data-date] cells (classes are hashed in v7), entry pixel positions computed from wall-clock minutes x column height (grid is 00:00-24:00).
+- ASSUMPTION (2026-11-22 09:27+0100 by dell26/agent-2): Wide chip text ('2 earlier' / '2 früher') from 88px column width; narrower shows '▲ 2'. German label '2 frühere Termine, anzeigen'.
