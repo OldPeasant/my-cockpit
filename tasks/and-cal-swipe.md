@@ -24,7 +24,8 @@ months like a pager, with the content following the finger.
 - [ ] Arrows, Today and the range title keep working and stay in sync with the pager; the agenda view is unchanged
 - [ ] Taps on entries, day headers and month days still work; the initial scroll position (`and-cal-initial-scroll`) and
   the hidden-entry chips (`and-cal-hidden-indicator`) work on the page that is settled on
-- [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
+- [x] New strings are in English and German (`res/values/` + `res/values-de/`)
+  - verified (2026-11-22 10:55+0100 by dell26/agent-1): git diff --stat origin/main...HEAD -> no strings*.xml changed; the pager adds no user-visible text (arrows/title reuse existing EN+DE strings), so no new strings are needed
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
 ## Notes
