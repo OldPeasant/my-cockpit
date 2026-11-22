@@ -25,9 +25,10 @@ downloads them again from GitHub's shared runner IPs, which Maven Central rate-l
   - skipped (2026-11-22 13:03+0100 by dell26/agent-1): optional hardening not cheap: Robolectric 4.16 has no download-retry setting and a prefetch would hardcode internal android-all-instrumented versions; recorded as assumption
 - [ ] Actions flagged by GitHub as targeting deprecated Node.js 20 (`actions/upload-artifact@v4`,
   `android-actions/setup-android@v3`) are bumped to versions running on Node 24 where such versions exist
-- [ ] Evidence from GitHub Actions: after `done` pushes, a CI run on main shows the cache restored (log line of the cache
+- [~] Evidence from GitHub Actions: after `done` pushes, a CI run on main shows the cache restored (log line of the cache
   step) and the Android job green, e.g. `gh run view <id> --log | grep -i cache`; if no run is reachable from the agent,
   skip with the reason and record an assumption
+  - skipped (2026-11-22 13:03+0100 by dell26/agent-1): no GitHub Actions run reachable from the agent before done pushes (gh CLI not permitted here); a human checks the first main run's 'Restore Robolectric runtime jars' log line
 - [ ] `sh scripts/check.sh` passes; ARCHITECTURE.md mentions the cache where CI is described (one line)
 
 ## Notes
