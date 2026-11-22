@@ -1,10 +1,11 @@
 ---
 title: Web calendar: day/week grid opens scrolled to the earliest entry
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: [web-cal-hidden-indicator]
 touches: [web/src/app/features/calendar/views]
 prio: 2
+lease_until: 2026-11-22T09:58:48Z
 ---
 ## Goal
 The web calendar's day and week view (FullCalendar, `calendar-view.ts`) always opens scrolled to 07:00
