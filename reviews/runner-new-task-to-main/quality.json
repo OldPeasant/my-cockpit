@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "task": "runner-new-task-to-main",
+  "reviewed_revision": "6fd0ab02deb9753cec5c0a2f62a792f351ae00cb",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/runner-new-task-to-main/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/runner-new-task-to-main/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/runner-new-task-to-main/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "round 1: test_done_gate Touches test committed the task file by hand after new; now asserts it is already on main"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: new refuses to publish without --body when a remote exists"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: AGENTS.md step 7 covers catch-up failures and is wrapped"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "round 2: an explicitly passed empty --body file is not content-checked; requires a deliberate mistake, the criteria do not ask for content validation and the task is visible on the board for humans to fix"}
+  ],
+  "validation": [
+    {"command": "python3 tests/test_new_task.py", "result": "pass"},
+    {"command": "python3 tests/test_done_gate.py", "result": "pass"},
+    {"command": "python3 tests/test_push_race.py; python3 tests/test_push_failure.py; python3 tests/test_hung_session.py; python3 tests/test_overbudget.py", "result": "pass"},
+    {"command": "sh tests/test_publish.sh", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
