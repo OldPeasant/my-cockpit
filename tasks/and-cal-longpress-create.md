@@ -1,11 +1,11 @@
 ---
 title: Android calendar: long press in day/week/month creates an event there
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-cal-swipe]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/main/res/values/strings_calendar_agenda.xml,android/app/src/main/res/values-de/strings_calendar_agenda.xml,android/app/src/main/java/ch/sonensei/cockpit/calendar/edit,android/app/src/test/java/ch/sonensei/cockpit/calendar/edit]
 prio: 2
-lease_until: 2026-11-22T12:03:05Z
+lease_until: 
 ---
 ## Goal
 A new event can only be created with the + button (today, or the shown day). A long press (~0.5 s, the platform
@@ -39,3 +39,4 @@ long-press timeout) on a point of the calendar should create an event right ther
 Planned 2026-11-22 from the owner's calendar usability request; the design decisions in the criteria were confirmed by the owner.
 - ASSUMPTION (2026-11-22 11:56+0100 by dell26/agent-1): The day/week all-day strip is now always shown (min 28dp, 'All day' label) also without all-day entries, otherwise a long press there would be impossible on most days
 - ASSUMPTION (2026-11-22 11:56+0100 by dell26/agent-1): Grid long press: ghost shows when recognised, the editor opens on release (finger lifted); the accessibility 'New event' action on the grid uses the + button's default start (no pressed point), on the strip an all-day event
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 73s on 523c2d1ac; criteria verified 9/9
