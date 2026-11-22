@@ -1,0 +1,28 @@
+---
+title: Web calendar: day/week grid opens scrolled to the earliest entry
+status: todo
+owner:
+deps: [web-cal-hidden-indicator]
+touches: [web/src/app/features/calendar/views]
+prio: 2
+---
+## Goal
+The web calendar's day and week view (FullCalendar, `calendar-view.ts`) always opens scrolled to 07:00
+(`scrollTime: '07:00:00'`). It should open where the entries are: the earliest timed entry visible, and as many entries
+below it as fit. Same behaviour as the Android task `and-cal-initial-scroll`.
+
+## Acceptance criteria
+- [ ] Day and week view: the grid's top is the full hour at or before the earliest start of a timed entry in the shown
+  period (entry at 14:20 -> top at 14:00), clamped to the scrollable range (late entries near midnight scroll to the end)
+- [ ] Entries continuing from an earlier day (e.g. 22:00-02:00, shown from 00:00 on the next day), all-day entries and
+  overlay tasks without a time are ignored for this position
+- [ ] No timed entry in the shown period: scroll to the current time (full hour before now) if today is shown, else 07:00
+- [ ] The position is applied when the view opens and on every period change (prev/next, Today, view switch, jump to a
+  date/event), once the period's events are loaded; a background refresh/reload of the same period does not move the
+  scroll position
+- [ ] The position calculation is a pure function with unit tests
+- [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+
+## Notes
+Planned 2026-11-22 from the owner's request to have the Android initial-scroll behaviour in the web app too; design as
+confirmed for Android. Depends on `web-cal-hidden-indicator` only because both change `calendar-view.ts`.
