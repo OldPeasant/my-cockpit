@@ -60,7 +60,7 @@ jobs:
         run: sh scripts/check.sh server
       - name: Upload test reports
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-reports-server
           path: |
@@ -92,15 +92,48 @@ jobs:
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
         with:
           packages: platform-tools platforms;android-37.0 build-tools;36.0.0
       - uses: gradle/actions/setup-gradle@v5
+      # Robolectric downloads one android-all-instrumented jar per SDK level at test time, outside Gradle, from
+      # Maven Central, which rate-limits (HTTP 429) GitHub's shared runners. Cache them per Robolectric version.
+      # Restore and save are separate steps so the jars are saved even when the tests fail. The saved key ends in
+      # a hash of the file list, so a new jar (new SDK level) is saved under a new key, an unchanged set is not.
+      - name: Robolectric version
+        id: robolectric
+        run: echo "version=$(sed -n 's/^robolectric = "\(.*\)"$/\1/p' android/gradle/libs.versions.toml)" >> "$GITHUB_OUTPUT"
+      - name: Restore Robolectric runtime jars
+        id: robolectric-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ steps.robolectric.outputs.version }}-
+          restore-keys: |
+            robolectric-${{ steps.robolectric.outputs.version }}-
+            robolectric-
       - name: sh scripts/check.sh android
         run: sh scripts/check.sh android
+      - name: Robolectric cache key
+        id: robolectric-key
+        if: always()
+        run: |
+          dir=~/.m2/repository/org/robolectric
+          if [ -n "$(find "$dir" -type f -name '*.jar' 2>/dev/null | head -n 1)" ]; then
+            files=$(cd "$dir" && find . -type f -name '*.jar' | sort | sha256sum | cut -c1-16)
+            echo "key=robolectric-${{ steps.robolectric.outputs.version }}-$files" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Save Robolectric runtime jars
+        if: >-
+          always() && steps.robolectric-key.outputs.key != '' &&
+          steps.robolectric-key.outputs.key != steps.robolectric-cache.outputs.cache-matched-key
+        uses: actions/cache/save@v5
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: ${{ steps.robolectric-key.outputs.key }}
       - name: Upload test reports
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-reports-android
           path: |
@@ -124,7 +157,7 @@ jobs:
         run: ./gradlew integrationTest
       - name: Upload test reports
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-reports-integration
           path: |
@@ -148,7 +181,7 @@ jobs:
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
         with:
           packages: platform-tools platforms;android-37.0 build-tools;36.0.0
       - uses: gradle/actions/setup-gradle@v5
@@ -169,7 +202,7 @@ jobs:
           mkdir -p build/apk
           cp android/app/build/outputs/apk/release/app-release.apk build/apk/cockpit.apk
           cp android/app/build/outputs/apk/release/output-metadata.json build/apk/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cockpit-android
           path: build/apk/

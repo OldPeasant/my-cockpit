@@ -145,7 +145,8 @@ CI (`.github/workflows/ci.yml`, GitHub Actions, on pushes to `main` and on PRs; 
 `tasks/`, `reviews/` or `BOARD.md` are skipped, and runs on `main` are never cancelled) runs the fast check as
 parallel jobs, one per part (`sh scripts/check.sh tfp|server|web|android`, each with only the setup it needs;
 without arguments `check.sh` runs every part, as `.taskcheck` does), plus `./gradlew integrationTest` and
-`docker build .`, with the runtimes above. Lint it with
+`docker build .`, with the runtimes above. The Android job caches Robolectric's runtime jars
+(`~/.m2/repository/org/robolectric`, per Robolectric version, saved also when tests fail) against Maven Central 429s. Lint it with
 `docker run --rm -v "$PWD:/repo:Z" -w /repo docker.io/rhysd/actionlint:latest` after editing.
 
 Test temp files: every Gradle `Test` task of `server/` and `android/app` sets the test JVMs' `java.io.tmpdir` to
