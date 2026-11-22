@@ -4,6 +4,7 @@ import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -726,10 +727,16 @@ private fun PeriodPager(
     val pagerState = remember { PagerState(currentPage = shownPage) { Int.MAX_VALUE } }
     val latestShownPage by rememberUpdatedState(shownPage)
     val move by rememberUpdatedState(callbacks.move)
+    // Whether the user dragged the pager since its last scroll of its own: only then is a settled page a swipe. An
+    // arrow slide cut short by the next tap settles on the page in between, which must not move the view model back.
+    var dragged by remember { mutableStateOf(false) }
+    LaunchedEffect(pagerState) {
+        pagerState.interactionSource.interactions.collect { if (it is DragInteraction.Start) dragged = true }
+    }
     // Swiped to another page: the view model moves by as many periods.
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
-            if (page != latestShownPage) move(page - latestShownPage)
+            if (dragged && page != latestShownPage) move(page - latestShownPage)
         }
     }
     // Moved by the arrows, Today or a day header: the pager follows (sliding when it is the neighbour).
@@ -737,6 +744,7 @@ private fun PeriodPager(
         // A scroll still running (a snap back, a fling) ends first, then the pager catches up with the view model.
         snapshotFlow { pagerState.isScrollInProgress }.first { !it }
         if (pagerState.currentPage != shownPage) {
+            dragged = false
             if (kotlin.math.abs(pagerState.currentPage - shownPage) == 1) {
                 pagerState.animateScrollToPage(shownPage)
             } else {

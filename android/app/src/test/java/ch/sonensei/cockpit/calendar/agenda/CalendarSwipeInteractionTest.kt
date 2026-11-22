@@ -154,6 +154,21 @@ class CalendarSwipeInteractionTest {
     }
 
     @Test
+    fun `a second tap on the next arrow after the slide passed halfway ends two days later without a move back`() {
+        val holder = show(state(CalendarView.DAY))
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithTag(CalendarTags.NEXT).performClick()
+        // Well past the midpoint of the slide (the pager's current page is already the next day), but not finished.
+        composeRule.mainClock.advanceTimeBy(200)
+        composeRule.onNodeWithTag(CalendarTags.NEXT).performClick()
+        composeRule.mainClock.autoAdvance = true
+        composeRule.waitForIdle()
+        assertEquals(listOf(1, 1), moves)
+        assertEquals(today.plusDays(2), holder.value.anchor)
+        composeRule.onNodeWithTag(CalendarTags.page(today.plusDays(2))).assertIsDisplayed()
+    }
+
+    @Test
     fun `a mostly vertical diagonal gesture scrolls the grid and keeps the period`() {
         val holder = show(state(CalendarView.DAY))
         val before = gridScroll(today)
