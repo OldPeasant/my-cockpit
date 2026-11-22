@@ -27,8 +27,9 @@ months like a pager, with the content following the finger.
   - verified (2026-11-22 11:50+0100 by dell26/agent-2): same run -> pass; CalendarViewModel preload test (neighbours loaded after a successful load, move seeds preloaded occurrences) and the late-data test (neighbour shows empty grid, fills when data arrives)
 - [x] Arrows, Today and the range title keep working and stay in sync with the pager; the agenda view is unchanged
   - verified (2026-11-22 11:50+0100 by dell26/agent-2): same run -> pass; CalendarSwipeInteractionTest: arrows/Today/quick taps/mid-slide taps/drag interrupting a slide keep the pager, title and VM anchor in sync (incl. round-3 CR-1 snap-back fix); 'the agenda view has no pager'
-- [ ] Taps on entries, day headers and month days still work; the initial scroll position (`and-cal-initial-scroll`) and
+- [x] Taps on entries, day headers and month days still work; the initial scroll position (`and-cal-initial-scroll`) and
   the hidden-entry chips (`and-cal-hidden-indicator`) work on the page that is settled on
+  - verified (2026-11-22 11:51+0100 by dell26/agent-2): same run -> pass; CalendarSwipeInteractionTest tap tests (entries, day headers, month days), CalendarGridScrollTest (initial scroll on settled page), hidden-entry chip tests on the settled page
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-22 10:55+0100 by dell26/agent-1): git diff --stat origin/main...HEAD -> no strings*.xml changed; the pager adds no user-visible text (arrows/title reuse existing EN+DE strings), so no new strings are needed
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
