@@ -116,6 +116,36 @@ class CalendarViewModelTest {
         }
 
     @Test
+    fun `the day view preloads its neighbours and a move shows the preloaded day at once`() =
+        runTest(dispatcher) {
+            val tomorrow = today.plusDays(1)
+            coEvery { repo.occurrences(tomorrow, tomorrow.plusDays(1), zone) } returns CalendarResult.Ok(listOf(event(5, tomorrow)))
+            val vm = viewModel()
+            vm.refresh()
+            advanceUntilIdle()
+            vm.select(CalendarView.DAY)
+            advanceUntilIdle()
+            val neighbours = vm.uiState.value.neighbours
+            assertEquals(
+                listOf(today.minusDays(1) to today, tomorrow to tomorrow.plusDays(1)),
+                neighbours.map { it.from to it.to },
+            )
+            assertEquals(
+                listOf(event(5, tomorrow)),
+                vm.uiState.value
+                    .pageState(tomorrow)
+                    .occurrences,
+            )
+
+            vm.move(1)
+            // Before its own load answers, the new day shows what was preloaded.
+            assertEquals(listOf(event(5, tomorrow)), vm.uiState.value.occurrences)
+            advanceUntilIdle()
+            assertEquals(tomorrow, vm.uiState.value.anchor)
+            assertEquals(listOf(event(5, tomorrow)), vm.uiState.value.occurrences)
+        }
+
+    @Test
     fun `a failed load keeps the shown events and says why`() =
         runTest(dispatcher) {
             coEvery { repo.occurrences(today, today.plusDays(30), zone) } returns CalendarResult.Ok(listOf(event(1, today)))

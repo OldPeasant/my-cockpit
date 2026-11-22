@@ -198,7 +198,8 @@ class CalendarViewModelEdgeCasesTest {
 
             coVerify(exactly = 1) { repo.occurrences(today.plusDays(30), today.plusDays(60), zone) }
             coVerify(exactly = 0) { repo.occurrences(today.plusDays(60), today.plusDays(90), zone) }
-            coVerify(exactly = 0) { repo.occurrences(today.plusDays(1), any(), zone) }
+            // The day view preloads its next day, but asks for no agenda range after it.
+            coVerify(exactly = 0) { repo.occurrences(today.plusDays(1), today.plusDays(31), zone) }
         }
 
     @Test

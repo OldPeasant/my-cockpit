@@ -156,11 +156,11 @@ class CalendarGridScrollTest {
         val holder = show(state(occurrences = listOf(timed(1, "2026-10-21T14:00:00Z", "2026-10-21T15:00:00Z"))))
         assertEquals(14 * hourPx, scrolled())
 
-        // The next day: nothing loaded yet, the grid waits for the data.
+        // The next day: nothing loaded yet, its page waits at the default hour for the data.
         val next = today.plusDays(1)
         holder.value = state(anchor = next, loaded = false)
         composeRule.waitForIdle()
-        assertEquals(14 * hourPx, scrolled())
+        assertEquals(7 * hourPx, scrolled())
         holder.value = state(anchor = next, occurrences = listOf(timed(2, "2026-10-22T06:15:00Z", "2026-10-22T07:00:00Z")))
         composeRule.waitForIdle()
         assertEquals(6 * hourPx, scrolled())
@@ -227,10 +227,10 @@ class CalendarGridScrollTest {
         val holder = show(state(anchor = today.plusDays(3), occurrences = listOf(later)))
         assertEquals(16 * hourPx, scrolled())
 
-        // Today: the range is cleared until its data is there, the grid keeps its position meanwhile.
+        // Today: the range is cleared until its data is there, its page waits at the default hour meanwhile.
         holder.value = state(anchor = today, loaded = false)
         composeRule.waitForIdle()
-        assertEquals(16 * hourPx, scrolled())
+        assertEquals(7 * hourPx, scrolled())
 
         // The server cannot be reached: today's cached data (no timed entry) is shown, the grid goes to the current hour.
         val cachedAt = Instant.parse("2026-10-21T06:00:00Z")
