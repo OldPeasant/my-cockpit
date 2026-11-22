@@ -16,9 +16,10 @@ downloads them again from GitHub's shared runner IPs, which Maven Central rate-l
 `~/.m2/repository/org/robolectric`, so agents' checks pass.
 
 ## Acceptance criteria
-- [ ] The Android fast-check job restores and saves the Robolectric runtime jars (e.g. `actions/cache` for
+- [x] The Android fast-check job restores and saves the Robolectric runtime jars (e.g. `actions/cache` for
   `~/.m2/repository/org/robolectric`, key derived from the Robolectric version in
   `android/gradle/libs.versions.toml`, plus a restore key), so a run with a warm cache downloads none of them
+  - verified (2026-11-22 13:03+0100 by dell26/agent-1): ci.yml check-android: actions/cache/restore@v5 + actions/cache/save@v5 for ~/.m2/repository/org/robolectric, key robolectric-<libs.versions.toml robolectric version>-<sha of jar list>, restore-keys robolectric-<ver>- and robolectric-; podman actionlint -> clean; sh .tmp/keytest.sh (simulates key step) -> no key without jars, stable key for same jars, new key when a jar is added. Warm-cache run on GitHub not observable here (#5 skipped)
 - [ ] The cache is also saved when the tests fail (a partial download is not lost) and a cold cache still works as today
 - [~] Optional hardening if cheap: Robolectric download retries or a single prefetch step before the tests, so one
   429 does not fail many test classes; no change to the tests themselves
