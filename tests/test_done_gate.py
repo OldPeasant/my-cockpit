@@ -187,10 +187,9 @@ class Touches(Board):
         self.assertNotIn("touches", (self.w / "tasks" / "c.md").read_text())
 
     def test_next_prefers_tasks_away_from_work_in_progress(self):
-        self.tp("new", "c", "Task C", "--prio", "1")
-        sh(self.w, "git", "add", "-A")
-        sh(self.w, "git", "commit", "-qm", "c")
-        sh(self.w, "git", "push", "-q")
+        self.tp("new", "c", "Task C", "--prio", "1")  # commits and pushes the task file to main by itself
+        self.assertIn("title: Task C", self.remote("c"))
+        self.assertEqual(sh(self.w, "git", "status", "--porcelain", "--untracked-files=no").stdout, "")
         self.tp("claim", "b", who="agent-2")
         out = self.tp("next").stdout.splitlines()
         self.assertTrue(out[0].startswith("c "), out)

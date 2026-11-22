@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.dont_write_bytecode = True
 from test_overbudget import Board, field, sh  # noqa: E402
 
-from test_push_race import race_hook, races, refusing_hook  # noqa: E402
+from test_push_race import counted, gh006_hook, protected_race_hook, race_hook, races, refusing_hook  # noqa: E402
 
 BODY = "## Goal\nFix the clock.\n\n## Acceptance criteria\n- [ ] the spec passes on any date\n\n## Notes\n"
 
@@ -120,23 +120,135 @@ class NewTask(Board):
         self.assertIn("--body: cannot read", p.stderr)
         self.assertNotIn("tasks/c.md", self.remote_files())
 
+    def test_protected_branch_race_gh006_is_retried(self):
+        """GitHub answers a lost race on a protected branch with GH006 instead of `fetch first`: still a race."""
+        protected_race_hook(self.tmp, "new: c", 2)
+        out = self.tp("new", "c", "Fix clock", "--body", ".tmp/c.md", who="agent-1").stdout
+        self.assertIn("pushed it", out)
+        self.assertEqual(races(self.tmp), 2)
+        self.assertIn("tasks/c.md", self.remote_files())
+        self.assertEqual(sh(self.w, "git", "rev-list", "--count", "HEAD", "--", "tasks/c.md").stdout.strip(), "1")
+        self.assertEqual(sh(self.w, "git", "log", "--format=%s", "-1").stdout.strip(), "work on a")
+
+    def test_transient_gh006_without_race_is_retried(self):
+        gh006_hook(self.tmp, 1)
+        out = self.tp("new", "c", "Fix clock", "--body", ".tmp/c.md", who="agent-1").stdout
+        self.assertIn("pushed it", out)
+        self.assertEqual(counted(self.tmp, "refusals"), 1)
+        self.assertIn("tasks/c.md", self.remote_files())
+
+    def test_losing_every_race_creates_nothing(self):
+        race_hook(self.tmp, "new: c", 99)
+        p =self.tp("new", "c", "Fix clock", "--body", ".tmp/c.md", who="agent-1", check=False)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("PUSH FAILED", p.stderr)
+        self.assertIn("lost the push race 5 times", p.stderr)  # agents.py retries on RACE_HINT
+        self.assertIn("NOT created", p.stderr)
+        self.assertEqual(races(self.tmp), 5)
+        self.assertNotIn("tasks/c.md", self.remote_files())
+        self.assertFalse((self.w / "tasks" / "c.md").exists())
+        # the clone caught up with the other agents' pushes, but kept its own work and gained no task commit
+        self.assertEqual(sh(self.w, "git", "log", "--format=%s", "-1").stdout.strip(), "work on a")
+        self.assertEqual(sh(self.w, "git", "rev-list", "--count", "HEAD", "--", "tasks/c.md").stdout.strip(), "0")
+        self.assertEqual(sh(self.w, "git", "status", "--porcelain").stdout.count("tasks/"), 0)
+
+    def test_creators_uncommitted_and_staged_work_survives(self):
+        # main moved meanwhile, so `new` has to catch up (rebase) before publishing
+        other = self.other_clone()
+        (other / "other.txt").write_text("from agent-2\n")
+        sh(other, "git", "add", "other.txt")
+        sh(other, "git", "commit", "-qm", "other work")
+        sh(other, "git", "push", "-q", "origin", "main")
+        (self.w / "work-a.txt").write_text("unfinished\nmore, not committed\n")
+        (self.w / "staged.txt").write_text("staged, not committed\n")
+        sh(self.w, "git", "add", "staged.txt")
+        (self.w / "scratch.txt").write_text("untracked\n")
+        out = self.tp("new", "c", "Fix clock", "--body", ".tmp/c.md", who="agent-1").stdout
+        self.assertIn("pushed it", out)
+        files = self.remote_files()
+        self.assertIn("tasks/c.md", files)
+        for f in ("staged.txt", "scratch.txt", "work-a.txt"):
+            self.assertNotIn(f, files)
+        self.assertEqual((self.w / "work-a.txt").read_text(), "unfinished\nmore, not committed\n")
+        self.assertEqual((self.w / "staged.txt").read_text(), "staged, not committed\n")
+        self.assertEqual((self.w / "scratch.txt").read_text(), "untracked\n")
+        self.assertTrue((self.w / "other.txt").exists())
+        self.assertEqual(sh(self.w, "git", "log", "--format=%s", "-3").stdout.split("\n")[:3],
+                         ["work on a", "new: c by agent-1", "other work"])
+        status = sh(self.w, "git", "status", "--porcelain").stdout
+        self.assertNotIn("tasks/c.md", status)
+        self.assertIn("A  staged.txt", status.splitlines())  # still staged
+        self.assertIn(" M work-a.txt", status.splitlines())
+
+    def test_quality_exempt_goes_through_the_published_path(self):
+        out = self.tp("new", "c", "Plan the clock", "--quality-exempt", "planning only", "--body", ".tmp/c.md",
+                      who="agent-1").stdout
+        self.assertIn("pushed it", out)
+        text = self.remote_task("c")
+        self.assertEqual(field(text, "quality"), "exempt")
+        self.assertEqual(field(text, "quality_reason"), "planning only")
+        self.assertIn("the spec passes on any date", text)
+
+    def test_empty_quality_exempt_reason_creates_nothing(self):
+        p = self.tp("new", "c", "Plan", "--quality-exempt", "  ", who="agent-1", check=False)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("needs a reason", p.stderr)
+        self.assertNotIn("tasks/c.md", self.remote_files())
+        self.assertFalse((self.w / "tasks" / "c.md").exists())
+
+    def test_without_body_the_skeleton_is_published(self):
+        self.tp("new", "c", "Fix clock", "--prio", "1", who="agent-1")
+        text = self.remote_task("c")
+        self.assertEqual(field(text, "prio"), "1")
+        self.assertIn("## Goal", text)
+        self.assertIn("## Acceptance criteria", text)
+
+    def test_existing_local_file_is_refused_without_push(self):
+        (self.w / "tasks" / "c.md").write_text("hand-written\n")
+        before = sh(self.tmp, "git", "--git-dir=remote.git", "rev-parse", "main").stdout
+        p = self.tp("new", "c", "Fix clock", who="agent-1", check=False)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("exists", p.stderr)
+        self.assertEqual((self.w / "tasks" / "c.md").read_text(), "hand-written\n")
+        self.assertEqual(sh(self.tmp, "git", "--git-dir=remote.git", "rev-parse", "main").stdout, before)
+
+    def test_creator_finishes_its_task_without_conflict_on_the_new_file(self):
+        """Criterion 2: the creator's later `done`-style push of its work carries no second copy of the file."""
+        self.tp("new", "c", "Fix clock", "--body", ".tmp/c.md", who="agent-1")
+        sh(self.w, "git", "pull", "-q", "--rebase")
+        sh(self.w, "git", "push", "-q", "origin", "HEAD:main")
+        self.assertIn("work-a.txt", self.remote_files())
+        self.assertEqual(sh(self.tmp, "git", "--git-dir=remote.git", "rev-list", "--count", "main", "--",
+                            "tasks/c.md").stdout.strip(), "1")
+
 
 class NoRemote(unittest.TestCase):
-    def test_without_remote_it_is_a_local_commit(self):
+    def setUp(self):
         import tempfile
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, tmp, True)
         sh(tmp, "git", "init", "-q", "-b", "main", "w")
-        w = tmp / "w"
+        self.w = w = tmp / "w"
         sh(w, "git", "config", "user.email", "h@t")
         sh(w, "git", "config", "user.name", "human")
         shutil.copy(Path(__file__).resolve().parent.parent / "tasks.py", w / "tasks.py")
-        env = {k: v for k, v in os.environ.items() if not k.startswith("TASKS_") and k != "TASK_OWNER"}
-        env["TASKS_ROOT"] = str(w)
-        out = sh(w, sys.executable, "tasks.py", "new", "x", "Something", env=env).stdout
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith("TASKS_") and k != "TASK_OWNER"}
+        self.env["TASKS_ROOT"] = str(w)
+
+    def test_without_remote_it_is_a_local_commit(self):
+        w = self.w
+        out = sh(w, sys.executable, "tasks.py", "new", "x", "Something", env=self.env).stdout
         self.assertIn("created tasks/x.md", out)
         self.assertEqual(sh(w, "git", "log", "--name-only", "--format=%s").stdout.split(),
                          ["new:", "x", "by", "human", "tasks/x.md"])
+
+    def test_without_remote_other_staged_changes_stay_out_of_the_commit(self):
+        w = self.w
+        (w / "staged.txt").write_text("staged\n")
+        sh(w, "git", "add", "staged.txt")
+        sh(w, sys.executable, "tasks.py", "new", "x", "Something", env=self.env)
+        self.assertEqual(sh(w, "git", "show", "--name-only", "--format=", "HEAD").stdout.split(), ["tasks/x.md"])
+        self.assertIn("A  staged.txt", sh(w, "git", "status", "--porcelain").stdout.splitlines())
 
 
 if __name__ == "__main__":
