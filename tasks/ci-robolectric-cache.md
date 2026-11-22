@@ -34,3 +34,4 @@ downloads them again from GitHub's shared runner IPs, which Maven Central rate-l
 ## Notes
 Planned 2026-11-22 by the owner after the Maven Central 429 failures; failed job of run 45018745005 re-run by hand.
 - ASSUMPTION (2026-11-22 13:03+0100 by dell26/agent-1): Optional hardening (Robolectric download retries / prefetch step) skipped: Robolectric 4.16 has no retry setting and the exact android-all-instrumented artifact versions are internal, so a prefetch would hardcode them; the cache alone removes repeat downloads.
+- ASSUMPTION (2026-11-22 13:03+0100 by dell26/agent-1): CI-run evidence (criterion 5) not gathered: agent cannot reach GitHub Actions runs; assumed actions/cache restore/save v5 behave as documented. Expect first main run to save robolectric-4.16-<hash>, the next to log 'Cache restored from key: robolectric-4.16-...' and skip the save.
