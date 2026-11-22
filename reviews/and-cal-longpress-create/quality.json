@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "task": "and-cal-longpress-create",
+  "reviewed_revision": "9f5fb197b4043d49fdf21c5af654185e55eebd44",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-cal-longpress-create/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-cal-longpress-create/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-cal-longpress-create/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "TW-1", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "round 1: cancelled gesture after recognition created the event; fixed in b2cc45e05"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "round 1: grid/all-day custom actions not focusable by TalkBack"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: all-day ghost grew the strip"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: stale create callback captured by pointerInput; regression test added in 9f5fb197b"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: month day announced New event twice"},
+    {"id": "CR-1 (round 2)", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "string comment wording only; optional cleanup, not worth another review round"},
+    {"id": "CR-2 (round 2)", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "over-long KDoc line, ktlint passes; optional cleanup"}
+  ],
+  "validation": [
+    {"command": "android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
