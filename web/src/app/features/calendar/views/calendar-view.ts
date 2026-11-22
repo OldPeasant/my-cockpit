@@ -179,6 +179,7 @@ export default class CalendarView implements OnDestroy {
   protected readonly chips = signal<HiddenChip[]>([]);
   protected readonly chipHeight = CHIP_HEIGHT;
   private chipFrame?: number;
+  private chipTimeout?: ReturnType<typeof setTimeout>;
   private readonly onScrollOrResize = () => this.scheduleChips();
   private readonly resizeObserver =
     typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(this.onScrollOrResize);
@@ -192,9 +193,17 @@ export default class CalendarView implements OnDestroy {
     effect(() => {
       this.timedEntries();
       this.viewType();
+      // A new period in the same view: its columns need new chips even before its events load.
+      this.range();
       this.settings();
       // After FullCalendar has rendered the changed events.
-      untracked(() => setTimeout(() => this.scheduleChips()));
+      untracked(() => {
+        clearTimeout(this.chipTimeout);
+        this.chipTimeout = setTimeout(() => {
+          this.chipTimeout = undefined;
+          this.scheduleChips();
+        });
+      });
     });
     void this.calendars.load();
     if (!this.settings()) this.loadSettings();
@@ -219,6 +228,7 @@ export default class CalendarView implements OnDestroy {
     host.removeEventListener('scroll', this.onScrollOrResize, true);
     window.removeEventListener('resize', this.onScrollOrResize);
     this.resizeObserver?.disconnect();
+    clearTimeout(this.chipTimeout);
     if (this.chipFrame !== undefined) cancelAnimationFrame(this.chipFrame);
   }
 
@@ -228,10 +238,18 @@ export default class CalendarView implements OnDestroy {
     grid?.scroller.scrollTo({ top: chip.target, behavior: 'smooth' });
   }
 
+  /**
+   * The accessible name. It starts with the wide chip's visible text (WCAG 2.5.3), and has one
+   * message for a single entry and one for more (`$localize` in code has no ICU plurals).
+   */
   protected chipLabel(chip: HiddenChip): string {
-    return chip.direction === 'above'
-      ? $localize`:@@calendar.hidden.aboveLabel:${chip.count}:count: events earlier, show`
-      : $localize`:@@calendar.hidden.belowLabel:${chip.count}:count: events later, show`;
+    if (chip.direction === 'above')
+      return chip.count === 1
+        ? $localize`:@@calendar.hidden.aboveLabel.one:${chip.count}:count: earlier: show hidden event`
+        : $localize`:@@calendar.hidden.aboveLabel:${chip.count}:count: earlier: show hidden events`;
+    return chip.count === 1
+      ? $localize`:@@calendar.hidden.belowLabel.one:${chip.count}:count: later: show hidden event`
+      : $localize`:@@calendar.hidden.belowLabel:${chip.count}:count: later: show hidden events`;
   }
 
   protected chipText(chip: HiddenChip): string {
