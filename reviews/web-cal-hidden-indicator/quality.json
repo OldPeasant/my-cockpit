@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "task": "web-cal-hidden-indicator",
+  "reviewed_revision": "8fda4cf18564d5f990d5adabde454a660e91ba86",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-cal-hidden-indicator/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-cal-hidden-indicator/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/web-cal-hidden-indicator/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "chips recomputed on period change (effect reads range()); regression test; confirmed fixed in re-review"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "singular labels (.one message ids) in en + de; confirmed fixed in re-review"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "accessible name starts with the wide chip's visible text (WCAG 2.5.3); confirmed fixed in re-review"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "deferred chip timer cleared on restart and destroy; test; confirmed fixed in re-review"},
+    {"id": "TW-1", "source": "test-writer", "severity": "P3", "disposition": "out_of_scope",
+     "note": "4 failing tests in gtd/task-detail/task-reminders.spec.ts are outside this task's files (not touched by it)"},
+    {"id": "BROWSER-360", "source": "parent", "severity": "P2", "disposition": "invalid",
+     "note": "360px 'no chips' in the previous session was a scratch-test bug (two runs' calendars on the same date gave '4 earlier'); with separate dates the browser check passes at 360x640"}
+  ],
+  "validation": [
+    {"command": "cd web && npm run e2e -- --no-deps --project=chromium --grep 'hidden-entry chips' (reviews/web-cal-hidden-indicator/browser-check.spec.ts.txt, 1280x800 + 360x640)", "result": "pass (1 passed)"},
+    {"command": "npm --prefix web run coverage -- --include='src/app/features/calendar/views/**/*.spec.ts'", "result": "pass (136/136)"},
+    {"command": "sh scripts/check.sh", "result": "PENDING"}
+  ]
+}
