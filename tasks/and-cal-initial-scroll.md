@@ -1,10 +1,11 @@
 ---
 title: Android calendar: day/week grid opens scrolled to the earliest entry
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/main/res/values/strings_calendar_agenda.xml,android/app/src/main/res/values-de/strings_calendar_agenda.xml]
 prio: 2
+lease_until: 2026-11-22T08:34:53Z
 ---
 ## Goal
 The day and week grid (`CalendarScreen.kt` `TimeGrid`) always opens scrolled to 07:00 (`FIRST_VISIBLE_HOUR`). It
