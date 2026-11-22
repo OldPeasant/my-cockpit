@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-cal-swipe]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/main/res/values/strings_calendar_agenda.xml,android/app/src/main/res/values-de/strings_calendar_agenda.xml,android/app/src/main/java/ch/sonensei/cockpit/calendar/edit,android/app/src/test/java/ch/sonensei/cockpit/calendar/edit]
 prio: 2
-lease_until: 2026-11-22T11:27:43Z
+lease_until: 2026-11-22T11:32:45Z
 ---
 ## Goal
 A new event can only be created with the + button (today, or the shown day). A long press (~0.5 s, the platform
