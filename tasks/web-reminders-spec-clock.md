@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: []
 touches: [web/src/app/features/gtd/task-detail/task-reminders.spec.ts]
 prio: 2
-lease_until: 2026-11-22T09:27:25Z
+lease_until: 2026-11-22T09:30:29Z
 ---
 ## Goal
 `sh scripts/check.sh` (web part) fails on main for every agent: 4 tests in
