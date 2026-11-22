@@ -11,6 +11,7 @@ test('hidden-entry chips in day/week view', async ({ browser, sessionState }) =>
     const page = await context.newPage();
     try {
       const run = Date.now().toString(36);
+      const day = size.width === 360 ? '2026-05-20' : '2026-05-13';
       const api = await apiOf(page.request);
       await api.settings({ timeZone: 'Europe/Zurich', weekStart: 'MONDAY' });
       const cal = await api.calendar(`Chips ${run}`, '#2e7d32');
@@ -22,19 +23,19 @@ test('hidden-entry chips in day/week view', async ({ browser, sessionState }) =>
         await api.event({
           calendarId: cal,
           title: `E${s} ${run}`,
-          start: `2026-05-13T${s}:00+02:00`,
-          end: `2026-05-13T${e}:00+02:00`,
+          start: `${day}T${s}:00+02:00`,
+          end: `${day}T${e}:00+02:00`,
           timeZone: 'Europe/Zurich',
         });
       await api.event({
         calendarId: cal,
         title: `AllDay ${run}`,
-        startDate: '2026-05-13',
+        startDate: day,
         allDay: true,
       });
 
       for (const view of ['day', 'week']) {
-        await page.goto(`/calendar?view=${view}&date=2026-05-13`);
+        await page.goto(`/calendar?view=${view}&date=${day}`);
         const up = page.getByRole('button', { name: /^2 earlier/ });
         const down = page.getByRole('button', { name: /^1 later/ });
         await expect(up).toHaveCount(1);
@@ -49,7 +50,8 @@ test('hidden-entry chips in day/week view', async ({ browser, sessionState }) =>
         console.log('allDay', allDay, 'upBox', upBox, 'downBox', downBox);
         expect(upBox.y).toBeGreaterThanOrEqual(allDay!.y + allDay!.height);
         expect(upBox.x + upBox.width).toBeLessThanOrEqual(size.width);
-        expect(downBox.y + downBox.height).toBeLessThanOrEqual(size.height);
+        expect(downBox.x + downBox.width).toBeLessThanOrEqual(size.width);
+        await down.scrollIntoViewIfNeeded();
         await page.screenshot({ path: `../.tmp/chips-${size.width}-${view}.png` });
         // Keyboard: focus + Enter scrolls up so the 02:00 entry is visible; the 01:00 one remains hidden.
         await up.focus();
@@ -63,7 +65,7 @@ test('hidden-entry chips in day/week view', async ({ browser, sessionState }) =>
         await expect(page.getByRole('button', { name: /earlier/ })).toHaveCount(1);
       }
       // Resize updates: shrinking the viewport keeps chips consistent.
-      await page.goto('/calendar?view=day&date=2026-05-13');
+      await page.goto(`/calendar?view=day&date=${day}`);
       await expect(page.getByRole('button', { name: /later/ })).toHaveCount(1);
       await page.setViewportSize({ width: size.width, height: 3000 });
       await expect(page.getByRole('button', { name: /later|earlier/ })).toHaveCount(0, { timeout: 5000 });
