@@ -15,9 +15,10 @@ The previous/next period is only reachable with the ‹ › arrows. Swiping hori
 months like a pager, with the content following the finger.
 
 ## Acceptance criteria
-- [ ] Day view: swiping left/right shows the next/previous day; week view: next/previous week; month view: next/previous
+- [x] Day view: swiping left/right shows the next/previous day; week view: next/previous week; month view: next/previous
   month. The content follows the finger and the neighbouring period slides in (pager style, e.g. `HorizontalPager`
   over a virtual page range); after settling, the view model's period is the new one (same effect as `move(±1)`)
+  - verified (2026-11-22 11:50+0100 by dell26/agent-2): cd android && ./gradlew testDebugUnitTest (Robolectric Compose) on 8ab9974f1 -> pass; CalendarSwipeTest/CalendarSwipeInteractionTest swipe left/right in day/week/month change the period by +-1 (move(+-1)), the content follows the finger via HorizontalPager
 - [ ] Vertical scrolling of the day/week grid still works; a mostly vertical gesture does not change the period and a
   horizontal one does not scroll vertically
 - [ ] The neighbouring periods are preloaded (cache/network) so a swipe usually shows data immediately; if not loaded,
