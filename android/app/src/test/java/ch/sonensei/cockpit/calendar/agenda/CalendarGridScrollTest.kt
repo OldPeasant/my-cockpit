@@ -54,6 +54,7 @@ class CalendarGridScrollTest {
         anchor: LocalDate = today,
         occurrences: List<Occurrence> = emptyList(),
         loaded: Boolean = true,
+        cachedAt: Instant? = null,
     ): CalendarUiState {
         val base = CalendarUiState(view = view, today = today, anchor = anchor, firstDayOfWeek = DayOfWeek.MONDAY, zone = utc)
         val days = base.days
@@ -63,6 +64,7 @@ class CalendarGridScrollTest {
             to = days.last().plusDays(1),
             occurrences = occurrences,
             loaded = loaded,
+            cachedAt = cachedAt,
         )
     }
 
@@ -184,6 +186,39 @@ class CalendarGridScrollTest {
             state(view = CalendarView.WEEK, anchor = next, occurrences = listOf(timed(4, "2026-10-20T12:00:00Z", "2026-10-20T13:00:00Z")))
         composeRule.waitForIdle()
         assertEquals(12 * hourPx, scrolled())
+    }
+
+    @Test
+    fun `the week ignores an entry continuing from the previous week`() {
+        // Sunday 22:00 to Monday 03:00: the week (Monday 2026-10-19 to Sunday 2026-10-25) shows it from 00:00 on Monday.
+        val overnight = timed(1, "2026-10-18T22:00:00Z", "2026-10-19T03:00:00Z")
+        val thursday = timed(2, "2026-10-22T11:15:00Z", "2026-10-22T12:00:00Z")
+        show(state(view = CalendarView.WEEK, occurrences = listOf(overnight, thursday)))
+        assertEquals(11 * hourPx, scrolled())
+    }
+
+    @Test
+    fun `Today positions the grid on cached data, the network data of the same day then does not move it`() {
+        val later = timed(1, "2026-10-24T16:00:00Z", "2026-10-24T17:00:00Z")
+        val holder = show(state(anchor = today.plusDays(3), occurrences = listOf(later)))
+        assertEquals(16 * hourPx, scrolled())
+
+        // Today: the range is cleared until its data is there, the grid keeps its position meanwhile.
+        holder.value = state(anchor = today, loaded = false)
+        composeRule.waitForIdle()
+        assertEquals(16 * hourPx, scrolled())
+
+        // The server cannot be reached: today's cached data (no timed entry) is shown, the grid goes to the current hour.
+        val cachedAt = Instant.parse("2026-10-21T06:00:00Z")
+        holder.value = state(anchor = today, loaded = false, cachedAt = cachedAt, occurrences = listOf(allDay(2, today)))
+        composeRule.waitForIdle()
+        assertEquals(10 * hourPx, scrolled())
+
+        // A later load works and brings an earlier entry: it is a reload of the same day, the position stays.
+        val early = timed(3, "2026-10-21T05:00:00Z", "2026-10-21T06:00:00Z")
+        holder.value = state(anchor = today, occurrences = listOf(allDay(2, today), early))
+        composeRule.waitForIdle()
+        assertEquals(10 * hourPx, scrolled())
     }
 
     @Test
