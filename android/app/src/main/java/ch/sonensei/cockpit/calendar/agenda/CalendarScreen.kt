@@ -834,6 +834,9 @@ private fun TimeGrid(
     }
 }
 
+/** How far an entry revealed by a chip tap is kept from the edge, so the chip still drawn there does not cover it. */
+internal val HIDDEN_ENTRY_MARGIN = 32.dp
+
 /** The chips of one day column: "▲ n" at the top edge, "▼ n" at the bottom; a tap scrolls the nearest one into view. */
 @Composable
 private fun HiddenEntryChips(
@@ -844,8 +847,9 @@ private fun HiddenEntryChips(
     modifier: Modifier,
 ) {
     val pxPerMinute = with(LocalDensity.current) { HOUR_HEIGHT.toPx() } / 60f
-    val hidden by remember(entries, scroll, pxPerMinute) {
-        derivedStateOf { hiddenEntries(entries, scroll.value, scroll.viewportSize, pxPerMinute) }
+    val margin = with(LocalDensity.current) { HIDDEN_ENTRY_MARGIN.roundToPx() }
+    val hidden by remember(entries, scroll, pxPerMinute, margin) {
+        derivedStateOf { hiddenEntries(entries, scroll.value, scroll.viewportSize, pxPerMinute, margin) }
     }
     val scope = rememberCoroutineScope()
     Box(modifier.fillMaxHeight()) {

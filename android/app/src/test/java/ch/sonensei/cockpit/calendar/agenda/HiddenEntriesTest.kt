@@ -78,6 +78,32 @@ class HiddenEntriesTest {
     }
 
     @Test
+    fun `scroll targets keep the revealed entry a margin away from the edge`() {
+        val entries = listOf(entry(1, 60, 120), entry(2, 180, 240), entry(3, 900, 960), entry(4, 1000, 1060))
+        val hidden = hiddenEntries(entries, 300, 480, scale, margin = 30)
+        // Above: the nearest one starts 30 px below the top edge, clear of the chip there.
+        assertEquals(180 - 30, hidden.scrollToAbove)
+        // Below: the nearest one ends 30 px above the bottom edge.
+        assertEquals(960 + 30 - 480, hidden.scrollToBelow)
+        // The margin moves only the targets, not what is counted as hidden.
+        assertEquals(2, hidden.above)
+        assertEquals(2, hidden.below)
+    }
+
+    @Test
+    fun `a margin never makes a scroll target negative`() {
+        // Drawn 0:10 to 0:30: 10 px minus the 30 px margin is clamped to the start of the grid.
+        val hidden = hiddenEntries(listOf(entry(1, 10, 10)), 300, 480, scale, margin = 30)
+        assertEquals(0, hidden.scrollToAbove)
+    }
+
+    @Test
+    fun `an entry taller than the viewport is scrolled to a margin above its start`() {
+        val hidden = hiddenEntries(listOf(entry(1, 900, 1400)), 0, 300, scale, margin = 30)
+        assertEquals(900 - 30, hidden.scrollToBelow)
+    }
+
+    @Test
     fun `an entry taller than the viewport is scrolled to its start`() {
         val hidden = hiddenEntries(listOf(entry(1, 900, 1400)), 0, 300, scale)
         assertEquals(900, hidden.scrollToBelow)

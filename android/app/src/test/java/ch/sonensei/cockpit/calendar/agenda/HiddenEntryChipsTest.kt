@@ -66,6 +66,9 @@ class HiddenEntryChipsTest {
 
     private val hourPx: Int get() = with(composeRule.density) { 48.dp.roundToPx() }
 
+    // How far a revealed entry is kept from the edge (HIDDEN_ENTRY_MARGIN), clear of the chip drawn there.
+    private val marginPx: Int get() = with(composeRule.density) { HIDDEN_ENTRY_MARGIN.roundToPx() }
+
     private fun scrollRange() =
         composeRule
             .onNodeWithTag(CalendarTags.GRID_SCROLL)
@@ -93,19 +96,20 @@ class HiddenEntryChipsTest {
             .onNodeWithTag(CalendarTags.hiddenBelow(today))
             .assertContentDescriptionEquals("1 event later, show")
 
-        // Tap: the 22:00 entry comes into view, its end (23:00) at the bottom edge, one hour above the grid's end.
+        // Tap: the 22:00 entry comes into view, its end (23:00) a margin above the bottom edge, one hour above the
+        // grid's end.
         composeRule.onNodeWithTag(CalendarTags.hiddenBelow(today)).performClick()
         composeRule.waitForIdle()
-        assertEquals(scrollRange().maxValue().toInt() - hourPx, scrolled())
+        assertEquals(scrollRange().maxValue().toInt() - hourPx + marginPx, scrolled())
         assertTrue(!exists(CalendarTags.hiddenBelow(today)))
         composeRule
             .onNodeWithTag(CalendarTags.hiddenAbove(today))
             .assertContentDescriptionEquals("2 events earlier, show")
 
-        // Tap above: the nearest earlier one (4:00) starts at the top edge, the 2:00 one is still above.
+        // Tap above: the nearest earlier one (4:00) starts a margin below the top edge, the 2:00 one is still above.
         composeRule.onNodeWithTag(CalendarTags.hiddenAbove(today)).performClick()
         composeRule.waitForIdle()
-        assertEquals(4 * hourPx, scrolled())
+        assertEquals(4 * hourPx - marginPx, scrolled())
         composeRule
             .onNodeWithTag(CalendarTags.hiddenAbove(today))
             .assertContentDescriptionEquals("1 event earlier, show")
@@ -156,19 +160,20 @@ class HiddenEntryChipsTest {
             listOf(
                 timed(1, "2026-10-21T06:00:00Z", "2026-10-21T07:00:00Z"),
                 timed(2, "2026-10-22T21:00:00Z", "2026-10-22T22:00:00Z"),
-                timed(3, "2026-10-22T22:00:00Z", "2026-10-22T23:00:00Z"),
+                timed(3, "2026-10-22T23:00:00Z", "2026-10-23T00:00:00Z"),
             ),
         )
         assertEquals(6 * hourPx, scrolled())
         composeRule.onNodeWithTag(CalendarTags.hiddenBelow(thursday)).performClick()
         composeRule.waitForIdle()
-        // The 21:00 entry ends at the bottom edge; the 22:00 one starts there and so is still below.
+        // The 21:00 entry ends a margin (32dp, 40 minutes) above the bottom edge, clear of the chip; the 23:00 one
+        // is still below.
         val viewport =
             composeRule
                 .onNodeWithTag(CalendarTags.GRID_SCROLL)
                 .fetchSemanticsNode()
                 .size.height
-        assertEquals(22 * hourPx - viewport, scrolled())
+        assertEquals(22 * hourPx + marginPx - viewport, scrolled())
         composeRule
             .onNodeWithTag(CalendarTags.hiddenBelow(thursday))
             .assertContentDescriptionEquals("1 event later, show")

@@ -29,12 +29,14 @@ data class HiddenEntries(
  * @param scrollOffset how far the grid is scrolled, in px.
  * @param viewportHeight the height of the visible part of the grid, in px.
  * @param pxPerMinute the grid's scale (the hour height in px / 60).
+ * @param margin how far, in px, a revealed entry is kept from the edge, so it is not covered by the chip there.
  */
 fun hiddenEntries(
     entries: List<DayEntry>,
     scrollOffset: Int,
     viewportHeight: Int,
     pxPerMinute: Float,
+    margin: Int = 0,
 ): HiddenEntries {
     if (viewportHeight <= 0) return HiddenEntries.NONE
     val viewTop = scrollOffset.toFloat()
@@ -58,9 +60,12 @@ fun hiddenEntries(
             }
         }
     }
-    // Above: its start at the top edge. Below: its end at the bottom edge, or its start at the top edge if it is
-    // taller than the viewport.
-    val toAbove = nearestAbove?.let { (top, _) -> top.roundToInt() }
-    val toBelow = nearestBelow?.let { (top, bottom) -> min(top, bottom - viewportHeight).roundToInt() }
+    // Above: its start [margin] below the top edge. Below: its end [margin] above the bottom edge, or its start
+    // [margin] below the top edge if it does not fit. The margin keeps it clear of the chip drawn at that edge.
+    val toAbove = nearestAbove?.let { (top, _) -> (top - margin).roundToInt().coerceAtLeast(0) }
+    val toBelow =
+        nearestBelow?.let { (top, bottom) ->
+            min(top - margin, bottom + margin - viewportHeight).roundToInt().coerceAtLeast(0)
+        }
     return HiddenEntries(above, below, toAbove, toBelow)
 }
