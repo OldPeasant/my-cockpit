@@ -13,8 +13,9 @@ The web calendar's day and week view (FullCalendar, `calendar-view.ts`) always o
 below it as fit. Same behaviour as the Android task `and-cal-initial-scroll`.
 
 ## Acceptance criteria
-- [ ] Day and week view: the grid's top is the full hour at or before the earliest start of a timed entry in the shown
+- [x] Day and week view: the grid's top is the full hour at or before the earliest start of a timed entry in the shown
   period (entry at 14:20 -> top at 14:00), clamped to the scrollable range (late entries near midnight scroll to the end)
+  - verified (2026-11-22 10:50+0100 by dell26/agent-2): cd web && npx ng test --watch=false --include 'src/app/features/calendar/views/*.spec.ts' -> 162 passed; initial-scroll.spec (14:20->14:00, wall clock of zone, 22:45->23:00 clamped by FullCalendar scroll) + calendar-view.spec 'initial scroll position' (scrollToTime('14:00:00') spy). Unit/jsdom only: scroll effect in a real browser not observed
 - [ ] Entries continuing from an earlier day (e.g. 22:00-02:00, shown from 00:00 on the next day), all-day entries and
   overlay tasks without a time are ignored for this position
 - [ ] No timed entry in the shown period: scroll to the current time (full hour before now) if today is shown, else 07:00
