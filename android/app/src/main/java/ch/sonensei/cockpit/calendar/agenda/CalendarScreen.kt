@@ -104,7 +104,6 @@ import dagger.hilt.internal.GeneratedComponentManagerHolder
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.DayOfWeek
@@ -120,6 +119,7 @@ import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 import java.util.UUID
+import kotlin.math.abs
 
 /**
  * The Calendar screen. Its view model comes from Hilt, so outside a Hilt activity (the shell's navigation tests,
@@ -727,28 +727,34 @@ private fun PeriodPager(
     val pagerState = remember { PagerState(currentPage = shownPage) { Int.MAX_VALUE } }
     val latestShownPage by rememberUpdatedState(shownPage)
     val move by rememberUpdatedState(callbacks.move)
-    // Whether the user dragged the pager since its last scroll of its own: only then is a settled page a swipe. An
-    // arrow slide cut short by the next tap settles on the page in between, which must not move the view model back.
-    var dragged by remember { mutableStateOf(false) }
+    // The page under the finger when the user started dragging during the current scroll, null without a drag: only a
+    // drag that ends on another page is a swipe. An arrow slide cut short by the next tap, or a drag that catches a
+    // slide and snaps back, ends on a page that must not move the view model.
+    var dragFrom by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(pagerState) {
-        pagerState.interactionSource.interactions.collect { if (it is DragInteraction.Start) dragged = true }
-    }
-    // Swiped to another page: the view model moves by as many periods.
-    LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.settledPage }.collect { page ->
-            if (dragged && page != latestShownPage) move(page - latestShownPage)
+        pagerState.interactionSource.interactions.collect {
+            if (it is DragInteraction.Start && dragFrom == null) dragFrom = pagerState.currentPage
         }
     }
-    // Moved by the arrows, Today or a day header: the pager follows (sliding when it is the neighbour).
-    LaunchedEffect(shownPage) {
-        // A scroll still running (a snap back, a fling) ends first, then the pager catches up with the view model.
-        snapshotFlow { pagerState.isScrollInProgress }.first { !it }
-        if (pagerState.currentPage != shownPage) {
-            dragged = false
-            if (kotlin.math.abs(pagerState.currentPage - shownPage) == 1) {
-                pagerState.animateScrollToPage(shownPage)
-            } else {
-                pagerState.scrollToPage(shownPage)
+    // Decided whenever the pager comes to rest or the view model moves while it rests. A swipe moves the view model to
+    // the page it ended on. Otherwise the pager follows the view model (arrows, Today, a day header), sliding when it
+    // is the neighbour; this also brings back a pager whose follow slide a snapped-back drag interrupted. The follow
+    // scroll runs in its own job, so a drag that preempts it does not end this collector.
+    LaunchedEffect(pagerState) {
+        var wasScrolling = false
+        snapshotFlow { pagerState.isScrollInProgress to latestShownPage }.collect { (scrolling, target) ->
+            val scrollEnded = wasScrolling && !scrolling
+            wasScrolling = scrolling
+            if (scrolling) return@collect
+            val page = pagerState.currentPage
+            val from = dragFrom
+            dragFrom = null
+            if (scrollEnded && from != null && page != from && page != target) {
+                move(page - target)
+            } else if (page != target) {
+                launch {
+                    if (abs(page - target) == 1) pagerState.animateScrollToPage(target) else pagerState.scrollToPage(target)
+                }
             }
         }
     }

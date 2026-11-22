@@ -161,12 +161,46 @@ class CalendarSwipeInteractionTest {
         composeRule.onNodeWithTag(CalendarTags.NEXT).performClick()
         // Well past the midpoint of the slide (the pager's current page is already the next day), but not finished.
         composeRule.mainClock.advanceTimeBy(200)
+        val pager = composeRule.onNodeWithTag(CalendarTags.PAGER).fetchSemanticsNode().boundsInRoot
+        val nextLeft =
+            composeRule
+                .onNodeWithTag(CalendarTags.page(today.plusDays(1)))
+                .fetchSemanticsNode()
+                .boundsInRoot.left
+        assertTrue("the slide passed halfway", nextLeft < pager.center.x)
+        assertTrue("the slide is not finished", nextLeft > pager.left)
         composeRule.onNodeWithTag(CalendarTags.NEXT).performClick()
         composeRule.mainClock.autoAdvance = true
         composeRule.waitForIdle()
         assertEquals(listOf(1, 1), moves)
         assertEquals(today.plusDays(2), holder.value.anchor)
         composeRule.onNodeWithTag(CalendarTags.page(today.plusDays(2))).assertIsDisplayed()
+    }
+
+    @Test
+    fun `a drag that catches an arrow slide and snaps back keeps the pager and the view model in sync`() {
+        val holder = show(state(CalendarView.DAY))
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithTag(CalendarTags.NEXT).performClick()
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.mainClock.advanceTimeByFrame()
+        // The finger grabs the pager early in the slide, barely moves it and lets go: it snaps back to the start page.
+        composeRule.onNodeWithTag(CalendarTags.PAGER).performTouchInput {
+            down(center)
+            moveBy(Offset(width * 0.05f, 0f))
+            up()
+        }
+        composeRule.mainClock.autoAdvance = true
+        composeRule.waitForIdle()
+        assertEquals(1, moves.first())
+        val anchor = holder.value.anchor
+        assertEquals(today.plusDays(moves.sum().toLong()), anchor)
+        // Whatever page the pager rests on, the view model (title, arrows) is on the same one.
+        composeRule.onNodeWithTag(CalendarTags.page(anchor)).assertIsDisplayed()
+        val pager = composeRule.onNodeWithTag(CalendarTags.PAGER).fetchSemanticsNode().boundsInRoot
+        val shown = composeRule.onNodeWithTag(CalendarTags.page(anchor)).fetchSemanticsNode().boundsInRoot
+        assertEquals(pager.left, shown.left, 1f)
     }
 
     @Test
