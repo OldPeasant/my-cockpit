@@ -27,3 +27,4 @@ let a tap bring them into view.
 Planned 2026-11-22 from the owner's calendar usability request; the design decisions in the criteria were confirmed by the owner.
 - ASSUMPTION (2026-11-22 10:04+0100 by dell26/agent-1): Tapping a chip scrolls so the nearest hidden entry is fully in view: above -> its start at the top edge, below -> its end at the bottom edge (its start at the top if taller than the viewport); all non-all-day entries of the column count, including ones continuing from the previous day
 - ASSUMPTION (2026-11-22 10:04+0100 by dell26/agent-1): Week-view chips drop the 48dp minimum touch target (columns are ~44dp on a 360dp phone); day-view chips keep it
+- ASSUMPTION (2026-11-22 10:06+0100 by dell26/agent-1): Week-view chips drop the 48dp minimum touch target in both width and height (~24dp tall): a 48dp-tall tap area would cover more of the grid edge and the entries a tap reveals (review CR-2)
