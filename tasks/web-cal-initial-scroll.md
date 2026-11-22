@@ -21,9 +21,10 @@ below it as fit. Same behaviour as the Android task `and-cal-initial-scroll`.
   - verified (2026-11-22 10:50+0100 by dell26/agent-2): same run -> initial-scroll.spec 'ignores entries that started before the period'; calendar-view.spec all-day + overnight-from-previous-day week -> 07:00; overlay all-day tasks filtered by allDay===false
 - [x] No timed entry in the shown period: scroll to the current time (full hour before now) if today is shown, else 07:00
   - verified (2026-11-22 10:50+0100 by dell26/agent-2): same run -> initial-scroll.spec 'full hour before now when today is shown' (16:42->16:00) and '07:00 when today is not shown'
-- [ ] The position is applied when the view opens and on every period change (prev/next, Today, view switch, jump to a
+- [x] The position is applied when the view opens and on every period change (prev/next, Today, view switch, jump to a
   date/event), once the period's events are loaded; a background refresh/reload of the same period does not move the
   scroll position
+  - verified (2026-11-22 10:50+0100 by dell26/agent-2): same run -> calendar-view.spec: scroll only after the period's occurrences load, again on next week and on week->day switch, not on resync/change-event refresh, not on late answer for old period, never in month/agenda (jsdom: verifies scrollToTime is called with the right time, not the visual result in a browser)
 - [ ] The position calculation is a pure function with unit tests
 - [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
 
