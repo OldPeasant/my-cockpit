@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "web-cal-hidden-indicator",
-  "reviewed_revision": "8fda4cf18564d5f990d5adabde454a660e91ba86",
+  "reviewed_revision": "4a4f4d87360cc134a86df89c4a5bf56d464deee4",
   "helpers": {
     "test-writer": {"status": "completed", "report": "reviews/web-cal-hidden-indicator/tests.md"},
     "code-reviewer": {"status": "completed", "report": "reviews/web-cal-hidden-indicator/review.md"},
@@ -25,6 +25,7 @@
   "validation": [
     {"command": "cd web && npm run e2e -- --no-deps --project=chromium --grep 'hidden-entry chips' (reviews/web-cal-hidden-indicator/browser-check.spec.ts.txt, 1280x800 + 360x640)", "result": "pass (1 passed)"},
     {"command": "npm --prefix web run coverage -- --include='src/app/features/calendar/views/**/*.spec.ts'", "result": "pass (136/136)"},
-    {"command": "sh scripts/check.sh", "result": "PENDING"}
+    {"command": "npm run test:ci -- --include hidden-entries.spec.ts --include hidden-chips.spec.ts (web/)", "result": "pass (23/23)"},
+    {"command": "sh scripts/check.sh (2026-11-22 10:04, main 4a4f4d873)", "result": "FAIL outside this task: server part and web eslint pass; web unit tests 4951 passed, 5 failed: 4 in gtd/task-detail/task-reminders.spec.ts (date-dependent fixtures, tracked by web-reminders-spec-clock; also fail on main) and 1 calendar-view.spec.ts 'linked event all-day' load-count flake that passed in 2 reruns (spec alone 69/69, full web suite again: only the 4 task-reminders failures)"}
   ]
 }
