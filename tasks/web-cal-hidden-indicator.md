@@ -34,6 +34,7 @@ task `and-cal-hidden-indicator`.
 - [x] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
   - skipped (2026-11-22 10:07+0100 by dell26/agent-2): sh scripts/check.sh (main 4a4f4d873) fails only on 4 unrelated tests in gtd/task-detail/task-reminders.spec.ts (date-dependent fixtures, also on main; task web-reminders-spec-clock); server + web eslint pass, calendar views specs 136/136
   - verified (2026-11-22 10:31+0100 by dell26/agent-2): sh scripts/check.sh on HEAD ff4c02f1e (wip merged onto main f8cec873d, incl. web-reminders-spec-clock fix) -> all checks passed; web 198 files/4956 tests passed, server check + lint pass
+  - verified (2026-11-22 10:36+0100 by dell26/agent-2): sh scripts/check.sh on 3f2853bf9 (task merged with main 907999ac8, incl. fix of the linked-event refetch test) -> all checks passed; web 4956 tests passed; calendar-view/hidden-entries/hidden-chips specs 92/92
 
 ## Notes
 Planned 2026-11-22 from the owner's request to have the Android hidden-entry indicator in the web app too; design as
