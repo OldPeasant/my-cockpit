@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "task": "and-cal-swipe",
+  "reviewed_revision": "8ab9974f11aa5d2ac02c7dda72215c0f47663bcc",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/and-cal-swipe/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-cal-swipe/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/and-cal-swipe/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "R1-CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "restored pager page read as a swipe; PagerState made non-saveable (fixes.md round 1)"},
+    {"id": "R1-CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "pager did not follow a period change made while scrolling (fixes.md round 1)"},
+    {"id": "R1-CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "test gap for CR-1/CR-2 paths, covered by fixer and test-writer tests"},
+    {"id": "R1-TW-1", "source": "test-writer", "severity": "Medium", "disposition": "invalid",
+     "note": "preload drop scenario unreachable through the view model API (fixes.md round 1)"},
+    {"id": "R1-TW-2", "source": "test-writer", "severity": "Medium", "disposition": "fixed",
+     "note": "same defect as R1-CR-2"},
+    {"id": "R2-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "arrow slide interrupted after midpoint read as a swipe (fixes.md round 2)"},
+    {"id": "R2-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "preloaded page briefly marked not loaded when settled on: cosmetic flicker, task assumption 11:18"},
+    {"id": "R3-CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "drag catching an arrow slide and snapping back left pager and VM out of sync; fixed by the parent worker in fdb0e4fd1 (single rest collector, follow in child job), confirmed resolved by round-4 review"},
+    {"id": "R3-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "mid-slide test now asserts the slide passed halfway (fdb0e4fd1)"},
+    {"id": "R5-CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "carried from round-4 CR-1: snap-back regression test does not pin the snapped-back page; test-strength only, production logic reviewed correct (task assumption)"},
+    {"id": "R5-CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "past-target test cannot distinguish move(page-target) from move(page-from); test-strength only, production logic reviewed correct (task assumption)"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
