@@ -4,9 +4,12 @@ Date: 2026-11-22
 
 Task: web-cal-initial-scroll - Web calendar: day/week grid opens scrolled to the earliest entry
 
-Scope: committed changes of the task, `git diff ca2b754..02d35c3` (production code and tests under
-`web/src/app/features/calendar/views/`). Uncommitted working-tree changes to `calendar-view.spec.ts` and
-`occurrence-store.spec.ts` (apparently the test-writer's, in progress) were noted but not reviewed as part of the scope.
+Scope: re-review of the final revision. All committed changes of the task, `git diff 1805add58..e8bb80ed7`
+(production code and tests under `web/src/app/features/calendar/views/`, plus the review and test reports). The first
+review covered the production code in b6e721bd9 and 02d35c337. e8bb80ed7 adds tests only:
+`calendar-view.spec.ts` (`describe('initial scroll position')`, 10 tests) and `occurrence-store.spec.ts`
+(`describe('range')`, 6 tests). `git diff --stat 02d35c337 e8bb80ed7` shows no change to `calendar-view.ts`,
+`occurrence-store.ts` or `initial-scroll.ts`. The working tree was clean.
 
 Requirements:
 - `tasks/web-cal-initial-scroll.md` acceptance criteria 1-6 and recorded assumptions #1, #2
@@ -16,11 +19,11 @@ Requirements:
 
 Git range:
 - Branch: main
-- HEAD: 02d35c337287a1d6e4da801a49d25806981b57af
-- Base/start: ca2b75431396501e11b43e4d7c262a20cf2bdb3e
-- Commits reviewed: 4 (2 code commits b6e721bd9, 02d35c337; 2 `assume` task-file commits)
+- HEAD: e8bb80ed7f0497d34c89b241f3db962185fe4012
+- Base/start: 1805add582fb6cb6a38f522e04956cd02a4ad601 (`git merge-base HEAD origin/main`; the claim commit was ca2b75431)
+- Commits reviewed: 3 code/test commits (b6e721bd9, 02d35c337, e8bb80ed7), plus the task's `assume` commits
 
-Summary: 0 P0, 0 P1, 1 P2, 2 P3
+Summary: 0 P0, 0 P1, 0 P2, 2 P3 (CR-1 resolved)
 
 ## P0 Critical
 
@@ -32,61 +35,72 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Period-change vs. refresh wiring and the new `OccurrenceStore.range` signal have no committed tests**
+- [x] **CR-1 | Period-change vs. refresh wiring and the new `OccurrenceStore.range` signal have no committed tests**
+  (RESOLVED in e8bb80ed7)
     - File: `web/src/app/features/calendar/views/calendar-view.ts:225` (scroll effect), `:427` (`applyInitialScroll`),
       `web/src/app/features/calendar/views/occurrence-store.ts:46` (`range`)
     - Category: Tests
-    - Problem: The committed tests cover only the pure function `initialScrollTime`. The behavior criterion 4 is about
-      (scroll once the period's occurrences are loaded, not on a background refresh of the same period, not for a stale
-      answer of an older period, nothing in month/agenda view, hidden calendars ignored) lives in the effect plus
-      `scrollPending` plus `OccurrenceStore.range`, and none of it is tested in the reviewed commits. Criterion 6 asks for
-      unit tests of the new behavior.
-    - Why it matters: "a refresh must not move the scroll" is exactly the kind of rule that breaks silently, e.g. if
-      `accept` later sets a fresh range object or the effect starts reading `items`.
-    - Suggested fix: Commit component tests (spy on `getApi().scrollToTime`) for: first load scrolls; `refresh()` of the
-      same range does not; a new period scrolls only after its answer; a stale older answer does not trigger it;
-      month/agenda never scroll. Add store tests for `range`: undefined before the first answer, set together with
-      items, unchanged by a failed load or a slower stale answer. The uncommitted spec changes in the working tree seem to
-      cover these cases; review and commit them.
+    - Problem (original): Only the pure function `initialScrollTime` was tested. The criterion 4 wiring (effect,
+      `scrollPending`, `OccurrenceStore.range`) had no tests.
+    - Resolution: e8bb80ed7 adds component tests that spy on `getApi().scrollToTime`. They check that:
+      - the first load scrolls only after the occurrences arrive (`14:00:00` for 14:20);
+      - a resync and an SSE change of the same period do not scroll again;
+      - a new period does not scroll while the old period's items are still shown, and does scroll once its answer
+        arrives (with a DST case);
+      - a view switch to a different range (day) waits for its own answer;
+      - a past week with only all-day and continuing entries falls back to 07:00;
+      - hidden calendars are ignored;
+      - month and agenda views never scroll;
+      - a stale answer for an older period does not scroll;
+      - a pending scroll timeout does nothing after destroy.
+
+      The store tests cover `range`: it is undefined before the first answer and set together with the items, kept
+      while the next range loads, not overwritten by a slower stale answer, set when there are no calendars, kept when
+      a load fails, and unchanged by a refresh. The refresh tests really issue a new request:
+      `OccurrenceStore` subscribes to `resync$` and `events$`, so `callsOf(...).at(-1)` resolves a new call. I ran the
+      three specs, and they pass (see Notes). This covers the behavior part of criterion 6 and resolves the finding.
 
 ## P3 Low
 
-- [ ] **CR-2 | After a failed load of a new period, a later background refresh moves the scroll**
+- [ ] **CR-2 | After a failed load of a new period, a later background refresh moves the scroll** (OPEN, optional)
     - File: `web/src/app/features/calendar/views/calendar-view.ts:229-230`, `web/src/app/features/calendar/views/occurrence-store.ts:86`
     - Category: Correctness
     - Problem: If the request for a newly shown period fails, `scrollPending` stays `true`. The next successful answer
       for that period then applies the initial scroll, even when it comes from an SSE change notification or resync
-      rather than the user's Retry, and the user may have scrolled the grid in the meantime.
+      rather than the user's Retry. The user may have scrolled the grid in the meantime. e8bb80ed7 changes no
+      production code, so this is still the case, and no test covers it.
     - Why it matters: This is an edge case of criterion 4 ("a background refresh/reload of the same period does not move
       the scroll position"). It only happens after an error, so the impact is small.
-    - Suggested fix: Accept it and say so in an `assume` line ("the first successful answer for a period counts as its
-      load"), or clear `scrollPending` when the user scrolls the grid while it is pending.
+    - Suggested fix: Accept it and record that with `assume` ("the first successful answer for a period counts as its
+      load"), or clear `scrollPending` when the user scrolls the grid while a scroll is pending.
 
-- [ ] **CR-3 | The `HH:00:00` duration formatting is duplicated**
+- [ ] **CR-3 | The `HH:00:00` duration formatting is duplicated** (OPEN, optional)
     - File: `web/src/app/features/calendar/views/calendar-view.ts:144`, `web/src/app/features/calendar/views/initial-scroll.ts:38`
     - Category: Quality
-    - Problem: `calendar-view.ts` rebuilds the `HH:00:00` string from `DEFAULT_SCROLL_HOUR` with the same `padStart`
+    - Problem: `calendar-view.ts` builds the `HH:00:00` string from `DEFAULT_SCROLL_HOUR` with the same `padStart`
       expression that `initial-scroll.ts` uses internally.
     - Why it matters: The format has to stay the same in two places. This is minor.
-    - Suggested fix: Export a constant such as `DEFAULT_SCROLL_TIME = '07:00:00'`, or a small `hourDuration(h)` helper,
-      from `initial-scroll.ts` and use it in both places.
+    - Suggested fix: Export `DEFAULT_SCROLL_TIME = '07:00:00'`, or a small `hourDuration(h)` helper, from
+      `initial-scroll.ts` and use it in both places.
 
 ## Notes (not findings)
 
-- Criteria 1-3 are implemented correctly in `initialScrollTime`. It floors to the full hour and uses the zone's wall
-  clock. It ignores starts outside the shown days, which covers entries that continue from an earlier day. All-day
-  entries and overlay tasks without a time are filtered out by the caller (`allDay === false`, string start). The hour
-  is clamped to 0-23, and FullCalendar clamps the rest. Without an entry it falls back to the current hour when today is
-  shown, else 07:00. The unit tests in `initial-scroll.spec.ts` cover all of these, including a zone/UTC date boundary.
-- Out-of-order answers are handled: `OccurrenceStore.range` is set only together with accepted items, so the newest
-  request wins, and the effect waits until the loaded range equals the shown range. A refresh sets the same range object,
-  so the effect does not fire again, and `scrollPending` is already cleared anyway.
-- None of the criteria has recorded evidence yet. Criterion 4 is about real scrolling. jsdom component tests
-  only show that `scrollToTime` is called, not that the call wins over FullCalendar's own `scrollTime` reset, which the
-  code works around with `setTimeout`. The evidence for criterion 4 should say this, or name a browser check that
-  was actually run.
+- Criteria 1-3 are implemented correctly in `initialScrollTime`, and `initial-scroll.spec.ts` covers them (unchanged
+  since the first review). The new component tests also check them end to end (14:20 -> 14:00, the 07:00 fallback,
+  all-day and continuing entries ignored).
+- Focused run by the reviewer:
+  `cd web && npx ng test --watch=false --include .../calendar-view.spec.ts --include .../occurrence-store.spec.ts --include .../initial-scroll.spec.ts`
+  -> 3 files, 106 tests passed. I did not run the full `npm run check` or `sh scripts/check.sh` (the second half of
+  criterion 6). The parent worker must run them and record the result.
+- `python tasks.py verify web-cal-initial-scroll` still shows all six criteria as unverified. Criterion 4 is about
+  real scrolling. The jsdom tests only show that `scrollToTime` is called with the right value after the
+  `setTimeout`, not that the call wins over FullCalendar's own `scrollTime` reset in a browser. The evidence for
+  criterion 4 should say this, or name a browser check that was actually run.
+- The test "Today" on the same period (no new range, so no scroll, per `and-cal-initial-scroll` assumption #2) is not
+  tested on its own. It follows from the same range-equality path that the refresh test checks, so it is not a
+  finding.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 needs the component and store tests committed. CR-2 and
-CR-3 are optional.
+No material issues found. CR-1 is resolved by e8bb80ed7. CR-2 and CR-3 are optional P3 items and do not block
+completion. The parent worker still needs to record the criterion evidence and run the full checks.
