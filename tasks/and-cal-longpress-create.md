@@ -28,3 +28,4 @@ long-press timeout) on a point of the calendar should create an event right ther
 
 ## Notes
 Planned 2026-11-22 from the owner's calendar usability request; the design decisions in the criteria were confirmed by the owner.
+- ASSUMPTION (2026-11-22 11:56+0100 by dell26/agent-1): The day/week all-day strip is now always shown (min 28dp, 'All day' label) also without all-day entries, otherwise a long press there would be impossible on most days
