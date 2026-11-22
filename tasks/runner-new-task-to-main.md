@@ -19,9 +19,10 @@ main, nobody claimed it, and the agent released three times and finally put its 
 task file to main by hand.
 
 ## Acceptance criteria
-- [ ] `tasks.py new` publishes the new task file to main by itself (its own commit containing only that task file,
+- [x] `tasks.py new` publishes the new task file to main by itself (its own commit containing only that task file,
   pushed with the same retry/race handling as `claim`/`release`), independent of the creating agent's work branch;
   without a remote it commits it to the local main as today
+  - verified (2026-11-22 13:36+0100 by dell26/agent-1): python3 tests/test_new_task.py (local bare remote) -> 18 OK: new pushes its own commit with only tasks/c.md to origin/main (test_new_task_reaches_main_alone_while_work_stays_on_wip), refusal/race handling via publish(); NoRemote tests: local commit of only the task file
 - [ ] The creating agent's clone ends up with the task file once, without a later merge conflict when its own task
   is done (e.g. the file is committed on main and the work branch rebases onto it)
 - [ ] If the push fails (no access, offline), `new` says so clearly and how to retry; it never leaves a half-created task
