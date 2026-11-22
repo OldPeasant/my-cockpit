@@ -24,7 +24,8 @@ task `and-cal-hidden-indicator`.
   - verified (2026-11-22 09:53+0100 by dell26/agent-2): same browser check (npm run e2e --grep 'hidden-entry chips', 1280x800 + 360x640) -> passed: wide columns '▲ 2 earlier'/'▼ 1 later', 360px week '▲ 2'/'▼ 1'; chip top >= all-day row bottom (no header/all-day overlap), chip right edge <= viewport width 360
 - [x] Clicking a chip scrolls (smoothly) so the nearest hidden entry in that direction is in view
   - verified (2026-11-22 09:53+0100 by dell26/agent-2): same browser check (npm run e2e --grep 'hidden-entry chips', 1280x800 + 360x640) -> passed: clicking '1 earlier' scrolls (scrollTo behavior smooth) until no earlier chip remains; clicking '1 later' brings the 22:00 entry into view; unit tests (hidden-entries.spec.ts scrollTargetFor) check the nearest-entry target
-- [ ] Chips are buttons with an accessible label (e.g. "2 events earlier, show") and work with the keyboard
+- [x] Chips are buttons with an accessible label (e.g. "2 events earlier, show") and work with the keyboard
+  - verified (2026-11-22 09:53+0100 by dell26/agent-2): same browser check (npm run e2e --grep 'hidden-entry chips', 1280x800 + 360x640) -> passed: chips found via getByRole('button', name '2 earlier: show hidden events'); focus + Enter scrolls to the nearest hidden entry (chip becomes '1 earlier')
 - [ ] The visibility calculation is a pure function (entry positions, scroll offset, viewport height) with unit tests
 - [ ] New texts are in English and German (`messages.xlf` + `messages.de.xlf`)
 - [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
