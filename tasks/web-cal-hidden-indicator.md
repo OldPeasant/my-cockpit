@@ -1,10 +1,11 @@
 ---
 title: Web calendar: day/week show which entries are scrolled out of view
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: []
 touches: [web/src/app/features/calendar/views,web/src/locale/messages.xlf,web/src/locale/messages.de.xlf]
 prio: 2
+lease_until: 2026-11-22T08:44:06Z
 ---
 ## Goal
 In the web calendar's day and week view (FullCalendar `timeGridDay`/`timeGridWeek`, `calendar-view.ts`) the time grid
