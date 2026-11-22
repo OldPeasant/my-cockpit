@@ -23,8 +23,9 @@ downloads them again from GitHub's shared runner IPs, which Maven Central rate-l
 - [~] Optional hardening if cheap: Robolectric download retries or a single prefetch step before the tests, so one
   429 does not fail many test classes; no change to the tests themselves
   - skipped (2026-11-22 13:03+0100 by dell26/agent-1): optional hardening not cheap: Robolectric 4.16 has no download-retry setting and a prefetch would hardcode internal android-all-instrumented versions; recorded as assumption
-- [ ] Actions flagged by GitHub as targeting deprecated Node.js 20 (`actions/upload-artifact@v4`,
+- [x] Actions flagged by GitHub as targeting deprecated Node.js 20 (`actions/upload-artifact@v4`,
   `android-actions/setup-android@v3`) are bumped to versions running on Node 24 where such versions exist
+  - verified (2026-11-22 13:03+0100 by dell26/agent-1): upload-artifact@v4->@v7 (4 uses), setup-android@v3->@v4 (2 uses); curl raw action.yml of upload-artifact@v7, setup-android@v4, cache/restore@v5, cache/save@v5 -> all 'using: node24'; actionlint -> clean
 - [~] Evidence from GitHub Actions: after `done` pushes, a CI run on main shows the cache restored (log line of the cache
   step) and the Android job green, e.g. `gh run view <id> --log | grep -i cache`; if no run is reachable from the agent,
   skip with the reason and record an assumption
