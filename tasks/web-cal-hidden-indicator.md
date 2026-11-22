@@ -22,7 +22,8 @@ task `and-cal-hidden-indicator`.
 - [x] The chip shows arrow + count ("▲ 2" / "▼ 1"); where the column is wide enough it may say more ("2 earlier" /
   "1 later"); it does not cover the all-day row or the column headers, and fits a 360px-wide mobile viewport
   - verified (2026-11-22 09:53+0100 by dell26/agent-2): same browser check (npm run e2e --grep 'hidden-entry chips', 1280x800 + 360x640) -> passed: wide columns '▲ 2 earlier'/'▼ 1 later', 360px week '▲ 2'/'▼ 1'; chip top >= all-day row bottom (no header/all-day overlap), chip right edge <= viewport width 360
-- [ ] Clicking a chip scrolls (smoothly) so the nearest hidden entry in that direction is in view
+- [x] Clicking a chip scrolls (smoothly) so the nearest hidden entry in that direction is in view
+  - verified (2026-11-22 09:53+0100 by dell26/agent-2): same browser check (npm run e2e --grep 'hidden-entry chips', 1280x800 + 360x640) -> passed: clicking '1 earlier' scrolls (scrollTo behavior smooth) until no earlier chip remains; clicking '1 later' brings the 22:00 entry into view; unit tests (hidden-entries.spec.ts scrollTargetFor) check the nearest-entry target
 - [ ] Chips are buttons with an accessible label (e.g. "2 events earlier, show") and work with the keyboard
 - [ ] The visibility calculation is a pure function (entry positions, scroll offset, viewport height) with unit tests
 - [ ] New texts are in English and German (`messages.xlf` + `messages.de.xlf`)
