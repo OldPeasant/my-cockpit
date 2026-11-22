@@ -1,11 +1,11 @@
 ---
 title: Android calendar: swipe horizontally to the previous/next day, week, month
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [and-cal-hidden-indicator]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/main/res/values/strings_calendar_agenda.xml,android/app/src/main/res/values-de/strings_calendar_agenda.xml]
 prio: 2
-lease_until: 2026-11-22T11:08:56Z
+lease_until: 
 releases: 0
 extended: 
 hold: 
@@ -45,3 +45,4 @@ Planned 2026-11-22 from the owner's calendar usability request; the design decis
 - ASSUMPTION (2026-11-22 11:18+0100 by dell26/agent-1): Round-2 review CR-2 (P3) accepted, not fixed: after settling on a preloaded neighbour the VM briefly marks it not-loaded until its own load answers, so an empty day's 'no events' text can flicker and the grid is re-positioned once; cosmetic, no data shown wrong
 - release by dell26/agent-1: Round 2: fixer fixed review CR-1 (programmatic settle read as swipe; dragged flag in PeriodPager, regression test); CR-2 P3 flicker accepted (assumption recorded). Round 3 reports committed (4184a38c1): tests.md (new drag-interrupts-arrow test, agenda tests 302/302 pass, coverage recorded), review.md finds new P2 CR-1: tap Next, drag mid-slide, snap back to start page -> pager shows N while VM/title on N+1 (follow effect not restarted after interrupted programmatic scroll; CalendarScreen.kt ~743) and P3 CR-2 (test at CalendarSwipeInteractionTest.kt:162 does not assert slide passed halfway). Left: fixer for round-3 CR-1 (+ CR-2 optional) with a Compose test, round-4 test-writer + code-reviewer, verify criteria 1-5,7 (full ktlintCheck testDebugUnitTest lintDebug passed on 1397f2568 via cd android && ./gradlew), scripts/check.sh, quality.json (findings per round: R1 CR-1/2/3 fixed, TW-1 invalid, TW-2=CR-2 fixed; R2 CR-1 fixed, CR-2 accepted; R3 ...), done.
 - ASSUMPTION (2026-11-22 11:51+0100 by dell26/agent-2): Round-4/5 review P3 test-strength findings (snap-back test does not pin the snapped-back page; past-target test cannot distinguish move(page-target) from move(page-from)) accepted, not fixed: production logic reviewed correct, a fix would only tighten tests and force another review round
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 73s on 99d037fd8; criteria verified 7/7
