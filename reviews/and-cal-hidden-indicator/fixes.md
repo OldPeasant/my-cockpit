@@ -66,3 +66,74 @@ Remaining unresolved findings:
 ## Final status
 
 All validated findings fixed and validation passed.
+
+---
+
+# Fix Report, Round 2
+
+Date: 2026-11-22
+
+Task: and-cal-hidden-indicator - Android calendar: day/week show which entries are scrolled out of view
+
+Scope: current task; findings CR-4 and CR-3 (both P3) from the round-2 review in reviews/and-cal-hidden-indicator/review.md. Task base ca0b99ad5.
+
+## Fixed findings
+
+### CR-4 — With a viewport no taller than the margin, a chip tap no longer reveals the entry
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/HiddenEntries.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/HiddenEntriesTest.kt`
+
+Problem:
+Confirmed in the code: the margin was applied no matter how tall the viewport was. If the viewport was no taller than the margin, the "below" target left the viewport's bottom edge at or above the entry's start. The entry stayed hidden and every tap scrolled to the same offset.
+
+Fix:
+`hiddenEntries` now uses `val inset = min(margin, viewportHeight / 4)` instead of `margin` in both targets. The KDoc for `margin` says so. Because the inset is always smaller than the viewport, the revealed entry overlaps the viewport after the scroll in both directions. The `coerceAtLeast(0)` clamp cannot undo this: a negative "below" target would need the entry to end above the viewport height, which cannot happen for an entry below the viewport. Normal viewports are unchanged because a quarter of the grid viewport is far more than 32dp. The existing unit and Compose margin tests still pass unchanged.
+
+Regression test: `a viewport smaller than the margin still reveals the nearest entry` uses a 20 px viewport with a 30 px margin. It checks that the "below" target is the entry's start minus 5 px and that the entry is no longer counted below at that offset. It also checks that the "above" target is the start minus 5 px and that nothing is hidden at that offset.
+
+Validation:
+- `cd android && ./gradlew ktlintFormat ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*'` — Pass
+
+### CR-3 — Which label each view uses is not asserted
+
+Files changed:
+- `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarScreen.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/HiddenEntryChipsTest.kt`
+
+Problem:
+Confirmed: no test checked whether `HiddenChip` picks the long label (day) or the short one (week).
+
+Fix:
+First I tried the suggested `onNodeWithText("▼ 1 later", useUnmergedTree = true)` (day) and `onNodeWithText("▼ 2", useUnmergedTree = true)` (week). Both failed with "could not find any node". The chip's `Text` has `clearAndSetSemantics { }`, which removes its text from the semantics tree, unmerged tree included. That is intended: TalkBack reads the chip's content description instead. Exposing the text again would change what TalkBack announces, so I left the semantics alone. Instead, the existing `when` that picks the label moved unchanged out of the private `HiddenChip` into a new `internal` composable, `hiddenChipLabel(count, earlier, week)`. `HiddenChip` calls it. The behavior is the same.
+
+New Compose test `the day view chips say earlier and later, the week chips show the arrow and the number only` in HiddenEntryChipsTest runs on w360dp in English. It asserts "▼ 1 later" and "▲ 2 earlier" for the day view and "▼ 2" and "▲ 1" for the week. If the day/week branch is swapped, this test fails. I removed the two failed `onNodeWithText` attempts.
+
+Validation:
+- `cd android && ./gradlew ktlintFormat ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*'` — Pass
+
+## Not fixed
+
+None.
+
+## Validation summary
+
+Focused tests:
+- `cd android && ./gradlew ktlintFormat ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*'` — Pass: BUILD SUCCESSFUL, 31 test classes, 271 tests, 0 failures, 0 errors, 0 skipped (counted from the JUnit XML results). ktlintFormat made no further changes.
+
+Full test suite:
+- Not run by the fixer (the full Android suite and scripts/check.sh are left to the parent worker)
+
+Lint/type-check/build:
+- ktlintCheck — Pass. Kotlin compile of main and unit-test sources passed as part of the run. Android lint (lintDebug) was not run.
+
+`.taskcheck`:
+- Not run (left to the parent worker)
+
+Remaining unresolved findings:
+0
+
+## Final status
+
+All validated findings fixed and validation passed.

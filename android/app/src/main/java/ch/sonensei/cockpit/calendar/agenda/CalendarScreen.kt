@@ -880,14 +880,7 @@ private fun HiddenChip(
     modifier: Modifier,
     onClick: () -> Unit,
 ) {
-    val arrow = if (earlier) "▲" else "▼"
-    // The narrow week columns get the arrow and the number only; the day view says more.
-    val label =
-        when {
-            week -> stringResource(R.string.calendar_hidden_short, arrow, count)
-            earlier -> pluralStringResource(R.plurals.calendar_hidden_earlier, count, arrow, count)
-            else -> pluralStringResource(R.plurals.calendar_hidden_later, count, arrow, count)
-        }
+    val label = hiddenChipLabel(count, earlier, week)
     val description =
         if (earlier) {
             pluralStringResource(R.plurals.calendar_hidden_earlier_description, count, count)
@@ -897,6 +890,22 @@ private fun HiddenChip(
     // The narrow week columns (about 44dp on a 360dp phone) cannot hold the 48dp minimum touch target.
     CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides if (week) Dp.Unspecified else 48.dp) {
         HiddenChipSurface(label, description, week, modifier, onClick)
+    }
+}
+
+/** The visible text of a chip (TalkBack reads the description instead). */
+@Composable
+internal fun hiddenChipLabel(
+    count: Int,
+    earlier: Boolean,
+    week: Boolean,
+): String {
+    val arrow = if (earlier) "▲" else "▼"
+    // The narrow week columns get the arrow and the number only; the day view says more.
+    return when {
+        week -> stringResource(R.string.calendar_hidden_short, arrow, count)
+        earlier -> pluralStringResource(R.plurals.calendar_hidden_earlier, count, arrow, count)
+        else -> pluralStringResource(R.plurals.calendar_hidden_later, count, arrow, count)
     }
 }
 

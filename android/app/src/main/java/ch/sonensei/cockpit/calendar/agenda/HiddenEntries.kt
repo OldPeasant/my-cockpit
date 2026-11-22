@@ -30,6 +30,7 @@ data class HiddenEntries(
  * @param viewportHeight the height of the visible part of the grid, in px.
  * @param pxPerMinute the grid's scale (the hour height in px / 60).
  * @param margin how far, in px, a revealed entry is kept from the edge, so it is not covered by the chip there.
+ *   At most a quarter of [viewportHeight] is used, so a tiny viewport still reveals the entry.
  */
 fun hiddenEntries(
     entries: List<DayEntry>,
@@ -60,12 +61,13 @@ fun hiddenEntries(
             }
         }
     }
-    // Above: its start [margin] below the top edge. Below: its end [margin] above the bottom edge, or its start
-    // [margin] below the top edge if it does not fit. The margin keeps it clear of the chip drawn at that edge.
-    val toAbove = nearestAbove?.let { (top, _) -> (top - margin).roundToInt().coerceAtLeast(0) }
+    val inset = min(margin, viewportHeight / 4)
+    // Above: its start [inset] below the top edge. Below: its end [inset] above the bottom edge, or its start
+    // [inset] below the top edge if it does not fit. The inset keeps it clear of the chip drawn at that edge.
+    val toAbove = nearestAbove?.let { (top, _) -> (top - inset).roundToInt().coerceAtLeast(0) }
     val toBelow =
         nearestBelow?.let { (top, bottom) ->
-            min(top - margin, bottom + margin - viewportHeight).roundToInt().coerceAtLeast(0)
+            min(top - inset, bottom + inset - viewportHeight).roundToInt().coerceAtLeast(0)
         }
     return HiddenEntries(above, below, toAbove, toBelow)
 }

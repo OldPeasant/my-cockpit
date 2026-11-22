@@ -104,6 +104,17 @@ class HiddenEntriesTest {
     }
 
     @Test
+    fun `a viewport smaller than the margin still reveals the nearest entry`() {
+        // A 20 px viewport and a 30 px margin: only a quarter of the viewport (5 px) is kept as the inset.
+        val below = hiddenEntries(listOf(entry(1, 600, 660)), 0, 20, scale, margin = 30)
+        assertEquals(600 - 5, below.scrollToBelow)
+        assertEquals(0, hiddenEntries(listOf(entry(1, 600, 660)), below.scrollToBelow!!, 20, scale, margin = 30).below)
+        val above = hiddenEntries(listOf(entry(1, 100, 160)), 600, 20, scale, margin = 30)
+        assertEquals(100 - 5, above.scrollToAbove)
+        assertEquals(HiddenEntries.NONE, hiddenEntries(listOf(entry(1, 100, 160)), above.scrollToAbove!!, 20, scale, margin = 30))
+    }
+
+    @Test
     fun `an entry taller than the viewport is scrolled to its start`() {
         val hidden = hiddenEntries(listOf(entry(1, 900, 1400)), 0, 300, scale)
         assertEquals(900, hidden.scrollToBelow)

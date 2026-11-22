@@ -219,6 +219,21 @@ class HiddenEntryChipsTest {
     }
 
     @Test
+    fun `the day view chips say earlier and later, the week chips show the arrow and the number only`() {
+        // The chip text is hidden from semantics (clearAndSetSemantics, TalkBack reads the description), so the
+        // label HiddenChip shows is checked through the function that picks it.
+        val labels = mutableListOf<String>()
+        composeRule.setContent {
+            labels += hiddenChipLabel(count = 1, earlier = false, week = false)
+            labels += hiddenChipLabel(count = 2, earlier = true, week = false)
+            labels += hiddenChipLabel(count = 2, earlier = false, week = true)
+            labels += hiddenChipLabel(count = 1, earlier = true, week = true)
+        }
+        composeRule.waitForIdle()
+        assertEquals(listOf("▼ 1 later", "▲ 2 earlier", "▼ 2", "▲ 1"), labels.take(4))
+    }
+
+    @Test
     @Config(qualifiers = "de-rDE-w360dp-h640dp")
     fun `the chips are described in German`() {
         show(
