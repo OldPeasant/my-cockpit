@@ -28,7 +28,8 @@ long-press timeout) on a point of the calendar should create an event right ther
   - verified (2026-11-22 12:31+0100 by dell26/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug at code rev 9f5fb197b -> BUILD OK, 5715 tests 0 failures; EventEditorViewModelCreateAtTest create tests incl. 'create without a start time or all day behaves like the add button' -> pass
 - [x] The grid, all-day strip and month days offer a matching accessibility custom action ("New event")
   - verified (2026-11-22 12:31+0100 by dell26/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug at code rev 9f5fb197b -> BUILD OK, 5715 tests 0 failures; 'each day column of the week grid offers New event...', 'the all-day strip offers New event...', screen-reader focus test, 'a month day offers New event once...' -> pass
-- [ ] Long press and horizontal swipe (`and-cal-swipe`) / vertical scroll don't interfere
+- [x] Long press and horizontal swipe (`and-cal-swipe`) / vertical scroll don't interfere
+  - verified (2026-11-22 12:31+0100 by dell26/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug at code rev 9f5fb197b -> BUILD OK, 5715 tests 0 failures; vertical scroll / touch slop / pinch / horizontal swipe grid+month / tap tests in CalendarLongPressInteractionTest plus CalendarSwipeInteractionTest -> pass
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
