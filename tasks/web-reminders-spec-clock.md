@@ -1,11 +1,11 @@
 ---
 title: Web: task-reminders.spec.ts fails since 2026-11-21 (fixture dates in the past, real clock)
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: []
 touches: [web/src/app/features/gtd/task-detail/task-reminders.spec.ts]
 prio: 2
-lease_until: 2026-11-22T09:40:30Z
+lease_until: 
 ---
 ## Goal
 `sh scripts/check.sh` (web part) fails on main for every agent: 4 tests in
@@ -24,3 +24,4 @@ while an add after a failed load is pending".
 ## Notes
 Found 2026-11-22 by agent-1 while finishing and-cal-initial-scroll (reproduced alone with
 `npm --prefix web run test:ci -- --include src/app/features/gtd/task-detail/task-reminders.spec.ts`).
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 91s on 74c1c9986; criteria verified 2/2
