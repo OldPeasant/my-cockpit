@@ -37,4 +37,21 @@
     <string name="calendar_tasks_failed">The tasks could not be loaded.</string>
     <string name="calendar_tasks_retry">Load the tasks again</string>
     <string name="calendar_more_options">More options</string>
+    <string name="calendar_hidden_short">%1$s %2$d</string>
+    <plurals name="calendar_hidden_earlier">
+        <item quantity="one">%1$s %2$d earlier</item>
+        <item quantity="other">%1$s %2$d earlier</item>
+    </plurals>
+    <plurals name="calendar_hidden_later">
+        <item quantity="one">%1$s %2$d later</item>
+        <item quantity="other">%1$s %2$d later</item>
+    </plurals>
+    <plurals name="calendar_hidden_earlier_description">
+        <item quantity="one">%1$d event earlier, show</item>
+        <item quantity="other">%1$d events earlier, show</item>
+    </plurals>
+    <plurals name="calendar_hidden_later_description">
+        <item quantity="one">%1$d event later, show</item>
+        <item quantity="other">%1$d events later, show</item>
+    </plurals>
 </resources>

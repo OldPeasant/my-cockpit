@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.calendar.agenda
 
 import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -44,6 +45,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -52,10 +54,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -69,8 +74,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -93,6 +100,7 @@ import dagger.hilt.internal.GeneratedComponentManagerHolder
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -205,6 +213,10 @@ internal object CalendarTags {
     fun day(date: LocalDate) = "calendar-day:$date"
 
     fun allDay(date: LocalDate) = "calendar-all-day:$date"
+
+    fun hiddenAbove(date: LocalDate) = "calendar-hidden-above:$date"
+
+    fun hiddenBelow(date: LocalDate) = "calendar-hidden-below:$date"
 
     fun calendar(id: UUID) = "calendar-calendar:$id"
 
@@ -805,12 +817,114 @@ private fun TimeGrid(
                 positionedFor = period
             }
         }
-        Row(Modifier.fillMaxSize().verticalScroll(scroll).testTag(CalendarTags.GRID_SCROLL)) {
-            HourLabels(locale)
-            days.forEach { day ->
-                DayColumn(day, entriesByDay[day].orEmpty(), state, week, callbacks.open, Modifier.weight(1f))
+        Box(Modifier.fillMaxSize()) {
+            Row(Modifier.fillMaxSize().verticalScroll(scroll).testTag(CalendarTags.GRID_SCROLL)) {
+                HourLabels(locale)
+                days.forEach { day ->
+                    DayColumn(day, entriesByDay[day].orEmpty(), state, week, callbacks.open, Modifier.weight(1f))
+                }
+            }
+            // Over the scrolling grid: per day column, how many entries are scrolled out of view above and below.
+            Row(Modifier.matchParentSize().padding(start = GUTTER)) {
+                days.forEach { day ->
+                    HiddenEntryChips(day, entriesByDay[day].orEmpty(), scroll, week, Modifier.weight(1f))
+                }
             }
         }
+    }
+}
+
+/** The chips of one day column: "▲ n" at the top edge, "▼ n" at the bottom; a tap scrolls the nearest one into view. */
+@Composable
+private fun HiddenEntryChips(
+    day: LocalDate,
+    entries: List<DayEntry>,
+    scroll: ScrollState,
+    week: Boolean,
+    modifier: Modifier,
+) {
+    val pxPerMinute = with(LocalDensity.current) { HOUR_HEIGHT.toPx() } / 60f
+    val hidden by remember(entries, scroll, pxPerMinute) {
+        derivedStateOf { hiddenEntries(entries, scroll.value, scroll.viewportSize, pxPerMinute) }
+    }
+    val scope = rememberCoroutineScope()
+    Box(modifier.fillMaxHeight()) {
+        hidden.scrollToAbove?.let { target ->
+            HiddenChip(
+                count = hidden.above,
+                earlier = true,
+                week = week,
+                modifier = Modifier.align(Alignment.TopCenter).testTag(CalendarTags.hiddenAbove(day)),
+            ) { scope.launch { scroll.animateScrollTo(target) } }
+        }
+        hidden.scrollToBelow?.let { target ->
+            HiddenChip(
+                count = hidden.below,
+                earlier = false,
+                week = week,
+                modifier = Modifier.align(Alignment.BottomCenter).testTag(CalendarTags.hiddenBelow(day)),
+            ) { scope.launch { scroll.animateScrollTo(target) } }
+        }
+    }
+}
+
+@Composable
+private fun HiddenChip(
+    count: Int,
+    earlier: Boolean,
+    week: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    val arrow = if (earlier) "▲" else "▼"
+    // The narrow week columns get the arrow and the number only; the day view says more.
+    val label =
+        when {
+            week -> stringResource(R.string.calendar_hidden_short, arrow, count)
+            earlier -> pluralStringResource(R.plurals.calendar_hidden_earlier, count, arrow, count)
+            else -> pluralStringResource(R.plurals.calendar_hidden_later, count, arrow, count)
+        }
+    val description =
+        if (earlier) {
+            pluralStringResource(R.plurals.calendar_hidden_earlier_description, count, count)
+        } else {
+            pluralStringResource(R.plurals.calendar_hidden_later_description, count, count)
+        }
+    // The narrow week columns (about 44dp on a 360dp phone) cannot hold the 48dp minimum touch target.
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides if (week) Dp.Unspecified else 48.dp) {
+        HiddenChipSurface(label, description, week, modifier, onClick)
+    }
+}
+
+@Composable
+private fun HiddenChipSurface(
+    label: String,
+    description: String,
+    week: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shadowElevation = 2.dp,
+        modifier =
+            modifier
+                .padding(2.dp)
+                .semantics(mergeDescendants = true) {
+                    contentDescription = description
+                    role = Role.Button
+                },
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.padding(horizontal = if (week) 4.dp else 8.dp, vertical = 2.dp).clearAndSetSemantics { },
+        )
     }
 }
 
