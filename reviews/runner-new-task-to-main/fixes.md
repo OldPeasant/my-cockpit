@@ -30,7 +30,7 @@ Files changed:
 - `tests/test_done_gate.py`
 
 Problem:
-When a remote exists and `--body` is not given, `new` pushed the empty skeleton (empty Goal, one empty criterion, status todo) to main, where an idle agent could claim it at once.
+When a remote exists and `--body` is not given, `new` pushed the empty skeleton (empty Goal, one empty criterion, open and unclaimed) to main, where an idle agent could claim it at once.
 
 Fix:
 `cmd_new` now exits before anything is written or pushed when `upstream()` exists and `--body` is missing. The message says the task was NOT created, explains that `new` publishes to main at once, and tells the user to write Goal, Acceptance criteria and Notes into a file (e.g. `.tmp/ID.md`) and run the command again with `--body`. The no-remote path still writes the empty template as a local commit. The exists check still comes first. The hints in the `drop` guard (done task) and in `accept`/`reject` output now say `python tasks.py new ... --body FILE`.

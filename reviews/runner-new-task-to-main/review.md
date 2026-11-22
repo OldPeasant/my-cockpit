@@ -59,7 +59,7 @@ None.
 - [ ] **CR-1 | `--body` with an empty file, or a file without acceptance criteria, still publishes a claimable task with no content**
     - File: `tasks.py:621-625`
     - Category: Correctness
-    - Problem: the CR-2 guard checks only that `--body` was given. When the file is empty or whitespace only, `body` becomes "\n". When the file has no `## Acceptance criteria` section, or only empty boxes, the task is pushed to main with `status: todo` and no criteria. `criteria()` (tasks.py:144) ignores empty boxes, so such a task can also pass `done` with nothing to verify.
+    - Problem: the CR-2 guard checks only that `--body` was given. When the file is empty or whitespace only, `body` becomes "\n". When the file has no `## Acceptance criteria` section, or only empty boxes, the task is pushed to main as an open, unclaimed task with no criteria. `criteria()` (tasks.py:144) ignores empty boxes, so such a task can also pass `done` with nothing to verify.
     - Why it matters: this is the same failure the CR-2 fix was meant to prevent (a contentless task that is claimable at once). It can now happen only through an explicit mistake, for example a wrong or empty scratch file, which is why it is low priority.
     - Suggested fix: when publishing, refuse a body for which `criteria(body)` is empty, with the same "NOT created" style of message. Add one test for it.
 
