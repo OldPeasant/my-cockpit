@@ -1,10 +1,11 @@
 ---
 title: Web: task-reminders.spec.ts fails since 2026-11-21 (fixture dates in the past, real clock)
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-2
 deps: []
 touches: [web/src/app/features/gtd/task-detail/task-reminders.spec.ts]
 prio: 2
+lease_until: 2026-11-22T09:27:25Z
 ---
 ## Goal
 `sh scripts/check.sh` (web part) fails on main for every agent: 4 tests in
