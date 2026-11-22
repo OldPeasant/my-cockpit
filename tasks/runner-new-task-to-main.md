@@ -1,10 +1,11 @@
 ---
 title: Runner: a task created while working on another reaches main right away
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [web-reminders-spec-clock]
 touches: [agents.py,tasks.py,tests,AGENTS.md]
 prio: 1
+lease_until: 2026-11-22T12:29:14Z
 ---
 ## Goal
 AGENTS.md step 7 says "Missing task discovered? `tasks.py new ...`, commit, push", but agents never push to main: their
