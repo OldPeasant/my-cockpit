@@ -174,6 +174,7 @@ data class CalendarCallbacks(
 internal object CalendarTags {
     const val AGENDA = "calendar-agenda"
     const val TIME_GRID = "calendar-time-grid"
+    const val GRID_SCROLL = "calendar-grid-scroll"
     const val EMPTY = "calendar-empty"
     const val MORE = "calendar-more"
     const val MESSAGE = "calendar-message"
@@ -716,8 +717,38 @@ private fun RangeHeader(
 private val HOUR_HEIGHT = 48.dp
 private val GUTTER = 48.dp
 
-/** The hour the grid is scrolled to when it opens, so a working day is in view. */
+/** The hour the grid is scrolled to when the shown days have no timed entry and today is not among them. */
 private const val FIRST_VISIBLE_HOUR = 7
+
+/** The days a day or week grid shows; the grid is positioned again when it changes. */
+private data class GridPeriod(
+    val view: CalendarView,
+    val first: LocalDate,
+    val last: LocalDate,
+)
+
+/**
+ * The hour at the grid's top when a period opens: the full hour at or before the earliest start of a timed entry
+ * (entries continuing from an earlier day and all-day ones don't count); without one the current hour if today is
+ * shown, else [FIRST_VISIBLE_HOUR].
+ */
+internal fun firstVisibleHour(
+    entriesByDay: Map<LocalDate, List<DayEntry>>,
+    today: LocalDate,
+    now: LocalTime,
+): Int {
+    val earliest =
+        entriesByDay.values
+            .flatten()
+            .filter { !it.allDay && !it.continuesBefore }
+            .minOfOrNull { it.startMinute }
+    return when {
+        earliest != null -> earliest / 60
+        today in entriesByDay.keys -> now.hour
+        else -> FIRST_VISIBLE_HOUR
+    }
+}
+
 private const val MINUTE_MILLIS = 60_000L
 
 /** The clock the "now" line of the day and week grid follows (tests provide their own). */
@@ -753,9 +784,23 @@ private fun TimeGrid(
                 modifier = Modifier.padding(start = GUTTER + 8.dp, top = 8.dp).testTag(CalendarTags.EMPTY),
             )
         }
-        val initialScroll = with(LocalDensity.current) { (HOUR_HEIGHT * FIRST_VISIBLE_HOUR).roundToPx() }
-        val scroll = rememberScrollState(initialScroll)
-        Row(Modifier.fillMaxSize().verticalScroll(scroll)) {
+        val hourPx = with(LocalDensity.current) { HOUR_HEIGHT.roundToPx() }
+        val scroll = rememberScrollState(hourPx * FIRST_VISIBLE_HOUR)
+        val clock = LocalNowClock.current
+        // The period the grid was last positioned for: a reload of the same period keeps where the user scrolled to.
+        var positionedFor by remember { mutableStateOf<GridPeriod?>(null) }
+        val period = GridPeriod(state.view, days.first(), days.last())
+        LaunchedEffect(period, state.shown, entriesByDay) {
+            if (!state.shown) {
+                positionedFor = null
+            } else if (positionedFor != period) {
+                val hour = firstVisibleHour(entriesByDay, state.today, LocalTime.now(clock.withZone(state.zone)))
+                // Clamped to the scrollable range by the scroll state (an entry near midnight scrolls to the end).
+                scroll.scrollTo(hourPx * hour)
+                positionedFor = period
+            }
+        }
+        Row(Modifier.fillMaxSize().verticalScroll(scroll).testTag(CalendarTags.GRID_SCROLL)) {
             HourLabels(locale)
             days.forEach { day ->
                 DayColumn(day, entriesByDay[day].orEmpty(), state, week, callbacks.open, Modifier.weight(1f))
