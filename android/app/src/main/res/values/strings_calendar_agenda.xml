@@ -54,4 +54,6 @@
         <item quantity="one">%1$d event later, show</item>
         <item quantity="other">%1$d events later, show</item>
     </plurals>
+    <!-- Accessibility action and long-press label: create an event at this place of the calendar. -->
+    <string name="calendar_new_event_here">New event</string>
 </resources>

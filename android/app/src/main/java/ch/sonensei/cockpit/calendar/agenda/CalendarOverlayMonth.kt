@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.calendar.agenda
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -33,11 +34,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -246,9 +251,14 @@ internal fun MonthGrid(
         weeks.forEach { week ->
             Row(Modifier.fillMaxWidth().weight(1f)) {
                 week.forEach { day ->
-                    MonthDay(day, itemsByDay[day].orEmpty(), state, locale, Modifier.weight(1f).fillMaxHeight()) {
-                        callbacks.openDay(day)
-                    }
+                    MonthDay(
+                        day,
+                        itemsByDay[day].orEmpty(),
+                        state,
+                        locale,
+                        Modifier.weight(1f).fillMaxHeight(),
+                        onLongClick = { callbacks.create(day, null, false) },
+                    ) { callbacks.openDay(day) }
                 }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -265,8 +275,12 @@ private fun MonthDay(
     state: CalendarUiState,
     locale: Locale,
     modifier: Modifier,
+    /** A long press (or the "New event" accessibility action): a new event on the day. */
+    onLongClick: () -> Unit,
     onClick: () -> Unit,
 ) {
+    val haptics = LocalHapticFeedback.current
+    val newEvent = stringResource(R.string.calendar_new_event_here)
     val isToday = day == state.today
     val inMonth = day.month == state.anchor.month
     val description =
@@ -280,9 +294,24 @@ private fun MonthDay(
     val lineHeight = with(LocalDensity.current) { (if (labelLineHeight.isSp) labelLineHeight else MONTH_LINE_HEIGHT).toDp() }
     BoxWithConstraints(
         modifier
-            .clickable(onClick = onClick)
-            .semantics { contentDescription = description }
-            .padding(horizontal = 1.dp, vertical = 2.dp)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onLongClick()
+                },
+                onLongClickLabel = newEvent,
+                hapticFeedbackEnabled = false,
+            ).semantics {
+                contentDescription = description
+                customActions =
+                    listOf(
+                        CustomAccessibilityAction(newEvent) {
+                            onLongClick()
+                            true
+                        },
+                    )
+            }.padding(horizontal = 1.dp, vertical = 2.dp)
             .testTag(CalendarTags.monthDay(day)),
     ) {
         val lines =

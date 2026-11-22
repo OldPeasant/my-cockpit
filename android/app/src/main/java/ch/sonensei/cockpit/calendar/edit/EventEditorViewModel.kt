@@ -228,16 +228,21 @@ class EventEditorViewModel internal constructor(
     private var suggestJob: Job? = null
     private var inviteJob: Job? = null
 
-    /** Opens the form of a new event on [date] in one of [calendars]. */
+    /**
+     * Opens the form of a new event on [date] in one of [calendars]: from [start] when given (a long press in the grid),
+     * else at the default start; an all-day event on [date] when [allDay].
+     */
     fun create(
         date: LocalDate,
         calendars: List<CalendarInfo>,
+        start: LocalTime? = null,
+        allDay: Boolean = false,
     ) {
         job?.cancel()
         occurrence = null
         newId = UuidV7.generate(clock.millis())
         val calendarId = calendars.firstOrNull { !it.readOnly && it.visible }?.id ?: calendars.firstOrNull { !it.readOnly }?.id
-        val form = newForm(date, ZonedDateTime.now(clock.withZone(zone)), calendarId)
+        val form = newForm(date, ZonedDateTime.now(clock.withZone(zone)), calendarId, start, allDay)
         initial = form
         state.value = EventEditorUiState(open = true, creating = true, form = form, calendars = calendars)
         loadSources()
@@ -771,19 +776,37 @@ class EventEditorViewModel internal constructor(
 }
 
 /** How long a new event lasts at first. */
-private const val NEW_EVENT_HOURS = 1L
+internal const val NEW_EVENT_HOURS = 1L
 
 /** Where a new event on another day than today starts. */
 private val DEFAULT_START: LocalTime = LocalTime.of(9, 0)
 
-/** The form of a new event on [date]: today from the next full hour, other days from 9:00, one hour long. */
+/**
+ * The form of a new event on [date]: from [startTime] when given, else today from the next full hour and other days
+ * from 9:00, one hour long. With [allDay] an all-day event on [date].
+ */
 internal fun newForm(
     date: LocalDate,
     now: ZonedDateTime,
     calendarId: UUID?,
+    startTime: LocalTime? = null,
+    allDay: Boolean = false,
 ): EventForm {
+    if (allDay) {
+        return EventForm(
+            calendarId = calendarId,
+            allDay = true,
+            startDate = date,
+            startTime = DEFAULT_START,
+            endDate = date,
+            endTime = DEFAULT_START.plusHours(NEW_EVENT_HOURS),
+            zone = now.zone,
+        )
+    }
     val start =
-        if (date == now.toLocalDate()) {
+        if (startTime != null) {
+            date.atTime(startTime)
+        } else if (date == now.toLocalDate()) {
             now.toLocalDateTime().truncatedTo(ChronoUnit.HOURS).plusHours(1)
         } else {
             date.atTime(DEFAULT_START)

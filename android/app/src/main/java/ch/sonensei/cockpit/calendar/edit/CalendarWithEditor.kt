@@ -27,7 +27,7 @@ import java.util.UUID
 
 /**
  * The calendar views with the event editor: the add button opens a new event (on the day the day view shows, else
- * today), a tapped occurrence opens its event. A tapped birthday has no event: it opens its contact ([contact]).
+ * today), a long press in a view opens a new event there, a tapped occurrence opens its event. A tapped birthday has no event: it opens its contact ([contact]).
  * The views reload when they come back, so a saved change shows.
  */
 @Composable
@@ -54,6 +54,7 @@ fun CalendarWithEditor(
                 val birthday = occurrence.contactId(calendars)
                 if (birthday != null) contactId = birthday.toString() else editor.edit(occurrence, calendars)
             },
+            onCreate = { date, start, allDay -> editor.create(date, calendarViewModel.uiState.value.calendars, start, allDay) },
             viewModel = calendarViewModel,
         )
         FloatingActionButton(

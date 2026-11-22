@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.calendar.agenda
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -75,14 +77,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
@@ -98,6 +104,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.sonensei.cockpit.R
 import ch.sonensei.cockpit.calendar.edit.CalendarWithEditor
+import ch.sonensei.cockpit.calendar.edit.NEW_EVENT_HOURS
 import ch.sonensei.cockpit.gtd.task.LocalTaskOpener
 import ch.sonensei.cockpit.ui.PlaceholderScreen
 import dagger.hilt.internal.GeneratedComponentManagerHolder
@@ -138,6 +145,8 @@ fun CalendarScreen(modifier: Modifier = Modifier) {
 fun CalendarRoute(
     modifier: Modifier = Modifier,
     onOpen: (Occurrence) -> Unit = {},
+    /** A long press asks for a new event on a day: from a time, all day, or (both absent) at the default start. */
+    onCreate: (date: LocalDate, start: LocalTime?, allDay: Boolean) -> Unit = { _, _, _ -> },
     viewModel: CalendarViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -161,6 +170,7 @@ fun CalendarRoute(
                 retry = viewModel::refresh,
                 retryTasks = viewModel::retryTasks,
                 open = onOpen,
+                create = onCreate,
                 setOverlay = viewModel::setOverlay,
                 openTask = { task -> taskOpener?.open(task.id, task.snapshot) },
             ),
@@ -186,6 +196,11 @@ data class CalendarCallbacks(
     val setOverlay: (Boolean) -> Unit = {},
     /** A task of the overlay was tapped: its detail screen opens. */
     val openTask: (OverlayTask) -> Unit = {},
+    /**
+     * A long press (or the "New event" accessibility action) asks for a new event on a day: from `start` when given,
+     * all day when `allDay`, else at the add button's default start.
+     */
+    val create: (date: LocalDate, start: LocalTime?, allDay: Boolean) -> Unit = { _, _, _ -> },
 )
 
 internal object CalendarTags {
@@ -226,6 +241,9 @@ internal object CalendarTags {
     fun day(date: LocalDate) = "calendar-day:$date"
 
     fun allDay(date: LocalDate) = "calendar-all-day:$date"
+
+    /** The ghost block a recognised long press shows on [date]. */
+    fun ghost(date: LocalDate) = "calendar-ghost:$date"
 
     fun hiddenAbove(date: LocalDate) = "calendar-hidden-above:$date"
 
@@ -912,7 +930,7 @@ private fun TimeGrid(
             Row(Modifier.fillMaxSize().verticalScroll(scroll).testTag(CalendarTags.GRID_SCROLL)) {
                 HourLabels(locale)
                 days.forEach { day ->
-                    DayColumn(day, entriesByDay[day].orEmpty(), state, week, callbacks.open, Modifier.weight(1f))
+                    DayColumn(day, entriesByDay[day].orEmpty(), state, week, callbacks, Modifier.weight(1f))
                 }
             }
             // Over the scrolling grid: per day column, how many entries are scrolled out of view above and below.
@@ -1074,10 +1092,18 @@ private fun AllDayStrip(
     state: CalendarUiState,
     callbacks: CalendarCallbacks,
 ) {
-    if (days.none { day -> entriesByDay[day].orEmpty().any { it.allDay } || marks[day].orEmpty().isNotEmpty() }) return
+    // Shown also without all-day entries, so a long press on it can create one.
     val locale = currentLocale()
     val detailed = state.view == CalendarView.DAY
-    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+    val haptics = LocalHapticFeedback.current
+    val newEvent = stringResource(R.string.calendar_new_event_here)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .heightIn(min = ALL_DAY_MIN_HEIGHT)
+            .padding(vertical = 2.dp),
+    ) {
         Text(
             stringResource(R.string.calendar_all_day),
             style = MaterialTheme.typography.labelSmall,
@@ -1086,7 +1112,34 @@ private fun AllDayStrip(
             modifier = Modifier.width(GUTTER).padding(horizontal = 4.dp),
         )
         days.forEach { day ->
-            Column(Modifier.weight(1f).padding(horizontal = 1.dp).testTag(CalendarTags.allDay(day))) {
+            var pressed by remember(day) { mutableStateOf(false) }
+            Column(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .longPressAt(
+                        day,
+                        onPress = {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            pressed = true
+                        },
+                        onRelease = {
+                            pressed = false
+                            callbacks.create(day, null, true)
+                        },
+                        onCancel = { pressed = false },
+                    ).semantics {
+                        customActions =
+                            listOf(
+                                CustomAccessibilityAction(newEvent) {
+                                    callbacks.create(day, null, true)
+                                    true
+                                },
+                            )
+                    }.padding(horizontal = 1.dp)
+                    .testTag(CalendarTags.allDay(day)),
+            ) {
+                if (pressed) NewEventGhost(Modifier.fillMaxWidth().height(ALL_DAY_GHOST_HEIGHT).testTag(CalendarTags.ghost(day)))
                 entriesByDay[day].orEmpty().filter { it.allDay }.forEach { entry ->
                     EventBlock(
                         entry,
@@ -1130,12 +1183,40 @@ private fun DayColumn(
     entries: List<DayEntry>,
     state: CalendarUiState,
     week: Boolean,
-    onOpen: (Occurrence) -> Unit,
+    callbacks: CalendarCallbacks,
     modifier: Modifier,
 ) {
     val placed = remember(entries) { layoutDay(entries) }
     val lineColor = MaterialTheme.colorScheme.outlineVariant
-    BoxWithConstraints(modifier.height(HOUR_HEIGHT * 24)) {
+    val pxPerMinute = with(LocalDensity.current) { HOUR_HEIGHT.toPx() } / 60f
+    val haptics = LocalHapticFeedback.current
+    val newEvent = stringResource(R.string.calendar_new_event_here)
+    // The slot a recognised long press would create, shown as a ghost block until the finger is lifted.
+    var ghost by remember(day) { mutableStateOf<LocalTime?>(null) }
+    BoxWithConstraints(
+        modifier
+            .height(HOUR_HEIGHT * 24)
+            .longPressAt(
+                day to pxPerMinute,
+                onPress = { position ->
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    ghost = slotStart(position.y, pxPerMinute)
+                },
+                onRelease = {
+                    ghost?.let { callbacks.create(day, it, false) }
+                    ghost = null
+                },
+                onCancel = { ghost = null },
+            ).semantics {
+                customActions =
+                    listOf(
+                        CustomAccessibilityAction(newEvent) {
+                            callbacks.create(day, null, false)
+                            true
+                        },
+                    )
+            },
+    ) {
         // Hour lines, and a hairline between the days of the week.
         for (hour in 0 until 24) {
             HorizontalDivider(Modifier.offset(y = HOUR_HEIGHT * hour), color = lineColor.copy(alpha = 0.6f))
@@ -1150,7 +1231,7 @@ private fun DayColumn(
                 item.entry,
                 state.calendar(item.entry.occurrence.calendarId),
                 state.zone.takeUnless { week },
-                onOpen,
+                callbacks.open,
                 Modifier
                     .offset(x = width * item.lane, y = top)
                     .width(width)
@@ -1159,7 +1240,34 @@ private fun DayColumn(
             )
         }
         if (day == state.today) NowLine(state.zone)
+        ghost?.let { start ->
+            NewEventGhost(
+                Modifier
+                    .offset(y = HOUR_HEIGHT * (start.hour * 60 + start.minute) / 60f)
+                    .fillMaxWidth()
+                    .height(HOUR_HEIGHT * NEW_EVENT_HOURS.toInt())
+                    .padding(horizontal = 1.dp)
+                    .testTag(CalendarTags.ghost(day)),
+            )
+        }
     }
+}
+
+/** The all-day strip's height without entries: still big enough to be long pressed. */
+private val ALL_DAY_MIN_HEIGHT = 28.dp
+private val ALL_DAY_GHOST_HEIGHT = 20.dp
+
+/** The slot a long press will create: an outlined, translucent block in the primary color. */
+@Composable
+private fun NewEventGhost(modifier: Modifier) {
+    val color = MaterialTheme.colorScheme.primary
+    val shape = RoundedCornerShape(4.dp)
+    Box(
+        modifier
+            .clip(shape)
+            .background(color.copy(alpha = 0.24f))
+            .border(1.5.dp, color, shape),
+    )
 }
 
 @Composable

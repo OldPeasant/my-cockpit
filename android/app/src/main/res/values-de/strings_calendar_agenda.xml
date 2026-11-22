@@ -54,4 +54,5 @@
         <item quantity="one">%1$d Termin später, anzeigen</item>
         <item quantity="other">%1$d Termine später, anzeigen</item>
     </plurals>
+    <string name="calendar_new_event_here">Neuer Termin</string>
 </resources>
