@@ -4,20 +4,38 @@ Date: 2026-11-22
 
 Task: and-cal-longpress-create - Android calendar: long press in day/week/month creates an event there
 
-Scope: `git diff 8c484d19..4fae7d05` (implementation commit 4fae7d052 only; static review, Gradle not run on request of the parent worker because another process uses it; the parallel test-writer changes are not part of this scope)
+Scope: round 2, `git diff 46716d41..092f53d17 -- android` (full task diff after the fixes), with special attention to fix commit 092f53d17 (TW-1, CR-1 to CR-4 of round 1). Reviewed revision: 092f53d173bc831655475f48ef794525dabb64cf. Static review only: Gradle was not run on request of the parent worker (a test-writer runs it in parallel).
 
 Requirements:
 - tasks/and-cal-longpress-create.md (acceptance criteria and the two recorded assumptions)
-- AGENTS.md project notes (conventions, lint, strings)
+- Round-1 findings: reviews/and-cal-longpress-create/review.md (CR-1 to CR-4, previous version), reviews/and-cal-longpress-create/tests.md (TW-1)
+- reviews/and-cal-longpress-create/fixes.md
+- AGENTS.md project notes (lint, strings, conventions), android/.editorconfig
 - Existing code conventions in calendar/agenda and calendar/edit
 
 Git range:
 - Branch: main
-- HEAD: 4fae7d052413902daa52471c83b0dc6fcdffe143
-- Base/start: 8c484d190a8b2bff5a2ed3c26e3efd89bcf5bf0b
-- Commits reviewed: 1
+- HEAD: 092f53d173bc831655475f48ef794525dabb64cf
+- Base/start: 46716d412429c32b7a4819a9ce33353d5c003090
+- Commits reviewed: 4 (2d79c7420 implementation, b72d31852 review report, 8ad34b31c tests, 092f53d17 fixes)
 
-Summary: 0 P0, 0 P1, 1 P2, 3 P3
+Summary: 0 P0, 0 P1, 0 P2, 2 P3
+
+## Verification of round-1 findings
+
+- TW-1 (cancelled gesture created the event): fixed. `CalendarLongPress.kt:69-76` now treats an up change that arrives already consumed in the initial pass as the synthetic ACTION_CANCEL event and calls `onCancel` instead of `onRelease`. Compose's cancel event marks the changes of pressed pointers as consumed, and no ancestor of the grid or the all-day strip consumes in the initial pass (no other `pointerInput`/initial-pass handler in calendar/agenda; the pager and `verticalScroll` work in the main pass), so a real lifted finger still reaches `onRelease`. The heuristic and its precondition are documented in the code comment. The two cancel tests from the test-writer cover grid and strip.
+- CR-1 (custom actions on non-focusable nodes): fixed. `DayColumn` (`CalendarScreen.kt:1210-1244`) and each all-day cell (`:1121-1153`) now carry a localized full-date content description ("All day, " prefix on the strip so the two differ) and an unlabelled `onLongClick` semantics action that calls the same `create` as the custom action; no `mergeDescendants`, so event blocks keep their own nodes. The new test `the week grid columns and the all-day strip can be focused by a screen reader and long clicked` asserts description, long-click action, a single "New event" custom action and the created event. A real TalkBack check was not possible (recorded in fixes.md); the semantics now satisfy TalkBack's focusability rules (speaking and actionable node).
+- CR-2 (all-day ghost grows the strip): fixed. The cell is a `Box` with the entry `Column` and the ghost as a `matchParentSize()` overlay (`CalendarScreen.kt:1155-1170`), so the ghost no longer contributes to the strip height; the unused `ALL_DAY_GHOST_HEIGHT` is removed. The new test compares the strip bounds before and during the press on a day with an entry.
+- CR-3 (stale callbacks in `pointerInput`): fixed at the call sites. Both `DayColumn` and `AllDayStrip` read `callbacks.create` through `rememberUpdatedState` and use it in the gesture callbacks and the accessibility actions; the remaining captured values (`pressed`/`ghost` states remembered per `day`, `pxPerMinute` in the key, the haptics local) are stable for a given key. The KDoc of `longPressAt` documents the requirement for future callers.
+- CR-4 (month day announces "New event" twice): fixed. `CalendarOverlayMonth.kt:303-304` sets `onLongClickLabel = null`, keeping the custom action required by criterion 6; the adjusted test asserts one custom action and an unlabelled long click. Changing that test's expectation was legitimate because the old assertion pinned the duplicate label.
+
+## Re-check of the full diff (no new material problems)
+
+- Gesture logic unchanged apart from TW-1; waiting phase still aborts on lift, second pointer, slop or consumption, so tap, scroll and swipe are untouched (criterion 7).
+- `EventEditorViewModel.create(date, calendars, start = null, allDay = false)`: defaults keep the + button path unchanged; calendar choice shared with the + button; `newForm` all-day form uses an inclusive `endDate = date`, timed form from `startTime` lasting `NEW_EVENT_HOURS` (a 23:45 start ends next day via `plusHours`) (criteria 1, 3, 5).
+- Month: `combinedClickable` with tap to open the day, long press to `create(day, null, false)` (default start as with the + button), single haptic (criterion 4).
+- Strings: `calendar_new_event_here` in `values/` and `values-de/` (criterion 8). The new content descriptions reuse the existing `calendar_all_day` string and a localized `FormatStyle.FULL` date, so no new untranslated text.
+- No secrets, logging or security-relevant changes.
 
 ## P0 Critical
 
@@ -29,46 +47,24 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Grid and all-day "New event" custom actions sit on nodes TalkBack cannot focus**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarScreen.kt:1210` (DayColumn) and `:1131` (AllDayStrip column)
-    - Category: Correctness
-    - Problem: The custom action is attached with a plain `semantics { customActions = ... }` to the day column `BoxWithConstraints` and to the all-day `Column`. Neither node has a content description, text, a click/long-click action or `mergeDescendants`, so Compose does not report it as screen-reader focusable and TalkBack's focus heuristics (actionable or speaking node) skip it. TalkBack only offers the actions of the focused node, so a TalkBack user can focus the event blocks inside the column (which do not carry the action) but never the column itself; on a day without entries there is nothing to focus at all. Compose tests using `performCustomAccessibilityAction` on the test tag will pass regardless, so a test does not prove this works. The month day is fine (it is clickable and has a content description).
-    - Why it matters: Acceptance criterion 6 asks that grid and all-day strip offer a matching accessibility action; as written it exists in the semantics tree but is unreachable for the main assistive technology, so screen-reader users still can only create events with the + button.
-    - Suggested fix: Make the two nodes focusable for accessibility, e.g. add a `contentDescription` (the day's date, like the month day) and an `onLongClick(label = newEvent) { ... }` semantics action next to `customActions` (a long-click action makes the node actionable for TalkBack and also gives "double-tap and hold"), and confirm on a device or emulator with TalkBack, or at least assert in a Compose test that the node has a long-click action / content description.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | All-day ghost grows the strip and shifts the hour grid while the finger is down**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarScreen.kt:1142`
+- [ ] **CR-1 | String comment still describes `calendar_new_event_here` as the long-press label**
+    - File: `android/app/src/main/res/values/strings_calendar_agenda.xml:57`
     - Category: Quality
-    - Problem: The ghost is inserted as an extra 20dp child at the top of the day's column. The strip's height is `IntrinsicSize.Min` of its columns, so when the pressed day already has all-day entries or task chips (content taller than the 24dp left inside the 28dp minimum), the strip grows by the ghost's height during the press and everything below it, including the hour grid, jumps down, and the entries under the finger move.
-    - Why it matters: Visible layout jump during the gesture; only cosmetic, the created event is correct.
-    - Suggested fix: Draw the ghost as an overlay of the column (e.g. a `Box` around the column with the ghost `matchParentSize`, or `drawBehind`) instead of a layout child.
+    - Problem: The comment reads "Accessibility action and long-press label", but after the CR-4 fix the string is no longer used as a long-click label anywhere (month `onLongClickLabel = null`, grid and strip long-click actions unlabelled); it is only the custom action label.
+    - Why it matters: Translators and later maintainers get a wrong picture of where the text appears, and someone may reintroduce the label and with it the duplicate announcement.
+    - Suggested fix: Change the comment to say it is the accessibility custom action label only.
 
-- [ ] **CR-3 | Long-press callbacks are captured once by `pointerInput` without `rememberUpdatedState`**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarLongPress.kt:39` (used at `CalendarScreen.kt:1120` and `:1199`)
+- [ ] **CR-2 | Over-long KDoc line in CalendarWithEditor**
+    - File: `android/app/src/main/java/ch/sonensei/cockpit/calendar/edit/CalendarWithEditor.kt:30`
     - Category: Quality
-    - Problem: `pointerInput(key)` only restarts when `key` (`day`, or `day to pxPerMinute`) changes, so the `onPress`/`onRelease`/`onCancel` lambdas from the first composition stay in use; they close over that composition's `callbacks`. Today this is harmless because `CalendarWithEditor` passes a lambda that reads the editor and `uiState.value` at call time, but any caller passing a `create` that captures changing state would silently get stale behavior.
-    - Why it matters: Latent stale-closure bug, a known Compose pitfall; `combinedClickable` used in the month view does not have it.
-    - Suggested fix: Inside `longPressAt`, wrap the callbacks with `rememberUpdatedState` (making it a `composed`/`Modifier.Node` or taking the state holders), or include `callbacks.create` in the key.
-
-- [ ] **CR-4 | Month day exposes "New event" twice to accessibility services**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarOverlayMonth.kt:303` and `:307`
-    - Category: Quality
-    - Problem: `combinedClickable(onLongClickLabel = newEvent)` already adds a labelled long-click action that calls the same handler, and the `customActions` entry adds a second "New event" action, so TalkBack announces "double-tap and hold to New event" and lists "New event" again in the actions menu.
-    - Why it matters: Redundant announcement; minor.
-    - Suggested fix: Keep one of the two (the criterion names a custom action, so keep that and drop `onLongClickLabel`, or keep both deliberately and record it).
-
-## Notes (verified, no finding)
-
-- Gesture: observing in `PointerEventPass.Initial` with `requireUnconsumed = false` lets the grid see a press that starts on a clickable `EventBlock`; before the timeout nothing is consumed, so a tap still reaches the child's `clickable` and opens the event; after recognition every change is consumed in the Initial pass, so the child's click is cancelled (consumed move/up) and neither `verticalScroll` nor the `HorizontalPager` start a drag. A move beyond `touchSlop` or a second pointer before the timeout aborts the long press, leaving scroll and swipe untouched. `withTimeoutOrNull` resolves to the `AwaitPointerEventScope` member.
-- Slot rounding: `slotStart` floors to the minute and then to 15 minutes, clamped to 00:00..23:45; the press position is local to the 24-hour column, so the scroll offset is already included. A 23:45 start ends on the next day, which `newForm` handles (`endDate` from `start.plusHours`).
-- `IntrinsicSize.Min` in `AllDayStrip`: the strip's content (`Text`, `EventBlock`, `TaskChip`) contains no `SubcomposeLayout`/`BoxWithConstraints`, so intrinsic measurement is safe; `heightIn(min)` contributes to the intrinsic height, so the 28dp minimum applies.
-- `newForm`: the all-day form uses an inclusive `endDate = date`, matching `editForm`; the + button path (`create(date, calendars)`) is unchanged; the calendar choice is shared with the + button.
-- Haptics: performed once on recognition in grid and strip; the month view disables the built-in haptic and performs its own, so it fires once.
-- Strings: `calendar_new_event_here` exists in `values/` and `values-de/`.
-- Tests: the implementation commit contains no tests; criterion 9 depends on the test-writer's parallel work, which is outside this scope.
+    - Problem: The extended KDoc line is 161 characters; the surrounding code wraps at the ktlint_official width of 140 (only a few comment lines in the whole Android source exceed it). ktlint does not fail on it, so this is consistency only.
+    - Why it matters: Minor readability and consistency with the rest of the file.
+    - Suggested fix: Re-wrap the KDoc paragraph to 140 columns.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found. All round-1 findings (CR-1 to CR-4) and TW-1 are resolved in 092f53d17; the two remaining P3 items are optional cleanups.
