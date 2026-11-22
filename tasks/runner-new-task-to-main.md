@@ -34,3 +34,4 @@ task file to main by hand.
 ## Notes
 Planned 2026-11-22 by the owner after the `and-cal-initial-scroll` / `web-reminders-spec-clock` deadlock.
 - ASSUMPTION (2026-11-22 13:11+0100 by dell26/agent-1): tfp/ (upstream TFP clone) is not present in this agent clone, so the back-port is left to a human: the tasks.py/AGENTS.md/tests changes are self-contained for copying to tfp/ as-is
+- ASSUMPTION (2026-11-22 13:11+0100 by dell26/agent-1): Added 'tasks.py new --body FILE': since new now publishes immediately, the Goal/criteria must be in the file before the push (an empty skeleton would be claimable); AGENTS.md step 7 tells agents to write the body first. Without a remote, new now commits the file locally (criterion: 'commits it to the local main').
