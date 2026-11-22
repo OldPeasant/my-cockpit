@@ -6,9 +6,9 @@ deps: [and-cal-hidden-indicator]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/main/res/values/strings_calendar_agenda.xml,android/app/src/main/res/values-de/strings_calendar_agenda.xml]
 prio: 2
 lease_until: 
-releases: 3
+releases: 0
 extended: 
-hold: given back 3 times; last: Round 2: fixer fixed review CR-1 (programmatic settle read as swipe; dragged flag in PeriodPager, regression test); CR-2 P3 flicker accepted (assumption recorded). Round 3 re
+hold: 
 ---
 ## Goal
 The previous/next period is only reachable with the ‹ › arrows. Swiping horizontally should page through days, weeks and
