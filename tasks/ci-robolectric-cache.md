@@ -20,8 +20,9 @@ downloads them again from GitHub's shared runner IPs, which Maven Central rate-l
   `~/.m2/repository/org/robolectric`, key derived from the Robolectric version in
   `android/gradle/libs.versions.toml`, plus a restore key), so a run with a warm cache downloads none of them
 - [ ] The cache is also saved when the tests fail (a partial download is not lost) and a cold cache still works as today
-- [ ] Optional hardening if cheap: Robolectric download retries or a single prefetch step before the tests, so one
+- [~] Optional hardening if cheap: Robolectric download retries or a single prefetch step before the tests, so one
   429 does not fail many test classes; no change to the tests themselves
+  - skipped (2026-11-22 13:03+0100 by dell26/agent-1): optional hardening not cheap: Robolectric 4.16 has no download-retry setting and a prefetch would hardcode internal android-all-instrumented versions; recorded as assumption
 - [ ] Actions flagged by GitHub as targeting deprecated Node.js 20 (`actions/upload-artifact@v4`,
   `android-actions/setup-android@v3`) are bumped to versions running on Node 24 where such versions exist
 - [ ] Evidence from GitHub Actions: after `done` pushes, a CI run on main shows the cache restored (log line of the cache
