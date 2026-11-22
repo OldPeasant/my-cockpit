@@ -25,7 +25,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -103,6 +103,7 @@ import dagger.hilt.internal.GeneratedComponentManagerHolder
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.DayOfWeek
@@ -721,7 +722,8 @@ private fun PeriodPager(
     val base = remember { state.anchor }
     val firstDayOfWeek = state.firstDayOfWeek
     val shownPage = (PAGER_START + periodsBetween(view, base, state.anchor, firstDayOfWeek)).coerceIn(0L, Int.MAX_VALUE - 1L).toInt()
-    val pagerState = rememberPagerState(initialPage = shownPage) { Int.MAX_VALUE }
+    // Not saveable, like base: a restored page next to a new base would read as a swipe and move the view model.
+    val pagerState = remember { PagerState(currentPage = shownPage) { Int.MAX_VALUE } }
     val latestShownPage by rememberUpdatedState(shownPage)
     val move by rememberUpdatedState(callbacks.move)
     // Swiped to another page: the view model moves by as many periods.
@@ -732,7 +734,9 @@ private fun PeriodPager(
     }
     // Moved by the arrows, Today or a day header: the pager follows (sliding when it is the neighbour).
     LaunchedEffect(shownPage) {
-        if (pagerState.currentPage != shownPage && !pagerState.isScrollInProgress) {
+        // A scroll still running (a snap back, a fling) ends first, then the pager catches up with the view model.
+        snapshotFlow { pagerState.isScrollInProgress }.first { !it }
+        if (pagerState.currentPage != shownPage) {
             if (kotlin.math.abs(pagerState.currentPage - shownPage) == 1) {
                 pagerState.animateScrollToPage(shownPage)
             } else {

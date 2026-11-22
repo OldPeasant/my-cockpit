@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.calendar.agenda
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.geometry.Offset
@@ -7,6 +8,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -73,9 +75,13 @@ class CalendarSwipeInteractionTest {
         )
     }
 
-    private fun show(initial: CalendarUiState): MutableState<CalendarUiState> {
+    private fun show(
+        initial: CalendarUiState,
+        restoration: StateRestorationTester? = null,
+    ): MutableState<CalendarUiState> {
         val holder = mutableStateOf(initial)
-        composeRule.setContent {
+        val setContent: (@Composable () -> Unit) -> Unit = restoration?.let { it::setContent } ?: composeRule::setContent
+        setContent {
             CockpitTheme {
                 CalendarContent(
                     holder.value,
@@ -235,6 +241,41 @@ class CalendarSwipeInteractionTest {
         composeRule.onNodeWithTag(CalendarTags.page(tomorrow)).assertIsDisplayed()
         composeRule.onNodeWithText("All day 7", useUnmergedTree = true).assertIsDisplayed()
         assertEquals(listOf(1), moves)
+    }
+
+    @Test
+    fun `a restored screen keeps the period without moving the view model again`() {
+        val restoration = StateRestorationTester(composeRule)
+        // The holder outlives the composition, like the view model across a rotation or a return to the tab.
+        val holder = show(state(CalendarView.DAY), restoration)
+        composeRule.onNodeWithTag(CalendarTags.NEXT).performClick()
+        composeRule.waitForIdle()
+        assertEquals(listOf(1), moves)
+
+        restoration.emulateSavedInstanceStateRestore()
+        composeRule.waitForIdle()
+        assertEquals(listOf(1), moves)
+        assertEquals(today.plusDays(1), holder.value.anchor)
+        composeRule.onNodeWithTag(CalendarTags.page(today.plusDays(1))).assertIsDisplayed()
+    }
+
+    @Test
+    fun `a period change during a drag is followed once the drag snaps back`() {
+        val start = today.plusDays(5)
+        val holder = show(state(CalendarView.DAY, start))
+        composeRule.onNodeWithTag(CalendarTags.PAGER).performTouchInput {
+            down(center)
+            moveBy(Offset(-width * 0.2f, 0f))
+        }
+        // The view model moves (an arrow, Today) while the finger still holds the pager.
+        holder.value = state(CalendarView.DAY, start.plusDays(1))
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(CalendarTags.PAGER).performTouchInput { up() }
+        composeRule.waitForIdle()
+        assertTrue(moves.isEmpty())
+        assertEquals(start.plusDays(1), holder.value.anchor)
+        composeRule.onNodeWithTag(CalendarTags.page(start.plusDays(1))).assertIsDisplayed()
+        composeRule.onNodeWithTag(CalendarTags.page(start)).assertDoesNotExist()
     }
 
     /** The vertical scroll of the grid on the page of [page]; a page left behind may stay composed for a moment. */
