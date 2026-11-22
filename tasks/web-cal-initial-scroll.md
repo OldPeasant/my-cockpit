@@ -28,3 +28,4 @@ below it as fit. Same behaviour as the Android task `and-cal-initial-scroll`.
 Planned 2026-11-22 from the owner's request to have the Android initial-scroll behaviour in the web app too; design as
 confirmed for Android. Depends on `web-cal-hidden-indicator` only because both change `calendar-view.ts`.
 - ASSUMPTION (2026-11-22 10:40+0100 by dell26/agent-2): Timed overlay tasks (due with a time) count as timed entries for the initial scroll, using the overlay entries shown when the period's occurrences arrive; the scroll waits for occurrences only, not for the overlay's task request (keeps it simple, overlay is optional).
+- ASSUMPTION (2026-11-22 10:40+0100 by dell26/agent-2): Only occurrences of visible calendars count; toggling a calendar's visibility does not move the scroll (same period).
