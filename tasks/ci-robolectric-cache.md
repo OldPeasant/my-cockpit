@@ -1,10 +1,11 @@
 ---
 title: CI: cache Robolectric runtime jars (Maven Central 429 fails the Android check)
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [.github/workflows/ci.yml,docs/ARCHITECTURE.md]
 prio: 1
+lease_until: 2026-11-22T12:22:17Z
 ---
 ## Goal
 The "Fast check (android)" CI job failed in 4 of 7 pushes on 2026-11-22 (runs 45005199770, 45008992077, 45014587068,
