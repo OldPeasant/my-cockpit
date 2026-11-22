@@ -1,11 +1,13 @@
 ---
 title: Web calendar: day/week show which entries are scrolled out of view
-status: in_progress
-owner: dell26/agent-2
+status: todo
+owner: 
 deps: []
 touches: [web/src/app/features/calendar/views,web/src/locale/messages.xlf,web/src/locale/messages.de.xlf]
 prio: 2
-lease_until: 2026-11-22T08:45:08Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 In the web calendar's day and week view (FullCalendar `timeGridDay`/`timeGridWeek`, `calendar-view.ts`) the time grid
@@ -29,3 +31,4 @@ Planned 2026-11-22 from the owner's request to have the Android hidden-entry ind
 confirmed for Android (per-column chips with counts, click scrolls to the nearest hidden entry).
 - ASSUMPTION (2026-11-22 09:27+0100 by dell26/agent-2): Chips count only timed calendar occurrences of visible calendars; task-overlay marks are not counted (they are markers, not entries). Column/scroller found via FullCalendar's [data-date] cells (classes are hashed in v7), entry pixel positions computed from wall-clock minutes x column height (grid is 00:00-24:00).
 - ASSUMPTION (2026-11-22 09:27+0100 by dell26/agent-2): Wide chip text ('2 earlier' / '2 früher') from 88px column width; narrower shows '▲ 2'. German label '2 frühere Termine, anzeigen'.
+- release by dell26/agent-2: Done (committed): pure fn hidden-entries.ts (+10 unit tests, passing), DOM measuring hidden-chips.ts, wiring in calendar-view.ts/html/scss (scroll capture listener, resize, effect on events/view; chip click scrollTo smooth; aria-label buttons), i18n en+de. Calendar specs (359) and lint pass. Left: component tests for chips in calendar-view.spec.ts (fake [data-date] columns + scroller like the existing scroller() helper) and hidden-chips.ts tests; check in a real browser (Playwright, 360px viewport, chip not covering all-day row/headers, wide text); then test-writer + code-reviewer, quality.json, verify, done.
