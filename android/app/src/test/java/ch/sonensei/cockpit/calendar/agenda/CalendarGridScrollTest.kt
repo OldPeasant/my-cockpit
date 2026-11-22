@@ -4,6 +4,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTouchInput
@@ -186,6 +187,29 @@ class CalendarGridScrollTest {
             state(view = CalendarView.WEEK, anchor = next, occurrences = listOf(timed(4, "2026-10-20T12:00:00Z", "2026-10-20T13:00:00Z")))
         composeRule.waitForIdle()
         assertEquals(12 * hourPx, scrolled())
+    }
+
+    @Test
+    fun `a grid recreated for the same period (rotation, back to the tab) keeps where the user scrolled to`() {
+        val restoration = StateRestorationTester(composeRule)
+        val clock = Clock.fixed(Instant.parse("2026-10-21T10:30:00Z"), ZoneOffset.UTC)
+        val shown = state(occurrences = listOf(timed(1, "2026-10-21T14:00:00Z", "2026-10-21T15:00:00Z")))
+        restoration.setContent {
+            CompositionLocalProvider(LocalNowClock provides clock) {
+                CockpitTheme { CalendarContent(shown, CalendarCallbacks()) }
+            }
+        }
+        composeRule.waitForIdle()
+        assertEquals(14 * hourPx, scrolled())
+
+        composeRule.onNodeWithTag(CalendarTags.GRID_SCROLL).performTouchInput { swipeUp() }
+        composeRule.waitForIdle()
+        val userPosition = scrolled()
+        assertNotEquals(14 * hourPx, userPosition)
+
+        restoration.emulateSavedInstanceStateRestore()
+        composeRule.waitForIdle()
+        assertEquals(userPosition, scrolled())
     }
 
     @Test

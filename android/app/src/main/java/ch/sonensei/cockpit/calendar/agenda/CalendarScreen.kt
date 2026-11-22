@@ -725,7 +725,10 @@ private data class GridPeriod(
     val view: CalendarView,
     val first: LocalDate,
     val last: LocalDate,
-)
+) {
+    /** A saveable form: the view name and the ISO dates. */
+    val key: String get() = "${view.name}|$first|$last"
+}
 
 /**
  * The hour at the grid's top when a period opens: the full hour at or before the earliest start of a timed entry
@@ -788,8 +791,10 @@ private fun TimeGrid(
         val scroll = rememberScrollState(hourPx * FIRST_VISIBLE_HOUR)
         val clock = LocalNowClock.current
         // The period the grid was last positioned for: a reload of the same period keeps where the user scrolled to.
-        var positionedFor by remember { mutableStateOf<GridPeriod?>(null) }
-        val period = GridPeriod(state.view, days.first(), days.last())
+        // Saveable like the scroll state, so a grid shown again for its period (rotation, back to the tab) keeps the
+        // restored position instead of being positioned again.
+        var positionedFor by rememberSaveable { mutableStateOf<String?>(null) }
+        val period = GridPeriod(state.view, days.first(), days.last()).key
         LaunchedEffect(period, state.shown, entriesByDay) {
             if (!state.shown) {
                 positionedFor = null
