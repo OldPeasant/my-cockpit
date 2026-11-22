@@ -32,7 +32,8 @@ months like a pager, with the content following the finger.
   - verified (2026-11-22 11:51+0100 by dell26/agent-2): same run -> pass; CalendarSwipeInteractionTest tap tests (entries, day headers, month days), CalendarGridScrollTest (initial scroll on settled page), hidden-entry chip tests on the settled page
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-22 10:55+0100 by dell26/agent-1): git diff --stat origin/main...HEAD -> no strings*.xml changed; the pager adds no user-visible text (arrows/title reuse existing EN+DE strings), so no new strings are needed
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-22 11:51+0100 by dell26/agent-2): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug on 8ab9974f1 -> pass (agenda package 306 tests, 0 failures); sh scripts/check.sh -> all checks passed
 
 ## Notes
 Planned 2026-11-22 from the owner's calendar usability request; the design decisions in the criteria were confirmed by the owner.
