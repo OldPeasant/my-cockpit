@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: [web-cal-hidden-indicator]
 touches: [web/src/app/features/calendar/views]
 prio: 2
-lease_until: 2026-11-22T10:00:47Z
+lease_until: 2026-11-22T10:05:47Z
 ---
 ## Goal
 The web calendar's day and week view (FullCalendar, `calendar-view.ts`) always opens scrolled to 07:00
