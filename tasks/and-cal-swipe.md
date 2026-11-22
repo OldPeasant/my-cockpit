@@ -22,8 +22,9 @@ months like a pager, with the content following the finger.
 - [x] Vertical scrolling of the day/week grid still works; a mostly vertical gesture does not change the period and a
   horizontal one does not scroll vertically
   - verified (2026-11-22 11:50+0100 by dell26/agent-2): same run -> pass; 'a mostly vertical diagonal gesture scrolls the grid and keeps the period' and the CalendarSwipeTest vertical/horizontal tests (vertical swipe scrolls, no move; horizontal swipe changes period without vertical scroll)
-- [ ] The neighbouring periods are preloaded (cache/network) so a swipe usually shows data immediately; if not loaded,
+- [x] The neighbouring periods are preloaded (cache/network) so a swipe usually shows data immediately; if not loaded,
   the neighbour shows an empty grid that fills when its data arrives
+  - verified (2026-11-22 11:50+0100 by dell26/agent-2): same run -> pass; CalendarViewModel preload test (neighbours loaded after a successful load, move seeds preloaded occurrences) and the late-data test (neighbour shows empty grid, fills when data arrives)
 - [ ] Arrows, Today and the range title keep working and stay in sync with the pager; the agenda view is unchanged
 - [ ] Taps on entries, day headers and month days still work; the initial scroll position (`and-cal-initial-scroll`) and
   the hidden-entry chips (`and-cal-hidden-indicator`) work on the page that is settled on
