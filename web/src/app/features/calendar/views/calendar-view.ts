@@ -47,6 +47,7 @@ import {
 } from './calendar-views';
 import { CHIP_HEIGHT, HiddenChip, hiddenChips, timeGridOf } from './hidden-chips';
 import { TimedEntry } from './hidden-entries';
+import { DEFAULT_SCROLL_HOUR, initialScrollTime } from './initial-scroll';
 import { OccurrenceRange, OccurrenceStore } from './occurrence-store';
 
 /**
@@ -139,7 +140,8 @@ export default class CalendarView implements OnDestroy {
       },
       height: '100%',
       nowIndicator: true,
-      scrollTime: '07:00:00',
+      // Until the period's events are loaded; then `applyInitialScroll` moves to the earliest one.
+      scrollTime: `${String(DEFAULT_SCROLL_HOUR).padStart(2, '0')}:00:00`,
       dayMaxEventRows: true,
       blockEventClass: 'app-block-event',
       datesSet: (info) => this.onDatesSet(info, settings.timeZone),
@@ -174,6 +176,13 @@ export default class CalendarView implements OnDestroy {
       .filter((o) => visible.has(o.calendarId) && !o.allDay && o.start)
       .map((o) => ({ start: o.start!, end: o.end }));
   });
+
+  /**
+   * Set when FullCalendar shows a new period or view: the grid scrolls to its earliest entry once the
+   * period's occurrences are loaded, and only then (a refresh of the same period keeps the position).
+   */
+  private readonly scrollPending = signal(false);
+  private scrollTimeout?: ReturnType<typeof setTimeout>;
 
   /** The chips of the day columns that have entries scrolled out of view (day and week view). */
   protected readonly chips = signal<HiddenChip[]>([]);
@@ -213,6 +222,15 @@ export default class CalendarView implements OnDestroy {
       if (!range || !this.calendars.loaded()) return;
       untracked(() => void this.occurrences.load(range, ids ? ids.split(',') : []));
     });
+    effect(() => {
+      const range = this.range();
+      const loaded = this.occurrences.range();
+      const timeZone = this.settings()?.timeZone;
+      if (!this.scrollPending() || !range || !loaded || !timeZone) return;
+      if (loaded.from !== range.from || loaded.to !== range.to) return;
+      this.scrollPending.set(false);
+      untracked(() => this.applyInitialScroll(range, timeZone));
+    });
     if (this.initial.event) {
       const id = this.initial.event;
       const opened = effect(() => {
@@ -229,6 +247,7 @@ export default class CalendarView implements OnDestroy {
     window.removeEventListener('resize', this.onScrollOrResize);
     this.resizeObserver?.disconnect();
     clearTimeout(this.chipTimeout);
+    clearTimeout(this.scrollTimeout);
     if (this.chipFrame !== undefined) cancelAnimationFrame(this.chipFrame);
   }
 
@@ -389,11 +408,35 @@ export default class CalendarView implements OnDestroy {
     if (await this.editor.open(occurrence, context)) void this.occurrences.refresh();
   }
 
+  /**
+   * Scrolls the day or week grid of `range` to its earliest timed entry (see `initialScrollTime`):
+   * the timed occurrences of the visible calendars and the timed overlay tasks shown now.
+   */
+  private applyInitialScroll(range: OccurrenceRange, timeZone: string): void {
+    if (!OVERLAY_VIEWS.has(this.viewType())) return;
+    const starts = this.events()
+      .filter((event) => event.allDay === false && typeof event.start === 'string')
+      .map((event) => event.start as string);
+    const time = initialScrollTime(
+      starts,
+      dayRange(new Date(range.from), new Date(range.to), timeZone),
+      timeZone,
+      new Date(),
+    );
+    // After FullCalendar has rendered the period (and applied its own `scrollTime`).
+    clearTimeout(this.scrollTimeout);
+    this.scrollTimeout = setTimeout(() => {
+      this.scrollTimeout = undefined;
+      this.calendar()?.getApi().scrollToTime(time);
+    });
+  }
+
   private onDatesSet(info: DatesSetInfo, timeZone: string): void {
     // After FullCalendar has rendered the view's DOM.
     setTimeout(() => focusableScrollers(this.host.nativeElement));
     this.range.set({ from: info.start.toISOString(), to: info.end.toISOString() });
     this.viewType.set(info.view.type);
+    this.scrollPending.set(true);
     if (OVERLAY_VIEWS.has(info.view.type))
       this.overlay.show(dayRange(info.start, info.end, timeZone));
     void this.router.navigate([], {

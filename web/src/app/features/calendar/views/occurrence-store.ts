@@ -36,11 +36,14 @@ export class OccurrenceStore {
   private readonly loadingState = signal(false);
   private readonly loadedState = signal(false);
   private readonly errorState = signal<unknown>(null);
+  private readonly rangeState = signal<OccurrenceRange | undefined>(undefined);
   private query: Query | undefined;
   private requestSeq = 0;
 
   /** The occurrences of the current range, ordered by start. */
   readonly items = this.itemsState.asReadonly();
+  /** The range {@link items} belong to (set together with them), `undefined` before the first answer. */
+  readonly range = this.rangeState.asReadonly();
   readonly loading = this.loadingState.asReadonly();
   /** Whether an answer arrived (stays true across ranges). */
   readonly loaded = this.loadedState.asReadonly();
@@ -67,7 +70,7 @@ export class OccurrenceStore {
     const seq = ++this.requestSeq;
     if (query.calendarIds.length === 0) {
       // No calendars: nothing to ask (an empty filter would mean "the visible ones").
-      this.accept([]);
+      this.accept([], query.range);
       this.loadingState.set(false);
       return;
     }
@@ -78,7 +81,7 @@ export class OccurrenceStore {
         to: query.range.to,
         calendarIds: [...query.calendarIds],
       });
-      if (seq === this.requestSeq) this.accept(items);
+      if (seq === this.requestSeq) this.accept(items, query.range);
     } catch (error) {
       if (seq === this.requestSeq) this.errorState.set(error);
     } finally {
@@ -86,8 +89,9 @@ export class OccurrenceStore {
     }
   }
 
-  private accept(items: readonly OccurrenceResponse[]): void {
+  private accept(items: readonly OccurrenceResponse[], range: OccurrenceRange): void {
     this.itemsState.set(items);
+    this.rangeState.set(range);
     this.errorState.set(null);
     this.loadedState.set(true);
   }
