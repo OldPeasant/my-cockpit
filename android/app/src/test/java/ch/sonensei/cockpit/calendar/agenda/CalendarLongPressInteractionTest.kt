@@ -401,6 +401,36 @@ class CalendarLongPressInteractionTest {
     }
 
     @Test
+    fun `a long press calls the create callback of the latest composition, not the first one`() {
+        // The callbacks change while the day stays the same, so the gesture handlers are not restarted.
+        val day = today.plusDays(5)
+        val latest = mutableListOf<Triple<LocalDate, LocalTime?, Boolean>>()
+        val useLatest = mutableStateOf(false)
+        composeRule.setContent {
+            CockpitTheme {
+                val sink = if (useLatest.value) latest else created
+                CalendarContent(
+                    state(CalendarView.DAY, day),
+                    CalendarCallbacks(create = { date, start, allDay -> sink += Triple(date, start, allDay) }),
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        useLatest.value = true
+        composeRule.waitForIdle()
+
+        val grid = grid(day)
+        pressAndHold(grid, gridPoint(day, 8 * 60 + 5f))
+        lift(grid)
+        val strip = composeRule.onNodeWithTag(CalendarTags.allDay(day), useUnmergedTree = true)
+        pressAndHold(strip, Offset(px(4f), px(6f)))
+        lift(strip)
+
+        assertTrue("the first composition's callback is not called", created.isEmpty())
+        assertEquals(listOf(Triple(day, LocalTime.of(8, 0), false), Triple(day, null as LocalTime?, true)), latest)
+    }
+
+    @Test
     fun `a long press on a month day creates a timed event with the default start, a tap still opens the day`() {
         val day = LocalDate.parse("2026-10-14")
         show(state(CalendarView.MONTH, today))
