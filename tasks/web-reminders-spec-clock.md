@@ -16,7 +16,8 @@ a reminder removed meanwhile", "offers a retry instead of claiming there are non
 while an add after a failed load is pending".
 
 ## Acceptance criteria
-- [ ] The spec no longer depends on the real date (fixed/fake clock or future-proof fixtures); the 4 tests pass
+- [x] The spec no longer depends on the real date (fixed/fake clock or future-proof fixtures); the 4 tests pass
+  - verified (2026-11-22 10:12+0100 by dell26/agent-2): npm --prefix web run test:ci -- --include src/app/features/gtd/task-detail/task-reminders.spec.ts on 2026-11-22 (fixtures due 2026-11-20, i.e. in the past) with system clock pinned via vi.setSystemTime -> 43 passed, incl. the 4 previously failing
 - [ ] `cd web && npm run check` and `sh scripts/check.sh` pass
 
 ## Notes
