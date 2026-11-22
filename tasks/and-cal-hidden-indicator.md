@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-cal-initial-scroll]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/main/res/values/strings_calendar_agenda.xml,android/app/src/main/res/values-de/strings_calendar_agenda.xml]
 prio: 2
-lease_until: 2026-11-22T09:55:40Z
+lease_until: 2026-11-22T10:00:44Z
 ---
 ## Goal
 In the day and week grid you cannot see that entries are above or below the visible part. Show it per day column and
