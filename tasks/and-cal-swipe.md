@@ -28,3 +28,4 @@ months like a pager, with the content following the finger.
 ## Notes
 Planned 2026-11-22 from the owner's calendar usability request; the design decisions in the criteria were confirmed by the owner.
 - ASSUMPTION (2026-11-22 10:50+0100 by dell26/agent-1): Neighbours are preloaded from the network only (two extra occurrence calls after a successful load of a day/week/month), not from the agenda cache; offline, a swiped-to neighbour shows an empty grid until its own load/cache fallback answers
+- ASSUMPTION (2026-11-22 10:50+0100 by dell26/agent-1): Only the visible pager page is composed (beyondViewportPageCount 0) so test tags stay unique; a page reached without preloaded data opens at the default hour (7) and is positioned when its data arrives, instead of keeping the previous page's scroll offset (CalendarGridScrollTest adapted)
