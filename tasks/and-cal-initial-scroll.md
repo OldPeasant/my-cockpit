@@ -1,11 +1,13 @@
 ---
 title: Android calendar: day/week grid opens scrolled to the earliest entry
-status: in_progress
-owner: dell26/agent-1
+status: todo
+owner: 
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/main/res/values/strings_calendar_agenda.xml,android/app/src/main/res/values-de/strings_calendar_agenda.xml]
 prio: 2
-lease_until: 2026-11-22T09:00:06Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 The day and week grid (`CalendarScreen.kt` `TimeGrid`) always opens scrolled to 07:00 (`FIRST_VISIBLE_HOUR`). It
@@ -31,3 +33,4 @@ should open where the entries are: the earliest timed entry visible, and as many
 Planned 2026-11-22 from the owner's calendar usability request; the design decisions in the criteria were confirmed by the owner.
 - ASSUMPTION (2026-11-22 09:17+0100 by dell26/agent-1): 'Full hour before now' read as the current hour floored (15:40 -> 15:00), consistent with the entry rule (14:20 -> 14:00).
 - ASSUMPTION (2026-11-22 09:17+0100 by dell26/agent-1): A period is (view, first day, last day): pressing Today while today's period is already shown is not a period change and does not move the scroll position.
+- release by dell26/agent-1: Implementation, tests, 2 review rounds, fixer (CR-1) and quality.json committed; criteria 1-4 verified, Android check passes. Only step left: python tasks.py done once task web-reminders-spec-clock fixes the date-dependent web spec that makes scripts/check.sh fail on main (unrelated to this task). Re-verify #5 with check.sh then run done; no code changes needed.
