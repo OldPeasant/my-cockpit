@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "task": "web-cal-hidden-indicator",
-  "reviewed_revision": "ff4c02f1e567b88cd2b1497cc2aba48ec5b0dc8b",
+  "reviewed_revision": "3f2853bf94badf83d1471c2773d99ecd52efe0fc",
   "helpers": {
     "test-writer": {
       "status": "completed",
@@ -59,6 +59,13 @@
       "severity": "P2",
       "disposition": "invalid",
       "note": "360px 'no chips' in the previous session was a scratch-test bug (two runs' calendars on the same date gave '4 earlier'); with separate dates the browser check passes at 360x640"
+    },
+    {
+      "id": "CR-5",
+      "source": "code-reviewer",
+      "severity": "P3",
+      "disposition": "accepted",
+      "note": "fixed 50 ms wait in the linked-event refetch test; a slow runner gives a loud failure, a false pass needs a slow runner and a broken refetch at once; left as is"
     }
   ],
   "validation": [
@@ -75,7 +82,11 @@
       "result": "pass"
     },
     {
-      "command": "sh scripts/check.sh (2026-11-22, after merging main f8cec873d incl. web-reminders-spec-clock; HEAD ff4c02f1e) -> all checks passed; web 198 files / 4956 tests passed",
+      "command": "npm --prefix web run test:ci -- --include calendar-view.spec.ts --include hidden-entries.spec.ts --include hidden-chips.spec.ts (3f2853bf9) -> 92/92",
+      "result": "pass"
+    },
+    {
+      "command": "sh scripts/check.sh on 3f2853bf9 (task merged with main 907999ac8) -> all checks passed; web 4956 tests passed",
       "result": "pass"
     }
   ]
