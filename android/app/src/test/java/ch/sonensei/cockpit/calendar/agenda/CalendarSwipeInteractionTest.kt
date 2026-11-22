@@ -16,6 +16,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import org.junit.Assert.assertEquals
@@ -166,6 +167,24 @@ class CalendarSwipeInteractionTest {
         assertEquals(listOf(1, 1), moves)
         assertEquals(today.plusDays(2), holder.value.anchor)
         composeRule.onNodeWithTag(CalendarTags.page(today.plusDays(2))).assertIsDisplayed()
+    }
+
+    @Test
+    fun `a swipe that interrupts an arrow slide still moves the view model`() {
+        val holder = show(state(CalendarView.DAY))
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithTag(CalendarTags.NEXT).performClick()
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.mainClock.advanceTimeByFrame()
+        // The finger catches the sliding pager and swipes it back past the day the arrow started from.
+        composeRule.onNodeWithTag(CalendarTags.PAGER).performTouchInput { swipeRight() }
+        composeRule.mainClock.autoAdvance = true
+        composeRule.waitForIdle()
+        assertEquals(1, moves.first())
+        assertEquals("the swipe after the arrow moved the view model", 2, moves.size)
+        assertTrue("the swipe went back", moves.last() < 0)
+        assertEquals(today.plusDays(moves.sum().toLong()), holder.value.anchor)
+        composeRule.onNodeWithTag(CalendarTags.page(holder.value.anchor)).assertIsDisplayed()
     }
 
     @Test
