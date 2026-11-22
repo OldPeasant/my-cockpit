@@ -23,7 +23,8 @@ let a tap bring them into view.
   - verified (2026-11-22 10:41+0100 by dell26/agent-1): HiddenEntryChipsTest tap tests (day above/below, week column) assert animated scroll to the nearest hidden entry's target offset; HiddenEntriesTest margin/clamp targets -> pass
 - [x] Chips have content descriptions for TalkBack (e.g. "2 events earlier, show")
   - verified (2026-11-22 10:41+0100 by dell26/agent-1): HiddenEntryChipsTest asserts content descriptions e.g. '2 events earlier, show' (en) and German descriptions (de-rDE-w360dp-h640dp) -> pass
-- [ ] The visibility calculation is a pure function (entries, scroll offset, viewport height) with unit tests
+- [x] The visibility calculation is a pure function (entries, scroll offset, viewport height) with unit tests
+  - verified (2026-11-22 10:41+0100 by dell26/agent-1): hiddenEntries(entries, scrollOffset, viewportHeight, margin) in HiddenEntries.kt is pure; HiddenEntriesTest 21 unit tests -> pass, JaCoCo 100% lines and branches of HiddenEntries.kt
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
 
