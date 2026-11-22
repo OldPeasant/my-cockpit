@@ -1197,7 +1197,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/views/calendar-view.html</context>
-          <context context-type="linenumber">92,94</context>
+          <context context-type="linenumber">110,112</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.edit.conflict" datatype="html">
@@ -1944,67 +1944,95 @@
         <source>The calendar settings could not be loaded.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/views/calendar-view.html</context>
-          <context context-type="linenumber">90,91</context>
+          <context context-type="linenumber">108,109</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.loading" datatype="html">
         <source>Loading the calendar…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/views/calendar-view.html</context>
-          <context context-type="linenumber">96,100</context>
+          <context context-type="linenumber">114,118</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.today" datatype="html">
         <source>Today</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/views/calendar-view.ts</context>
-          <context context-type="linenumber">129</context>
+          <context context-type="linenumber">132</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/views/calendar-view.ts</context>
-          <context context-type="linenumber">130</context>
+          <context context-type="linenumber">133</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.view.day" datatype="html">
         <source>Day</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/views/calendar-view.ts</context>
-          <context context-type="linenumber">132</context>
+          <context context-type="linenumber">135</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.view.week" datatype="html">
         <source>Week</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/views/calendar-view.ts</context>
-          <context context-type="linenumber">133</context>
+          <context context-type="linenumber">136</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.view.month" datatype="html">
         <source>Month</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/views/calendar-view.ts</context>
-          <context context-type="linenumber">134</context>
+          <context context-type="linenumber">137</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.view.agenda" datatype="html">
         <source>Agenda</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/views/calendar-view.ts</context>
-          <context context-type="linenumber">135</context>
+          <context context-type="linenumber">138</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.hidden.aboveLabel" datatype="html">
+        <source><x id="count" equiv-text="chip.count"/> events earlier, show</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/views/calendar-view.ts</context>
+          <context context-type="linenumber">233</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.hidden.belowLabel" datatype="html">
+        <source><x id="count" equiv-text="chip.count"/> events later, show</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/views/calendar-view.ts</context>
+          <context context-type="linenumber">234</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.hidden.above" datatype="html">
+        <source><x id="count" equiv-text="chip.count"/> earlier</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/views/calendar-view.ts</context>
+          <context context-type="linenumber">239</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.hidden.below" datatype="html">
+        <source><x id="count" equiv-text="chip.count"/> later</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/views/calendar-view.ts</context>
+          <context context-type="linenumber">240</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.toggleFailed" datatype="html">
         <source>The calendar &quot;<x id="name" equiv-text="calendar.name"/>&quot; could not be changed.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/views/calendar-view.ts</context>
-          <context context-type="linenumber">205</context>
+          <context context-type="linenumber">286</context>
         </context-group>
       </trans-unit>
       <trans-unit id="calendar.linkedEventFailed" datatype="html">
         <source>The linked event could not be opened. It may have been deleted.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/calendar/views/calendar-view.ts</context>
-          <context context-type="linenumber">282</context>
+          <context context-type="linenumber">363</context>
         </context-group>
       </trans-unit>
       <trans-unit id="capture.title" datatype="html">
@@ -5814,7 +5842,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.ts</context>
-          <context context-type="linenumber">615</context>
+          <context context-type="linenumber">697</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-reminders.ts</context>
@@ -6025,14 +6053,14 @@
         <source>Project</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">227,228</context>
+          <context context-type="linenumber">227,229</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.noProject" datatype="html">
         <source> No project </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">230,231</context>
+          <context context-type="linenumber">238,239</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.newProject" datatype="html">
@@ -6067,21 +6095,21 @@
         <source>Contexts</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">240,241</context>
+          <context context-type="linenumber">295,296</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.group.effort" datatype="html">
         <source>Effort</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">250,251</context>
+          <context context-type="linenumber">305,306</context>
         </context-group>
       </trans-unit>
       <trans-unit id="gtd.energy.label" datatype="html">
         <source>Energy</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">252,253</context>
+          <context context-type="linenumber">307,308</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/ui/pickers.ts</context>
@@ -6092,7 +6120,7 @@
         <source>Creativity</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">256,257</context>
+          <context context-type="linenumber">311,312</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/ui/pickers.ts</context>
@@ -6103,7 +6131,7 @@
         <source>Time estimate</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">263,264</context>
+          <context context-type="linenumber">318,319</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/ui/pickers.ts</context>
@@ -6114,105 +6142,105 @@
         <source>min</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">279,280</context>
+          <context context-type="linenumber">334,335</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.group.when" datatype="html">
         <source>When</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">289,290</context>
+          <context context-type="linenumber">344,345</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.due" datatype="html">
         <source>Due</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">291,292</context>
+          <context context-type="linenumber">346,347</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.dueTime" datatype="html">
         <source>Due time</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">306,308</context>
+          <context context-type="linenumber">361,363</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.tickler" datatype="html">
         <source>Tickler</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">314,316</context>
+          <context context-type="linenumber">369,371</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.ticklerHint" datatype="html">
         <source> Hidden until then, then back in the Inbox. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">328,329</context>
+          <context context-type="linenumber">383,384</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.repeat" datatype="html">
         <source>Repeat</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">333,334</context>
+          <context context-type="linenumber">388,389</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.rule" datatype="html">
         <source>Rule</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">350,351</context>
+          <context context-type="linenumber">405,406</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.repeatFrom" datatype="html">
         <source>Next one</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">371,372</context>
+          <context context-type="linenumber">426,427</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.saving" datatype="html">
         <source>Saving…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">392,393</context>
+          <context context-type="linenumber">447,448</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.unsaved" datatype="html">
         <source>Unsaved changes</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">394,395</context>
+          <context context-type="linenumber">449,450</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.saved" datatype="html">
         <source>Saved</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">396,398</context>
+          <context context-type="linenumber">451,453</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.discard" datatype="html">
         <source> Discard </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">401,402</context>
+          <context context-type="linenumber">456,457</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.save" datatype="html">
         <source>Save changes</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">410,411</context>
+          <context context-type="linenumber">465,466</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.saveShortcut" datatype="html">
         <source>Ctrl/⌘ ↵</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">411,413</context>
+          <context context-type="linenumber">466,468</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.pageTitle" datatype="html">
@@ -6286,28 +6314,28 @@
         <source>Move this task to reference? It becomes a note and the task goes to the Trash.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.ts</context>
-          <context context-type="linenumber">583</context>
+          <context context-type="linenumber">665</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.referenceDirtyConfirm" datatype="html">
         <source>Move this task to reference? Your unsaved changes are discarded; the note gets the saved version.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.ts</context>
-          <context context-type="linenumber">584</context>
+          <context context-type="linenumber">666</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.deleteDirtyConfirm" datatype="html">
         <source>Move this task to the Trash? Your unsaved changes are discarded.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.ts</context>
-          <context context-type="linenumber">585</context>
+          <context context-type="linenumber">667</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.discardConfirm" datatype="html">
         <source>Discard your unsaved changes?</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.ts</context>
-          <context context-type="linenumber">586</context>
+          <context context-type="linenumber">668</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.error.titleRequired" datatype="html">

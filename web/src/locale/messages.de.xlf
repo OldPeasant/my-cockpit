@@ -2130,6 +2130,38 @@
           <context context-type="linenumber">135</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="calendar.hidden.aboveLabel" datatype="html">
+        <source><x id="count" equiv-text="chip.count"/> events earlier, show</source>
+        <target state="translated"><x id="count" equiv-text="chip.count"/> frühere Termine, anzeigen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/views/calendar-view.ts</context>
+          <context context-type="linenumber">1</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.hidden.belowLabel" datatype="html">
+        <source><x id="count" equiv-text="chip.count"/> events later, show</source>
+        <target state="translated"><x id="count" equiv-text="chip.count"/> spätere Termine, anzeigen</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/views/calendar-view.ts</context>
+          <context context-type="linenumber">1</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.hidden.above" datatype="html">
+        <source><x id="count" equiv-text="chip.count"/> earlier</source>
+        <target state="translated"><x id="count" equiv-text="chip.count"/> früher</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/views/calendar-view.ts</context>
+          <context context-type="linenumber">1</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="calendar.hidden.below" datatype="html">
+        <source><x id="count" equiv-text="chip.count"/> later</source>
+        <target state="translated"><x id="count" equiv-text="chip.count"/> später</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/calendar/views/calendar-view.ts</context>
+          <context context-type="linenumber">1</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="calendar.toggleFailed" datatype="html">
         <source>The calendar &quot;<x id="name" equiv-text="calendar.name"/>&quot; could not be changed.</source>
         <target state="translated">Der Kalender „<x id="name" equiv-text="calendar.name"/>“ konnte nicht geändert werden.</target>
