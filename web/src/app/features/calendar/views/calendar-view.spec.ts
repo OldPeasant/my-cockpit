@@ -1165,6 +1165,241 @@ describe('CalendarView', () => {
     });
   });
 
+  describe('hidden-entry chips', () => {
+    const work = fakeCalendar('work');
+    // Fictitious entries on Monday 2026-03-23 in Zurich (CET, UTC+1).
+    const early = fakeOccurrence('Early swim', {
+      start: '2026-03-23T01:00:00Z', // 02:00-03:00
+      end: '2026-03-23T02:00:00Z',
+    });
+    const standup = fakeOccurrence('Standup', {
+      start: '2026-03-23T07:00:00Z', // 08:00-09:00
+      end: '2026-03-23T08:00:00Z',
+    });
+    const dinner = fakeOccurrence('Dinner', {
+      start: '2026-03-23T19:00:00Z', // 20:00-21:00
+      end: '2026-03-23T20:00:00Z',
+    });
+    const holiday = fakeOccurrence('Holiday', {
+      allDay: true,
+      start: undefined,
+      end: undefined,
+      startDate: '2026-03-23',
+      endDate: '2026-03-24',
+    });
+
+    let scrollTop: number;
+    let clientHeight: number;
+    let scrollTo: ReturnType<typeof vi.fn>;
+
+    const chips = () => [...root.querySelectorAll<HTMLButtonElement>('.calendar-hidden-chip')];
+    const labels = () => chips().map((chip) => chip.getAttribute('aria-label'));
+
+    function box(left: number, top: number, width: number, height: number): DOMRect {
+      return { left, top, width, height, right: left + width, bottom: top + height } as DOMRect;
+    }
+
+    /**
+     * A fake FullCalendar time grid inside the host's full-calendar element (jsdom lays out nothing): a vertical
+     * scroller 400 px high at y=100 with the Monday column of 1440 px (1 px per minute), scrolled to 07:00.
+     */
+    function timeGrid(date = '2026-03-23'): HTMLElement {
+      root.querySelector<HTMLElement>('.calendar-main')!.getBoundingClientRect = () =>
+        box(10, 50, 900, 600);
+      const scroller = document.createElement('div');
+      scroller.style.overflowY = 'auto';
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value: number) => (scrollTop = value),
+      });
+      Object.defineProperty(scroller, 'clientHeight', { get: () => clientHeight });
+      scroller.getBoundingClientRect = () => box(70, 100, 800, clientHeight);
+      scroller.scrollTo = scrollTo as unknown as HTMLElement['scrollTo'];
+      const column = document.createElement('div');
+      column.dataset['date'] = date;
+      Object.defineProperty(column, 'offsetHeight', { value: 1440 });
+      column.getBoundingClientRect = () => box(80, 100 - scrollTop, 100, 1440);
+      scroller.append(column);
+      root.querySelector('full-calendar')!.append(scroller);
+      return scroller;
+    }
+
+    /** Waits for the chips, which are recomputed in the next animation frame. */
+    async function frame(): Promise<void> {
+      await settle();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      await fixture.whenStable();
+    }
+
+    async function show(
+      items: OccurrenceResponse[],
+      info: DatesSetInfo = week(),
+      view = 'week',
+    ): Promise<HTMLElement> {
+      await render({ view, date: '2026-03-23' });
+      await answerCalendars(work);
+      options()!.datesSet!(info);
+      await settle();
+      callsOf(listEventOccurrences).at(-1)!.resolve({ items });
+      await settle();
+      await fixture.whenStable();
+      const scroller = timeGrid();
+      scroller.dispatchEvent(new Event('scroll'));
+      await frame();
+      return scroller;
+    }
+
+    beforeEach(() => {
+      scrollTop = 420; // 07:00: visible 07:00 - 13:40
+      clientHeight = 400;
+      scrollTo = vi.fn();
+    });
+
+    it('shows a chip at the top and the bottom edge of a column with entries scrolled out of view', async () => {
+      await show([early, standup, dinner, holiday]);
+      expect(chips()).toHaveLength(2);
+      const [above, below] = chips();
+      expect(above.getAttribute('aria-label')).toBe('1 earlier: show hidden event');
+      expect(above.title).toBe('1 earlier: show hidden event');
+      expect(above.textContent).toContain('▲');
+      expect(above.querySelector('.calendar-hidden-count')!.textContent).toBe('1');
+      expect(above.querySelector('.calendar-hidden-more')!.textContent).toBe('1 earlier');
+      expect(above.style.top).toBe('52px');
+      expect(above.style.left).toBe('72px');
+      expect(above.style.width).toBe('96px');
+      // A 96 px wide column has room for the longer text.
+      expect(above.classList).toContain('calendar-hidden-chip-wide');
+
+      expect(below.getAttribute('aria-label')).toBe('1 later: show hidden event');
+      expect(below.textContent).toContain('▼');
+      expect(below.querySelector('.calendar-hidden-more')!.textContent).toBe('1 later');
+      expect(below.style.top).toBe(`${50 + 400 - 22 - 2}px`);
+    });
+
+    it('are buttons that scroll smoothly to the nearest hidden entry, also from the keyboard', async () => {
+      await show([early, standup, dinner]);
+      const [above, below] = chips();
+      for (const chip of [above, below]) {
+        expect(chip.tagName).toBe('BUTTON');
+        expect(chip.type).toBe('button');
+        expect(chip.disabled).toBe(false);
+        expect(chip.tabIndex).toBe(0);
+      }
+      above.focus();
+      expect(document.activeElement).toBe(above);
+      // A focused native button activates with Enter/Space as a click (jsdom does not synthesize that).
+      above.click();
+      expect(scrollTo).toHaveBeenLastCalledWith({ top: 120, behavior: 'smooth' });
+      below.click();
+      // The bottom of 20:00-21:00 (1260 px) at the bottom of the visible part.
+      expect(scrollTo).toHaveBeenLastCalledWith({ top: 860, behavior: 'smooth' });
+    });
+
+    it('shows no chip when every entry is (partly) visible', async () => {
+      // 02:00-03:00 ends at 180 px; the visible part starts at 179.
+      scrollTop = 179;
+      await show([early, standup]);
+      expect(chips()).toEqual([]);
+    });
+
+    it('updates the chips while scrolling', async () => {
+      const scroller = await show([early, standup, dinner]);
+      expect(labels()).toEqual(['1 earlier: show hidden event', '1 later: show hidden event']);
+
+      scrollTop = 0;
+      scroller.dispatchEvent(new Event('scroll'));
+      await frame();
+      expect(labels()).toEqual(['2 later: show hidden events']);
+      expect(chips()[0].querySelector('.calendar-hidden-count')!.textContent).toBe('2');
+
+      // Visible 18:20 - 25:00: the two morning entries are above.
+      scrollTop = 1100;
+      scroller.dispatchEvent(new Event('scroll'));
+      await frame();
+      expect(labels()).toEqual(['2 earlier: show hidden events']);
+      expect(chips()[0].querySelector('.calendar-hidden-more')!.textContent).toBe('2 earlier');
+    });
+
+    it('updates the chips on resize', async () => {
+      await show([early, standup, dinner]);
+      expect(chips()).toHaveLength(2);
+      // The whole day fits now.
+      scrollTop = 0;
+      clientHeight = 1440;
+      window.dispatchEvent(new Event('resize'));
+      await frame();
+      expect(chips()).toEqual([]);
+    });
+
+    it('updates the chips when the events change', async () => {
+      await show([standup]);
+      expect(chips()).toEqual([]);
+
+      resyncs.next();
+      await settle();
+      callsOf(listEventOccurrences)
+        .at(-1)!
+        .resolve({ items: [early, standup, dinner] });
+      await frame();
+      await frame();
+      expect(labels()).toEqual(['1 earlier: show hidden event', '1 later: show hidden event']);
+    });
+
+    it('recomputes the chips when the period changes, before its events load', async () => {
+      await show([early, standup, dinner]);
+      expect(labels()).toEqual(['1 earlier: show hidden event', '1 later: show hidden event']);
+      const loads = callsOf(listEventOccurrences).length;
+
+      // FullCalendar renders the next week's columns (here: the grid's offset changes without a scroll event).
+      scrollTop = 0;
+      options()!.datesSet!(nextWeek());
+      await frame();
+      await frame();
+      // The next week's events are still loading: only the period change can have updated the chips.
+      expect(callsOf(listEventOccurrences)).toHaveLength(loads + 1);
+      expect(labels()).toEqual(['2 later: show hidden events']);
+    });
+
+    it('shows the chips in the day view too', async () => {
+      await show(
+        [early, standup],
+        {
+          start: new Date('2026-03-22T23:00:00Z'),
+          end: new Date('2026-03-23T23:00:00Z'),
+          view: { type: 'timeGridDay', currentStart: new Date('2026-03-22T23:00:00Z') },
+        } as unknown as DatesSetInfo,
+        'day',
+      );
+      expect(labels()).toEqual(['1 earlier: show hidden event']);
+    });
+
+    it('removes the chips when switching to the month view', async () => {
+      const scroller = await show([early, standup, dinner]);
+      expect(chips()).toHaveLength(2);
+      options()!.datesSet!({
+        start: new Date('2026-02-22T23:00:00Z'),
+        end: new Date('2026-04-05T22:00:00Z'),
+        view: { type: 'dayGridMonth', currentStart: new Date('2026-02-28T23:00:00Z') },
+      } as unknown as DatesSetInfo);
+      await settle();
+      scroller.dispatchEvent(new Event('scroll'));
+      await frame();
+      expect(chips()).toEqual([]);
+    });
+
+    it('stops listening for scrolling once destroyed', async () => {
+      await show([early, standup, dinner]);
+      const host = root;
+      const removeHost = vi.spyOn(host, 'removeEventListener');
+      const removeWindow = vi.spyOn(window, 'removeEventListener');
+      fixture.destroy();
+      expect(removeHost).toHaveBeenCalledWith('scroll', expect.any(Function), true);
+      expect(removeWindow).toHaveBeenCalledWith('resize', expect.any(Function));
+      removeWindow.mockRestore();
+    });
+  });
+
   describe('linked event', () => {
     it('shows the date of the event of the URL and opens it once', async () => {
       await render({ event: 'e1' });

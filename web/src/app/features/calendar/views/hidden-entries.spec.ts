@@ -13,9 +13,27 @@ describe('hidden entries', () => {
     expect(hidden.nearestBelow).toEqual(span(400, 500));
   });
 
+  it('finds the nearest hidden entries whatever their order', () => {
+    // Nearest first: later entries farther away must not replace them.
+    const hidden = hiddenEntries(
+      [span(60, 100), span(0, 50), span(400, 500), span(600, 700)],
+      100,
+      300,
+    );
+    expect(hidden.above).toBe(2);
+    expect(hidden.below).toBe(2);
+    expect(hidden.nearestAbove).toEqual(span(60, 100));
+    expect(hidden.nearestBelow).toEqual(span(400, 500));
+  });
+
   it('counts partly visible entries as visible', () => {
     const hidden = hiddenEntries([span(50, 101), span(399, 450)], 100, 300);
-    expect(hidden).toEqual({ above: 0, below: 0, nearestAbove: undefined, nearestBelow: undefined });
+    expect(hidden).toEqual({
+      above: 0,
+      below: 0,
+      nearestAbove: undefined,
+      nearestBelow: undefined,
+    });
   });
 
   it('finds nothing hidden without entries', () => {
@@ -28,7 +46,11 @@ describe('hidden entries', () => {
   });
 
   it('picks the nearest hidden entry regardless of order', () => {
-    const hidden = hiddenEntries([span(700, 800), span(0, 10), span(500, 520), span(20, 40)], 100, 300);
+    const hidden = hiddenEntries(
+      [span(700, 800), span(0, 10), span(500, 520), span(20, 40)],
+      100,
+      300,
+    );
     expect(hidden.nearestAbove).toEqual(span(20, 40));
     expect(hidden.nearestBelow).toEqual(span(500, 520));
   });
@@ -76,7 +98,12 @@ describe('hidden entries', () => {
 
     it('scales to the grid height', () => {
       expect(
-        daySpans([{ start: '2026-03-24T11:00:00Z', end: '2026-03-24T13:00:00Z' }], '2026-03-24', zone, 720),
+        daySpans(
+          [{ start: '2026-03-24T11:00:00Z', end: '2026-03-24T13:00:00Z' }],
+          '2026-03-24',
+          zone,
+          720,
+        ),
       ).toEqual([span(360, 420)]);
     });
   });
