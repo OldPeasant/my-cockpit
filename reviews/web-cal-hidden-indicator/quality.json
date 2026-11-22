@@ -63,24 +63,20 @@
   ],
   "validation": [
     {
-      "command": "cd web && npm run e2e -- --no-deps --project=chromium --grep 'hidden-entry chips' (reviews/web-cal-hidden-indicator/browser-check.spec.ts.txt, 1280x800 + 360x640)",
-      "result": "pass (1 passed)"
+      "command": "cd web && npm run e2e -- --no-deps --project=chromium --grep 'hidden-entry chips' (reviews/web-cal-hidden-indicator/browser-check.spec.ts.txt, 1280x800 + 360x640) -> 1 passed",
+      "result": "pass"
     },
     {
-      "command": "npm --prefix web run coverage -- --include='src/app/features/calendar/views/**/*.spec.ts'",
-      "result": "pass (136/136)"
+      "command": "npm --prefix web run coverage -- --include='src/app/features/calendar/views/**/*.spec.ts' -> 136/136",
+      "result": "pass"
     },
     {
-      "command": "npm run test:ci -- --include hidden-entries.spec.ts --include hidden-chips.spec.ts (web/)",
-      "result": "pass (23/23)"
+      "command": "npm run test:ci -- --include hidden-entries.spec.ts --include hidden-chips.spec.ts (web/) -> 23/23",
+      "result": "pass"
     },
     {
-      "command": "sh scripts/check.sh (2026-11-22 10:04, main 4a4f4d873)",
-      "result": "FAIL outside this task: server part and web eslint pass; web unit tests 4951 passed, 5 failed: 4 in gtd/task-detail/task-reminders.spec.ts (date-dependent fixtures, tracked by web-reminders-spec-clock; also fail on main) and 1 calendar-view.spec.ts 'linked event all-day' load-count flake that passed in 2 reruns (spec alone 69/69, full web suite again: only the 4 task-reminders failures)"
-    },
-    {
-      "command": "sh scripts/check.sh (2026-11-22, after merging main f8cec873d incl. web-reminders-spec-clock; HEAD ff4c02f1e)",
-      "result": "pass (all checks passed; web 198 files / 4956 tests passed)"
+      "command": "sh scripts/check.sh (2026-11-22, after merging main f8cec873d incl. web-reminders-spec-clock; HEAD ff4c02f1e) -> all checks passed; web 198 files / 4956 tests passed",
+      "result": "pass"
     }
   ]
 }
