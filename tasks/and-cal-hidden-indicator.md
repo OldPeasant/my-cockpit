@@ -16,8 +16,9 @@ let a tap bring them into view.
   above the visible part, and at the bottom edge ("▼ n") when entirely below; partly visible entries count as visible;
   no chip when n = 0; the chips update while scrolling
   - verified (2026-11-22 10:41+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' -> HiddenEntriesTest 21/21 (above/below counts, partly visible = visible, none when 0) and HiddenEntryChipsTest 8/8 (chips per day/week column, update on scroll) pass
-- [ ] In the narrow week columns the chip fits (arrow + number only) on a 360dp-wide phone; in the day view it may say
+- [x] In the narrow week columns the chip fits (arrow + number only) on a 360dp-wide phone; in the day view it may say
   more (e.g. "2 earlier" / "1 later")
+  - verified (2026-11-22 10:41+0100 by dell26/agent-1): HiddenEntryChipsTest week chip fits its column at qualifiers w360dp + hiddenChipLabel test (week '▼ 2', day '▼ 1 later') + HiddenEntryStringsTest en/de -> pass
 - [ ] Tapping a chip scrolls (animated) so the nearest hidden entry in that direction is in view
 - [ ] Chips have content descriptions for TalkBack (e.g. "2 events earlier, show")
 - [ ] The visibility calculation is a pure function (entries, scroll offset, viewport height) with unit tests
