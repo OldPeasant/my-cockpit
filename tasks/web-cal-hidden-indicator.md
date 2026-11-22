@@ -5,7 +5,7 @@ owner: dell26/agent-2
 deps: []
 touches: [web/src/app/features/calendar/views,web/src/locale/messages.xlf,web/src/locale/messages.de.xlf]
 prio: 2
-lease_until: 2026-11-22T09:15:20Z
+lease_until: 2026-11-22T09:20:22Z
 releases: 2
 extended: 
 ---
