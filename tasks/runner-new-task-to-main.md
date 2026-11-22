@@ -1,11 +1,11 @@
 ---
 title: Runner: a task created while working on another reaches main right away
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [web-reminders-spec-clock]
 touches: [agents.py,tasks.py,tests,AGENTS.md]
 prio: 1
-lease_until: 2026-11-22T12:57:30Z
+lease_until: 
 ---
 ## Goal
 AGENTS.md step 7 says "Missing task discovered? `tasks.py new ...`, commit, push", but agents never push to main: their
@@ -41,3 +41,4 @@ task file to main by hand.
 Planned 2026-11-22 by the owner after the `and-cal-initial-scroll` / `web-reminders-spec-clock` deadlock.
 - ASSUMPTION (2026-11-22 13:11+0100 by dell26/agent-1): tfp/ (upstream TFP clone) is not present in this agent clone, so the back-port is left to a human: the tasks.py/AGENTS.md/tests changes are self-contained for copying to tfp/ as-is
 - ASSUMPTION (2026-11-22 13:11+0100 by dell26/agent-1): Added 'tasks.py new --body FILE': since new now publishes immediately, the Goal/criteria must be in the file before the push (an empty skeleton would be claimable); AGENTS.md step 7 tells agents to write the body first. Without a remote, new now commits the file locally (criterion: 'commits it to the local main').
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 73s on f76409399; criteria verified 6/6
