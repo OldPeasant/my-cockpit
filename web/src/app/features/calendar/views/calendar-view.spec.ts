@@ -1419,12 +1419,14 @@ describe('CalendarView', () => {
     });
 
     it('shows an all-day linked event at its start date and refetches after a change', async () => {
-      editor.open.mockResolvedValueOnce(true);
+      // The editor closes only after the date change has loaded its range, so the count below is
+      // exactly the refetch after the change (not the range load, whose timing depends on rendering).
+      let closeEditor!: (changed: boolean) => void;
+      editor.open.mockReturnValueOnce(new Promise<boolean>((resolve) => (closeEditor = resolve)));
       await render({ event: 'trip' });
       await answerCalendars(fakeCalendar('work'));
       await settle();
       const gotoDate = vi.spyOn(fullCalendar()!.getApi(), 'gotoDate');
-      const loads = callsOf(listEventOccurrences).length;
       callsOf(getEvent)[0].resolve(
         fakeEvent('trip', {
           title: 'Ski trip',
@@ -1438,6 +1440,10 @@ describe('CalendarView', () => {
       await settle();
       expect(gotoDate).toHaveBeenCalledWith('2026-04-10');
       expect(editor.open.mock.calls[0][0]).toMatchObject({ eventId: 'trip', allDay: true });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const loads = callsOf(listEventOccurrences).length;
+      closeEditor(true);
+      await settle();
       // The editor saved a change: the shown range is loaded again.
       expect(callsOf(listEventOccurrences)).toHaveLength(loads + 1);
     });
