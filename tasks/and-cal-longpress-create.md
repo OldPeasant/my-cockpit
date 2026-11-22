@@ -16,7 +16,8 @@ long-press timeout) on a point of the calendar should create an event right ther
   rounded down to 15 minutes, lasting 1 hour (`NEW_EVENT_HOURS`); this also works when pressing on an existing event
   (a tap on an event still opens it)
   - verified (2026-11-22 12:31+0100 by dell26/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug at code rev 9f5fb197b -> BUILD OK, 5715 tests 0 failures; covering: CalendarLongPressTest (5 rounding tests), CalendarLongPressInteractionTest day-grid ghost/week-column/on-existing-event tests, EventEditorViewModelCreateAtTest -> pass
-- [ ] While the press is recognised: haptic feedback and a short "ghost" block showing the resulting slot
+- [x] While the press is recognised: haptic feedback and a short "ghost" block showing the resulting slot
+  - verified (2026-11-22 12:31+0100 by dell26/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug at code rev 9f5fb197b -> BUILD OK, 5715 tests 0 failures; CalendarLongPressInteractionTest 'a long press in the day grid shows a ghost...' and all-day ghost + cancel tests (haptic on recognition) -> pass
 - [ ] Day and week view, all-day strip: long press opens the editor with an all-day event on that day
 - [ ] Month view: long press on a day opens the editor with a timed event on that day, with the same defaults as the +
   button (next full hour if today, otherwise the default start); a tap still opens the day view
