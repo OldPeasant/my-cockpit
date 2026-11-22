@@ -98,6 +98,57 @@ class HiddenEntriesTest {
     }
 
     @Test
+    fun `a negative viewport height means nothing is reported`() {
+        assertEquals(HiddenEntries.NONE, hiddenEntries(listOf(entry(1, 60, 120)), 0, -1, scale))
+    }
+
+    @Test
+    fun `the nearest hidden entries are found whatever the order of the input`() {
+        val entries = listOf(entry(1, 1000, 1060), entry(2, 180, 240), entry(3, 900, 960), entry(4, 60, 120))
+        val hidden = hiddenEntries(entries, 300, 480, scale)
+        assertEquals(2, hidden.above)
+        assertEquals(2, hidden.below)
+        assertEquals(180, hidden.scrollToAbove)
+        assertEquals(960 - 480, hidden.scrollToBelow)
+    }
+
+    @Test
+    fun `the parts of overnight entries on this day are counted like other timed entries`() {
+        // Continues from yesterday until 1:30, and starts at 23:00 continuing into tomorrow.
+        val fromYesterday = entry(1, 0, 90).copy(continuesBefore = true)
+        val intoTomorrow = entry(2, 1380, MINUTES_PER_DAY).copy(continuesAfter = true)
+        val hidden = hiddenEntries(listOf(fromYesterday, intoTomorrow), 120, 480, scale)
+        assertEquals(1, hidden.above)
+        assertEquals(1, hidden.below)
+        // Above: back to midnight. Below: the part until midnight ends at the bottom edge.
+        assertEquals(0, hidden.scrollToAbove)
+        assertEquals(MINUTES_PER_DAY - 480, hidden.scrollToBelow)
+    }
+
+    @Test
+    fun `a middle day of a multi-day timed entry is never hidden`() {
+        val wholeDay = entry(1, 0, MINUTES_PER_DAY).copy(continuesBefore = true, continuesAfter = true)
+        for (offset in listOf(0, 300, MINUTES_PER_DAY - 480)) {
+            assertEquals(HiddenEntries.NONE, hiddenEntries(listOf(wholeDay), offset, 480, scale))
+        }
+    }
+
+    @Test
+    fun `an entry just past the edge by one px is partly visible`() {
+        // Ends one minute after the top edge, starts one minute before the bottom edge.
+        assertEquals(HiddenEntries.NONE, hiddenEntries(listOf(entry(1, 240, 301), entry(2, 779, 840)), 300, 480, scale))
+    }
+
+    @Test
+    fun `scroll targets are rounded to whole px`() {
+        // 0.8 px per minute: 9:01 starts at 432.8 px, 10:01 ends at 480.8 px.
+        val hidden = hiddenEntries(listOf(entry(1, 541, 601)), 0, 400, 0.8f)
+        assertEquals(81, hidden.scrollToBelow)
+        val above = hiddenEntries(listOf(entry(1, 541, 601)), 600, 400, 0.8f)
+        assertEquals(433, above.scrollToAbove)
+    }
+
+    @Test
     fun `no targets when nothing is hidden`() {
         val hidden = hiddenEntries(emptyList(), 0, 300, scale)
         assertEquals(null, hidden.scrollToAbove)

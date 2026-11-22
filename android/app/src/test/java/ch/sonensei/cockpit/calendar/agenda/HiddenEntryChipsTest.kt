@@ -147,4 +147,90 @@ class HiddenEntryChipsTest {
         // A column is (360dp - 48dp gutter) / 7, about 44dp.
         assertTrue("chip ${bounds.width} wide", bounds.width.value <= (360f - 48f) / 7f)
     }
+
+    @Test
+    fun `tapping a week column's chip scrolls that column's nearest entry into view`() {
+        val thursday = today.plusDays(1)
+        show(
+            CalendarView.WEEK,
+            listOf(
+                timed(1, "2026-10-21T06:00:00Z", "2026-10-21T07:00:00Z"),
+                timed(2, "2026-10-22T21:00:00Z", "2026-10-22T22:00:00Z"),
+                timed(3, "2026-10-22T22:00:00Z", "2026-10-22T23:00:00Z"),
+            ),
+        )
+        assertEquals(6 * hourPx, scrolled())
+        composeRule.onNodeWithTag(CalendarTags.hiddenBelow(thursday)).performClick()
+        composeRule.waitForIdle()
+        // The 21:00 entry ends at the bottom edge; the 22:00 one starts there and so is still below.
+        val viewport =
+            composeRule
+                .onNodeWithTag(CalendarTags.GRID_SCROLL)
+                .fetchSemanticsNode()
+                .size.height
+        assertEquals(22 * hourPx - viewport, scrolled())
+        composeRule
+            .onNodeWithTag(CalendarTags.hiddenBelow(thursday))
+            .assertContentDescriptionEquals("1 event later, show")
+        // Wednesday's 6:00 entry is now above in its own column.
+        composeRule
+            .onNodeWithTag(CalendarTags.hiddenAbove(today))
+            .assertContentDescriptionEquals("1 event earlier, show")
+    }
+
+    @Test
+    fun `an overnight entry is counted in both of its day columns`() {
+        val thursday = today.plusDays(1)
+        show(
+            CalendarView.WEEK,
+            listOf(
+                timed(1, "2026-10-21T08:00:00Z", "2026-10-21T09:00:00Z"),
+                // Wednesday 23:00 until Thursday 1:00.
+                timed(2, "2026-10-21T23:00:00Z", "2026-10-22T01:00:00Z"),
+            ),
+        )
+        // Opens at 8:00: Thursday's part (until 1:00) is above, Wednesday's part (from 23:00) below.
+        assertEquals(8 * hourPx, scrolled())
+        composeRule
+            .onNodeWithTag(CalendarTags.hiddenAbove(thursday))
+            .assertContentDescriptionEquals("1 event earlier, show")
+        composeRule
+            .onNodeWithTag(CalendarTags.hiddenBelow(today))
+            .assertContentDescriptionEquals("1 event later, show")
+        assertTrue(!exists(CalendarTags.hiddenBelow(thursday)))
+        assertTrue(!exists(CalendarTags.hiddenAbove(today)))
+
+        composeRule.onNodeWithTag(CalendarTags.hiddenAbove(thursday)).performClick()
+        composeRule.waitForIdle()
+        assertEquals(0, scrolled())
+        assertTrue(!exists(CalendarTags.hiddenAbove(thursday)))
+    }
+
+    @Test
+    fun `no chips when every entry is visible`() {
+        show(CalendarView.DAY, listOf(timed(1, "2026-10-21T09:00:00Z", "2026-10-21T10:00:00Z")))
+        assertTrue(!exists(CalendarTags.hiddenAbove(today)))
+        assertTrue(!exists(CalendarTags.hiddenBelow(today)))
+    }
+
+    @Test
+    @Config(qualifiers = "de-rDE-w360dp-h640dp")
+    fun `the chips are described in German`() {
+        show(
+            CalendarView.DAY,
+            listOf(
+                timed(1, "2026-10-21T02:00:00Z", "2026-10-21T03:00:00Z"),
+                timed(2, "2026-10-21T04:00:00Z", "2026-10-21T05:00:00Z"),
+                timed(3, "2026-10-21T22:00:00Z", "2026-10-21T23:00:00Z"),
+            ),
+        )
+        composeRule
+            .onNodeWithTag(CalendarTags.hiddenBelow(today))
+            .assertContentDescriptionEquals("1 Termin später, anzeigen")
+        composeRule.onNodeWithTag(CalendarTags.hiddenBelow(today)).performClick()
+        composeRule.waitForIdle()
+        composeRule
+            .onNodeWithTag(CalendarTags.hiddenAbove(today))
+            .assertContentDescriptionEquals("2 Termine früher, anzeigen")
+    }
 }
