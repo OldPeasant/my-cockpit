@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "task": "ci-robolectric-cache",
+  "reviewed_revision": "1dfe46e78ccc5c0f15d3ab56308fd8526900ebf6",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/ci-robolectric-cache/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/ci-robolectric-cache/review.md"},
+    "fixer": {"status": "completed", "report": "reviews/ci-robolectric-cache/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "round 1: cross-version restore key re-saved stale jars of old Robolectric versions; fallback removed in 1dfe46e78"},
+    {"id": "CR-2 (round 2)", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "criterion 1 evidence still mentioned the removed restore key; re-recorded with tasks.py verify (no code change)"}
+  ],
+  "validation": [
+    {"command": "podman run --rm -v ./:/repo:Z -w /repo docker.io/rhysd/actionlint:latest", "result": "pass"},
+    {"command": "sh .tmp/keytest.sh", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
