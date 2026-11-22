@@ -1,11 +1,11 @@
 ---
 title: Android calendar: day/week show which entries are scrolled out of view
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-cal-initial-scroll]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/main/res/values/strings_calendar_agenda.xml,android/app/src/main/res/values-de/strings_calendar_agenda.xml]
 prio: 2
-lease_until: 2026-11-22T10:00:44Z
+lease_until: 
 ---
 ## Goal
 In the day and week grid you cannot see that entries are above or below the visible part. Show it per day column and
@@ -38,3 +38,4 @@ Planned 2026-11-22 from the owner's calendar usability request; the design decis
 - ASSUMPTION (2026-11-22 10:22+0100 by dell26/agent-1): Review P3 CR-4 deferred: when the grid viewport is no taller than the 32dp chip margin (extreme landscape with many all-day rows) a chip tap may not reveal the entry; accepted as a rare edge case. P3 CR-3 (no test that the day view uses the long label) also left open
 - ASSUMPTION (2026-11-22 10:31+0100 by dell26/agent-1): Supersedes the CR-4/CR-3 deferral note: both were fixed in b47fbb93e (scroll margin clamped to viewport/4 so a tiny grid still reveals the entry; per-view label choice extracted to hiddenChipLabel and tested)
 - ASSUMPTION (2026-11-22 10:31+0100 by dell26/agent-1): Supersedes the scroll-target note (review CR-5): a revealed entry stops a margin from the edge (32dp, or a quarter of the grid height if smaller) so the chip does not cover it
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 126s on f489b0f4e; criteria verified 7/7
