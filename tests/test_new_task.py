@@ -88,7 +88,9 @@ class NewTask(Board):
 
     def test_same_id_created_by_another_agent_first(self):
         other = self.other_clone()
-        self.tp_in(other, "new", "c", "Their clock", who="agent-2")
+        (other / ".tmp").mkdir()
+        (other / ".tmp" / "c.md").write_text(BODY)
+        self.tp_in(other, "new", "c", "Their clock", "--body", ".tmp/c.md", who="agent-2")
         p = self.tp("new", "c", "Fix clock", "--body", ".tmp/c.md", who="agent-1", check=False)
         self.assertNotEqual(p.returncode, 0)
         self.assertIn("exists", p.stderr)
@@ -196,12 +198,17 @@ class NewTask(Board):
         self.assertNotIn("tasks/c.md", self.remote_files())
         self.assertFalse((self.w / "tasks" / "c.md").exists())
 
-    def test_without_body_the_skeleton_is_published(self):
-        self.tp("new", "c", "Fix clock", "--prio", "1", who="agent-1")
-        text = self.remote_task("c")
-        self.assertEqual(field(text, "prio"), "1")
-        self.assertIn("## Goal", text)
-        self.assertIn("## Acceptance criteria", text)
+    def test_without_body_nothing_is_published(self):
+        """With a remote the task is claimable at once, so an empty skeleton is refused: the text needs --body."""
+        before = sh(self.tmp, "git", "--git-dir=remote.git", "rev-parse", "main").stdout
+        head = sh(self.w, "git", "rev-parse", "HEAD").stdout
+        p = self.tp("new", "c", "Fix clock", "--prio", "1", who="agent-1", check=False)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("NOT created", p.stderr)
+        self.assertIn("--body .tmp/c.md", p.stderr)
+        self.assertFalse((self.w / "tasks" / "c.md").exists())
+        self.assertEqual(sh(self.tmp, "git", "--git-dir=remote.git", "rev-parse", "main").stdout, before)
+        self.assertEqual(sh(self.w, "git", "rev-parse", "HEAD").stdout, head)
 
     def test_existing_local_file_is_refused_without_push(self):
         (self.w / "tasks" / "c.md").write_text("hand-written\n")

@@ -174,6 +174,11 @@ class Check(Board):
 
 
 class Touches(Board):
+    def body(self, tid):
+        """`new` publishes at once when a remote exists, so it needs the task's text via --body."""
+        (self.w / ".tmp").mkdir(exist_ok=True)
+        (self.w / ".tmp" / f"{tid}.md").write_text(f"## Goal\nTask {tid}.\n\n## Acceptance criteria\n- [ ] it works\n")
+
     def test_overlaps(self):
         self.assertEqual(tasks.overlaps(["frontend/src"], ["./frontend/src/app/x.ts"]), ["frontend/src/app/x.ts"])
         self.assertEqual(tasks.overlaps(["frontend/"], ["frontend"]), ["frontend"])
@@ -183,11 +188,13 @@ class Touches(Board):
 
     def test_new_writes_touches(self):
         self.assertIn("touches: [frontend/src/app/state]\n", self.remote())
-        self.tp("new", "c", "Task C")
+        self.body("c")
+        self.tp("new", "c", "Task C", "--body", ".tmp/c.md")
         self.assertNotIn("touches", (self.w / "tasks" / "c.md").read_text())
 
     def test_next_prefers_tasks_away_from_work_in_progress(self):
-        self.tp("new", "c", "Task C", "--prio", "1")  # commits and pushes the task file to main by itself
+        self.body("c")
+        self.tp("new", "c", "Task C", "--prio", "1", "--body", ".tmp/c.md")  # commits and pushes the task file to main by itself
         self.assertIn("title: Task C", self.remote("c"))
         self.assertEqual(sh(self.w, "git", "status", "--porcelain", "--untracked-files=no").stdout, "")
         self.tp("claim", "b", who="agent-2")

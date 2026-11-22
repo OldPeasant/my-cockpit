@@ -615,6 +615,10 @@ def cmd_new(a):
         sys.exit("--quality-exempt needs a reason (why this task produces no code to test and review)")
     exempt = f"quality: exempt\nquality_reason: {a.quality_exempt.strip()}\n" if a.quality_exempt else ""
     body = "## Goal\n\n## Acceptance criteria\n- [ ] \n\n## Notes\n"
+    if not a.body and upstream():  # an empty skeleton on main would be claimable before anyone fills it in
+        sys.exit(f"Task {a.id} was NOT created: `new` pushes the task to main at once (claimable right away), so "
+                 "its text must come with it. Write its ## Goal, ## Acceptance criteria and ## Notes into a file "
+                 f"(e.g. .tmp/{a.id}.md) and run the command again with --body .tmp/{a.id}.md")
     if a.body:
         try:
             body = Path(a.body).read_text(encoding="utf-8").strip("\n") + "\n"
@@ -1182,7 +1186,7 @@ def cmd_drop(a):
     def guard(t):
         if t["status"] == "done":
             return (f"REFUSED: {a.id} is done: its code is on main already. Add a task that removes or "
-                    "changes it (python tasks.py new ...)")
+                    "changes it (python tasks.py new ... --body FILE)")
         if t["status"] == "dropped":
             return f"{a.id} is dropped already"
         if t["status"] == "in_progress" and t["owner"] != me() and not t["stale"] and not a.force:
@@ -1328,8 +1332,8 @@ def cmd_review_assumption(a):
     if err:
         sys.exit(err)
     print(f"{verdict.upper()} {a.id} #{', #'.join(map(str, picked))}"
-          + (f"\nTo change what was built, edit the task (if not started) or add one: python tasks.py new ..."
-             if verdict == "rejected" else ""))
+          + ("\nTo change what was built, edit the task (if not started) or add one: "
+             "python tasks.py new ... --body FILE" if verdict == "rejected" else ""))
 
 
 def cmd_heartbeat(a):
