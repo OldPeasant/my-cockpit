@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [.github/workflows/ci.yml,docs/ARCHITECTURE.md]
 prio: 1
-lease_until: 2026-11-22T12:22:17Z
+lease_until: 2026-11-22T12:27:14Z
 ---
 ## Goal
 The "Fast check (android)" CI job failed in 4 of 7 pushes on 2026-11-22 (runs 45005199770, 45008992077, 45014587068,
