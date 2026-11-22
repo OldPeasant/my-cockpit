@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "task": "and-cal-initial-scroll",
+  "reviewed_revision": "c915f691b1f84b5d33d4c1dba101e6bfea10767f",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-cal-initial-scroll/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-cal-initial-scroll/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-cal-initial-scroll/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "positionedFor now rememberSaveable; restore test fails with plain remember, passes with the fix"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "cd android && ./gradlew testDebugUnitTest --tests '*CalendarGridScrollTest*' --tests '*CalendarScreensTest*'", "result": "pass"}
+  ]
+}
