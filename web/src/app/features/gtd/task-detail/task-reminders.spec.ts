@@ -142,6 +142,10 @@ describe('TaskReminders', () => {
   let fixture: ReturnType<typeof TestBed.createComponent<Host>>;
 
   beforeEach(() => {
+    // The presets hide past times and are computed on the first render, before `component.now`
+    // is replaced below, so the system clock is fixed too: the fixtures must not age.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(now);
     stored = { t1: [], t2: [] };
     loads = [];
     added = [];
@@ -173,6 +177,8 @@ describe('TaskReminders', () => {
       providers: [{ provide: TaskDetailService, useValue: service }],
     });
   });
+
+  afterEach(() => vi.useRealTimers());
 
   async function render(): Promise<void> {
     fixture = TestBed.createComponent(Host);
