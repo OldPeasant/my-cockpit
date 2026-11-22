@@ -19,7 +19,8 @@ let a tap bring them into view.
 - [x] In the narrow week columns the chip fits (arrow + number only) on a 360dp-wide phone; in the day view it may say
   more (e.g. "2 earlier" / "1 later")
   - verified (2026-11-22 10:41+0100 by dell26/agent-1): HiddenEntryChipsTest week chip fits its column at qualifiers w360dp + hiddenChipLabel test (week '▼ 2', day '▼ 1 later') + HiddenEntryStringsTest en/de -> pass
-- [ ] Tapping a chip scrolls (animated) so the nearest hidden entry in that direction is in view
+- [x] Tapping a chip scrolls (animated) so the nearest hidden entry in that direction is in view
+  - verified (2026-11-22 10:41+0100 by dell26/agent-1): HiddenEntryChipsTest tap tests (day above/below, week column) assert animated scroll to the nearest hidden entry's target offset; HiddenEntriesTest margin/clamp targets -> pass
 - [ ] Chips have content descriptions for TalkBack (e.g. "2 events earlier, show")
 - [ ] The visibility calculation is a pure function (entries, scroll offset, viewport height) with unit tests
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
