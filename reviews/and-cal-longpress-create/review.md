@@ -4,7 +4,7 @@ Date: 2026-11-22
 
 Task: and-cal-longpress-create - Android calendar: long press in day/week/month creates an event there
 
-Scope: round 2, `git diff 46716d41..092f53d17 -- android` (full task diff after the fixes), with special attention to fix commit 092f53d17 (TW-1, CR-1 to CR-4 of round 1). Reviewed revision: 092f53d173bc831655475f48ef794525dabb64cf. Static review only: Gradle was not run on request of the parent worker (a test-writer runs it in parallel).
+Scope: round 3 (delta) on top of round 2. Round 3 reviewed revision: 9f5fb197b4043d49fdf21c5af654185e55eebd44 (`git diff b2cc45e05..9f5fb197b -- android`, one new test). Round 2: `git diff 46716d41..092f53d17 -- android` (full task diff after the fixes), with special attention to fix commit 092f53d17 (TW-1, CR-1 to CR-4 of round 1). Reviewed revision: 092f53d173bc831655475f48ef794525dabb64cf. Static review only: Gradle was not run on request of the parent worker (a test-writer runs it in parallel).
 
 Requirements:
 - tasks/and-cal-longpress-create.md (acceptance criteria and the two recorded assumptions)
@@ -18,6 +18,7 @@ Git range:
 - HEAD: 092f53d173bc831655475f48ef794525dabb64cf
 - Base/start: 46716d412429c32b7a4819a9ce33353d5c003090
 - Commits reviewed: 4 (2d79c7420 implementation, b72d31852 review report, 8ad34b31c tests, 092f53d17 fixes)
+- Round 3: HEAD of the code 9f5fb197b4043d49fdf21c5af654185e55eebd44, start b2cc45e05 (rewritten 092f53d17, same patch), 1 code commit (9f5fb197b); later commits touch only reviews/
 
 Summary: 0 P0, 0 P1, 0 P2, 2 P3
 
@@ -36,6 +37,13 @@ Summary: 0 P0, 0 P1, 0 P2, 2 P3
 - Month: `combinedClickable` with tap to open the day, long press to `create(day, null, false)` (default start as with the + button), single haptic (criterion 4).
 - Strings: `calendar_new_event_here` in `values/` and `values-de/` (criterion 8). The new content descriptions reuse the existing `calendar_all_day` string and a localized `FormatStyle.FULL` date, so no new untranslated text.
 - No secrets, logging or security-relevant changes.
+
+## Round 3 delta (9f5fb197b)
+
+- `git diff b2cc45e05 HEAD -- android` contains only the new test `a long press calls the create callback of the latest composition, not the first one` in `CalendarLongPressInteractionTest.kt:403-431`; no production code changed since round 2, so the round-2 assessment stands unchanged.
+- The test is meaningful for the CR-3 fix: it recomposes with a new `CalendarCallbacks` while the day stays the same. `longPressAt` keys `pointerInput` by `day` (strip, `CalendarScreen.kt:1127`) and `day to pxPerMinute` (grid, `:1219`), so the gesture handlers are not restarted; only the `rememberUpdatedState(callbacks.create)` reads (`:1104`, `:1213`) route the press to the new sink. Removing them would make `created` non-empty and fail the test. It covers grid (08:05 snaps to 08:00 timed) and the day-view all-day strip, with expectations consistent with the existing tests at lines 271 and 393-400.
+- Uses only existing helpers and imports (`mutableStateOf`, `assertTrue`, `grid`, `gridPoint`, `pressAndHold`, `lift`, `px`); no line exceeds 140 columns. Not executed here (static review on request; the parent runs Gradle).
+- No new findings. The two round-2 P3 items remain open as optional cleanups.
 
 ## P0 Critical
 
@@ -67,4 +75,4 @@ None.
 
 ## Review conclusion
 
-No material issues found. All round-1 findings (CR-1 to CR-4) and TW-1 are resolved in 092f53d17; the two remaining P3 items are optional cleanups.
+No material issues found (round 3: the delta adds one valid regression test, no production change). All round-1 findings (CR-1 to CR-4) and TW-1 are resolved in 092f53d17; the two remaining P3 items are optional cleanups.
