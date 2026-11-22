@@ -34,7 +34,8 @@ task file to main by hand.
 - [x] Tests in `tests/` cover: new task visible on origin/main while the creator's work stays on `wip/<id>`; another
   clone can `claim` it right away; push race with another agent
   - verified (2026-11-22 13:36+0100 by dell26/agent-1): python3 tests/test_new_task.py -> 18 OK incl. test_new_task_reaches_main_alone_while_work_stays_on_wip, test_another_clone_can_claim_it_right_away, test_push_race_with_another_agent_is_retried (+GH006 race); also test_push_race 35, test_push_failure 31, test_done_gate 16, test_hung_session 32, test_overbudget 9 OK
-- [ ] `sh scripts/check.sh` passes
+- [x] `sh scripts/check.sh` passes
+  - verified (2026-11-22 13:36+0100 by dell26/agent-1): sh scripts/check.sh on 5fae6b550 (final code) -> exit 0, all checks passed
 
 ## Notes
 Planned 2026-11-22 by the owner after the `and-cal-initial-scroll` / `web-reminders-spec-clock` deadlock.
