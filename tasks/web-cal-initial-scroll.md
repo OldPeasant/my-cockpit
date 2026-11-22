@@ -19,7 +19,8 @@ below it as fit. Same behaviour as the Android task `and-cal-initial-scroll`.
 - [x] Entries continuing from an earlier day (e.g. 22:00-02:00, shown from 00:00 on the next day), all-day entries and
   overlay tasks without a time are ignored for this position
   - verified (2026-11-22 10:50+0100 by dell26/agent-2): same run -> initial-scroll.spec 'ignores entries that started before the period'; calendar-view.spec all-day + overnight-from-previous-day week -> 07:00; overlay all-day tasks filtered by allDay===false
-- [ ] No timed entry in the shown period: scroll to the current time (full hour before now) if today is shown, else 07:00
+- [x] No timed entry in the shown period: scroll to the current time (full hour before now) if today is shown, else 07:00
+  - verified (2026-11-22 10:50+0100 by dell26/agent-2): same run -> initial-scroll.spec 'full hour before now when today is shown' (16:42->16:00) and '07:00 when today is not shown'
 - [ ] The position is applied when the view opens and on every period change (prev/next, Today, view switch, jump to a
   date/event), once the period's events are loaded; a background refresh/reload of the same period does not move the
   scroll position
