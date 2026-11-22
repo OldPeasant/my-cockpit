@@ -2,147 +2,169 @@
 
 Date: 2026-11-22
 
-Task: and-cal-swipe - Android calendar: swipe horizontally to the previous/next day, week, month
+Task: and-cal-swipe - Android calendar: swipe horizontally to the previous/next day, week, month (round 2, final code)
 
-Scope: base 920279b78ad7dc044711bc903ee158d3487c4145 .. HEAD fd4e3ae1d6895dc7dbce36db20145ca56c7aef0b (branch main, local).
-Task code commits as named by the parent were 2e0313bb8 and 371e46670; at measurement time they are present as
-c0eb4043d (production) and c3e03eca9 (tests), plus fd4e3ae1d (review report only). Production files in scope
-(`git diff --stat 920279b78..HEAD -- android`):
+Scope: base 9bbd634344021b662e25f5aaa4ee8292665edb87 .. HEAD 0533f20d1884c58bff4a4f639da6f5e61ecd20b1 (branch main, local,
+clean working tree). Task code commits as given by the parent: f509c20e0 (production), 588a17bb6 (tests), 6d3b12c45
+(tests + round-1 report), 1397f2568 (fixes for CR-1/CR-2 in CalendarScreen.kt plus two tests). The remaining commits in
+the range are board/report commits (5665bd80f, f720d5d46, 9a787e0af) and the merge 0533f20d1 of `origin/wip/and-cal-swipe`.
+Production files in scope (`git diff --stat 9bbd63434..HEAD -- android`):
 - `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarScreen.kt`
 - `android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda/CalendarViewModel.kt`
 
-Uncommitted inputs: the two new, untracked test files listed below (nothing else dirty).
+Round-2 focus: the fix commit 1397f2568 (PagerState no longer saveable; the follow-the-view-model effect waits for a
+running scroll to end instead of skipping).
 
 Requirements:
-- `tasks/and-cal-swipe.md` acceptance criteria and the two recorded assumptions (network-only preload,
-  beyondViewportPageCount 0)
+- `tasks/and-cal-swipe.md` acceptance criteria and recorded assumptions
+- `reviews/and-cal-swipe/review.md` (CR-1, CR-2, CR-3) and `reviews/and-cal-swipe/fixes.md`
 - `AGENTS.md`, `docs/ARCHITECTURE.md` "Coverage"
 
 ## Test files changed
 
-- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/CalendarSwipeInteractionTest.kt` (new, Compose/Robolectric)
-- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/CalendarViewModelNeighboursTest.kt` (new, view model)
-
-Existing tests (CalendarSwipeTest, CalendarViewModelTest, CalendarGridScrollTest, CalendarViewModelEdgeCasesTest) were
-not changed.
+None in round 2. Test files of the task (from earlier rounds, unchanged now):
+- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/CalendarSwipeInteractionTest.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/CalendarViewModelNeighboursTest.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/CalendarSwipeTest.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/CalendarViewModelTest.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/CalendarGridScrollTest.kt`
+- `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/CalendarViewModelEdgeCasesTest.kt`
 
 ## Tests added or updated
 
-Count: 19 (9 Compose, 10 view model)
+Count: 0 (round 2)
+
+Review of the fix commit 1397f2568 against its tests (by reading the code and the tests; see "Focused test execution"
+for why they were not re-run by me):
+
+- CR-1, non-saveable PagerState (`CalendarScreen.kt` PeriodPager, `remember { PagerState(currentPage = shownPage) ... }`):
+  covered by `a restored screen keeps the period without moving the view model again`. It uses
+  `StateRestorationTester.emulateSavedInstanceStateRestore()` with a state holder that outlives the composition (like
+  the view model), after a NEXT tap. With the old `rememberPagerState`, the restored page (PAGER_START + 1) would sit
+  next to a recreated `base` equal to the new anchor (shownPage = PAGER_START), and the settled-page collector would
+  call `move(+1)` again; the test asserts `moves == [1]`, the anchor and the displayed page, so it fails without the fix.
+- CR-2, follow after the scroll ends (`snapshotFlow { isScrollInProgress }.first { !it }`): covered by
+  `a period change during a drag is followed once the drag snaps back`. It holds a short drag, changes the anchor (as
+  an arrow or Today would), then releases. With the old `!isScrollInProgress` skip, the pager would snap back to the
+  old page, and the settled-page collector would emit `move(-1)` relative to the new period; the test asserts no move,
+  the new anchor, the new page displayed and the old page gone, so it fails without the fix.
+- Not separately tested: the same situation ending in a completed swipe or fling instead of a snap-back. The code path
+  is the same wait-then-catch-up effect; the settled-page collector then moves relative to the new period, which no
+  acceptance criterion defines further. Judged not a real gap; no test added (keep it small, as asked).
 
 ## Requirement coverage
 
-Command for all rows: `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*'`
+Rows reflect the test suite on the final code. Result column: what is recorded as having run; my own round-2 run was
+blocked (see below), so the last observed results come from the fixer's run of the agenda tests on the fix code.
 
 | Requirement | Tests | Command | Result |
 |---|---|---|---|
-| AC1 swipe pages day/week/month; settled page moves the view model like move(n) | CalendarSwipeTest (existing, 2 tests); new: `a pager swipe over several periods moves by as many days`, `month days can be tapped on the month swiped to` (also asserts the November page after a left swipe) | see above | Pass |
-| AC2 vertical scroll still works; mostly vertical gesture keeps period; horizontal gesture does not scroll vertically | CalendarSwipeTest `a vertical swipe scrolls the grid and keeps the period`; new: `a mostly vertical diagonal gesture scrolls the grid and keeps the period`, `a horizontal swipe on the grid pages without scrolling it vertically`, `a short, slow, mostly horizontal drag snaps back without scrolling vertically or moving` | see above | Pass |
-| AC3 neighbours preloaded; missing neighbour is an empty grid that fills | CalendarViewModelTest preload test (existing); new: `a neighbour stays an empty, not loaded page until its preload answers, then fills`, `a failed neighbour preload leaves only that neighbour empty`, `a failed load of the shown day preloads no neighbours`, `a preload that answers after a move is not shown for the new period`, `swiping back shows the day left behind at once`, `switching the view drops the neighbours of the previous view`, `the week and month views preload the previous and next week or month grid`, `a page swiped to before its data arrives fills when the data comes` (Compose) | see above | Pass |
-| AC4 arrows, Today, range title stay in sync with the pager; agenda unchanged | CalendarSwipeTest arrows test (existing); new: `the previous arrow slides the pager back and Today jumps back from several days away`, `two quick taps on the next arrow end two days later without a move back`, `the agenda view has no pager`, `the agenda preloads no neighbours and ignores moves`, `a move by zero keeps the period and loads nothing` | see above | Pass |
-| AC5 taps on entries, day headers, month days on the settled page | new: `day headers and entries can be tapped on the week swiped to`, `month days can be tapped on the month swiped to` | see above | Pass |
-| AC5 initial scroll and hidden-entry chips on the settled page | CalendarGridScrollTest (adapted by the task, 11 tests), HiddenEntryChipsTest (8) still pass; no new swipe-specific chip test | see above | Pass (existing tests only; see "Unable to test") |
-| AC6 strings EN + DE | No new strings in the diff; lint MissingTranslation is the guard | not run by me (lintDebug) | Not run: no strings changed, lintDebug is the parent's check |
-| AC7 ktlintCheck testDebugUnitTest lintDebug, scripts/check.sh | ktlintCheck + agenda unit tests run | see above | Pass for ktlintCheck and agenda tests; full testDebugUnitTest, lintDebug and check.sh not run by me |
+| AC1 swipe pages day/week/month; settled page moves the view model | CalendarSwipeTest (2), `a pager swipe over several periods moves by as many days`, `month days can be tapped on the month swiped to` | `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*'` | Not run by me in round 2: Gradle denied. Last observed Pass (round 1 and fixer run) |
+| AC2 vertical scroll vs horizontal swipe separation | CalendarSwipeTest vertical swipe test, `a mostly vertical diagonal gesture ...`, `a horizontal swipe on the grid pages without scrolling it vertically`, `a short, slow, mostly horizontal drag snaps back ...` | same | Not run by me in round 2: Gradle denied. Last observed Pass |
+| AC3 neighbours preloaded; empty grid fills later | CalendarViewModelNeighboursTest (10), CalendarViewModelTest preload test, `a page swiped to before its data arrives fills when the data comes` | same | Not run by me in round 2: Gradle denied. Last observed Pass |
+| AC4 arrows, Today, title in sync with the pager; agenda unchanged | CalendarSwipeTest arrows test, `the previous arrow slides the pager back and Today jumps back ...`, `two quick taps on the next arrow ...`, `the agenda view has no pager`, `a period change during a drag is followed once the drag snaps back` (CR-2), `a restored screen keeps the period without moving the view model again` (CR-1) | same | Not run by me in round 2: Gradle denied. Fixer run: CalendarSwipeInteractionTest 11/11 Pass |
+| AC5 taps, initial scroll, hidden-entry chips on the settled page | `day headers and entries can be tapped on the week swiped to`, `month days can be tapped on the month swiped to`, CalendarGridScrollTest (11), HiddenEntryChipsTest | same | Not run by me in round 2: Gradle denied. Last observed Pass |
+| AC6 strings EN + DE | no strings changed (`git diff --stat 9bbd63434..HEAD -- android` lists no strings file) | git diff | Pass (no new strings) |
+| AC7 ktlintCheck testDebugUnitTest lintDebug, scripts/check.sh | whole suite | `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug`, `sh scripts/check.sh` | Not run by me: Gradle denied; the parent must run them |
 
 ## Focused test execution
 
 Command:
 
-`cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*'`
+`cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' createDebugUnitTestCoverageReport --rerun-tasks`
+(also tried as `./android/gradlew -p android ...`)
 
 Result:
 
-Pass. 34 agenda test classes, 0 failures, 0 skipped (CalendarSwipeInteractionTest 9/9, CalendarViewModelNeighboursTest
-10/10, CalendarSwipeTest 6/6, CalendarViewModelTest 6/6, CalendarGridScrollTest 11/11, CalendarViewModelEdgeCasesTest 26/26).
-ktlintCheck passed after `./gradlew ktlintTestSourceSetFormat` (formatting of the new test file only).
+Not run: the sandbox denied every Gradle invocation in this helper session ("Permission to use Bash has been denied"),
+while plain git commands worked. No output was produced.
+
+Last observed result (not my run, recorded for context only): `android/app/build/test-results/testDebugUnitTest/`
+files written 2026-11-22 11:07:13 +0100, 24 seconds before commit 1397f2568 (11:07:31), i.e. the fixer's run on the
+fix code: CalendarSwipeInteractionTest 11 tests, 0 failures, 0 errors, 0 skipped, including both fix tests. The parent
+should re-run the focused command on HEAD before recording evidence.
 
 ## Full test execution
 
 Command:
 
-`cd android && ./gradlew testDebugUnitTest` (whole Android unit suite)
+`cd android && ./gradlew testDebugUnitTest`
 
 Result:
 
-Not run: limited time budget; the parent runs it with `.taskcheck`.
+Not run (Gradle denied in this session).
 
 ## .taskcheck
 
 Result:
 
-Not run (parent runs `sh scripts/check.sh` before done).
+Not run (Gradle denied; `sh scripts/check.sh` runs Gradle). The parent runs it before done.
 
 ## Bugs found
 
-No production defect found that violates an acceptance criterion. Observations (no failing test added, as the
-criterion says "usually"):
-
-- Low, CalendarViewModel.kt:520 (loadNeighbours guard `it.anchor == anchor`): the preload result is discarded
-  whenever the anchor changed meanwhile, also when the range did not change (the `show` early return at line 399-401
-  only updates the anchor and does not cancel or restart the preload). Example: month view with a clamped anchor
-  (31 October, move +1 to 30 November, move -1 to 30 October, then Today to 31 October while the preload is pending):
-  the neighbours of October stay empty until the next load. Comparing the range (from/to) instead of the anchor
-  would avoid it. A swipe in this case still shows an empty page that fills from its own load.
-- Low, CalendarScreen.kt:735: an arrow or Today tapped while a drag is in progress is not followed by the pager
-  (`!isScrollInProgress`); when the drag settles, the settled-page collector then moves the view model by
-  `page - shownPage`, relative to the new period. Not covered by a test (hard to drive deterministically).
-- Test note: after a drag that snaps back, the neighbouring page stays composed for a moment, so tags such as
-  `calendar-grid-scroll` can match two nodes; the new tests scope lookups to `CalendarTags.page(date)`.
+No production defect found in round 2. Round-1 observation TW-2 (arrow during a drag not followed) is addressed by
+1397f2568 and now covered by the CR-2 test. Round-1 observation TW-1 (preload guard compares the anchor) was judged
+invalid by the fixer (see fixes.md); not re-raised.
 
 ## Coverage
 
-Status: verified (task-scoped, agenda test selection).
+Status: unavailable for the final code. The coverage command could not be run (Gradle denied in this helper session).
+The only existing report predates the fix commit and is therefore stale for the final revision.
 
 Metric: whole-file coverage of task-changed production files.
-Changed-line coverage: not measured (JaCoCo report has no diff intersection here).
+Changed-line coverage: not measured.
 
 Evidence:
 - Task id, immutable base, measured HEAD, and task-owned commits/file-scope source: and-cal-swipe; base
-  920279b78ad7dc044711bc903ee158d3487c4145; HEAD fd4e3ae1d6895dc7dbce36db20145ca56c7aef0b; task commits c0eb4043d,
-  c3e03eca9 (from parent, renamed after rebase), file scope from `git diff --stat 920279b78..HEAD -- android`.
-- Source/test snapshot identifier (including uncommitted inputs): HEAD above plus untracked
-  CalendarSwipeInteractionTest.kt sha256 84a054cb9e18be16d81a35f44db2308c481d3d705255870adae34f648466511d and
-  CalendarViewModelNeighboursTest.kt sha256 413d05cbf2f233f2abbd22c8d18072eb7f0291825df632b14cd4f539d72cfa99.
+  9bbd634344021b662e25f5aaa4ee8292665edb87; HEAD 0533f20d1884c58bff4a4f639da6f5e61ecd20b1; task commits f509c20e0,
+  588a17bb6, 6d3b12c45, 1397f2568 from the parent; file scope from `git diff --stat 9bbd63434..HEAD -- android`.
+- Source/test snapshot identifier (including uncommitted inputs): HEAD above, clean working tree (`git status --short`
+  empty); no uncommitted inputs.
 - Exact included files; renamed/deleted/excluded files and reasons: CalendarScreen.kt, CalendarViewModel.kt; none
-  excluded (test files excluded by definition).
-- Provider/version, command, working directory, and test selection: JaCoCo via AGP `enableUnitTestCoverage`;
-  `./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' createDebugUnitTestCoverageReport --rerun-tasks`
-  in `android/`; only the agenda package tests.
-- Run start/completion time and exit status: completed 2026-11-22T11:02 local (report mtime 2026-11-22T11:02:07),
-  build succeeded (no failure output).
-- Generated report paths and report hashes/run identifier: `android/app/build/reports/coverage/test/debug/report.xml`,
-  sha256 90bf24c1033ac22fa5ad3fba7cdc24283165047f9d07db73ca76d1fde3e8eeb5.
-- Evidence outputs are fresh and inputs stayed unchanged: `--rerun-tasks` forced a fresh run; no file was edited
-  during or after it.
-- Final run after latest test additions and production fixes: yes (no production fixes were made).
+  excluded.
+- Provider/version, command, working directory, and test selection: JaCoCo via AGP `enableUnitTestCoverage`; intended
+  command above in `android/`, agenda package tests. Not executed.
+- Run start/completion time and exit status: no run (command refused by the sandbox before starting).
+- Generated report paths and report hashes/run identifier: none generated. Existing
+  `android/app/build/reports/coverage/test/debug/report.xml` has mtime 2026-11-22 11:02:07 +0100, before the fix commit
+  (11:07:31); it is the round-1 measurement and is stale for CalendarScreen.kt.
+- Evidence outputs are fresh and inputs stayed unchanged: not applicable (no fresh output).
+- Final run after latest test additions and production fixes: no, Gradle denied.
 
-Values below use covered/total (percentage). Statements are JaCoCo instructions.
+Round-1 measurement on the pre-fix revision, kept for reference only (NOT the final code; CalendarScreen.kt changed by
+1397f2568, CalendarViewModel.kt did not change after round 1). Values use covered/total (percentage); statements are
+JaCoCo instructions.
 
-| Changed file | Statements | Branches | Functions | Lines |
+| Changed file (pre-fix revision) | Statements | Branches | Functions | Lines |
 |---|---:|---:|---:|---:|
 | `CalendarScreen.kt` | 8166/8264 (98.8%) | 259/284 (91.2%) | 158/173 (91.3%) | 683/688 (99.3%) |
 | `CalendarViewModel.kt` | 3346/3371 (99.3%) | 267/280 (95.4%) | 70/70 (100%) | 309/309 (100%) |
 | Aggregate (summed) | 11512/11635 (98.9%) | 526/564 (93.3%) | 228/243 (93.8%) | 992/997 (99.5%) |
 
-No scoped file is missing from the report.
+Significant gaps (from round 1, updated by reading the final code):
 
 | File and uncovered lines/branch locations | Required behavior or risk | Action/test added or reason left uncovered |
 |---|---|---|
-| `CalendarViewModel.kt:520` (3 missed instructions, guard else branch) | stale preload discarded | Not reachable through a new load because each load cancels the neighbour job; reachable only via the anchor-only update, see observation above. Left uncovered. |
-| `CalendarScreen.kt:735` (1 missed branch, `isScrollInProgress` true) | arrow during a drag | Not deterministic in Robolectric; see observation above. |
-| `CalendarScreen.kt` other partial lines (136-186, 262-269, 321-523, 644-649, 810-812, 897-1198) | pre-existing code (callbacks defaults, other views) | Outside the task change. |
-| `CalendarViewModel.kt` 33-37, 182-376, 399, 427, 536 | pre-existing code | Outside the task change. |
+| `CalendarScreen.kt` PeriodPager follow effect (round 1: missed `isScrollInProgress` branch at line 735) | arrow/Today during a drag | The branch was replaced by the wait-for-scroll-end in 1397f2568 and is exercised by `a period change during a drag is followed once the drag snaps back`; expected covered now, not re-measured |
+| `CalendarViewModel.kt:520` guard else branch | stale preload discarded | Unchanged since round 1; TW-1 judged invalid by the fixer; left uncovered |
+| `CalendarScreen.kt` other partial lines (pre-existing callbacks defaults, other views) | pre-existing code | Outside the task change |
+
+Follow-up for the parent: run `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' createDebugUnitTestCoverageReport`
+and read the CalendarScreen.kt / CalendarViewModel.kt sourcefile counters from the report XML if final-revision numbers
+are wanted.
 
 ## Unable to test
 
-- Real-device feel of the swipe (finger following, fling thresholds): Robolectric injects synthetic gestures only;
-  needs a manual or instrumented check if the parent wants device evidence.
-- Hidden-entry chips specifically on a page reached by swiping: not added (time); existing HiddenEntryChipsTest
-  covers the chips for the shown state, which the settled page uses.
-- Arrow tapped during an ongoing drag: not deterministic in Robolectric.
+- Running any Gradle task (tests, ktlintCheck, coverage) in this helper session: denied by the sandbox. Needs the parent
+  to run them.
+- Real-device swipe feel (finger following, fling thresholds): Robolectric gestures only; manual or instrumented check
+  if device evidence is wanted.
+- Arrow during a drag that ends in a completed swipe or fling (rather than a snap-back): same code path as the tested
+  snap-back; no criterion defines the resulting period further; not tested.
 
 ## Summary
 
-Tests and task-scoped coverage are sufficient; no production defects found (two low-severity observations reported
-for the parent to decide on).
+No additional tests were necessary for the reviewed scope: both fix behaviors of 1397f2568 (non-saveable PagerState,
+follow after the scroll ends) already have regression tests that fail without the fix. Validation and final-revision
+coverage could not be run here because Gradle is denied in this helper session; the parent must run the focused tests,
+ktlintCheck and the full check on HEAD.
