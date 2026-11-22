@@ -1400,6 +1400,189 @@ describe('CalendarView', () => {
     });
   });
 
+  describe('initial scroll position', () => {
+    const work = fakeCalendar('work', { name: 'Work' });
+    /** Monday 2026-03-23, 14:20–15:00 Zurich time (CET). */
+    const lunch = fakeOccurrence('Lunch talk', {
+      start: '2026-03-23T13:20:00Z',
+      end: '2026-03-23T14:00:00Z',
+    });
+    /** Tuesday 2026-03-24, 08:45–09:15 Zurich time. */
+    const early = fakeOccurrence('Early call', {
+      start: '2026-03-24T07:45:00Z',
+      end: '2026-03-24T08:15:00Z',
+    });
+    const month = {
+      start: new Date('2026-02-22T23:00:00Z'),
+      end: new Date('2026-04-05T22:00:00Z'),
+      view: { type: 'dayGridMonth', currentStart: new Date('2026-02-28T23:00:00Z') },
+    } as unknown as DatesSetInfo;
+    const day = {
+      start: new Date('2026-03-22T23:00:00Z'),
+      end: new Date('2026-03-23T23:00:00Z'),
+      view: { type: 'timeGridDay', currentStart: new Date('2026-03-22T23:00:00Z') },
+    } as unknown as DatesSetInfo;
+
+    let scrollToTime: ReturnType<typeof vi.spyOn>;
+
+    /** Renders the calendar and spies on the FullCalendar API (ignoring scrolls of its own first render). */
+    async function open(query: Record<string, string> = {}): Promise<void> {
+      await render(query);
+      await answerCalendars(work);
+      await settle();
+      scrollToTime = vi.spyOn(fullCalendar()!.getApi(), 'scrollToTime');
+      scrollToTime.mockClear();
+    }
+
+    async function show(info: DatesSetInfo): Promise<void> {
+      options()!.datesSet!(info);
+      await fixture.whenStable();
+      await settle();
+    }
+
+    async function answer(...items: OccurrenceResponse[]): Promise<void> {
+      callsOf(listEventOccurrences).at(-1)!.resolve({ items });
+      await settle();
+      await fixture.whenStable();
+      // The scroll runs in a timeout after FullCalendar has rendered the period.
+      await settle();
+    }
+
+    it('scrolls the week to the full hour before its earliest entry once the occurrences are loaded', async () => {
+      await open();
+      await show(week());
+      expect(scrollToTime).not.toHaveBeenCalled();
+      await answer(lunch);
+      expect(scrollToTime).toHaveBeenCalledOnce();
+      expect(scrollToTime).toHaveBeenCalledWith('14:00:00');
+    });
+
+    it('does not move the position on a refresh of the same period', async () => {
+      await open();
+      await show(week());
+      await answer(lunch);
+      resyncs.next();
+      await answer(early, lunch);
+      changes.next({ type: 'EVENT', id: 'e1', op: 'CREATED', at: '2026-03-23T08:00:00Z' });
+      await answer(early);
+      expect(scrollToTime).toHaveBeenCalledOnce();
+      expect(scrollToTime).toHaveBeenCalledWith('14:00:00');
+    });
+
+    it('scrolls again on a period change, once its occurrences are loaded', async () => {
+      await open();
+      await show(week());
+      await answer(lunch);
+      await show(nextWeek());
+      // The previous week's occurrences are still shown: no scroll for them.
+      expect(scrollToTime).toHaveBeenCalledOnce();
+      await answer(
+        fakeOccurrence('Dentist', { start: '2026-04-01T09:30:00Z', end: '2026-04-01T10:00:00Z' }),
+      );
+      expect(scrollToTime).toHaveBeenCalledTimes(2);
+      // 11:30 in Zurich (CEST after the DST change).
+      expect(scrollToTime).toHaveBeenLastCalledWith('11:00:00');
+    });
+
+    it('scrolls with the loaded entries when the same period is shown again (view switch, Today)', async () => {
+      await open();
+      await show(week());
+      await answer(early, lunch);
+      expect(scrollToTime).toHaveBeenLastCalledWith('08:00:00');
+      // Day view of Monday: the range differs, so it waits for its occurrences.
+      await show(day);
+      await answer(lunch);
+      expect(scrollToTime).toHaveBeenCalledTimes(2);
+      expect(scrollToTime).toHaveBeenLastCalledWith('14:00:00');
+    });
+
+    it('scrolls to 07:00 for a past week without timed entries, ignoring all-day and continuing ones', async () => {
+      await open();
+      await show(week());
+      await answer(
+        fakeOccurrence('Holiday', {
+          allDay: true,
+          start: undefined,
+          end: undefined,
+          startDate: '2026-03-23',
+          endDate: '2026-03-24',
+        }),
+        // Sunday 22:30 before the week until Monday 02:00: shown from 00:00 on Monday.
+        fakeOccurrence('Night train', {
+          start: '2026-03-22T21:30:00Z',
+          end: '2026-03-23T01:00:00Z',
+        }),
+      );
+      expect(scrollToTime).toHaveBeenCalledOnce();
+      expect(scrollToTime).toHaveBeenCalledWith('07:00:00');
+    });
+
+    it('ignores occurrences of hidden calendars', async () => {
+      await render();
+      await answerCalendars(work, fakeCalendar('hidden', { visible: false }));
+      await settle();
+      scrollToTime = vi.spyOn(fullCalendar()!.getApi(), 'scrollToTime');
+      scrollToTime.mockClear();
+      await show(week());
+      await answer(
+        fakeOccurrence('Secret', {
+          calendarId: 'hidden',
+          start: '2026-03-23T05:00:00Z',
+          end: '2026-03-23T06:00:00Z',
+        }),
+        lunch,
+      );
+      expect(scrollToTime).toHaveBeenCalledWith('14:00:00');
+    });
+
+    it('does not scroll the month view', async () => {
+      await open({ view: 'month' });
+      await show(month);
+      await answer(lunch);
+      expect(scrollToTime).not.toHaveBeenCalled();
+    });
+
+    it('does not scroll the agenda view', async () => {
+      await open({ view: 'agenda' });
+      await show({
+        start: new Date('2026-03-22T23:00:00Z'),
+        end: new Date('2026-03-29T22:00:00Z'),
+        view: { type: 'listWeek', currentStart: new Date('2026-03-22T23:00:00Z') },
+      } as unknown as DatesSetInfo);
+      await answer(lunch);
+      expect(scrollToTime).not.toHaveBeenCalled();
+    });
+
+    it('does not scroll for an older period whose answer arrives after a newer period was shown', async () => {
+      await open();
+      await show(week());
+      const weekLoad = callsOf(listEventOccurrences).at(-1)!;
+      await show(nextWeek());
+      weekLoad.resolve({ items: [lunch] });
+      await settle();
+      await fixture.whenStable();
+      await settle();
+      expect(scrollToTime).not.toHaveBeenCalled();
+      await answer();
+      expect(scrollToTime).toHaveBeenCalledOnce();
+      expect(scrollToTime).toHaveBeenCalledWith('07:00:00');
+    });
+
+    it('does not scroll after it was destroyed', async () => {
+      await open();
+      await show(week());
+      callsOf(listEventOccurrences)
+        .at(-1)!
+        .resolve({ items: [lunch] });
+      await settle();
+      await fixture.whenStable();
+      // The scroll timeout is pending now.
+      fixture.destroy();
+      await settle();
+      expect(scrollToTime).not.toHaveBeenCalled();
+    });
+  });
+
   describe('linked event', () => {
     it('shows the date of the event of the URL and opens it once', async () => {
       await render({ event: 'e1' });

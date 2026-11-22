@@ -170,6 +170,62 @@ describe('OccurrenceStore', () => {
     expect(store.loading()).toBe(false);
   });
 
+  describe('range', () => {
+    it('is undefined before the first answer and set together with the items', async () => {
+      const done = store.load(WEEK, ['work']);
+      expect(store.range()).toBeUndefined();
+      calls[0].resolve({ items: [occurrence('Standup')] });
+      await done;
+      expect(store.range()).toEqual(WEEK);
+      expect(titles()).toEqual(['Standup']);
+    });
+
+    it('keeps the previous range while the next range loads', async () => {
+      const first = store.load(WEEK, ['work']);
+      calls[0].resolve({ items: [occurrence('This week')] });
+      await first;
+      void store.load(NEXT_WEEK, ['work']);
+      expect(store.range()).toEqual(WEEK);
+    });
+
+    it('is not set by a slower answer for an earlier range', async () => {
+      const first = store.load(WEEK, ['work']);
+      const second = store.load(NEXT_WEEK, ['work']);
+      calls[1].resolve({ items: [occurrence('Next week')] });
+      await second;
+      calls[0].resolve({ items: [occurrence('This week')] });
+      await first;
+      expect(store.range()).toEqual(NEXT_WEEK);
+    });
+
+    it('is set without calendars (nothing to ask)', async () => {
+      await store.load(WEEK, []);
+      expect(store.range()).toEqual(WEEK);
+    });
+
+    it('keeps the range of the shown items when a load fails', async () => {
+      const first = store.load(WEEK, ['work']);
+      calls[0].resolve({ items: [occurrence('Standup')] });
+      await first;
+      const second = store.load(NEXT_WEEK, ['work']);
+      calls[1].reject(new Error('offline'));
+      await second;
+      expect(store.range()).toEqual(WEEK);
+      expect(titles()).toEqual(['Standup']);
+    });
+
+    it('stays the same range object value after a refresh of it', async () => {
+      const first = store.load(WEEK, ['work']);
+      calls[0].resolve({ items: [] });
+      await first;
+      resyncs.next();
+      calls[1].resolve({ items: [occurrence('New')] });
+      await settle();
+      expect(store.range()).toEqual(WEEK);
+      expect(titles()).toEqual(['New']);
+    });
+  });
+
   it('does not fetch on events before the first load', () => {
     changes.next({ type: 'EVENT', id: 'e1', op: 'UPDATED', at: '2026-03-23T08:00:00Z' });
     resyncs.next();
