@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "task": "web-reminders-spec-clock",
+  "reviewed_revision": "09443ad7945364bd908fd25d37925cebb761b81b",
+  "helpers": {
+    "test-writer": {"status": "completed", "report": "reviews/web-reminders-spec-clock/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/web-reminders-spec-clock/review.md"},
+    "fixer": {"status": "not_required", "reason": "code-reviewer and test-writer reported no findings"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "npm --prefix web run test:ci -- --include src/app/features/gtd/task-detail/task-reminders.spec.ts", "result": "pass"},
+    {"command": "npm --prefix web run check", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
