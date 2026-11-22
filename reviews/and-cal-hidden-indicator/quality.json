@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "task": "and-cal-hidden-indicator",
+  "reviewed_revision": "4133c18ee66be74b44afef65828a0bffc4a0ae91",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-cal-hidden-indicator/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-cal-hidden-indicator/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-cal-hidden-indicator/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "revealed short entry ended under the chip; scroll target now keeps a margin"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "week chips drop the 48dp touch target height; recorded as assumption, columns are too narrow"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "per-view label choice extracted to hiddenChipLabel and tested"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "margin clamped to a quarter of the viewport so tiny grids still reveal the entry"},
+    {"id": "CR-5", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "documentation only; superseding scroll-target assumption recorded with tasks.py assume"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.calendar.agenda.*' createDebugUnitTestCoverageReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}

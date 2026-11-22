@@ -14,7 +14,7 @@ Requirements:
 
 Git range:
 - Branch: main
-- HEAD: b47fbb93ef944d40ab299aa2433bf50b46c88297
+- HEAD: 4133c18ee66be74b44afef65828a0bffc4a0ae91 (full-scope review at b47fbb93ef944d40ab299aa2433bf50b46c88297, same code as 44d8bbc0b; delta review of 4133c18ee below)
 - Base/start: ca0b99ad5dc76f36b9caaa2812302c665ae9686d
 - Commits reviewed: 6 (c1de00c67 implementation, 185238081 round-1 review report, c49f0f3b7 round-1 tests and report, 0e51e81ce CR-1 fix, 038326db8 round-2 review report, b47fbb93e CR-4/CR-3 fix); the only uncommitted change is the task file (assumption notes, owned by the parent worker)
 
@@ -45,6 +45,17 @@ Gradle was not run by the reviewer (a test-writer runs it concurrently); finding
     - Why it matters: Humans review assumptions with `tasks.py assumptions`; the one describing the tap behavior describes the pre-fix behavior, so a human confirming it confirms something the code does not do.
     - Suggested fix: Record a superseding assumption (`tasks.py assume`), e.g. "Supersedes the 10:04 scroll-target note: the revealed entry is kept 32dp (capped at a quarter of the grid viewport) from the edge so the chip still drawn there does not cover it". No code change.
 
+## Delta review (4133c18ee)
+
+Scope: `git diff 44d8bbc0b 4133c18ee -- android`. The only code change is one new unit test in `android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda/HiddenEntriesTest.kt:117-128` (CR-4 clamp boundary); no production code changed, so the full-scope findings above still apply unchanged. Gradle was not run by the reviewer.
+
+Expected values checked by hand against `hiddenEntries` (HiddenEntries.kt, `inset = min(margin, viewportHeight / 4)`), scale 1 px per minute, margin 30:
+- Above, entry 100-160, scroll 600: bottom 160 is at or above the top edge 600, so it is hidden above. Viewport 120 gives inset `min(30, 30) = 30`, target 70; viewport 119 gives `min(30, 29) = 29`, target 71. Both match the asserted `100 - 30` / `100 - 29`.
+- Below, entry 600-900, scroll 0: top 600 is at or below the bottom edge (120 or 119), so it is hidden below; `visibleEnd` is 900 (longer than the minimum entry length, within the day). Viewport 120: `min(600 - 30, 900 + 30 - 120) = min(570, 810) = 570`; viewport 119: `min(571, 810) = 571`. Both match the asserted values and exercise the "taller than the viewport, start below the top edge" branch.
+- The pair 120/119 pins the exact boundary where the quarter-viewport cap takes over and the integer-division rounding, in both directions, so changing the divisor, `min` to `max`, or dropping the cap from either target fails the test. The test name and comments describe the behavior accurately; no line is longer than the existing ones in the file.
+
+Delta findings: none.
+
 ## Review conclusion
 
-No material issues found. CR-1, CR-3 and CR-4 are resolved and CR-2 is resolved by a recorded assumption. CR-5 is a documentation-only note for the parent worker's assumption log.
+No material issues found. CR-1, CR-3 and CR-4 are resolved and CR-2 is resolved by a recorded assumption. CR-5 is a documentation-only note for the parent worker's assumption log. The delta commit 4133c18ee adds a correct boundary test and introduces no new findings.
