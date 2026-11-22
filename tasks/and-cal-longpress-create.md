@@ -32,7 +32,8 @@ long-press timeout) on a point of the calendar should create an event right ther
   - verified (2026-11-22 12:31+0100 by dell26/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug at code rev 9f5fb197b -> BUILD OK, 5715 tests 0 failures; vertical scroll / touch slop / pinch / horizontal swipe grid+month / tap tests in CalendarLongPressInteractionTest plus CalendarSwipeInteractionTest -> pass
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-22 12:31+0100 by dell26/agent-1): grep calendar_new_event_here in res/values and res/values-de strings_calendar_agenda.xml -> 'New event' / 'Neuer Termin'; lintDebug -> pass
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-22 12:42+0100 by dell26/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug at 9f5fb197b -> BUILD OK, 5715 tests 0 failures; sh scripts/check.sh at 24166fe07 -> all checks passed (exit 0); new tests in CalendarLongPress*Test, EventEditorViewModelCreateAtTest, CalendarWithEditorLongPressTest
 
 ## Notes
 Planned 2026-11-22 from the owner's calendar usability request; the design decisions in the criteria were confirmed by the owner.
