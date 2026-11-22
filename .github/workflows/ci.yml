@@ -97,7 +97,8 @@ jobs:
           packages: platform-tools platforms;android-37.0 build-tools;36.0.0
       - uses: gradle/actions/setup-gradle@v5
       # Robolectric downloads one android-all-instrumented jar per SDK level at test time, outside Gradle, from
-      # Maven Central, which rate-limits (HTTP 429) GitHub's shared runners. Cache them per Robolectric version.
+      # Maven Central, which rate-limits (HTTP 429) GitHub's shared runners. Cache them per Robolectric version,
+      # without a cross-version fallback, so jars of an old version are never restored and saved again.
       # Restore and save are separate steps so the jars are saved even when the tests fail. The saved key ends in
       # a hash of the file list, so a new jar (new SDK level) is saved under a new key, an unchanged set is not.
       - name: Robolectric version
@@ -111,7 +112,6 @@ jobs:
           key: robolectric-${{ steps.robolectric.outputs.version }}-
           restore-keys: |
             robolectric-${{ steps.robolectric.outputs.version }}-
-            robolectric-
       - name: sh scripts/check.sh android
         run: sh scripts/check.sh android
       - name: Robolectric cache key
