@@ -27,7 +27,8 @@ task `and-cal-hidden-indicator`.
 - [x] Chips are buttons with an accessible label (e.g. "2 events earlier, show") and work with the keyboard
   - verified (2026-11-22 09:53+0100 by dell26/agent-2): same browser check (npm run e2e --grep 'hidden-entry chips', 1280x800 + 360x640) -> passed: chips found via getByRole('button', name '2 earlier: show hidden events'); focus + Enter scrolls to the nearest hidden entry (chip becomes '1 earlier')
 - [ ] The visibility calculation is a pure function (entry positions, scroll offset, viewport height) with unit tests
-- [ ] New texts are in English and German (`messages.xlf` + `messages.de.xlf`)
+- [x] New texts are in English and German (`messages.xlf` + `messages.de.xlf`)
+  - verified (2026-11-22 09:53+0100 by dell26/agent-2): grep -c calendar.hidden web/src/locale/messages.xlf messages.de.xlf -> 6 trans-units each (above/below text + singular/plural labels), German targets state=translated (e.g. '{count} früher'); ng build in npm run check compiles the de locale
 - [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
 
 ## Notes
