@@ -30,7 +30,8 @@ task `and-cal-hidden-indicator`.
   - verified (2026-11-22 10:06+0100 by dell26/agent-2): pure hiddenEntries()/scrollTargetFor() in web/src/app/features/calendar/views/hidden-entries.ts (positions, scrollTop, viewport height -> counts/targets); npm run test:ci -- --include hidden-entries.spec.ts --include hidden-chips.spec.ts -> 2 files, 23 passed; coverage 100% of hidden-entries.ts
 - [x] New texts are in English and German (`messages.xlf` + `messages.de.xlf`)
   - verified (2026-11-22 09:53+0100 by dell26/agent-2): grep -c calendar.hidden web/src/locale/messages.xlf messages.de.xlf -> 6 trans-units each (above/below text + singular/plural labels), German targets state=translated (e.g. '{count} früher'); ng build in npm run check compiles the de locale
-- [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+- [~] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+  - skipped (2026-11-22 10:07+0100 by dell26/agent-2): sh scripts/check.sh (main 4a4f4d873) fails only on 4 unrelated tests in gtd/task-detail/task-reminders.spec.ts (date-dependent fixtures, also on main; task web-reminders-spec-clock); server + web eslint pass, calendar views specs 136/136
 
 ## Notes
 Planned 2026-11-22 from the owner's request to have the Android hidden-entry indicator in the web app too; design as
