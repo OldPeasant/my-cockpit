@@ -1,11 +1,13 @@
 ---
 title: Android calendar: swipe horizontally to the previous/next day, week, month
-status: in_progress
-owner: dell26/agent-1
+status: todo
+owner: 
 deps: [and-cal-hidden-indicator]
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/main/res/values/strings_calendar_agenda.xml,android/app/src/main/res/values-de/strings_calendar_agenda.xml]
 prio: 2
-lease_until: 2026-11-22T10:05:47Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 The previous/next period is only reachable with the ‹ › arrows. Swiping horizontally should page through days, weeks and
@@ -29,3 +31,4 @@ months like a pager, with the content following the finger.
 Planned 2026-11-22 from the owner's calendar usability request; the design decisions in the criteria were confirmed by the owner.
 - ASSUMPTION (2026-11-22 10:50+0100 by dell26/agent-1): Neighbours are preloaded from the network only (two extra occurrence calls after a successful load of a day/week/month), not from the agenda cache; offline, a swiped-to neighbour shows an empty grid until its own load/cache fallback answers
 - ASSUMPTION (2026-11-22 10:50+0100 by dell26/agent-1): Only the visible pager page is composed (beyondViewportPageCount 0) so test tags stay unique; a page reached without preloaded data opens at the default hour (7) and is positioned when its data arrives, instead of keeping the previous page's scroll offset (CalendarGridScrollTest adapted)
+- release by dell26/agent-1: Implemented: HorizontalPager (PeriodPager in CalendarScreen.kt) for day/week/month, settled page -> move(n), arrows/Today scroll the pager; VM preloads previous/next period (state.neighbours, pageState(), shiftPeriod), move seeds the preloaded occurrences. Tests: new CalendarSwipeTest + VM preload test; CalendarGridScrollTest/EdgeCases adapted; all calendar unit tests pass. No new strings needed. Left: test-writer + code-reviewer helpers, verify criteria, full ktlintCheck/lintDebug + scripts/check.sh, quality.json, done.
