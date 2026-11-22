@@ -21,7 +21,8 @@ let a tap bring them into view.
   - verified (2026-11-22 10:41+0100 by dell26/agent-1): HiddenEntryChipsTest week chip fits its column at qualifiers w360dp + hiddenChipLabel test (week '▼ 2', day '▼ 1 later') + HiddenEntryStringsTest en/de -> pass
 - [x] Tapping a chip scrolls (animated) so the nearest hidden entry in that direction is in view
   - verified (2026-11-22 10:41+0100 by dell26/agent-1): HiddenEntryChipsTest tap tests (day above/below, week column) assert animated scroll to the nearest hidden entry's target offset; HiddenEntriesTest margin/clamp targets -> pass
-- [ ] Chips have content descriptions for TalkBack (e.g. "2 events earlier, show")
+- [x] Chips have content descriptions for TalkBack (e.g. "2 events earlier, show")
+  - verified (2026-11-22 10:41+0100 by dell26/agent-1): HiddenEntryChipsTest asserts content descriptions e.g. '2 events earlier, show' (en) and German descriptions (de-rDE-w360dp-h640dp) -> pass
 - [ ] The visibility calculation is a pure function (entries, scroll offset, viewport height) with unit tests
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
 - [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
