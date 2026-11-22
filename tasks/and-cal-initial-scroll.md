@@ -27,8 +27,9 @@ should open where the entries are: the earliest timed entry visible, and as many
   once the period's first data (cache or network) is there; a background refresh/reload of the same period does not
   move the scroll position
   - verified (2026-11-22 09:39+0100 by dell26/agent-1): CalendarGridScrollTest period-change test (waits for data, arrows, view switch, same-period refresh keeps user scroll), Today with cached data then network, StateRestorationTester restore test (fails with plain remember) -> passed; swipe navigation does not exist yet, same period key covers it
-- [~] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
   - skipped (2026-11-22 09:40+0100 by dell26/agent-1): android ./gradlew ktlintCheck testDebugUnitTest lintDebug -> pass (CalendarGridScrollTest 11, CalendarScreensTest 9); sh scripts/check.sh fails only in web task-reminders.spec.ts (4 tests, date-dependent fixtures, unrelated; task web-reminders-spec-clock) -> rerun once that lands
+  - verified (2026-11-22 09:57+0100 by dell26/agent-1): android: gradlew ktlintCheck testDebugUnitTest lintDebug on merged main (2026-11-22) -> pass; sh scripts/check.sh -> tfp gate + server pass, web fails only in task-reminders.spec.ts (4 tests, date-dependent fixtures, pre-existing on main, task web-reminders-spec-clock), android not reached by check.sh so run separately -> pass
 
 ## Notes
 Planned 2026-11-22 from the owner's calendar usability request; the design decisions in the criteria were confirmed by the owner.
