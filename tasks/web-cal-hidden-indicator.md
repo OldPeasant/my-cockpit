@@ -6,9 +6,9 @@ deps: []
 touches: [web/src/app/features/calendar/views,web/src/locale/messages.xlf,web/src/locale/messages.de.xlf]
 prio: 2
 lease_until: 
-releases: 2
+releases: 0
 extended: 
-hold: Implementation, reviews and evidence complete; only 'done' is left. Blocked: sh scripts/check.sh fails on main in gtd/task-detail/task-reminders.spec.ts (4 date-dependent tests, task web-reminders-spe
+hold: 
 ---
 ## Goal
 In the web calendar's day and week view (FullCalendar `timeGridDay`/`timeGridWeek`, `calendar-view.ts`) the time grid
