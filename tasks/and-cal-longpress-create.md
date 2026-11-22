@@ -23,8 +23,9 @@ long-press timeout) on a point of the calendar should create an event right ther
 - [x] Month view: long press on a day opens the editor with a timed event on that day, with the same defaults as the +
   button (next full hour if today, otherwise the default start); a tap still opens the day view
   - verified (2026-11-22 12:31+0100 by dell26/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug at code rev 9f5fb197b -> BUILD OK, 5715 tests 0 failures; 'a long press on a month day creates a timed event with the default start, a tap still opens the day', CalendarWithEditorLongPressTest month tests -> pass
-- [ ] The calendar is chosen like for the + button (first visible writable calendar); `EventEditorViewModel.create` gets
+- [x] The calendar is chosen like for the + button (first visible writable calendar); `EventEditorViewModel.create` gets
   an optional start time / all-day flag, the + button behaves as before
+  - verified (2026-11-22 12:31+0100 by dell26/agent-1): android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug at code rev 9f5fb197b -> BUILD OK, 5715 tests 0 failures; EventEditorViewModelCreateAtTest create tests incl. 'create without a start time or all day behaves like the add button' -> pass
 - [ ] The grid, all-day strip and month days offer a matching accessibility custom action ("New event")
 - [ ] Long press and horizontal swipe (`and-cal-swipe`) / vertical scroll don't interfere
 - [ ] New strings are in English and German (`res/values/` + `res/values-de/`)
