@@ -5,6 +5,7 @@ import {
   effect,
   ElementRef,
   inject,
+  OnDestroy,
   signal,
   untracked,
   viewChild,
@@ -44,6 +45,8 @@ import {
   VIEW_TYPES,
   viewName,
 } from './calendar-views';
+import { CHIP_HEIGHT, HiddenChip, hiddenChips, timeGridOf } from './hidden-chips';
+import { TimedEntry } from './hidden-entries';
 import { OccurrenceRange, OccurrenceStore } from './occurrence-store';
 
 /**
@@ -68,7 +71,7 @@ import { OccurrenceRange, OccurrenceStore } from './occurrence-store';
   templateUrl: './calendar-view.html',
   styleUrls: ['./calendar-view.scss', '../overlay/task-overlay.scss'],
 })
-export default class CalendarView {
+export default class CalendarView implements OnDestroy {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -163,7 +166,36 @@ export default class CalendarView {
     return [...events, ...this.overlay.entries(timeZone)];
   });
 
+  /** The timed occurrences of the visible calendars (for the hidden-entry chips). */
+  private readonly timedEntries = computed((): TimedEntry[] => {
+    const visible = this.calendars.visibleIds();
+    return this.occurrences
+      .items()
+      .filter((o) => visible.has(o.calendarId) && !o.allDay && o.start)
+      .map((o) => ({ start: o.start!, end: o.end }));
+  });
+
+  /** The chips of the day columns that have entries scrolled out of view (day and week view). */
+  protected readonly chips = signal<HiddenChip[]>([]);
+  protected readonly chipHeight = CHIP_HEIGHT;
+  private chipFrame?: number;
+  private readonly onScrollOrResize = () => this.scheduleChips();
+  private readonly resizeObserver =
+    typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(this.onScrollOrResize);
+
   constructor() {
+    const host = this.host.nativeElement;
+    // Scroll events don't bubble: listen in the capture phase for the time grid's scroller.
+    host.addEventListener('scroll', this.onScrollOrResize, true);
+    window.addEventListener('resize', this.onScrollOrResize);
+    this.resizeObserver?.observe(host);
+    effect(() => {
+      this.timedEntries();
+      this.viewType();
+      this.settings();
+      // After FullCalendar has rendered the changed events.
+      untracked(() => setTimeout(() => this.scheduleChips()));
+    });
     void this.calendars.load();
     if (!this.settings()) this.loadSettings();
     effect(() => {
@@ -180,6 +212,55 @@ export default class CalendarView {
         untracked(() => void this.openLinked(id));
       });
     }
+  }
+
+  ngOnDestroy(): void {
+    const host = this.host.nativeElement;
+    host.removeEventListener('scroll', this.onScrollOrResize, true);
+    window.removeEventListener('resize', this.onScrollOrResize);
+    this.resizeObserver?.disconnect();
+    if (this.chipFrame !== undefined) cancelAnimationFrame(this.chipFrame);
+  }
+
+  /** Scrolls the time grid so the nearest entry hidden in the chip's direction is in view. */
+  protected showHidden(chip: HiddenChip): void {
+    const grid = timeGridOf(this.host.nativeElement);
+    grid?.scroller.scrollTo({ top: chip.target, behavior: 'smooth' });
+  }
+
+  protected chipLabel(chip: HiddenChip): string {
+    return chip.direction === 'above'
+      ? $localize`:@@calendar.hidden.aboveLabel:${chip.count}:count: events earlier, show`
+      : $localize`:@@calendar.hidden.belowLabel:${chip.count}:count: events later, show`;
+  }
+
+  protected chipText(chip: HiddenChip): string {
+    return chip.direction === 'above'
+      ? $localize`:@@calendar.hidden.above:${chip.count}:count: earlier`
+      : $localize`:@@calendar.hidden.below:${chip.count}:count: later`;
+  }
+
+  /** Recomputes the chips once per frame. */
+  private scheduleChips(): void {
+    if (this.chipFrame !== undefined) return;
+    this.chipFrame = requestAnimationFrame(() => {
+      this.chipFrame = undefined;
+      this.updateChips();
+    });
+  }
+
+  private updateChips(): void {
+    const timeZone = this.settings()?.timeZone;
+    const root = this.host.nativeElement;
+    const container = root.querySelector<HTMLElement>('.calendar-main');
+    const grid = timeZone && this.overlayApplies() ? timeGridOf(root) : undefined;
+    if (!timeZone || !container || !grid) {
+      if (this.chips().length) this.chips.set([]);
+      return;
+    }
+    this.chips.set(
+      hiddenChips(container, grid.scroller, grid.columns, this.timedEntries(), timeZone),
+    );
   }
 
   protected setOverlay(enabled: boolean): void {

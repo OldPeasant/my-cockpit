@@ -85,6 +85,24 @@
     }
     @if (options(); as options) {
       <full-calendar class="app-calendar" [options]="options" [events]="events()" />
+      @for (chip of chips(); track chip.key) {
+        <button
+          type="button"
+          class="calendar-hidden-chip"
+          [class.calendar-hidden-chip-wide]="chip.width >= 88"
+          [style.left.px]="chip.left"
+          [style.top.px]="chip.top"
+          [style.width.px]="chip.width"
+          [style.height.px]="chipHeight"
+          [attr.aria-label]="chipLabel(chip)"
+          [title]="chipLabel(chip)"
+          (click)="showHidden(chip)"
+        >
+          <span aria-hidden="true">{{ chip.direction === 'above' ? '▲' : '▼' }}</span>
+          <span class="calendar-hidden-count" aria-hidden="true">{{ chip.count }}</span>
+          <span class="calendar-hidden-more" aria-hidden="true">{{ chipText(chip) }}</span>
+        </button>
+      }
     } @else if (settingsFailed()) {
       <div class="calendar-note" role="alert">
         <p i18n="@@calendar.settingsFailed">The calendar settings could not be loaded.</p>

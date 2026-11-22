@@ -86,6 +86,7 @@ app-calendar-view {
 }
 
 .calendar-main {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--app-space-3);
@@ -177,5 +178,52 @@ app-calendar-view {
 @media (prefers-reduced-motion: reduce) {
   .app-calendar * {
     transition: none !important;
+  }
+}
+
+/* Chips at the top/bottom edge of a day column for entries scrolled out of view. */
+.calendar-hidden-chip {
+  position: absolute;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25em;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 0 4px;
+  overflow: hidden;
+  border: 1px solid var(--mat-sys-outline-variant, #c4c7c5);
+  border-radius: 11px;
+  background: var(--mat-sys-secondary-container, #e8def8);
+  color: var(--mat-sys-on-secondary-container, #1d192b);
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  opacity: 0.95;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary, #6750a4);
+    outline-offset: 1px;
+  }
+
+  .calendar-hidden-more {
+    display: none;
+  }
+
+  &.calendar-hidden-chip-wide {
+    .calendar-hidden-count {
+      display: none;
+    }
+
+    .calendar-hidden-more {
+      display: inline;
+    }
   }
 }
