@@ -32,7 +32,8 @@ downloads them again from GitHub's shared runner IPs, which Maven Central rate-l
   step) and the Android job green, e.g. `gh run view <id> --log | grep -i cache`; if no run is reachable from the agent,
   skip with the reason and record an assumption
   - skipped (2026-11-22 13:03+0100 by dell26/agent-1): no GitHub Actions run reachable from the agent before done pushes (gh CLI not permitted here); a human checks the first main run's 'Restore Robolectric runtime jars' log line
-- [ ] `sh scripts/check.sh` passes; ARCHITECTURE.md mentions the cache where CI is described (one line)
+- [x] `sh scripts/check.sh` passes; ARCHITECTURE.md mentions the cache where CI is described (one line)
+  - verified (2026-11-22 13:04+0100 by dell26/agent-1): sh scripts/check.sh (all parts, at 4a15387d3) -> all checks passed, rc=0; docs/ARCHITECTURE.md CI paragraph gained one sentence on the Robolectric jar cache
 
 ## Notes
 Planned 2026-11-22 by the owner after the Maven Central 429 failures; failed job of run 45018745005 re-run by hand.
