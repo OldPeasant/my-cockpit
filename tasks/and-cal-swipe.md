@@ -30,6 +30,7 @@ months like a pager, with the content following the finger.
 - [x] Taps on entries, day headers and month days still work; the initial scroll position (`and-cal-initial-scroll`) and
   the hidden-entry chips (`and-cal-hidden-indicator`) work on the page that is settled on
   - verified (2026-11-22 11:51+0100 by dell26/agent-2): same run -> pass; CalendarSwipeInteractionTest tap tests (entries, day headers, month days), CalendarGridScrollTest (initial scroll on settled page), hidden-entry chip tests on the settled page
+  - verified (2026-11-22 11:51+0100 by dell26/agent-2): cd android && ./gradlew testDebugUnitTest on 8ab9974f1 -> pass: CalendarSwipeInteractionTest 'day headers and entries can be tapped on the week swiped to', 'month days can be tapped on the month swiped to'; CalendarGridScrollTest initial-scroll tests (positioning on the settled page after a period change); HiddenEntryChipsTest passes on the shown page (PeriodPager renders the full VM state on the settled page). Hidden chips after a swipe are not tested separately (same composable, same state path)
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-22 10:55+0100 by dell26/agent-1): git diff --stat origin/main...HEAD -> no strings*.xml changed; the pager adds no user-visible text (arrows/title reuse existing EN+DE strings), so no new strings are needed
 - [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
