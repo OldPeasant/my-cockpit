@@ -89,6 +89,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
@@ -1097,6 +1098,10 @@ private fun AllDayStrip(
     val detailed = state.view == CalendarView.DAY
     val haptics = LocalHapticFeedback.current
     val newEvent = stringResource(R.string.calendar_new_event_here)
+    val allDayLabel = stringResource(R.string.calendar_all_day)
+    val dateFormat = DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale)
+    // The pointerInput of a column keeps its first callbacks until the day changes: always call the latest create.
+    val create by rememberUpdatedState(callbacks.create)
     Row(
         Modifier
             .fillMaxWidth()
@@ -1105,7 +1110,7 @@ private fun AllDayStrip(
             .padding(vertical = 2.dp),
     ) {
         Text(
-            stringResource(R.string.calendar_all_day),
+            allDayLabel,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 2,
@@ -1113,7 +1118,9 @@ private fun AllDayStrip(
         )
         days.forEach { day ->
             var pressed by remember(day) { mutableStateOf(false) }
-            Column(
+            // Spoken by a screen reader, which focuses the column for its "New event" (long click) action.
+            val description = "$allDayLabel, ${day.format(dateFormat)}"
+            Box(
                 Modifier
                     .weight(1f)
                     .fillMaxHeight()
@@ -1125,33 +1132,42 @@ private fun AllDayStrip(
                         },
                         onRelease = {
                             pressed = false
-                            callbacks.create(day, null, true)
+                            create(day, null, true)
                         },
                         onCancel = { pressed = false },
                     ).semantics {
+                        contentDescription = description
+                        // Unlabelled: makes the column actionable for TalkBack; the custom action announces "New event".
+                        onLongClick {
+                            create(day, null, true)
+                            true
+                        }
                         customActions =
                             listOf(
                                 CustomAccessibilityAction(newEvent) {
-                                    callbacks.create(day, null, true)
+                                    create(day, null, true)
                                     true
                                 },
                             )
                     }.padding(horizontal = 1.dp)
                     .testTag(CalendarTags.allDay(day)),
             ) {
-                if (pressed) NewEventGhost(Modifier.fillMaxWidth().height(ALL_DAY_GHOST_HEIGHT).testTag(CalendarTags.ghost(day)))
-                entriesByDay[day].orEmpty().filter { it.allDay }.forEach { entry ->
-                    EventBlock(
-                        entry,
-                        state.calendar(entry.occurrence.calendarId),
-                        null,
-                        callbacks.open,
-                        Modifier.fillMaxWidth().padding(vertical = 1.dp),
-                    )
+                Column(Modifier.fillMaxWidth()) {
+                    entriesByDay[day].orEmpty().filter { it.allDay }.forEach { entry ->
+                        EventBlock(
+                            entry,
+                            state.calendar(entry.occurrence.calendarId),
+                            null,
+                            callbacks.open,
+                            Modifier.fillMaxWidth().padding(vertical = 1.dp),
+                        )
+                    }
+                    marks[day].orEmpty().forEach { mark ->
+                        TaskChip(mark, detailed, locale, callbacks.openTask, Modifier.fillMaxWidth().padding(vertical = 1.dp))
+                    }
                 }
-                marks[day].orEmpty().forEach { mark ->
-                    TaskChip(mark, detailed, locale, callbacks.openTask, Modifier.fillMaxWidth().padding(vertical = 1.dp))
-                }
+                // An overlay, so the strip keeps its height while the finger is down.
+                if (pressed) NewEventGhost(Modifier.matchParentSize().testTag(CalendarTags.ghost(day)))
             }
         }
     }
@@ -1191,6 +1207,10 @@ private fun DayColumn(
     val pxPerMinute = with(LocalDensity.current) { HOUR_HEIGHT.toPx() } / 60f
     val haptics = LocalHapticFeedback.current
     val newEvent = stringResource(R.string.calendar_new_event_here)
+    // Spoken by a screen reader, which focuses the column for its "New event" (long click) action.
+    val description = day.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(currentLocale()))
+    // The pointerInput keeps its first callbacks until the key changes: always call the latest create.
+    val create by rememberUpdatedState(callbacks.create)
     // The slot a recognised long press would create, shown as a ghost block until the finger is lifted.
     var ghost by remember(day) { mutableStateOf<LocalTime?>(null) }
     BoxWithConstraints(
@@ -1203,15 +1223,21 @@ private fun DayColumn(
                     ghost = slotStart(position.y, pxPerMinute)
                 },
                 onRelease = {
-                    ghost?.let { callbacks.create(day, it, false) }
+                    ghost?.let { create(day, it, false) }
                     ghost = null
                 },
                 onCancel = { ghost = null },
             ).semantics {
+                contentDescription = description
+                // Unlabelled: makes the column actionable for TalkBack; "New event" is announced by the custom action.
+                onLongClick {
+                    create(day, null, false)
+                    true
+                }
                 customActions =
                     listOf(
                         CustomAccessibilityAction(newEvent) {
-                            callbacks.create(day, null, false)
+                            create(day, null, false)
                             true
                         },
                     )
@@ -1255,7 +1281,6 @@ private fun DayColumn(
 
 /** The all-day strip's height without entries: still big enough to be long pressed. */
 private val ALL_DAY_MIN_HEIGHT = 28.dp
-private val ALL_DAY_GHOST_HEIGHT = 20.dp
 
 /** The slot a long press will create: an outlined, translucent block in the primary color. */
 @Composable

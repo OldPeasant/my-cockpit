@@ -300,7 +300,8 @@ private fun MonthDay(
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     onLongClick()
                 },
-                onLongClickLabel = newEvent,
+                // No long-click label: the "New event" custom action below already announces it, once.
+                onLongClickLabel = null,
                 hapticFeedbackEnabled = false,
             ).semantics {
                 contentDescription = description

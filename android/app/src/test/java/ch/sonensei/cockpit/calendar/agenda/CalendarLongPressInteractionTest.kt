@@ -16,6 +16,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.longClick
@@ -27,6 +28,7 @@ import androidx.compose.ui.test.swipeLeft
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -373,6 +375,22 @@ class CalendarLongPressInteractionTest {
     }
 
     @Test
+    fun `the all-day ghost is drawn over the entries, so the strip keeps its height while pressed`() {
+        val day = today.plusDays(5)
+        val holiday = Occurrence(id(7), work.id, "Holiday", null, true, null, null, day, day.plusDays(1))
+        show(state(CalendarView.DAY, day, listOf(holiday)))
+        val strip = composeRule.onNodeWithTag(CalendarTags.allDay(day), useUnmergedTree = true)
+        val before = strip.fetchSemanticsNode().boundsInRoot
+
+        pressAndHold(strip, Offset(px(4f), px(6f)))
+        val ghost = ghost(day).assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        assertEquals(before, strip.fetchSemanticsNode().boundsInRoot)
+        assertTrue("the ghost covers the strip's day", ghost.height > 0f && ghost.height <= before.height)
+        lift(strip)
+        assertEquals(listOf(Triple(day, null as LocalTime?, true)), created)
+    }
+
+    @Test
     fun `a long press on the all-day strip of the day view creates an all-day event`() {
         val day = today.plusDays(5)
         show(state(CalendarView.DAY, day))
@@ -457,13 +475,51 @@ class CalendarLongPressInteractionTest {
         assertEquals(listOf(Triple(day, null as LocalTime?, true)), created)
     }
 
+    /**
+     * A screen reader can focus [node] and use its "New event": it has a content description and a long click
+     * (unlabelled, so "New event" is announced once, by the custom action) that asks for [expected].
+     */
+    private fun assertReachableNewEvent(
+        node: SemanticsNodeInteraction,
+        description: String,
+        expected: Triple<LocalDate, LocalTime?, Boolean>,
+    ) {
+        val config = node.fetchSemanticsNode().config
+        assertEquals(listOf(description), config[SemanticsProperties.ContentDescription])
+        val longClick = config[SemanticsActions.OnLongClick]
+        assertNull("New event is not announced twice", longClick.label)
+        assertEquals(1, config[SemanticsActions.CustomActions].count { it.label == "New event" })
+        composeRule.runOnIdle { assertTrue(longClick.action!!()) }
+        assertEquals(listOf(expected), created)
+        created.clear()
+    }
+
     @Test
-    fun `a month day offers New event, and its long click is labelled the same`() {
+    fun `the week grid columns and the all-day strip can be focused by a screen reader and long clicked`() {
+        val first = LocalDate.parse("2026-10-26")
+        val wednesday = LocalDate.parse("2026-10-28")
+        show(state(CalendarView.WEEK, today.plusDays(7)))
+        val column =
+            composeRule.onNode(
+                hasNewEventAction and hasAnyAncestor(hasTestTag(CalendarTags.GRID_SCROLL)) and
+                    hasAnyAncestor(hasTestTag(CalendarTags.page(first))) and
+                    hasContentDescription("Wednesday, October 28, 2026"),
+            )
+        assertReachableNewEvent(column, "Wednesday, October 28, 2026", Triple(wednesday, null, false))
+
+        val strip = composeRule.onNodeWithTag(CalendarTags.allDay(wednesday), useUnmergedTree = true)
+        assertReachableNewEvent(strip, "All day, Wednesday, October 28, 2026", Triple(wednesday, null, true))
+    }
+
+    @Test
+    fun `a month day offers New event once, as a custom action, and as its long click`() {
         val day = LocalDate.parse("2026-10-14")
         show(state(CalendarView.MONTH, today))
         val cell = composeRule.onNodeWithTag(CalendarTags.monthDay(day))
         cell.assert(hasNewEventAction)
-        assertEquals("New event", cell.fetchSemanticsNode().config[SemanticsActions.OnLongClick].label)
+        val config = cell.fetchSemanticsNode().config
+        assertEquals(1, config[SemanticsActions.CustomActions].count { it.label == "New event" })
+        assertNull("the long click is not labelled New event a second time", config[SemanticsActions.OnLongClick].label)
         runNewEvent(cell)
         assertEquals(listOf(Triple(day, null as LocalTime?, false)), created)
         assertTrue(openedDays.isEmpty())

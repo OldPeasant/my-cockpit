@@ -24,7 +24,8 @@ internal fun slotStart(
 /**
  * A long press (the platform long-press timeout) anywhere on the element, also on children that are clickable
  * themselves: [onPress] is called with the position once it is recognised, [onRelease] when the finger is lifted
- * after that, [onCancel] when the gesture is taken away. A finger that moves beyond the touch slop before the timeout
+ * after that, [onCancel] when the gesture is taken away. The callbacks are captured until [key] changes, so pass
+ * values that change in between through `rememberUpdatedState`. A finger that moves beyond the touch slop before the timeout
  * is a scroll or a swipe and never becomes a long press; a tap stays a tap. Once recognised, the rest of the gesture
  * is consumed, so neither a child's click nor a scroll or the pager sees it.
  *
@@ -65,7 +66,14 @@ internal fun Modifier.longPressAt(
                     onCancel()
                     return@awaitEachGesture
                 }
+                // Nothing consumes before the initial pass, so an up that arrives consumed is Compose's synthetic
+                // cancel event (ACTION_CANCEL, the gesture was taken away), not a lifted finger.
+                val cancelled = !change.pressed && change.isConsumed
                 event.changes.forEach { it.consume() }
+                if (cancelled) {
+                    onCancel()
+                    return@awaitEachGesture
+                }
                 if (!change.pressed) {
                     onRelease()
                     return@awaitEachGesture
