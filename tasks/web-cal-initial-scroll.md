@@ -27,7 +27,8 @@ below it as fit. Same behaviour as the Android task `and-cal-initial-scroll`.
   - verified (2026-11-22 10:50+0100 by dell26/agent-2): same run -> calendar-view.spec: scroll only after the period's occurrences load, again on next week and on week->day switch, not on resync/change-event refresh, not on late answer for old period, never in month/agenda (jsdom: verifies scrollToTime is called with the right time, not the visual result in a browser)
 - [x] The position calculation is a pure function with unit tests
   - verified (2026-11-22 10:50+0100 by dell26/agent-2): initialScrollTime in web/src/app/features/calendar/views/initial-scroll.ts is pure; initial-scroll.spec.ts 10 tests pass (focused ng test run)
-- [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+- [x] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
+  - verified (2026-11-22 10:50+0100 by dell26/agent-2): cd web && npm run lint -> clean; test-writer: npm --prefix web run coverage -> 4982 passed; sh scripts/check.sh -> all checks passed
 
 ## Notes
 Planned 2026-11-22 from the owner's request to have the Android initial-scroll behaviour in the web app too; design as
