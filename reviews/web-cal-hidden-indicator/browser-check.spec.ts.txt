@@ -1,0 +1,100 @@
+import { APIRequestContext } from '@playwright/test';
+import { expect, test } from '../support/fixtures';
+
+// Scratch browser check for web-cal-hidden-indicator (not committed).
+test('hidden-entry chips in day/week view', async ({ browser, sessionState }) => {
+  for (const size of [
+    { width: 1280, height: 800 },
+    { width: 360, height: 640 },
+  ]) {
+    const context = await browser.newContext({ storageState: sessionState, viewport: size });
+    const page = await context.newPage();
+    try {
+      const run = Date.now().toString(36);
+      const api = await apiOf(page.request);
+      await api.settings({ timeZone: 'Europe/Zurich', weekStart: 'MONDAY' });
+      const cal = await api.calendar(`Chips ${run}`, '#2e7d32');
+      for (const [s, e] of [
+        ['01:00', '01:30'],
+        ['02:00', '02:30'],
+        ['22:00', '23:00'],
+      ])
+        await api.event({
+          calendarId: cal,
+          title: `E${s} ${run}`,
+          start: `2026-05-13T${s}:00+02:00`,
+          end: `2026-05-13T${e}:00+02:00`,
+          timeZone: 'Europe/Zurich',
+        });
+      await api.event({
+        calendarId: cal,
+        title: `AllDay ${run}`,
+        startDate: '2026-05-13',
+        allDay: true,
+      });
+
+      for (const view of ['day', 'week']) {
+        await page.goto(`/calendar?view=${view}&date=2026-05-13`);
+        const up = page.getByRole('button', { name: /^2 earlier/ });
+        const down = page.getByRole('button', { name: /^1 later/ });
+        await expect(up).toHaveCount(1);
+        await expect(down).toHaveCount(1);
+        const upText = (await up.innerText()).replace(/\s+/g, ' ');
+        const downText = (await down.innerText()).replace(/\s+/g, ' ');
+        console.log(size.width, view, 'up:', upText, 'down:', downText, 'label:', await up.getAttribute('aria-label'));
+        // Not covering headers or all-day row: chip top >= all-day event bottom.
+        const allDay = await page.locator('.app-event', { hasText: `AllDay ${run}` }).first().boundingBox();
+        const upBox = (await up.boundingBox())!;
+        const downBox = (await down.boundingBox())!;
+        console.log('allDay', allDay, 'upBox', upBox, 'downBox', downBox);
+        expect(upBox.y).toBeGreaterThanOrEqual(allDay!.y + allDay!.height);
+        expect(upBox.x + upBox.width).toBeLessThanOrEqual(size.width);
+        expect(downBox.y + downBox.height).toBeLessThanOrEqual(size.height);
+        await page.screenshot({ path: `../.tmp/chips-${size.width}-${view}.png` });
+        // Keyboard: focus + Enter scrolls up so the 02:00 entry is visible; the 01:00 one remains hidden.
+        await up.focus();
+        await page.keyboard.press('Enter');
+        await expect(page.getByRole('button', { name: /^1 earlier/ })).toHaveCount(1, { timeout: 5000 });
+        await page.getByRole('button', { name: /^1 earlier/ }).click();
+        await expect(page.getByRole('button', { name: /earlier/ })).toHaveCount(0, { timeout: 5000 });
+        // Now the 22:00 entry is further hidden; clicking down shows it.
+        await page.getByRole('button', { name: /^1 later/ }).click();
+        await expect(page.getByRole('button', { name: /later/ })).toHaveCount(0, { timeout: 5000 });
+        await expect(page.getByRole('button', { name: /earlier/ })).toHaveCount(1);
+      }
+      // Resize updates: shrinking the viewport keeps chips consistent.
+      await page.goto('/calendar?view=day&date=2026-05-13');
+      await expect(page.getByRole('button', { name: /later/ })).toHaveCount(1);
+      await page.setViewportSize({ width: size.width, height: 3000 });
+      await expect(page.getByRole('button', { name: /later|earlier/ })).toHaveCount(0, { timeout: 5000 });
+    } finally {
+      await context.close();
+    }
+  }
+});
+
+async function apiOf(request: APIRequestContext) {
+  const headers = async (extra: Record<string, string> = {}): Promise<Record<string, string>> => {
+    const xsrf = (await request.storageState()).cookies.find((c) => c.name === 'XSRF-TOKEN');
+    return { 'X-XSRF-TOKEN': xsrf!.value, ...extra };
+  };
+  return {
+    async settings(patch: Record<string, unknown>): Promise<void> {
+      const current = await request.get('/api/v1/settings');
+      const r = await request.patch('/api/v1/settings', {
+        headers: await headers({ 'If-Match': current.headers()['etag'] }),
+        data: patch,
+      });
+      expect(r.ok()).toBe(true);
+    },
+    async calendar(name: string, color: string): Promise<string> {
+      const r = await request.post('/api/v1/calendar/calendars', { headers: await headers(), data: { name, color } });
+      expect(r.status()).toBe(201);
+      return ((await r.json()) as { id: string }).id;
+    },
+    async event(data: Record<string, unknown>): Promise<void> {
+      const r = await request.post('/api/v1/calendar/events', { headers: await headers(), data });
+      expect(r.status(), await r.text()).toBe(201);
+    },
+  };
+}
