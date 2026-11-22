@@ -27,7 +27,8 @@ let a tap bring them into view.
   - verified (2026-11-22 10:41+0100 by dell26/agent-1): hiddenEntries(entries, scrollOffset, viewportHeight, margin) in HiddenEntries.kt is pure; HiddenEntriesTest 21 unit tests -> pass, JaCoCo 100% lines and branches of HiddenEntries.kt
 - [x] New strings are in English and German (`res/values/` + `res/values-de/`)
   - verified (2026-11-22 10:42+0100 by dell26/agent-1): strings in res/values/strings_calendar_agenda.xml and res/values-de/; HiddenEntryStringsTest en-rUS and de-rDE -> 2/2 pass; lintDebug clean
-- [ ] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+- [x] Unit/Compose tests cover the new behavior; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` and `sh scripts/check.sh` pass
+  - verified (2026-11-22 10:42+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> exit 0, 5644 tests 0 failed (final code); sh scripts/check.sh at 4133c18ee -> all checks passed
 
 ## Notes
 Planned 2026-11-22 from the owner's calendar usability request; the design decisions in the criteria were confirmed by the owner.
