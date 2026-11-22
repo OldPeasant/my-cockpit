@@ -115,6 +115,19 @@ class HiddenEntriesTest {
     }
 
     @Test
+    fun `the full margin is kept from a viewport four margins tall, a quarter of the viewport below that`() {
+        val earlier = listOf(entry(1, 100, 160))
+        // 120 px viewport, 30 px margin: a quarter is exactly the margin, so the whole margin is used.
+        assertEquals(100 - 30, hiddenEntries(earlier, 600, 120, scale, margin = 30).scrollToAbove)
+        // 119 px: a quarter rounds down to 29 px, one px less than the margin.
+        assertEquals(100 - 29, hiddenEntries(earlier, 600, 119, scale, margin = 30).scrollToAbove)
+        // The same inset applies below, here to an entry taller than the viewport (its start below the top edge).
+        val later = listOf(entry(1, 600, 900))
+        assertEquals(600 - 30, hiddenEntries(later, 0, 120, scale, margin = 30).scrollToBelow)
+        assertEquals(600 - 29, hiddenEntries(later, 0, 119, scale, margin = 30).scrollToBelow)
+    }
+
+    @Test
     fun `an entry taller than the viewport is scrolled to its start`() {
         val hidden = hiddenEntries(listOf(entry(1, 900, 1400)), 0, 300, scale)
         assertEquals(900, hidden.scrollToBelow)
