@@ -26,7 +26,8 @@ task `and-cal-hidden-indicator`.
   - verified (2026-11-22 09:53+0100 by dell26/agent-2): same browser check (npm run e2e --grep 'hidden-entry chips', 1280x800 + 360x640) -> passed: clicking '1 earlier' scrolls (scrollTo behavior smooth) until no earlier chip remains; clicking '1 later' brings the 22:00 entry into view; unit tests (hidden-entries.spec.ts scrollTargetFor) check the nearest-entry target
 - [x] Chips are buttons with an accessible label (e.g. "2 events earlier, show") and work with the keyboard
   - verified (2026-11-22 09:53+0100 by dell26/agent-2): same browser check (npm run e2e --grep 'hidden-entry chips', 1280x800 + 360x640) -> passed: chips found via getByRole('button', name '2 earlier: show hidden events'); focus + Enter scrolls to the nearest hidden entry (chip becomes '1 earlier')
-- [ ] The visibility calculation is a pure function (entry positions, scroll offset, viewport height) with unit tests
+- [x] The visibility calculation is a pure function (entry positions, scroll offset, viewport height) with unit tests
+  - verified (2026-11-22 10:06+0100 by dell26/agent-2): pure hiddenEntries()/scrollTargetFor() in web/src/app/features/calendar/views/hidden-entries.ts (positions, scrollTop, viewport height -> counts/targets); npm run test:ci -- --include hidden-entries.spec.ts --include hidden-chips.spec.ts -> 2 files, 23 passed; coverage 100% of hidden-entries.ts
 - [x] New texts are in English and German (`messages.xlf` + `messages.de.xlf`)
   - verified (2026-11-22 09:53+0100 by dell26/agent-2): grep -c calendar.hidden web/src/locale/messages.xlf messages.de.xlf -> 6 trans-units each (above/below text + singular/plural labels), German targets state=translated (e.g. '{count} früher'); ng build in npm run check compiles the de locale
 - [ ] Unit tests cover the new behavior; `cd web && npm run check` and `sh scripts/check.sh` pass
