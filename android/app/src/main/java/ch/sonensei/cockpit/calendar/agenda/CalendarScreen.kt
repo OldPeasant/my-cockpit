@@ -24,6 +24,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -58,6 +60,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -102,13 +105,17 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import java.time.Clock
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
+import java.time.temporal.ChronoUnit
+import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 import java.util.UUID
 
@@ -198,6 +205,10 @@ internal object CalendarTags {
     const val MONTH = "calendar-month"
     const val TASKS_FAILED = "calendar-tasks-failed"
     const val TASKS_RETRY = "calendar-tasks-retry"
+    const val PAGER = "calendar-pager"
+
+    /** A page of the day, week or month pager, by the first day it shows. */
+    fun page(first: LocalDate) = "calendar-page:$first"
 
     fun task(
         key: String,
@@ -250,13 +261,10 @@ fun CalendarContent(
         if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth()) else Spacer(Modifier.height(4.dp))
         when (state.view) {
             CalendarView.AGENDA -> Agenda(state, shownCallbacks)
-            CalendarView.DAY, CalendarView.WEEK -> {
+            CalendarView.DAY, CalendarView.WEEK, CalendarView.MONTH -> {
                 RangeHeader(state, shownCallbacks)
-                TimeGrid(state, shownCallbacks)
-            }
-            CalendarView.MONTH -> {
-                RangeHeader(state, shownCallbacks)
-                MonthGrid(state, shownCallbacks, currentLocale())
+                // A pager per view: its pages are counted from the period it was opened on.
+                key(state.view) { PeriodPager(state, shownCallbacks) }
             }
         }
     }
@@ -679,6 +687,71 @@ private fun AgendaFooter(
 }
 
 // ---- Day and week ----
+
+/** The pager's page of the period it is opened on: far enough from 0 that no one swipes back to the start. */
+internal const val PAGER_START = Int.MAX_VALUE / 2
+
+/** How many days, weeks or months the period around [anchor] is after the one around [base] in [view]. */
+internal fun periodsBetween(
+    view: CalendarView,
+    base: LocalDate,
+    anchor: LocalDate,
+    firstDayOfWeek: DayOfWeek,
+): Long =
+    when (view) {
+        CalendarView.WEEK -> {
+            val adjuster = TemporalAdjusters.previousOrSame(firstDayOfWeek)
+            ChronoUnit.WEEKS.between(base.with(adjuster), anchor.with(adjuster))
+        }
+        CalendarView.MONTH -> ChronoUnit.MONTHS.between(YearMonth.from(base), YearMonth.from(anchor))
+        else -> ChronoUnit.DAYS.between(base, anchor)
+    }
+
+/**
+ * The day, week or month grid in a horizontal pager: a swipe pages to the previous or next period, the content
+ * following the finger, and once it settles the view model moves there. The arrows, Today and opening a day move the
+ * view model, and the pager follows.
+ */
+@Composable
+private fun PeriodPager(
+    state: CalendarUiState,
+    callbacks: CalendarCallbacks,
+) {
+    val view = state.view
+    val base = remember { state.anchor }
+    val firstDayOfWeek = state.firstDayOfWeek
+    val shownPage = (PAGER_START + periodsBetween(view, base, state.anchor, firstDayOfWeek)).coerceIn(0L, Int.MAX_VALUE - 1L).toInt()
+    val pagerState = rememberPagerState(initialPage = shownPage) { Int.MAX_VALUE }
+    val latestShownPage by rememberUpdatedState(shownPage)
+    val move by rememberUpdatedState(callbacks.move)
+    // Swiped to another page: the view model moves by as many periods.
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { page ->
+            if (page != latestShownPage) move(page - latestShownPage)
+        }
+    }
+    // Moved by the arrows, Today or a day header: the pager follows (sliding when it is the neighbour).
+    LaunchedEffect(shownPage) {
+        if (pagerState.currentPage != shownPage && !pagerState.isScrollInProgress) {
+            if (kotlin.math.abs(pagerState.currentPage - shownPage) == 1) {
+                pagerState.animateScrollToPage(shownPage)
+            } else {
+                pagerState.scrollToPage(shownPage)
+            }
+        }
+    }
+    val locale = currentLocale()
+    HorizontalPager(
+        state = pagerState,
+        key = { it },
+        modifier = Modifier.fillMaxSize().testTag(CalendarTags.PAGER),
+    ) { page ->
+        val pageState = if (page == shownPage) state else state.pageState(shiftPeriod(view, base, (page - PAGER_START).toLong()))
+        Box(Modifier.fillMaxSize().testTag(CalendarTags.page(pageState.days.first()))) {
+            if (view == CalendarView.MONTH) MonthGrid(pageState, callbacks, locale) else TimeGrid(pageState, callbacks)
+        }
+    }
+}
 
 @Composable
 private fun RangeHeader(

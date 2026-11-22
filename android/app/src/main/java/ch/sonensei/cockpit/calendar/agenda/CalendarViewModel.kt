@@ -60,6 +60,11 @@ data class CalendarUiState(
     val tasks: List<OverlayTask> = emptyList(),
     /** The overlay's tasks could not be loaded for the shown range. */
     val tasksFailed: Boolean = false,
+    /**
+     * The previous and next day, week or month of the day, week and month views, loaded after the shown one, so a
+     * swipe shows them right away; empty for the agenda and until they arrive.
+     */
+    val neighbours: List<LoadedRange> = emptyList(),
 ) {
     /** Something is shown for the range: loaded from the server, or from the cache. */
     val shown: Boolean get() = loaded || cachedAt != null
@@ -81,6 +86,47 @@ data class CalendarUiState(
 
     fun calendar(id: UUID): CalendarInfo? = calendars.firstOrNull { it.id == id }
 }
+
+/** The occurrences of the days [from, to), loaded ahead for a neighbouring page. */
+data class LoadedRange(
+    val from: LocalDate,
+    val to: LocalDate,
+    val occurrences: List<Occurrence>,
+)
+
+/**
+ * The state a page of the day, week or month pager shows for the period around [anchor]: this state itself for the
+ * shown period, else the period's preloaded occurrences (an empty, not yet loaded grid while they are missing). The
+ * overlay's tasks are only known for the shown period.
+ */
+fun CalendarUiState.pageState(anchor: LocalDate): CalendarUiState {
+    val page = copy(anchor = anchor)
+    val days = page.days
+    if (days == this.days) return this
+    val from = days.first()
+    val to = days.last().plusDays(1)
+    val loaded = neighbours.firstOrNull { it.from <= from && it.to >= to }
+    return page.copy(
+        from = from,
+        to = to,
+        occurrences = loaded?.occurrences.orEmpty(),
+        loaded = loaded != null,
+        cachedAt = null,
+        tasks = emptyList(),
+    )
+}
+
+/** The anchor of the period [steps] days, weeks or months after the one around [anchor] in [view]. */
+fun shiftPeriod(
+    view: CalendarView,
+    anchor: LocalDate,
+    steps: Long,
+): LocalDate =
+    when (view) {
+        CalendarView.WEEK -> anchor.plusWeeks(steps)
+        CalendarView.MONTH -> anchor.plusMonths(steps)
+        else -> anchor.plusDays(steps)
+    }
 
 /**
  * Agenda (from today on, loaded further by range as it is scrolled), day and week views, and which calendars are
@@ -127,6 +173,7 @@ class CalendarViewModel internal constructor(
 
     private var loadJob: Job? = null
     private var tasksJob: Job? = null
+    private var neighbourJob: Job? = null
 
     /** For each calendar with a pending visibility change: the newest state known from the server. */
     private val serverCalendars = mutableMapOf<UUID, CalendarInfo>()
@@ -172,17 +219,11 @@ class CalendarViewModel internal constructor(
         show(view, anchor)
     }
 
-    /** The previous (`-1`) or next (`+1`) day or week. */
+    /** The previous (`-1`) or next (`+1`) day, week or month; a pager swipe may move by more than one. */
     fun move(step: Int) {
         val current = state.value
-        val days =
-            when (current.view) {
-                CalendarView.AGENDA -> return
-                CalendarView.DAY -> 1L
-                CalendarView.WEEK -> 7L
-                CalendarView.MONTH -> return show(current.view, current.anchor.plusMonths(step.toLong()))
-            }
-        show(current.view, current.anchor.plusDays(step * days))
+        if (current.view == CalendarView.AGENDA || step == 0) return
+        show(current.view, shiftPeriod(current.view, current.anchor, step.toLong()))
     }
 
     /** Back to today in the current view. */
@@ -360,6 +401,12 @@ class CalendarViewModel internal constructor(
             return
         }
         val sameRange = from == current.from && to == current.to
+        // A neighbour swiped to (or reached with the arrows) shows its preloaded occurrences until its load answers.
+        val preloaded =
+            current.neighbours
+                .takeIf { view == current.view }
+                ?.firstOrNull { it.from <= from && it.to >= to }
+                ?.occurrences
         state.update {
             it.copy(
                 view = view,
@@ -367,7 +414,14 @@ class CalendarViewModel internal constructor(
                 from = from,
                 to = to,
                 // The occurrences of another range would be wrong here: cleared until the new ones arrive.
-                occurrences = if (sameRange) it.occurrences else emptyList(),
+                occurrences = if (sameRange) it.occurrences else preloaded.orEmpty(),
+                // The period left behind stays at hand for a swipe back, until the new neighbours arrive.
+                neighbours =
+                    when {
+                        view != it.view || sameRange -> if (sameRange) it.neighbours else emptyList()
+                        it.loaded -> it.neighbours + LoadedRange(it.from, it.to, it.occurrences)
+                        else -> it.neighbours
+                    },
                 tasks = if (sameRange) it.tasks else emptyList(),
                 // A failure of another range's tasks says nothing about this range's.
                 tasksFailed = it.tasksFailed && sameRange,
@@ -399,6 +453,7 @@ class CalendarViewModel internal constructor(
         to: LocalDate,
     ) {
         loadJob?.cancel()
+        neighbourJob?.cancel()
         val zone = state.value.zone
         val agenda = state.value.view == CalendarView.AGENDA
         state.update { it.copy(loading = true, loadingMore = false) }
@@ -442,6 +497,27 @@ class CalendarViewModel internal constructor(
                             },
                     )
                 }
+                if (result is CalendarResult.Ok && !agenda) loadNeighbours(state.value.view, state.value.anchor, zone)
+            }
+    }
+
+    /** Preloads the periods before and after the one around [anchor], kept while that period is shown. */
+    private fun loadNeighbours(
+        view: CalendarView,
+        anchor: LocalDate,
+        zone: ZoneId,
+    ) {
+        neighbourJob =
+            viewModelScope.launch {
+                val ranges = listOf(-1L, 1L).map { rangeOf(view, shiftPeriod(view, anchor, it), state.value) }
+                val loaded =
+                    ranges
+                        .map { (from, to) -> async { Triple(from, to, repository.occurrences(from, to, zone)) } }
+                        .mapNotNull { job ->
+                            val (from, to, result) = job.await()
+                            (result as? CalendarResult.Ok)?.let { LoadedRange(from, to, it.value) }
+                        }
+                state.update { if (it.view == view && it.anchor == anchor && it.zone == zone) it.copy(neighbours = loaded) else it }
             }
     }
 
