@@ -1,11 +1,11 @@
 ---
 title: Web calendar: day/week grid opens scrolled to the earliest entry
-status: in_progress
+status: done
 owner: dell26/agent-2
 deps: [web-cal-hidden-indicator]
 touches: [web/src/app/features/calendar/views]
 prio: 2
-lease_until: 2026-11-22T10:15:51Z
+lease_until: 
 ---
 ## Goal
 The web calendar's day and week view (FullCalendar, `calendar-view.ts`) always opens scrolled to 07:00
@@ -36,3 +36,4 @@ confirmed for Android. Depends on `web-cal-hidden-indicator` only because both c
 - ASSUMPTION (2026-11-22 10:40+0100 by dell26/agent-2): Timed overlay tasks (due with a time) count as timed entries for the initial scroll, using the overlay entries shown when the period's occurrences arrive; the scroll waits for occurrences only, not for the overlay's task request (keeps it simple, overlay is optional).
 - ASSUMPTION (2026-11-22 10:40+0100 by dell26/agent-2): Only occurrences of visible calendars count; toggling a calendar's visibility does not move the scroll (same period).
 - ASSUMPTION (2026-11-22 10:50+0100 by dell26/agent-2): If loading a new period fails, the initial scroll stays pending and applies on the next successful answer for that period (retry or background refresh) (review CR-2, accepted).
+- done by dell26/agent-2: `sh scripts/check.sh` passed in 449s on 3bc0facf0; criteria verified 6/6
