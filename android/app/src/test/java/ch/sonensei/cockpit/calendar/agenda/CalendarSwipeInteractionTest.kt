@@ -221,6 +221,84 @@ class CalendarSwipeInteractionTest {
         composeRule.onNodeWithTag(CalendarTags.page(holder.value.anchor)).assertIsDisplayed()
     }
 
+    /** Advances an arrow slide past its midpoint (the next day covers most of the pager) without finishing it. */
+    private fun slidePastHalfway() {
+        composeRule.mainClock.advanceTimeBy(200)
+        val pager = composeRule.onNodeWithTag(CalendarTags.PAGER).fetchSemanticsNode().boundsInRoot
+        val nextLeft =
+            composeRule
+                .onNodeWithTag(CalendarTags.page(today.plusDays(1)))
+                .fetchSemanticsNode()
+                .boundsInRoot.left
+        assertTrue("the slide passed halfway", nextLeft < pager.center.x)
+        assertTrue("the slide is not finished", nextLeft > pager.left)
+    }
+
+    /** The view model's anchor page fills the pager exactly: the title and the page agree. */
+    private fun assertPagerRestsOn(anchor: LocalDate) {
+        composeRule.onNodeWithTag(CalendarTags.page(anchor)).assertIsDisplayed()
+        val pager = composeRule.onNodeWithTag(CalendarTags.PAGER).fetchSemanticsNode().boundsInRoot
+        val shown = composeRule.onNodeWithTag(CalendarTags.page(anchor)).fetchSemanticsNode().boundsInRoot
+        assertEquals(pager.left, shown.left, 1f)
+    }
+
+    @Test
+    fun `a drag that catches an arrow slide past halfway and lets go ends on the arrow's day without another move`() {
+        val holder = show(state(CalendarView.DAY))
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithTag(CalendarTags.NEXT).performClick()
+        slidePastHalfway()
+        // The drag starts on the arrow's target page (already the pager's current page) and barely moves it.
+        composeRule.onNodeWithTag(CalendarTags.PAGER).performTouchInput {
+            down(center)
+            moveBy(Offset(-width * 0.02f, 0f))
+            up()
+        }
+        composeRule.mainClock.autoAdvance = true
+        composeRule.waitForIdle()
+        assertEquals(listOf(1), moves)
+        assertEquals(today.plusDays(1), holder.value.anchor)
+        assertPagerRestsOn(today.plusDays(1))
+    }
+
+    @Test
+    fun `a drag that catches an arrow slide past halfway and swipes back moves the view model back`() {
+        val holder = show(state(CalendarView.DAY))
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithTag(CalendarTags.NEXT).performClick()
+        slidePastHalfway()
+        composeRule.onNodeWithTag(CalendarTags.PAGER).performTouchInput { swipeRight() }
+        composeRule.mainClock.autoAdvance = true
+        composeRule.waitForIdle()
+        assertEquals(1, moves.first())
+        assertEquals("the swipe back moved the view model", 2, moves.size)
+        assertTrue("the swipe went back", moves.last() < 0)
+        val anchor = holder.value.anchor
+        assertEquals(today.plusDays(moves.sum().toLong()), anchor)
+        assertTrue("the pager left the arrow's day", anchor < today.plusDays(1))
+        assertPagerRestsOn(anchor)
+    }
+
+    @Test
+    fun `a drag that catches an arrow slide and swipes past its target moves the view model on from the target`() {
+        val holder = show(state(CalendarView.DAY))
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithTag(CalendarTags.NEXT).performClick()
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.mainClock.advanceTimeByFrame()
+        // Started on the arrow's start page, the swipe goes forward beyond the arrow's target day.
+        composeRule.onNodeWithTag(CalendarTags.PAGER).performTouchInput { swipeLeft() }
+        composeRule.mainClock.autoAdvance = true
+        composeRule.waitForIdle()
+        assertEquals(1, moves.first())
+        val anchor = holder.value.anchor
+        assertEquals(today.plusDays(moves.sum().toLong()), anchor)
+        // Ends on the target (no further move) or beyond it (moved forward relative to the target, never back).
+        assertTrue("never moved back", moves.drop(1).all { it > 0 })
+        assertTrue("at or past the arrow's day", anchor >= today.plusDays(1))
+        assertPagerRestsOn(anchor)
+    }
+
     @Test
     fun `a mostly vertical diagonal gesture scrolls the grid and keeps the period`() {
         val holder = show(state(CalendarView.DAY))
