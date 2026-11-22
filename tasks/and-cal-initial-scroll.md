@@ -6,9 +6,9 @@ deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/test/java/ch/sonensei/cockpit/calendar/agenda,android/app/src/main/res/values/strings_calendar_agenda.xml,android/app/src/main/res/values-de/strings_calendar_agenda.xml]
 prio: 2
 lease_until: 
-releases: 2
+releases: 0
 extended: 
-hold: Finished and reviewed (quality.json committed, criteria 1-4 verified, Android check passes). Only python tasks.py done is left, but .taskcheck fails on main in web task-reminders.spec.ts (date-depende
+hold: 
 ---
 ## Goal
 The day and week grid (`CalendarScreen.kt` `TimeGrid`) always opens scrolled to 07:00 (`FIRST_VISIBLE_HOUR`). It
