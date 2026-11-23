@@ -30,3 +30,4 @@ Working notes of the parent worker (not a helper report); the test-writer's `tes
 ## Suite runs
 
 (see below; appended as runs finish)
+- Run 1 (2026-11-23, code at e2b7c9074, normal load): `cd android && ./gradlew testDebugUnitTest --rerun-tasks --continue` -> BUILD SUCCESSFUL in 4m 30s, no failures.
