@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [android/app/src/test/java/ch/sonensei/cockpit/auth/SessionCacheTest.kt]
 prio: 2
-lease_until: 2026-11-23T18:58:38Z
+lease_until: 2026-11-23T19:03:33Z
 ---
 ## Goal
 `SessionCacheTest` (`android/app/src/test/java/ch/sonensei/cockpit/auth/SessionCacheTest.kt`) is flaky. It failed in CI
