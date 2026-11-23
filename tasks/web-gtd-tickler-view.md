@@ -1,0 +1,25 @@
+---
+title: Web: Tickler list view (what comes back when)
+status: todo
+owner:
+deps: [web-gtd-tickler-chip,and-gtd-tickler-view]
+touches: [web/src/app/features/gtd/lists,web/src/app/features/gtd/gtd.routes.ts,web/src/app/shell/nav-sections.ts,web/src/locale]
+prio: 2
+---
+## Goal
+The web client gets the same as Android task `and-gtd-tickler-view` (read its Goal): a **Tickler** list view next to
+Scheduled, listing every task still in the tickler with the date it comes back, so the user can check that it is
+there and when it returns. SPEC.md is updated by `and-gtd-tickler-view`; don't edit it here.
+
+## Acceptance criteria
+- [ ] A "Tickler" / "Wiedervorlage" entry in the navigation next to Scheduled (`shell/nav-sections.ts`), route
+      `/tickler`, lists all open tasks with a tickler date after today, sorted by that date (then by their usual
+      order), each showing the date it comes back. Tasks whose tickler date has come are not shown
+- [ ] Opening a row opens the task detail, where the date can be changed or another list chosen; the view reflects
+      the change afterwards. Rows support completing a task like the other list views
+- [ ] Loading, empty ("Nothing in the tickler"), offline and error states follow the existing list pages
+      (`features/gtd/lists`: Scheduled, Someday, Waiting)
+- [ ] Data comes from the API the Android task uses (`GET /api/v1/tasks?from=&to=` filtered on `ticklerDate`, or
+      the server filter that task added); no other server change here
+- [ ] New strings are in `messages.xlf` and `messages.de.xlf`; unit tests cover the criteria above;
+      `cd web && npm run check` passes
