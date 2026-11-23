@@ -4,7 +4,7 @@ Date: 2026-11-23
 
 Task: web-gtd-tickler-view - Web: Tickler list view (what comes back when)
 
-Scope: implementation commit 455998012 against base 00b75d3f8 (`git diff 00b75d3f8..455998012`); on the current branch it is the rebased commit 08de6ae64, which differs from 455998012 only in `tasks/web-gtd-tickler-view.md` (the assumption line that 455998012 predates). Uncommitted edits to `tickler-page.spec.ts` by the parallel test-writer are not part of this review.
+Scope: whole task scope `git diff 00b75d3f8..14ba71262` (final revision 14ba71262). It consists of the implementation commit 08de6ae64 (rebased form of 455998012, which differs from it only in `tasks/web-gtd-tickler-view.md`) and the test-only commit 14ba71262. The first review round covered 455998012; this round adds the delta `git diff 455998012..14ba71262 -- web`, which touches only `web/src/app/features/gtd/lists/tickler-page.spec.ts` and `web/src/locale/messages-de.spec.ts`. No production code changed after the first round. The working tree was clean at review time.
 
 Requirements:
 - tasks/web-gtd-tickler-view.md (acceptance criteria and recorded assumption)
@@ -16,9 +16,9 @@ Requirements:
 
 Git range:
 - Branch: main
-- HEAD: 08de6ae64
+- HEAD: 14ba71262
 - Base/start: 00b75d3f86c2b4e557ee9d730d94ec67a0dded5b
-- Commits reviewed: 1
+- Commits reviewed: 2 (08de6ae64 implementation, 14ba71262 tests and reports)
 
 Summary: 0 P0, 0 P1, 0 P2, 2 P3
 
@@ -29,9 +29,19 @@ Summary: 0 P0, 0 P1, 0 P2, 2 P3
 - Criterion 2: rows reuse `TaskRow` with `ListPage.open` (navigates to `/tasks/:id`) and `toggleDone` (optimistic complete with undo snackbar). The optimistic state drops the completed row (`matches` false), undo re-adds it. The page provides its own store and is recreated when the user comes back from the detail, and TASK change events refetch, so changes are reflected.
 - Criterion 3: loading / empty ("Nothing in the tickler.") / error with "Try again" use the same markup and shared message ids as Scheduled; no separate offline state, as on the existing pages (recorded assumption).
 - Criterion 4: only `GET /api/v1/tasks?from=&to=` is used; no server or OpenAPI change in the diff.
-- Criterion 5: `gtd.tickler.title`, `gtd.tickler.backTomorrow`, `gtd.tickler.backOn`, `gtd.tickler.backOnYear`, `gtd.tickler.empty`, `nav.tickler` exist in `messages.xlf` and are translated in `messages.de.xlf`; the other xlf changes are only location line numbers from re-extraction. The committed spec covers navigation placement, the request windows, sorting and return-date labels, exclusion rules, de-duplication, empty/loading/error+retry, opening the detail, re-render after a change, and completing a row. Running `npm run check` is the parent's evidence to record.
+- Criterion 5: `gtd.tickler.title`, `gtd.tickler.backTomorrow`, `gtd.tickler.backOn`, `gtd.tickler.backOnYear`, `gtd.tickler.empty`, `nav.tickler` exist in `messages.xlf` and are translated in `messages.de.xlf`; the other xlf changes are only location line numbers from re-extraction.
 - Out-of-order loads are guarded by `ListStore.requestSeq`; a failing window fails the whole load and shows the error with retry, so no partial list is presented as complete.
 - No e2e locator collides with the new "Tickler" nav link (`web/e2e` only uses "Due tasks and ticklers" and per-list checks).
+
+### Test delta 455998012..14ba71262
+
+- The fake `listTasks` now mirrors the real contract more closely: cursor paging (`nextCursor`, `limit` = `TASK_PAGE_SIZE` = 200 as sent by `TaskStore.fetch`), a per-range failure (`failingFrom`), and a failing `completeTask`. The change-event mock routes `events$('TASK')` and `resync$` to per-test subjects, so the event tests exercise the real `ListStore` subscriptions rather than a stub.
+- New cases and what they pin down: completion failure rolls the row back; paging is followed within one range (cursors `undefined`, `'2'`, `'4'`); inclusive range edges (end of year one, start of year two, last day of the horizon) are listed and the day after the horizon is not; a failure in a later range (window 5) shows the error and no partial list; a TASK `UPDATED` event triggers exactly `TICKLER_HORIZON_YEARS` new `listTasks` calls and re-sorts; a `DELETED` event drops the row without a reload; a resync reloads; with a fixed clock (Wed 10 Mar 2027) the first window is `2027-03-11..2028-03-10`, a task due back today is excluded, and the labels are "Back tomorrow", "Back on Fri, 12 Mar", "Back on Fri, 31 Dec", "Back on Wed, 5 Jan 2028" (weekdays checked by hand against the calendar).
+- `messages-de.spec.ts` asserts the six Tickler message ids with their English sources and German targets, using the file's existing `english`/`german` maps.
+- Flakiness: the fake API resolves only through microtasks (no timers), so the `refresh()` helper's `setTimeout` settles cover the ten sequential window requests and the paged requests. The fixed-date block fakes only `Date` (`toFake: ['Date']`), so `setTimeout`-based settling still works, and `afterEach` restores real timers before the outer `afterEach` removes the element. The `label()` helper compares against a module-level `today`, as in the first-round tests; only a run crossing midnight could disagree, which is the same pre-existing pattern and not new in this delta.
+- Assertions check rendered rows, labels and request parameters (behavior and the server contract), not store internals. No existing test was removed, skipped or weakened; the only modified lines are the mock setup.
+- Executed here: `npx ng test --watch=false --include src/app/features/gtd/lists/tickler-page.spec.ts --include src/locale/messages-de.spec.ts` -> 2 files, 34 tests passed; a second run of the tickler spec alone -> 21 passed. `npx eslint` and `npx prettier --check` on both spec files -> clean.
+- If CR-1 is implemented with concurrent requests, the delta's tests stay valid (they count calls and check results, not ordering); only the earlier loading-state test with a single `release` handle would need to release every pending request, as already noted in CR-1.
 
 ## P0 Critical
 
