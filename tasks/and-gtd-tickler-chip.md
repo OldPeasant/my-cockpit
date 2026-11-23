@@ -44,10 +44,11 @@ gets the same change in its own task (`web-gtd-tickler-chip`).
       label, the task detail property and the Inbox processing action. The hint explains it ("Hidden until then; on
       that day it comes back to the Inbox." / German equivalent)
   - verified (2026-11-23 18:45+0100 by dell26/agent-1): same run -> TaskDetailStringsTest (Tickler/Wiedervorlage in form, detail, inbox; shared hint EN/DE), TaskDetailContentTest, InboxScreenTest tickler prompt title+hint pass
-- [ ] Next Actions view: open NEXT tasks with `releasedOn` == today (user's local date) show a visible "New today" /
+- [x] Next Actions view: open NEXT tasks with `releasedOn` == today (user's local date) show a visible "New today" /
       "Neu heute" marker (text label, not color only; accessible content description) and are listed first, in their
       normal order among themselves; from the next day on they show and sort like any other task. Filters and
       presets still apply to them
+  - verified (2026-11-23 18:45+0100 by dell26/agent-1): same run -> NextViewModelNewTodayTest (released today first in stable order, filters/presets apply, next day normal, local date Europe/Zurich), NextNewTodayTest, NextScreenTest marker text + content description pass
 - [ ] All new UI strings exist in English and German; unit/Compose tests cover the criteria above;
       `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
 
