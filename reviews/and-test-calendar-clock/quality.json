@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "task": "and-test-calendar-clock",
+  "reviewed_revision": "cc7a8d703f328e63a682c421e125ffefe342ace4",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-test-calendar-clock/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-test-calendar-clock/review.md"},
+    "fixer":         {"status": "not_required", "reason": "neither the code review nor the test report had findings"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "sh .tmp/runclk.sh (10 changed calendar test classes) with nowClock at 08:00, 00:30 and 23:30", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"}
+  ]
+}
