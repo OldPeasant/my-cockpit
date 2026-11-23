@@ -87,3 +87,15 @@ None.
 ## Review conclusion
 
 No material issues found.
+
+## Delta review of 2f2c522c9
+
+Reviewed revision: 2f2c522c9ed4e3fe651891a46b19c4e4a21a64c9 (`git show 2f2c522c9`).
+
+- Change: one blank line inserted in
+  `android/app/src/test/java/ch/sonensei/cockpit/search/SearchRouteInAppTest.kt` between the `server` property
+  and the comment above `requests` (line 77), as ktlint_official requires before a commented declaration. No other
+  file or line changed; no behavior, import or test logic changed.
+- Gradle was not run here by request; the parent reports `cd android && ./gradlew ktlintCheck testDebugUnitTest
+  lintDebug` on this revision -> BUILD SUCCESSFUL.
+- Findings: none. The conclusion above (no material issues found) still holds for the final revision.

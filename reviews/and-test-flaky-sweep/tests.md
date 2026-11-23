@@ -280,3 +280,27 @@ No additional tests were necessary for the reviewed scope. Both known flakes are
 `e2b7c9074` with no remaining race found; the grep sweep of all four patterns found no further real race that
 needs a code change (two midnight-crossing-only risks are documented above). Suite execution evidence is the
 parent worker's (sweep-log.md).
+
+## Delta for 2f2c522c9
+
+Date: 2026-11-23
+
+Scope: commit `2f2c522c9ed4e3fe651891a46b19c4e4a21a64c9` (since the reviewed `e2b7c9074`), one file:
+`android/app/src/test/java/ch/sonensei/cockpit/search/SearchRouteInAppTest.kt`, one inserted blank line between
+the `server` property and the comment above `requests` (ktlint formatting). Inspected with `git show 2f2c522c9`.
+
+- Tests added or updated in this delta: 0. Whitespace only in a test file; no behavior and no production code
+  changed, so no new tests are needed and the earlier analysis and coverage section (test-only change, nothing to
+  measure) still apply unchanged.
+- Gradle was not run by the test-writer (parent's instruction: no parallel Gradle). The suite results below are
+  the parent worker's runs, cited from `reviews/and-test-flaky-sweep/sweep-log.md` and the parent's report:
+
+| Run | Code | Command | Result |
+|---|---|---|---|
+| 1, normal load | `e2b7c9074` | `cd android && ./gradlew testDebugUnitTest --rerun-tasks --continue` | BUILD SUCCESSFUL in 4m 30s, no failures |
+| 2, under load (12 busy loops, max-workers 16) | `e2b7c9074` | `sh .tmp/load-run.sh` (wraps `./gradlew testDebugUnitTest --rerun-tasks --continue --max-workers=16`) | BUILD SUCCESSFUL in 12m 46s, 0 failed |
+| 3, clock crossing midnight (time zone GMT+03:41) | `e2b7c9074` | `sh .tmp/midnight-run.sh` (wraps `./gradlew testDebugUnitTest --rerun-tasks --continue`) | BUILD SUCCESSFUL in 4m 38s, 0 failed; caveat from sweep-log: shifted zone in forked test workers not directly proven |
+| Final, full Android check | `2f2c522c9` | `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` | BUILD SUCCESSFUL in 4m 7s (reported by parent) |
+
+Runs 1-3 used test code identical to `2f2c522c9` except for the blank line; the final run covers the exact
+revision including ktlint. Summary unchanged: no additional tests were necessary; no production defects found.

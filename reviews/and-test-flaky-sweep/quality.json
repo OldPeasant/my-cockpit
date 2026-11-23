@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "task": "and-test-flaky-sweep",
+  "reviewed_revision": "2f2c522c9ed4e3fe651891a46b19c4e4a21a64c9",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-test-flaky-sweep/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-test-flaky-sweep/review.md"},
+    "fixer":         {"status": "not_required", "reason": "neither the code review nor the test report had findings; the only later change was a whitespace ktlint fix, covered by the delta reviews"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "cd android && ./gradlew testDebugUnitTest --rerun-tasks --continue (run 1, normal load)", "result": "pass"},
+    {"command": "sh .tmp/load-run.sh (12 busy loops + --max-workers=16, run 2)", "result": "pass"},
+    {"command": "sh .tmp/midnight-run.sh (user.timezone GMT+03:41, local 23:57 to 00:02, run 3)", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"}
+  ]
+}
