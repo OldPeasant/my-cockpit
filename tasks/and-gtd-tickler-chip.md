@@ -40,9 +40,10 @@ gets the same change in its own task (`web-gtd-tickler-chip`).
       stored list is (the tickler wins, as on the server). Picking another chip clears the tickler date; picking
       Scheduled still asks for the scheduled date. Saving without changes doesn't move or change the task
   - verified (2026-11-23 18:45+0100 by dell26/agent-1): same run -> TaskDraftListTest (tickled task opens with Tickler on all 5 lists, unchanged save moves nothing, other chip clears date, Scheduled requires date), TaskDetailListFieldsTest Compose + TaskDetailViewModelRelistTest pass
-- [ ] One name everywhere in the Android app: "Tickler" (EN) / "Wiedervorlage" (DE) for the form chip, the date
+- [x] One name everywhere in the Android app: "Tickler" (EN) / "Wiedervorlage" (DE) for the form chip, the date
       label, the task detail property and the Inbox processing action. The hint explains it ("Hidden until then; on
       that day it comes back to the Inbox." / German equivalent)
+  - verified (2026-11-23 18:45+0100 by dell26/agent-1): same run -> TaskDetailStringsTest (Tickler/Wiedervorlage in form, detail, inbox; shared hint EN/DE), TaskDetailContentTest, InboxScreenTest tickler prompt title+hint pass
 - [ ] Next Actions view: open NEXT tasks with `releasedOn` == today (user's local date) show a visible "New today" /
       "Neu heute" marker (text label, not color only; accessible content description) and are listed first, in their
       normal order among themselves; from the next day on they show and sort like any other task. Filters and
