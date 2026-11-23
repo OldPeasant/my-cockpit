@@ -72,22 +72,23 @@ class TaskDetailViewModelRelistTest {
     fun `a new list and title move the task first, then patch the moved version`() =
         runTest {
             val tickler = today.plusDays(10)
-            val vm = editing { it.onList(TaskList.SOMEDAY).copy(title = "Buy seeds in spring", ticklerDate = tickler) }
+            val vm = editing { it.onTickler().copy(title = "Buy seeds in spring", ticklerDate = tickler) }
             vm.save()
 
             val (movedFrom, move) = source.relists.single()
             assertEquals(3L, movedFrom.version)
-            assertEquals(TaskMove(TaskList.SOMEDAY, ticklerDate = tickler), move)
+            // The Tickler chip saves to the Inbox with the date.
+            assertEquals(TaskMove(TaskList.INBOX, ticklerDate = tickler), move)
             val (patched, patch) = source.updates.single()
             // The PATCH goes to the task the move answered with (its new version), not the loaded one.
             assertEquals(4L, patched.version)
-            assertEquals(TaskList.SOMEDAY, patched.list)
+            assertEquals(TaskList.INBOX, patched.list)
             assertEquals(JsonObject(mapOf("title" to JsonPrimitive("Buy seeds in spring"))), patch)
 
             val state = vm.uiState.value
             assertNull(state.draft)
             assertEquals(DetailMessage.Saved, state.message)
-            assertEquals(TaskList.SOMEDAY, state.detail?.task?.list)
+            assertEquals(TaskList.INBOX, state.detail?.task?.list)
             assertEquals("Buy seeds in spring", state.detail?.task?.title)
             assertEquals(tickler, state.detail?.ticklerDate)
             assertFalse(state.busy)
@@ -169,14 +170,14 @@ class TaskDetailViewModelRelistTest {
         runTest {
             val vm =
                 editing {
-                    it.onList(TaskList.WAITING).copy(ticklerDate = today, repeat = RepeatDraft(RepeatPreset.CUSTOM, custom = "BYDAY=MO"))
+                    it.onList(TaskList.WAITING).copy(title = " ", repeat = RepeatDraft(RepeatPreset.CUSTOM, custom = "BYDAY=MO"))
                 }
             vm.save()
             assertTrue(source.relists.isEmpty())
             assertTrue(source.updates.isEmpty())
             assertEquals(
                 mapOf(
-                    TaskField.TICKLER to FieldProblem.NotFuture,
+                    TaskField.TITLE to FieldProblem.Required,
                     TaskField.WAITING_FOR to FieldProblem.Required,
                     TaskField.RECURRENCE to FieldProblem.Invalid,
                 ),
@@ -184,7 +185,7 @@ class TaskDetailViewModelRelistTest {
             )
             // Typing the person clears only its problem.
             vm.edit { it.copy(waitingFor = "Anna Example") }
-            assertEquals(setOf(TaskField.TICKLER, TaskField.RECURRENCE), vm.uiState.value.problems.keys)
+            assertEquals(setOf(TaskField.TITLE, TaskField.RECURRENCE), vm.uiState.value.problems.keys)
         }
 
     @Test
@@ -203,7 +204,7 @@ class TaskDetailViewModelRelistTest {
     @Test
     fun `a move refused with field errors shows them at the fields and sends no PATCH`() =
         runTest {
-            val vm = editing { it.onList(TaskList.SOMEDAY).copy(title = "Buy seeds later", ticklerDate = today.plusDays(2)) }
+            val vm = editing { it.onTickler().copy(title = "Buy seeds later", ticklerDate = today.plusDays(2)) }
             source.relistResult = TaskResult.Invalid(mapOf("ticklerDate" to "must be in the future"), "Invalid move")
             vm.save()
 
@@ -318,10 +319,10 @@ class TaskDetailViewModelRelistTest {
         }
 
     @Test
-    fun `clearing the tickler of a Someday task resends the move without it`() =
+    fun `picking Someday for a tickled Someday task resends the move without the tickler`() =
         runTest {
             val someday = task.copy(list = TaskList.SOMEDAY)
-            val vm = editing(detail.copy(task = someday, ticklerDate = today.plusDays(30))) { it.copy(ticklerDate = null) }
+            val vm = editing(detail.copy(task = someday, ticklerDate = today.plusDays(30))) { it.onList(TaskList.SOMEDAY) }
             vm.save()
             assertEquals(TaskMove(TaskList.SOMEDAY), source.relists.single().second)
             assertNull(

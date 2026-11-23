@@ -86,24 +86,32 @@ class TaskDraftListTest {
     @Test
     fun `a tickler sent with a move must be after today`() {
         val before = TaskDetail(next)
-        val onDay = draft(next).copy(ticklerDate = today)
+        val onDay = draft(next).onTickler().copy(ticklerDate = today)
         assertEquals(mapOf(TaskField.TICKLER to FieldProblem.NotFuture), onDay.problems(before, today))
-        val past = draft(next).copy(ticklerDate = today.minusDays(1))
+        val past = draft(next).onTickler().copy(ticklerDate = today.minusDays(1))
         assertEquals(mapOf(TaskField.TICKLER to FieldProblem.NotFuture), past.problems(before, today))
-        assertTrue(draft(next).copy(ticklerDate = today.plusDays(1)).problems(before, today).isEmpty())
+        assertTrue(
+            draft(next)
+                .onTickler()
+                .copy(ticklerDate = today.plusDays(1))
+                .problems(before, today)
+                .isEmpty(),
+        )
     }
 
     @Test
-    fun `an old tickler is resent by a list change and must then be in the future`() {
+    fun `an old tickler stays untouched, a changed one must be in the future`() {
         val old = today.minusDays(2)
         val before = TaskDetail(someday, ticklerDate = old)
         // Nothing moves: the old tickler stays as it is.
         assertTrue(draft(someday, tickler = old).copy(title = "Buy seeds now").problems(before, today).isEmpty())
-        // The list changes: the move resends it.
+        // Picking another list clears it: nothing to check.
         val moved = draft(someday, tickler = old).onList(TaskList.NEXT)
-        assertEquals(mapOf(TaskField.TICKLER to FieldProblem.NotFuture), moved.problems(before, today))
-        // Clearing it is fine.
-        assertTrue(moved.copy(ticklerDate = null).problems(before, today).isEmpty())
+        assertNull(moved.ticklerDate)
+        assertTrue(moved.problems(before, today).isEmpty())
+        // A changed tickler date is sent with the move and must be in the future.
+        val changed = draft(someday, tickler = old).copy(ticklerDate = today)
+        assertEquals(mapOf(TaskField.TICKLER to FieldProblem.NotFuture), changed.problems(before, today))
     }
 
     @Test
@@ -140,10 +148,10 @@ class TaskDraftListTest {
     }
 
     @Test
-    fun `a move to Scheduled carries the date and the tickler`() {
+    fun `a move to Scheduled carries the date and drops the tickler`() {
         val d = draft(next, tickler = LocalDate.of(2026, 12, 1)).scheduledOn(LocalDate.of(2026, 11, 5))
         assertEquals(
-            TaskMove(TaskList.SCHEDULED, scheduledDate = LocalDate.of(2026, 11, 5), ticklerDate = LocalDate.of(2026, 12, 1)),
+            TaskMove(TaskList.SCHEDULED, scheduledDate = LocalDate.of(2026, 11, 5)),
             d.move(TaskDetail(next, ticklerDate = LocalDate.of(2026, 12, 1))),
         )
     }
@@ -157,20 +165,17 @@ class TaskDraftListTest {
     }
 
     @Test
-    fun `only a changed tickler moves the task to its own list, resending it`() {
-        val d = draft(someday).copy(ticklerDate = LocalDate.of(2026, 12, 24))
-        assertEquals(TaskMove(TaskList.SOMEDAY, ticklerDate = LocalDate.of(2026, 12, 24)), d.move(TaskDetail(someday)))
-        val cleared = draft(someday, tickler = LocalDate.of(2026, 12, 24)).copy(ticklerDate = null)
+    fun `a chosen tickler moves the task to the Inbox, another chip clears it`() {
+        val d = draft(someday).onTickler().copy(ticklerDate = LocalDate.of(2026, 12, 24))
+        assertEquals(TaskMove(TaskList.INBOX, ticklerDate = LocalDate.of(2026, 12, 24)), d.move(TaskDetail(someday)))
+        val cleared = draft(someday, tickler = LocalDate.of(2026, 12, 24)).onList(TaskList.SOMEDAY)
         assertEquals(TaskMove(TaskList.SOMEDAY), cleared.move(TaskDetail(someday, ticklerDate = LocalDate.of(2026, 12, 24))))
     }
 
     @Test
-    fun `a move of a scheduled task keeps its date when only the tickler changes`() {
-        val d = draft(scheduled).copy(ticklerDate = LocalDate.of(2026, 12, 1))
-        assertEquals(
-            TaskMove(TaskList.SCHEDULED, scheduledDate = LocalDate.of(2026, 11, 2), ticklerDate = LocalDate.of(2026, 12, 1)),
-            d.move(TaskDetail(scheduled)),
-        )
+    fun `a scheduled task put on the tickler loses its scheduled date`() {
+        val d = draft(scheduled).onTickler().copy(ticklerDate = LocalDate.of(2026, 12, 1))
+        assertEquals(TaskMove(TaskList.INBOX, ticklerDate = LocalDate.of(2026, 12, 1)), d.move(TaskDetail(scheduled)))
     }
 
     @Test
