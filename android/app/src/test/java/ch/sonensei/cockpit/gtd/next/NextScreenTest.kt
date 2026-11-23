@@ -4,10 +4,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -187,6 +190,18 @@ class NextScreenTest {
         show(loaded.copy(tasks = listOf(call.copy(dueDate = today.minusDays(1)), dueAt)))
         composeRule.onNodeWithText("1 day overdue").assertIsDisplayed()
         composeRule.onNodeWithText("Due today 08:05").assertIsDisplayed()
+    }
+
+    @Test
+    fun `a task released from Scheduled today shows the New today label, one from yesterday does not`() {
+        val fresh = water.copy(releasedOn = today)
+        val older = call.copy(releasedOn = today.minusDays(1))
+        show(loaded.copy(tasks = listOf(fresh, older), total = 2))
+        composeRule
+            .onNodeWithTag(TaskListTags.newToday(fresh.id), useUnmergedTree = true)
+            .assert(hasText("New today"))
+            .assert(hasContentDescription("New today: back from Scheduled"))
+        composeRule.onNodeWithTag(TaskListTags.newToday(older.id), useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test

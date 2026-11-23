@@ -209,30 +209,79 @@ class TaskDetailListFieldsTest {
     // --- tickler ---
 
     @Test
-    fun `a tickler chip sets the day, the list stays, and clearing it removes it`() {
+    fun `the lists are offered in workflow order with Tickler before Someday, without a separate tickler field`() {
         editing(TaskDetail(seeds.copy(list = TaskList.SOMEDAY)))
-        tag(TaskDetailListTags.dateChip("tickler", "month")).performClick()
-        tag(TaskDetailListTags.dateChip("tickler", "month")).assertIsSelected()
-        tag(TaskDetailListTags.dateChip("tickler", "tomorrow")).assertIsNotSelected()
-        assertEquals(today.plusMonths(1), draft().ticklerDate)
-        tag(TaskDetailListTags.list(TaskList.SOMEDAY)).assertIsSelected()
-
-        tag(TaskDetailListTags.dateClear("tickler")).performClick()
-        assertNull(draft().ticklerDate)
-        tag(TaskDetailListTags.dateChip("tickler", "tomorrow")).performClick()
-        save()
-        assertEquals(TaskMove(TaskList.SOMEDAY, ticklerDate = today.plusDays(1)), source.relists.single().second)
+        val order =
+            listOf(
+                TaskDetailListTags.list(TaskList.INBOX),
+                TaskDetailListTags.list(TaskList.NEXT),
+                TaskDetailListTags.list(TaskList.WAITING),
+                TaskDetailListTags.list(TaskList.SCHEDULED),
+                TaskDetailListTags.TICKLER,
+                TaskDetailListTags.list(TaskList.SOMEDAY),
+            )
+        val lefts = order.map { composeRule.onNodeWithTag(it).fetchSemanticsNode().positionInRoot }
+        lefts.zipWithNext().forEach { (a, b) -> assertTrue(a.y < b.y || a.y == b.y && a.x < b.x) }
+        tag(TaskDetailListTags.TICKLER).assertIsNotSelected()
+        tag(TaskDetailListTags.TICKLER).assert(hasText("Tickler"))
+        composeRule.onNodeWithTag(TaskDetailListTags.date("tickler")).assertDoesNotExist()
+        composeRule.onNodeWithText("Comes back").assertDoesNotExist()
     }
 
     @Test
-    fun `a past tickler resent by a list change is shown as a problem at the tickler`() {
-        editing(TaskDetail(seeds.copy(list = TaskList.SOMEDAY), ticklerDate = today.minusDays(1)))
-        tag(TaskDetailListTags.list(TaskList.NEXT)).performClick()
+    fun `Tickler needs a day and saves the task to the Inbox with it`() {
+        editing(TaskDetail(seeds.copy(list = TaskList.SOMEDAY)))
+        tag(TaskDetailListTags.TICKLER).performClick()
+        tag(TaskDetailListTags.TICKLER).assertIsSelected()
+        tag(TaskDetailListTags.list(TaskList.SOMEDAY)).assertIsNotSelected()
+        tag(TaskDetailListTags.list(TaskList.INBOX)).assertIsNotSelected()
+        tag(TaskDetailListTags.date("tickler")).assertIsDisplayed()
+        composeRule.onNodeWithText("Hidden until then; on that day it comes back to the Inbox.").performScrollTo().assertIsDisplayed()
         save()
-        tag(TaskDetailTags.error(TaskField.TICKLER)).assert(hasText("Pick a day after today."))
+        tag(TaskDetailTags.error(TaskField.TICKLER)).assert(hasText("Pick the day it comes back."))
         assertTrue(source.relists.isEmpty())
+        tag(TaskDetailListTags.dateChip("tickler", "month")).performClick()
+        tag(TaskDetailListTags.dateChip("tickler", "month")).assertIsSelected()
+        save()
+        assertEquals(TaskMove(TaskList.INBOX, ticklerDate = today.plusMonths(1)), source.relists.single().second)
+    }
+
+    @Test
+    fun `a task with a tickler opens with Tickler chosen whatever its list, and saving unchanged moves nothing`() {
+        editing(TaskDetail(seeds.copy(list = TaskList.SOMEDAY), ticklerDate = today.plusDays(5)))
+        tag(TaskDetailListTags.TICKLER).assertIsSelected()
+        tag(TaskDetailListTags.list(TaskList.SOMEDAY)).assertIsNotSelected()
+        tag(TaskDetailListTags.dateClear("tickler")).assertIsDisplayed()
+        assertEquals(today.plusDays(5), draft().ticklerDate)
+        save()
+        assertTrue(source.relists.isEmpty())
+        assertTrue(source.updates.isEmpty())
+    }
+
+    @Test
+    fun `choosing another list clears the tickler, Scheduled still asks for its date`() {
+        editing(TaskDetail(seeds.copy(list = TaskList.INBOX), ticklerDate = today.plusDays(5)))
+        tag(TaskDetailListTags.list(TaskList.SCHEDULED)).performClick()
+        tag(TaskDetailListTags.TICKLER).assertIsNotSelected()
+        assertNull(draft().ticklerDate)
+        composeRule.onNodeWithTag(TaskDetailListTags.date("tickler")).assertDoesNotExist()
+        save()
+        tag(TaskDetailTags.error(TaskField.SCHEDULED)).assertIsDisplayed()
+        tag(TaskDetailListTags.dateChip("scheduled", "tomorrow")).performClick()
+        save()
+        assertEquals(TaskMove(TaskList.SCHEDULED, scheduledDate = today.plusDays(1)), source.relists.single().second)
+    }
+
+    @Test
+    fun `a past tickler of a task moved to the Inbox again is shown as a problem at the tickler`() {
+        editing(TaskDetail(seeds.copy(list = TaskList.SOMEDAY), ticklerDate = today.minusDays(1)))
+        tag(TaskDetailListTags.dateChip("tickler", "tomorrow")).performClick()
         tag(TaskDetailListTags.dateClear("tickler")).performClick()
-        composeRule.onNodeWithTag(TaskDetailTags.error(TaskField.TICKLER)).assertDoesNotExist()
+        tag(TaskDetailListTags.date("tickler")).assertIsDisplayed()
+        save()
+        tag(TaskDetailTags.error(TaskField.TICKLER)).assertIsDisplayed()
+        assertTrue(source.relists.isEmpty())
+        tag(TaskDetailListTags.list(TaskList.NEXT)).performClick()
         save()
         assertEquals(TaskMove(TaskList.NEXT), source.relists.single().second)
     }
