@@ -160,6 +160,23 @@ h1 {
   border-top: 1px solid var(--app-border);
 }
 
+// Released from Scheduled today: a text badge plus an accent edge, so it isn't color alone.
+.new-today {
+  border-inline-start: 3px solid var(--app-accent);
+}
+
+.new-today-badge {
+  display: inline-block;
+  margin: var(--app-space-2) 0 0 var(--app-space-3);
+  padding: 0 var(--app-space-2);
+  border: 1px solid var(--app-accent);
+  border-radius: 999px;
+  color: var(--app-accent);
+  font: var(--mat-sys-label-small);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .empty {
   padding: var(--app-space-5) var(--app-space-3);
   color: var(--app-fg-muted);

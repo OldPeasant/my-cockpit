@@ -170,15 +170,38 @@
               <legend i18n="@@taskDetail.group.where">Where</legend>
               <div class="row">
                 <label for="td-list" i18n="@@taskDetail.list">List</label>
-                <select id="td-list" [value]="d.list" (change)="setList($any(text($event)))">
+                <select id="td-list" [value]="listChoice(d)" (change)="setList($any(text($event)))">
                   @for (option of lists; track option.value) {
-                    <option [value]="option.value" [selected]="option.value === d.list">
+                    <option [value]="option.value" [selected]="option.value === listChoice(d)">
                       {{ option.label }}
                     </option>
                   }
                 </select>
               </div>
-              @if (d.list === 'SCHEDULED') {
+              @if (d.tickler) {
+                <div class="row">
+                  <label for="td-tickler" i18n="@@gtd.tickler.date">Tickler date</label>
+                  <input
+                    id="td-tickler"
+                    type="date"
+                    required
+                    [min]="tomorrow()"
+                    [value]="d.ticklerDate"
+                    [attr.aria-invalid]="!!error('ticklerDate')"
+                    [attr.aria-describedby]="
+                      error('ticklerDate') ? 'td-tickler-error' : 'td-tickler-hint'
+                    "
+                    (input)="edit({ ticklerDate: text($event) })"
+                  />
+                  @if (error('ticklerDate'); as message) {
+                    <p id="td-tickler-error" class="field-error">{{ message }}</p>
+                  } @else {
+                    <p id="td-tickler-hint" class="hint" i18n="@@gtd.tickler.hint">
+                      Hidden until then; on that day it comes back to the Inbox.
+                    </p>
+                  }
+                </div>
+              } @else if (d.list === 'SCHEDULED') {
                 <div class="row">
                   <label for="td-scheduled" i18n="@@taskDetail.scheduledDate">Scheduled for</label>
                   <input
@@ -194,7 +217,7 @@
                   }
                 </div>
               }
-              @if (d.list === 'WAITING') {
+              @if (!d.tickler && d.list === 'WAITING') {
                 <div class="row">
                   <label for="td-waiting" i18n="@@taskDetail.waitingFor">Waiting for</label>
                   <input
@@ -363,25 +386,6 @@
                 </span>
                 @if (error('dueTime'); as message) {
                   <p id="td-due-time-error" class="field-error">{{ message }}</p>
-                }
-              </div>
-              <div class="row">
-                <label for="td-tickler" i18n="@@taskDetail.tickler">Tickler</label>
-                <input
-                  id="td-tickler"
-                  type="date"
-                  [min]="today()"
-                  [value]="d.ticklerDate"
-                  [attr.aria-invalid]="!!error('ticklerDate')"
-                  [attr.aria-describedby]="error('ticklerDate') ? 'td-tickler-error' : null"
-                  (input)="edit({ ticklerDate: text($event) })"
-                />
-                @if (error('ticklerDate'); as message) {
-                  <p id="td-tickler-error" class="field-error">{{ message }}</p>
-                } @else {
-                  <p class="hint" i18n="@@taskDetail.ticklerHint">
-                    Hidden until then, then back in the Inbox.
-                  </p>
                 }
               </div>
               <div class="row">

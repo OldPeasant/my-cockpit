@@ -256,7 +256,15 @@ describe('InboxPage', () => {
     await render([task('t1'), task('t2')]);
     await press('p');
     await press('t');
-    element.querySelector<HTMLFormElement>('.prompt')!.requestSubmit();
+    const prompt = element.querySelector<HTMLFormElement>('.prompt')!;
+    expect(prompt.textContent).toContain('Tickler date');
+    expect(prompt.textContent).toContain(
+      'Hidden until then; on that day it comes back to the Inbox.',
+    );
+    expect(prompt.querySelector('input')!.getAttribute('aria-describedby')).toBe(
+      'inbox-tickler-hint',
+    );
+    prompt.requestSubmit();
     await refresh();
 
     expect(callsOf(moveTask)[0].params['body']).toEqual({

@@ -45,6 +45,21 @@ import {
   taskQuery,
 } from './next-filter';
 
+/** Whether `task` came to Next from Scheduled on `today` (the user's local date). */
+export function isNewToday(task: TaskResponse, today: string): boolean {
+  return task.list === 'NEXT' && !task.completedAt && task.releasedOn === today;
+}
+
+/**
+ * `tasks` with the ones new today ({@link isNewToday}) first; both groups keep their order, so
+ * from the next day on a task sorts normally again.
+ */
+export function newTodayFirst(tasks: readonly TaskResponse[], today: string): TaskResponse[] {
+  const fresh = tasks.filter((task) => isNewToday(task, today));
+  if (!fresh.length) return [...tasks];
+  return [...fresh, ...tasks.filter((task) => !isNewToday(task, today))];
+}
+
 /**
  * The Next Actions view (SPEC.md §5.3): open NEXT tasks, filtered by context, energy, creativity,
  * maximum estimate, area/project and due window. The filter lives in the URL query; saved presets
@@ -97,12 +112,20 @@ export default class NextView {
       .filter((project) => project.status === 'ACTIVE' && (!area || project.areaId === area));
   });
 
-  /** The tasks shown: the server's answer for the filter, narrowed to the area. */
+  /**
+   * The tasks shown: the server's answer for the filter, narrowed to the area. Tasks released from
+   * Scheduled today come first ({@link newTodayFirst}).
+   */
   protected readonly tasks = computed(() => {
     const filter = this.filter();
     const projects = this.projects.byId();
-    return this.store.items().filter((task) => inArea(task, filter, projects));
+    return newTodayFirst(
+      this.store.items().filter((task) => inArea(task, filter, projects)),
+      this.today,
+    );
   });
+
+  protected readonly isNewToday = isNewToday;
 
   protected readonly contextOptions = computed((): SegmentedOption<string>[] =>
     this.contexts.items().map((context) => ({ value: context.id, label: context.name })),

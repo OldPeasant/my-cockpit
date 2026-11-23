@@ -1,8 +1,10 @@
 import { TaskResponse } from '../../../api/generated';
 import {
+  chooseList,
   draftOf,
   draftRule,
   hasChanges,
+  listChoice,
   moveFor,
   patchFor,
   TaskDraft,
@@ -91,10 +93,33 @@ describe('validateDraft', () => {
   });
 
   it('needs a new tickler date after today, but keeps an unchanged one', () => {
-    expect(errors({ ticklerDate: TODAY }).ticklerDate).toBeDefined();
-    expect(errors({ ticklerDate: '2026-10-21' }).ticklerDate).toBeUndefined();
+    expect(errors({ tickler: true, ticklerDate: TODAY }).ticklerDate).toBe(
+      'Pick a date after today.',
+    );
+    expect(errors({ tickler: true, ticklerDate: '2026-10-21' }).ticklerDate).toBeUndefined();
     const old = task({ ticklerDate: '2026-10-19' });
     expect(errors({}, old).ticklerDate).toBeUndefined();
+  });
+
+  it('needs a date when Tickler is chosen', () => {
+    expect(errors({ tickler: true, ticklerDate: '' }).ticklerDate).toBe(
+      'Pick the date it comes back.',
+    );
+  });
+
+  it('does not ask for the scheduled date or check waiting-for while Tickler overrides the list', () => {
+    const scheduled = task({ list: 'SCHEDULED', scheduledDate: '2026-11-01' });
+    expect(
+      errors({ tickler: true, ticklerDate: '2026-10-25', scheduledDate: '' }, scheduled),
+    ).toEqual({});
+    expect(
+      errors({
+        list: 'WAITING',
+        tickler: true,
+        ticklerDate: '2026-10-25',
+        waitingForText: 'x'.repeat(501),
+      }),
+    ).toEqual({});
   });
 
   it('limits waiting-for on the waiting list', () => {
@@ -128,24 +153,61 @@ describe('moveFor', () => {
     expect(moveFor(t, edited(t, { title: 'Other' }))).toBeUndefined();
   });
 
-  it('moves to the scheduled list with its date and keeps the tickler', () => {
-    const t = task({ ticklerDate: '2026-11-01' });
-    expect(moveFor(t, edited(t, { list: 'SCHEDULED', scheduledDate: '2026-11-05' }))).toEqual({
-      list: 'SCHEDULED',
-      scheduledDate: '2026-11-05',
-      ticklerDate: '2026-11-01',
+  it('moves to the scheduled list with its date', () => {
+    const t = task();
+    expect(
+      moveFor(t, edited(t, { ...chooseList(t, 'SCHEDULED'), scheduledDate: '2026-11-05' })),
+    ).toEqual({ list: 'SCHEDULED', scheduledDate: '2026-11-05' });
+  });
+
+  it('saves a chosen tickler as INBOX with its date, from any list', () => {
+    const t = task({ list: 'SCHEDULED', scheduledDate: '2026-11-05' });
+    expect(
+      moveFor(t, edited(t, { ...chooseList(t, 'TICKLER'), ticklerDate: '2026-10-25' })),
+    ).toEqual({ list: 'INBOX', ticklerDate: '2026-10-25' });
+  });
+
+  it('moves a tickler to a new date', () => {
+    const t = task({ list: 'INBOX', ticklerDate: '2026-10-25' });
+    expect(moveFor(t, edited(t, { ticklerDate: '2026-10-30' }))).toEqual({
+      list: 'INBOX',
+      ticklerDate: '2026-10-30',
     });
   });
 
-  it('sets or clears the tickler on the same list', () => {
-    const t = task({ list: 'SCHEDULED', scheduledDate: '2026-11-05' });
-    expect(moveFor(t, edited(t, { ticklerDate: '2026-10-25' }))).toEqual({
-      list: 'SCHEDULED',
-      scheduledDate: '2026-11-05',
+  it('clears the tickler when another list is chosen, also the stored one', () => {
+    const tickled = task({ ticklerDate: '2026-10-25' });
+    expect(moveFor(tickled, edited(tickled, chooseList(tickled, 'NEXT')))).toEqual({
+      list: 'NEXT',
+    });
+    expect(
+      moveFor(
+        tickled,
+        edited(tickled, { ...chooseList(tickled, 'SCHEDULED'), scheduledDate: '2026-11-05' }),
+      ),
+    ).toEqual({ list: 'SCHEDULED', scheduledDate: '2026-11-05' });
+  });
+
+  it('does not move an unchanged tickler, whatever list it is stored on', () => {
+    const t = task({ list: 'NEXT', ticklerDate: '2026-10-25' });
+    const draft = draftOf(t);
+    expect(listChoice(draft)).toBe('TICKLER');
+    expect(draft.ticklerDate).toBe('2026-10-25');
+    expect(moveFor(t, draft)).toBeUndefined();
+    expect(hasChanges(t, draft)).toBe(false);
+  });
+});
+
+describe('chooseList', () => {
+  it("restores the task's tickler date when Tickler is chosen again", () => {
+    const t = task({ ticklerDate: '2026-10-25' });
+    const away = edited(t, chooseList(t, 'WAITING'));
+    expect(away).toMatchObject({ tickler: false, list: 'WAITING', ticklerDate: '' });
+    expect(edited(t, { ...away, ...chooseList(t, 'TICKLER') })).toMatchObject({
+      tickler: true,
       ticklerDate: '2026-10-25',
     });
-    const tickled = task({ ticklerDate: '2026-10-25' });
-    expect(moveFor(tickled, edited(tickled, { ticklerDate: '' }))).toEqual({ list: 'NEXT' });
+    expect(chooseList(task(), 'TICKLER')).toEqual({ tickler: true, ticklerDate: '' });
   });
 });
 

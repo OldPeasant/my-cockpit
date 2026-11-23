@@ -212,7 +212,8 @@ export function matchesTask(task: TaskResponse, query: TaskQuery, today = localD
   if (query.scheduled) {
     // Released from SCHEDULED to Next today, or still SCHEDULED up to today (not released yet).
     const released = task.list === 'NEXT' && task.releasedOn === today;
-    const pending = task.list === 'SCHEDULED' && !!task.scheduledDate && task.scheduledDate <= today;
+    const pending =
+      task.list === 'SCHEDULED' && !!task.scheduledDate && task.scheduledDate <= today;
     if (!released && !pending) return false;
   }
   return true;

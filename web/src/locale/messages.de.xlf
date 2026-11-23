@@ -4824,14 +4824,6 @@
           <context context-type="linenumber">132,134</context>
         </context-group>
       </trans-unit>
-      <trans-unit id="inbox.prompt.ticklerDate" datatype="html">
-        <source>Back in the inbox on</source>
-        <target state="translated">Zurück im Eingang am</target>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/features/gtd/inbox/inbox-page.html</context>
-          <context context-type="linenumber">145,147</context>
-        </context-group>
-      </trans-unit>
       <trans-unit id="inbox.prompt.project" datatype="html">
         <source>Project</source>
         <target state="translated">Projekt</target>
@@ -6712,20 +6704,40 @@
           <context context-type="linenumber">257,259</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="gtd.tickler.date" datatype="html">
+        <source>Tickler date</source>
+        <target state="translated">Wiedervorlage am</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="gtd.tickler.hint" datatype="html">
+        <source> Hidden until then; on that day it comes back to the Inbox. </source>
+        <target state="translated">Bis dahin ausgeblendet; an diesem Tag kommt sie zurück in den Eingang.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="taskDetail.error.ticklerRequired" datatype="html">
+        <source>Pick the date it comes back.</source>
+        <target state="translated">Wähle das Datum, an dem sie zurückkommt.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-draft.ts</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="gtd.next.newToday" datatype="html">
+        <source>New today</source>
+        <target state="translated">Neu heute</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/next/next-view.html</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="taskDetail.tickler" datatype="html">
         <source>Tickler</source>
         <target state="translated">Wiedervorlage</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
           <context context-type="linenumber">265,267</context>
-        </context-group>
-      </trans-unit>
-      <trans-unit id="taskDetail.ticklerHint" datatype="html">
-        <source> Hidden until then, then back in the Inbox. </source>
-        <target state="translated">Bis dahin ausgeblendet, danach wieder im Eingang.</target>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/features/gtd/task-detail/task-detail.html</context>
-          <context context-type="linenumber">279,280</context>
         </context-group>
       </trans-unit>
       <trans-unit id="taskDetail.repeat" datatype="html">

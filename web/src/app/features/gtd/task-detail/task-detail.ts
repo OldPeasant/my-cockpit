@@ -21,7 +21,7 @@ import { ItemRefDto, TaskResponse } from '../../../api/generated';
 import { ChangeEventsService } from '../../../core/events';
 import { ApiError } from '../../../core/http';
 import { LinkedItems } from '../../../shared/links';
-import { ContextStore, localDate, ProjectStore } from '../data';
+import { addDays, ContextStore, localDate, ProjectStore } from '../data';
 import {
   ContextChips,
   Creativity,
@@ -40,14 +40,16 @@ import {
   RecurrencePreset,
 } from './recurrence';
 import {
+  chooseList,
   DraftField,
   draftOf,
   hasChanges,
+  ListChoice,
+  listChoice,
   MAX_TITLE_LENGTH,
   moveFor,
   patchFor,
   TaskDraft,
-  TaskListName,
   validateDraft,
 } from './task-draft';
 import { TaskChecklist } from './task-checklist';
@@ -55,12 +57,16 @@ import { TaskReminders } from './task-reminders';
 import { TaskDetailService } from './task-detail.service';
 import { askForCalendar, eventStartDay } from './to-calendar-dialog';
 
-/** The lists a task can be on, in GTD order. */
-export const LIST_OPTIONS: readonly { readonly value: TaskListName; readonly label: string }[] = [
+/**
+ * The choices of the List selector, in GTD order: the lists, plus Tickler (stored as INBOX with a
+ * tickler date, which overrides the list).
+ */
+export const LIST_OPTIONS: readonly { readonly value: ListChoice; readonly label: string }[] = [
   { value: 'INBOX', label: $localize`:@@nav.inbox:Inbox` },
   { value: 'NEXT', label: $localize`:@@taskDetail.list.next:Next actions` },
   { value: 'WAITING', label: $localize`:@@taskDetail.list.waiting:Waiting for` },
   { value: 'SCHEDULED', label: $localize`:@@taskDetail.list.scheduled:Scheduled` },
+  { value: 'TICKLER', label: $localize`:@@taskDetail.tickler:Tickler` },
   { value: 'SOMEDAY', label: $localize`:@@taskDetail.list.someday:Someday/Maybe` },
 ];
 
@@ -183,6 +189,7 @@ export class TaskDetail {
   protected readonly saved = signal(false);
 
   protected readonly today = computed(() => localDate());
+  protected readonly tomorrow = computed(() => addDays(this.today(), 1));
   protected readonly errors = computed(() => {
     const task = this.task();
     const draft = this.draft();
@@ -319,8 +326,11 @@ export class TaskDetail {
     if (await this.save()) this.createdProject = null;
   }
 
-  protected setList(list: TaskListName): void {
-    this.edit({ list });
+  protected readonly listChoice = listChoice;
+
+  protected setList(choice: ListChoice): void {
+    const task = this.task();
+    if (task) this.edit(chooseList(task, choice));
   }
 
   protected setEnergy(energy: Energy | undefined): void {
