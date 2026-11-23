@@ -52,3 +52,4 @@ gets the same change in its own task (`web-gtd-tickler-chip`).
   `releasedOn` is already in the cached model (`gtd/data/GtdModels.kt`).
 - `TaskList` has no TICKLER value and the API doesn't get one: Tickler is a form choice only.
 - The calendar overlay's "Back from tickler" label may stay.
+- ASSUMPTION (2026-11-23 18:18+0100 by dell26/agent-1): Android form: the Tickler date field shows only while the Tickler chip is chosen; the scheduled date field stays always visible (setting a scheduled date picks Scheduled and clears the tickler). A tickler date restored on a task stored on another list saves to INBOX only when the date changes; unchanged it moves nothing. Inbox tickler prompt title became 'Tickler: hidden until' plus the shared hint.
