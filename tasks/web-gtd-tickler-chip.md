@@ -6,7 +6,7 @@ deps: []
 touches: [web/src/app/features/gtd/task-detail,web/src/app/features/gtd/next,web/src/app/features/gtd/inbox,web/src/locale]
 prio: 2
 lease_until: 
-hold: done REFUSED: .taskcheck (sh scripts/check.sh) exceeded 900s TASK_CHECK_TIMEOUT; server ./gradlew check alone ran ~13 min (18:59-19:12) at load ~3/8 cores. Task is web-only; all 5 criteria verified, r
+hold: 
 releases: 0
 extended: 
 ---
