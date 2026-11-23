@@ -1,11 +1,14 @@
 ---
 title: Web: Tickler as list choice, 'new today' marker in Next
-status: in_progress
-owner: felix/agent-1
+status: todo
+owner: 
 deps: []
 touches: [web/src/app/features/gtd/task-detail,web/src/app/features/gtd/next,web/src/app/features/gtd/inbox,web/src/locale]
 prio: 2
-lease_until: 2026-11-23T18:35:02Z
+lease_until: 
+hold: done REFUSED: .taskcheck (sh scripts/check.sh) exceeded 900s TASK_CHECK_TIMEOUT; server ./gradlew check alone ran ~13 min (18:59-19:12) at load ~3/8 cores. Task is web-only; all 5 criteria verified, r
+releases: 0
+extended: 
 ---
 ## Goal
 The web client gets the same change as Android task `and-gtd-tickler-chip` (read its Goal for the background):
@@ -38,3 +41,4 @@ Server and API stay unchanged. SPEC.md is updated by `and-gtd-tickler-chip`; don
 - ASSUMPTION (2026-11-23 18:34+0100 by felix/agent-1): Tickler date input is labeled 'Tickler date'/'Wiedervorlage am' in both the form and Inbox processing (replacing 'Back in the inbox on'), so the feature has one name; the hint text is a shared i18n unit gtd.tickler.hint.
 - ASSUMPTION (2026-11-23 18:34+0100 by felix/agent-1): Choosing Tickler again after another list restores the task's stored tickler date (empty for a new tickler); an empty tickler shows the error 'Pick the date it comes back.' and blocks Save. Date input min is tomorrow (validation unchanged: > today unless unchanged).
 - ASSUMPTION (2026-11-23 18:34+0100 by felix/agent-1): 'New today' badge rendered in next-view's list item (not in shared TaskRow, which is outside this task's touches), with an accent edge; client-side stable partition puts releasedOn==localDate() first.
+- hold by felix/agent-1: done REFUSED: .taskcheck (sh scripts/check.sh) exceeded 900s TASK_CHECK_TIMEOUT; server ./gradlew check alone ran ~13 min (18:59-19:12) at load ~3/8 cores. Task is web-only; all 5 criteria verified, review/test/quality evidence committed (reviewed_revision 5c4b7fb). Only 'done' remains once the check is fast enough (or run it with a higher TASK_CHECK_TIMEOUT).
