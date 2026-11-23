@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: [and-gtd-tickler-chip]
 touches: [SPEC.md,android/app/src/main/java/ch/sonensei/cockpit/gtd/lists,android/app/src/test/java/ch/sonensei/cockpit/gtd/lists,android/app/src/main/java/ch/sonensei/cockpit/ui/navigation,android/app/src/main/java/ch/sonensei/cockpit/ui/CockpitShell.kt,android/app/src/main/res/values/strings_projects_lists.xml,android/app/src/main/res/values-de/strings_projects_lists.xml]
 prio: 2
-lease_until: 2026-11-23T18:23:59Z
+lease_until: 2026-11-23T18:28:59Z
 ---
 ## Goal
 Tasks with a future tickler date are hidden from every list until that date (SPEC.md §5.1). The only place they show up
