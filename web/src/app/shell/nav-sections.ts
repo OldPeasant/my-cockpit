@@ -33,6 +33,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       { id: 'waiting', path: '/waiting', label: $localize`:@@nav.waiting:Waiting` },
       { id: 'someday', path: '/someday', label: $localize`:@@nav.someday:Someday` },
       { id: 'scheduled', path: '/scheduled', label: $localize`:@@nav.scheduled:Scheduled` },
+      { id: 'tickler', path: '/tickler', label: $localize`:@@nav.tickler:Tickler` },
       { id: 'logbook', path: '/logbook', label: $localize`:@@nav.logbook:Logbook` },
     ],
   },

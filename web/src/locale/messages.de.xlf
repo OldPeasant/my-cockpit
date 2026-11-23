@@ -5100,6 +5100,58 @@
           <context context-type="linenumber">35</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="gtd.tickler.title" datatype="html">
+        <source>Tickler</source>
+        <target state="translated">Wiedervorlage</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/lists/tickler-page.html</context>
+          <context context-type="linenumber">3,6</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="gtd.tickler.backTomorrow" datatype="html">
+        <source>Back tomorrow</source>
+        <target state="translated">Morgen zurück</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/lists/tickler-page.html</context>
+          <context context-type="linenumber">20,21</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="gtd.tickler.backOn" datatype="html">
+        <source>Back on <x id="INTERPOLATION" equiv-text="{{ task.ticklerDate | date: &apos;EEE, d MMM&apos; }}"/></source>
+        <target state="translated">Zurück am <x id="INTERPOLATION" equiv-text="{{ task.ticklerDate | date: &apos;EEE, d MMM&apos; }}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/lists/tickler-page.html</context>
+          <context context-type="linenumber">23,24</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="gtd.tickler.backOnYear" datatype="html">
+        <source>Back on <x id="INTERPOLATION" equiv-text="{{ task.ticklerDate | date: &apos;EEE, d MMM y&apos; }}"/></source>
+        <target state="translated">Zurück am <x id="INTERPOLATION" equiv-text="{{ task.ticklerDate | date: &apos;EEE, d MMM y&apos; }}"/></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/lists/tickler-page.html</context>
+          <context context-type="linenumber">27,28</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="gtd.tickler.empty" datatype="html">
+        <source>Nothing in the tickler.</source>
+        <target state="translated">Nichts auf Wiedervorlage.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/lists/tickler-page.html</context>
+          <context context-type="linenumber">34,36</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="nav.tickler" datatype="html">
+        <source>Tickler</source>
+        <target state="translated">Wiedervorlage</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/features/gtd/lists/tickler.routes.ts</context>
+          <context context-type="linenumber">5</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/nav-sections.ts</context>
+          <context context-type="linenumber">36</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="gtd.someday.title" datatype="html">
         <source>Someday / Maybe</source>
         <target state="translated">Irgendwann/Vielleicht</target>

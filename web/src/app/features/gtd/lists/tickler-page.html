@@ -1,0 +1,46 @@
+<section class="list" aria-labelledby="tickler-title">
+  <header class="head">
+    <h1 id="tickler-title" i18n="@@gtd.tickler.title">Tickler</h1>
+  </header>
+
+  @if (tasks.loaded()) {
+    @for (task of tasks.items(); track task.id) {
+      <div class="entry">
+        <app-task-row
+          [task]="task"
+          [contexts]="contexts.byId()"
+          [projects]="projects.byId()"
+          [today]="today()"
+          (toggleDone)="toggleDone($event)"
+          (open)="open($event)"
+        />
+        <div class="aside">
+          <span class="back" [attr.data-date]="task.ticklerDate">
+            @if (relativeDay(task.ticklerDate!, today()) === 'tomorrow') {
+              <ng-container i18n="@@gtd.tickler.backTomorrow">Back tomorrow</ng-container>
+            } @else if (thisYear(task.ticklerDate!)) {
+              <ng-container i18n="@@gtd.tickler.backOn"
+                >Back on {{ task.ticklerDate | date: 'EEE, d MMM' }}</ng-container
+              >
+            } @else {
+              <ng-container i18n="@@gtd.tickler.backOnYear"
+                >Back on {{ task.ticklerDate | date: 'EEE, d MMM y' }}</ng-container
+              >
+            }
+          </span>
+        </div>
+      </div>
+    } @empty {
+      <p class="empty" i18n="@@gtd.tickler.empty">Nothing in the tickler.</p>
+    }
+  } @else if (tasks.error()) {
+    <div role="alert">
+      <p class="empty" i18n="@@gtd.lists.loadError">The list could not be loaded.</p>
+      <button type="button" class="action" (click)="retry()" i18n="@@gtd.lists.retry">
+        Try again
+      </button>
+    </div>
+  } @else {
+    <p class="empty" i18n="@@gtd.lists.loading">Loading…</p>
+  }
+</section>
