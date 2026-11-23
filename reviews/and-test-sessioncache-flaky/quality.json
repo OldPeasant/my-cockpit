@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "task": "and-test-sessioncache-flaky",
+  "reviewed_revision": "34a46e6b0ce7c054e8f8e675648b52392a13f7b6",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-test-sessioncache-flaky/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-test-sessioncache-flaky/review.md"},
+    "fixer":         {"status": "not_required", "reason": "neither the code review nor the test report had findings"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "20x cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.SessionCacheTest' --rerun", "result": "pass"},
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"}
+  ]
+}
