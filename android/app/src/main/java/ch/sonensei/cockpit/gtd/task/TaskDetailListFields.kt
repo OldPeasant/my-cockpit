@@ -45,6 +45,9 @@ object TaskDetailListTags {
 
     fun list(list: TaskList) = "task-detail-list-${list.name.lowercase()}"
 
+    /** The Tickler chip among the lists: it is no list of its own, the task goes to the Inbox with a tickler date. */
+    const val TICKLER = "task-detail-list-tickler"
+
     /** The date field [name] (`scheduled`, `tickler`): its button opens the picker. */
     fun date(name: String) = "task-detail-date-$name"
 
@@ -61,10 +64,10 @@ object TaskDetailListTags {
     fun repeatMode(mode: RecurrenceMode) = "task-detail-repeat-mode-${mode.name.lowercase()}"
 }
 
-/** The lists a task can be put on in the form, in the order of the GTD workflow. */
-private val FORM_LISTS = listOf(TaskList.INBOX, TaskList.NEXT, TaskList.WAITING, TaskList.SCHEDULED, TaskList.SOMEDAY)
+/** The lists a task can be put on in the form, in the order of the GTD workflow; Tickler comes before Someday. */
+private val FORM_LISTS = listOf(TaskList.INBOX, TaskList.NEXT, TaskList.WAITING, TaskList.SCHEDULED)
 
-/** The list, the scheduled date, the waiting-for fields and the tickler date. */
+/** The list chips with Tickler, the scheduled date, the waiting-for fields and, for Tickler, its date. */
 @Composable
 internal fun ListFields(
     state: TaskDetailUiState,
@@ -73,17 +76,17 @@ internal fun ListFields(
     enabled: Boolean,
 ) {
     FormGroup(stringResource(R.string.task_detail_list_label), state.problems[TaskField.LIST]?.let { TaskField.LIST to it }) {
-        FORM_LISTS.forEach { list ->
-            FilterChip(
-                selected = draft.list == list,
-                onClick = { callbacks.edit { it.onList(list) } },
-                label = { Text(stringResource(listLabel(list))) },
-                enabled = enabled,
-                modifier = Modifier.testTag(TaskDetailListTags.list(list)),
-            )
-        }
+        FORM_LISTS.forEach { list -> ListChip(draft, list, callbacks, enabled) }
+        FilterChip(
+            selected = draft.tickler,
+            onClick = { callbacks.edit { it.onTickler() } },
+            label = { Text(stringResource(R.string.task_detail_tickler)) },
+            enabled = enabled,
+            modifier = Modifier.testTag(TaskDetailListTags.TICKLER),
+        )
+        ListChip(draft, TaskList.SOMEDAY, callbacks, enabled)
     }
-    if (draft.list == TaskList.WAITING) WaitingFields(state, draft, callbacks, enabled)
+    if (draft.targetList == TaskList.WAITING) WaitingFields(state, draft, callbacks, enabled)
     DateField(
         name = "scheduled",
         title = stringResource(R.string.task_detail_scheduled),
@@ -93,14 +96,32 @@ internal fun ListFields(
         hint = stringResource(R.string.task_detail_scheduled_hint),
         set = { date -> callbacks.edit { it.scheduledOn(date) } },
     )
-    DateField(
-        name = "tickler",
-        title = stringResource(R.string.task_detail_tickler),
-        date = draft.ticklerDate,
-        problem = state.problems[TaskField.TICKLER]?.let { TaskField.TICKLER to it },
+    if (draft.tickler) {
+        DateField(
+            name = "tickler",
+            title = stringResource(R.string.task_detail_tickler_date),
+            date = draft.ticklerDate,
+            problem = state.problems[TaskField.TICKLER]?.let { TaskField.TICKLER to it },
+            enabled = enabled,
+            hint = stringResource(R.string.task_detail_tickler_hint),
+            set = { date -> callbacks.edit { it.copy(ticklerDate = date) } },
+        )
+    }
+}
+
+@Composable
+private fun ListChip(
+    draft: TaskDraft,
+    list: TaskList,
+    callbacks: TaskDetailCallbacks,
+    enabled: Boolean,
+) {
+    FilterChip(
+        selected = !draft.tickler && draft.list == list,
+        onClick = { callbacks.edit { it.onList(list) } },
+        label = { Text(stringResource(listLabel(list))) },
         enabled = enabled,
-        hint = stringResource(R.string.task_detail_tickler_hint),
-        set = { date -> callbacks.edit { it.copy(ticklerDate = date) } },
+        modifier = Modifier.testTag(TaskDetailListTags.list(list)),
     )
 }
 

@@ -103,13 +103,25 @@ data class TaskDraft(
     /** Only kept on the SCHEDULED list. */
     val scheduledDate: LocalDate? = null,
     val ticklerDate: LocalDate? = null,
+    /**
+     * The Tickler chip is chosen: the task is saved to the Inbox with [ticklerDate], hidden until then. A task with a
+     * tickler opens with it chosen, whatever its stored [list] (the tickler wins, as on the server).
+     */
+    val tickler: Boolean = ticklerDate != null,
     /** The person waited for, only kept on the WAITING list. */
     val waitingFor: String = "",
     val waitingSince: LocalDate? = null,
     val repeat: RepeatDraft = RepeatDraft(),
 ) {
-    /** The draft on [target]: a list other than SCHEDULED has no scheduled date. */
-    fun onList(target: TaskList): TaskDraft = copy(list = target, scheduledDate = scheduledDate.takeIf { target == TaskList.SCHEDULED })
+    /** The draft on [target]: a list other than SCHEDULED has no scheduled date, and no list keeps the tickler. */
+    fun onList(target: TaskList): TaskDraft =
+        copy(list = target, scheduledDate = scheduledDate.takeIf { target == TaskList.SCHEDULED }, tickler = false, ticklerDate = null)
+
+    /** The draft with the Tickler chip chosen: saved to the Inbox with the tickler date, which still has to be picked. */
+    fun onTickler(): TaskDraft = if (tickler) this else copy(list = TaskList.INBOX, scheduledDate = null, tickler = true)
+
+    /** The list the task is saved to: the Inbox for a tickler, else the chosen list. */
+    val targetList: TaskList get() = if (tickler) TaskList.INBOX else list
 
     /**
      * The draft with the scheduled date [date]: a date puts the task on the SCHEDULED list, clearing it takes a
@@ -117,7 +129,7 @@ data class TaskDraft(
      */
     fun scheduledOn(date: LocalDate?): TaskDraft =
         when {
-            date != null -> copy(list = TaskList.SCHEDULED, scheduledDate = date)
+            date != null -> copy(list = TaskList.SCHEDULED, scheduledDate = date, tickler = false, ticklerDate = null)
             list == TaskList.SCHEDULED -> copy(list = TaskList.NEXT, scheduledDate = null)
             else -> copy(scheduledDate = null)
         }
@@ -134,23 +146,28 @@ data class TaskDraft(
             if (minutes.isNotEmpty() && minutes.toIntOrNull()?.takeIf { it in 0..MAX_ESTIMATE } == null) {
                 put(TaskField.ESTIMATE, FieldProblem.NotANumber)
             }
-            if (list == TaskList.SCHEDULED && scheduledDate == null) put(TaskField.SCHEDULED, FieldProblem.Required)
+            if (targetList == TaskList.SCHEDULED && scheduledDate == null) put(TaskField.SCHEDULED, FieldProblem.Required)
+            if (tickler && ticklerDate == null) put(TaskField.TICKLER, FieldProblem.Required)
             // Every move sends the tickler: one that is no longer in the future would be refused.
             val moving = before != null && move(before) != null
-            if (moving && ticklerDate != null && !ticklerDate.isAfter(today)) put(TaskField.TICKLER, FieldProblem.NotFuture)
-            val toWaiting = before != null && list == TaskList.WAITING && before.task.list != TaskList.WAITING
+            if (moving && tickler && ticklerDate != null && !ticklerDate.isAfter(today)) put(TaskField.TICKLER, FieldProblem.NotFuture)
+            val toWaiting = before != null && targetList == TaskList.WAITING && before.task.list != TaskList.WAITING
             if (toWaiting && waitingFor.isBlank()) put(TaskField.WAITING_FOR, FieldProblem.Required)
             repeat.problem()?.let { put(TaskField.RECURRENCE, it) }
         }
 
-    /** The move that puts the task on the draft's list with its tickler, or `null` when neither changed. */
+    /**
+     * The move that puts the task on the draft's list (the Inbox for a tickler) with its tickler, or `null` when
+     * neither changed.
+     */
     fun move(before: TaskDetail): TaskMove? {
-        if (list == before.task.list && ticklerDate == before.ticklerDate) return null
+        if (list == before.task.list && ticklerDate.takeIf { tickler } == before.ticklerDate) return null
+        val target = targetList
         return TaskMove(
-            list = list,
-            scheduledDate = scheduledDate.takeIf { list == TaskList.SCHEDULED },
-            ticklerDate = ticklerDate,
-            waitingForText = waitingFor.trim().takeIf { list == TaskList.WAITING && it.isNotEmpty() },
+            list = target,
+            scheduledDate = scheduledDate.takeIf { target == TaskList.SCHEDULED },
+            ticklerDate = ticklerDate.takeIf { tickler },
+            waitingForText = waitingFor.trim().takeIf { target == TaskList.WAITING && it.isNotEmpty() },
         )
     }
 
@@ -163,10 +180,10 @@ data class TaskDraft(
         recurrence: RepeatDraft,
     ): JsonObject {
         val fields = patch(task).toMutableMap()
-        if (task.list == TaskList.SCHEDULED && list == TaskList.SCHEDULED && scheduledDate != task.scheduledDate) {
+        if (task.list == TaskList.SCHEDULED && targetList == TaskList.SCHEDULED && scheduledDate != task.scheduledDate) {
             fields[TaskField.SCHEDULED.apiName] = jsonOf(scheduledDate?.toString())
         }
-        if (task.list == TaskList.WAITING && list == TaskList.WAITING) {
+        if (task.list == TaskList.WAITING && targetList == TaskList.WAITING) {
             val person = waitingFor.trim().ifEmpty { null }
             if (person != task.waitingForText?.ifBlank { null }) fields[TaskField.WAITING_FOR.apiName] = jsonOf(person)
             if (waitingSince != null && waitingSince != task.waitingSince) {
@@ -232,6 +249,7 @@ data class TaskDraft(
         fun of(detail: TaskDetail) =
             of(detail.task).copy(
                 ticklerDate = detail.ticklerDate,
+                tickler = detail.ticklerDate != null,
                 repeat = RepeatDraft.of(detail.recurrenceRule, detail.recurrenceMode),
             )
     }

@@ -43,7 +43,8 @@
     <string name="task_detail_contexts_none">Noch keine Kontexte.</string>
     <string name="task_detail_due">Fällig</string>
     <string name="task_detail_scheduled">Beginnt</string>
-    <string name="task_detail_tickler">Kommt zurück</string>
+    <string name="task_detail_tickler">Wiedervorlage</string>
+    <string name="task_detail_tickler_date">Wiedervorlage am</string>
     <string name="task_detail_estimate">Schätzung</string>
     <string name="task_detail_minutes">%1$d Min.</string>
     <string name="task_detail_energy">Energie</string>
@@ -103,6 +104,7 @@
     <string name="task_detail_date_month">In einem Monat</string>
     <string name="task_detail_waiting_since_label">Wartet seit</string>
     <string name="task_detail_error_scheduled_required">Wähle ein Datum.</string>
+    <string name="task_detail_error_tickler_required">Wähle den Tag, an dem sie zurückkommt.</string>
     <string name="task_detail_error_waiting_for_required">Gib ein, auf wen du wartest.</string>
     <string name="task_detail_error_repeat_rule_required">Gib eine Regel ein, z. B. FREQ=WEEKLY;BYDAY=MO.</string>
     <string name="task_detail_error_future">Wähle einen Tag nach heute.</string>

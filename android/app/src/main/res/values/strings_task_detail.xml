@@ -43,7 +43,8 @@
     <string name="task_detail_contexts_none">No contexts yet.</string>
     <string name="task_detail_due">Due</string>
     <string name="task_detail_scheduled">Starts</string>
-    <string name="task_detail_tickler">Comes back</string>
+    <string name="task_detail_tickler">Tickler</string>
+    <string name="task_detail_tickler_date">Tickler date</string>
     <string name="task_detail_estimate">Estimate</string>
     <string name="task_detail_minutes">%1$d min</string>
     <string name="task_detail_energy">Energy</string>
@@ -103,6 +104,7 @@
     <string name="task_detail_date_month">In a month</string>
     <string name="task_detail_waiting_since_label">Waiting since</string>
     <string name="task_detail_error_scheduled_required">Pick a date.</string>
+    <string name="task_detail_error_tickler_required">Pick the day it comes back.</string>
     <string name="task_detail_error_waiting_for_required">Enter who you are waiting for.</string>
     <string name="task_detail_error_repeat_rule_required">Enter a rule, e.g. FREQ=WEEKLY;BYDAY=MO.</string>
     <string name="task_detail_error_future">Pick a day after today.</string>

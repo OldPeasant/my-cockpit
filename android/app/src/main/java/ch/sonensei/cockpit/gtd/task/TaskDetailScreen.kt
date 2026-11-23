@@ -1198,6 +1198,7 @@ internal fun ProblemText(
 internal fun requiredMessage(field: TaskField): Int =
     when (field) {
         TaskField.SCHEDULED -> R.string.task_detail_error_scheduled_required
+        TaskField.TICKLER -> R.string.task_detail_error_tickler_required
         TaskField.WAITING_FOR -> R.string.task_detail_error_waiting_for_required
         TaskField.RECURRENCE -> R.string.task_detail_error_repeat_rule_required
         else -> R.string.task_detail_error_required

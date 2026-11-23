@@ -49,7 +49,8 @@
     <string name="inbox_prompt_waiting">Waiting for whom or what?</string>
     <string name="inbox_prompt_waiting_hint">Person or thing (optional)</string>
     <string name="inbox_prompt_schedule">Schedule for</string>
-    <string name="inbox_prompt_tickler">Hide until</string>
+    <string name="inbox_prompt_tickler">Tickler: hidden until</string>
+    <string name="inbox_prompt_tickler_hint">Hidden until then; on that day it comes back to the Inbox.</string>
     <string name="inbox_prompt_tickler_future">Pick a day after today.</string>
     <string name="inbox_prompt_project">Next action of</string>
     <string name="inbox_prompt_new_project">New project</string>

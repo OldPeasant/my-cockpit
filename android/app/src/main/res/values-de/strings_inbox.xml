@@ -49,7 +49,8 @@
     <string name="inbox_prompt_waiting">Warten auf wen oder was?</string>
     <string name="inbox_prompt_waiting_hint">Person oder Sache (optional)</string>
     <string name="inbox_prompt_schedule">Einplanen für</string>
-    <string name="inbox_prompt_tickler">Ausblenden bis</string>
+    <string name="inbox_prompt_tickler">Wiedervorlage: ausgeblendet bis</string>
+    <string name="inbox_prompt_tickler_hint">Bis dahin ausgeblendet; an diesem Tag kommt sie zurück in den Eingang.</string>
     <string name="inbox_prompt_tickler_future">Wähle einen Tag nach heute.</string>
     <string name="inbox_prompt_project">Nächste Aktion von</string>
     <string name="inbox_prompt_new_project">Neues Projekt</string>

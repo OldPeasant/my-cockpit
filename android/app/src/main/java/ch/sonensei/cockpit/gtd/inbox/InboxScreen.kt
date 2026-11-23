@@ -595,6 +595,13 @@ private fun DatePrompt(
         DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).format(prompt.date),
         style = MaterialTheme.typography.headlineSmall,
     )
+    if (prompt.kind == InboxActionKind.TICKLER) {
+        Text(
+            stringResource(R.string.inbox_prompt_tickler_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(
             R.string.inbox_date_tomorrow to today.plusDays(1),
