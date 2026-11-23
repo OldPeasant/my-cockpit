@@ -1,11 +1,11 @@
 ---
 title: Android: fix remaining flaky unit tests and sweep for more
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [android/app/src/test/java]
 prio: 2
-lease_until: 2026-11-23T20:48:33Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -57,3 +57,4 @@ Known from the CI history (last 40 runs of `ci.yml`, `gh run view <id> -R OldPea
 - Local runs need `ANDROID_HOME=$HOME/Android/Sdk` if `android/local.properties` is missing.
 - release by dell26/agent-1: Done: both known flakes fixed in e2b7c9074 (FilePreviewScreenTest: AtomicInteger counter, both retry/next-image tests wait for requests()>=2 since the AsyncImage node is named while loading; SearchRouteInAppTest: CME from iterating Collections.synchronizedList while MockWebServer appends -> CopyOnWriteArrayList). First grep sweep + sweep run 1 (passed, 4m30s) in reviews/and-test-flaky-sweep/sweep-log.md. Left: sweep run under load (e.g. --max-workers raised / parallel build) and run with clock near midnight UTC (e.g. TZ/-Duser.timezone or faketime if available), finish grep check of view-model counters, test-writer + code-reviewer (give them sweep-log.md for tests.md), 3 final full runs + ktlintCheck testDebugUnitTest lintDebug, verify, quality.json, done.
 - ASSUMPTION (2026-11-23 21:22+0100 by dell26/agent-1): Midnight sweep run shifts the JVM default zone (JAVA_TOOL_OPTIONS=-Duser.timezone=GMT+03:41, local 23:57->00:02) instead of the system clock: no faketime here and changing the clock would need root; forked test workers inherit it via the daemon env but this is not proven per worker
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 98s on df8a51133; criteria verified 6/6
