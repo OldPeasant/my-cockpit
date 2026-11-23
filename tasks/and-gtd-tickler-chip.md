@@ -28,9 +28,10 @@ to Next (no change to the server) but are marked "new today" there. Server and A
 gets the same change in its own task (`web-gtd-tickler-chip`).
 
 ## Acceptance criteria
-- [ ] SPEC.md §5.1/§5.3 describes both rules: in the task edit form, Tickler is a list choice ("Inbox · Next · Waiting For ·
+- [x] SPEC.md §5.1/§5.3 describes both rules: in the task edit form, Tickler is a list choice ("Inbox · Next · Waiting For ·
       Scheduled · Tickler · Someday") and stores `list = INBOX` + `ticklerDate`; the Next Actions view marks tasks
       released from Scheduled today (`releasedOn == today`) as "new today" and lists them first
+  - verified (2026-11-23 18:43+0100 by dell26/agent-1): git diff c4b38a016..HEAD -- SPEC.md -> §5.1 adds 'Released from Scheduled' row (releasedOn, marked new today); §5.3 Next Actions view: releasedOn == today marked 'New today' and listed first; Task edit form: Inbox · Next · Waiting For · Scheduled · Tickler · Someday, Tickler stores list=INBOX + ticklerDate
 - [ ] Task edit form: the list chips are Inbox, Next, Waiting For, Scheduled, **Tickler**, Someday. Picking Tickler
       requires a future date (the same picker/validation as before) and saves `list = INBOX` + that `ticklerDate`
       through the existing move API. The separate "Comes back" field is gone
