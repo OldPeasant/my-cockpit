@@ -5,7 +5,7 @@ owner: felix/agent-1
 deps: []
 touches: [web/src/app/features/gtd/task-detail,web/src/app/features/gtd/next,web/src/app/features/gtd/inbox,web/src/locale]
 prio: 2
-lease_until: 2026-11-23T18:09:46Z
+lease_until: 2026-11-23T18:14:52Z
 ---
 ## Goal
 The web client gets the same change as Android task `and-gtd-tickler-chip` (read its Goal for the background):
