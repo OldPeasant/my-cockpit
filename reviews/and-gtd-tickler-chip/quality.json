@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "task": "and-gtd-tickler-chip",
+  "reviewed_revision": "d39f1dd1bcf8575d897fc6778666c4daea35e444",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-gtd-tickler-chip/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-gtd-tickler-chip/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-gtd-tickler-chip/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "Inbox tickler prompt and Next ViewModel wiring now covered by InboxScreenTest and NextViewModelNewTodayTest"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "changed(TICKLER) also compares the tickler flag; regression test in TaskDetailViewModelRelistTest"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"}
+  ]
+}
