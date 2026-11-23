@@ -32,9 +32,10 @@ gets the same change in its own task (`web-gtd-tickler-chip`).
       Scheduled · Tickler · Someday") and stores `list = INBOX` + `ticklerDate`; the Next Actions view marks tasks
       released from Scheduled today (`releasedOn == today`) as "new today" and lists them first
   - verified (2026-11-23 18:43+0100 by dell26/agent-1): git diff c4b38a016..HEAD -- SPEC.md -> §5.1 adds 'Released from Scheduled' row (releasedOn, marked new today); §5.3 Next Actions view: releasedOn == today marked 'New today' and listed first; Task edit form: Inbox · Next · Waiting For · Scheduled · Tickler · Someday, Tickler stores list=INBOX + ticklerDate
-- [ ] Task edit form: the list chips are Inbox, Next, Waiting For, Scheduled, **Tickler**, Someday. Picking Tickler
+- [x] Task edit form: the list chips are Inbox, Next, Waiting For, Scheduled, **Tickler**, Someday. Picking Tickler
       requires a future date (the same picker/validation as before) and saves `list = INBOX` + that `ticklerDate`
       through the existing move API. The separate "Comes back" field is gone
+  - verified (2026-11-23 18:45+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.*' at d67981b30 -> 1279 passed; TaskDetailListFieldsTest (chip order Inbox/Next/Waiting/Scheduled/Tickler/Someday, Tickler date label, no Comes back), TaskDraftListTest (onTickler -> TaskMove(INBOX, ticklerDate), NotFuture/Required)
 - [ ] A task with a `ticklerDate` opens in the form with the Tickler chip selected and its date shown, whatever its
       stored list is (the tickler wins, as on the server). Picking another chip clears the tickler date; picking
       Scheduled still asks for the scheduled date. Saving without changes doesn't move or change the task
