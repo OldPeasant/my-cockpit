@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.calendar.edit
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.longClick
@@ -13,6 +14,7 @@ import ch.sonensei.cockpit.calendar.agenda.CalendarResult
 import ch.sonensei.cockpit.calendar.agenda.CalendarTags
 import ch.sonensei.cockpit.calendar.agenda.CalendarView
 import ch.sonensei.cockpit.calendar.agenda.CalendarViewModel
+import ch.sonensei.cockpit.calendar.agenda.LocalNowClock
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -44,6 +46,9 @@ class CalendarWithEditorLongPressTest {
     private val clock = Clock.fixed(Instant.parse("2026-10-21T10:20:00Z"), utc)
     private val today = LocalDate.parse("2026-10-21")
 
+    // "Now" for the grid (where today opens, the now line): fixed, so no test depends on the real time of day.
+    private val nowClock = Clock.fixed(Instant.parse("2026-10-21T08:00:00Z"), utc)
+
     private fun id(n: Int): UUID = UUID.fromString("00000000-0000-7000-8000-%012d".format(n))
 
     // A read-only feed and a hidden calendar first: the new event goes to the first visible writable one.
@@ -64,8 +69,10 @@ class CalendarWithEditorLongPressTest {
         val calendar = CalendarViewModel(calendarRepo, clock, Locale.US)
         val editor = EventEditorViewModel(editRepo, clock)
         composeRule.setContent {
-            CockpitTheme {
-                CalendarWithEditor(calendarViewModel = calendar, editor = editor, contact = { _, _ -> })
+            CompositionLocalProvider(LocalNowClock provides nowClock) {
+                CockpitTheme {
+                    CalendarWithEditor(calendarViewModel = calendar, editor = editor, contact = { _, _ -> })
+                }
             }
         }
         composeRule.waitForIdle()

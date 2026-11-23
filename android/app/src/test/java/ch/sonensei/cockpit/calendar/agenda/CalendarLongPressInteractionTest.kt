@@ -34,6 +34,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import java.time.Clock
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -56,6 +57,9 @@ class CalendarLongPressInteractionTest {
     // Wednesday 21 October 2026. The tests use days other than today, so the grid opens at 7:00 (or the first entry)
     // whatever the real clock says.
     private val today = LocalDate.parse("2026-10-21")
+
+    // "Now" for the grid (where today opens, the now line): fixed, so no test depends on the real time of day.
+    private val nowClock = Clock.fixed(Instant.parse("2026-10-21T08:00:00Z"), utc)
     private val work = CalendarInfo(id(90), "Work", 0xFF3366FFL, true, false, 1)
 
     /** What the long presses asked for: day, start time, all day. */
@@ -98,21 +102,23 @@ class CalendarLongPressInteractionTest {
                 }
             }
         composeRule.setContent {
-            CockpitTheme {
-                CompositionLocalProvider(LocalHapticFeedback provides feedback) {
-                    CalendarContent(
-                        holder.value,
-                        CalendarCallbacks(
-                            move = { step ->
-                                moves += step
-                                val current = holder.value
-                                holder.value = state(current.view, shiftPeriod(current.view, current.anchor, step.toLong()))
-                            },
-                            openDay = { openedDays += it },
-                            open = { opened += it },
-                            create = { date, start, allDay -> created += Triple(date, start, allDay) },
-                        ),
-                    )
+            CompositionLocalProvider(LocalNowClock provides nowClock) {
+                CockpitTheme {
+                    CompositionLocalProvider(LocalHapticFeedback provides feedback) {
+                        CalendarContent(
+                            holder.value,
+                            CalendarCallbacks(
+                                move = { step ->
+                                    moves += step
+                                    val current = holder.value
+                                    holder.value = state(current.view, shiftPeriod(current.view, current.anchor, step.toLong()))
+                                },
+                                openDay = { openedDays += it },
+                                open = { opened += it },
+                                create = { date, start, allDay -> created += Triple(date, start, allDay) },
+                            ),
+                        )
+                    }
                 }
             }
         }
@@ -407,12 +413,14 @@ class CalendarLongPressInteractionTest {
         val latest = mutableListOf<Triple<LocalDate, LocalTime?, Boolean>>()
         val useLatest = mutableStateOf(false)
         composeRule.setContent {
-            CockpitTheme {
-                val sink = if (useLatest.value) latest else created
-                CalendarContent(
-                    state(CalendarView.DAY, day),
-                    CalendarCallbacks(create = { date, start, allDay -> sink += Triple(date, start, allDay) }),
-                )
+            CompositionLocalProvider(LocalNowClock provides nowClock) {
+                CockpitTheme {
+                    val sink = if (useLatest.value) latest else created
+                    CalendarContent(
+                        state(CalendarView.DAY, day),
+                        CalendarCallbacks(create = { date, start, allDay -> sink += Triple(date, start, allDay) }),
+                    )
+                }
             }
         }
         composeRule.waitForIdle()

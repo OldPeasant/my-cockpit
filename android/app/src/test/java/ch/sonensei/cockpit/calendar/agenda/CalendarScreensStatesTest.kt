@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.calendar.agenda
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
@@ -17,6 +18,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import java.time.Clock
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -33,6 +35,9 @@ class CalendarScreensStatesTest {
     private val utc = ZoneId.of("UTC")
     private val today = LocalDate.parse("2026-10-21")
 
+    // "Now" for the grid (where today opens, the now line): fixed, so no test depends on the real time of day.
+    private val nowClock = Clock.fixed(Instant.parse("2026-10-21T08:00:00Z"), utc)
+
     private fun id(n: Int): UUID = UUID.fromString("00000000-0000-7000-8000-%012d".format(n))
 
     private val work = CalendarInfo(id(90), "Work", 0xFF3366FFL, true, false, 1)
@@ -40,16 +45,18 @@ class CalendarScreensStatesTest {
 
     private fun show(state: CalendarUiState) =
         composeRule.setContent {
-            CockpitTheme {
-                CalendarContent(
-                    state,
-                    CalendarCallbacks(
-                        move = { calls += "move $it" },
-                        loadMore = { calls += "more" },
-                        retry = { calls += "retry" },
-                        openDay = { calls += "day $it" },
-                    ),
-                )
+            CompositionLocalProvider(LocalNowClock provides nowClock) {
+                CockpitTheme {
+                    CalendarContent(
+                        state,
+                        CalendarCallbacks(
+                            move = { calls += "move $it" },
+                            loadMore = { calls += "more" },
+                            retry = { calls += "retry" },
+                            openDay = { calls += "day $it" },
+                        ),
+                    )
+                }
             }
         }
 
@@ -210,7 +217,9 @@ class CalendarScreensStatesTest {
 
     @Test
     fun `the calendar screen outside a Hilt activity shows the placeholder`() {
-        composeRule.setContent { CockpitTheme { CalendarScreen() } }
+        composeRule.setContent {
+            CompositionLocalProvider(LocalNowClock provides nowClock) { CockpitTheme { CalendarScreen() } }
+        }
 
         composeRule.onNodeWithText("Calendar").assertExists()
         composeRule.onNodeWithTag(CalendarTags.AGENDA).assertDoesNotExist()

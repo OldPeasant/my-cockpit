@@ -1,5 +1,6 @@
 package ch.sonensei.cockpit.calendar.agenda
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
@@ -18,7 +19,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.Clock
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
@@ -31,6 +34,9 @@ class CalendarSwipeTest {
 
     private val utc = ZoneId.of("UTC")
     private val today = LocalDate.parse("2026-10-21")
+
+    // "Now" for the grid (where today opens, the now line): fixed, so no test depends on the real time of day.
+    private val nowClock = Clock.fixed(Instant.parse("2026-10-21T08:00:00Z"), utc)
     private val work = CalendarInfo(id(90), "Work", 0xFF3366FFL, true, false, 1)
     private val moves = mutableListOf<Int>()
 
@@ -63,17 +69,19 @@ class CalendarSwipeTest {
     private fun show(initial: CalendarUiState): MutableState<CalendarUiState> {
         val holder = mutableStateOf(initial)
         composeRule.setContent {
-            CockpitTheme {
-                CalendarContent(
-                    holder.value,
-                    CalendarCallbacks(
-                        move = { step ->
-                            moves += step
-                            val current = holder.value
-                            holder.value = state(current.view, shiftPeriod(current.view, current.anchor, step.toLong()))
-                        },
-                    ),
-                )
+            CompositionLocalProvider(LocalNowClock provides nowClock) {
+                CockpitTheme {
+                    CalendarContent(
+                        holder.value,
+                        CalendarCallbacks(
+                            move = { step ->
+                                moves += step
+                                val current = holder.value
+                                holder.value = state(current.view, shiftPeriod(current.view, current.anchor, step.toLong()))
+                            },
+                        ),
+                    )
+                }
             }
         }
         composeRule.waitForIdle()

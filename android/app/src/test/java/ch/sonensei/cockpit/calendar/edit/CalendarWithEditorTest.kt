@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.calendar.edit
 
 import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
@@ -18,6 +19,7 @@ import ch.sonensei.cockpit.calendar.agenda.CalendarResult
 import ch.sonensei.cockpit.calendar.agenda.CalendarTags
 import ch.sonensei.cockpit.calendar.agenda.CalendarView
 import ch.sonensei.cockpit.calendar.agenda.CalendarViewModel
+import ch.sonensei.cockpit.calendar.agenda.LocalNowClock
 import ch.sonensei.cockpit.calendar.agenda.Occurrence
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import io.mockk.coEvery
@@ -52,6 +54,9 @@ class CalendarWithEditorTest {
     // Wednesday 21 October 2026, 10:20 UTC.
     private val clock = Clock.fixed(Instant.parse("2026-10-21T10:20:00Z"), utc)
     private val today = LocalDate.parse("2026-10-21")
+
+    // "Now" for the grid (where today opens, the now line): fixed, so no test depends on the real time of day.
+    private val nowClock = Clock.fixed(Instant.parse("2026-10-21T08:00:00Z"), utc)
 
     private fun id(n: Int): UUID = UUID.fromString("00000000-0000-7000-8000-%012d".format(n))
 
@@ -115,16 +120,18 @@ class CalendarWithEditorTest {
     private fun show(editor: EventEditorViewModel = EventEditorViewModel(editRepo, clock)): Pair<CalendarViewModel, EventEditorViewModel> {
         val calendar = CalendarViewModel(calendarRepo, clock, Locale.US)
         composeRule.setContent {
-            CockpitTheme {
-                CalendarWithEditor(
-                    calendarViewModel = calendar,
-                    editor = editor,
-                    contact = { id, back ->
-                        openedContact = id
-                        backFromContact = back
-                        Text("Contact $id", Modifier.testTag("contact"))
-                    },
-                )
+            CompositionLocalProvider(LocalNowClock provides nowClock) {
+                CockpitTheme {
+                    CalendarWithEditor(
+                        calendarViewModel = calendar,
+                        editor = editor,
+                        contact = { id, back ->
+                            openedContact = id
+                            backFromContact = back
+                            Text("Contact $id", Modifier.testTag("contact"))
+                        },
+                    )
+                }
             }
         }
         composeRule.waitForIdle()

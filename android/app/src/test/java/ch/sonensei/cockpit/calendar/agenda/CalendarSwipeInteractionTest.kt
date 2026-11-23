@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.calendar.agenda
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.geometry.Offset
@@ -24,7 +25,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.Clock
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
@@ -42,6 +45,9 @@ class CalendarSwipeInteractionTest {
 
     // Wednesday 21 October 2026.
     private val today = LocalDate.parse("2026-10-21")
+
+    // "Now" for the grid (where today opens, the now line): fixed, so no test depends on the real time of day.
+    private val nowClock = Clock.fixed(Instant.parse("2026-10-21T08:00:00Z"), utc)
     private val work = CalendarInfo(id(90), "Work", 0xFF3366FFL, true, false, 1)
     private val moves = mutableListOf<Int>()
     private val opened = mutableListOf<LocalDate>()
@@ -83,23 +89,25 @@ class CalendarSwipeInteractionTest {
         val holder = mutableStateOf(initial)
         val setContent: (@Composable () -> Unit) -> Unit = restoration?.let { it::setContent } ?: composeRule::setContent
         setContent {
-            CockpitTheme {
-                CalendarContent(
-                    holder.value,
-                    CalendarCallbacks(
-                        move = { step ->
-                            moves += step
-                            val current = holder.value
-                            holder.value = state(current.view, shiftPeriod(current.view, current.anchor, step.toLong()))
-                        },
-                        today = {
-                            todays++
-                            holder.value = state(holder.value.view, today)
-                        },
-                        openDay = { opened += it },
-                        open = { openedEntries += it },
-                    ),
-                )
+            CompositionLocalProvider(LocalNowClock provides nowClock) {
+                CockpitTheme {
+                    CalendarContent(
+                        holder.value,
+                        CalendarCallbacks(
+                            move = { step ->
+                                moves += step
+                                val current = holder.value
+                                holder.value = state(current.view, shiftPeriod(current.view, current.anchor, step.toLong()))
+                            },
+                            today = {
+                                todays++
+                                holder.value = state(holder.value.view, today)
+                            },
+                            openDay = { opened += it },
+                            open = { openedEntries += it },
+                        ),
+                    )
+                }
             }
         }
         composeRule.waitForIdle()

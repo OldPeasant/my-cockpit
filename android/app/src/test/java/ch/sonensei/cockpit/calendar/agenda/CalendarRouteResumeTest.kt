@@ -38,6 +38,9 @@ class CalendarRouteResumeTest {
 
     private val utc = ZoneId.of("UTC")
     private val today = LocalDate.parse("2026-10-21")
+
+    // "Now" for the grid (where today opens, the now line): fixed, so no test depends on the real time of day.
+    private val nowClock = Clock.fixed(Instant.parse("2026-10-21T08:00:00Z"), utc)
     private val tomorrow = today.plusDays(1)
 
     /** A clock the test can move to another day. */
@@ -86,8 +89,10 @@ class CalendarRouteResumeTest {
     fun `coming back on a later day reloads the agenda from the new today, the first showing loads once`() {
         val viewModel = CalendarViewModel(repo, clock, Locale.US)
         composeRule.setContent {
-            CompositionLocalProvider(LocalLifecycleOwner provides owner) {
-                CockpitTheme { CalendarRoute(viewModel = viewModel) }
+            CompositionLocalProvider(LocalNowClock provides nowClock) {
+                CompositionLocalProvider(LocalLifecycleOwner provides owner) {
+                    CockpitTheme { CalendarRoute(viewModel = viewModel) }
+                }
             }
         }
         composeRule.waitForIdle()

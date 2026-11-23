@@ -57,6 +57,9 @@ class CalendarOverlayMonthScreensTest {
 
     private val utc = ZoneId.of("UTC")
     private val today = LocalDate.parse("2026-10-21")
+
+    // "Now" for the grid (where today opens, the now line): fixed, so no test depends on the real time of day.
+    private val nowClock = Clock.fixed(Instant.parse("2026-10-21T08:00:00Z"), utc)
     private val monday = LocalDate.parse("2026-10-19")
 
     private fun id(n: Int): UUID = UUID.fromString("00000000-0000-7000-8000-%012d".format(n))
@@ -77,19 +80,21 @@ class CalendarOverlayMonthScreensTest {
 
     private fun show(state: CalendarUiState) =
         composeRule.setContent {
-            CockpitTheme {
-                CalendarContent(
-                    state,
-                    CalendarCallbacks(
-                        select = { calls += "select $it" },
-                        move = { calls += "move $it" },
-                        openDay = { calls += "day $it" },
-                        loadMore = { calls += "more" },
-                        open = { calls += "open ${it.title}" },
-                        setOverlay = { calls += "overlay $it" },
-                        openTask = { calls += "task ${it.title}" },
-                    ),
-                )
+            CompositionLocalProvider(LocalNowClock provides nowClock) {
+                CockpitTheme {
+                    CalendarContent(
+                        state,
+                        CalendarCallbacks(
+                            select = { calls += "select $it" },
+                            move = { calls += "move $it" },
+                            openDay = { calls += "day $it" },
+                            loadMore = { calls += "more" },
+                            open = { calls += "open ${it.title}" },
+                            setOverlay = { calls += "overlay $it" },
+                            openTask = { calls += "task ${it.title}" },
+                        ),
+                    )
+                }
             }
         }
 
@@ -314,7 +319,9 @@ class CalendarOverlayMonthScreensTest {
     private fun assertReleasedMarkFollowsToday(view: CalendarView) {
         val plumber = OverlayTask(id(13), "Call the fictitious plumber", releasedOn = today)
         var current by mutableStateOf(state(view = view, tasks = listOf(plumber)))
-        composeRule.setContent { CockpitTheme { CalendarContent(current, CalendarCallbacks()) } }
+        composeRule.setContent {
+            CompositionLocalProvider(LocalNowClock provides nowClock) { CockpitTheme { CalendarContent(current, CalendarCallbacks()) } }
+        }
         composeRule.onNodeWithText("Call the fictitious plumber", useUnmergedTree = true).assertExists()
 
         current = current.copy(today = today.plusDays(1))
@@ -377,8 +384,10 @@ class CalendarOverlayMonthScreensTest {
         owner.registry.currentState = Lifecycle.State.RESUMED
 
         composeRule.setContent {
-            CompositionLocalProvider(LocalLifecycleOwner provides owner, LocalTaskOpener provides opener) {
-                CockpitTheme { CalendarRoute(viewModel = viewModel) }
+            CompositionLocalProvider(LocalNowClock provides nowClock) {
+                CompositionLocalProvider(LocalLifecycleOwner provides owner, LocalTaskOpener provides opener) {
+                    CockpitTheme { CalendarRoute(viewModel = viewModel) }
+                }
             }
         }
         composeRule.waitForIdle()
@@ -408,8 +417,10 @@ class CalendarOverlayMonthScreensTest {
         owner.registry.currentState = Lifecycle.State.RESUMED
 
         composeRule.setContent {
-            CompositionLocalProvider(LocalLifecycleOwner provides owner) {
-                CockpitTheme { CalendarRoute(viewModel = viewModel) }
+            CompositionLocalProvider(LocalNowClock provides nowClock) {
+                CompositionLocalProvider(LocalLifecycleOwner provides owner) {
+                    CockpitTheme { CalendarRoute(viewModel = viewModel) }
+                }
             }
         }
         composeRule.waitForIdle()
