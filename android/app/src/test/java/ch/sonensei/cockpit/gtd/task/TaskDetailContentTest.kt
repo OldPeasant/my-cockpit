@@ -123,6 +123,13 @@ class TaskDetailContentTest {
     }
 
     @Test
+    fun `the tickler property is named Tickler, not Comes back`() {
+        show(loaded(TaskDetail(seeds.copy(list = TaskList.INBOX), ticklerDate = LocalDate.of(2026, 12, 1))))
+        property("tickler", "Tickler")
+        composeRule.onNodeWithText("Comes back", substring = true).assertDoesNotExist()
+    }
+
+    @Test
     fun `checklist items are ticked, renamed, deleted and added on the detail view`() {
         show(loaded(TaskDetail(seeds, checklist = listOf(tick))))
         composeRule.onNodeWithTag(TaskDetailTags.itemCheck(tick.id)).performScrollTo().performClick()

@@ -286,6 +286,59 @@ class TaskDetailListFieldsTest {
         assertEquals(TaskMove(TaskList.NEXT), source.relists.single().second)
     }
 
+    @Test
+    fun `the tickler date field is labelled with the tickler name, not Comes back`() {
+        editing(TaskDetail(seeds))
+        tag(TaskDetailListTags.TICKLER).performClick()
+        composeRule.onNodeWithText("Tickler date").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Comes back").assertDoesNotExist()
+    }
+
+    @Test
+    fun `a tickler moved to a new day on a task stored on Next is saved to the Inbox`() {
+        editing(TaskDetail(seeds, ticklerDate = today.plusDays(5)))
+        tag(TaskDetailListTags.TICKLER).assertIsSelected()
+        tag(TaskDetailListTags.list(TaskList.NEXT)).assertIsNotSelected()
+        tag(TaskDetailListTags.dateChip("tickler", "week")).performClick()
+        save()
+        assertEquals(TaskMove(TaskList.INBOX, ticklerDate = today.plusWeeks(1)), source.relists.single().second)
+    }
+
+    @Test
+    fun `a tickled Waiting task hides the waiting fields and saves unchanged without a move or patch`() {
+        editing(TaskDetail(seeds.copy(list = TaskList.WAITING, waitingForText = "Anna Example"), ticklerDate = today.plusDays(5)))
+        tag(TaskDetailListTags.TICKLER).assertIsSelected()
+        tag(TaskDetailListTags.list(TaskList.WAITING)).assertIsNotSelected()
+        composeRule.onNodeWithTag(TaskDetailListTags.WAITING_FOR).assertDoesNotExist()
+        save()
+        assertTrue(source.relists.isEmpty())
+        assertTrue(source.updates.isEmpty())
+        composeRule.onNodeWithTag(TaskDetailTags.FORM).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a scheduled date picked while Tickler is chosen switches to Scheduled and drops the tickler`() {
+        editing(TaskDetail(seeds.copy(list = TaskList.SOMEDAY), ticklerDate = today.plusDays(5)))
+        tag(TaskDetailListTags.dateChip("scheduled", "tomorrow")).performClick()
+        tag(TaskDetailListTags.list(TaskList.SCHEDULED)).assertIsSelected()
+        tag(TaskDetailListTags.TICKLER).assertIsNotSelected()
+        composeRule.onNodeWithTag(TaskDetailListTags.date("tickler")).assertDoesNotExist()
+        save()
+        assertEquals(TaskMove(TaskList.SCHEDULED, scheduledDate = today.plusDays(1)), source.relists.single().second)
+    }
+
+    @Test
+    fun `choosing Tickler on a Scheduled task drops its scheduled date`() {
+        editing(TaskDetail(seeds.copy(list = TaskList.SCHEDULED, scheduledDate = today.plusDays(4))))
+        tag(TaskDetailListTags.dateClear("scheduled")).assertIsDisplayed()
+        tag(TaskDetailListTags.TICKLER).performClick()
+        tag(TaskDetailListTags.list(TaskList.SCHEDULED)).assertIsNotSelected()
+        composeRule.onNodeWithTag(TaskDetailListTags.dateClear("scheduled")).assertDoesNotExist()
+        tag(TaskDetailListTags.dateChip("tickler", "tomorrow")).performClick()
+        save()
+        assertEquals(TaskMove(TaskList.INBOX, ticklerDate = today.plusDays(1)), source.relists.single().second)
+    }
+
     // --- repeat ---
 
     @Test

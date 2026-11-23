@@ -74,6 +74,90 @@ class TaskDraftListTest {
         assertEquals(TaskList.SOMEDAY, draft(someday).scheduledOn(null).list)
     }
 
+    // --- Tickler chip ---
+
+    @Test
+    fun `a task with a tickler starts with Tickler chosen whatever its list, one without does not`() {
+        listOf(next, scheduled, waiting, someday, next.copy(list = TaskList.INBOX)).forEach { task ->
+            val d = draft(task, tickler = LocalDate.of(2026, 12, 1))
+            assertTrue(task.list.name, d.tickler)
+            assertEquals(task.list.name, TaskList.INBOX, d.targetList)
+            // The stored list is kept, so saving unchanged is no move.
+            assertEquals(task.list, d.list)
+            assertNull(task.list.name, d.move(TaskDetail(task, ticklerDate = LocalDate.of(2026, 12, 1))))
+            assertTrue(task.list.name, d.problems(TaskDetail(task, ticklerDate = LocalDate.of(2026, 12, 1)), today).isEmpty())
+        }
+        assertFalse(draft(someday).tickler)
+        assertEquals(TaskList.SOMEDAY, draft(someday).targetList)
+    }
+
+    @Test
+    fun `choosing Tickler targets the Inbox, drops the scheduled date and keeps a date already picked`() {
+        val d = draft(scheduled).onTickler()
+        assertTrue(d.tickler)
+        assertEquals(TaskList.INBOX, d.list)
+        assertEquals(TaskList.INBOX, d.targetList)
+        assertNull(d.scheduledDate)
+        assertNull(d.ticklerDate)
+        // Choosing it again changes nothing.
+        val dated = d.copy(ticklerDate = LocalDate.of(2026, 12, 1))
+        assertEquals(dated, dated.onTickler())
+    }
+
+    @Test
+    fun `Tickler without a date is required, also without a move`() {
+        val d = draft(someday).onTickler()
+        assertEquals(mapOf(TaskField.TICKLER to FieldProblem.Required), d.problems(TaskDetail(someday), today))
+        // A cleared date on a task that already had one is required too.
+        val before = TaskDetail(someday, ticklerDate = today.plusDays(3))
+        val cleared = draft(someday, tickler = today.plusDays(3)).copy(ticklerDate = null)
+        assertEquals(mapOf(TaskField.TICKLER to FieldProblem.Required), cleared.problems(before, today))
+    }
+
+    @Test
+    fun `picking a scheduled date while Tickler is chosen switches to Scheduled and drops the tickler`() {
+        val d = draft(someday, tickler = LocalDate.of(2026, 12, 1)).scheduledOn(LocalDate.of(2026, 11, 5))
+        assertFalse(d.tickler)
+        assertNull(d.ticklerDate)
+        assertEquals(TaskList.SCHEDULED, d.targetList)
+        assertEquals(
+            TaskMove(TaskList.SCHEDULED, scheduledDate = LocalDate.of(2026, 11, 5)),
+            d.move(TaskDetail(someday, ticklerDate = LocalDate.of(2026, 12, 1))),
+        )
+    }
+
+    @Test
+    fun `a changed tickler of a task stored on another list moves it to the Inbox, without its list fields`() {
+        val before = TaskDetail(waiting, ticklerDate = LocalDate.of(2026, 12, 1))
+        val d = draft(waiting, tickler = LocalDate.of(2026, 12, 1)).copy(ticklerDate = LocalDate.of(2026, 12, 8))
+        assertEquals(TaskMove(TaskList.INBOX, ticklerDate = LocalDate.of(2026, 12, 8)), d.move(before))
+        // Moving to the Inbox does not ask for the waited-for person.
+        assertTrue(d.copy(waitingFor = "").problems(before, today).isEmpty())
+        val fromScheduled = draft(scheduled, tickler = LocalDate.of(2026, 12, 1)).copy(ticklerDate = LocalDate.of(2026, 12, 8))
+        assertEquals(
+            TaskMove(TaskList.INBOX, ticklerDate = LocalDate.of(2026, 12, 8)),
+            fromScheduled.move(TaskDetail(scheduled, ticklerDate = LocalDate.of(2026, 12, 1))),
+        )
+    }
+
+    @Test
+    fun `a tickled task's list-bound fields are not patched while Tickler is chosen`() {
+        val onScheduled = draft(scheduled, tickler = LocalDate.of(2026, 12, 1)).copy(scheduledDate = LocalDate.of(2026, 11, 9))
+        assertEquals(JsonObject(emptyMap()), onScheduled.patch(scheduled, RepeatDraft()))
+        val onWaiting = draft(waiting, tickler = LocalDate.of(2026, 12, 1)).copy(waitingFor = "Ben Example")
+        assertEquals(JsonObject(emptyMap()), onWaiting.patch(waiting, RepeatDraft()))
+    }
+
+    @Test
+    fun `picking the Inbox for a tickled Inbox task clears the tickler with a move`() {
+        val inbox = next.copy(list = TaskList.INBOX)
+        val d = draft(inbox, tickler = LocalDate.of(2026, 12, 1)).onList(TaskList.INBOX)
+        assertFalse(d.tickler)
+        assertEquals(TaskMove(TaskList.INBOX), d.move(TaskDetail(inbox, ticklerDate = LocalDate.of(2026, 12, 1))))
+        // Tickler chosen and taken back before a date was picked: nothing to save.
+        assertNull(draft(inbox).onTickler().onList(TaskList.INBOX).move(TaskDetail(inbox)))
+    }
+
     // --- problems ---
 
     @Test

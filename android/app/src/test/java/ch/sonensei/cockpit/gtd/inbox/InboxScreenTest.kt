@@ -202,6 +202,18 @@ class InboxScreenTest {
     }
 
     @Test
+    fun `the tickler prompt names the Tickler and explains it, the schedule prompt has no such hint`() {
+        val hint = "Hidden until then; on that day it comes back to the Inbox."
+        show(loaded.copy(processing = true, prompt = InboxPrompt(InboxActionKind.TICKLER, today.plusDays(3))))
+        composeRule.onNodeWithText("Tickler: hidden until").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(hint).performScrollTo().assertIsDisplayed()
+
+        state = state.copy(prompt = InboxPrompt(InboxActionKind.SCHEDULE, today.plusDays(3)))
+        composeRule.onNodeWithText("Schedule for").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(hint).assertDoesNotExist()
+    }
+
+    @Test
     fun `a failed action is explained and can be dismissed`() {
         show(loaded.copy(message = InboxMessage.CONFLICT))
 

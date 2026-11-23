@@ -1,6 +1,7 @@
 package ch.sonensei.cockpit.gtd.task
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -102,6 +103,47 @@ class TaskDetailStringsTest {
         assertEquals("Neues Projekt…", german.getValue("task_detail_project_new"))
         assertEquals(listOf("%1\$s"), placeholders(english.getValue("task_detail_message_project_invalid")))
         assertEquals(listOf("%1\$s"), placeholders(german.getValue("task_detail_message_project_invalid")))
+    }
+
+    @Test
+    fun `the tickler has one name in the form, the detail view and Inbox processing, in English and German`() {
+        val inboxEnglish = strings(File(res, "values/strings_inbox.xml"))
+        val inboxGerman = strings(File(res, "values-de/strings_inbox.xml"))
+        // The form chip and the detail property share task_detail_tickler; Inbox processing has its own action.
+        assertEquals("Tickler", english.getValue("task_detail_tickler"))
+        assertEquals("Wiedervorlage", german.getValue("task_detail_tickler"))
+        assertEquals("Tickler", inboxEnglish.getValue("inbox_action_tickler"))
+        assertEquals("Wiedervorlage", inboxGerman.getValue("inbox_action_tickler"))
+        // The date label and the Inbox prompt title use the same name.
+        assertTrue(english.getValue("task_detail_tickler_date").startsWith("Tickler"))
+        assertTrue(german.getValue("task_detail_tickler_date").startsWith("Wiedervorlage"))
+        assertTrue(inboxEnglish.getValue("inbox_prompt_tickler").startsWith("Tickler"))
+        assertTrue(inboxGerman.getValue("inbox_prompt_tickler").startsWith("Wiedervorlage"))
+        // The old label names are gone from the form, the detail view and the Inbox (the hint may say "comes back").
+        (english.values + german.values + inboxEnglish.values + inboxGerman.values).forEach { text ->
+            assertFalse(text, text.contains("Comes back"))
+            assertFalse(text, text.contains("Kommt zurück"))
+        }
+        // The same hint explains it in the form and in Inbox processing.
+        val hint = "Hidden until then; on that day it comes back to the Inbox."
+        assertEquals(hint, english.getValue("task_detail_tickler_hint"))
+        assertEquals(hint, inboxEnglish.getValue("inbox_prompt_tickler_hint"))
+        assertEquals(german.getValue("task_detail_tickler_hint"), inboxGerman.getValue("inbox_prompt_tickler_hint"))
+        assertNotEquals(hint, german.getValue("task_detail_tickler_hint"))
+        assertTrue(german.getValue("task_detail_tickler_hint").contains("Eingang"))
+    }
+
+    @Test
+    fun `the New today marker and its description exist in English and German`() {
+        val nextEnglish = strings(File(res, "values/strings_next_today.xml"))
+        val nextGerman = strings(File(res, "values-de/strings_next_today.xml"))
+        assertEquals(nextEnglish.keys, nextGerman.keys)
+        assertEquals("New today", nextEnglish.getValue("next_new_today"))
+        assertEquals("Neu heute", nextGerman.getValue("next_new_today"))
+        // The description says more than the label: where the task came from.
+        assertTrue(nextEnglish.getValue("next_new_today_description").startsWith("New today"))
+        assertTrue(nextGerman.getValue("next_new_today_description").startsWith("Neu heute"))
+        assertNotEquals(nextEnglish.getValue("next_new_today_description"), nextGerman.getValue("next_new_today_description"))
     }
 
     @Test
