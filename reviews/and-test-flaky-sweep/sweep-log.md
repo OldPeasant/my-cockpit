@@ -34,3 +34,10 @@ Working notes of the parent worker (not a helper report); the test-writer's `tes
 - Run 2 (2026-11-23, same test code, under load): `sh .tmp/load-run.sh` = 12 busy-loop shell processes on the 16-core
   machine for the whole run, plus `./gradlew testDebugUnitTest --rerun-tasks --continue --max-workers=16` (the
   test-writer/code-reviewer helpers were also running at the same time) -> BUILD SUCCESSFUL in 12m 46s, 0 FAILED.
+- Run 3 (2026-11-23, same test code, clock around midnight): `sh .tmp/midnight-run.sh` = JVM default time zone set
+  via `JAVA_TOOL_OPTIONS=-Duser.timezone=GMT+03:41` so that local time was 23:57 at the start (20:16 UTC) and 00:02 at
+  the end, then `./gradlew testDebugUnitTest --rerun-tasks --continue` -> BUILD SUCCESSFUL in 4m 38s, 0 FAILED.
+  Caveat: "Picked up JAVA_TOOL_OPTIONS" appears for the Gradle client and daemon; the forked test workers inherit the
+  daemon environment by default, but their startup line is not in the test-result XMLs, so it is not directly proven
+  that every worker used the shifted zone.
+- Runs 1-3 are three full passes in a row on the final test code (`e2b7c9074`; no Android change since).
