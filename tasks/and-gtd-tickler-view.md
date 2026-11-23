@@ -14,8 +14,9 @@ and when it will come back, which GTD's Weekly Review expects. Add a **Tickler**
 2026-11-23). The web client gets the same in `web-gtd-tickler-view`.
 
 ## Acceptance criteria
-- [ ] SPEC.md §5.3 lists the Tickler view: all open tasks with a tickler date after today, sorted by that date (then
+- [x] SPEC.md §5.3 lists the Tickler view: all open tasks with a tickler date after today, sorted by that date (then
       by their usual order), each showing the date it comes back
+  - verified (2026-11-23 19:03+0100 by dell26/agent-1): git diff ad19e25d7..HEAD -- SPEC.md -> §5.3 has 'Tickler view' bullet: open tasks with ticklerDate after today, sorted by date then usual order, row shows return date
 - [ ] Android has a "Tickler" / "Wiedervorlage" destination next to Scheduled (same navigation section, own icon),
       showing the tasks above with their return date ("Back on Mon, 14 Dec" / German equivalent). Tasks whose
       tickler date has come (moved to the Inbox) are not shown
