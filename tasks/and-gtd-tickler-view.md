@@ -17,9 +17,10 @@ and when it will come back, which GTD's Weekly Review expects. Add a **Tickler**
 - [x] SPEC.md §5.3 lists the Tickler view: all open tasks with a tickler date after today, sorted by that date (then
       by their usual order), each showing the date it comes back
   - verified (2026-11-23 19:03+0100 by dell26/agent-1): git diff ad19e25d7..HEAD -- SPEC.md -> §5.3 has 'Tickler view' bullet: open tasks with ticklerDate after today, sorted by date then usual order, row shows return date
-- [ ] Android has a "Tickler" / "Wiedervorlage" destination next to Scheduled (same navigation section, own icon),
+- [x] Android has a "Tickler" / "Wiedervorlage" destination next to Scheduled (same navigation section, own icon),
       showing the tasks above with their return date ("Back on Mon, 14 Dec" / German equivalent). Tasks whose
       tickler date has come (moved to the Inbox) are not shown
+  - verified (2026-11-23 19:03+0100 by dell26/agent-1): CockpitDestination.Tickler (Alarm icon, NavSection.More, right after Scheduled); ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.lists.Tickler*' --tests 'ch.sonensei.cockpit.ui.*' -> pass (CockpitDestinationTest order; TicklerListTest 'Back on Mon, Dec 14'/'Zurück am …'; TicklerRepositoryTest drops ticklerDate <= today)
 - [ ] Tapping a row opens the task detail, where the date can be changed or another list chosen (form from
       `and-gtd-tickler-chip`); after returning, the view reflects the change. Rows support completing a task like the
       other list views do
