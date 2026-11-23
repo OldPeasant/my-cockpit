@@ -19,8 +19,9 @@ is used. In the evening the grid opens at the bottom, can't scroll further down,
 correct; the test is not deterministic.
 
 ## Acceptance criteria
-- [ ] `CalendarSwipeInteractionTest` provides a fixed `LocalNowClock` (e.g. 08:00 on its `today`, in its zone), so the
+- [x] `CalendarSwipeInteractionTest` provides a fixed `LocalNowClock` (e.g. 08:00 on its `today`, in its zone), so the
       failing test and the rest of the class don't depend on the real time
+  - verified (2026-11-23 20:24+0100 by dell26/agent-1): CalendarSwipeInteractionTest.show() wraps content (incl. StateRestorationTester path) in CompositionLocalProvider(LocalNowClock provides Clock.fixed(2026-10-21T08:00Z, UTC)); ./gradlew testDebugUnitTest --tests '*CalendarSwipeInteractionTest' (with 9 other classes, .tmp/runclk.sh) -> pass
 - [ ] Other Android calendar Compose tests that render the day/week grid or the "now" line on the test's `today` without
       a fixed clock (e.g. `CalendarLongPressInteractionTest`, `CalendarScreensCachedTest`, `CalendarWithEditor*Test`,
       `CalendarRouteResumeTest`) are checked; each one that depends on the real time gets a fixed clock too. The tests
