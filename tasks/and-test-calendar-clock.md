@@ -1,10 +1,11 @@
 ---
 title: Android: calendar tests depend on the real time of day (fix clock)
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [android/app/src/test/java/ch/sonensei/cockpit/calendar]
 prio: 2
+lease_until: 2026-11-23T19:38:46Z
 ---
 ## Goal
 `CalendarSwipeInteractionTest > a mostly vertical diagonal gesture scrolls the grid and keeps the period` fails
