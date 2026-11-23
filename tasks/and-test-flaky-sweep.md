@@ -46,9 +46,10 @@ Known from the CI history (last 40 runs of `ci.yml`, `gh run view <id> -R OldPea
   - verified (2026-11-23 21:22+0100 by dell26/agent-1): grep sweep of android/app/src/test/java for waitUntil-on-disappearance, synchronizedList/mutableList/var counters touched by background threads, LocalDate/LocalTime/Clock.now in Compose tests, listFiles assertions: commands, hits and verdicts in tests.md + sweep-log.md; no further race needing a fix; 2 sub-second midnight exposures (DashboardScreenTest, TaskDetailListFieldsTest) explained (needs prod clock injection)
 - [x] Test code only; production code unchanged unless a real bug is found (then record it with `tasks.py assume`)
   - verified (2026-11-23 21:22+0100 by dell26/agent-1): git diff --name-only 00d946c3b..HEAD -- android/app/src/main server/src/main web/src -> empty; only 2 test files + reviews changed
-- [ ] After all fixes, the full Android unit suite passes locally 3 times in a row
+- [x] After all fixes, the full Android unit suite passes locally 3 times in a row
       (`./gradlew testDebugUnitTest --rerun-tasks`, final code), and `cd android && ./gradlew ktlintCheck
       testDebugUnitTest lintDebug` passes
+  - verified (2026-11-23 21:28+0100 by dell26/agent-1): Runs 1-3 of ./gradlew testDebugUnitTest --rerun-tasks (sweep-log.md) passed in a row on the final test logic; after the whitespace-only ktlint fix 2f2c522c9: cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL in 4m 7s
 
 ## Notes
 - If the sweep finds more than fits in one session, fix the known ones first, then split the rest into subtasks
