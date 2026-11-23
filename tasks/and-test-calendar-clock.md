@@ -1,11 +1,11 @@
 ---
 title: Android: calendar tests depend on the real time of day (fix clock)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [android/app/src/test/java/ch/sonensei/cockpit/calendar]
 prio: 2
-lease_until: 2026-11-23T19:48:52Z
+lease_until: 
 ---
 ## Goal
 `CalendarSwipeInteractionTest > a mostly vertical diagonal gesture scrolls the grid and keeps the period` fails
@@ -36,3 +36,4 @@ correct; the test is not deterministic.
 - [x] `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
   - verified (2026-11-23 20:30+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug (HEAD 7b205a57a) -> BUILD SUCCESSFUL in 4m19s, 314 test result files, no failures
   - verified (2026-11-23 20:30+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug (HEAD 7b205a57a) -> BUILD SUCCESSFUL in 4m19s, rc=0, 477 test result files, no failures
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 98s on 9fdadd018; criteria verified 5/5
