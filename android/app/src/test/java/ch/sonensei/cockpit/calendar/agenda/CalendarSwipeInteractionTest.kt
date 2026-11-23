@@ -309,15 +309,18 @@ class CalendarSwipeInteractionTest {
 
     @Test
     fun `a mostly vertical diagonal gesture scrolls the grid and keeps the period`() {
-        val holder = show(state(CalendarView.DAY))
-        val before = gridScroll(today)
+        // Not today: a day without timed entries opens at the default hour, whatever "now" is, so there is room to
+        // scroll down (today would open at the current hour, at the bottom of the grid late in the evening).
+        val start = today.plusDays(5)
+        val holder = show(state(CalendarView.DAY, start))
+        val before = gridScroll(start)
         composeRule.onNodeWithTag(CalendarTags.GRID_SCROLL).performTouchInput {
             swipe(Offset(centerX, bottom - 10f), Offset(centerX - width * 0.1f, top + 10f), 300)
         }
         composeRule.waitForIdle()
         assertTrue(moves.isEmpty())
-        assertEquals(today, holder.value.anchor)
-        assertTrue("the grid scrolled down", gridScroll(today) > before)
+        assertEquals(start, holder.value.anchor)
+        assertTrue("the grid scrolled down", gridScroll(start) > before)
     }
 
     @Test
