@@ -1,11 +1,11 @@
 ---
 title: Web: Tickler list view (what comes back when)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [web-gtd-tickler-chip,and-gtd-tickler-view]
 touches: [web/src/app/features/gtd/lists,web/src/app/features/gtd/gtd.routes.ts,web/src/app/shell/nav-sections.ts,web/src/locale]
 prio: 2
-lease_until: 2026-11-23T18:49:29Z
+lease_until: 
 ---
 ## Goal
 The web client gets the same as Android task `and-gtd-tickler-view` (read its Goal): a **Tickler** list view next to
@@ -30,3 +30,4 @@ there and when it returns. SPEC.md is updated by `and-gtd-tickler-view`; don't e
       `cd web && npm run check` passes
   - verified (2026-11-23 19:29+0100 by dell26/agent-1): 6 units (nav.tickler, gtd.tickler.title/backTomorrow/backOn/backOnYear/empty) in messages.xlf and messages.de.xlf, checked by messages-de.spec.ts; cd web && npm run check -> lint pass, 200 files / 5023 tests passed, build (en+de) ok, exit 0
 - ASSUMPTION (2026-11-23 19:22+0100 by dell26/agent-1): Tickler view reads 10 yearly GET /api/v1/tasks?from=&to= windows starting tomorrow (server max 366 days), filters ticklerDate>today client-side, like and-gtd-tickler-view; tickler dates more than 10 years ahead are not listed. Date shown as 'Back on EEE, d MMM' (+ year outside the current year, 'Back tomorrow' for tomorrow); German 'Zurück am …' uses the same pattern. No separate offline state: like Scheduled/Someday/Waiting, a failed load shows the error with retry.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 74s on 0cd3bc134; criteria verified 5/5
