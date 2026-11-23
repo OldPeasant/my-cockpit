@@ -33,9 +33,10 @@ and when it will come back, which GTD's Weekly Review expects. Add a **Tickler**
       (paging, open-ended range), add a server filter (e.g. `tickler=pending`), regenerate `api/openapi.yaml`, and
       record the decision with `tasks.py assume`
   - verified (2026-11-23 19:03+0100 by dell26/agent-1): TicklerRepositoryTest (mock server): 10 yearly GET /api/v1/tasks?from=&to= windows <=365 days, client filter ticklerDate>today, dedupe, paging -> pass; no server change (10-year horizon recorded via assume)
-- [ ] All new strings exist in English and German; unit/Compose tests cover the criteria above;
+- [x] All new strings exist in English and German; unit/Compose tests cover the criteria above;
       `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes (and `cd server && ./gradlew check`
       if the server changed)
+  - verified (2026-11-23 19:09+0100 by dell26/agent-1): strings nav_tickler/tickler_empty/tickler_back_on in values + values-de (TicklerStringsTest); sh scripts/check.sh (includes cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug; server unchanged) -> all checks passed, exit 0
 
 ## Notes
 - Reference: `gtd/lists/ScheduledScreen.kt`, `ListViewModels.kt`, `TaskLists.kt`; navigation in
