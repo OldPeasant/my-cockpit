@@ -36,9 +36,10 @@ gets the same change in its own task (`web-gtd-tickler-chip`).
       requires a future date (the same picker/validation as before) and saves `list = INBOX` + that `ticklerDate`
       through the existing move API. The separate "Comes back" field is gone
   - verified (2026-11-23 18:45+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.*' at d67981b30 -> 1279 passed; TaskDetailListFieldsTest (chip order Inbox/Next/Waiting/Scheduled/Tickler/Someday, Tickler date label, no Comes back), TaskDraftListTest (onTickler -> TaskMove(INBOX, ticklerDate), NotFuture/Required)
-- [ ] A task with a `ticklerDate` opens in the form with the Tickler chip selected and its date shown, whatever its
+- [x] A task with a `ticklerDate` opens in the form with the Tickler chip selected and its date shown, whatever its
       stored list is (the tickler wins, as on the server). Picking another chip clears the tickler date; picking
       Scheduled still asks for the scheduled date. Saving without changes doesn't move or change the task
+  - verified (2026-11-23 18:45+0100 by dell26/agent-1): same run -> TaskDraftListTest (tickled task opens with Tickler on all 5 lists, unchanged save moves nothing, other chip clears date, Scheduled requires date), TaskDetailListFieldsTest Compose + TaskDetailViewModelRelistTest pass
 - [ ] One name everywhere in the Android app: "Tickler" (EN) / "Wiedervorlage" (DE) for the form chip, the date
       label, the task detail property and the Inbox processing action. The hint explains it ("Hidden until then; on
       that day it comes back to the Inbox." / German equivalent)
