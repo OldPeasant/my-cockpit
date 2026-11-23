@@ -4,7 +4,10 @@ Date: 2026-11-23
 
 Task: web-gtd-tickler-chip - Web: Tickler as list choice, 'new today' marker in Next
 
-Scope: `git diff b2a2bad83..19c60cb42` (single task commit, committed changes only)
+Scope: `git diff 7719537c1..5c4b7fbd4 -- web` (task commits e9421dbd2 implementation, 41ee56163 review
+report, 5c4b7fbd4 added tests; committed changes only). Re-review of the final revision: the first
+review covered the implementation (then 19c60cb42, rebased to e9421dbd2 without code changes); since
+then only test files changed.
 
 Requirements:
 - tasks/web-gtd-tickler-chip.md acceptance criteria (background: tasks/and-gtd-tickler-chip.md)
@@ -13,9 +16,9 @@ Requirements:
 
 Git range:
 - Branch: main
-- HEAD: 19c60cb42
-- Base/start: b2a2bad83d4fd470bbf03a92657f6a6d162f3908
-- Commits reviewed: 1
+- HEAD: 5c4b7fbd453353a0fccc157974032ae5f2ab06e4 (final reviewed revision)
+- Base/start: 7719537c12df3d1b9897275adefec670bb923dc6 (`git merge-base HEAD origin/main`)
+- Commits reviewed: 3 (one implementation, one review report, one test commit)
 
 Summary: 0 P0, 0 P1, 0 P2, 2 P3
 
@@ -38,6 +41,17 @@ Checked and found correct:
 - Accessibility: tickler input is `required`, `min` = tomorrow, `aria-invalid`, and `aria-describedby`
   pointing to the error or the hint (also in the Inbox prompt).
 - Unit tests cover each criterion (task-draft, task-detail, next-view, inbox-page specs).
+- New tests in 5c4b7fbd4 (re-review): `task-draft.spec.ts` asserts that while Tickler overrides a
+  Waiting or Scheduled task, `patchFor` sends no waiting-for/scheduled fields and `moveFor` sends only
+  `INBOX` + tickler date; that an unchanged tickler still patches other fields without a move; that
+  `listChoice`/`effectiveList` show Tickler/INBOX for every stored list with a tickler date; and that
+  choosing Tickler keeps the stored list and switching back yields no move and no change.
+  `messages-de.spec.ts` pins the English and German texts of all six tickler/new-today ids and that the
+  obsolete ids are gone. The tests assert behavior through the public draft functions and the real
+  XLIFF files, match the implementation and the criteria (one name "Tickler"/"Wiedervorlage", required
+  hint), and do not weaken existing tests. Ran
+  `cd web && npx ng test --watch=false --include src/app/features/gtd/task-detail/task-draft.spec.ts --include src/locale/messages-de.spec.ts`
+  -> 2 files, 46 tests passed. No new findings.
 
 ## P0 Critical
 
