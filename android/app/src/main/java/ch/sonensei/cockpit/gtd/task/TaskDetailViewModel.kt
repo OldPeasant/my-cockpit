@@ -870,7 +870,7 @@ class TaskDetailViewModel internal constructor(
             TaskField.CREATIVITY -> a.creativity != b.creativity
             TaskField.LIST -> a.list != b.list
             TaskField.SCHEDULED -> a.scheduledDate != b.scheduledDate || a.list != b.list
-            TaskField.TICKLER -> a.ticklerDate != b.ticklerDate
+            TaskField.TICKLER -> a.ticklerDate != b.ticklerDate || a.tickler != b.tickler
             TaskField.WAITING_FOR -> a.waitingFor != b.waitingFor || a.list != b.list
             TaskField.WAITING_SINCE -> a.waitingSince != b.waitingSince
             TaskField.RECURRENCE, TaskField.RECURRENCE_MODE -> a.repeat != b.repeat

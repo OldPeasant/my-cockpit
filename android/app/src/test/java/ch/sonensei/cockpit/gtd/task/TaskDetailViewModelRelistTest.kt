@@ -202,6 +202,28 @@ class TaskDetailViewModelRelistTest {
         }
 
     @Test
+    fun `leaving the Tickler chip clears its required problem, choosing it again shows none before saving`() =
+        runTest {
+            val vm = editing { it.onTickler() }
+            vm.save()
+            assertEquals(mapOf(TaskField.TICKLER to FieldProblem.Required), vm.uiState.value.problems)
+
+            vm.edit { it.onList(TaskList.NEXT) }
+            assertTrue(
+                vm.uiState.value.problems
+                    .isEmpty(),
+            )
+
+            vm.edit { it.onTickler() }
+            assertTrue(
+                vm.uiState.value.problems
+                    .isEmpty(),
+            )
+            assertTrue(source.relists.isEmpty())
+            assertTrue(source.updates.isEmpty())
+        }
+
+    @Test
     fun `a move refused with field errors shows them at the fields and sends no PATCH`() =
         runTest {
             val vm = editing { it.onTickler().copy(title = "Buy seeds later", ticklerDate = today.plusDays(2)) }
