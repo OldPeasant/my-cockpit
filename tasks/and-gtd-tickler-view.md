@@ -36,3 +36,4 @@ and when it will come back, which GTD's Weekly Review expects. Add a **Tickler**
 - Reference: `gtd/lists/ScheduledScreen.kt`, `ListViewModels.kt`, `TaskLists.kt`; navigation in
   `ui/navigation/CockpitDestination.kt` and `ui/CockpitShell.kt`; labels in `strings_projects_lists.xml`.
 - Use the name "Tickler"/"Wiedervorlage", as decided in `and-gtd-tickler-chip`.
+- ASSUMPTION (2026-11-23 18:57+0100 by dell26/agent-1): Tickler view loads via existing GET /tasks?from=&to= (max 366 days per call) year by year for the next 10 years and filters ticklerDate > today on the client; no server filter added. Tickler dates more than 10 years ahead are not shown (one request per year per load).
