@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [web/src/app/features/gtd/task-detail,web/src/app/features/gtd/next,web/src/app/features/gtd/inbox,web/src/locale]
 prio: 2
-lease_until: 2026-11-23T18:38:50Z
+lease_until: 2026-11-23T18:39:22Z
 hold: 
 releases: 0
 extended: 
