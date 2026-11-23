@@ -1,11 +1,11 @@
 ---
 title: Android: fix flaky SessionCacheTest (Room lock file in cacheDir)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [android/app/src/test/java/ch/sonensei/cockpit/auth/SessionCacheTest.kt]
 prio: 2
-lease_until: 2026-11-23T19:08:34Z
+lease_until: 
 ---
 ## Goal
 `SessionCacheTest` (`android/app/src/test/java/ch/sonensei/cockpit/auth/SessionCacheTest.kt`) is flaky. It failed in CI
@@ -30,3 +30,4 @@ fails. A lock file in the cache after logout is harmless, so the test is wrong, 
 - [x] `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.auth.SessionCacheTest'`
       passes 20 times in a row (e.g. a loop with `--rerun-tasks`), and `ktlintCheck testDebugUnitTest lintDebug` passes
   - verified (2026-11-23 19:47+0100 by dell26/agent-1): .tmp/loop20.sh: 20x 'cd android && ./gradlew ktlintCheck testDebugUnitTest --tests ch.sonensei.cockpit.auth.SessionCacheTest --rerun' (test task forced to rerun each time) -> passed 20/20 in a row; 'android/gradlew -p android ktlintCheck testDebugUnitTest lintDebug' -> exit 0
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 80s on c319f8ca3; criteria verified 4/4
