@@ -30,3 +30,4 @@ Server and API stay unchanged. SPEC.md is updated by `and-gtd-tickler-chip`; don
       "New today" / "Neu heute" badge (text, not color only) and are listed first, in their normal order among
       themselves; from the next day on they show and sort normally. Filters and presets still apply
 - [ ] New strings are in `messages.xlf` and `messages.de.xlf`; unit tests cover the criteria above; `cd web && npm run check` passes
+- ASSUMPTION (2026-11-23 18:34+0100 by felix/agent-1): Tickler date input is labeled 'Tickler date'/'Wiedervorlage am' in both the form and Inbox processing (replacing 'Back in the inbox on'), so the feature has one name; the hint text is a shared i18n unit gtd.tickler.hint.
