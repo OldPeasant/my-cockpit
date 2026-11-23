@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "task": "and-gtd-tickler-view",
+  "reviewed_revision": "76b14ce7e94a102fd7c69f4fb69e39dd2a3ddb95",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-gtd-tickler-view/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-gtd-tickler-view/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-gtd-tickler-view/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "no Tickler tests at 6cd38d1ca; test-writer added 22 tests in 76b14ce7e, confirmed by round-2 review and fixer"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.lists.*' --tests 'ch.sonensei.cockpit.ui.*'", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
