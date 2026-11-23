@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [android/app/src/test/java/ch/sonensei/cockpit/calendar]
 prio: 2
-lease_until: 2026-11-23T19:43:48Z
+lease_until: 2026-11-23T19:48:52Z
 ---
 ## Goal
 `CalendarSwipeInteractionTest > a mostly vertical diagonal gesture scrolls the grid and keeps the period` fails
