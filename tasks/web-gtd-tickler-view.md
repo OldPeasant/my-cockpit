@@ -1,10 +1,11 @@
 ---
 title: Web: Tickler list view (what comes back when)
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [web-gtd-tickler-chip,and-gtd-tickler-view]
 touches: [web/src/app/features/gtd/lists,web/src/app/features/gtd/gtd.routes.ts,web/src/app/shell/nav-sections.ts,web/src/locale]
 prio: 2
+lease_until: 2026-11-23T18:40:25Z
 ---
 ## Goal
 The web client gets the same as Android task `and-gtd-tickler-view` (read its Goal): a **Tickler** list view next to
