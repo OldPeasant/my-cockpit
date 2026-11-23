@@ -3,6 +3,7 @@ import {
   chooseList,
   draftOf,
   draftRule,
+  effectiveList,
   hasChanges,
   listChoice,
   moveFor,
@@ -274,5 +275,62 @@ describe('patchFor', () => {
     expect(patchFor(scheduled, edited(scheduled, { scheduledDate: '2026-11-02' }))).toEqual({
       scheduledDate: '2026-11-02',
     });
+  });
+
+  it('does not patch waiting-for or the scheduled date while Tickler overrides the stored list', () => {
+    // The tickler move goes to INBOX; the server clears these fields, the patch must not resend them.
+    const waiting = task({ list: 'WAITING', waitingForText: 'Anna', waitingSince: '2026-10-01' });
+    const tickledWaiting = edited(waiting, {
+      ...chooseList(waiting, 'TICKLER'),
+      ticklerDate: '2026-10-25',
+      waitingForText: 'Ben',
+      waitingSince: '2026-10-02',
+    });
+    expect(effectiveList(tickledWaiting)).toBe('INBOX');
+    expect(tickledWaiting.list).toBe('WAITING');
+    expect(patchFor(waiting, tickledWaiting)).toEqual({});
+    expect(moveFor(waiting, tickledWaiting)).toEqual({ list: 'INBOX', ticklerDate: '2026-10-25' });
+
+    const scheduled = task({ list: 'SCHEDULED', scheduledDate: '2026-11-01' });
+    const tickledScheduled = edited(scheduled, {
+      ...chooseList(scheduled, 'TICKLER'),
+      ticklerDate: '2026-10-25',
+      scheduledDate: '2026-11-02',
+    });
+    expect(patchFor(scheduled, tickledScheduled)).toEqual({});
+    expect(moveFor(scheduled, tickledScheduled)).toEqual({
+      list: 'INBOX',
+      ticklerDate: '2026-10-25',
+    });
+  });
+
+  it('still patches other fields of an unchanged tickler without moving it', () => {
+    const t = task({ list: 'WAITING', waitingForText: 'Anna', ticklerDate: '2026-10-25' });
+    const draft = edited(t, { title: 'Call the plumber today' });
+    expect(moveFor(t, draft)).toBeUndefined();
+    expect(patchFor(t, draft)).toEqual({ title: 'Call the plumber today' });
+  });
+});
+
+describe('listChoice / effectiveList', () => {
+  it('shows and saves the stored list without a tickler, Tickler / INBOX with one', () => {
+    for (const list of ['INBOX', 'NEXT', 'WAITING', 'SCHEDULED', 'SOMEDAY'] as const) {
+      const plain = draftOf(task({ list }));
+      expect(listChoice(plain)).toBe(list);
+      expect(effectiveList(plain)).toBe(list);
+      const tickled = draftOf(task({ list, ticklerDate: '2026-10-25' }));
+      expect(listChoice(tickled)).toBe('TICKLER');
+      expect(effectiveList(tickled)).toBe('INBOX');
+    }
+  });
+
+  it('choosing Tickler keeps the stored list in the draft', () => {
+    const t = task({ list: 'SCHEDULED', scheduledDate: '2026-11-01' });
+    const draft = edited(t, chooseList(t, 'TICKLER'));
+    expect(draft).toMatchObject({ list: 'SCHEDULED', scheduledDate: '2026-11-01', tickler: true });
+    // Back to Scheduled: the date is still there, and no move is needed.
+    const back = { ...draft, ...chooseList(t, 'SCHEDULED') };
+    expect(moveFor(t, back)).toBeUndefined();
+    expect(hasChanges(t, back)).toBe(false);
   });
 });
