@@ -22,10 +22,11 @@ correct; the test is not deterministic.
 - [x] `CalendarSwipeInteractionTest` provides a fixed `LocalNowClock` (e.g. 08:00 on its `today`, in its zone), so the
       failing test and the rest of the class don't depend on the real time
   - verified (2026-11-23 20:24+0100 by dell26/agent-1): CalendarSwipeInteractionTest.show() wraps content (incl. StateRestorationTester path) in CompositionLocalProvider(LocalNowClock provides Clock.fixed(2026-10-21T08:00Z, UTC)); ./gradlew testDebugUnitTest --tests '*CalendarSwipeInteractionTest' (with 9 other classes, .tmp/runclk.sh) -> pass
-- [ ] Other Android calendar Compose tests that render the day/week grid or the "now" line on the test's `today` without
+- [x] Other Android calendar Compose tests that render the day/week grid or the "now" line on the test's `today` without
       a fixed clock (e.g. `CalendarLongPressInteractionTest`, `CalendarScreensCachedTest`, `CalendarWithEditor*Test`,
       `CalendarRouteResumeTest`) are checked; each one that depends on the real time gets a fixed clock too. The tests
       checked and the ones changed are listed in `reviews/<id>/tests.md`
+  - verified (2026-11-23 20:30+0100 by dell26/agent-1): grep for LocalNowClock/setContent/GRID_SCROLL/NOW across calendar tests: changed 9 more classes (CalendarSwipeTest, CalendarScreensStatesTest, CalendarLongPressInteractionTest, CalendarScreensCachedTest, CalendarOverlayMonthScreensTest, CalendarRouteResumeTest, CalendarWithEditor{,Delete,LongPress}Test); checked unchanged: CalendarScreenInAppTest, agenda/month-only tests; list in reviews/and-test-calendar-clock/tests.md; runclk.sh 105 passed
 - [x] Shown time-independent: the changed classes pass with their fixed clock moved temporarily to 23:30 and to 00:30
       (or a parameterized test does this permanently, where the test's intent allows), as well as with the final clock
   - verified (2026-11-23 20:24+0100 by dell26/agent-1): sh .tmp/runclk.sh with nowClock sed-moved in all 10 changed classes: 08:00 -> 105 passed; 23:30 -> 1 failed (vertical gesture test, grid at bottom), test moved to today+5 (opens at default hour); then 00:30 -> 105 passed, 23:30 -> 105 passed, final 08:00 -> 105 passed
