@@ -1,10 +1,11 @@
 ---
 title: Android: fix remaining flaky unit tests and sweep for more
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [android/app/src/test/java]
 prio: 2
+lease_until: 2026-11-23T20:18:21Z
 ---
 ## Goal
 CI on `main` keeps failing in "Fast check (android)" because of flaky unit tests, a different one each time. Two were
