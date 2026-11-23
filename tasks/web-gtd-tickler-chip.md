@@ -33,7 +33,8 @@ Server and API stay unchanged. SPEC.md is updated by `and-gtd-tickler-chip`; don
       "New today" / "Neu heute" badge (text, not color only) and are listed first, in their normal order among
       themselves; from the next day on they show and sort normally. Filters and presets still apply
   - verified (2026-11-23 18:40+0100 by felix/agent-1): cd web && npx ng test --watch=false --include='src/app/features/gtd/**/*.spec.ts' --include='src/locale/**/*.spec.ts' -> 1009 passed (next-view.spec 'new today': badge text 'New today' + first in stable order, with context filter; isNewToday/newTodayFirst next day sorts normally)
-- [ ] New strings are in `messages.xlf` and `messages.de.xlf`; unit tests cover the criteria above; `cd web && npm run check` passes
+- [x] New strings are in `messages.xlf` and `messages.de.xlf`; unit tests cover the criteria above; `cd web && npm run check` passes
+  - verified (2026-11-23 18:40+0100 by felix/agent-1): npm run i18n:extract; cd web && npm run check -> lint 0 warnings, 199 files / 4995 tests passed, ng build OK
 - ASSUMPTION (2026-11-23 18:34+0100 by felix/agent-1): Tickler date input is labeled 'Tickler date'/'Wiedervorlage am' in both the form and Inbox processing (replacing 'Back in the inbox on'), so the feature has one name; the hint text is a shared i18n unit gtd.tickler.hint.
 - ASSUMPTION (2026-11-23 18:34+0100 by felix/agent-1): Choosing Tickler again after another list restores the task's stored tickler date (empty for a new tickler); an empty tickler shows the error 'Pick the date it comes back.' and blocks Save. Date input min is tomorrow (validation unchanged: > today unless unchanged).
 - ASSUMPTION (2026-11-23 18:34+0100 by felix/agent-1): 'New today' badge rendered in next-view's list item (not in shared TaskRow, which is outside this task's touches), with an accent edge; client-side stable partition puts releasedOn==localDate() first.
