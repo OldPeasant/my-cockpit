@@ -20,6 +20,8 @@
     <string name="tasks_message_failed">The server refused the change. The list shows the task as it is.</string>
 
     <!-- Next actions -->
+    <string name="next_new_today">New today</string>
+    <string name="next_new_today_description">New today: back from Scheduled</string>
     <plurals name="next_count">
         <item quantity="one">%1$d next action</item>
         <item quantity="other">%1$d next actions</item>

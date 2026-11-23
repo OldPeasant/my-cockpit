@@ -20,6 +20,8 @@
     <string name="tasks_message_failed">Der Server hat die Änderung abgelehnt. Die Liste zeigt die Aufgabe, wie sie ist.</string>
 
     <!-- Nächste Aktionen -->
+    <string name="next_new_today">Neu heute</string>
+    <string name="next_new_today_description">Neu heute: zurück aus Geplant</string>
     <plurals name="next_count">
         <item quantity="one">%1$d nächste Aktion</item>
         <item quantity="other">%1$d nächste Aktionen</item>

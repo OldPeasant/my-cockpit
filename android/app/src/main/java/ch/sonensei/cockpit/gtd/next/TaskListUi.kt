@@ -31,6 +31,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ch.sonensei.cockpit.R
@@ -54,6 +55,9 @@ object TaskListTags {
     fun row(id: UUID) = "task-row-$id"
 
     fun complete(id: UUID) = "task-complete-$id"
+
+    /** The "New today" marker of a task released from Scheduled today. */
+    fun newToday(id: UUID) = "task-new-today-$id"
 }
 
 /** The cached list is shown read-only while the server is unreachable (SPEC.md §9.3). */
@@ -108,7 +112,10 @@ fun LoadFailedBanner(
     }
 }
 
-/** One open task: a checkbox to complete it (disabled while [readOnly]), its title and what it needs. */
+/**
+ * One open task: a checkbox to complete it (disabled while [readOnly]), its title and what it needs; [newToday] shows
+ * the "New today" marker of a task released from Scheduled today.
+ */
 @Composable
 fun TaskRow(
     task: GtdTask,
@@ -117,6 +124,7 @@ fun TaskRow(
     readOnly: Boolean,
     onComplete: (GtdTask) -> Unit,
     modifier: Modifier = Modifier,
+    newToday: Boolean = false,
 ) {
     val details =
         listOfNotNull(
@@ -138,6 +146,20 @@ fun TaskRow(
                 modifier = Modifier.testTag(TaskListTags.complete(task.id)).semantics { contentDescription = label },
             )
         },
+        overlineContent =
+            if (newToday) {
+                {
+                    val label = stringResource(R.string.next_new_today_description)
+                    Text(
+                        stringResource(R.string.next_new_today),
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.testTag(TaskListTags.newToday(task.id)).semantics { contentDescription = label },
+                    )
+                }
+            } else {
+                null
+            },
         headlineContent = { Text(task.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
         supportingContent =
             if (details.isEmpty() && due == null) {

@@ -14,6 +14,7 @@ import ch.sonensei.cockpit.gtd.data.GtdProject
 import ch.sonensei.cockpit.gtd.data.GtdTask
 import ch.sonensei.cockpit.gtd.data.ProjectRepository
 import ch.sonensei.cockpit.gtd.data.ProjectStatus
+import ch.sonensei.cockpit.gtd.data.TaskList
 import ch.sonensei.cockpit.gtd.data.TaskRepository
 import ch.sonensei.cockpit.gtd.data.TaskView
 import ch.sonensei.cockpit.gtd.lists.Live
@@ -217,7 +218,7 @@ class NextViewModel internal constructor(
             val today = LocalDate.now(clock)
             val byId = refs.projects.associateBy { it.id }
             NextUiState(
-                tasks = open.filter { shown.matches(it, today, byId) },
+                tasks = newTodayFirst(open.filter { shown.matches(it, today, byId) }, today),
                 total = open.size,
                 filter = shown,
                 contexts = refs.contexts,
@@ -395,6 +396,18 @@ class NextViewModel internal constructor(
 }
 
 /** [block]'s result, or `null` when it threw (cancellation is passed on). */
+/** Whether [task] came back from Scheduled on [today]: the Next view marks it "New today". */
+internal fun isNewToday(
+    task: GtdTask,
+    today: LocalDate,
+) = task.list == TaskList.NEXT && task.releasedOn == today
+
+/** [tasks] with those new today first; both groups keep their order (the sort is stable). */
+internal fun newTodayFirst(
+    tasks: List<GtdTask>,
+    today: LocalDate,
+): List<GtdTask> = tasks.sortedBy { !isNewToday(it, today) }
+
 private suspend fun <T> catching(block: suspend () -> T): T? =
     try {
         block()

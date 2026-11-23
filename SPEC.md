@@ -229,6 +229,7 @@ contexts list, theme light/dark/system, mail image policy, etc.), exposed via
 | Scheduled | `list = SCHEDULED` with a `scheduledDate` (appears in Next on that date) |
 | Reference | Not a task list — "move to reference" converts the item into a **Note** |
 | Tickler | `ticklerDate`: task is hidden; on that date it moves back to **INBOX** (daily job at 00:05 local time + on-read check) |
+| Released from Scheduled | On its `scheduledDate` a SCHEDULED task moves to NEXT and gets `releasedOn` = that day; the Next Actions view marks it "new today" on that day |
 | Projects | Separate entity; tasks may belong to a project; a project has an ordered task list and a designated **next step** |
 | Areas of focus | Optional grouping of projects (e.g. Work, Family, Health) |
 | Contexts | Tags with `@` semantics (`@home`, `@computer`, `@phone`, `@errands`), user-defined |
@@ -276,6 +277,16 @@ Rules:
   energy, creativity, contexts, estimate. Shows "x items left".
 - **Next Actions view** with filters: context, energy, creativity, max time estimate,
   area/project, due. Saved filter presets ("Low energy @home ≤ 15 min").
+  Open tasks released from Scheduled today (`releasedOn == today`, the user's local date) are
+  marked "New today" (a text label, not color only) and listed first, in their normal order among
+  themselves; filters and presets still apply to them. From the next day on they show and sort
+  like any other task.
+- **Task edit form:** the list is a choice of `Inbox · Next · Waiting For · Scheduled · Tickler ·
+  Someday`. Tickler is no list of its own: it needs a future date and stores `list = INBOX` +
+  `ticklerDate` (hidden until then; on that day it comes back to the Inbox). A task with a
+  `ticklerDate` opens with Tickler chosen, whatever its stored list (the tickler wins). Choosing
+  another list clears the tickler date; Scheduled asks for the scheduled date. The feature is
+  called "Tickler" / "Wiedervorlage" everywhere (form, task detail, Inbox processing).
 - **Today view:** due/overdue tasks, scheduled for today, today's calendar events, habits due.
 - Project list (grouped by area, stalled highlighted), project detail (ordered tasks,
   drag reorder, next-step marker, notes, linked items).
