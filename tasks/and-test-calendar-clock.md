@@ -29,6 +29,7 @@ correct; the test is not deterministic.
 - [x] Shown time-independent: the changed classes pass with their fixed clock moved temporarily to 23:30 and to 00:30
       (or a parameterized test does this permanently, where the test's intent allows), as well as with the final clock
   - verified (2026-11-23 20:24+0100 by dell26/agent-1): sh .tmp/runclk.sh with nowClock sed-moved in all 10 changed classes: 08:00 -> 105 passed; 23:30 -> 1 failed (vertical gesture test, grid at bottom), test moved to today+5 (opens at default hour); then 00:30 -> 105 passed, 23:30 -> 105 passed, final 08:00 -> 105 passed
-- [ ] Test code only; production code is unchanged, unless the investigation shows a real problem (then record it with
+- [x] Test code only; production code is unchanged, unless the investigation shows a real problem (then record it with
       `tasks.py assume`)
+  - verified (2026-11-23 20:24+0100 by dell26/agent-1): git diff --stat 3a3055d49..HEAD -- android/app/src/main -> empty; only android/app/src/test calendar files changed; no production problem found (firstVisibleHour opening today at the current hour is intended)
 - [ ] `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
