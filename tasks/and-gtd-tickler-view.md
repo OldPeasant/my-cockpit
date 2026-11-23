@@ -28,10 +28,11 @@ and when it will come back, which GTD's Weekly Review expects. Add a **Tickler**
 - [x] Pull to refresh, loading, empty ("Nothing in the tickler"), offline and error states follow the existing list
       screens (Scheduled, Someday, Waiting)
   - verified (2026-11-23 19:03+0100 by dell26/agent-1): TicklerListTest loading/empty 'Nothing in the tickler'/stale offline read-only/error+retry via shared LiveTaskListContent -> pass; no pull-to-refresh, like Scheduled/Someday/Waiting (assumption recorded)
-- [ ] Data comes from the existing API if possible: `GET /api/v1/tasks?from=&to=` already returns tasks still in
+- [x] Data comes from the existing API if possible: `GET /api/v1/tasks?from=&to=` already returns tasks still in
       a tickler. Filter on `ticklerDate` after today on the client. Only if that can't return all of them reliably
       (paging, open-ended range), add a server filter (e.g. `tickler=pending`), regenerate `api/openapi.yaml`, and
       record the decision with `tasks.py assume`
+  - verified (2026-11-23 19:03+0100 by dell26/agent-1): TicklerRepositoryTest (mock server): 10 yearly GET /api/v1/tasks?from=&to= windows <=365 days, client filter ticklerDate>today, dedupe, paging -> pass; no server change (10-year horizon recorded via assume)
 - [ ] All new strings exist in English and German; unit/Compose tests cover the criteria above;
       `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes (and `cd server && ./gradlew check`
       if the server changed)
