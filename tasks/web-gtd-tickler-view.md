@@ -24,3 +24,4 @@ there and when it returns. SPEC.md is updated by `and-gtd-tickler-view`; don't e
       the server filter that task added); no other server change here
 - [ ] New strings are in `messages.xlf` and `messages.de.xlf`; unit tests cover the criteria above;
       `cd web && npm run check` passes
+- ASSUMPTION (2026-11-23 19:22+0100 by dell26/agent-1): Tickler view reads 10 yearly GET /api/v1/tasks?from=&to= windows starting tomorrow (server max 366 days), filters ticklerDate>today client-side, like and-gtd-tickler-view; tickler dates more than 10 years ahead are not listed. Date shown as 'Back on EEE, d MMM' (+ year outside the current year, 'Back tomorrow' for tomorrow); German 'Zurück am …' uses the same pattern. No separate offline state: like Scheduled/Someday/Waiting, a failed load shows the error with retry.
