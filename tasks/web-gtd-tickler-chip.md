@@ -29,9 +29,10 @@ Server and API stay unchanged. SPEC.md is updated by `and-gtd-tickler-chip`; don
 - [x] One name everywhere in the web app: "Tickler" (EN) / "Wiedervorlage" (DE) in the form, task detail and Inbox
       processing, with the hint "Hidden until then; on that day it comes back to the Inbox." (and German)
   - verified (2026-11-23 18:39+0100 by felix/agent-1): cd web && npx ng test --watch=false --include='src/app/features/gtd/**/*.spec.ts' --include='src/locale/**/*.spec.ts' -> 1009 passed (form option/label 'Tickler'+'Tickler date', inbox-page.spec 'T puts the item in a tickler' asserts 'Tickler date' + hint; messages.de.xlf: Wiedervorlage / Wiedervorlage am / hint DE; locale messages-de.spec passes)
-- [ ] Next Actions view (`features/gtd/next`): open NEXT tasks with `releasedOn` == today (user's local date) show a
+- [x] Next Actions view (`features/gtd/next`): open NEXT tasks with `releasedOn` == today (user's local date) show a
       "New today" / "Neu heute" badge (text, not color only) and are listed first, in their normal order among
       themselves; from the next day on they show and sort normally. Filters and presets still apply
+  - verified (2026-11-23 18:40+0100 by felix/agent-1): cd web && npx ng test --watch=false --include='src/app/features/gtd/**/*.spec.ts' --include='src/locale/**/*.spec.ts' -> 1009 passed (next-view.spec 'new today': badge text 'New today' + first in stable order, with context filter; isNewToday/newTodayFirst next day sorts normally)
 - [ ] New strings are in `messages.xlf` and `messages.de.xlf`; unit tests cover the criteria above; `cd web && npm run check` passes
 - ASSUMPTION (2026-11-23 18:34+0100 by felix/agent-1): Tickler date input is labeled 'Tickler date'/'Wiedervorlage am' in both the form and Inbox processing (replacing 'Back in the inbox on'), so the feature has one name; the hint text is a shared i18n unit gtd.tickler.hint.
 - ASSUMPTION (2026-11-23 18:34+0100 by felix/agent-1): Choosing Tickler again after another list restores the task's stored tickler date (empty for a new tickler); an empty tickler shows the error 'Pick the date it comes back.' and blocks Save. Date input min is tomorrow (validation unchanged: > today unless unchanged).
