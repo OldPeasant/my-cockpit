@@ -17,8 +17,9 @@ there and when it returns. SPEC.md is updated by `and-gtd-tickler-view`; don't e
       `/tickler`, lists all open tasks with a tickler date after today, sorted by that date (then by their usual
       order), each showing the date it comes back. Tasks whose tickler date has come are not shown
   - verified (2026-11-23 19:29+0100 by dell26/agent-1): npx ng test --watch=false --include src/app/features/gtd/lists/tickler-page.spec.ts -> pass: nav entry {id:tickler,path:/tickler,label:Tickler} right after Scheduled + gtd.routes 'tickler'; lists open tasks with ticklerDate>today sorted by date then position with 'Back tomorrow'/'Back on Fri, 12 Mar'/'... 2028' labels; tickler date today, due-only and done tasks hidden
-- [ ] Opening a row opens the task detail, where the date can be changed or another list chosen; the view reflects
+- [x] Opening a row opens the task detail, where the date can be changed or another list chosen; the view reflects
       the change afterwards. Rows support completing a task like the other list views
+  - verified (2026-11-23 19:29+0100 by dell26/agent-1): tickler-page.spec.ts -> pass: row title click navigates ['/tasks', id] (shared task detail with tickler form); re-render after detail change shows new date/drops task that left tickler; TASK UPDATED event reloads; checkbox completes (If-Match) and row leaves, failed completion restores it
 - [ ] Loading, empty ("Nothing in the tickler"), offline and error states follow the existing list pages
       (`features/gtd/lists`: Scheduled, Someday, Waiting)
 - [ ] Data comes from the API the Android task uses (`GET /api/v1/tasks?from=&to=` filtered on `ticklerDate`, or
