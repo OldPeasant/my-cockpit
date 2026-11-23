@@ -39,10 +39,11 @@ Known from the CI history (last 40 runs of `ci.yml`, `gh run view <id> -R OldPea
       be done without changing production code. Every failure that appears is analysed and fixed the same way;
       `reviews/<id>/tests.md` lists each run with its result and each flaky test with its cause and fix
   - verified (2026-11-23 21:22+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest --rerun-tasks --continue run 3x (sweep-log.md): run1 normal load -> SUCCESS 4m30s; run2 12 busy-loop procs + --max-workers=16 -> SUCCESS 12m46s; run3 JAVA_TOOL_OPTIONS=-Duser.timezone=GMT+03:41 so local 23:57->00:02 -> SUCCESS 4m38s; 0 failures, so no new flaky test to fix
-- [ ] A grep-based check of the test sources for the patterns found (waiting for a UI change instead of the effect
+- [x] A grep-based check of the test sources for the patterns found (waiting for a UI change instead of the effect
       checked; counters/lists changed on background threads without synchronization; real `Clock`/`LocalTime.now()`/
       `LocalDate.now()` in Compose tests that render time-dependent UI; asserting an exact directory listing) is done,
       and suspicious hits are fixed or explained in `tests.md`
+  - verified (2026-11-23 21:22+0100 by dell26/agent-1): grep sweep of android/app/src/test/java for waitUntil-on-disappearance, synchronizedList/mutableList/var counters touched by background threads, LocalDate/LocalTime/Clock.now in Compose tests, listFiles assertions: commands, hits and verdicts in tests.md + sweep-log.md; no further race needing a fix; 2 sub-second midnight exposures (DashboardScreenTest, TaskDetailListFieldsTest) explained (needs prod clock injection)
 - [ ] Test code only; production code unchanged unless a real bug is found (then record it with `tasks.py assume`)
 - [ ] After all fixes, the full Android unit suite passes locally 3 times in a row
       (`./gradlew testDebugUnitTest --rerun-tasks`, final code), and `cd android && ./gradlew ktlintCheck
