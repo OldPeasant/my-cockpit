@@ -16,7 +16,14 @@ class NextNewTodayTest {
     private fun task(
         n: Int,
         releasedOn: LocalDate? = null,
-    ) = GtdTask(UUID.fromString("00000000-0000-7000-8000-%012d".format(n)), "Task $n", TaskList.NEXT, n, version = 1, releasedOn = releasedOn)
+    ) = GtdTask(
+        UUID.fromString("00000000-0000-7000-8000-%012d".format(n)),
+        "Task $n",
+        TaskList.NEXT,
+        n,
+        version = 1,
+        releasedOn = releasedOn,
+    )
 
     @Test
     fun `only a Next task released today is new today`() {

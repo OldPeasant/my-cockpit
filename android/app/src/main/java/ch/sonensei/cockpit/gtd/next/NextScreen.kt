@@ -216,7 +216,14 @@ fun NextContent(
                         contentPadding = PaddingValues(bottom = LocalFabClearance.current),
                     ) {
                         items(state.tasks, key = { it.id }) { task ->
-                            TaskRow(task, contexts, state.today, state.offline, callbacks.complete, newToday = isNewToday(task, state.today))
+                            TaskRow(
+                                task,
+                                contexts,
+                                state.today,
+                                state.offline,
+                                callbacks.complete,
+                                newToday = isNewToday(task, state.today),
+                            )
                         }
                     }
                 state.firstLoadFailed -> LoadFailed(callbacks.retry, Modifier.testTag(TaskListTags.ERROR))

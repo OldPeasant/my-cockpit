@@ -395,7 +395,6 @@ class NextViewModel internal constructor(
     }
 }
 
-/** [block]'s result, or `null` when it threw (cancellation is passed on). */
 /** Whether [task] came back from Scheduled on [today]: the Next view marks it "New today". */
 internal fun isNewToday(
     task: GtdTask,
@@ -408,6 +407,7 @@ internal fun newTodayFirst(
     today: LocalDate,
 ): List<GtdTask> = tasks.sortedBy { !isNewToday(it, today) }
 
+/** [block]'s result, or `null` when it threw (cancellation is passed on). */
 private suspend fun <T> catching(block: suspend () -> T): T? =
     try {
         block()
