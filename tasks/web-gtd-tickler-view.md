@@ -20,8 +20,9 @@ there and when it returns. SPEC.md is updated by `and-gtd-tickler-view`; don't e
 - [x] Opening a row opens the task detail, where the date can be changed or another list chosen; the view reflects
       the change afterwards. Rows support completing a task like the other list views
   - verified (2026-11-23 19:29+0100 by dell26/agent-1): tickler-page.spec.ts -> pass: row title click navigates ['/tasks', id] (shared task detail with tickler form); re-render after detail change shows new date/drops task that left tickler; TASK UPDATED event reloads; checkbox completes (If-Match) and row leaves, failed completion restores it
-- [ ] Loading, empty ("Nothing in the tickler"), offline and error states follow the existing list pages
+- [x] Loading, empty ("Nothing in the tickler"), offline and error states follow the existing list pages
       (`features/gtd/lists`: Scheduled, Someday, Waiting)
+  - verified (2026-11-23 19:29+0100 by dell26/agent-1): tickler-page.spec.ts -> pass: 'Loading…' until all windows answer, empty 'Nothing in the tickler.', load failure (offline) shows role=alert 'The list could not be loaded.' + Try again retry, same markup as Scheduled/Someday/Waiting (they have no separate offline state; assumption recorded)
 - [ ] Data comes from the API the Android task uses (`GET /api/v1/tasks?from=&to=` filtered on `ticklerDate`, or
       the server filter that task added); no other server change here
 - [ ] New strings are in `messages.xlf` and `messages.de.xlf`; unit tests cover the criteria above;
