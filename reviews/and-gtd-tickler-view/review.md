@@ -4,7 +4,7 @@ Date: 2026-11-23
 
 Task: and-gtd-tickler-view - Android: Tickler list view (what comes back when)
 
-Scope: `git diff ad19e25d7..6cd38d1ca` (one implementation commit, committed changes only)
+Scope: `git diff ad19e25d7..76b14ce7e` (implementation commit 6cd38d1ca plus the test commit 76b14ce7e, committed changes only). This is round 2. Production code is unchanged since round 1 (6cd38d1ca), so this round reviews the new tests and rechecks CR-1.
 
 Requirements:
 - tasks/and-gtd-tickler-view.md acceptance criteria and recorded assumptions
@@ -14,13 +14,13 @@ Requirements:
 
 Git range:
 - Branch: main
-- HEAD: 6cd38d1ca
+- HEAD: 76b14ce7e
 - Base/start: ad19e25d7d90d000f8910e2aa566b04e765a09c6
-- Commits reviewed: 1
+- Commits reviewed: 2
 
-Summary: 0 P0, 1 P1, 0 P2, 0 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-Gradle was not run for this review (a test-writer was using the build directory at the same time). The review is based on reading the code.
+Validation run for this review: `cd android && ./gradlew testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.lists.Tickler*'` -> BUILD SUCCESSFUL. TicklerListTest 8, TicklerRepositoryTest 4, TicklerStringsTest 3, TicklerViewModelTest 7: 22 tests, 0 failures, 0 errors, 0 skipped.
 
 ## P0 Critical
 
@@ -28,12 +28,7 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | Reviewed revision has no tests for the Tickler view**
-    - File: `android/app/src/test/java/ch/sonensei/cockpit/gtd/lists/` (no Tickler test in the reviewed range; the only test change is one line in `ui/navigation/CockpitDestinationTest.kt:35`)
-    - Category: Tests
-    - Problem: Criterion 6 says "unit/Compose tests cover the criteria above". At 6cd38d1ca nothing tests `TaskListsRepository.observeTickler`/`loadTickler` (the 10 yearly windows, `to` inclusive at most 365 days, the filter to `ticklerDate` after today, and `distinctBy` for a task whose due date and tickler date fall in different windows), `byTicklerDate`, `TicklerViewModel`, `TicklerContent` (the "Back on" row text, the empty text "Nothing in the tickler", loading, offline and error states, completing a row), `backOnDate` (adds the year when the date is not in the current year), or the new EN/DE strings.
-    - Why it matters: The acceptance criterion is not met at the reviewed revision. The window arithmetic and the client-side filter are the parts most likely to break later.
-    - Suggested fix: Add tests modeled on `ScheduledViewModelTest`, `ScheduledListTest`, `TaskListsRepositoryTest` and `ScheduledStringsTest`. Check the server's 366-day limit by asserting the `from`/`to` pairs the fake API receives. This finding is resolved if the test-writer working in parallel adds this coverage and it passes.
+None.
 
 ## P2 Medium
 
@@ -43,15 +38,20 @@ None.
 
 None.
 
+## Status of round-1 findings
+
+- [x] **CR-1 | Reviewed revision has no tests for the Tickler view**: resolved in 76b14ce7e.
+    - `TicklerRepositoryTest` runs the real `TaskListsRepository` against MockWebServer. It asserts the exact `from`/`to` pairs of all 10 yearly windows (start tomorrow, no gaps, each window at most 365 days, so under the server's 366-day limit), that no `list` filter is sent, the client-side filter (a tickler date of today or earlier is dropped, a task without a tickler date is dropped), `distinctBy` across windows, paging within a year, and that a failing year makes the whole load an error instead of a partial list.
+    - `TicklerViewModelTest` checks that the clock's today is passed to the repository, the `byTicklerDate` order (date, then position, undated last), completing (optimistic hide, undo offer, reload), retry, the new order after a reload (the date was changed in the detail), read-only when offline, and the first-load error state.
+    - `TicklerListTest` (Robolectric Compose) checks the "Back on" row text with and without the year, no back-on line for an undated task, the complete checkbox (a busy row is disabled), tapping a row opens the detail through `LocalTaskOpener`, the empty text "Nothing in the tickler", the stale banner with rows read-only, loading, the first-load error with Retry, and the German row text and empty text.
+    - `TicklerStringsTest` checks that the EN/DE keys match, the German texts are translated, and only `tickler_back_on` has a placeholder.
+    - The tests check visible behavior and the HTTP requests, not internals. Mocks are only used where the view model test isolates the view model; the repository logic is covered against a real HTTP fake. No existing test was weakened. The only change to an existing test is the added Tickler entry in `CockpitDestinationTest`.
+
 ## Notes (verified, no finding)
 
-- Server contract: with `from`/`to`, `TaskService.specification` returns open, non-trashed tasks whose `dueDate` or `ticklerDate` is in the range, including tasks still in a tickler. The client's windows `[start, start+1y-1d]` give `DAYS.between` of at most 365, below the server's `>= 366` rejection. Windows start at today+1 and do not overlap. Paging uses the existing `allPages`. `completed` defaults to false, so done tasks are excluded.
-- The tickler `today` is read again on every load (`{ LocalDate.now(clock) }`), so the view stays correct after midnight. Tasks whose tickler date has come are filtered out on the client and are also moved to the Inbox on the server before the list is read.
-- Tapping a row opens the task detail through `LiveTaskRow` and `opensTask`. Edits reload the list through `TaskEdits.changes`. Completing, the stale banner, the loading, error, offline and empty states, and Retry all reuse the shared `LiveTaskListContent` and `LiveTaskListViewModel`, the same way Scheduled, Someday and Waiting do. There is no pull to refresh, which matches the existing live lists and is recorded as an assumption.
-- The secondary constructor that refactors `LiveTaskListViewModel` keeps the existing subclasses' behavior unchanged.
-- The destination is in `NavSection.More` right after Scheduled, with its own icon (`Alarm`). EN and DE strings were added, and SPEC.md §5.3 was updated as criterion 1 requires.
-- The 10-year horizon, the `GtdModels.kt` change outside `touches`, and the date-format choice are recorded assumptions.
+- Production code is identical to round 1. The round-1 notes still apply: the server contract and window arithmetic are correct, today is read again on every load, open/edit/complete/retry reuse the shared live-list components, the destination is placed next to Scheduled with its own icon, EN/DE strings and SPEC.md §5.3 were updated, and the 10-year horizon, the `GtdModels.kt` change outside `touches`, no pull to refresh, and the date format are recorded assumptions.
+- `ktlintCheck` and `lintDebug` (criterion 6) were not run for this review. The parent worker runs them in `.taskcheck` and records them as evidence.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 (tests for the Tickler view) is the only finding. It is resolved if the test-writer's tests cover it. The production code was found correct.
+No material issues found. CR-1 is resolved by the tests in 76b14ce7e, which pass.
