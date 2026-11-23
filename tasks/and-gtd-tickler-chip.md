@@ -1,11 +1,11 @@
 ---
 title: Android: Tickler as list choice, 'new today' marker in Next
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [SPEC.md,android/app/src/main/java/ch/sonensei/cockpit/gtd/task,android/app/src/main/java/ch/sonensei/cockpit/gtd/next,android/app/src/main/java/ch/sonensei/cockpit/gtd/inbox,android/app/src/test/java/ch/sonensei/cockpit/gtd,android/app/src/main/res/values/strings_task_detail.xml,android/app/src/main/res/values-de/strings_task_detail.xml,android/app/src/main/res/values/strings_inbox.xml,android/app/src/main/res/values-de/strings_inbox.xml,android/app/src/main/res/values/strings_next_today.xml,android/app/src/main/res/values-de/strings_next_today.xml]
 prio: 2
-lease_until: 2026-11-23T18:13:56Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -62,3 +62,4 @@ gets the same change in its own task (`web-gtd-tickler-chip`).
 - The calendar overlay's "Back from tickler" label may stay.
 - ASSUMPTION (2026-11-23 18:18+0100 by dell26/agent-1): Android form: the Tickler date field shows only while the Tickler chip is chosen; the scheduled date field stays always visible (setting a scheduled date picks Scheduled and clears the tickler). A tickler date restored on a task stored on another list saves to INBOX only when the date changes; unchanged it moves nothing. Inbox tickler prompt title became 'Tickler: hidden until' plus the shared hint.
 - release by dell26/agent-1: Implemented: TaskDraft.tickler/onTickler/targetList (TaskDetailViewModel.kt), Tickler chip between Scheduled and Someday, tickler date field only for Tickler, strings EN/DE renamed to Tickler/Wiedervorlage, inbox prompt hint, Next 'New today' marker (TaskRow newToday, isNewToday/newTodayFirst in NextViewModel.kt), SPEC 5.1/5.3, new tests (TaskDetailListFieldsTest tickler section, NextNewTodayTest, NextScreenTest marker) pass. LEFT: 8 old tests encode the replaced behaviour (tickler combined with a list) and must be rewritten to the new rules: TaskDraftListTest (5: tickler tests) and TaskDetailViewModelRelistTest (3); see .tmp-less: run android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.*'. Then quality gate (test-writer, code-reviewer), verify criteria, done. Nothing verified yet.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 82s on 004409c06; criteria verified 6/6
