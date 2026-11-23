@@ -1,11 +1,11 @@
 ---
 title: Android: Tickler list view (what comes back when)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [and-gtd-tickler-chip]
 touches: [SPEC.md,android/app/src/main/java/ch/sonensei/cockpit/gtd/lists,android/app/src/test/java/ch/sonensei/cockpit/gtd/lists,android/app/src/main/java/ch/sonensei/cockpit/ui/navigation,android/app/src/main/java/ch/sonensei/cockpit/ui/CockpitShell.kt,android/app/src/main/res/values/strings_projects_lists.xml,android/app/src/main/res/values-de/strings_projects_lists.xml]
 prio: 2
-lease_until: 2026-11-23T18:28:59Z
+lease_until: 
 ---
 ## Goal
 Tasks with a future tickler date are hidden from every list until that date (SPEC.md §5.1). The only place they show up
@@ -45,3 +45,4 @@ and when it will come back, which GTD's Weekly Review expects. Add a **Tickler**
 - ASSUMPTION (2026-11-23 18:57+0100 by dell26/agent-1): Tickler view loads via existing GET /tasks?from=&to= (max 366 days per call) year by year for the next 10 years and filters ticklerDate > today on the client; no server filter added. Tickler dates more than 10 years ahead are not shown (one request per year per load).
 - ASSUMPTION (2026-11-23 18:57+0100 by dell26/agent-1): Added ticklerDate (default null) to GtdTask in gtd/data/GtdModels.kt (outside touches) so live lists carry it; cached Room mapping leaves it null. No pull-to-refresh: existing live lists (Scheduled/Someday/Waiting) reload on change events and offer Retry, so Tickler follows that.
 - ASSUMPTION (2026-11-23 18:57+0100 by dell26/agent-1): Return date formatted with Android best pattern for skeleton EEEdMMM (year added when not this year), e.g. 'Back on Mon, Dec 14' (en-US) / 'Zurück am Mo., 14. Dez.'; icon Icons.Outlined.Alarm.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 76s on 127ec26b5; criteria verified 6/6
