@@ -50,8 +50,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowToast
-import java.util.Collections
 import java.util.UUID
+import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Inject
 
 /**
@@ -74,7 +74,9 @@ class SearchRouteInAppTest {
     @Inject lateinit var serverUrls: ServerUrlRepository
 
     private val server = MockWebServer()
-    private val requests: MutableList<String> = Collections.synchronizedList(mutableListOf())
+    // Written by MockWebServer's thread while the test reads it: a synchronized list would throw
+    // ConcurrentModificationException when filtered during a write, a copy-on-write list iterates a snapshot.
+    private val requests: MutableList<String> = CopyOnWriteArrayList()
     private var scenario: ActivityScenario<MainActivity>? = null
 
     @Before

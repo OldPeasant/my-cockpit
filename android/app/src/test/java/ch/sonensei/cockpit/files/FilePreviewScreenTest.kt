@@ -47,6 +47,7 @@ import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 /** The in-app preview over the Files list, driven by states the tests control; PDFs come from a fake renderer. */
 @RunWith(AndroidJUnit4::class)
@@ -125,11 +126,12 @@ class FilePreviewScreenTest {
 
     /** An image loader that answers every request from memory, failing the first [failures] times; it never goes online. */
     private fun images(failures: Int = 0): Pair<ImageLoader, () -> Int> {
-        var requests = 0
+        // Coil fetches on a background thread, so the count must be thread-safe.
+        val requests = AtomicInteger()
         val factory =
             Fetcher.Factory<Uri> { _, _, _ ->
                 Fetcher {
-                    if (++requests <= failures) throw IOException("fictitious failure")
+                    if (requests.incrementAndGet() <= failures) throw IOException("fictitious failure")
                     ImageFetchResult(Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888).asImage(), false, DataSource.MEMORY)
                 }
             }
@@ -139,7 +141,7 @@ class FilePreviewScreenTest {
                 .memoryCache(null)
                 .components { add(factory) }
                 .build()
-        return loader to { requests }
+        return loader to { requests.get() }
     }
 
     @Test
@@ -301,7 +303,11 @@ class FilePreviewScreenTest {
         state.value = preview(0, PreviewContent.Image).copy(entries = emptyList())
 
         assertEquals(listOf("retry"), calls)
-        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithTag(PreviewTags.PROBLEM).fetchSemanticsNodes().isEmpty() }
+        // The notice goes as soon as the retry starts, and the image node (named while it loads) appears with it; the
+        // second fetch runs on Coil's thread, so wait for the fetch itself, then check nothing failed again.
+        composeRule.waitUntil(WAIT_MS) { requests() >= 2 }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(PreviewTags.PROBLEM).assertDoesNotExist()
         assertEquals(2, requests())
     }
 
@@ -316,6 +322,10 @@ class FilePreviewScreenTest {
         state.value = preview(1, PreviewContent.Image, list).copy(entries = emptyList())
         composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithTag(PreviewTags.PROBLEM).fetchSemanticsNodes().isEmpty() }
         composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithContentDescription("Strand.png").fetchSemanticsNodes().isNotEmpty() }
+        // The named image node appears while it is still loading: wait for the fetch on Coil's thread itself.
+        composeRule.waitUntil(WAIT_MS) { requests() >= 2 }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(PreviewTags.PROBLEM).assertDoesNotExist()
         assertEquals(2, requests())
     }
 
