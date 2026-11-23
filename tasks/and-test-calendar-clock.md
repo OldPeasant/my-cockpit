@@ -35,3 +35,4 @@ correct; the test is not deterministic.
   - verified (2026-11-23 20:24+0100 by dell26/agent-1): git diff --stat 3a3055d49..HEAD -- android/app/src/main -> empty; only android/app/src/test calendar files changed; no production problem found (firstVisibleHour opening today at the current hour is intended)
 - [x] `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
   - verified (2026-11-23 20:30+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug (HEAD 7b205a57a) -> BUILD SUCCESSFUL in 4m19s, 314 test result files, no failures
+  - verified (2026-11-23 20:30+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug (HEAD 7b205a57a) -> BUILD SUCCESSFUL in 4m19s, rc=0, 477 test result files, no failures
