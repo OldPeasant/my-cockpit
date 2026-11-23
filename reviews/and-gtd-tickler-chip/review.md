@@ -4,29 +4,46 @@ Date: 2026-11-23
 
 Task: and-gtd-tickler-chip - Android: Tickler as list choice, 'new today' marker in Next
 
-Scope: `git diff c4b38a016..HEAD -- android SPEC.md` (committed changes only; static review, Gradle not run per parent instruction)
+Scope: `git diff c4b38a016..d67981b30 -- android SPEC.md` (committed changes only; static review, Gradle not run per parent instruction). Round 1 reviewed up to 06a4d696c; round 2 reviewed the delta `git diff 06a4d696c..d67981b30 -- android` on top of it.
 
 Requirements:
 - tasks/and-gtd-tickler-chip.md acceptance criteria and recorded assumption
 - SPEC.md §5.1 / §5.3
 - AGENTS.md project notes (strings EN/DE, lint, conventions)
+- reviews/and-gtd-tickler-chip/fixes.md (claimed fix of CR-2)
 
 Git range:
 - Branch: main
-- HEAD: 06a4d696c0435a1a274233a63b3ca314693bf5e2
+- HEAD: d67981b3001b19e0b139bd3248cc188bb51707ad
 - Base/start: c4b38a01604c4325040f5e24b58e651b8c797045
-- Commits reviewed: 5 (0d14ce0d7, fd5a765f3, 2dfad2f5c, 88bde0bbc, 06a4d696c; plus merge 65bed3ed7 bringing them in)
+- Commits reviewed: 7 (round 1: 0d14ce0d7, fd5a765f3, 2dfad2f5c, 88bde0bbc, 06a4d696c via merge 65bed3ed7; round 2: f2f53f918 tests only, d67981b30 CR-2 fix plus regression test)
+- Uncommitted changes: none at review start
 
-Summary: 0 P0, 0 P1, 1 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3 open (round 1 findings CR-1 P2 and CR-2 P3 are resolved, see below)
 
 ## Criteria check
 
 - SPEC §5.1/§5.3: both rules documented (form chip order, `list = INBOX` + `ticklerDate`, tickler wins, other chip clears, "New today" first, filters apply, next-day normal). Met.
-- Form chips Inbox, Next, Waiting For, Scheduled, Tickler, Someday; Tickler requires a date (Required) and a future one on a move (NotFuture); saves `TaskMove(INBOX, ticklerDate)`; separate "Comes back" field removed (tickler date field only while Tickler is chosen). Met (`TaskDetailListFields.kt:68-110`, `TaskDetailViewModel.kt:116-172`).
-- Tickler wins on open (`TaskDraft.of(detail)` sets `tickler`), other chip clears via `onList`/`scheduledOn`, Scheduled still requires a date, unchanged save sends neither move nor patch (`move` compares the stored list and tickler). Met; covered by TaskDetailListFieldsTest and TaskDraftListTest.
-- One name: `task_detail_tickler`, `task_detail_tickler_date`, `inbox_action_tickler`, `inbox_prompt_tickler` and hints in EN/DE use Tickler/Wiedervorlage; no "Comes back"/"Kommt zurück" remains in resources. Met.
-- Next "New today": text label with content description, sorted first with a stable sort after filtering (`NextViewModel.kt:221`, `398-408`), only `list == NEXT && releasedOn == today`. Met.
-- Strings in EN and DE: all new keys present in both. Test coverage: see CR-1.
+- Form chips Inbox, Next, Waiting For, Scheduled, Tickler, Someday; Tickler requires a date (Required) and a future one on a move (NotFuture); saves `TaskMove(INBOX, ticklerDate)`; separate "Comes back" field removed. Met (`TaskDetailListFields.kt`, `TaskDetailViewModel.kt`).
+- Tickler wins on open, other chip clears, Scheduled still requires a date, unchanged save sends neither move nor patch. Met; covered by TaskDetailListFieldsTest and TaskDraftListTest (round 2 added cases for tickled Waiting/Scheduled/Someday/Inbox tasks, scheduled date while Tickler chosen, and no patch of list-bound fields).
+- One name: Tickler/Wiedervorlage in form, detail view and Inbox processing, EN and DE; no "Comes back"/"Kommt zurück" left. Met; now asserted by TaskDetailStringsTest, TaskDetailContentTest and InboxScreenTest.
+- Next "New today": label with content description, released-today tasks first via stable sort after filtering, only `list == NEXT && releasedOn == today`. Met; now covered end to end through NextViewModel (NextViewModelNewTodayTest).
+- Strings in EN and DE: all new keys present in both, asserted in TaskDetailStringsTest.
+
+## Round 1 findings, status at d67981b30
+
+- [x] **CR-1 | Inbox tickler prompt and Next ViewModel wiring are untested** (P2) - Resolved.
+    - `InboxScreenTest.kt:205` opens the Tickler prompt and asserts the title "Tickler: hidden until" (matches `strings_inbox.xml:52`) and the hint (`strings_inbox.xml:53`), and that the Schedule prompt shows no hint (matches `InboxScreen.kt:592-600`).
+    - `NextViewModelNewTodayTest.kt` drives the real `NextViewModel` (constructor signature matches `NextViewModel.kt:165-173`) with a fixed clock: released-today first in stable order, context and energy filters still hide non-matching released-today tasks, a preset still applies, next day keeps normal order, and "today" is the local zone date (Europe/Zurich across UTC midnight).
+- [x] **CR-2 | Stale "Pick the day it comes back." error after switching away from Tickler and back** (P3) - Resolved.
+    - `TaskDetailViewModel.kt:873` now reads `TaskField.TICKLER -> a.ticklerDate != b.ticklerDate || a.tickler != b.tickler`, so `edit` (`TaskDetailViewModel.kt:468-475`) drops the TICKLER problem when the chip choice changes. This mirrors how SCHEDULED and WAITING_FOR already include the list change.
+    - Regression test `TaskDetailViewModelRelistTest.kt:205` saves Tickler without a date (Required), picks Next (problems empty), picks Tickler again (still empty, nothing sent). It exercises the exact path of the finding.
+
+## Round 2 delta observations
+
+- The production change is the single line above; no other main-source changes in the delta.
+- New tests assert user-visible behavior (texts, selection state, sent `TaskMove`/patch, `uiState.tasks` order) rather than internals; mocks are limited to repositories feeding flows and do not hide the behavior under test. No existing test was removed or weakened.
+- Test data is fictitious (example names, made-up tasks).
 
 ## P0 Critical
 
@@ -38,22 +55,12 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Inbox tickler prompt and Next ViewModel wiring are untested**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/inbox/InboxScreen.kt:598`, `android/app/src/main/java/ch/sonensei/cockpit/gtd/next/NextViewModel.kt:221`
-    - Category: Tests
-    - Problem: No test references the new Inbox prompt title ("Tickler: hidden until") or its hint `inbox_prompt_tickler_hint` (grep over `src/test` and `src/androidTest` finds them only in TaskDetailListFieldsTest, for the form hint). The "New today" ordering is tested only through the pure helpers `isNewToday`/`newTodayFirst` (NextNewTodayTest); no NextViewModel test checks that `uiState.tasks` puts released-today tasks first and that an active filter or preset still excludes a released-today task that does not match.
-    - Why it matters: Criterion 6 asks that unit/Compose tests cover criteria 4 and 5; the Inbox-processing naming/hint and "filters and presets still apply to them" are part of those criteria and could regress (for example, sorting before filtering or dropping the hint) without a failing test.
-    - Suggested fix: Add an InboxScreen Compose test opening the Tickler date prompt and asserting the title and hint text; add a NextViewModel test with a fake repository emitting tasks with `releasedOn = today` (fixed clock) asserting order in `uiState.tasks` and that a non-matching released-today task is filtered out.
+None open.
 
 ## P3 Low
 
-- [ ] **CR-2 | Stale "Pick the day it comes back." error after switching away from Tickler and back**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/gtd/task/TaskDetailViewModel.kt:873`
-    - Category: Correctness
-    - Problem: `changed(TaskField.TICKLER, a, b)` compares only `ticklerDate`. After saving with Tickler chosen but no date (Required problem), picking another chip sets `tickler = false` while `ticklerDate` stays `null`, so the TICKLER problem is not removed from `state.problems`. Choosing Tickler again shows the Required error immediately, before any save attempt. (Save itself recomputes problems, so nothing wrong is sent.)
-    - Why it matters: Minor UX inconsistency with the rule in `edit` that "a field changed by the user no longer shows its old problem"; the tickler choice is now part of that field.
-    - Suggested fix: Make the TICKLER case `a.ticklerDate != b.ticklerDate || a.tickler != b.tickler`.
+None open.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. (Only a P2 test gap and a P3 polish item; no correctness, integration or security defects in the reviewed scope.)
+No material issues found. CR-1 and CR-2 from round 1 are resolved in d67981b30; the final revision meets the task acceptance criteria on static review (test execution is left to the parent worker and the test-writer, Gradle was not run here).
