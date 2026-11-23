@@ -13,9 +13,10 @@ Scheduled, listing every task still in the tickler with the date it comes back, 
 there and when it returns. SPEC.md is updated by `and-gtd-tickler-view`; don't edit it here.
 
 ## Acceptance criteria
-- [ ] A "Tickler" / "Wiedervorlage" entry in the navigation next to Scheduled (`shell/nav-sections.ts`), route
+- [x] A "Tickler" / "Wiedervorlage" entry in the navigation next to Scheduled (`shell/nav-sections.ts`), route
       `/tickler`, lists all open tasks with a tickler date after today, sorted by that date (then by their usual
       order), each showing the date it comes back. Tasks whose tickler date has come are not shown
+  - verified (2026-11-23 19:29+0100 by dell26/agent-1): npx ng test --watch=false --include src/app/features/gtd/lists/tickler-page.spec.ts -> pass: nav entry {id:tickler,path:/tickler,label:Tickler} right after Scheduled + gtd.routes 'tickler'; lists open tasks with ticklerDate>today sorted by date then position with 'Back tomorrow'/'Back on Fri, 12 Mar'/'... 2028' labels; tickler date today, due-only and done tasks hidden
 - [ ] Opening a row opens the task detail, where the date can be changed or another list chosen; the view reflects
       the change afterwards. Rows support completing a task like the other list views
 - [ ] Loading, empty ("Nothing in the tickler"), offline and error states follow the existing list pages
