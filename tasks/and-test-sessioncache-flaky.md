@@ -18,9 +18,10 @@ database, and opening that database makes the androidx SQLite helper create a `c
 fails. A lock file in the cache after logout is harmless, so the test is wrong, not the production code.
 
 ## Acceptance criteria
-- [ ] Both `the cache directory is emptied, including subfolders, but kept itself` and `the files feature's previewed
+- [x] Both `the cache directory is emptied, including subfolders, but kept itself` and `the files feature's previewed
       and opened files go with the logout` check that the files and folders the test created are gone (and that
       `cacheDir` itself still exists), not that `cacheDir` is exactly empty. They still fail if the clear does nothing
+  - verified (2026-11-23 19:43+0100 by dell26/agent-1): Both tests now use assertCleared (cacheDir is a directory and every entry the test created is gone); new test 'the checks still fail when the clear does nothing' (no-op SessionCache) asserts assertCleared throws. android/gradlew -p android testDebugUnitTest --tests SessionCacheTest -> 5 tests, 0 failures
 - [x] The race is reproduced and shown fixed: a test variant (or a temporary local run) that creates a
       `capture_queue.db.lck`-like file in `cacheDir` after the clear passes with the new checks
   - verified (2026-11-23 19:40+0100 by dell26/agent-1): Added test 'a lock file the app creates in the cache right after the clear does not fail the checks' (writes capture_queue.db.lck into cacheDir after clear). Temporarily added the old exact-empty assertion to it: gradlew testDebugUnitTest --tests SessionCacheTest -> FAILED with expected:<[]> but was:<[capture_queue.db.lck]> (the CI message); with the new checks -> 5 tests, 0 failures
