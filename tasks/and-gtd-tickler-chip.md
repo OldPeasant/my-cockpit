@@ -49,8 +49,9 @@ gets the same change in its own task (`web-gtd-tickler-chip`).
       normal order among themselves; from the next day on they show and sort like any other task. Filters and
       presets still apply to them
   - verified (2026-11-23 18:45+0100 by dell26/agent-1): same run -> NextViewModelNewTodayTest (released today first in stable order, filters/presets apply, next day normal, local date Europe/Zurich), NextNewTodayTest, NextScreenTest marker text + content description pass
-- [ ] All new UI strings exist in English and German; unit/Compose tests cover the criteria above;
+- [x] All new UI strings exist in English and German; unit/Compose tests cover the criteria above;
       `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes
+  - verified (2026-11-23 18:52+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug on 0538a0c0d -> BUILD SUCCESSFUL, EXIT 0; EN+DE strings asserted by TaskDetailStringsTest/InboxScreenTest; criteria covered by TaskDetailListFieldsTest, TaskDraftListTest, TaskDetailViewModelRelistTest, NextViewModelNewTodayTest (reviews/and-gtd-tickler-chip/tests.md)
 
 ## Notes
 - Form: `android/app/src/main/java/ch/sonensei/cockpit/gtd/task/TaskDetailListFields.kt` (`FORM_LISTS`, `ListFields`),
