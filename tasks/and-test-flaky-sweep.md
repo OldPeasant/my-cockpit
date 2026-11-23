@@ -30,8 +30,9 @@ Known from the CI history (last 40 runs of `ci.yml`, `gh run view <id> -R OldPea
 - [x] `FilePreviewScreenTest` retry test fixed: after Retry it waits for the loaded image (or the request count), and the
       counter is thread-safe (e.g. `AtomicInteger`); other tests in the file with the same pattern too
   - verified (2026-11-23 21:21+0100 by dell26/agent-1): e2b7c9074: AtomicInteger counter, retry and next-image tests wait for requests()>=2 (waitUntil 5s) then assert exactly 2; code-reviewer + test-writer confirmed (reviews/and-test-flaky-sweep/review.md, tests.md); 3 full suite runs incl. load -> FilePreviewScreenTest passed each time
-- [ ] `SearchRouteInAppTest > a filter chip searches for its types right away`: cause found and fixed (or, if it can't be
+- [x] `SearchRouteInAppTest > a filter chip searches for its types right away`: cause found and fixed (or, if it can't be
       reproduced or explained, the analysis and what was ruled out recorded in `reviews/<id>/tests.md`)
+  - verified (2026-11-23 21:21+0100 by dell26/agent-1): Cause: searchRequests() filter iterated a Collections.synchronizedList without its lock while MockWebServer's dispatcher appended -> ConcurrentModificationException (seen locally 2026-11-02); fixed with CopyOnWriteArrayList in e2b7c9074; analysis in tests.md; 3 full suite runs -> SearchRouteInAppTest passed each time
 - [ ] Sweep for more: the full Android unit suite (`./gradlew testDebugUnitTest --rerun-tasks`) is run at least 3 times,
       once with the JVM under load (e.g. `--max-workers` raised or another build in parallel, to mimic the slower CI
       runner), and once with the system clock or the tests' clocks late in the evening/around midnight UTC where that can
