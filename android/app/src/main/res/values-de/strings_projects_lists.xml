@@ -39,6 +39,11 @@
     <string name="scheduled_yesterday">Gestern</string>
     <string name="scheduled_no_date">Kein Datum</string>
 
+    <!-- Wiedervorlage: Aufgaben, die bis zu ihrem Datum ausgeblendet sind -->
+    <string name="nav_tickler">Wiedervorlage</string>
+    <string name="tickler_empty">Nichts auf Wiedervorlage</string>
+    <string name="tickler_back_on">Zurück am %1$s</string>
+
     <!-- Projekte -->
     <plurals name="projects_stalled_count">
         <item quantity="one">%d Projekt hat keinen nächsten Schritt</item>

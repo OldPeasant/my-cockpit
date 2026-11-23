@@ -36,6 +36,8 @@ data class GtdTask(
     val scheduledDate: LocalDate? = null,
     /** The day the server moved the task from SCHEDULED to NEXT on its scheduled date (which it then clears). */
     val releasedOn: LocalDate? = null,
+    /** While after today, the task is hidden in a tickler and comes back to the Inbox on this date (SPEC.md §5.1). */
+    val ticklerDate: LocalDate? = null,
     val energy: Energy? = null,
     val creativity: Creativity? = null,
     val timeEstimateMin: Int? = null,

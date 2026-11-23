@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.AccountTree
+import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Checklist
@@ -55,6 +56,7 @@ enum class CockpitDestination(
     Waiting("waiting", R.string.nav_waiting, Icons.Outlined.HourglassEmpty, NavSection.More),
     Someday("someday", R.string.nav_someday, Icons.Outlined.Lightbulb, NavSection.More),
     Scheduled("scheduled", R.string.nav_scheduled, Icons.Outlined.Schedule, NavSection.More),
+    Tickler("tickler", R.string.nav_tickler, Icons.Outlined.Alarm, NavSection.More),
     Logbook("logbook", R.string.nav_logbook, Icons.Outlined.TaskAlt, NavSection.More),
     Notes("notes", R.string.nav_notes, Icons.Outlined.Description, NavSection.More),
     Files("files", R.string.nav_files, Icons.Outlined.Folder, NavSection.More),

@@ -39,6 +39,11 @@
     <string name="scheduled_yesterday">Yesterday</string>
     <string name="scheduled_no_date">No date</string>
 
+    <!-- Tickler: tasks hidden until their tickler date -->
+    <string name="nav_tickler">Tickler</string>
+    <string name="tickler_empty">Nothing in the tickler</string>
+    <string name="tickler_back_on">Back on %1$s</string>
+
     <!-- Projects -->
     <plurals name="projects_stalled_count">
         <item quantity="one">%d project has no next step</item>

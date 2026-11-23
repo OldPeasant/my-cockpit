@@ -292,6 +292,10 @@ Rules:
   drag reorder, next-step marker, notes, linked items).
 - Waiting For list sorted by `waitingSince`, with "follow up" action (creates task or
   drafts email to the contact).
+- **Tickler view** (next to Scheduled): all open tasks with a `ticklerDate` after today, sorted by
+  that date, then by their usual order; each row shows the date it comes back ("Back on Mon, 14 Dec" /
+  "Zurück am Mo., 14. Dez."). Tasks whose tickler date has come are back in the Inbox and not shown.
+  Opening a row opens the task detail, where the date or the list can be changed.
 - Logbook (completed), Trash.
 - **New view** (combined, read-only aggregation): one list of everything new, i.e. the GTD
   Inbox items (§5.1) and the messages in the unified mail inbox (§7.3), merged newest first

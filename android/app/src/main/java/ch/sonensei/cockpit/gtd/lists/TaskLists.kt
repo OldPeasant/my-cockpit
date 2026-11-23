@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.merge
+import java.time.LocalDate
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -121,6 +122,28 @@ class TaskListsRepository
         ): Flow<Live<List<GtdTask>>> =
             liveLoad(connectivity, taskChanges(), reloads) { load(projectId = projectId).sortedBy { it.position } }
 
+        /**
+         * The open tasks still in a tickler ([GtdTask.ticklerDate] after [today]), loaded like [observe]. The task list's
+         * `from`/`to` filter also returns tasks in a tickler, but spans at most a year: the next [TICKLER_HORIZON_YEARS]
+         * years are read a year at a time, and tasks due in those years without a pending tickler are dropped.
+         */
+        fun observeTickler(
+            today: () -> LocalDate,
+            reloads: Flow<Unit>,
+        ): Flow<Live<List<GtdTask>>> = liveLoad(connectivity, taskChanges(), reloads) { loadTickler(today()) }
+
+        private suspend fun loadTickler(today: LocalDate): List<GtdTask> {
+            val found = mutableListOf<GtdTask>()
+            var start = today.plusDays(1)
+            repeat(TICKLER_HORIZON_YEARS) {
+                val next = start.plusYears(1)
+                // The API's `to` is inclusive.
+                found += load(from = start, to = next.minusDays(1))
+                start = next
+            }
+            return found.filter { task -> task.ticklerDate?.isAfter(today) == true }.distinctBy { it.id }
+        }
+
         /** Task changes from the server and from the task detail screen of this app. */
         private fun taskChanges(): Flow<Unit> = merge(triggers.on(ChangeTypes.TASK), TaskEdits.changes)
 
@@ -157,12 +180,16 @@ class TaskListsRepository
         private suspend fun load(
             list: TaskList? = null,
             projectId: UUID? = null,
+            from: LocalDate? = null,
+            to: LocalDate? = null,
         ): List<GtdTask> =
             allPages(
                 page = { cursor ->
                     api.listTasks(
                         list = list?.let { ListListTasks.valueOf(it.name) },
                         projectId = projectId,
+                        from = from,
+                        to = to,
                         cursor = cursor,
                         limit = PAGE_SIZE,
                     )
@@ -171,6 +198,9 @@ class TaskListsRepository
                 nextCursor = { it.nextCursor },
             ).map { it.toTask() }
     }
+
+/** How many years ahead the Tickler view looks for tickler dates (one task list request per year). */
+const val TICKLER_HORIZON_YEARS = 10
 
 /** The `If-Match` value of [version] (the server's strong ETag). */
 internal fun etag(version: Long) = "\"$version\""
@@ -188,6 +218,7 @@ internal fun TaskResponse.toTask() =
         dueTime = dueTime,
         scheduledDate = scheduledDate,
         releasedOn = releasedOn,
+        ticklerDate = ticklerDate,
         energy = energy?.let { Energy.valueOf(it.name) },
         creativity = creativity?.let { Creativity.valueOf(it.name) },
         timeEstimateMin = timeEstimateMin,

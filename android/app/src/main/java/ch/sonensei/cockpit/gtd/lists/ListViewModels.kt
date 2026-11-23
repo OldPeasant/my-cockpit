@@ -13,6 +13,7 @@ import ch.sonensei.cockpit.gtd.next.TaskCompleter
 import ch.sonensei.cockpit.gtd.next.TaskCompletionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -63,13 +64,22 @@ data class TaskListUiState(
  * reloads, so it is current also when the change stream is not connected.
  */
 abstract class LiveTaskListViewModel(
-    list: TaskList,
-    repository: TaskListsRepository,
     contexts: ContextRepository,
     completion: TaskCompletionRepository,
     clock: Clock,
     order: (List<GtdTask>) -> List<GtdTask> = { it },
+    /** The list's tasks, reloaded on each emission of the given flow. */
+    source: (Flow<Unit>) -> Flow<Live<List<GtdTask>>>,
 ) : ViewModel() {
+    constructor(
+        list: TaskList,
+        repository: TaskListsRepository,
+        contexts: ContextRepository,
+        completion: TaskCompletionRepository,
+        clock: Clock,
+        order: (List<GtdTask>) -> List<GtdTask> = { it },
+    ) : this(contexts, completion, clock, order, { reloads -> repository.observe(list, reloads) })
+
     private val completer = TaskCompleter(viewModelScope, completion)
     private val reloads = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     private val busy = MutableStateFlow(emptySet<UUID>())
@@ -85,7 +95,7 @@ abstract class LiveTaskListViewModel(
 
     val uiState: StateFlow<TaskListUiState> =
         combine(
-            repository.observe(list, merge(reloads, answered)),
+            source(merge(reloads, answered)),
             contexts.observe(),
             completer.state,
             busy,
@@ -227,3 +237,29 @@ class ScheduledViewModel internal constructor(
 /** Scheduled order (like the web): earliest `scheduledDate` first, tasks without a date last, ties in list order. */
 internal fun byScheduledDate(tasks: List<GtdTask>): List<GtdTask> =
     tasks.sortedWith(compareBy<GtdTask, LocalDate?>(nullsLast()) { it.scheduledDate }.thenBy { it.position })
+
+/** Tickler (SPEC.md §5.3): open tasks hidden until their tickler date, which comes first. */
+@HiltViewModel
+class TicklerViewModel internal constructor(
+    repository: TaskListsRepository,
+    contexts: ContextRepository,
+    completion: TaskCompletionRepository,
+    clock: Clock,
+) : LiveTaskListViewModel(
+        contexts,
+        completion,
+        clock,
+        ::byTicklerDate,
+        { reloads -> repository.observeTickler({ LocalDate.now(clock) }, reloads) },
+    ) {
+    @Inject
+    constructor(
+        repository: TaskListsRepository,
+        contexts: ContextRepository,
+        completion: TaskCompletionRepository,
+    ) : this(repository, contexts, completion, Clock.systemDefaultZone())
+}
+
+/** Tickler order: earliest `ticklerDate` first, ties in list order. */
+internal fun byTicklerDate(tasks: List<GtdTask>): List<GtdTask> =
+    tasks.sortedWith(compareBy<GtdTask, LocalDate?>(nullsLast()) { it.ticklerDate }.thenBy { it.position })
