@@ -1,11 +1,13 @@
 ---
 title: Android: fix remaining flaky unit tests and sweep for more
-status: in_progress
-owner: dell26/agent-1
+status: todo
+owner: 
 deps: []
 touches: [android/app/src/test/java]
 prio: 2
-lease_until: 2026-11-23T20:23:18Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 CI on `main` keeps failing in "Fast check (android)" because of flaky unit tests, a different one each time. Two were
@@ -47,3 +49,4 @@ Known from the CI history (last 40 runs of `ci.yml`, `gh run view <id> -R OldPea
 - If the sweep finds more than fits in one session, fix the known ones first, then split the rest into subtasks
   (`tasks.py split`).
 - Local runs need `ANDROID_HOME=$HOME/Android/Sdk` if `android/local.properties` is missing.
+- release by dell26/agent-1: Done: both known flakes fixed in e2b7c9074 (FilePreviewScreenTest: AtomicInteger counter, both retry/next-image tests wait for requests()>=2 since the AsyncImage node is named while loading; SearchRouteInAppTest: CME from iterating Collections.synchronizedList while MockWebServer appends -> CopyOnWriteArrayList). First grep sweep + sweep run 1 (passed, 4m30s) in reviews/and-test-flaky-sweep/sweep-log.md. Left: sweep run under load (e.g. --max-workers raised / parallel build) and run with clock near midnight UTC (e.g. TZ/-Duser.timezone or faketime if available), finish grep check of view-model counters, test-writer + code-reviewer (give them sweep-log.md for tests.md), 3 final full runs + ktlintCheck testDebugUnitTest lintDebug, verify, quality.json, done.
