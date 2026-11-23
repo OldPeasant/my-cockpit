@@ -22,9 +22,10 @@ Server and API stay unchanged. SPEC.md is updated by `and-gtd-tickler-chip`; don
       **Tickler**, Someday. Choosing Tickler shows a required date input (future date, same validation as before)
       and saves `list = INBOX` + that `ticklerDate` through the existing move API. The separate Tickler field is gone
   - verified (2026-11-23 18:39+0100 by felix/agent-1): cd web && npx ng test --watch=false --include='src/app/features/gtd/**/*.spec.ts' --include='src/locale/**/*.spec.ts' -> 1009 passed (task-detail.spec 'offers Tickler among the lists, without a separate tickler field', 'moves the task to the Inbox with its tickler date' -> move body {list:INBOX,ticklerDate}, 'needs a tickler date in the future')
-- [ ] A task with a `ticklerDate` opens with Tickler selected and its date shown, whatever its stored list is.
+- [x] A task with a `ticklerDate` opens with Tickler selected and its date shown, whatever its stored list is.
       Choosing another list clears the tickler date; Scheduled still asks for its date. Saving without changes
       doesn't move or change the task
+  - verified (2026-11-23 18:39+0100 by felix/agent-1): cd web && npx ng test --watch=false --include='src/app/features/gtd/**/*.spec.ts' --include='src/locale/**/*.spec.ts' -> 1009 passed (task-detail.spec 'opens a task with a tickler as Tickler, whatever its list, and saves nothing unchanged', 'clears the tickler when another list is chosen; Scheduled asks for its date'; task-draft.spec moveFor/chooseList cases)
 - [ ] One name everywhere in the web app: "Tickler" (EN) / "Wiedervorlage" (DE) in the form, task detail and Inbox
       processing, with the hint "Hidden until then; on that day it comes back to the Inbox." (and German)
 - [ ] Next Actions view (`features/gtd/next`): open NEXT tasks with `releasedOn` == today (user's local date) show a
