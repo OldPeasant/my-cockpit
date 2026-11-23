@@ -38,9 +38,9 @@ Known from the CI history (last 40 runs of `ci.yml`, `gh run view <id> -R OldPea
       `LocalDate.now()` in Compose tests that render time-dependent UI; asserting an exact directory listing) is done,
       and suspicious hits are fixed or explained in `tests.md`
 - [ ] Test code only; production code unchanged unless a real bug is found (then record it with `tasks.py assume`)
-- [ ] `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes, and the next CI run of the task's
-      `done` commit is green in "Fast check (android)" (check with `gh run list -R OldPeasant/my-cockpit -w ci.yml -L 3`
-      after `done`; if it isn't green, open a follow-up task with the failing test)
+- [ ] After all fixes, the full Android unit suite passes locally 3 times in a row
+      (`./gradlew testDebugUnitTest --rerun-tasks`, final code), and `cd android && ./gradlew ktlintCheck
+      testDebugUnitTest lintDebug` passes
 
 ## Notes
 - If the sweep finds more than fits in one session, fix the known ones first, then split the rest into subtasks
