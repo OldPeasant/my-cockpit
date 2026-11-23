@@ -23,7 +23,13 @@ export const MAX_ESTIMATE_MINUTES = 10_000;
 export interface TaskDraft {
   readonly title: string;
   readonly notesMd: string;
+  /** The stored list; while {@link tickler} is chosen it is kept but overridden (moves go to INBOX). */
   readonly list: TaskListName;
+  /**
+   * Tickler is chosen in the List selector: the task is hidden until {@link ticklerDate}, then back in
+   * the Inbox (the server clears the scheduled date and waiting-for fields then). It overrides `list`.
+   */
+  readonly tickler: boolean;
   /** Empty: no project. */
   readonly projectId: string;
   readonly contextIds: readonly string[];
@@ -62,6 +68,7 @@ export function draftOf(task: TaskResponse): TaskDraft {
     title: task.title,
     notesMd: task.notesMd ?? '',
     list: task.list,
+    tickler: !!task.ticklerDate,
     projectId: task.projectId ?? '',
     contextIds: task.contextIds,
     energy: task.energy,
@@ -77,6 +84,27 @@ export function draftOf(task: TaskResponse): TaskDraft {
     customRule: task.recurrenceRule ?? '',
     repeatMode: task.recurrenceMode ?? 'FIXED',
   };
+}
+
+/** What the List selector shows: a list, or `TICKLER`. */
+export type ListChoice = TaskListName | 'TICKLER';
+
+export function listChoice(draft: TaskDraft): ListChoice {
+  return draft.tickler ? 'TICKLER' : draft.list;
+}
+
+/**
+ * The draft change choosing `choice` in the List selector. Tickler keeps the stored list and shows
+ * the task's tickler date again (empty for a new tickler); any other list clears the tickler date.
+ */
+export function chooseList(task: TaskResponse, choice: ListChoice): Partial<TaskDraft> {
+  if (choice === 'TICKLER') return { tickler: true, ticklerDate: task.ticklerDate ?? '' };
+  return { tickler: false, list: choice, ticklerDate: '' };
+}
+
+/** The list the draft saves to: INBOX for a tickler (it comes back there). */
+export function effectiveList(draft: TaskDraft): TaskListName {
+  return draft.tickler ? 'INBOX' : draft.list;
 }
 
 /** The rule the draft saves, `null` for none. */
@@ -104,17 +132,23 @@ export function validateDraft(task: TaskResponse, draft: TaskDraft, today: strin
   if (draft.dueTime && !draft.dueDate) {
     errors.dueTime = $localize`:@@taskDetail.error.dueTime:A due time needs a due date.`;
   }
-  if (draft.list === 'SCHEDULED' && !draft.scheduledDate) {
+  if (!draft.tickler && draft.list === 'SCHEDULED' && !draft.scheduledDate) {
     errors.scheduledDate = $localize`:@@taskDetail.error.scheduled:Scheduled tasks need a date.`;
   }
-  if (
-    draft.ticklerDate &&
+  if (draft.tickler && !draft.ticklerDate) {
+    errors.ticklerDate = $localize`:@@taskDetail.error.ticklerRequired:Pick the date it comes back.`;
+  } else if (
+    draft.tickler &&
     draft.ticklerDate !== (task.ticklerDate ?? '') &&
     draft.ticklerDate <= today
   ) {
     errors.ticklerDate = $localize`:@@taskDetail.error.tickler:Pick a date after today.`;
   }
-  if (draft.list === 'WAITING' && draft.waitingForText.trim().length > MAX_TITLE_LENGTH) {
+  if (
+    !draft.tickler &&
+    draft.list === 'WAITING' &&
+    draft.waitingForText.trim().length > MAX_TITLE_LENGTH
+  ) {
     errors.waitingForText = $localize`:@@taskDetail.error.waitingLength:Keep this under ${MAX_TITLE_LENGTH}:max: characters.`;
   }
   if (draft.repeat === 'custom') {
@@ -127,13 +161,21 @@ export function validateDraft(task: TaskResponse, draft: TaskDraft, today: strin
 /**
  * The `/move` the draft needs: when its list or tickler differ from `task`. List, scheduled date
  * and tickler are sent together, because a move sets all three; the waiting-for fields are kept by
- * the server and patched afterwards.
+ * the server and patched afterwards. A tickler moves to INBOX with its date; an unchanged tickler
+ * doesn't move, whatever list the task is stored on (the tickler wins, as on the server).
  */
 export function moveFor(task: TaskResponse, draft: TaskDraft): MoveTaskRequest | undefined {
-  if (draft.list === task.list && draft.ticklerDate === (task.ticklerDate ?? '')) return undefined;
+  const ticklerDate = draft.tickler ? draft.ticklerDate : '';
+  if (ticklerDate !== (task.ticklerDate ?? '')) {
+    return draft.tickler ? { list: 'INBOX', ticklerDate } : listMove(draft);
+  }
+  if (draft.tickler || draft.list === task.list) return undefined;
+  return listMove(draft);
+}
+
+function listMove(draft: TaskDraft): MoveTaskRequest {
   const body: MoveTaskRequest = { list: draft.list };
   if (draft.list === 'SCHEDULED') body.scheduledDate = draft.scheduledDate;
-  if (draft.ticklerDate) body.ticklerDate = draft.ticklerDate;
   return body;
 }
 
@@ -160,10 +202,11 @@ export function patchFor(base: TaskResponse, draft: TaskDraft): TaskPatchRequest
   if (text(draft.dueTime) !== (base.dueTime?.slice(0, 5) ?? null)) {
     patch['dueTime'] = text(draft.dueTime);
   }
-  if (base.list === 'SCHEDULED' && draft.list === 'SCHEDULED') {
+  const list = effectiveList(draft);
+  if (base.list === 'SCHEDULED' && list === 'SCHEDULED') {
     set('scheduledDate', text(draft.scheduledDate), base.scheduledDate);
   }
-  if (base.list === 'WAITING' && draft.list === 'WAITING') {
+  if (base.list === 'WAITING' && list === 'WAITING') {
     set('waitingForText', text(draft.waitingForText.trim()), base.waitingForText);
     if (draft.waitingSince) set('waitingSince', draft.waitingSince, base.waitingSince);
   }

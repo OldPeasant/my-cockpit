@@ -9,12 +9,7 @@ import { ContextResponse } from '../../../api/generated';
   selector: 'app-context-chips',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div
-      class="chips"
-      role="group"
-      i18n-aria-label="@@gtd.contexts.label"
-      aria-label="Contexts"
-    >
+    <div class="chips" role="group" i18n-aria-label="@@gtd.contexts.label" aria-label="Contexts">
       @for (context of contexts(); track context.id) {
         <button
           type="button"

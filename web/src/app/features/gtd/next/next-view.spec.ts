@@ -25,10 +25,10 @@ import {
 import { ChangeEventsService } from '../../../core/events';
 import { SettingsService } from '../../settings/settings.service';
 import { fakeSettings } from '../../settings/testing';
-import { TASK_PAGE_SIZE } from '../data';
+import { addDays, localDate, TASK_PAGE_SIZE } from '../data';
 import { TaskUndo } from '../ui';
 import { FilterPresets, MAX_PRESETS, PRESETS_SETTING } from './filter-presets';
-import NextView from './next-view';
+import NextView, { isNewToday, newTodayFirst } from './next-view';
 import nextRoutes from './next.routes';
 
 const PHONE: ContextResponse = { id: 'c-phone', name: '@phone', position: 1, version: 1 };
@@ -217,6 +217,62 @@ describe('NextView', () => {
   async function submitSave(): Promise<void> {
     await click(buttonNamed('Save preset'));
   }
+
+  describe('new today', () => {
+    const today = localDate();
+    const badges = () =>
+      [...root.querySelectorAll('ul.tasks > li')].map(
+        (li) => li.querySelector('.new-today-badge')?.textContent?.trim() ?? '',
+      );
+
+    it('marks tasks released from Scheduled today with a text badge and lists them first', async () => {
+      serverTasks = [
+        task('t-a', 'Old one'),
+        task('t-b', 'Fresh one', { releasedOn: today }),
+        task('t-c', 'Yesterday', { releasedOn: addDays(today, -1) }),
+        task('t-d', 'Fresh two', { releasedOn: today }),
+      ];
+      await open('/next');
+
+      expect(shownTitles()).toEqual(['Fresh one', 'Fresh two', 'Old one', 'Yesterday']);
+      expect(badges()).toEqual(['New today', 'New today', '', '']);
+    });
+
+    it('keeps the marker and order with a filter', async () => {
+      serverTasks = [
+        task('t-a', 'Old one', { contextIds: [PHONE.id] }),
+        task('t-b', 'Fresh one', { contextIds: [PHONE.id], releasedOn: today }),
+      ];
+      await open(`/next?context=${PHONE.id}`);
+
+      expect(lastQuery()).toMatchObject({ list: 'NEXT', context: PHONE.id });
+      expect(shownTitles()).toEqual(['Fresh one', 'Old one']);
+      expect(badges()).toEqual(['New today', '']);
+    });
+  });
+
+  describe('isNewToday / newTodayFirst', () => {
+    const today = '2026-11-23';
+
+    it('is true only for open NEXT tasks released on today', () => {
+      expect(isNewToday(task('a', 'A', { releasedOn: today }), today)).toBe(true);
+      expect(isNewToday(task('a', 'A', { releasedOn: '2026-11-22' }), today)).toBe(false);
+      expect(isNewToday(task('a', 'A'), today)).toBe(false);
+      expect(
+        isNewToday(
+          task('a', 'A', { releasedOn: today, completedAt: '2026-11-23T10:00:00Z' }),
+          today,
+        ),
+      ).toBe(false);
+      expect(isNewToday(task('a', 'A', { releasedOn: today, list: 'INBOX' }), today)).toBe(false);
+    });
+
+    it('sorts normally from the next day on', () => {
+      const tasks = [task('a', 'A'), task('b', 'B', { releasedOn: today })];
+      expect(newTodayFirst(tasks, today).map((t) => t.id)).toEqual(['b', 'a']);
+      expect(newTodayFirst(tasks, '2026-11-24').map((t) => t.id)).toEqual(['a', 'b']);
+    });
+  });
 
   describe('filters', () => {
     it('loads the open next actions without filters and explains an empty list', async () => {

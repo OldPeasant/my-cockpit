@@ -163,7 +163,10 @@
   } @else {
     <ul class="tasks" i18n-aria-label="@@gtd.next.list" aria-label="Next actions">
       @for (task of tasks(); track task.id) {
-        <li>
+        <li [class.new-today]="isNewToday(task, today)">
+          @if (isNewToday(task, today)) {
+            <span class="new-today-badge" i18n="@@gtd.next.newToday">New today</span>
+          }
           <app-task-row
             [task]="task"
             [contexts]="contexts.byId()"

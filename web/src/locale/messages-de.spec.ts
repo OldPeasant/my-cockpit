@@ -219,6 +219,37 @@ describe('German translations (messages.de.xlf)', () => {
     expect(english.has('files.downloadFile')).toBe(false);
   });
 
+  it('names the tickler and the new-today badge in English and German (web-gtd-tickler-chip)', () => {
+    const ids = [
+      'taskDetail.tickler',
+      'inbox.action.tickler',
+      'gtd.tickler.date',
+      'gtd.tickler.hint',
+      'taskDetail.error.ticklerRequired',
+      'gtd.next.newToday',
+    ];
+    expect(Object.fromEntries(ids.map((id) => [id, english.get(id)?.source.trim()]))).toEqual({
+      'taskDetail.tickler': 'Tickler',
+      'inbox.action.tickler': 'Tickler',
+      'gtd.tickler.date': 'Tickler date',
+      'gtd.tickler.hint': 'Hidden until then; on that day it comes back to the Inbox.',
+      'taskDetail.error.ticklerRequired': 'Pick the date it comes back.',
+      'gtd.next.newToday': 'New today',
+    });
+    expect(Object.fromEntries(ids.map((id) => [id, german.get(id)?.target?.trim()]))).toEqual({
+      'taskDetail.tickler': 'Wiedervorlage',
+      'inbox.action.tickler': 'Wiedervorlage',
+      'gtd.tickler.date': 'Wiedervorlage am',
+      'gtd.tickler.hint': 'Bis dahin ausgeblendet; an diesem Tag kommt sie zurück in den Eingang.',
+      'taskDetail.error.ticklerRequired': 'Wähle das Datum, an dem sie zurückkommt.',
+      'gtd.next.newToday': 'Neu heute',
+    });
+    // The old separate tickler field and the Inbox's own label are gone: one name everywhere.
+    expect(
+      ['taskDetail.ticklerHint', 'inbox.prompt.ticklerDate'].filter((id) => english.has(id)),
+    ).toEqual([]);
+  });
+
   it('keeps the quick-capture due keywords the parser accepts (SPEC.md: !today, !tomorrow)', () => {
     // The parser (server CaptureParser) only understands the English keywords, so a hint that
     // shows a translated keyword teaches syntax that silently does nothing.

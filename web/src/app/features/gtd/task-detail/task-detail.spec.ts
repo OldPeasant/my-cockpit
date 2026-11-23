@@ -605,24 +605,60 @@ describe('TaskDetail', () => {
   });
 
   describe('tickler', () => {
-    it('moves the task with its tickler date', async () => {
+    it('offers Tickler among the lists, without a separate tickler field', async () => {
       await render();
+      const options = [...field<HTMLSelectElement>('#td-list').options].map((o) => o.value);
+      expect(options).toEqual(['INBOX', 'NEXT', 'WAITING', 'SCHEDULED', 'TICKLER', 'SOMEDAY']);
+      expect(element.querySelector('#td-tickler')).toBeNull();
+    });
+
+    it('moves the task to the Inbox with its tickler date', async () => {
+      await render();
+      await choose('#td-list', 'TICKLER');
+      expect(field('#td-tickler').hasAttribute('required')).toBe(true);
       await type('#td-tickler', '2099-03-01');
+      expect(text()).toContain('Hidden until then; on that day it comes back to the Inbox.');
       await save();
       expect(callsOf(moveTask)).toHaveLength(1);
       expect(callsOf(moveTask)[0].params).toMatchObject({
         id: 't1',
         'If-Match': '"1"',
-        body: { list: 'NEXT', ticklerDate: '2099-03-01' },
+        body: { list: 'INBOX', ticklerDate: '2099-03-01' },
       });
       expect(callsOf(updateTask)).toHaveLength(0);
     });
 
-    it('refuses a tickler date that is not in the future', async () => {
+    it('needs a tickler date in the future', async () => {
       await render();
+      await choose('#td-list', 'TICKLER');
+      expect(text()).toContain('Pick the date it comes back.');
+      expect(saveButton().disabled).toBe(true);
       await type('#td-tickler', '2001-01-01');
       expect(text()).toContain('Pick a date after today.');
       expect(saveButton().disabled).toBe(true);
+    });
+
+    it('opens a task with a tickler as Tickler, whatever its list, and saves nothing unchanged', async () => {
+      await render(
+        task({ list: 'SCHEDULED', scheduledDate: '2099-05-01', ticklerDate: '2099-03-01' }),
+      );
+      expect(field<HTMLSelectElement>('#td-list').value).toBe('TICKLER');
+      expect(field<HTMLInputElement>('#td-tickler').value).toBe('2099-03-01');
+      expect(element.querySelector('#td-scheduled')).toBeNull();
+      expect(saveButton().disabled).toBe(true);
+    });
+
+    it('clears the tickler when another list is chosen; Scheduled asks for its date', async () => {
+      await render(task({ ticklerDate: '2099-03-01' }));
+      await choose('#td-list', 'SCHEDULED');
+      expect(element.querySelector('#td-tickler')).toBeNull();
+      expect(text()).toContain('Scheduled tasks need a date.');
+      await type('#td-scheduled', '2099-04-02');
+      await save();
+      expect(callsOf(moveTask)[0].params['body']).toEqual({
+        list: 'SCHEDULED',
+        scheduledDate: '2099-04-02',
+      });
     });
 
     it('sends the scheduled date together with the list', async () => {
@@ -874,9 +910,6 @@ describe('TaskDetail', () => {
     await type('#td-estimate', '1.5');
     expect(errorText('#td-estimate')).toBeTruthy();
 
-    await type('#td-tickler', '2000-01-01');
-    expect(errorText('#td-tickler')).toBeTruthy();
-
     await choose('#td-repeat', 'custom');
     await type('#td-rule', 'FREQ=HOURLY');
     expect(errorText('#td-rule')).toBe('Tasks repeat DAILY, WEEKLY, MONTHLY or YEARLY.');
@@ -888,6 +921,11 @@ describe('TaskDetail', () => {
     await choose('#td-list', 'WAITING');
     await type('#td-waiting', 'x'.repeat(501));
     expect(errorText('#td-waiting')).toBe('Keep this under 500 characters.');
+
+    await choose('#td-list', 'TICKLER');
+    expect(errorText('#td-tickler')).toBe('Pick the date it comes back.');
+    await type('#td-tickler', '2000-01-01');
+    expect(errorText('#td-tickler')).toBe('Pick a date after today.');
   });
 
   it('links a server error on notes and due time to the field', async () => {

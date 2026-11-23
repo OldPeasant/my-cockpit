@@ -142,16 +142,20 @@
               }
               @case ('tickler') {
                 <label>
-                  <span i18n="@@inbox.prompt.ticklerDate">Back in the inbox on</span>
+                  <span i18n="@@gtd.tickler.date">Tickler date</span>
                   <input
                     #promptField
                     type="date"
                     required
+                    aria-describedby="inbox-tickler-hint"
                     [min]="tomorrow()"
                     [value]="promptDate()"
                     (input)="promptDate.set($any($event.target).value)"
                   />
                 </label>
+                <p id="inbox-tickler-hint" class="prompt-hint" i18n="@@gtd.tickler.hint">
+                  Hidden until then; on that day it comes back to the Inbox.
+                </p>
               }
               @case ('project') {
                 <label>
