@@ -1,11 +1,11 @@
 ---
 title: Web: Tickler as list choice, 'new today' marker in Next
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [web/src/app/features/gtd/task-detail,web/src/app/features/gtd/next,web/src/app/features/gtd/inbox,web/src/locale]
 prio: 2
-lease_until: 
+lease_until: 2026-11-23T18:38:50Z
 hold: 
 releases: 0
 extended: 
