@@ -31,3 +31,6 @@ Working notes of the parent worker (not a helper report); the test-writer's `tes
 
 (see below; appended as runs finish)
 - Run 1 (2026-11-23, code at e2b7c9074, normal load): `cd android && ./gradlew testDebugUnitTest --rerun-tasks --continue` -> BUILD SUCCESSFUL in 4m 30s, no failures.
+- Run 2 (2026-11-23, same test code, under load): `sh .tmp/load-run.sh` = 12 busy-loop shell processes on the 16-core
+  machine for the whole run, plus `./gradlew testDebugUnitTest --rerun-tasks --continue --max-workers=16` (the
+  test-writer/code-reviewer helpers were also running at the same time) -> BUILD SUCCESSFUL in 12m 46s, 0 FAILED.
