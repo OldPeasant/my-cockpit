@@ -4,7 +4,9 @@ Date: 2026-11-23
 
 Task: and-gtd-tickler-chip - Android: Tickler as list choice, 'new today' marker in Next
 
-Scope: task base c4b38a01604c4325040f5e24b58e651b8c797045 to HEAD 06a4d696c0435a1a274233a63b3ca314693bf5e2 (branch main), task commits 0d14ce0d7, fd5a765f3, 2dfad2f5c, 88bde0bbc, 06a4d696c as given by the parent worker; diff `git diff c4b38a016..HEAD -- android SPEC.md`. Uncommitted inputs at measurement: only the test files listed below (no production changes).
+Scope: final revision d67981b3001b19e0b139bd3248cc188bb51707ad (branch main), task base c4b38a01604c4325040f5e24b58e651b8c797045; task commits 0d14ce0d7, fd5a765f3, 2dfad2f5c, 88bde0bbc, 06a4d696c, f2f53f918 (round-1 tests and reports), d67981b30 (fix CR-2) as given by the parent worker; diff `git diff c4b38a016..d67981b30 -- android SPEC.md`. Working tree clean at the round-2 run (no uncommitted inputs).
+
+Round 2 (final revision d67981b30): the only production change since round 1 is `TaskDetailViewModel.kt:873`, where `changed(TaskField.TICKLER, a, b)` now also compares the `tickler` flag (`a.ticklerDate != b.ticklerDate || a.tickler != b.tickler`), so leaving the Tickler chip clears a stale TICKLER problem (finding CR-2, `reviews/and-gtd-tickler-chip/fixes.md`). The fixer added the regression test `leaving the Tickler chip clears its required problem, choosing it again shows none before saving` in `TaskDetailViewModelRelistTest`. It exercises exactly the new operand: the tickler flag flips while `ticklerDate` stays null; it asserts the Required problem appears on save, is cleared when Next is chosen, does not come back when Tickler is chosen again, and that no move or PATCH was sent. Before the fix the third assertion fails (the problem stayed in `state.problems`), so it is a real regression test. No gap found; no test added in round 2.
 
 Requirements:
 - `tasks/and-gtd-tickler-chip.md` acceptance criteria and its recorded assumption (tickler date field only while Tickler is chosen; scheduled date field always visible; an unchanged restored tickler moves nothing)
@@ -19,10 +21,11 @@ Requirements:
 - `android/app/src/test/java/ch/sonensei/cockpit/gtd/task/TaskDetailStringsTest.kt`
 - `android/app/src/test/java/ch/sonensei/cockpit/gtd/inbox/InboxScreenTest.kt`
 - `android/app/src/test/java/ch/sonensei/cockpit/gtd/next/NextViewModelNewTodayTest.kt` (new)
+- `android/app/src/test/java/ch/sonensei/cockpit/gtd/task/TaskDetailViewModelRelistTest.kt` (round 2: one regression test added by the fixer in d67981b30, reviewed here, not changed by the test-writer)
 
 ## Tests added or updated
 
-Count: 21 added (no existing test changed, weakened or disabled)
+Count: 21 added by the test-writer in round 1, plus 1 regression test added by the fixer (CR-2) and reviewed in round 2 (no existing test changed, weakened or disabled)
 
 - TaskDraftListTest (7): `a task with a tickler starts with Tickler chosen whatever its list, one without does not`; `choosing Tickler targets the Inbox, drops the scheduled date and keeps a date already picked`; `Tickler without a date is required, also without a move`; `picking a scheduled date while Tickler is chosen switches to Scheduled and drops the tickler`; `a changed tickler of a task stored on another list moves it to the Inbox, without its list fields`; `a tickled task's list-bound fields are not patched while Tickler is chosen`; `picking the Inbox for a tickled Inbox task clears the tickler with a move`
 - TaskDetailListFieldsTest, Compose (5): `the tickler date field is labelled with the tickler name, not Comes back`; `a tickler moved to a new day on a task stored on Next is saved to the Inbox`; `a tickled Waiting task hides the waiting fields and saves unchanged without a move or patch`; `a scheduled date picked while Tickler is chosen switches to Scheduled and drops the tickler`; `choosing Tickler on a Scheduled task drops its scheduled date`
@@ -33,7 +36,8 @@ Count: 21 added (no existing test changed, weakened or disabled)
 
 ## Requirement coverage
 
-Command A: `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.*'` (1278 tests, 0 failures, 0 skipped).
+Command A: `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.*'` (round 1: 1278 tests, 0 failures, 0 skipped).
+Command C (round 2, final revision d67981b30): `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.*' lintDebug` -> BUILD SUCCESSFUL; 1279 tests, 0 failures, 0 errors, 0 skipped; lintDebug passed (report `android/app/build/reports/lint-results-debug.xml` has only 2 issues of severity Hint, no warnings or errors).
 Command B: `cd android && ./gradlew createDebugUnitTestCoverageReport` (full unit suite, 5743 tests, 0 failures, 0 skipped).
 
 | Requirement | Tests | Command | Result |
@@ -42,7 +46,7 @@ Command B: `cd android && ./gradlew createDebugUnitTestCoverageReport` (full uni
 | AC2: chips Inbox, Next, Waiting For, Scheduled, Tickler, Someday in this order; "Comes back" field gone | `the lists are offered in workflow order with Tickler before Someday, without a separate tickler field`; `the tickler date field is labelled with the tickler name, not Comes back` | A, B | Pass |
 | AC2: Tickler requires a future date, saves `list = INBOX` + `ticklerDate` via the move API | `Tickler needs a day and saves the task to the Inbox with it`; `a tickler sent with a move must be after today`; `Tickler without a date is required, also without a move`; `choosing Tickler on a Scheduled task drops its scheduled date`; `a chosen tickler moves the task to the Inbox, another chip clears it`; `a scheduled task put on the tickler loses its scheduled date`; `a new list and title move the task first, then patch the moved version` (VM) | A, B | Pass |
 | AC3: a task with a ticklerDate opens with Tickler chosen and its date shown, whatever its stored list | `a task with a tickler opens with Tickler chosen whatever its list, and saving unchanged moves nothing`; `a tickled Waiting task hides the waiting fields and saves unchanged without a move or patch`; `a task with a tickler starts with Tickler chosen whatever its list, one without does not` (NEXT, SCHEDULED, WAITING, SOMEDAY, INBOX) | A, B | Pass |
-| AC3: picking another chip clears the tickler; Scheduled still asks for its date | `choosing another list clears the tickler, Scheduled still asks for its date`; `picking Someday for a tickled Someday task resends the move without the tickler`; `picking the Inbox for a tickled Inbox task clears the tickler with a move`; `a scheduled date picked while Tickler is chosen switches to Scheduled and drops the tickler` (Compose and unit) | A, B | Pass |
+| AC3: picking another chip clears the tickler; Scheduled still asks for its date | `choosing another list clears the tickler, Scheduled still asks for its date`; `picking Someday for a tickled Someday task resends the move without the tickler`; `picking the Inbox for a tickled Inbox task clears the tickler with a move`; `a scheduled date picked while Tickler is chosen switches to Scheduled and drops the tickler` (Compose and unit); round 2: `leaving the Tickler chip clears its required problem, choosing it again shows none before saving` (CR-2) | A, B, C | Pass |
 | AC3: saving without changes doesn't move or change the task | `a task with a tickler opens with Tickler chosen whatever its list, and saving unchanged moves nothing`; `a tickled Waiting task hides the waiting fields and saves unchanged without a move or patch`; `a tickled task's list-bound fields are not patched while Tickler is chosen`; `no move while list and tickler are unchanged` | A, B | Pass |
 | AC3 (changed date on a task stored on another list goes to the Inbox) | `a tickler moved to a new day on a task stored on Next is saved to the Inbox`; `a changed tickler of a task stored on another list moves it to the Inbox, without its list fields` | A, B | Pass |
 | AC4: one name "Tickler"/"Wiedervorlage" for chip, date label, detail property, Inbox action; the hint explains it (EN/DE) | `the tickler has one name in the form, the detail view and Inbox processing, in English and German`; `the tickler property is named Tickler, not Comes back`; `the tickler prompt names the Tickler and explains it, the schedule prompt has no such hint`; `Tickler needs a day and saves the task to the Inbox with it` (hint shown in the form) | A, B | Pass |
@@ -52,7 +56,7 @@ Command B: `cd android && ./gradlew createDebugUnitTestCoverageReport` (full uni
 | AC5: "today" is the user's local date | `today is the user's local date, not the UTC date` (clock 2026-11-22T23:30Z in Europe/Zurich) | A, B | Pass |
 | AC5: filters and presets still apply | `filters still apply to tasks released today`; `a preset still applies to tasks released today` | A, B | Pass |
 | AC6: all new strings exist in English and German | `every string exists in German, is not blank and keeps its placeholders` (task detail file); `the New today marker and its description exist in English and German` (Next file, also key-set parity); tickler naming test (inbox file) | A, B | Pass |
-| AC6: `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes | ktlintCheck and testDebugUnitTest ran (A, B) | A, B | ktlintCheck: Pass; testDebugUnitTest: Pass; lintDebug: Not run: left to the parent's final validation (`.taskcheck`) |
+| AC6: `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` passes | ktlintCheck, testDebugUnitTest (gtd package) and lintDebug on the final revision d67981b30 | C (full unit suite in B, round 1) | ktlintCheck: Pass; testDebugUnitTest: Pass (1279 gtd tests); lintDebug: Pass (Hint-level notes only) |
 
 ## Focused test execution
 
@@ -65,6 +69,8 @@ then `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei
 Result:
 
 Pass. The first focused run had one failure in a new test of mine (it rejected "comes back" in any string, but the required hint legitimately says "it comes back to the Inbox"); the test was corrected to reject only the old labels "Comes back"/"Kommt zurück". After that: 166 focused tests pass; the gtd package run passes 1278 tests, 0 failures, and ktlintCheck passes.
+
+Round 2 (final revision d67981b30): `cd android && ./gradlew ktlintCheck testDebugUnitTest --tests 'ch.sonensei.cockpit.gtd.*' lintDebug` -> BUILD SUCCESSFUL in 1m 33s. Gradle reported `testDebugUnitTest` UP-TO-DATE: its inputs (production and test classes of d67981b30) are identical to the fixer's run on the same code, so the stored results describe this revision. Summed from `app/build/test-results/testDebugUnitTest/*.xml`: 1279 tests, 0 failures, 0 errors, 0 skipped; `TaskDetailViewModelRelistTest` 30 tests, 0 failures, including the CR-2 regression test (run 2026-11-23T17:42:24Z). ktlintCheck: Pass. lintDebug: executed (not up-to-date), Pass.
 
 ## Full test execution
 
@@ -80,15 +86,15 @@ Pass: 5743 tests, 0 failures, 0 errors, 0 skipped (summed from `app/build/test-r
 
 Result:
 
-Not run: `sh scripts/check.sh` covers server, web and Android lint/tests; the parent worker runs it as final validation. Android lintDebug is part of it.
+Not run: `sh scripts/check.sh` covers server, web and Android lint/tests; the parent worker runs it as final validation. Android ktlintCheck, gtd unit tests and lintDebug were run separately on the final revision (Command C, Pass).
 
 ## Bugs found
 
-None. No production defect was found for the acceptance criteria.
+None found by the test-writer. The code reviewer's finding CR-2 (stale TICKLER problem after leaving the Tickler chip) was fixed in d67981b30; its regression test passes on the final revision.
 
 ## Coverage
 
-Status: verified (Android, fresh run after the latest test additions; no production changes since).
+Status: verified for revision 06a4d696c plus the round-1 tests (Android). Not re-measured on the final revision d67981b30, as instructed by the parent worker; the delta is one production line (`TaskDetailViewModel.kt:873`, an extra `|| a.tickler != b.tickler` operand) plus one test. That line is executed and its new operand evaluates to true in the CR-2 regression test (which passes on d67981b30), so the changed-line result below still holds for the line; the per-file numbers below describe the pre-fix revision and may differ from the final revision by at most that line's two added branch counters.
 
 Metric: whole-file coverage of task-changed production files.
 Changed-line coverage: measured separately by intersecting the JaCoCo `line` elements of report.xml (executable lines only) with the added/modified lines of `git diff -U0 c4b38a016..HEAD -- android/app/src/main/java`: 77/77 changed executable lines covered (100%); branches on those lines 88/90 (97.8%). The 2 missed branches: `TaskDetailListFields.kt:107` (a Kotlin-generated branch of the tickler date setter lambda; the setter itself is exercised by the quick-date chip tests) and `TaskDetailViewModel.kt:110` (the `tickler = ticklerDate != null` default argument when a caller passes a ticklerDate but no `tickler`; production builds drafts through `TaskDraft.of`, which sets `tickler` explicitly, so this default path is not reached by the app).
@@ -101,7 +107,7 @@ Evidence:
 - Run start/completion time and exit status: 2026-11-23T18:28:01+01:00 to 2026-11-23T18:32:01+01:00, exit 0; `:app:testDebugUnitTest` and `:app:createDebugUnitTestCoverageReport` executed (not up-to-date).
 - Generated report paths and report hashes/run identifier: `android/app/build/reports/coverage/test/debug/report.xml`, written 2026-11-23 18:32:01 +0100, sha256 d1bcfda72aed491bde053c5ff3cac03ad507c3a00ee11b34970aca7bb761184a.
 - Evidence outputs are fresh and inputs stayed unchanged: yes (report mtime equals run end; snapshot tree and hash identical before and after).
-- Final run after latest test additions and production fixes: yes (all test additions were made before the run; no production fixes were made).
+- Final run after latest test additions and production fixes: no for coverage (the coverage run describes the pre-fix revision 06a4d696c plus round-1 tests; the CR-2 fix d67981b30 came later and coverage was kept as is by the parent's instruction); yes for tests and lint (Command C on d67981b30, working tree clean).
 
 Values below use covered/total (percentage); JaCoCo has no separate statement counter, so the Statements column shows INSTRUCTION counters.
 
@@ -130,9 +136,8 @@ Values below use covered/total (percentage); JaCoCo has no separate statement co
 ## Unable to test
 
 - AC1 (SPEC.md wording) is documentation; checked by reading the diff, not by a test.
-- `lintDebug` (part of AC6) was not run by the test-writer; it belongs to the parent's final `.taskcheck` / Android check run.
 - The Next view recomputes "today" only when one of its flows emits (`LocalDate.now(clock)` inside `combine`). If the app stays open across midnight with no data change, the marker and order of yesterday's released tasks stay until the next refresh or emission. The criterion ("from the next day on") is met for every fresh state; this midnight-rollover behavior is not tested and is noted as an observation for the reviewer, not as a defect.
 
 ## Summary
 
-Tests added and all validation passed. Tests and task-scoped coverage are sufficient; no production defects found. (`lintDebug` and `.taskcheck` remain for the parent worker's final validation.)
+Tests added and all validation passed. Tests and task-scoped coverage are sufficient; no production defects found. On the final revision d67981b30 the CR-2 fix is covered by an adequate regression test, and ktlintCheck, the gtd unit tests (1279, 0 failures) and lintDebug pass. (`.taskcheck` remains for the parent worker's final validation.)
