@@ -68,7 +68,7 @@ class SessionCacheTest {
         }
 
     @Test
-    fun `the checks still fail when the clear does nothing`() =
+    fun `the checks still fail when the clear does nothing`(): Unit =
         runBlocking {
             val created = createCacheContent()
 
