@@ -250,6 +250,33 @@ describe('German translations (messages.de.xlf)', () => {
     ).toEqual([]);
   });
 
+  it('has the Tickler view messages in English and German (web-gtd-tickler-view)', () => {
+    const ids = [
+      'nav.tickler',
+      'gtd.tickler.title',
+      'gtd.tickler.backTomorrow',
+      'gtd.tickler.backOn',
+      'gtd.tickler.backOnYear',
+      'gtd.tickler.empty',
+    ];
+    expect(Object.fromEntries(ids.map((id) => [id, english.get(id)?.source.trim()]))).toEqual({
+      'nav.tickler': 'Tickler',
+      'gtd.tickler.title': 'Tickler',
+      'gtd.tickler.backTomorrow': 'Back tomorrow',
+      'gtd.tickler.backOn': 'Back on <INTERPOLATION>',
+      'gtd.tickler.backOnYear': 'Back on <INTERPOLATION>',
+      'gtd.tickler.empty': 'Nothing in the tickler.',
+    });
+    expect(Object.fromEntries(ids.map((id) => [id, german.get(id)?.target?.trim()]))).toEqual({
+      'nav.tickler': 'Wiedervorlage',
+      'gtd.tickler.title': 'Wiedervorlage',
+      'gtd.tickler.backTomorrow': 'Morgen zurück',
+      'gtd.tickler.backOn': 'Zurück am <INTERPOLATION>',
+      'gtd.tickler.backOnYear': 'Zurück am <INTERPOLATION>',
+      'gtd.tickler.empty': 'Nichts auf Wiedervorlage.',
+    });
+  });
+
   it('keeps the quick-capture due keywords the parser accepts (SPEC.md: !today, !tomorrow)', () => {
     // The parser (server CaptureParser) only understands the English keywords, so a hint that
     // shows a translated keyword teaches syntax that silently does nothing.

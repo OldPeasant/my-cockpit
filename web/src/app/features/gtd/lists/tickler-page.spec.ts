@@ -49,6 +49,13 @@ describe('Tickler page', () => {
   let items: TaskResponse[];
   let listFails: boolean;
   let release: (() => void) | undefined;
+  /** When set, `listTasks` answers in pages of this size, chained by `nextCursor`. */
+  let pageSize: number | undefined;
+  /** When set, the `listTasks` call for the range starting on this date fails. */
+  let failingFrom: string | undefined;
+  let completeFails: boolean;
+  let taskEvents: Subject<ChangeEvent>;
+  let resync: Subject<void>;
   let element: HTMLElement;
 
   const callsOf = (fn: unknown) => calls.filter((call) => call.fn === fn);
@@ -80,6 +87,11 @@ describe('Tickler page', () => {
     calls = [];
     listFails = false;
     release = undefined;
+    pageSize = undefined;
+    failingFrom = undefined;
+    completeFails = false;
+    taskEvents = new Subject<ChangeEvent>();
+    resync = new Subject<void>();
     const api = {
       invoke: async (fn: unknown, params: Record<string, unknown> = {}) => {
         calls.push({ fn, params });
@@ -89,16 +101,25 @@ describe('Tickler page', () => {
           // Like the server: a range matches the due or the tickler date, open tasks only.
           const from = params['from'] as string;
           const to = params['to'] as string;
+          if (from === failingFrom) throw new Error('server error');
           const within = (date?: string) => !!date && date >= from && date <= to;
+          const matching = items.filter(
+            (t) => !t.completedAt && (within(t.dueDate) || within(t.ticklerDate)),
+          );
+          if (pageSize === undefined) return { items: matching };
+          const start = Number(params['cursor'] ?? 0);
+          const end = start + pageSize;
           return {
-            items: items.filter(
-              (t) => !t.completedAt && (within(t.dueDate) || within(t.ticklerDate)),
-            ),
+            items: matching.slice(start, end),
+            nextCursor: end < matching.length ? String(end) : undefined,
           };
         }
         if (fn === listContexts || fn === listProjects) return { items: [] };
         const current = items.find((t) => t.id === params['id'])!;
-        if (fn === completeTask) return { ...current, completedAt: new Date().toISOString() };
+        if (fn === completeTask) {
+          if (completeFails) throw new Error('conflict');
+          return { ...current, completedAt: new Date().toISOString() };
+        }
         throw new Error('unexpected call');
       },
     };
@@ -108,7 +129,10 @@ describe('Tickler page', () => {
         { provide: Api, useValue: api },
         {
           provide: ChangeEventsService,
-          useValue: { resync$: new Subject<void>(), events$: () => new Subject<ChangeEvent>() },
+          useValue: {
+            resync$: resync,
+            events$: (type: string) => (type === 'TASK' ? taskEvents : new Subject<ChangeEvent>()),
+          },
         },
       ],
     });
@@ -241,6 +265,135 @@ describe('Tickler page', () => {
 
     expect(callsOf(completeTask)[0].params).toMatchObject({ id: 't1', 'If-Match': '"1"' });
     expect(titles()).toEqual([]);
+  });
+
+  it('brings a task back when completing it fails', async () => {
+    completeFails = true;
+    await render([task('t1', { title: 'Later', ticklerDate: addDays(today, 2) })]);
+
+    element.querySelector<HTMLElement>('[aria-label="Complete “Later”"]')!.click();
+    await refresh();
+
+    expect(callsOf(completeTask)).toHaveLength(1);
+    expect(titles()).toEqual(['Later']);
+  });
+
+  it('follows nextCursor to read every page of a range', async () => {
+    pageSize = 2;
+    const first = ticklerWindows(today)[0][0];
+    await render([
+      task('t1', { title: 'One', ticklerDate: addDays(first, 1) }),
+      task('t2', { title: 'Two', ticklerDate: addDays(first, 2) }),
+      task('t3', { title: 'Three', ticklerDate: addDays(first, 3) }),
+      task('t4', { title: 'Four', ticklerDate: addDays(first, 4) }),
+      task('t5', { title: 'Five', ticklerDate: addDays(first, 5) }),
+      task('t6', { title: 'Far', ticklerDate: addDays(today, 1200) }),
+    ]);
+
+    expect(titles()).toEqual(['One', 'Two', 'Three', 'Four', 'Five', 'Far']);
+    const firstRange = callsOf(listTasks).filter((call) => call.params['from'] === first);
+    expect(firstRange.map((call) => call.params['cursor'])).toEqual([undefined, '2', '4']);
+    expect(firstRange.every((call) => call.params['limit'] === 200)).toBe(true);
+  });
+
+  it('lists tasks on the edges of the ranges and none beyond the horizon', async () => {
+    const windows = ticklerWindows(today);
+    const [, firstEnd] = windows[0];
+    const [secondStart] = windows[1];
+    const horizonEnd = windows[TICKLER_HORIZON_YEARS - 1][1];
+    await render([
+      task('t1', { title: 'End of year one', ticklerDate: firstEnd }),
+      task('t2', { title: 'Start of year two', ticklerDate: secondStart }),
+      task('t3', { title: 'Last day', ticklerDate: horizonEnd }),
+      task('t4', { title: 'Too far', ticklerDate: addDays(horizonEnd, 1) }),
+    ]);
+
+    expect(titles()).toEqual(['End of year one', 'Start of year two', 'Last day']);
+  });
+
+  it('shows the error, not a partial list, when a later range fails', async () => {
+    failingFrom = ticklerWindows(today)[4][0];
+    await render([task('t1', { title: 'Soon', ticklerDate: addDays(today, 2) })]);
+
+    expect(titles()).toEqual([]);
+    expect(element.querySelector('[role=alert]')?.textContent).toContain(
+      'The list could not be loaded.',
+    );
+  });
+
+  it('reloads on a task change event and shows the new state', async () => {
+    const tasks = [
+      task('t1', { title: 'First', ticklerDate: addDays(today, 2) }),
+      task('t2', { title: 'Second', ticklerDate: addDays(today, 5) }),
+    ];
+    await render(tasks);
+    const before = callsOf(listTasks).length;
+
+    // Elsewhere (e.g. the task detail in another tab): t1 moves later, t2 leaves the tickler,
+    // t3 goes into it.
+    items = [
+      { ...tasks[0], ticklerDate: addDays(today, 9), version: 2 },
+      { ...tasks[1], ticklerDate: undefined, list: 'NEXT', version: 2 },
+      task('t3', { title: 'Third', ticklerDate: addDays(today, 4) }),
+    ];
+    taskEvents.next({ type: 'TASK', op: 'UPDATED', id: 't1', at: '2026-11-23T10:00:00Z' });
+    await refresh();
+
+    expect(callsOf(listTasks).length - before).toBe(TICKLER_HORIZON_YEARS);
+    expect(titles()).toEqual(['Third', 'First']);
+    expect(backs()).toEqual([label(addDays(today, 4)), label(addDays(today, 9))]);
+  });
+
+  it('drops a deleted task on its change event without reloading', async () => {
+    await render([
+      task('t1', { title: 'First', ticklerDate: addDays(today, 2) }),
+      task('t2', { title: 'Second', ticklerDate: addDays(today, 5) }),
+    ]);
+    const before = callsOf(listTasks).length;
+
+    taskEvents.next({ type: 'TASK', op: 'DELETED', id: 't1', at: '2026-11-23T10:00:00Z' });
+    await refresh();
+
+    expect(callsOf(listTasks).length).toBe(before);
+    expect(titles()).toEqual(['Second']);
+  });
+
+  it('reloads after a resync', async () => {
+    await render([]);
+    items = [task('t1', { title: 'Missed', ticklerDate: addDays(today, 3) })];
+
+    resync.next();
+    await refresh();
+
+    expect(titles()).toEqual(['Missed']);
+  });
+
+  describe('with a fixed date', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date(2027, 2, 10, 12, 0));
+    });
+
+    afterEach(() => vi.useRealTimers());
+
+    it('shows "tomorrow", the date this year and the date with its year after it', async () => {
+      await render([
+        task('t1', { title: 'Tomorrow', ticklerDate: '2027-03-11' }),
+        task('t2', { title: 'This year', ticklerDate: '2027-03-12' }),
+        task('t3', { title: 'Last of the year', ticklerDate: '2027-12-31' }),
+        task('t4', { title: 'Next year', ticklerDate: '2028-01-05' }),
+        task('t5', { title: 'Today', ticklerDate: '2027-03-10' }),
+      ]);
+
+      expect(callsOf(listTasks)[0].params).toMatchObject({ from: '2027-03-11', to: '2028-03-10' });
+      expect(titles()).toEqual(['Tomorrow', 'This year', 'Last of the year', 'Next year']);
+      expect(backs()).toEqual([
+        'Back tomorrow',
+        'Back on Fri, 12 Mar',
+        'Back on Fri, 31 Dec',
+        'Back on Wed, 5 Jan 2028',
+      ]);
+    });
   });
 });
 
