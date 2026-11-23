@@ -74,6 +74,7 @@ class SearchRouteInAppTest {
     @Inject lateinit var serverUrls: ServerUrlRepository
 
     private val server = MockWebServer()
+
     // Written by MockWebServer's thread while the test reads it: a synchronized list would throw
     // ConcurrentModificationException when filtered during a write, a copy-on-write list iterates a snapshot.
     private val requests: MutableList<String> = CopyOnWriteArrayList()
