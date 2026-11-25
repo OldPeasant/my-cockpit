@@ -25,9 +25,10 @@ v2.11.7: `Etag: "42"` -> `"42-gzip"` (Accept-Encoding: gzip) / `"42-zstd"` (brow
       and the cases that must still fail
 - [ ] A web test through a real controller (e.g. the draft update or a simpler entity's PATCH/DELETE) shows that
       `If-Match: "<version>-gzip"` is accepted
-- [ ] Verified against Caddy: the server (`./gradlew bootRun`, or the e2e image) behind `caddy:2` with the production
+- [x] Verified against Caddy: the server (`./gradlew bootRun`, or the e2e image) behind `caddy:2` with the production
       `encode zstd gzip` + `reverse_proxy` config; a write of an entity whose response is >= 512 bytes, using the ETag
       Caddy returned (`curl --compressed`), succeeds instead of 412. Record the commands and output with `verify`
+  - verified (2026-11-25 08:13+0100 by dell26/agent-1): bootJar (java -jar, profile e2e, postgres:16-alpine) behind docker.io/library/caddy:2 v2.11.7 with deploy/Caddyfile (encode zstd gzip, reverse_proxy to the jar; only the upstream address changed), .tmp script: setup+login, POST /api/v1/notes with a 1.3 kB body, then curl --compressed: GET -> 200 Content-Encoding gzip Etag "0-gzip"; PATCH If-Match "0-gzip" -> 200 Etag "1-gzip" (was 412); PATCH again with stale "0-gzip" -> 412; DELETE If-Match "1-gzip" -> 204
 - [ ] SPEC.md §4.2 / the `ETags` KDoc note that a proxy's content-coding suffix is accepted, and why
 
 ## Notes
