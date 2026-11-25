@@ -27,9 +27,10 @@ body (do not give the WebView its own vertical scrolling).
 - [x] A fling after a diagonal drag continues in both axes and stops at the edges (horizontal: the WebView's content
       range; vertical: the page's)
   - verified (2026-11-25 08:44+0100 by dell26/agent-1): same Robolectric run -> MailBodyPanTest fast diagonal fling continues in both axes past the drag, stops exactly at the right edge (maxPanX), no movement past top/left, drag-hold-lift gives no fling; vertical fling speed on a moving body only unit-tested (FingerVelocity), device check skipped (#5)
-- [ ] Unchanged: tapping a link opens it, pinch-zoom of the body works (and the panning respects the zoomed width), a
+- [x] Unchanged: tapping a link opens it, pinch-zoom of the body works (and the panning respects the zoomed width), a
       mail no wider than the screen scrolls only vertically, dragging outside the body (header, attachments) scrolls
       the page as before, TalkBack scrolling still works
+  - verified (2026-11-25 08:44+0100 by dell26/agent-1): same Robolectric run -> taps and sub-slop moves not consumed by the pan handler (reach the WebView), second finger before slop left to WebView (pinch), maxPanX = zoomed range minus extent, narrow mail scrolls only vertically, header drag scrolls page only; page verticalScroll/semantics unchanged (TalkBack). Real link open/pinch/TalkBack on device not run: see #5 skip
 - [ ] Tests: the delta splitting / clamping logic as unit tests; a Compose UI test (Robolectric or instrumented) that a
       diagonal swipe on a wide body changes both the page scroll and the WebView's `scrollX`
 - [~] Verified on a real device or emulator with a wide HTML mail (e.g. a newsletter with a fixed 800px table):
