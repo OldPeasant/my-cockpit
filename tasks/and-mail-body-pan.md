@@ -36,3 +36,4 @@ body (do not give the WebView its own vertical scrolling).
 ## Notes
 - Android only; web is not affected (the browser pans the mail iframe freely).
 - ASSUMPTION (2026-11-25 08:28+0100 by dell26/agent-1): Diagonal pan lives in MailBodyView (Modifier.mailBodyPan on the WebView's AndroidView) and reaches the page through nested scrolling, instead of a handler on MailReadScreen's Column with its ScrollState: self-contained, no change to the body lambda signature; drags outside the body keep the page's own verticalScroll
+- ASSUMPTION (2026-11-25 08:28+0100 by dell26/agent-1): A second finger only hands the gesture to the WebView (pinch-zoom) when it lands before the first finger passed the touch slop; once a pan has started it stays a pan until all fingers lift
