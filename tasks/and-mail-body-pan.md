@@ -30,8 +30,9 @@ body (do not give the WebView its own vertical scrolling).
       the page as before, TalkBack scrolling still works
 - [ ] Tests: the delta splitting / clamping logic as unit tests; a Compose UI test (Robolectric or instrumented) that a
       diagonal swipe on a wide body changes both the page scroll and the WebView's `scrollX`
-- [ ] Verified on a real device or emulator with a wide HTML mail (e.g. a newsletter with a fixed 800px table):
+- [~] Verified on a real device or emulator with a wide HTML mail (e.g. a newsletter with a fixed 800px table):
       diagonal drag, fling, link tap, pinch-zoom. Record device/emulator and what was checked with `verify`
+  - skipped (2026-11-25 08:28+0100 by dell26/agent-1): no Android device or emulator on this machine (adb not installed, SDK dir not accessible); real-device check of diagonal drag, fling, link tap and pinch-zoom with a wide newsletter needs a human
 
 ## Notes
 - Android only; web is not affected (the browser pans the mail iframe freely).
