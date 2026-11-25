@@ -1,11 +1,11 @@
 ---
 title: Accept proxy content-coding suffix in If-Match (Caddy gzip breaks saves)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/web/ETags.kt,server/src/test/kotlin/ch/sonensei/cockpit/core/web,SPEC.md]
 prio: 1
-lease_until: 2026-11-25T07:39:15Z
+lease_until: 
 ---
 ## Goal
 Saves, sends and deletes work behind the production Caddy proxy. Caddy's `encode zstd gzip` (`deploy/Caddyfile`)
@@ -41,3 +41,4 @@ v2.11.7: `Etag: "42"` -> `"42-gzip"` (Accept-Encoding: gzip) / `"42-zstd"` (brow
   would also work but loses API compression, so it is not part of this task.
 - The e2e stack has no Caddy (`deploy/docker-compose.e2e.yml`), which is why no test caught this.
 - ASSUMPTION (2026-11-25 08:17+0100 by dell26/agent-1): Web test for If-Match suffix uses the conventions test controller (ApiConventionsWebTests) since touches limit test changes to core/web; production notes PATCH/DELETE were verified behind real caddy:2 instead
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 80s on 93f60e7b5; criteria verified 5/5
