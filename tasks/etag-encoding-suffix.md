@@ -25,8 +25,9 @@ v2.11.7: `Etag: "42"` -> `"42-gzip"` (Accept-Encoding: gzip) / `"42-zstd"` (brow
 - [x] Unit tests in `ETagsTests` cover the suffixed tags (match and stale version), a list of tags with a suffixed one,
       and the cases that must still fail
   - verified (2026-11-25 08:16+0100 by dell26/agent-1): ETagsTests (cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.web.*' -> 59 tests, 0 failures): suffixed match + stale, list with suffixed tag, still-failing cases
-- [ ] A web test through a real controller (e.g. the draft update or a simpler entity's PATCH/DELETE) shows that
+- [x] A web test through a real controller (e.g. the draft update or a simpler entity's PATCH/DELETE) shows that
       `If-Match: "<version>-gzip"` is accepted
+  - verified (2026-11-25 08:16+0100 by dell26/agent-1): ApiConventionsWebTests$ETagsAndIfMatch via MockMvc through the conventions controller (same run, 0 failures): PATCH If-Match "1-gzip" -> 200 ETag "2"; DELETE "1-zstd" -> 204; stale "0-zstd" -> 412; real controllers (notes PATCH/DELETE) also verified behind Caddy, see #4
 - [x] Verified against Caddy: the server (`./gradlew bootRun`, or the e2e image) behind `caddy:2` with the production
       `encode zstd gzip` + `reverse_proxy` config; a write of an entity whose response is >= 512 bytes, using the ETag
       Caddy returned (`curl --compressed`), succeeds instead of 412. Record the commands and output with `verify`
