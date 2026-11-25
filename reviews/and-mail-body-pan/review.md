@@ -4,20 +4,34 @@ Date: 2026-11-25
 
 Task: and-mail-body-pan - Mail body: pan diagonally instead of axis-locked scrolling
 
-Scope: committed changes `git diff 5c923a8e29f4da3647378a4f461384a3badb2d8b..a31a5716c -- android` (MailBodyPan.kt new, MailBodyView.kt, MailBodyPanTest.kt). Static review only (Gradle not run, as instructed). An uncommitted modification of MailBodyPanTest.kt present in the working tree during the review (presumably the test-writer's) is not part of this review.
+Scope: round 2 review of the final revision ee4b0774e. Full scope: `git diff 5c923a8e29f4da3647378a4f461384a3badb2d8b..ee4b0774e -- android` (MailBodyPan.kt new, MailBodyView.kt, MailBodyPanTest.kt). The focus is the delta since round 1: fix commit ee4b0774e ("fling velocity from finger deltas, no fling after hold") and the test-writer's commit a5461b65c. This was a static review. Gradle was not run because a GradleWorkerMain process was already running. The working tree was clean.
+
+Reviewed revision: ee4b0774efd0fe2f8f2fb3ff5df53231ccc81116
 
 Requirements:
-- tasks/and-mail-body-pan.md (goal, acceptance criteria 1-5)
+- tasks/and-mail-body-pan.md (goal, acceptance criteria 1-5, recorded assumptions)
+- reviews/and-mail-body-pan/review.md (round 1, findings CR-1 to CR-4)
+- reviews/and-mail-body-pan/fixes.md
 - AGENTS.md project notes (conventions, lint)
-- MailReadScreen.kt context (body hosted in `Column.verticalScroll`)
 
 Git range:
 - Branch: main
-- HEAD: a31a5716cb76f8090e02f86c2f97db8bdd398506
-- Base/start: 5c923a8e29f4da3647378a4f461384a3badb2d8b (merge-base with origin/main)
-- Commits reviewed: 1 (a31a5716c "and-mail-body-pan: pan mail body diagonally, fling both axes")
+- HEAD: ee4b0774efd0fe2f8f2fb3ff5df53231ccc81116
+- Base/start: 5c923a8e29f4da3647378a4f461384a3badb2d8b
+- Commits reviewed: 4 code/test commits (c181305fc implementation, 60d9f88ab round 1 review, a5461b65c tests, ee4b0774e fixes) plus task-board commits (assume/verify/heartbeat) that touch only `tasks/`
 
-Summary: 0 P0, 1 P1, 2 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3 (open findings in the final revision)
+
+## Dispositions of the round 1 findings
+
+- **CR-1 (P1) | Vertical release velocity measured in coordinates that move with the page: fixed, verified.**
+  The new `FingerVelocity` (`MailBodyPan.kt:71-87`) starts at `Offset.Zero` at the down time. It feeds the tracker the running sum of `positionChange()` deltas, and `mailBodyPan` uses it at `:123`, `:132`, `:138` and `:154`. Compose computes `position` and `previousPosition` of a change in the node's current local coordinates, so their difference is the finger's own movement on screen and does not depend on how far the body has moved with the page. The sum is therefore the finger's path, and the vertical velocity no longer goes to zero when the body scrolls along with the finger. The unit test `the release velocity follows the finger's own movement, not its position on the moving body` (`MailBodyPanTest.kt:122`) checks both axes from deltas alone. As fixes.md says, Robolectric cannot reproduce layout moving under the finger. Confirming this on a device remains part of criterion 5, which is skipped with a reason.
+- **CR-2 (P2) | Up event not added to the velocity tracker: fixed, verified.**
+  The up change is now added before the loop breaks (`MailBodyPan.kt:132`). If the finger holds still before lifting, the gap to the last movement sample exceeds the tracker's stop threshold, so the velocity is zero and `flingBoth` launches no animation on either axis. The unit test `dragging, holding still and lifting gives no fling` (`:134`) asserts `Velocity.Zero`. The Compose UI test `a drag-hold-lift on the body leaves the page and the body where the finger left them` (`:143`) asserts that `scrollX` and the page scroll do not change over 2 s after release. According to fixes.md, this test failed with the fix removed (scrollX 827) and passes with it.
+- **CR-3 (P2) | No check that taps and two-finger gestures still reach the WebView: resolved by tests.**
+  The test-writer's commit a5461b65c adds tests that record, after the body's handlers, whether each event was consumed. They are `a tap on the body is not consumed, so the WebView gets the link click` (`:319`), `a move below the touch slop is not consumed and scrolls nothing` (`:331`), `a drag past the touch slop is consumed from then on, up to the release` (`:348`), `a second finger before the slop leaves the pinch to the WebView` (`:364`) and `a second finger after the slop keeps the one-finger drag going` (`:386`). Consumed changes are what make the AndroidView interop cancel the WebView's gesture, so these tests cover what CR-3 asked for. No production change was needed.
+- **CR-4 (P3) | Touching outside the body does not stop a running horizontal fling: accepted, deferred.**
+  The code is unchanged. The decision is recorded as an assumption in tasks/and-mail-body-pan.md (2026-11-25 08:41). The impact is limited because the horizontal decay is short and stops at the content edges. Round 1 offered accepting this behavior as an option.
 
 ## P0 Critical
 
@@ -25,40 +39,26 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | Vertical release velocity is measured in coordinates that move with the page scroll**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailBodyPan.kt:100`, `:114`, `:130`
-    - Category: Correctness
-    - Problem: The `VelocityTracker` is fed `down.position` / `change.position`, i.e. positions local to the AndroidView. That node sits inside the `verticalScroll` content, and the same gesture scrolls that content by the vertical finger delta (lines 123-127). Compose re-runs measure/layout before handling each touch event and translates every change into the node's current local coordinates, so as the page follows the finger the body moves with it and the local y of the finger stays nearly constant. The tracker then sees almost no vertical movement, and `v.y` passed to `dispatchPostFling` is close to zero (only the residue of one event's layout lag). The horizontal axis is unaffected because panning the WebView does not move the Compose node. On a device, the result would be that a diagonal or vertical fling on the body keeps going sideways but barely or not at all vertically. That breaks criterion 2 ("continues in both axes") and is a regression for plain vertical flings on the body (criterion 3, "scrolls only vertically ... as before"). The Robolectric fling test probably does not catch this: injected events are dispatched as a batch without a layout pass reflecting the scroll between them, and its assertion `pageScroll() > 200f` after a 200 px swipe passes with any non-zero fling. Criterion 5 (device check) is not recorded yet, so nothing has exercised this path on real input.
-    - Why it matters: Fling in both axes is a stated acceptance criterion, and vertical flinging over the mail body is the most common gesture on the read screen.
-    - Suggested fix: Track velocity from the finger's own movement, independent of the node's position. For example, accumulate `positionChange()` into a running offset (`total += delta; velocity.addPosition(change.uptimeMillis, total)`), starting at `Offset.Zero` for the down event. Another option is to convert positions to root or window coordinates. Then confirm on a device or emulator (criterion 5) that a vertical-only fling on the body travels as far as one on the header.
+None.
 
 ## P2 Medium
 
-- [ ] **CR-2 | The up event is not added to the velocity tracker, so lifting after holding still can still fling**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailBodyPan.kt:108-114`
-    - Category: Correctness
-    - Problem: When the tracked pointer lifts, the loop records `lastUp` and breaks before `velocity.addPosition(...)`, so the release sample is never added. Compose's `VelocityTracker` estimates velocity from the samples before the newest added sample, and it only discards older movement when the gap between consecutive samples exceeds about 40 ms. If the user drags, holds the finger still (Android emits no or only jitter MOVE events), and then lifts, the newest sample is still the last movement. The tracker therefore reports the earlier drag speed and an unintended fling starts in both axes. Compose's own `draggable`/`scrollable` add the up change to the tracker for this reason.
-    - Why it matters: A deliberate "drag, stop, lift" to place the content would fling it away. Reading a wide mail invites this gesture, especially near the horizontal edges.
-    - Suggested fix: Add the up change to the tracker before deciding on a fling (with the same coordinate basis as the CR-1 fix). Optionally, skip the fling below the platform's minimum fling velocity.
-
-- [ ] **CR-3 | No automated check that taps and two-finger gestures still reach the WebView**
-    - File: `android/app/src/test/java/ch/sonensei/cockpit/mail/read/MailBodyPanTest.kt:135-175`
-    - Category: Tests
-    - Problem: Criterion 3 depends on the new Initial-pass handler leaving taps (link opening) and pre-slop second-finger gestures (pinch-zoom) unconsumed. The UI tests cover only swipes. Nothing asserts that a tap on the body is delivered to the WebView (down and up, no cancel), or that a second pointer before slop stops the handler from consuming. A regression here, such as consuming on down or lowering the slop check, would silently break links and pinch-zoom. The device check (criterion 5) is also not recorded yet.
-    - Why it matters: Link taps and pinch-zoom are the "unchanged" behaviors most at risk from an ancestor pointer handler at `PointerEventPass.Initial`. Without a test, only manual device runs protect them.
-    - Suggested fix: In the existing Robolectric setup, make the test WebView record the `MotionEvent` actions it receives in `onTouchEvent`/`dispatchTouchEvent`. Then assert that `performTouchInput { click(...) }` delivers DOWN and UP without CANCEL, and that a two-finger down before slop leaves the events unconsumed (no CANCEL). Also assert that a swipe past slop does produce CANCEL.
+None.
 
 ## P3 Low
 
-- [ ] **CR-4 | Touching outside the body does not stop a running horizontal fling**
-    - File: `android/app/src/main/java/ch/sonensei/cockpit/mail/read/MailBodyPan.kt:98`, `:131`
-    - Category: Correctness
-    - Problem: The fling job is cancelled only by a new down on the body itself (`fling[0]?.cancel()`). A press or drag on the header or attachments preempts the page fling, because the scroll mutex is taken with UserInput priority. The horizontal `animateDecay` keeps panning the WebView until it decays or reaches an edge.
-    - Why it matters: This is a small inconsistency: the body keeps sliding sideways while the user is already scrolling the page elsewhere. The impact is limited because the decay is short.
-    - Suggested fix: Also cancel the horizontal fling when the page's scroll is taken over, for example from an `onPreScroll` in the body's nested scroll connection, which receives the page's user scrolls only for children. Simpler: accept this behavior and record it as an assumption.
+None.
+
+## Regression check of the delta
+
+- The fix changes only the velocity bookkeeping. Slop detection still sums `positionChange()` into `moved`. The drag split, consumption, nested pre and post scroll, and the fling launch condition (`dragging && lastUp != null`) are unchanged.
+- The up sample is added before `lastUp`/`consume` and only for the tracked pointer. A tap or a below-slop gesture still starts no fling (`dragging` is false). The pinch path (break before the up) is unaffected.
+- `flingBoth` still skips an axis whose velocity is exactly zero. After drag, hold and lift, neither the horizontal decay nor `dispatchPreFling`/`dispatchPostFling` runs, so the page's scroll state is left alone.
+- MailBodyView.kt and MailReadScreen.kt are unchanged since round 1, and the header/attachment and TalkBack paths are untouched.
+- The new tests sit in the task's `touches` (mail/read test package) and use fictitious data. The fix adds no new dependencies or logging.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
 
-The rest of the design checks out on reading. Consuming at `PointerEventPass.Initial` on the outer AndroidView modifier, ahead of the interop filter, sends the WebView a cancel and keeps the parent `verticalScroll` from starting its own drag. The pan is clamped to `computeHorizontalScrollRange - computeHorizontalScrollExtent`, which follows the zoom. The horizontal fling stops at the edges and does nothing for a narrow mail. The vertical part goes through nested pre/post scroll and fling, and the page's scrollable clamps it. The fling job is cancelled on a new down on the body and on leaving composition. The header and attachments, and TalkBack semantics, are untouched by the change. The splitting and clamping logic has focused unit tests.
+CR-1 and CR-2 are fixed correctly, CR-3 is covered by tests, and CR-4 is deferred as a recorded assumption. Criterion 5 (real device or emulator: diagonal drag, fling speed on both axes, link tap, pinch-zoom) is still skipped with a reason in the task file. It is the only remaining place where the CR-1 fix can be confirmed on real input.
