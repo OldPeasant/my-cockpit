@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "task": "etag-encoding-suffix",
+  "reviewed_revision": "57e255e9259f69b65ac5a641128c58bb5654c852",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/etag-encoding-suffix/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/etag-encoding-suffix/review.md"},
+    "fixer":         {"status": "not_required", "reason": "neither the code review (initial and delta review of the added tests) nor the test report had findings"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.web.*' jacocoTestReport ktlintCheck (59 tests, ETags.kt 100% lines/branches)", "result": "pass"},
+    {"command": "cd server && ./gradlew check (5296 tests, test-writer)", "result": "pass"},
+    {"command": "bootJar (profile e2e) behind caddy:2 v2.11.7 with deploy/Caddyfile, curl --compressed: GET Etag \"0-gzip\", PATCH If-Match \"0-gzip\" 200, stale 412, DELETE \"1-gzip\" 204", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
