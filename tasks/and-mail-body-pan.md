@@ -1,10 +1,11 @@
 ---
 title: Mail body: pan diagonally instead of axis-locked scrolling
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/read,android/app/src/test/java/ch/sonensei/cockpit/mail/read]
 prio: 2
+lease_until: 2026-11-25T07:40:18Z
 ---
 ## Goal
 Reading a wide HTML mail on Android, the body moves the way the finger moves, diagonally included. Today the
