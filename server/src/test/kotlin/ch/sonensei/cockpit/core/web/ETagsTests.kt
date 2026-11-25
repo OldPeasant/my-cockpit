@@ -63,4 +63,31 @@ class ETagsTests {
 		shouldThrow<PreconditionFailedException> { ETags.checkIfMatch("2-gzip", 2) }
 		shouldThrow<PreconditionFailedException> { ETags.checkIfMatch("\"1-gzip\", \"3-zstd\"", 2) }
 	}
+
+	@Test
+	fun `a suffixed tag matches at version zero, a large version, and among weak or stale tags`() {
+		shouldNotThrowAny {
+			ETags.checkIfMatch("\"0-gzip\"", 0)
+			ETags.checkIfMatch("\"${Long.MAX_VALUE}-br\"", Long.MAX_VALUE)
+			ETags.checkIfMatch("W/\"2\", \"1-gzip\", \"2-zstd\"", 2)
+			ETags.checkIfMatch("\"2-br\",\"3\"", 2)
+		}
+	}
+
+	@Test
+	fun `a bare suffix, a suffix without dash or a suffix outside the quotes is 412`() {
+		shouldThrow<PreconditionFailedException> { ETags.checkIfMatch("\"-gzip\"", 2) }
+		shouldThrow<PreconditionFailedException> { ETags.checkIfMatch("\"2gzip\"", 2) }
+		shouldThrow<PreconditionFailedException> { ETags.checkIfMatch("\"2-\"", 2) }
+		shouldThrow<PreconditionFailedException> { ETags.checkIfMatch("\"gzip-2\"", 2) }
+		shouldThrow<PreconditionFailedException> { ETags.checkIfMatch("\"2-br\"x", 2) }
+		// A suffixed tag of a different version never matches, also when it ends with the version's digits.
+		shouldThrow<PreconditionFailedException> { ETags.checkIfMatch("\"22-zstd\"", 2) }
+	}
+
+	@Test
+	fun `a blank If-Match is still 428 and star still matches alongside suffixed tags`() {
+		shouldThrow<PreconditionRequiredException> { ETags.checkIfMatch("", 2) }
+		shouldNotThrowAny { ETags.checkIfMatch("\"1-gzip\", *", 2) }
+	}
 }

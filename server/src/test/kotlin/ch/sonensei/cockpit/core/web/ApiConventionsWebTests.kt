@@ -344,6 +344,38 @@ class ApiConventionsWebTests(
 					contentType = MediaType.APPLICATION_JSON
 					content = """{"name": "Beta"}"""
 				}.isProblem(412)
+			mockMvc.get("$BASE/items/a").andExpect { jsonPath("$.name") { value("Alpha") } }
+		}
+
+		@Test
+		fun `PATCH with a weak or unknown-suffix ETag of the current version gives 412 and changes nothing`() {
+			for (tag in listOf("W/\"1-gzip\"", "\"1-deflate\"")) {
+				mockMvc
+					.patch("$BASE/items/a") {
+						with(csrf())
+						header(IF_MATCH, tag)
+						contentType = MediaType.APPLICATION_JSON
+						content = """{"name": "Beta"}"""
+					}.isProblem(412)
+			}
+			mockMvc.get("$BASE/items/a").andExpect {
+				header { string(ETAG, "\"1\"") }
+				jsonPath("$.name") { value("Alpha") }
+			}
+		}
+
+		@Test
+		fun `PATCH with a list holding a stale and the current brotli-suffixed ETag updates`() {
+			mockMvc
+				.patch("$BASE/items/a") {
+					with(csrf())
+					header(IF_MATCH, "\"0-gzip\", \"1-br\"")
+					contentType = MediaType.APPLICATION_JSON
+					content = """{"name": "Beta"}"""
+				}.andExpect {
+					status { isOk() }
+					header { string(ETAG, "\"2\"") }
+				}
 		}
 
 		@Test
