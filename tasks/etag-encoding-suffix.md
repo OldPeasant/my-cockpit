@@ -1,10 +1,11 @@
 ---
 title: Accept proxy content-coding suffix in If-Match (Caddy gzip breaks saves)
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/core/web/ETags.kt,server/src/test/kotlin/ch/sonensei/cockpit/core/web,SPEC.md]
 prio: 1
+lease_until: 2026-11-25T07:29:17Z
 ---
 ## Goal
 Saves, sends and deletes work behind the production Caddy proxy. Caddy's `encode zstd gzip` (`deploy/Caddyfile`)
