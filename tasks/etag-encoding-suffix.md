@@ -29,7 +29,8 @@ v2.11.7: `Etag: "42"` -> `"42-gzip"` (Accept-Encoding: gzip) / `"42-zstd"` (brow
       `encode zstd gzip` + `reverse_proxy` config; a write of an entity whose response is >= 512 bytes, using the ETag
       Caddy returned (`curl --compressed`), succeeds instead of 412. Record the commands and output with `verify`
   - verified (2026-11-25 08:13+0100 by dell26/agent-1): bootJar (java -jar, profile e2e, postgres:16-alpine) behind docker.io/library/caddy:2 v2.11.7 with deploy/Caddyfile (encode zstd gzip, reverse_proxy to the jar; only the upstream address changed), .tmp script: setup+login, POST /api/v1/notes with a 1.3 kB body, then curl --compressed: GET -> 200 Content-Encoding gzip Etag "0-gzip"; PATCH If-Match "0-gzip" -> 200 Etag "1-gzip" (was 412); PATCH again with stale "0-gzip" -> 412; DELETE If-Match "1-gzip" -> 204
-- [ ] SPEC.md §4.2 / the `ETags` KDoc note that a proxy's content-coding suffix is accepted, and why
+- [x] SPEC.md §4.2 / the `ETags` KDoc note that a proxy's content-coding suffix is accepted, and why
+  - verified (2026-11-25 08:13+0100 by dell26/agent-1): git diff: SPEC.md §4.2 adds a paragraph on proxy content-coding suffixes (gzip/zstd/br) and why; ETags.kt object KDoc + checkIfMatch KDoc describe it
 
 ## Notes
 - Server fix only: clients keep sending back the ETag exactly as received, so they need no change.
