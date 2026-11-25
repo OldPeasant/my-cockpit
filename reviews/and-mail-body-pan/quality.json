@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "task": "and-mail-body-pan",
+  "reviewed_revision": "11707f4471eb38f939549b309242752dd046ebf8",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-mail-body-pan/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-mail-body-pan/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-mail-body-pan/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "fling velocity from accumulated finger deltas (FingerVelocity) instead of body-local positions"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "up event added to the velocity tracker; drag-hold-lift no longer flings"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "tap, sub-slop move and pinch-before-slop tests added by the test-writer in MailBodyPanTest"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "a touch outside the body does not stop a running horizontal body fling; it is short and stops at the edges; recorded as assumption"}
+  ],
+  "validation": [
+    {"command": "android/gradlew -p android testDebugUnitTest --rerun --tests 'ch.sonensei.cockpit.mail.read.*' createDebugUnitTestCoverageReport ktlintCheck", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
