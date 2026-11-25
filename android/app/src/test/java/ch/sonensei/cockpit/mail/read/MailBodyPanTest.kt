@@ -12,6 +12,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
+import androidx.compose.ui.unit.Velocity
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
@@ -115,6 +116,50 @@ class MailBodyPanTest {
     fun `no horizontal movement is never an edge`() {
         assertFalse(atEdge(0f, Target(panX = 0)))
         assertFalse(atEdge(0f, Target(panX = 500)))
+    }
+
+    @Test
+    fun `the release velocity follows the finger's own movement, not its position on the moving body`() {
+        // The body scrolls up with the page, so the finger's local position stays put; only its deltas tell the speed.
+        val finger = FingerVelocity(downMillis = 0)
+        (1..10).forEach { finger.add(millis = it * 10L, delta = Offset(-5f, -10f)) }
+
+        val v = finger.velocity(max = 100_000f)
+
+        assertTrue("velocity $v", v.y < -900f && v.y > -1100f)
+        assertTrue("velocity $v", v.x < -450f && v.x > -550f)
+    }
+
+    @Test
+    fun `dragging, holding still and lifting gives no fling`() {
+        val finger = FingerVelocity(downMillis = 0)
+        (1..10).forEach { finger.add(millis = it * 10L, delta = Offset(-5f, -10f)) }
+        finger.add(millis = 400, delta = Offset.Zero) // the up, after holding still
+
+        assertEquals(Velocity.Zero, finger.velocity(max = 100_000f))
+    }
+
+    @Test
+    fun `a drag-hold-lift on the body leaves the page and the body where the finger left them`() {
+        show()
+        composeRule.mainClock.autoAdvance = true
+
+        composeRule.onNodeWithTag(MailReadTags.BODY).performTouchInput {
+            down(Offset(width * 0.8f, 220f))
+            repeat(10) { moveBy(Offset(-20f, -20f), delayMillis = 10) }
+            advanceEventTime(400)
+            up()
+        }
+        composeRule.waitForIdle()
+        val x = webView!!.scrollX
+        val page = pageScroll()
+        composeRule.mainClock.advanceTimeBy(2_000)
+        composeRule.waitForIdle()
+
+        assertTrue("scrollX $x", x in 150..220)
+        assertTrue("page $page", page in 150f..220f)
+        assertEquals(x, webView!!.scrollX)
+        assertEquals(page, pageScroll())
     }
 
     /** A MailWebView with a given (zoomed) content width [range] and view width [extent], as WebView reports them. */

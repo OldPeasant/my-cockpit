@@ -63,6 +63,29 @@ internal class HorizontalPan {
     }
 }
 
+/**
+ * The release velocity of one finger, measured from its own movement: the sum of its position changes since the down.
+ * Positions local to the body would not do: the body scrolls with the page during the drag, so the finger's local y
+ * barely changes and a vertical fling would get no speed.
+ */
+internal class FingerVelocity(
+    downMillis: Long,
+) {
+    private val tracker = VelocityTracker().apply { addPosition(downMillis, Offset.Zero) }
+    private var moved = Offset.Zero
+
+    /** Adds a sample [delta] after the previous one; also for the up, so holding still before lifting gives no fling. */
+    fun add(
+        millis: Long,
+        delta: Offset,
+    ) {
+        moved += delta
+        tracker.addPosition(millis, moved)
+    }
+
+    fun velocity(max: Float): Velocity = tracker.calculateVelocity(Velocity(max, max))
+}
+
 /** A drag delta split into its parts: [panX] scrolls the body sideways, [pageY] is left for the page (finger delta). */
 internal data class PanSplit(
     val panX: Int,
@@ -97,7 +120,7 @@ internal fun Modifier.mailBodyPan(target: () -> MailPanTarget?): Modifier =
                     if (down == null) continue
                     fling[0]?.cancel()
                     val pan = HorizontalPan()
-                    val velocity = VelocityTracker().apply { addPosition(down.uptimeMillis, down.position) }
+                    val velocity = FingerVelocity(down.uptimeMillis)
                     var moved = Offset.Zero
                     var dragging = false
                     var lastUp: PointerInputChange? = null
@@ -106,12 +129,13 @@ internal fun Modifier.mailBodyPan(target: () -> MailPanTarget?): Modifier =
                         if (!dragging && event.changes.count { it.pressed } > 1) break // pinch: the WebView's
                         val change = event.changes.firstOrNull { it.id == down.id } ?: break
                         if (!change.pressed) {
+                            velocity.add(change.uptimeMillis, change.positionChange())
                             lastUp = change
                             if (dragging) change.consume()
                             break
                         }
                         val delta = change.positionChange()
-                        velocity.addPosition(change.uptimeMillis, change.position)
+                        velocity.add(change.uptimeMillis, delta)
                         if (!dragging) {
                             moved += delta
                             if (moved.getDistance() < viewConfiguration.touchSlop) continue
@@ -127,7 +151,7 @@ internal fun Modifier.mailBodyPan(target: () -> MailPanTarget?): Modifier =
                         }
                     }
                     if (dragging && lastUp != null) {
-                        val v = velocity.calculateVelocity(Velocity(maxVelocity, maxVelocity))
+                        val v = velocity.velocity(maxVelocity)
                         fling[0] = scope.launch { flingBoth(v, target, dispatcher, decay) }
                     }
                 }
