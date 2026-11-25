@@ -24,8 +24,9 @@ body (do not give the WebView its own vertical scrolling).
       the same gesture; a mostly vertical drag keeps its small horizontal part, a mostly horizontal one its small
       vertical part (no axis lock)
   - verified (2026-11-25 08:44+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.read.*' (Robolectric) -> 377 passed; MailBodyPanTest diagonal swipe on wide body moves WebView scrollX and page scroll in one gesture; mostly vertical/horizontal drags keep the small other part (unit + UI tests)
-- [ ] A fling after a diagonal drag continues in both axes and stops at the edges (horizontal: the WebView's content
+- [x] A fling after a diagonal drag continues in both axes and stops at the edges (horizontal: the WebView's content
       range; vertical: the page's)
+  - verified (2026-11-25 08:44+0100 by dell26/agent-1): same Robolectric run -> MailBodyPanTest fast diagonal fling continues in both axes past the drag, stops exactly at the right edge (maxPanX), no movement past top/left, drag-hold-lift gives no fling; vertical fling speed on a moving body only unit-tested (FingerVelocity), device check skipped (#5)
 - [ ] Unchanged: tapping a link opens it, pinch-zoom of the body works (and the panning respects the zoomed width), a
       mail no wider than the screen scrolls only vertically, dragging outside the body (header, attachments) scrolls
       the page as before, TalkBack scrolling still works
