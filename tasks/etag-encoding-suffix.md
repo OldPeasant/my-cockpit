@@ -40,3 +40,4 @@ v2.11.7: `Etag: "42"` -> `"42-gzip"` (Accept-Encoding: gzip) / `"42-zstd"` (brow
 - Stripping the suffix in Caddy is not possible (it passes `If-Match` unchanged); excluding `/api/*` from `encode`
   would also work but loses API compression, so it is not part of this task.
 - The e2e stack has no Caddy (`deploy/docker-compose.e2e.yml`), which is why no test caught this.
+- ASSUMPTION (2026-11-25 08:17+0100 by dell26/agent-1): Web test for If-Match suffix uses the conventions test controller (ApiConventionsWebTests) since touches limit test changes to core/web; production notes PATCH/DELETE were verified behind real caddy:2 instead
