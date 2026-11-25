@@ -1,11 +1,11 @@
 ---
 title: Mail body: pan diagonally instead of axis-locked scrolling
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/mail/read,android/app/src/test/java/ch/sonensei/cockpit/mail/read]
 prio: 2
-lease_until: 2026-11-25T08:14:30Z
+lease_until: 
 ---
 ## Goal
 Reading a wide HTML mail on Android, the body moves the way the finger moves, diagonally included. Today the
@@ -43,3 +43,4 @@ body (do not give the WebView its own vertical scrolling).
 - ASSUMPTION (2026-11-25 08:28+0100 by dell26/agent-1): Diagonal pan lives in MailBodyView (Modifier.mailBodyPan on the WebView's AndroidView) and reaches the page through nested scrolling, instead of a handler on MailReadScreen's Column with its ScrollState: self-contained, no change to the body lambda signature; drags outside the body keep the page's own verticalScroll
 - ASSUMPTION (2026-11-25 08:28+0100 by dell26/agent-1): A second finger only hands the gesture to the WebView (pinch-zoom) when it lands before the first finger passed the touch slop; once a pan has started it stays a pan until all fingers lift
 - ASSUMPTION (2026-11-25 08:41+0100 by dell26/agent-1): CR-4 deferred: a touch outside the body (header) stops the page fling but not a running horizontal body fling; it decays on its own, minor
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 318s on 9e8350148; criteria verified 4/5, skipped #5
