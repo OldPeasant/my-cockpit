@@ -115,9 +115,20 @@ internal fun mailBodyHeight(
  * never scrolls vertically by itself. [keepHeight] holds the current height across a reload until [pageFinished]
  * (or [forgetHeight], when another mail loads).
  */
-class MailWebView(
+open class MailWebView(
     context: Context,
-) : WebView(context) {
+) : WebView(context),
+    MailPanTarget {
+    override val panX: Int get() = scrollX
+
+    /** The content width at the current zoom minus the view width: pinch-zoom widens the range to pan. */
+    override val maxPanX: Int
+        get() = (computeHorizontalScrollRange() - computeHorizontalScrollExtent()).coerceAtLeast(0)
+
+    override fun panBy(dx: Int) {
+        scrollBy(dx, 0)
+    }
+
     /** The height kept while the next page loads; 0 for none. */
     internal var keptHeight = 0
         private set
@@ -184,9 +195,21 @@ fun MailBodyView(
     images: MailImageFetcher? = null,
     key: Any? = null,
 ) {
+    MailBodyView(html, modifier, key) { context -> mailWebView(context, images) { openExternally(context, it) } }
+}
+
+/** [MailBodyView] with the WebView from [create] (tests give it one with a known content width). */
+@Composable
+internal fun MailBodyView(
+    html: String,
+    modifier: Modifier,
+    key: Any?,
+    create: (Context) -> MailWebView,
+) {
     val document = remember(html) { mailDocument(html) }
+    val webView = remember { arrayOfNulls<MailWebView>(1) }
     AndroidView(
-        factory = { context -> mailWebView(context, images) { openExternally(context, it) } },
+        factory = { context -> create(context).also { webView[0] = it } },
         update = { view ->
             // Loaded again only when the mail changes, not on every recomposition (that would reset scroll and zoom).
             val loaded = view.tag as? LoadedMail
@@ -197,7 +220,7 @@ fun MailBodyView(
                 view.loadDataWithBaseURL("$MAIL_ORIGIN/", document, "text/html", "utf-8", null)
             }
         },
-        modifier = modifier.wrapContentHeight().testTag(MailReadTags.BODY),
+        modifier = modifier.wrapContentHeight().testTag(MailReadTags.BODY).mailBodyPan { webView[0] },
     )
 }
 
