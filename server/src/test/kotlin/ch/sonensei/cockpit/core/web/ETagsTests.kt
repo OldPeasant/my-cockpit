@@ -41,4 +41,26 @@ class ETagsTests {
 		// A tag that merely contains the version is not a match.
 		shouldThrow<PreconditionFailedException> { ETags.checkIfMatch("\"12\"", 2) }
 	}
+
+	@Test
+	fun `a proxy content-coding suffix on the current version matches`() {
+		shouldNotThrowAny {
+			ETags.checkIfMatch("\"2-gzip\"", 2)
+			ETags.checkIfMatch("\"2-zstd\"", 2)
+			ETags.checkIfMatch("\"2-br\"", 2)
+			ETags.checkIfMatch("\"1\", \"2-gzip\"", 2)
+		}
+	}
+
+	@Test
+	fun `a suffixed stale, weak, unknown or malformed tag is 412`() {
+		shouldThrow<PreconditionFailedException> { ETags.checkIfMatch("\"1-gzip\"", 2) }
+		shouldThrow<PreconditionFailedException> { ETags.checkIfMatch("\"12-gzip\"", 2) }
+		shouldThrow<PreconditionFailedException> { ETags.checkIfMatch("W/\"2-gzip\"", 2) }
+		shouldThrow<PreconditionFailedException> { ETags.checkIfMatch("\"2-deflate\"", 2) }
+		shouldThrow<PreconditionFailedException> { ETags.checkIfMatch("\"2-gzip-gzip\"", 2) }
+		shouldThrow<PreconditionFailedException> { ETags.checkIfMatch("\"2\"-gzip", 2) }
+		shouldThrow<PreconditionFailedException> { ETags.checkIfMatch("2-gzip", 2) }
+		shouldThrow<PreconditionFailedException> { ETags.checkIfMatch("\"1-gzip\", \"3-zstd\"", 2) }
+	}
 }

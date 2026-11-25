@@ -153,7 +153,10 @@ DTOs), `domain/` (entities, services), `infra/` (external integrations, reposito
 - All entities use **UUIDv7** primary keys (time-ordered), generated server-side; Android
   generates UUIDv7 for offline captures (idempotent create).
 - Every entity has `createdAt`, `updatedAt` (UTC `timestamptz`), and `version` (optimistic
-  locking; API returns `ETag`, updates require `If-Match` → `409/412` on conflict).
+  locking; API returns `ETag`, updates require `If-Match` → `409/412` on conflict). A
+  compressing reverse proxy (Caddy `encode`) rewrites the strong ETag `"42"` to `"42-gzip"` /
+  `"42-zstd"` / `"42-br"` and passes `If-Match` through unchanged, so the server accepts these
+  content-coding suffixes as the same version (otherwise every write behind the proxy gets 412).
 - Soft delete via `deletedAt` for user content (tasks, notes, files, contacts, bookmarks,
   journal entries); a **Trash** view lists deleted items, purged after 30 days.
 - Time zone: user setting (default `Europe/Zurich`); store instants in UTC, store all-day

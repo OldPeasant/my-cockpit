@@ -321,6 +321,41 @@ class ApiConventionsWebTests(
 		}
 
 		@Test
+		fun `PATCH with the current ETag as rewritten by a compressing proxy updates`() {
+			mockMvc
+				.patch("$BASE/items/a") {
+					with(csrf())
+					header(IF_MATCH, "\"1-gzip\"")
+					contentType = MediaType.APPLICATION_JSON
+					content = """{"name": "Beta"}"""
+				}.andExpect {
+					status { isOk() }
+					header { string(ETAG, "\"2\"") }
+					jsonPath("$.name") { value("Beta") }
+				}
+		}
+
+		@Test
+		fun `PATCH with a stale proxy-suffixed ETag gives 412`() {
+			mockMvc
+				.patch("$BASE/items/a") {
+					with(csrf())
+					header(IF_MATCH, "\"0-zstd\"")
+					contentType = MediaType.APPLICATION_JSON
+					content = """{"name": "Beta"}"""
+				}.isProblem(412)
+		}
+
+		@Test
+		fun `DELETE with the current ETag as rewritten by a compressing proxy gives 204`() {
+			mockMvc
+				.delete("$BASE/items/a") {
+					with(csrf())
+					header(IF_MATCH, "\"1-zstd\"")
+				}.andExpect { status { isNoContent() } }
+		}
+
+		@Test
 		fun `DELETE without If-Match gives 428`() {
 			mockMvc.delete("$BASE/items/a") { with(csrf()) }.isProblem(428)
 		}
