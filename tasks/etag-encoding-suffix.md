@@ -18,9 +18,10 @@ and the draft cannot be discarded either. The same hits every client that takes 
 v2.11.7: `Etag: "42"` -> `"42-gzip"` (Accept-Encoding: gzip) / `"42-zstd"` (browser); `If-Match` reaches the backend as sent.
 
 ## Acceptance criteria
-- [ ] `ETags.checkIfMatch` treats a tag that is a strong ETag of the version plus a content-coding suffix added by a
+- [x] `ETags.checkIfMatch` treats a tag that is a strong ETag of the version plus a content-coding suffix added by a
       proxy (`"<version>-gzip"`, `"<version>-zstd"`, `"<version>-br"`) as matching that version; weak tags (`W/...`),
       other versions, other suffixes and garbage still give 412, a missing header still gives 428, `*` still matches
+  - verified (2026-11-25 08:16+0100 by dell26/agent-1): cd server && ./gradlew test --tests 'ch.sonensei.cockpit.core.web.*' -> ETagsTests 11 pass: "2-gzip"/"2-zstd"/"2-br" match v2; stale "1-gzip", W/"2-gzip", "2-deflate", "2-gzip-gzip", garbage -> 412; null/blank -> 428; * matches (ETags.kt 100% line/branch coverage)
 - [ ] Unit tests in `ETagsTests` cover the suffixed tags (match and stale version), a list of tags with a suffixed one,
       and the cases that must still fail
 - [ ] A web test through a real controller (e.g. the draft update or a simpler entity's PATCH/DELETE) shows that
