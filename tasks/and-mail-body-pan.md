@@ -20,9 +20,10 @@ range). A fling keeps the release velocity of both axes. Subject, header and att
 body (do not give the WebView its own vertical scrolling).
 
 ## Acceptance criteria
-- [ ] A diagonal drag over a mail body wider than the screen moves the body horizontally and the page vertically in
+- [x] A diagonal drag over a mail body wider than the screen moves the body horizontally and the page vertically in
       the same gesture; a mostly vertical drag keeps its small horizontal part, a mostly horizontal one its small
       vertical part (no axis lock)
+  - verified (2026-11-25 08:44+0100 by dell26/agent-1): android/gradlew -p android testDebugUnitTest --tests 'ch.sonensei.cockpit.mail.read.*' (Robolectric) -> 377 passed; MailBodyPanTest diagonal swipe on wide body moves WebView scrollX and page scroll in one gesture; mostly vertical/horizontal drags keep the small other part (unit + UI tests)
 - [ ] A fling after a diagonal drag continues in both axes and stops at the edges (horizontal: the WebView's content
       range; vertical: the page's)
 - [ ] Unchanged: tapping a link opens it, pinch-zoom of the body works (and the panning respects the zoomed width), a
