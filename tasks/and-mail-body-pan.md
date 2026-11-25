@@ -31,8 +31,9 @@ body (do not give the WebView its own vertical scrolling).
       mail no wider than the screen scrolls only vertically, dragging outside the body (header, attachments) scrolls
       the page as before, TalkBack scrolling still works
   - verified (2026-11-25 08:44+0100 by dell26/agent-1): same Robolectric run -> taps and sub-slop moves not consumed by the pan handler (reach the WebView), second finger before slop left to WebView (pinch), maxPanX = zoomed range minus extent, narrow mail scrolls only vertically, header drag scrolls page only; page verticalScroll/semantics unchanged (TalkBack). Real link open/pinch/TalkBack on device not run: see #5 skip
-- [ ] Tests: the delta splitting / clamping logic as unit tests; a Compose UI test (Robolectric or instrumented) that a
+- [x] Tests: the delta splitting / clamping logic as unit tests; a Compose UI test (Robolectric or instrumented) that a
       diagonal swipe on a wide body changes both the page scroll and the WebView's `scrollX`
+  - verified (2026-11-25 08:44+0100 by dell26/agent-1): MailBodyPanTest: HorizontalPan split/clamp/carry + FingerVelocity unit tests and Robolectric Compose UI test 'a diagonal swipe on a wide body changes both the page scroll and the WebView's scrollX' -> 30/30 passed; ktlintCheck + lintDebug clean
 - [~] Verified on a real device or emulator with a wide HTML mail (e.g. a newsletter with a fixed 800px table):
       diagonal drag, fling, link tap, pinch-zoom. Record device/emulator and what was checked with `verify`
   - skipped (2026-11-25 08:28+0100 by dell26/agent-1): no Android device or emulator on this machine (adb not installed, SDK dir not accessible); real-device check of diagonal drag, fling, link tap and pinch-zoom with a wide newsletter needs a human
