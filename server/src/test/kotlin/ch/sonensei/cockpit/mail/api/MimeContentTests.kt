@@ -333,6 +333,278 @@ class MimeContentTests {
 			"<div>Body text</div>\n<div><img src=\"cid:cockpit-part-2@cockpit.invalid\" alt=\"photo.png\"></div>"
 	}
 
+	@Test
+	fun `cid references that are percent-encoded, bracketed or in another case keep their images inline, shown once`() {
+		val html =
+			"<p><img src=\"cid:one%40example.test\"><img src=\"cid:<two@example.test>\"><img src=\"CID:Three@Example.Test\">" +
+				"<img src=\"cid:a+b@example.test\"><img src=\"cid:100%@example.test\"></p>"
+		val content =
+			read(
+				parse(
+					"""
+					Subject: Fictitious
+					MIME-Version: 1.0
+					Content-Type: multipart/related; boundary="r"
+
+					--r
+					Content-Type: text/html; charset=UTF-8
+
+					$html
+					--r
+					Content-Type: image/png; name="one.png"
+					Content-ID: <one@example.test>
+
+					PNG
+					--r
+					Content-Type: image/png; name="two.png"
+					Content-ID: <two@example.test>
+
+					PNG
+					--r
+					Content-Type: image/png; name="three.png"
+					Content-ID: <three@example.test>
+
+					PNG
+					--r
+					Content-Type: image/png; name="plus.png"
+					Content-ID: <a+b@example.test>
+
+					PNG
+					--r
+					Content-Type: image/png; name="percent.png"
+					Content-ID: <100%@example.test>
+
+					PNG
+					--r--
+					""",
+				),
+			)
+
+		// "+" is no encoded space in a cid: URL; a malformed escape is compared as written.
+		content.textHtml shouldBe html
+		content.attachments.map { it.partId to it.inline } shouldContainExactly
+			listOf("2" to true, "3" to true, "4" to true, "5" to true, "6" to true)
+	}
+
+	@Test
+	fun `a cid reference written with HTML character references keeps its image inline, shown once`() {
+		val html = "<p><img src=\"cid:pic&#64;example.test\"></p>"
+		val content =
+			read(
+				parse(
+					"""
+					Subject: Fictitious
+					MIME-Version: 1.0
+					Content-Type: multipart/related; boundary="r"
+
+					--r
+					Content-Type: text/html; charset=UTF-8
+
+					$html
+					--r
+					Content-Type: image/png; name="pic.png"
+					Content-ID: <pic@example.test>
+
+					PNG
+					--r--
+					""",
+				),
+			)
+
+		// The browser (and MailReadService after parsing) reads the src as cid:pic@example.test.
+		content.textHtml shouldBe html
+		content.attachments.single().inline shouldBe true
+	}
+
+	@Test
+	fun `a cid image in the related HTML variant of an alternative stays inline and is not appended`() {
+		val content =
+			read(
+				parse(
+					"""
+					Subject: Fictitious
+					MIME-Version: 1.0
+					Content-Type: multipart/alternative; boundary="a"
+
+					--a
+					Content-Type: text/plain; charset=UTF-8
+
+					Plain
+					--a
+					Content-Type: multipart/related; boundary="r"
+
+					--r
+					Content-Type: text/html; charset=UTF-8
+
+					<p>Hi<img src="cid:pic@example.test"></p>
+					--r
+					Content-Type: image/jpeg; name="pic.jpg"
+					Content-Disposition: inline; filename="pic.jpg"
+					Content-ID: <pic@example.test>
+
+					JPEG
+					--r--
+					--a--
+					""",
+				),
+			)
+
+		content.textPlain shouldBe "Plain"
+		content.textHtml shouldBe "<p>Hi<img src=\"cid:pic@example.test\"></p>"
+		content.attachments.map { Triple(it.partId, it.contentId, it.inline) } shouldContainExactly
+			listOf(Triple("2.2", "pic@example.test", true))
+	}
+
+	@Test
+	fun `an alternative without an HTML variant is shown as its escaped plain text next to HTML parts`() {
+		val content =
+			read(
+				parse(
+					appleMail(
+						"Content-Type: text/html; charset=UTF-8\n\n<p>Before</p>",
+						"""
+						Content-Type: multipart/alternative; boundary="alt"
+
+						--alt
+						Content-Type: text/plain; charset=UTF-8
+
+						After <b>
+						--alt
+						Content-Type: text/enriched
+
+						<bold>After</bold>
+						--alt--
+						""".trimIndent(),
+					),
+				),
+			)
+
+		content.textPlain shouldBe "After <b>"
+		content.textHtml shouldBe
+			"<p>Before</p>\n<div><img src=\"cid:cockpit-part-2@cockpit.invalid\" alt=\"image0.jpeg\"></div>\n<div>After &lt;b&gt;</div>"
+		content.attachments.map { Triple(it.partId, it.contentType, it.inline) } shouldContainExactly
+			listOf(Triple("2", "image/jpeg", false), Triple("3.2", "text/enriched", false))
+	}
+
+	@Test
+	fun `alternatives with only one text variant still frame a positioned image`() {
+		fun alternative(variant: String) =
+			"Content-Type: multipart/alternative; boundary=\"alt\"\n\n--alt\n$variant\n--alt\n" +
+				"Content-Type: text/enriched\n\n<bold>x</bold>\n--alt--"
+
+		val htmlOnly = read(parse(appleMail(alternative("Content-Type: text/html; charset=UTF-8\n\n<p>Hi</p>"))))
+		val plainOnly = read(parse(appleMail(alternative("Content-Type: text/plain; charset=UTF-8\n\nHi & bye"))))
+
+		htmlOnly.textPlain.shouldBeNull()
+		htmlOnly.textHtml shouldBe "<p>Hi</p>\n<div><img src=\"cid:cockpit-part-2@cockpit.invalid\" alt=\"image0.jpeg\"></div>"
+		plainOnly.textPlain shouldBe "Hi & bye"
+		plainOnly.textHtml shouldBe
+			"<div>Hi &amp; bye</div>\n<div><img src=\"cid:cockpit-part-2@cockpit.invalid\" alt=\"image0.jpeg\"></div>"
+	}
+
+	@Test
+	fun `the size limit applies per text part, so joined text may exceed it`() {
+		val content =
+			read(
+				parse(
+					appleMail(
+						"Content-Type: text/plain; charset=UTF-8\n\n0123456789abcdef",
+						"Content-Type: text/plain; charset=UTF-8\n\nfedcba9876543210",
+					),
+				),
+				maxTextBytes = 10,
+			)
+
+		content.textPlain shouldBe "0123456789\nfedcba9876"
+		content.textHtml shouldBe
+			"<div>0123456789</div>\n<div><img src=\"cid:cockpit-part-2@cockpit.invalid\" alt=\"image0.jpeg\"></div>\n<div>fedcba9876</div>"
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = ["image/png", "image/gif", "image/webp", "IMAGE/JPEG"])
+	fun `unreferenced inline raster images of every shown type are put into the body`(type: String) {
+		val content = read(mixed("Content-Type: $type\nContent-Disposition: inline; filename=\"pic\"\n\nx"))
+
+		content.textHtml shouldBe "<div>Body text</div>\n<div><img src=\"cid:cockpit-part-2@cockpit.invalid\" alt=\"pic\"></div>"
+		content.attachments.single().inline shouldBe false
+	}
+
+	@Test
+	fun `SVG and raster parts with attachment disposition are listed but not put into the body`() {
+		val content =
+			read(
+				mixed(
+					"Content-Type: image/svg+xml\nContent-Disposition: inline; filename=\"logo.svg\"\n\n<svg onload=\"alert(1)\"/>",
+					"Content-Type: image/jpeg\nContent-Disposition: attachment; filename=\"photo.jpg\"\n\n/9j/",
+				),
+			)
+
+		content.textHtml.shouldBeNull()
+		content.textPlain shouldBe "Body text"
+		content.attachments.map { Triple(it.partId, it.contentType, it.inline) } shouldContainExactly
+			listOf(Triple("2", "image/svg+xml", false), Triple("3", "image/jpeg", false))
+	}
+
+	@Test
+	fun `the file name of a positioned image is escaped in its alt text`() {
+		val content =
+			read(
+				mixed(
+					"Content-Type: image/png\nContent-Disposition: inline; filename*=UTF-8''x%22%20onerror%3D%22alert%281%29%3C%3E%26%27.png\n\nx",
+				),
+			)
+
+		content.attachments.single().filename shouldBe "x\" onerror=\"alert(1)<>&'.png"
+		content.textHtml shouldBe
+			"<div>Body text</div>\n" +
+			"<div><img src=\"cid:cockpit-part-2@cockpit.invalid\" alt=\"x&quot; onerror=&quot;alert(1)&lt;&gt;&amp;&#39;.png\"></div>"
+	}
+
+	@Test
+	fun `an image before the first text and text with CRLF line ends keep their order and breaks`() {
+		val message =
+			parse(
+				"""
+				Subject: Fictitious
+				MIME-Version: 1.0
+				Content-Type: multipart/mixed; boundary="b"
+
+				--b
+				Content-Type: image/gif
+				Content-Disposition: inline
+
+				GIF89a
+				--b
+				Content-Type: text/plain; charset=UTF-8
+
+				one
+				two
+				--b--
+				""",
+			)
+
+		val content = read(message)
+
+		content.textPlain shouldBe "one\r\ntwo"
+		content.textHtml shouldBe "<div><img src=\"cid:cockpit-part-1@cockpit.invalid\" alt=\"\"></div>\n<div>one<br>two</div>"
+	}
+
+	@Test
+	fun `partImage references round-trip and only well-formed part ids are accepted`() {
+		MimeContent.partImage("1.2") shouldBe "cid:cockpit-part-1.2@cockpit.invalid"
+		MimeContent.partImageId("cockpit-part-1.2@cockpit.invalid") shouldBe "1.2"
+		MimeContent.partImageId("COCKPIT-PART-3@COCKPIT.INVALID") shouldBe "3"
+		listOf(
+			"cockpit-part-0@cockpit.invalid",
+			"cockpit-part-../1@cockpit.invalid",
+			"cockpit-part-@cockpit.invalid",
+			"cockpit-part-1@example.test",
+			"other-part-1@cockpit.invalid",
+			"cockpit-part-1.2.3.4.5.6.7.8.9.10.11@cockpit.invalid",
+			"logo@example.test",
+		).forEach { MimeContent.partImageId(it).shouldBeNull() }
+	}
+
 	/** The reported Apple Mail message: [texts] around one inline JPEG without Content-ID (or [image] instead). */
 	private fun appleMail(
 		vararg texts: String,
