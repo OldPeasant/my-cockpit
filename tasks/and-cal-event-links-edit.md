@@ -1,11 +1,11 @@
 ---
 title: Android: add and remove links from the calendar event editor
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/edit,android/app/src/test/java/ch/sonensei/cockpit/calendar/edit,android/app/src/main/res]
 prio: 2
-lease_until: 
+lease_until: 2026-11-28T13:10:50Z
 releases: 1
 extended: 
 ---
