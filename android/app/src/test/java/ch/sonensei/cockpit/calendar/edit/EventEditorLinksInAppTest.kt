@@ -3,6 +3,7 @@ package ch.sonensei.cockpit.calendar.edit
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasAnyAncestor
@@ -143,7 +144,7 @@ class EventEditorLinksInAppTest {
         scenario = ActivityScenario.launch(MainActivity::class.java)
         scenario!!.onActivity { activity ->
             activity.setContent {
-                var state by mutableStateOf(initial)
+                var state by remember { mutableStateOf(initial) }
                 setState = { state = it }
                 CockpitTheme {
                     EventEditorContent(
