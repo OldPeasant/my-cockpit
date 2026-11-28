@@ -218,7 +218,7 @@ class EventEditorViewModel internal constructor(
 
     private var job: Job? = null
 
-    /** Load the local calendars, the links, suggestions, or send invitations: beside [job]. */
+    /** Load the local calendars, create a linked task or note, load suggestions, or send invitations: beside [job]. */
     private var sourcesJob: Job? = null
     private var respondJob: Job? = null
     private var linksJob: Job? = null

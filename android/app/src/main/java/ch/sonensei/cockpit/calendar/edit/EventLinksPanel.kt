@@ -16,8 +16,9 @@ import java.util.UUID
 internal const val EVENT_ITEM_TYPE = "EVENT"
 
 /**
- * The shared linked-items panel of the event [eventId] (add, remove, open), as on the web. A higher [refresh] (a task
- * or note was created from the event) reloads it, so the created item shows.
+ * The shared linked-items panel of the event [eventId] (add, remove, open), as on the web. It reloads whenever it
+ * appears (its view model outlives the editor, so links changed meanwhile show) and on a higher [refresh] (a task or
+ * note was created from the event), so the created item shows.
  */
 @Composable
 fun EventLinksPanel(
@@ -29,6 +30,8 @@ fun EventLinksPanel(
     if (LocalActivity.current !is GeneratedComponentManagerHolder) return
     val item = ItemRef(EVENT_ITEM_TYPE, eventId)
     val viewModel: LinkedItemsViewModel = hiltViewModel(key = linksViewModelKey(item))
-    LaunchedEffect(viewModel, refresh) { if (refresh > 0) viewModel.reload() }
+    // Runs before the section's open(): on the first appearance the view model has no item yet, so this loads nothing
+    // and open() loads once; later appearances keep the item, so open() does nothing and this loads the current links.
+    LaunchedEffect(viewModel, refresh) { viewModel.reload() }
     LinkedItemsSection(item, open = open, viewModel = viewModel)
 }

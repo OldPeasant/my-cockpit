@@ -267,6 +267,23 @@ class EventEditorLinksInAppTest {
     }
 
     @Test
+    fun `reopening the editor of the same event shows the links changed meanwhile`() {
+        coEvery { links.list(event) } returnsMany
+            listOf(LinksResult.Ok(listOf(toAgenda)), LinksResult.Ok(listOf(toAgenda, toBudget)))
+        show(saved)
+        waitForTag(LinkedItemsTags.link(toAgenda))
+
+        // Closed (no links section), then the same event opened again after a link was added elsewhere.
+        composeRule.runOnIdle { setState(saved.copy(links = null)) }
+        composeRule.waitUntil(WAIT_MS) { composeRule.onAllNodesWithTag(LinkedItemsTags.PANEL).fetchSemanticsNodes().isEmpty() }
+        composeRule.runOnIdle { setState(saved) }
+
+        waitForTag(LinkedItemsTags.link(toBudget))
+        composeRule.onNodeWithTag(LinkedItemsTags.link(toAgenda)).assertExists()
+        coVerify(exactly = 2) { links.list(event) }
+    }
+
+    @Test
     fun `an offline panel shows its error and retry, and the editor stays usable`() {
         coEvery { links.list(event) } returnsMany listOf(LinksResult.Offline, LinksResult.Ok(listOf(toAgenda)))
         show(saved)
