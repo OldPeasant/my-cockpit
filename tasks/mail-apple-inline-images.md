@@ -59,8 +59,9 @@ Intended approach (server only, clients stay unchanged):
       `server/src/main/resources/db/migration/mail/` empties `mail_body_attachments` (the loader then re-fetches and
       overwrites body and attachments); covered by a test or verified against a DB with a cached old entry
   - verified (2026-11-28 10:42+0100 by dell26/agent-1): New migration V202611280930__mail_reparse_bodies.sql (delete from mail_body_attachments), applied by Flyway in the GreenMail Spring test; MailReadGreenMailTests 'a body cached without its attachment row ... is read again from the server' puts an old body, deletes attachment rows, reads via API -> re-fetched, new html with positioned image cached -> passed
-- [ ] Non-raster or unknown inline parts (e.g. `application/pdf` with `inline`, HEIC) are listed as attachments and not
+- [x] Non-raster or unknown inline parts (e.g. `application/pdf` with `inline`, HEIC) are listed as attachments and not
       put into the body as `<img>`
+  - verified (2026-11-28 10:42+0100 by dell26/agent-1): MimeContentTests 'a plain-only mail with a non-raster inline part gets no HTML body' (pdf + heic inline -> listed inline=false, html null) and 'a non-raster inline part next to HTML is listed and not put into the body' -> passed
 - [ ] Unit tests in `MimeContentTests` / `MailReadService` tests plus one GreenMail test (`MailReadGreenMailTests`)
       that appends the reported message to an IMAP folder and reads it through the API; `cd server && ./gradlew check`
       green; OpenAPI unchanged (or regenerated if the response schema changes)
