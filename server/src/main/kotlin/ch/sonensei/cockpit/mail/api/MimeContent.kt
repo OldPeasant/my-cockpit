@@ -58,6 +58,7 @@ internal object MimeContent {
 		val plain = plainOf(items).takeIf { it.isNotEmpty() }?.joinToString(LINE_BREAK)
 		val htmlOnly = htmlOf(items, withPlain = false)
 		val referenced = cidReferences(htmlOnly.filterIsInstance<Item.Html>().joinToString("") { it.text })
+
 		fun referenced(leaf: Leaf) = leaf.attachment.contentId?.lowercase() in referenced
 		val images = leaves.filter { it.image && !referenced(it) }.map { it.attachment.partId }.toSet()
 		val html =

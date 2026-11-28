@@ -19,6 +19,7 @@ import ch.sonensei.cockpit.support.PostgresTestBase
 import com.icegreen.greenmail.junit5.GreenMailExtension
 import com.icegreen.greenmail.util.ServerSetupTest
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -48,6 +49,7 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.io.IOException
 import java.io.OutputStream
+import java.util.Base64
 import java.util.Properties
 
 /** Reading bodies and attachments from GreenMail: fetch on first read, cache afterwards, never mark as seen. */
@@ -143,10 +145,76 @@ class MailReadGreenMailTests(
 		return message
 	}
 
-	private fun synced(): MailMessage {
+	/** The message Apple Mail (iPhone) sent the owner, fictitious: HTML, then an inline JPEG without Content-ID. */
+	private fun appleInvitation(): MimeMessage {
+		val boundary = "Apple-Mail-5F1A2B3C-0000-4D5E-8F90-ABCDEF012345"
+		val raw =
+			listOf(
+				"Message-ID: <apple-invitation@example.test>",
+				"From: Ann Example <ann@example.test>",
+				"To: $EMAIL",
+				"Subject: Fictitious invitation",
+				"MIME-Version: 1.0",
+				"Content-Type: multipart/mixed; boundary=\"$boundary\"",
+				"",
+				"--$boundary",
+				"Content-Type: text/html; charset=UTF-8",
+				"",
+				"<p>Invitation to the fictitious apero</p>",
+				"--$boundary",
+				"Content-Type: image/jpeg; name=image0.jpeg; x-apple-part-url=\"5F1A2B3C-0000\"",
+				"Content-Disposition: inline; filename=image0.jpeg",
+				"Content-Transfer-Encoding: base64",
+				"",
+				Base64.getEncoder().encodeToString(JPEG),
+				"--$boundary--",
+				"",
+			).joinToString("\r\n")
+		return MimeMessage(Session.getInstance(Properties()), raw.toByteArray(Charsets.UTF_8).inputStream())
+	}
+
+	@Test
+	fun `an Apple Mail inline image without Content-ID is listed and shown in the body`() {
+		val message = synced(appleInvitation())
+
+		val read = read(message)
+
+		val attachment = read["attachments"].single()
+		attachment["filename"].asString() shouldBe "image0.jpeg"
+		attachment["inline"].asBoolean() shouldBe false
+		val partId = attachment["partId"].asString()
+		val html = read["body"]["html"].asString()
+		html shouldContain "Invitation to the fictitious apero"
+		html shouldContain "<img src=\"/api/v1/mail/messages/${message.id}/attachments/$partId?inline=true\""
+		html.indexOf("apero") shouldBeLessThan html.indexOf("<img")
+		val image = mockMvc.get("/api/v1/mail/messages/${message.id}/attachments/$partId?inline=true").andReturn().response
+		image.status shouldBe 200
+		image.contentType shouldBe "image/jpeg"
+		image.contentAsByteArray.toList() shouldBe JPEG.toList()
+	}
+
+	@Test
+	fun `a body cached without its attachment row (as after the re-parse migration) is read again from the server`() {
+		val message = synced(appleInvitation())
+		read(message)
+		cache.put(message.id, null, "<p>Old body</p>")
+		jdbc.update("delete from mail_body_attachments")
+
+		val read = read(message)
+
+		read["body"]["html"].asString() shouldContain "?inline=true"
+		read["attachments"].single()["inline"].asBoolean() shouldBe false
+		cache
+			.get(message.id)
+			.shouldNotBeNull()
+			.textHtml
+			.shouldNotBeNull() shouldContain "cockpit-part-2@cockpit.invalid"
+	}
+
+	private fun synced(mail: MimeMessage = newsletter()): MailMessage {
 		remote { store ->
 			val inbox = store.getFolder("INBOX")
-			inbox.appendMessages(arrayOf(newsletter()))
+			inbox.appendMessages(arrayOf(mail))
 		}
 		folderService.sync(account.id)
 		val inbox = checkNotNull(folders.findByAccountIdAndPath(account.id, "INBOX"))
@@ -321,6 +389,7 @@ class MailReadGreenMailTests(
 		private val PNG = byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3)
 
 		// CRLF: text parts are transmitted with canonical line ends.
+		private val JPEG = byteArrayOf(0xff.toByte(), 0xd8.toByte(), 0xff.toByte(), 0xe0.toByte(), 1, 2, 3)
 		private val CSV = "item,amount\r\nfictitious,42".toByteArray()
 
 		@JvmField

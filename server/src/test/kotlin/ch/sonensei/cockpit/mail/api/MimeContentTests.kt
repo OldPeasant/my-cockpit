@@ -167,9 +167,12 @@ class MimeContentTests {
 				),
 			)
 
-		content.textHtml shouldBe """<img src="cid:a">"""
+		// The related image has no Content-ID, so no cid: can show it: it is listed and shown at its position.
+		content.textHtml shouldBe
+			"<div>Body text</div>\n<img src=\"cid:a\">\n" +
+			"<div><img src=\"cid:cockpit-part-2.2@cockpit.invalid\" alt=\"in-related.gif\"></div>"
 		content.attachments.map { Triple(it.partId, it.filename, it.inline) } shouldContainExactly
-			listOf(Triple("2.2", "in-related.gif", true), Triple("3", "in-mixed.gif", false))
+			listOf(Triple("2.2", "in-related.gif", false), Triple("3", "in-mixed.gif", false))
 	}
 
 	@Test
@@ -204,16 +207,112 @@ class MimeContentTests {
 	}
 
 	@Test
-	fun `a second plain text part is listed as an inline part, not appended to the body`() {
+	fun `a second plain text part is appended to the body, not listed`() {
 		val content = read(mixed("Content-Type: text/plain; charset=UTF-8\n\nSecond text"))
 
-		content.textPlain shouldBe "Body text"
-		content.attachments.map { Triple(it.partId, it.contentType, it.inline) } shouldContainExactly
-			listOf(Triple("2", "text/plain", true))
+		content.textPlain shouldBe "Body text\nSecond text"
+		content.textHtml.shouldBeNull()
+		content.attachments.shouldBeEmpty()
 	}
 
 	@Test
-	fun `an inline-disposition image with a name in mixed stays inline`() {
+	fun `the reported Apple Mail structure lists the image and shows it after the text`() {
+		val content = read(parse(appleMail("Content-Type: text/html; charset=UTF-8\n\n<p>Invitation</p>")))
+
+		content.textPlain.shouldBeNull()
+		content.textHtml shouldBe
+			"<p>Invitation</p>\n<div><img src=\"cid:cockpit-part-2@cockpit.invalid\" alt=\"image0.jpeg\"></div>"
+		content.attachments shouldContainExactly
+			listOf(MailAttachment("2", "image0.jpeg", "image/jpeg", 3, inline = false, contentId = null))
+	}
+
+	@Test
+	fun `text after an image is in the body in order, plain only`() {
+		val content =
+			read(
+				parse(
+					appleMail(
+						"Content-Type: text/plain; charset=UTF-8\n\nBefore <script>alert(1)</script>\nline two",
+						"Content-Type: text/plain; charset=UTF-8\n\nAfter <img src=x onerror=alert(1)>",
+					),
+				),
+			)
+
+		content.textPlain shouldBe "Before <script>alert(1)</script>\r\nline two\nAfter <img src=x onerror=alert(1)>"
+		content.textHtml shouldBe
+			"<div>Before &lt;script&gt;alert(1)&lt;/script&gt;<br>line two</div>\n" +
+			"<div><img src=\"cid:cockpit-part-2@cockpit.invalid\" alt=\"image0.jpeg\"></div>\n" +
+			"<div>After &lt;img src=x onerror=alert(1)&gt;</div>"
+		content.attachments.single().inline shouldBe false
+	}
+
+	@Test
+	fun `text after an image is in the body in order, as alternatives`() {
+		fun alternative(text: String) =
+			"""
+			Content-Type: multipart/alternative; boundary="alt"
+
+			--alt
+			Content-Type: text/plain; charset=UTF-8
+
+			$text
+			--alt
+			Content-Type: text/html; charset=UTF-8
+
+			<p>$text</p>
+			--alt--
+			""".trimIndent()
+		val content = read(parse(appleMail(alternative("First"), alternative("Second"))))
+
+		content.textPlain shouldBe "First\nSecond"
+		content.textHtml shouldBe
+			"<p>First</p>\n<div><img src=\"cid:cockpit-part-2@cockpit.invalid\" alt=\"image0.jpeg\"></div>\n<p>Second</p>"
+		content.attachments.map { it.partId } shouldContainExactly listOf("2")
+	}
+
+	@Test
+	fun `a plain-only mail with a non-raster inline part gets no HTML body`() {
+		val content =
+			read(
+				mixed(
+					"""
+					Content-Type: application/pdf; name="plan.pdf"
+					Content-Disposition: inline; filename="plan.pdf"
+
+					%PDF
+					""",
+					"""
+					Content-Type: image/heic; name="photo.heic"
+					Content-Disposition: inline; filename="photo.heic"
+
+					HEIC
+					""",
+				),
+			)
+
+		content.textHtml.shouldBeNull()
+		content.attachments.map { Triple(it.partId, it.contentType, it.inline) } shouldContainExactly
+			listOf(Triple("2", "application/pdf", false), Triple("3", "image/heic", false))
+	}
+
+	@Test
+	fun `a non-raster inline part next to HTML is listed and not put into the body`() {
+		val content =
+			read(
+				parse(
+					appleMail(
+						"Content-Type: text/html; charset=UTF-8\n\n<p>Hi</p>",
+						image = "Content-Type: application/pdf; name=plan.pdf\nContent-Disposition: inline; filename=plan.pdf\n\n%PDF",
+					),
+				),
+			)
+
+		content.textHtml shouldBe "<p>Hi</p>"
+		content.attachments.single().inline shouldBe false
+	}
+
+	@Test
+	fun `an unreferenced image with a Content-ID in mixed is listed and shown, not inline`() {
 		val content =
 			read(
 				mixed(
@@ -227,9 +326,28 @@ class MimeContentTests {
 				),
 			)
 
-		content.attachments.single().inline shouldBe true
+		content.attachments.single().inline shouldBe false
 		content.attachments.single().contentId shouldBe "photo@example.test"
+		content.textPlain shouldBe "Body text"
+		content.textHtml shouldBe
+			"<div>Body text</div>\n<div><img src=\"cid:cockpit-part-2@cockpit.invalid\" alt=\"photo.png\"></div>"
 	}
+
+	/** The reported Apple Mail message: [texts] around one inline JPEG without Content-ID (or [image] instead). */
+	private fun appleMail(
+		vararg texts: String,
+		image: String = APPLE_IMAGE,
+	): String =
+		buildString {
+			append("Subject: Fictitious invitation\nMIME-Version: 1.0\n")
+			append("Content-Type: multipart/mixed; boundary=\"Apple-Mail-5F1A2B3C-0000-4D5E-8F90-ABCDEF012345\"\n\n")
+			val boundary = "--Apple-Mail-5F1A2B3C-0000-4D5E-8F90-ABCDEF012345"
+			texts.forEachIndexed { index, text ->
+				append(boundary).append("\n").append(text).append("\n")
+				if (index == 0) append(boundary).append("\n").append(image).append("\n")
+			}
+			append(boundary).append("--\n")
+		}
 
 	@Test
 	fun `a forwarded message is one attachment and its text is not the body`() {
@@ -427,6 +545,11 @@ class MimeContentTests {
 
 	private companion object {
 		val PNG = byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3)
+
+		/** The image part as Apple Mail on an iPhone sends it: inline with a file name, but no Content-ID. */
+		const val APPLE_IMAGE =
+			"Content-Type: image/jpeg; name=image0.jpeg; x-apple-part-url=\"5F1A2B3C-0000-4D5E-8F90-ABCDEF012345\"\n" +
+				"Content-Disposition: inline; filename=image0.jpeg\nContent-Transfer-Encoding: base64\n\n/9j/"
 
 		val NEWSLETTER =
 			"""
