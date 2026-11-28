@@ -374,6 +374,30 @@ class DraftSendGreenMailTests(
 	}
 
 	@Test
+	fun `a reply and a forward of a plain-text mail with a positioned image quote its text without the image reference`() {
+		remote { store -> store.getFolder("INBOX").appendMessages(arrayOf(plainOriginalWithPositionedImage())) }
+		syncAll()
+		val inbox = cached("INBOX").single()
+
+		val reply = mockMvc.post("/api/v1/mail/messages/${inbox.id}/reply") { with(csrf()) }.andReturn().response
+		reply.status shouldBe 201
+		reply.body()["html"].asString() shouldContain "Fictitious garden party"
+		reply.body()["html"].asString() shouldNotContain "cockpit-part-"
+		reply.body()["attachments"].size() shouldBe 0
+
+		val forward = mockMvc.post("/api/v1/mail/messages/${inbox.id}/forward") { with(csrf()) }.andReturn().response
+		forward.status shouldBe 201
+		val html = forward.body()["html"].asString()
+		html shouldContain "Fictitious garden party"
+		html shouldContain "&lt;b&gt;bring a chair&lt;/b&gt;"
+		html shouldNotContain "cockpit-part-"
+		forward.body()["attachments"].toList().map { it["filename"].asString() } shouldContainExactly listOf("image0.jpeg")
+		val forwarded = leaves(onServer("Drafts").single { it.subject == "Fwd: Garden party" })
+		forwarded.single { it.isMimeType("image/jpeg") }.fileName shouldBe "image0.jpeg"
+		forwarded.filter { it.isMimeType("text/html") }.forEach { (it.content as String) shouldNotContain "cockpit-part-" }
+	}
+
+	@Test
 	fun `a reply is sent by default as the identity the original was addressed to`() {
 		val support = identities.save(MailIdentity(account.id, "Jane Support", "support@example.test"))
 		remote { store ->
@@ -569,6 +593,17 @@ class DraftSendGreenMailTests(
 					},
 				)
 			setContent(MimeMultipart(MimeBodyPart().apply { setContent(related) }, positionedJpeg()))
+			saveChanges()
+		}
+
+	/** A plain-text-only message with an inline image no `cid:` can reference, so its read body is built HTML. */
+	private fun plainOriginalWithPositionedImage(): MimeMessage =
+		MimeMessage(Session.getInstance(Properties())).apply {
+			setFrom(InternetAddress(BOB, "Bob Example"))
+			setRecipients(Message.RecipientType.TO, arrayOf(InternetAddress(EMAIL)))
+			subject = "Garden party"
+			val text = MimeBodyPart().apply { setText("Fictitious garden party, <b>bring a chair</b>", "UTF-8") }
+			setContent(MimeMultipart(text, positionedJpeg()))
 			saveChanges()
 		}
 
