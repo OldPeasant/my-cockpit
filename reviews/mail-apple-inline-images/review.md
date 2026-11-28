@@ -4,7 +4,7 @@ Date: 2026-11-28
 
 Task: mail-apple-inline-images - Mail: show unreferenced inline images and text after images (Apple Mail)
 
-Scope: round 4, final code revision e1a9d906cd73aff64970ba71c6f2b9a82b999bb6. Full task diff `git diff origin/main HEAD` (task commits 8b79b2aab..e1a9d906c; HEAD e90c61686 is a merge of `origin/wip/mail-apple-inline-images` whose `server/` tree is identical to e1a9d906c, checked with `git diff e1a9d906c e90c61686 -- server` = empty). Focus of this round: commit e1a9d906c (CR-1 fix in `mail/compose/DraftService.kt` plus two tests in `DraftSendGreenMailTests.kt`), and a re-check of the whole task for other consumers of the synthetic part references.
+Scope: round 4 plus delta review. Reviewed revision: 93ab54879a71c9e5873c51171b004cc4c9f7d1fb (production code identical to e1a9d906cd73aff64970ba71c6f2b9a82b999bb6; the delta e1a9d906c..93ab54879 adds one test, see "Delta review" below). Round-4 scope: Full task diff `git diff origin/main HEAD` (task commits 8b79b2aab..e1a9d906c; HEAD e90c61686 is a merge of `origin/wip/mail-apple-inline-images` whose `server/` tree is identical to e1a9d906c, checked with `git diff e1a9d906c e90c61686 -- server` = empty). Focus of this round: commit e1a9d906c (CR-1 fix in `mail/compose/DraftService.kt` plus two tests in `DraftSendGreenMailTests.kt`), and a re-check of the whole task for other consumers of the synthetic part references.
 
 Requirements:
 - tasks/mail-apple-inline-images.md (goal, acceptance criteria, notes, the three recorded assumptions, including the one moving the CR-1 fix into this task)
@@ -14,12 +14,12 @@ Requirements:
 
 Git range:
 - Branch: main
-- HEAD: e90c61686 (code identical to e1a9d906c)
+- HEAD: 93ab54879a71c9e5873c51171b004cc4c9f7d1fb (production code identical to e1a9d906c; round 4 was done at e90c61686)
 - Base/start: origin/main 037f9dbc1
-- Commits reviewed: 9 task commits (8b79b2aab..e1a9d906c) plus the merge e90c61686; code commits are 8b79b2aab, 9cd4f40f9, e1a9d906c, the rest are tests and reports
+- Commits reviewed: 9 task commits (8b79b2aab..e1a9d906c) plus the merge e90c61686, the report commit 7ad27be39 and the test commit 93ab54879; code commits are 8b79b2aab, 9cd4f40f9, e1a9d906c, the rest are tests and reports
 - Uncommitted changes: at review time the working tree had an uncommitted modification of `server/src/test/kotlin/ch/sonensei/cockpit/mail/compose/DraftSendGreenMailTests.kt` (the concurrently running test-writer). It is not part of the reviewed revision and was not reviewed.
 
-Summary: 0 P0, 0 P1, 1 P2, 0 P3 open (earlier findings: CR-1 resolved, CR-2 resolved, CR-3 accepted; new: CR-4 open)
+Summary: 0 P0, 0 P1, 1 P2, 0 P3 open (CR-1 resolved, CR-2 resolved, CR-3 accepted, CR-4 open and deferred by the parent worker to the follow-up task `mail-draft-positioned-images`; no new findings in the delta)
 
 Gradle was not run for this review (another helper runs it concurrently). Existing result file read: `server/build/test-results/integrationTest/TEST-ch.sonensei.cockpit.mail.compose.DraftSendGreenMailTests.xml` (2026-11-28T10:21Z): 17 tests, 0 failures, 0 errors, 0 skipped, including both new forward tests by name.
 
@@ -32,6 +32,14 @@ What was checked for CR-1:
 - Conclusion: CR-1 is fixed for the forward path. A second path that exposes the same reference is reported as CR-4.
 
 Whole-task re-check (consumers of the cached `textHtml`): `MailReadService.read` resolves the synthetic references after sanitizing (guarded by `positionedImage`, tested in round 2); `MailSearchIndex` indexes text, not attribute values; `MailGtdService` uses the resolved read view; `DraftService.respond` is fixed; `DraftService.view` is not handled (CR-4). Acceptance criteria 1 to 6 are unchanged since round 3 and were re-confirmed against the current code; AC7 (`./gradlew check` green, OpenAPI unchanged) has no controller, DTO or `api/openapi.yaml` change in the diff, and recording its run with `tasks.py verify` remains the parent worker's step.
+
+## Delta review (e1a9d906c..93ab54879)
+
+- `git diff e1a9d906c 93ab54879 --stat -- server/ api/ web/` shows only `server/src/test/kotlin/ch/sonensei/cockpit/mail/compose/DraftSendGreenMailTests.kt` (+35 lines); the other file in commit 93ab54879 is `reviews/mail-apple-inline-images/tests.md`. No production, API or migration change.
+- New test `a reply and a forward of a plain-text mail with a positioned image quote its text without the image reference`, with the fixture `plainOriginalWithPositionedImage` (a `multipart/mixed` with a `text/plain` part and the existing `positionedJpeg` inline part without Content-ID). It covers the plain-text case noted under CR-1 above (generated `textHtml` instead of `ComposeText.textToHtml`): the reply HTML contains the text, no `cockpit-part-` and has no attachments; the forward HTML contains the text with the markup-like text escaped (`&lt;b&gt;bring a chair&lt;/b&gt;`), no `cockpit-part-`, exactly `image0.jpeg` as attachment, and the draft stored on GreenMail has the JPEG part and no HTML part with the reference.
+- The assertions check observable behaviour (API response and the stored MIME draft), the data is fictitious, and the test reuses the file's helpers (`remote`, `syncAll`, `cached`, `onServer`, `leaves`) in the same style as the two round-4 forward tests. Selecting the forward draft by subject avoids ambiguity with the reply draft also saved in Drafts.
+- Gradle was not run by this reviewer; the test-writer reports `DraftSendGreenMailTests` 18/18 passing.
+- No new findings. CR-4 is unaffected by the delta (the test exercises `respond`, not `view`).
 
 ## P0 Critical
 
@@ -47,10 +55,10 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-4 | Opening a draft from another client that contains a positioned image exposes the synthetic reference in the editor and in the sent mail** (round 4; status: open)
+- [ ] **CR-4 | Opening a draft from another client that contains a positioned image exposes the synthetic reference in the editor and in the sent mail** (round 4; status: open, deferred by the parent worker to the follow-up task `mail-draft-positioned-images`)
     - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/compose/DraftService.kt:705` (`view`, used by `get` at `:143` and after every save)
     - Category: Integration
-    - Problem: every message in the Drafts folder is a Cockpit draft (`draftRow` only checks the folder role), including drafts written by Apple Mail on an iPhone. `view` returns `content.textHtml` only sanitized, so for such a draft with an image without `cid:` reference the draft HTML contains `<img src="cid:cockpit-part-N@cockpit.invalid">`, while the image is listed as a normal attachment (`inline = false`, no Content-ID). The web compose page shows the HTML as is (broken image), a `PUT` round trip stores the reference in the draft, and sending delivers it to the recipient next to the attachment, which is the same defect as CR-1 through the draft path. Before this task such an image was an `inline` part without a reference in the HTML, so no broken reference existed. In addition, a plain-text-only foreign draft with such an image now opens as an HTML draft (generated escaped HTML) instead of a plain-text one.
+    - Problem: every message in the Drafts folder is a Cockpit draft (`draftRow` only checks the folder role), including drafts written by Apple Mail on an iPhone. `view` returns `content.textHtml` only sanitized, so for such a draft with an image without `cid:` reference the draft HTML contains an `img` element with `src="cid:cockpit-part-N@cockpit.invalid"`, while the image is listed as a normal attachment (`inline = false`, no Content-ID). The web compose page shows the HTML as is (broken image), a `PUT` round trip stores the reference in the draft, and sending delivers it to the recipient next to the attachment, which is the same defect as CR-1 through the draft path. Before this task such an image was an `inline` part without a reference in the HTML, so no broken reference existed. In addition, a plain-text-only foreign draft with such an image now opens as an HTML draft (generated escaped HTML) instead of a plain-text one.
     - Why it matters: a broken image icon in the editor and in a mail sent to a third party, created by server-internal markup; no data is lost (the image is still sent as attachment).
     - Suggested fix: apply `withoutPositionedImages` to the sanitized HTML in `view` (and consider returning `null` HTML when the original had no HTML part, or accept the HTML draft deliberately with an assumption), plus a GreenMail test that appends a foreign draft with an Apple-style positioned image to Drafts and checks `GET /drafts/{id}` contains no `cid:cockpit-part-`.
 
@@ -68,4 +76,4 @@ None.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task. CR-1 is properly fixed. CR-4 (P2) is the same synthetic-reference leak through the draft view path; it is not blocking by severity, but it is a small change in the same file and function family as the CR-1 fix, so fixing it here (or recording a deliberate deferral) is recommended.
+No material issues found. No P0 or P1 findings are open: CR-1 is properly fixed and now also covered for plain-text originals by the delta test. CR-4 (P2, synthetic-reference leak through the draft view path) remains open and is deferred by the parent worker to the follow-up task `mail-draft-positioned-images`; it is not blocking by severity. The delta 93ab54879 adds a sound test and introduces no new issues.
