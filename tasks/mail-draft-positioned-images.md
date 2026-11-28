@@ -21,3 +21,4 @@ that `MimeContent` (task mail-apple-inline-images) puts into the cached HTML bod
 - [ ] GreenMail test (`DraftSendGreenMailTests` or `DraftComposeGreenMailTests`) appends such a draft to the Drafts
       folder, opens it through the API, saves and sends it: neither the view nor the sent message contains
       `cockpit-part-`; `cd server && ./gradlew check` green
+- ASSUMPTION (2026-11-28 11:39+0100 by dell26/agent-1): DraftService.view drops the HTML of a draft when, after removing positioned image references, it only holds the plain-text rendering MimeContent builds (<div> text/<br> blocks) and the draft has a text part; detected structurally in the compose package instead of adding a flag to MailContent (mail/api is outside this task's touches)
