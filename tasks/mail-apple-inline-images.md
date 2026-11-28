@@ -62,4 +62,4 @@ Intended approach (server only, clients stay unchanged):
 ## Notes
 - Web and Android need no change: they already render the HTML body and list `inline = false` parts. Check after the
   change that forwarding such a mail (compose) now lists the image as attachment, which is the wanted behaviour.
-- Keep the 1 MB-ish `maxTextSize` limit per text part as today; joined text may exceed one part's limit.
+- Keep the `maxTextSize` limit (`cockpit.mail.read.max-text-size`, default 5 MB) per text part as today; joined text may exceed one part's limit.
