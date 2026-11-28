@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "task": "and-cal-event-links-edit",
+  "reviewed_revision": "0d40c5d76a28a1698cb93836847289dc1ce763bd",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/and-cal-event-links-edit/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/and-cal-event-links-edit/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/and-cal-event-links-edit/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "real EventLinksPanel wiring now covered by EventEditorLinksInAppTest (Hilt, fake links repository)"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "panel reloads on every appearance; regression test for reopening the same event"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "stale comment in EventEditorViewModel updated"}
+  ],
+  "validation": [
+    {"command": "cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
