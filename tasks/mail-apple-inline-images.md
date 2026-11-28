@@ -40,10 +40,11 @@ Intended approach (server only, clients stay unchanged):
    index, reply quoting). These images are still listed as attachments (step 1), so they can be saved.
 
 ## Acceptance criteria
-- [ ] Regression test with the reported structure (`multipart/mixed`, Apple boundary: text/html or text/plain, then an
+- [x] Regression test with the reported structure (`multipart/mixed`, Apple boundary: text/html or text/plain, then an
       `image/jpeg` part with `Content-Disposition: inline; filename=image0.jpeg` and no Content-ID): the read API
       lists the image as attachment with `inline = false` and the HTML body contains an `<img>` pointing to its inline
       download
+  - verified (2026-11-28 10:41+0100 by dell26/agent-1): cd server && ./gradlew test --tests '*MimeContentTests' (the reported Apple Mail structure ...) + integrationTest --tests '*MailReadGreenMailTests' (an Apple Mail inline image without Content-ID is listed and shown in the body: GreenMail IMAP append, read API -> inline=false, html has <img src=/api/v1/mail/messages/{id}/attachments/2?inline=true>, download serves image/jpeg) -> 45 + 9 tests passed
 - [ ] A `cid:`-referenced image in `multipart/related` (today's working case) is unchanged: `inline = true`, shown in
       the body at the `cid:` position, not listed, not appended a second time
 - [ ] Text after an image (`multipart/mixed`: text, inline image, text; both as plain-only and as
