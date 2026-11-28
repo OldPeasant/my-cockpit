@@ -64,3 +64,4 @@ Intended approach (server only, clients stay unchanged):
 - Web and Android need no change: they already render the HTML body and list `inline = false` parts. Check after the
   change that forwarding such a mail (compose) now lists the image as attachment, which is the wanted behaviour.
 - Keep the `maxTextSize` limit (`cockpit.mail.read.max-text-size`, default 5 MB) per text part as today; joined text may exceed one part's limit.
+- ASSUMPTION (2026-11-28 10:41+0100 by dell26/agent-1): Positioned inline images are stored in the cached HTML body as synthetic cid references (cid:cockpit-part-<partId>@cockpit.invalid) and resolved after sanitizing in MailReadService; a resolved reference only points to a raster, non-cid-referenced part of the same message, so a mail forging it can only show its own image. Chosen because the cached body has no message id and the existing cid: path already survives the sanitizer.
