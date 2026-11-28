@@ -340,6 +340,40 @@ class DraftSendGreenMailTests(
 	}
 
 	@Test
+	fun `a forward drops the positioned image reference from the html and forwards the image as an attachment`() {
+		remote { store -> store.getFolder("INBOX").appendMessages(arrayOf(originalWithPositionedImage())) }
+		syncAll()
+		val inbox = cached("INBOX").single()
+
+		val forward = mockMvc.post("/api/v1/mail/messages/${inbox.id}/forward") { with(csrf()) }.andReturn().response
+
+		forward.status shouldBe 201
+		val html = forward.body()["html"].asString()
+		html shouldContain "Fictitious apero"
+		html shouldNotContain "cid:cockpit-part-"
+		html shouldNotContain "cockpit.invalid"
+		forward.body()["attachments"].toList().map { it["filename"].asString() } shouldContainExactly listOf("image0.jpeg")
+		val forwarded = leaves(onServer("Drafts").single { it.subject == "Fwd: Apero invitation" })
+		forwarded.single { it.isMimeType("image/jpeg") }.fileName shouldBe "image0.jpeg"
+		forwarded.filter { it.isMimeType("text/html") }.forEach { (it.content as String) shouldNotContain "cockpit-part-" }
+	}
+
+	@Test
+	fun `a forward keeps a real cid image next to a dropped positioned image`() {
+		remote { store -> store.getFolder("INBOX").appendMessages(arrayOf(originalWithInlineAndPositionedImage())) }
+		syncAll()
+		val inbox = cached("INBOX").single()
+
+		val forward = mockMvc.post("/api/v1/mail/messages/${inbox.id}/forward") { with(csrf()) }.andReturn().response
+
+		forward.status shouldBe 201
+		val html = forward.body()["html"].asString()
+		html shouldContain "<img src=\"cid:$LOGO_CID\" alt=\"logo\">"
+		html shouldNotContain "cid:cockpit-part-"
+		forward.body()["attachments"].toList().map { it["filename"].asString() } shouldContainExactly listOf("logo.png", "image0.jpeg")
+	}
+
+	@Test
 	fun `a reply is sent by default as the identity the original was addressed to`() {
 		val support = identities.save(MailIdentity(account.id, "Jane Support", "support@example.test"))
 		remote { store ->
@@ -505,6 +539,46 @@ class DraftSendGreenMailTests(
 				)
 			setContent(related)
 			saveChanges()
+		}
+
+	/** An Apple Mail style message: an HTML part and an inline image no `cid:` references, shown by its position. */
+	private fun originalWithPositionedImage(): MimeMessage =
+		MimeMessage(Session.getInstance(Properties())).apply {
+			setFrom(InternetAddress(BOB, "Bob Example"))
+			setRecipients(Message.RecipientType.TO, arrayOf(InternetAddress(EMAIL)))
+			subject = "Apero invitation"
+			setContent(MimeMultipart(htmlPart("<p>Fictitious apero</p>"), positionedJpeg()))
+			saveChanges()
+		}
+
+	/** A `cid:`-referenced logo in a related part, followed by an inline image shown by its position. */
+	private fun originalWithInlineAndPositionedImage(): MimeMessage =
+		MimeMessage(Session.getInstance(Properties())).apply {
+			setFrom(InternetAddress(BOB, "Bob Example"))
+			setRecipients(Message.RecipientType.TO, arrayOf(InternetAddress(EMAIL)))
+			subject = "Logo and photo"
+			val related =
+				MimeMultipart(
+					"related",
+					htmlPart("<p>Logo and photo</p><p><img src=\"cid:$LOGO_CID\" alt=\"logo\"></p>"),
+					MimeBodyPart().apply {
+						dataHandler = DataHandler(ByteArrayDataSource(byteArrayOf(-119, 80, 78, 71, 13, 10, 26, 10), "image/png"))
+						disposition = Part.INLINE
+						contentID = "<$LOGO_CID>"
+						fileName = "logo.png"
+					},
+				)
+			setContent(MimeMultipart(MimeBodyPart().apply { setContent(related) }, positionedJpeg()))
+			saveChanges()
+		}
+
+	private fun htmlPart(html: String) = MimeBodyPart().apply { setText(html, "UTF-8", "html") }
+
+	private fun positionedJpeg() =
+		MimeBodyPart().apply {
+			dataHandler = DataHandler(ByteArrayDataSource(byteArrayOf(-1, -40, -1, -32), "image/jpeg"))
+			disposition = Part.INLINE
+			fileName = "image0.jpeg"
 		}
 
 	companion object {

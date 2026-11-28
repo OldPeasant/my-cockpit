@@ -307,7 +307,8 @@ class DraftService(
 				sanitized == null -> ComposeText.textToHtml(content.textPlain.orEmpty())
 				// A reply carries no attachments, so its inline images would be broken.
 				mode != ResponseMode.FORWARD -> withoutInlineImages(sanitized)
-				else -> sanitized
+				// A forward carries the image of a positioned reference as a plain attachment, not under that Content-ID.
+				else -> withoutPositionedImages(sanitized)
 			}
 		val quotedText = content.textPlain ?: sanitized?.let(ComposeText::plainText).orEmpty()
 		val own = ownAddresses(account)
@@ -455,6 +456,21 @@ class DraftService(
 		val document = Jsoup.parseBodyFragment(html)
 		document.outputSettings().prettyPrint(false).charset(Charsets.UTF_8)
 		document.select("img[src^=cid:]").remove()
+		return document.body().html()
+	}
+
+	/** [html] without the images shown by their position ([MimeContent.partImage]); other `cid:` images stay. */
+	private fun withoutPositionedImages(html: String): String {
+		if (!html.contains("cid:", ignoreCase = true)) return html
+		val document = Jsoup.parseBodyFragment(html)
+		document.outputSettings().prettyPrint(false).charset(Charsets.UTF_8)
+		val positioned =
+			document.select("img[src]").filter { img ->
+				val src = img.attr("src").trim()
+				src.startsWith("cid:", ignoreCase = true) && MimeContent.partImageId(src.substring("cid:".length)) != null
+			}
+		if (positioned.isEmpty()) return html
+		positioned.forEach { it.remove() }
 		return document.body().html()
 	}
 
