@@ -1,11 +1,11 @@
 ---
 title: Android: add and remove links from the calendar event editor
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/edit,android/app/src/test/java/ch/sonensei/cockpit/calendar/edit,android/app/src/main/res]
 prio: 2
-lease_until: 2026-11-28T13:32:53Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -56,3 +56,4 @@ nothing else needs it. Server and web need no change.
 - ASSUMPTION (2026-11-28 13:50+0100 by dell26/agent-1): Opening a linked item from the event editor shows it in place of the editor (like the note editor's SearchItemScreen); unsaved event edits are kept (form lives in EventEditorViewModel), not saved first.
 - ASSUMPTION (2026-11-28 13:50+0100 by dell26/agent-1): Read-only events (subscribed calendars, invitations) still show the links panel with add/remove and create task/note: links are Cockpit data, not CalDAV data.
 - release by dell26/agent-1: Main code done (commit 823ee743c): EventLinksPanel.kt (shared LinkedItemsSection for ItemRef EVENT/eventId, reload on LinksUiState.refresh), EventEditorContent linksPanel slot + in-place SearchItemScreen for opened items, LinksUiState slimmed (eventId/creating/result/refresh), EventExtrasRepository.links()/LinkedType/LinkedItem/listLinks and 17 calendar_edit_link* strings removed. NOT compiled yet. Left: fix tests still using removed API: EventExtrasRepositoryTest (links() test ~l.270-300, delete it), EventEditorViewModelExtrasTest (links/loadLinks tests ~l.103, 600-720, 836-851: rewrite to assert LinksUiState(eventId) and refresh increments after create), EventEditorExtrasScreenTest (reloadLinks l.81, link list tests l.350-440: replace with fake linksPanel slot tests); add tests for add/remove/open; run ./gradlew ktlintCheck testDebugUnitTest lintDebug; quality helpers; emulator check (skip if none). Assumptions recorded.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 84s on 6a1f21636; criteria verified 6/7, skipped #7
