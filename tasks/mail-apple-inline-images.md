@@ -55,9 +55,10 @@ Intended approach (server only, clients stay unchanged):
 - [x] Plain-text-only mail with an unreferenced inline image: HTML body is the escaped text plus the image below it,
       no HTML injection through the text (test with `<script>`/`<img onerror>` in the text)
   - verified (2026-11-28 10:42+0100 by dell26/agent-1): MimeContentTests 'text after an image ... plain only' uses <script> and <img onerror> in the text: html has them escaped (&lt;script&gt;...), image div between/below text -> passed
-- [ ] Bodies cached before this change are re-parsed: a new Flyway migration in
+- [x] Bodies cached before this change are re-parsed: a new Flyway migration in
       `server/src/main/resources/db/migration/mail/` empties `mail_body_attachments` (the loader then re-fetches and
       overwrites body and attachments); covered by a test or verified against a DB with a cached old entry
+  - verified (2026-11-28 10:42+0100 by dell26/agent-1): New migration V202611280930__mail_reparse_bodies.sql (delete from mail_body_attachments), applied by Flyway in the GreenMail Spring test; MailReadGreenMailTests 'a body cached without its attachment row ... is read again from the server' puts an old body, deletes attachment rows, reads via API -> re-fetched, new html with positioned image cached -> passed
 - [ ] Non-raster or unknown inline parts (e.g. `application/pdf` with `inline`, HEIC) are listed as attachments and not
       put into the body as `<img>`
 - [ ] Unit tests in `MimeContentTests` / `MailReadService` tests plus one GreenMail test (`MailReadGreenMailTests`)
