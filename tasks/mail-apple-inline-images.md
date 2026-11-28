@@ -48,9 +48,10 @@ Intended approach (server only, clients stay unchanged):
 - [x] A `cid:`-referenced image in `multipart/related` (today's working case) is unchanged: `inline = true`, shown in
       the body at the `cid:` position, not listed, not appended a second time
   - verified (2026-11-28 10:41+0100 by dell26/agent-1): MimeContentTests 'mixed, related and alternative parts ...' (logo inline=true, html unchanged, no marker) + MailReadGreenMailTests 'the body is fetched ... sanitized and cached' (logo inline=true, html points at ?inline=true, 2 attachments) -> passed
-- [ ] Text after an image (`multipart/mixed`: text, inline image, text; both as plain-only and as
+- [x] Text after an image (`multipart/mixed`: text, inline image, text; both as plain-only and as
       `multipart/alternative` text/plain + text/html parts) is in the body in order with the image between the text
       parts; `textPlain` contains both text parts
+  - verified (2026-11-28 10:41+0100 by dell26/agent-1): MimeContentTests 'text after an image is in the body in order, plain only' and '..., as alternatives' (html: text, positioned img, text; textPlain both parts) -> passed
 - [ ] Plain-text-only mail with an unreferenced inline image: HTML body is the escaped text plus the image below it,
       no HTML injection through the text (test with `<script>`/`<img onerror>` in the text)
 - [ ] Bodies cached before this change are re-parsed: a new Flyway migration in
