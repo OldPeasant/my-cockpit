@@ -31,9 +31,10 @@ nothing else needs it. Server and web need no change.
       note, file, contact, ...) links it to the event, and it appears in the panel right away. The link is the same
       one the web shows (item `EVENT` with the event id; for a recurring event the series, not one occurrence, as on web)
   - verified (2026-11-28 14:13+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest (Robolectric+Hilt) -> EventEditorLinksInAppTest 'Add link searches all items, links the picked email to the event and shows it right away' + 'loaded for item EVENT with the event id' pass; EventEditorViewModelExtrasTest 'an occurrence of a repeating event links to the same event id as the web' pass
-- [ ] A linked item can be removed with ✕ from the event editor, and opened (tapping it shows the item, back returns
+- [x] A linked item can be removed with ✕ from the event editor, and opened (tapping it shows the item, back returns
       to the event editor without losing unsaved edits of the event, or unsaved edits are saved first as in the note
       editor; record which with `tasks.py assume`)
+  - verified (2026-11-28 14:13+0100 by dell26/agent-1): ./gradlew testDebugUnitTest -> EventEditorLinksInAppTest 'a linked item is removed with its cross', 'a linked note opens in place of the editor, and back returns to the editor with its unsaved edits' pass (unsaved edits kept, assumption recorded)
 - [ ] "Create task from event" and "Create note for event" still work and the created item shows in the panel
 - [ ] A new, not yet saved event shows no link panel (or a hint that links can be added after saving); read-only
       events (e.g. subscribed/read-only calendars, invitations) behave sensibly: decide whether linking is allowed
