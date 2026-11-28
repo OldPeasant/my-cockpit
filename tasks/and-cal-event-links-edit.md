@@ -45,3 +45,4 @@ nothing else needs it. Server and web need no change.
 - Android only. Strings: reuse the panel's existing `links_*` strings (en + de); remove event-editor link strings that
   become unused (lint flags them).
 - ASSUMPTION (2026-11-28 13:50+0100 by dell26/agent-1): Opening a linked item from the event editor shows it in place of the editor (like the note editor's SearchItemScreen); unsaved event edits are kept (form lives in EventEditorViewModel), not saved first.
+- ASSUMPTION (2026-11-28 13:50+0100 by dell26/agent-1): Read-only events (subscribed calendars, invitations) still show the links panel with add/remove and create task/note: links are Cockpit data, not CalDAV data.
