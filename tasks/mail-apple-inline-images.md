@@ -1,11 +1,13 @@
 ---
 title: Mail: show unreferenced inline images and text after images (Apple Mail)
-status: in_progress
-owner: dell26/agent-1
+status: todo
+owner: 
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,server/src/test/kotlin/ch/sonensei/cockpit/mail/api,server/src/main/resources/db/migration/mail]
 prio: 2
-lease_until: 2026-11-28T10:41:25Z
+lease_until: 
+releases: 1
+extended: 
 ---
 ## Goal
 Images that a mail shows by their position in the MIME tree, not through a `cid:` reference, are visible in My
@@ -73,3 +75,4 @@ Intended approach (server only, clients stay unchanged):
 - ASSUMPTION (2026-11-28 10:41+0100 by dell26/agent-1): Positioned inline images are stored in the cached HTML body as synthetic cid references (cid:cockpit-part-<partId>@cockpit.invalid) and resolved after sanitizing in MailReadService; a resolved reference only points to a raster, non-cid-referenced part of the same message, so a mail forging it can only show its own image. Chosen because the cached body has no message id and the existing cid: path already survives the sanitizer.
 - ASSUMPTION (2026-11-28 10:41+0100 by dell26/agent-1): A text/plain part outside multipart/alternative next to HTML parts is rendered escaped (with <br>) into the joined HTML body, like Thunderbird shows all parts of multipart/mixed; a single HTML part stays byte-identical.
 - ASSUMPTION (2026-11-28 11:24+0100 by dell26/agent-1): CR-1 (forward quotes cid:cockpit-part- refs) fixed inside this task in mail/compose/DraftService.kt, outside its touches: the quality gate requires P1 findings to be fixed, not deferred. Follow-up task mail-forward-positioned-images is now redundant; a human may drop it.
+- release by dell26/agent-1: All ACs implemented; AC1-6 verified. Round-2 test-writer + round-3 review done on 47d8ba0dd (check.sh passed there). Then CR-1 (P1, gate forbids deferring) was fixed by fixer in 62058dbc9 (DraftService forward drops cid:cockpit-part- imgs, 2 GreenMail tests in DraftSendGreenMailTests, fixes.md updated). Left: re-run test-writer + code-reviewer on 62058dbc9 (review.md is stale), verify AC7 (gradlew check + integrationTest MailReadGreenMailTests/DraftSendGreenMailTests), write quality.json (CR-1 fixed, TW-1 fixed, CR-2 fixed/verified, CR-3 accepted), run check.sh, done.
