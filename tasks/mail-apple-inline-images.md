@@ -1,0 +1,65 @@
+---
+title: Mail: show unreferenced inline images and text after images (Apple Mail)
+status: todo
+owner:
+deps: []
+touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,server/src/test/kotlin/ch/sonensei/cockpit/mail/api,server/src/main/resources/db/migration/mail]
+prio: 2
+---
+## Goal
+Images that a mail shows by their position in the MIME tree, not through a `cid:` reference, are visible in My
+Cockpit as they are in Thunderbird. Reported by the owner: an invitation from Apple Mail (iPhone) contained an image
+that was in neither the body nor the attachment list on web/Android, but is shown in Thunderbird.
+
+Root cause: the part looks like
+```
+Content-Type: image/jpeg; name=image0.jpeg; x-apple-part-url="..."
+Content-Disposition: inline; filename=image0.jpeg
+Content-Transfer-Encoding: base64
+```
+inside `multipart/mixed` with an `Apple-Mail-...` boundary and **no `Content-ID`**. `MimeContent` (`mail/api/MimeContent.kt`,
+`leaves`) classifies a named part with disposition `inline` as no attachment, so it is listed with `inline = true`.
+Both clients hide inline parts (`web/.../mail/read/mail-read-page.ts` `attachments`, `android/.../mail/read/MailReadRepository.kt`)
+because they assume the HTML body shows them via `cid:`, which this one cannot.
+
+A related loss, found by reading the code but not confirmed with a real mail: Apple Mail splits text around pasted
+images (text, image, text in one `multipart/mixed`). `MimeContent.read` keeps only the first text/plain and the first
+text/html part as body; every later text part becomes a hidden "inline attachment", so text after an image vanishes.
+
+Intended approach (server only, clients stay unchanged):
+1. A part keeps `inline = true` only if the HTML body actually references its Content-ID via `cid:`. Every other
+   non-body part (unreferenced inline image, part without Content-ID, plain-text-only body) is a normal attachment
+   (`inline = false`), so clients list it and it can be downloaded / saved to Files.
+2. Body assembly like Thunderbird: the body text parts of a `multipart/mixed` are joined in MIME order (plain with
+   plain, HTML with HTML; for a `multipart/alternative` child the matching variant is used), and unreferenced inline
+   raster images (png, jpeg, gif, webp) are shown in the HTML body at their position between the text parts, as
+   `<img>` pointing to the existing inline attachment download (`MailReadService.attachmentUrl(..., inline = true)`),
+   added after sanitizing (server-generated markup, not untrusted). When the mail has only plain text, an HTML body is
+   built from the escaped text (line breaks kept) plus those images; `textPlain` stays the joined plain text (search
+   index, reply quoting). These images are still listed as attachments (step 1), so they can be saved.
+
+## Acceptance criteria
+- [ ] Regression test with the reported structure (`multipart/mixed`, Apple boundary: text/html or text/plain, then an
+      `image/jpeg` part with `Content-Disposition: inline; filename=image0.jpeg` and no Content-ID): the read API
+      lists the image as attachment with `inline = false` and the HTML body contains an `<img>` pointing to its inline
+      download
+- [ ] A `cid:`-referenced image in `multipart/related` (today's working case) is unchanged: `inline = true`, shown in
+      the body at the `cid:` position, not listed, not appended a second time
+- [ ] Text after an image (`multipart/mixed`: text, inline image, text; both as plain-only and as
+      `multipart/alternative` text/plain + text/html parts) is in the body in order with the image between the text
+      parts; `textPlain` contains both text parts
+- [ ] Plain-text-only mail with an unreferenced inline image: HTML body is the escaped text plus the image below it,
+      no HTML injection through the text (test with `<script>`/`<img onerror>` in the text)
+- [ ] Bodies cached before this change are re-parsed: a new Flyway migration in
+      `server/src/main/resources/db/migration/mail/` empties `mail_body_attachments` (the loader then re-fetches and
+      overwrites body and attachments); covered by a test or verified against a DB with a cached old entry
+- [ ] Non-raster or unknown inline parts (e.g. `application/pdf` with `inline`, HEIC) are listed as attachments and not
+      put into the body as `<img>`
+- [ ] Unit tests in `MimeContentTests` / `MailReadService` tests plus one GreenMail test (`MailReadGreenMailTests`)
+      that appends the reported message to an IMAP folder and reads it through the API; `cd server && ./gradlew check`
+      green; OpenAPI unchanged (or regenerated if the response schema changes)
+
+## Notes
+- Web and Android need no change: they already render the HTML body and list `inline = false` parts. Check after the
+  change that forwarding such a mail (compose) now lists the image as attachment, which is the wanted behaviour.
+- Keep the 1 MB-ish `maxTextSize` limit per text part as today; joined text may exceed one part's limit.
