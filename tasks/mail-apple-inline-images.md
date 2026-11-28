@@ -1,11 +1,11 @@
 ---
 title: Mail: show unreferenced inline images and text after images (Apple Mail)
-status: todo
-owner: 
+status: in_progress
+owner: dell26/agent-1
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,server/src/test/kotlin/ch/sonensei/cockpit/mail/api,server/src/main/resources/db/migration/mail]
 prio: 2
-lease_until: 
+lease_until: 2026-11-28T10:44:41Z
 releases: 1
 extended: 
 ---
