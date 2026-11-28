@@ -52,8 +52,9 @@ Intended approach (server only, clients stay unchanged):
       `multipart/alternative` text/plain + text/html parts) is in the body in order with the image between the text
       parts; `textPlain` contains both text parts
   - verified (2026-11-28 10:41+0100 by dell26/agent-1): MimeContentTests 'text after an image is in the body in order, plain only' and '..., as alternatives' (html: text, positioned img, text; textPlain both parts) -> passed
-- [ ] Plain-text-only mail with an unreferenced inline image: HTML body is the escaped text plus the image below it,
+- [x] Plain-text-only mail with an unreferenced inline image: HTML body is the escaped text plus the image below it,
       no HTML injection through the text (test with `<script>`/`<img onerror>` in the text)
+  - verified (2026-11-28 10:42+0100 by dell26/agent-1): MimeContentTests 'text after an image ... plain only' uses <script> and <img onerror> in the text: html has them escaped (&lt;script&gt;...), image div between/below text -> passed
 - [ ] Bodies cached before this change are re-parsed: a new Flyway migration in
       `server/src/main/resources/db/migration/mail/` empties `mail_body_attachments` (the loader then re-fetches and
       overwrites body and attachments); covered by a test or verified against a DB with a cached old entry
