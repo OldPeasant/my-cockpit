@@ -548,55 +548,20 @@ private fun AccountChoice(
     }
 }
 
-@Composable
-private fun typeLabel(type: LinkedType): String =
-    stringResource(
-        when (type) {
-            LinkedType.TASK -> R.string.calendar_edit_link_type_task
-            LinkedType.PROJECT -> R.string.calendar_edit_link_type_project
-            LinkedType.NOTE -> R.string.calendar_edit_link_type_note
-            LinkedType.EVENT -> R.string.calendar_edit_link_type_event
-            LinkedType.EMAIL -> R.string.calendar_edit_link_type_email
-            LinkedType.FILE -> R.string.calendar_edit_link_type_file
-            LinkedType.FOLDER -> R.string.calendar_edit_link_type_folder
-            LinkedType.CONTACT -> R.string.calendar_edit_link_type_contact
-            LinkedType.BOOKMARK -> R.string.calendar_edit_link_type_bookmark
-            LinkedType.JOURNAL_ENTRY -> R.string.calendar_edit_link_type_journal
-            LinkedType.HABIT -> R.string.calendar_edit_link_type_habit
-            LinkedType.OTHER -> R.string.calendar_edit_link_type_other
-        },
-    )
-
 /**
- * The items linked to the event (read-only: links are added and removed where the items are), with "Create task from
- * event" and "Create note for event" (SPEC.md §6.3).
+ * The shared linked-items panel of the event ([panel]: add, remove, open), with "Create task from event" and "Create
+ * note for event" (SPEC.md §6.3); what they create shows in the panel.
  */
 @Composable
 internal fun LinksSection(
     links: LinksUiState,
     canCreate: Boolean,
     callbacks: EventEditorCallbacks,
+    panel: @Composable (LinksUiState) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.testTag(EventEditorTags.LINKS)) {
         HorizontalDivider()
-        SectionTitle(stringResource(R.string.calendar_edit_links))
-        when {
-            links.loading && links.items.isEmpty() -> Note(stringResource(R.string.calendar_edit_links_loading))
-            links.failed ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    ErrorNote(stringResource(R.string.calendar_edit_links_failed), Modifier.weight(1f))
-                    TextButton(onClick = callbacks.reloadLinks, modifier = Modifier.testTag(EventEditorTags.LINKS_RETRY)) {
-                        Text(stringResource(R.string.calendar_edit_retry))
-                    }
-                }
-            links.items.isEmpty() -> Note(stringResource(R.string.calendar_edit_links_none))
-        }
-        links.items.forEach { item ->
-            Column(Modifier.fillMaxWidth().padding(vertical = 4.dp).testTag(EventEditorTags.link(item.linkId.toString()))) {
-                Text(item.title ?: stringResource(R.string.calendar_edit_link_unavailable))
-                Note(listOfNotNull(typeLabel(item.type), item.subtitle?.takeIf { it.isNotBlank() }).joinToString(" · "))
-            }
-        }
+        panel(links)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(
                 onClick = { callbacks.createLinked(LinkedKind.TASK) },

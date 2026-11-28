@@ -11,26 +11,17 @@ import ch.sonensei.cockpit.core.network.generated.models.CreateLinkRequest
 import ch.sonensei.cockpit.core.network.generated.models.CreateNoteRequest
 import ch.sonensei.cockpit.core.network.generated.models.CreateTaskRequest
 import ch.sonensei.cockpit.core.network.generated.models.ItemRefDto
-import ch.sonensei.cockpit.core.network.generated.models.LinkListResponse
 import ch.sonensei.cockpit.core.network.generated.models.LinkResponse
 import ch.sonensei.cockpit.core.network.generated.models.SendInvitationsRequest
 import retrofit2.Response
 import retrofit2.http.Body
-import retrofit2.http.GET
 import retrofit2.http.POST
-import retrofit2.http.Query
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** The links of an item; its own interface so the editor doesn't depend on who provides the generated one. */
+/** Links an item; its own interface so the editor doesn't depend on who provides the generated one. */
 interface EventLinksApi {
-    @GET("api/v1/links")
-    suspend fun listLinks(
-        @Query("type") type: String,
-        @Query("id") id: UUID,
-    ): Response<LinkListResponse>
-
     @POST("api/v1/links")
     suspend fun createLink(
         @Body body: CreateLinkRequest,
@@ -46,19 +37,6 @@ data class MailAccount(
 
 /** What an invitation mail does (iTIP, RFC 5546). */
 enum class InvitationMethod { REQUEST, CANCEL }
-
-/** What kind of item a link points to (the API's item types). */
-enum class LinkedType { TASK, PROJECT, NOTE, EVENT, EMAIL, FILE, FOLDER, CONTACT, BOOKMARK, JOURNAL_ENTRY, HABIT, OTHER }
-
-/** The other end of a link of the event. */
-data class LinkedItem(
-    val linkId: UUID,
-    val type: LinkedType,
-    val itemId: UUID,
-    /** `null` when the item no longer exists (or can't be shown). */
-    val title: String?,
-    val subtitle: String?,
-)
 
 /** What "Create task / note from event" ended with. */
 sealed interface LinkedCreateResult {
@@ -78,7 +56,7 @@ sealed interface LinkedCreateResult {
 
 /**
  * What the event editor needs besides the event itself (SPEC.md §6.2, §6.3): which calendars are local (only their
- * guests are edited here), contact suggestions for guests, invitations by mail, and the event's linked items.
+ * guests are edited here), contact suggestions for guests, invitations by mail, and tasks and notes created for the event.
  */
 @Singleton
 class EventExtrasRepository
@@ -147,21 +125,6 @@ class EventExtrasRepository
                         recipients = recipients,
                     )
                 body(calendars.sendEventInvitations(eventId, request)).recipients.size
-            }
-
-        /** The items linked to the event [eventId], either direction. */
-        suspend fun links(eventId: UUID): CalendarResult<List<LinkedItem>> =
-            calendarCall {
-                body(links.listLinks(ItemRefDto.Type.EVENT.value, eventId)).items.map { link ->
-                    val other = if (link.direction == LinkResponse.Direction.OUTGOING) link.target else link.source
-                    LinkedItem(
-                        linkId = link.id,
-                        type = LinkedType.entries.firstOrNull { it.name == other.type.name } ?: LinkedType.OTHER,
-                        itemId = other.id,
-                        title = other.title.takeIf { other.available },
-                        subtitle = other.subtitle.takeIf { other.available },
-                    )
-                }
             }
 
         /** A new Inbox task titled [title], linked to the event [eventId]. */

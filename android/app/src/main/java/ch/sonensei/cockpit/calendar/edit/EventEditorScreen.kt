@@ -47,6 +47,8 @@ import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import ch.sonensei.cockpit.R
+import ch.sonensei.cockpit.search.SearchItemScreen
+import ch.sonensei.cockpit.search.SearchTarget
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -77,7 +79,6 @@ data class EventEditorCallbacks(
     val dismissInvitation: () -> Unit = {},
     val retryAccounts: () -> Unit = {},
     val createLinked: (LinkedKind) -> Unit = {},
-    val reloadLinks: () -> Unit = {},
     /** Answers the invitation: ACCEPTED, TENTATIVE or DECLINED. */
     val respond: (AttendeeStatus) -> Unit = {},
 ) {
@@ -103,7 +104,6 @@ data class EventEditorCallbacks(
                 dismissInvitation = editor::dismissInvitation,
                 retryAccounts = editor::loadAccounts,
                 createLinked = editor::createLinked,
-                reloadLinks = editor::loadLinks,
                 respond = editor::respond,
             )
     }
@@ -155,7 +155,6 @@ internal object EventEditorTags {
     const val INVITE_SEND = "event-editor-invite-send"
     const val INVITE_SKIP = "event-editor-invite-skip"
     const val LINKS = "event-editor-links"
-    const val LINKS_RETRY = "event-editor-links-retry"
     const val LINKS_RESULT = "event-editor-links-result"
     const val CREATE_TASK = "event-editor-create-task"
     const val CREATE_NOTE = "event-editor-create-note"
@@ -182,8 +181,6 @@ internal object EventEditorTags {
 
     fun inviteAccount(id: String) = "event-editor-invite-account:$id"
 
-    fun link(id: String) = "event-editor-link:$id"
-
     fun repeat(repeat: Repeat) = "event-editor-repeat:$repeat"
 
     fun calendar(id: UUID) = "event-editor-calendar:$id"
@@ -200,7 +197,24 @@ fun EventEditorContent(
     state: EventEditorUiState,
     callbacks: EventEditorCallbacks,
     modifier: Modifier = Modifier,
+    /** The linked-items panel of a saved event; [EventLinksPanel] unless a test replaces it. */
+    linksPanel: @Composable (eventId: UUID, refresh: Int, open: (SearchTarget) -> Unit) -> Unit = { id, refresh, open ->
+        EventLinksPanel(id, refresh, open)
+    },
 ) {
+    // A linked item opened from the links panel ("<type>:<id>"), shown in place of the editor until it is closed. The
+    // form lives in the view model, so unsaved edits are still there when back returns to the editor.
+    var opened by rememberSaveable { mutableStateOf<String?>(null) }
+    val item = opened?.split(':')?.let { (type, id) -> type to UUID.fromString(id) }
+    if (item != null) {
+        BackHandler { opened = null }
+        SearchItemScreen(item.first, item.second, onClose = { opened = null }, modifier = modifier)
+        return
+    }
+    val openLinked: (SearchTarget) -> Unit = { target ->
+        // Items without an Android screen have a web link instead; the panel opens those in the browser.
+        if (target is SearchTarget.InApp) opened = "${target.type}:${target.id}"
+    }
     BackHandler { if (!state.saving) callbacks.close() }
     Surface(modifier.fillMaxSize().testTag(EventEditorTags.EDITOR)) {
         Column(Modifier.fillMaxSize()) {
@@ -229,7 +243,9 @@ fun EventEditorContent(
             }
             if (state.loading || state.saving || state.responding != null) LinearProgressIndicator(Modifier.fillMaxWidth())
             state.message?.let { Message(it, callbacks.reload) }
-            state.form?.let { Form(state, it, callbacks) }
+            state.form?.let { form ->
+                Form(state, form, callbacks) { links -> linksPanel(links.eventId, links.refresh, openLinked) }
+            }
         }
     }
     state.scopes?.let { ScopeDialog(it, state.deleting, callbacks.chooseScope, callbacks.dismissScope) }
@@ -293,6 +309,7 @@ private fun Form(
     state: EventEditorUiState,
     form: EventForm,
     callbacks: EventEditorCallbacks,
+    linksPanel: @Composable (LinksUiState) -> Unit,
 ) {
     val update = callbacks.update
     val enabled = state.canSave
@@ -366,7 +383,7 @@ private fun Form(
         ReminderSection(form, enabled, update)
         if (state.respondable) ResponseSection(state, callbacks.respond)
         GuestSection(state, form, callbacks)
-        state.links?.let { LinksSection(it, canCreate = !state.loading && !state.saving, callbacks = callbacks) }
+        state.links?.let { LinksSection(it, canCreate = !state.loading && !state.saving, callbacks = callbacks, panel = linksPanel) }
     }
 }
 

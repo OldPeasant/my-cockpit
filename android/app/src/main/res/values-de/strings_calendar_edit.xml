@@ -106,11 +106,6 @@
         <item quantity="one">Absage an %d Gast gesendet.</item>
         <item quantity="other">Absage an %d Gäste gesendet.</item>
     </plurals>
-    <string name="calendar_edit_links">Verknüpfte Elemente</string>
-    <string name="calendar_edit_links_none">Keine verknüpften Elemente.</string>
-    <string name="calendar_edit_links_loading">Verknüpfte Elemente werden geladen…</string>
-    <string name="calendar_edit_links_failed">Die verknüpften Elemente konnten nicht geladen werden.</string>
-    <string name="calendar_edit_link_unavailable">Element nicht mehr verfügbar</string>
     <string name="calendar_edit_create_task">Aufgabe aus Termin erstellen</string>
     <string name="calendar_edit_create_note">Notiz zum Termin erstellen</string>
     <string name="calendar_edit_task_created">Zum Eingang hinzugefügt: %1$s</string>
@@ -119,18 +114,6 @@
     <string name="calendar_edit_note_not_linked">Die Notiz wurde erstellt, konnte aber nicht mit dem Termin verknüpft werden.</string>
     <string name="calendar_edit_task_failed">Die Aufgabe konnte nicht erstellt werden.</string>
     <string name="calendar_edit_note_failed">Die Notiz konnte nicht erstellt werden.</string>
-    <string name="calendar_edit_link_type_task">Aufgabe</string>
-    <string name="calendar_edit_link_type_project">Projekt</string>
-    <string name="calendar_edit_link_type_note">Notiz</string>
-    <string name="calendar_edit_link_type_event">Termin</string>
-    <string name="calendar_edit_link_type_email">E-Mail</string>
-    <string name="calendar_edit_link_type_file">Datei</string>
-    <string name="calendar_edit_link_type_folder">Ordner</string>
-    <string name="calendar_edit_link_type_contact">Kontakt</string>
-    <string name="calendar_edit_link_type_bookmark">Lesezeichen</string>
-    <string name="calendar_edit_link_type_journal">Journaleintrag</string>
-    <string name="calendar_edit_link_type_habit">Gewohnheit</string>
-    <string name="calendar_edit_link_type_other">Element</string>
     <string name="calendar_edit_respond_title">Deine Antwort</string>
     <string name="calendar_edit_respond_current">Du hast geantwortet: %1$s</string>
     <string name="calendar_edit_respond_none">Du hast noch nicht geantwortet.</string>

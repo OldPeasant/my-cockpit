@@ -223,8 +223,6 @@ class EventEditorViewModel internal constructor(
     private var respondJob: Job? = null
     private var linksJob: Job? = null
 
-    /** The pending links load: a newer load cancels it, so an older answer never overrides a newer one. */
-    private var loadLinksJob: Job? = null
     private var suggestJob: Job? = null
     private var inviteJob: Job? = null
 
@@ -358,7 +356,7 @@ class EventEditorViewModel internal constructor(
 
     private fun reset() {
         job?.cancel()
-        listOf(sourcesJob, respondJob, linksJob, loadLinksJob, suggestJob, inviteJob).forEach { it?.cancel() }
+        listOf(sourcesJob, respondJob, linksJob, suggestJob, inviteJob).forEach { it?.cancel() }
         occurrence = null
         initial = null
         newId = null
@@ -500,8 +498,14 @@ class EventEditorViewModel internal constructor(
                 val form = editForm(edited, event.value, (master as? CalendarResult.Ok)?.value, zone)
                 version = event.value.version
                 initial = form
-                state.update { it.copy(loading = false, form = form, savedAttendees = form.attendees.map { a -> a.email }) }
-                loadLinks()
+                state.update {
+                    it.copy(
+                        loading = false,
+                        form = form,
+                        savedAttendees = form.attendees.map { a -> a.email },
+                        links = if (extras != null) LinksUiState(edited.eventId) else null,
+                    )
+                }
             }
     }
 
@@ -701,31 +705,10 @@ class EventEditorViewModel internal constructor(
                         LinkedKind.TASK -> source.createTask(title, edited.eventId)
                         LinkedKind.NOTE -> source.createNote(title, edited.eventId)
                     }
-                state.update { s -> s.copy(links = s.links?.copy(creating = null, result = LinkedResult(kind, result))) }
-                // Also after a failed link: the panel shows what the server has.
-                if (result !is LinkedCreateResult.Failed) loadLinks()
-            }
-    }
-
-    /** Loads the linked items of the edited event (again, after a failure). */
-    fun loadLinks() {
-        val source = extras ?: return
-        val edited = occurrence ?: return
-        loadLinksJob?.cancel()
-        state.update { s -> s.copy(links = (s.links ?: LinksUiState()).copy(loading = true, failed = false)) }
-        loadLinksJob =
-            viewModelScope.launch {
-                val result = source.links(edited.eventId)
                 state.update { s ->
-                    val links = s.links ?: LinksUiState()
-                    s.copy(
-                        links =
-                            if (result is CalendarResult.Ok) {
-                                links.copy(loading = false, items = result.value)
-                            } else {
-                                links.copy(loading = false, failed = true)
-                            },
-                    )
+                    // Also after a failed link: the panel shows what the server has.
+                    val refresh = if (result is LinkedCreateResult.Failed) 0 else 1
+                    s.copy(links = s.links?.copy(creating = null, result = LinkedResult(kind, result), refresh = s.links.refresh + refresh))
                 }
             }
     }

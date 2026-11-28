@@ -51,12 +51,15 @@ data class LinkedResult(
     val result: LinkedCreateResult,
 )
 
-/** The linked items panel of an existing event (read-only: links are added and removed elsewhere). */
+/**
+ * The links of an existing event: the shared linked-items panel shows them for [eventId] (the event, for a repeating
+ * one its series, as on the web), beside "Create task / note from event".
+ */
 data class LinksUiState(
-    val loading: Boolean = false,
-    val failed: Boolean = false,
-    val items: List<LinkedItem> = emptyList(),
+    val eventId: UUID,
     /** A task or note is being created. */
     val creating: LinkedKind? = null,
     val result: LinkedResult? = null,
+    /** Counts the tasks and notes created here, so the panel reloads to show them. */
+    val refresh: Int = 0,
 )
