@@ -45,8 +45,9 @@ Intended approach (server only, clients stay unchanged):
       lists the image as attachment with `inline = false` and the HTML body contains an `<img>` pointing to its inline
       download
   - verified (2026-11-28 10:41+0100 by dell26/agent-1): cd server && ./gradlew test --tests '*MimeContentTests' (the reported Apple Mail structure ...) + integrationTest --tests '*MailReadGreenMailTests' (an Apple Mail inline image without Content-ID is listed and shown in the body: GreenMail IMAP append, read API -> inline=false, html has <img src=/api/v1/mail/messages/{id}/attachments/2?inline=true>, download serves image/jpeg) -> 45 + 9 tests passed
-- [ ] A `cid:`-referenced image in `multipart/related` (today's working case) is unchanged: `inline = true`, shown in
+- [x] A `cid:`-referenced image in `multipart/related` (today's working case) is unchanged: `inline = true`, shown in
       the body at the `cid:` position, not listed, not appended a second time
+  - verified (2026-11-28 10:41+0100 by dell26/agent-1): MimeContentTests 'mixed, related and alternative parts ...' (logo inline=true, html unchanged, no marker) + MailReadGreenMailTests 'the body is fetched ... sanitized and cached' (logo inline=true, html points at ?inline=true, 2 attachments) -> passed
 - [ ] Text after an image (`multipart/mixed`: text, inline image, text; both as plain-only and as
       `multipart/alternative` text/plain + text/html parts) is in the body in order with the image between the text
       parts; `textPlain` contains both text parts
