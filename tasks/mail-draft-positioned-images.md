@@ -1,10 +1,11 @@
 ---
 title: Mail: drafts from other clients must not show positioned-image references
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [mail-apple-inline-images]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/compose,server/src/test/kotlin/ch/sonensei/cockpit/mail/compose]
 prio: 2
+lease_until: 2026-11-28T10:56:35Z
 ---
 ## Goal
 Opening a draft from the Drafts folder that another client wrote (e.g. Apple Mail on iPhone with a pasted image, no
