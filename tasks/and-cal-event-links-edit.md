@@ -27,9 +27,10 @@ up in the panel. Drop the editor's now unused link-listing code (`EventExtrasRep
 nothing else needs it. Server and web need no change.
 
 ## Acceptance criteria
-- [ ] In the Android event editor of a saved event, "Add link" opens the search; picking any item type (email, task,
+- [x] In the Android event editor of a saved event, "Add link" opens the search; picking any item type (email, task,
       note, file, contact, ...) links it to the event, and it appears in the panel right away. The link is the same
       one the web shows (item `EVENT` with the event id; for a recurring event the series, not one occurrence, as on web)
+  - verified (2026-11-28 14:13+0100 by dell26/agent-1): cd android && ./gradlew testDebugUnitTest (Robolectric+Hilt) -> EventEditorLinksInAppTest 'Add link searches all items, links the picked email to the event and shows it right away' + 'loaded for item EVENT with the event id' pass; EventEditorViewModelExtrasTest 'an occurrence of a repeating event links to the same event id as the web' pass
 - [ ] A linked item can be removed with ✕ from the event editor, and opened (tapping it shows the item, back returns
       to the event editor without losing unsaved edits of the event, or unsaved edits are saved first as in the note
       editor; record which with `tasks.py assume`)
