@@ -19,3 +19,4 @@ editor see a broken image (review CR-1 of mail-apple-inline-images).
       already remove `cid:` images); the image is still forwarded as attachment
 - [ ] Real `cid:` images in forwards keep today's behaviour
 - [ ] Test in the compose tests (unit or GreenMail); `cd server && ./gradlew check` green
+- ASSUMPTION (2026-11-28 12:19+0100 by dell26/agent-1): Behaviour already implemented on main by mail-apple-inline-images (commit 84aaa89fc, CR-1) incl. GreenMail tests; this task adds no production code, only verifies it and records review evidence.
