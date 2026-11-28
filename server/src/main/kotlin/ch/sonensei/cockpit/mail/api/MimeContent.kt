@@ -7,6 +7,7 @@ import jakarta.mail.internet.ContentType
 import jakarta.mail.internet.MimePart
 import jakarta.mail.internet.MimeUtility
 import jakarta.mail.internet.ParseException
+import org.jsoup.parser.Parser
 import java.io.IOException
 import java.net.URLDecoder
 import java.nio.charset.Charset
@@ -237,12 +238,18 @@ internal object MimeContent {
 			}
 		}
 
-	/** The Content-IDs (lower case, without angle brackets) that [html] references by `cid:`, raw and percent-decoded. */
+	/**
+	 * The Content-IDs (lower case, without angle brackets) that [html] references by `cid:`: raw, with HTML character
+	 * references unescaped (as a browser or the HTML parser reads the attribute), and both percent-decoded.
+	 */
 	private fun cidReferences(html: String): Set<String> =
 		CID_REFERENCE
 			.findAll(html)
 			.flatMap { match ->
-				val raw = match.groupValues[1].removePrefix("<").removeSuffix(">")
+				val raw = match.groupValues[1]
+				sequenceOf(raw, Parser.unescapeEntities(raw, true))
+			}.flatMap { value ->
+				val raw = value.removePrefix("<").removeSuffix(">")
 				val decoded =
 					try {
 						URLDecoder.decode(raw.replace("+", "%2B"), Charsets.UTF_8).removePrefix("<").removeSuffix(">")
