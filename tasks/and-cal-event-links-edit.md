@@ -40,8 +40,9 @@ nothing else needs it. Server and web need no change.
 - [ ] Offline / server error: the panel shows its usual error and retry, the event editor stays usable
 - [ ] Tests: Robolectric/Compose UI tests in `android/app/src/test/.../calendar/edit` for add, remove, open and the
       create-task/note refresh; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` green
-- [ ] Checked on a real device or emulator: link an email to an event from the event editor, then see the event in the
+- [~] Checked on a real device or emulator: link an email to an event from the event editor, then see the event in the
       email's Linked items panel (and on web). Skip with a reason if no device is available
+  - skipped (2026-11-28 13:56+0100 by dell26/agent-1): no Android device or emulator here (no adb/emulator on PATH); covered by Robolectric tests of the panel wiring and the event id handed to it
 
 ## Notes
 - Android only. Strings: reuse the panel's existing `links_*` strings (en + de); remove event-editor link strings that
