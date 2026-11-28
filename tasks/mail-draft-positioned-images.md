@@ -14,8 +14,9 @@ that `MimeContent` (task mail-apple-inline-images) puts into the cached HTML bod
 `reviews/mail-apple-inline-images/review.md`.
 
 ## Acceptance criteria
-- [ ] `DraftService.view` (used by GET /drafts/{id} and after save) removes positioned-image references from the draft
+- [x] `DraftService.view` (used by GET /drafts/{id} and after save) removes positioned-image references from the draft
       HTML, like the forward path (`withoutPositionedImages`); the image stays listed as a draft attachment
+  - verified (2026-11-28 11:43+0100 by dell26/agent-1): cd server && ./gradlew integrationTest --tests '*DraftSendGreenMailTests' -> 20 passed; new test 'an html draft from another client with a positioned image opens, saves and sends without the image reference' asserts GET /drafts/{id} html has no cockpit-part- and attachments list image0.jpeg
 - [ ] A plain-text-only draft from another client with an inline image does not turn into a broken HTML draft
       (either the HTML is dropped and the plain text kept, or the HTML has no synthetic reference)
 - [ ] GreenMail test (`DraftSendGreenMailTests` or `DraftComposeGreenMailTests`) appends such a draft to the Drafts
