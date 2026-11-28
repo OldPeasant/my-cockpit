@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "task": "mail-apple-inline-images",
+  "reviewed_revision": "93ab54879a71c9e5873c51171b004cc4c9f7d1fb",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/mail-apple-inline-images/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-apple-inline-images/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/mail-apple-inline-images/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "TW-1", "source": "test-writer", "severity": "Low", "disposition": "fixed",
+     "note": "cid references written with HTML character references are recognized (9cd4f40f9)"},
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P1", "disposition": "fixed",
+     "note": "forward drops synthetic cid:cockpit-part- image refs (e1a9d906c), GreenMail tests"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "resolve-side guard covered by MailReadServiceInlineImagesTests; fixer verified"},
+    {"id": "CR-3", "source": "code-reviewer", "severity": "P3", "disposition": "accepted",
+     "note": "plain text in joined HTML body loses whitespace layout; cosmetic, left as is"},
+    {"id": "CR-4", "source": "code-reviewer", "severity": "P2", "disposition": "deferred",
+     "note": "draft view of foreign drafts with positioned images; follow-up task mail-draft-positioned-images"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew test --tests '*MimeContentTests' --tests '*MailReadService*'", "result": "pass"},
+    {"command": "cd server && ./gradlew integrationTest --tests '*MailReadGreenMailTests' --tests '*DraftSendGreenMailTests'", "result": "pass"},
+    {"command": "cd server && ./gradlew check jacocoTestReport", "result": "pass"},
+    {"command": "sh scripts/check.sh", "result": "pass"}
+  ]
+}
