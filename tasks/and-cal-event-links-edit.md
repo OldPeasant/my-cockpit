@@ -43,8 +43,9 @@ nothing else needs it. Server and web need no change.
   - verified (2026-11-28 14:13+0100 by dell26/agent-1): ./gradlew testDebugUnitTest -> EventEditorLinksInAppTest 'a new event shows no links panel and loads no links' + EventEditorViewModelExtrasTest 'a new event has none' pass; read-only events keep the panel (links are Cockpit data, assumption recorded)
 - [x] Offline / server error: the panel shows its usual error and retry, the event editor stays usable
   - verified (2026-11-28 14:13+0100 by dell26/agent-1): ./gradlew testDebugUnitTest -> EventEditorLinksInAppTest 'an offline panel shows its error and retry, and the editor stays usable' + 'a failed removal is shown and keeps the link and the editor' pass
-- [ ] Tests: Robolectric/Compose UI tests in `android/app/src/test/.../calendar/edit` for add, remove, open and the
+- [x] Tests: Robolectric/Compose UI tests in `android/app/src/test/.../calendar/edit` for add, remove, open and the
       create-task/note refresh; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` green
+  - verified (2026-11-28 14:13+0100 by dell26/agent-1): cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug -> BUILD SUCCESSFUL (all unit tests incl. calendar/edit EventEditorLinksInAppTest 9, EventEditorExtrasScreenTest, EventEditorViewModelExtrasTest)
 - [~] Checked on a real device or emulator: link an email to an event from the event editor, then see the event in the
       email's Linked items panel (and on web). Skip with a reason if no device is available
   - skipped (2026-11-28 13:56+0100 by dell26/agent-1): no Android device or emulator here (no adb/emulator on PATH); covered by Robolectric tests of the panel wiring and the event id handed to it
