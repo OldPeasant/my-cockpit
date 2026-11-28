@@ -1,11 +1,11 @@
 ---
 title: Mail: show unreferenced inline images and text after images (Apple Mail)
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,server/src/test/kotlin/ch/sonensei/cockpit/mail/api,server/src/main/resources/db/migration/mail]
 prio: 2
-lease_until: 2026-11-28T10:51:30Z
+lease_until: 
 releases: 1
 extended: 
 ---
@@ -78,3 +78,4 @@ Intended approach (server only, clients stay unchanged):
 - ASSUMPTION (2026-11-28 11:24+0100 by dell26/agent-1): CR-1 (forward quotes cid:cockpit-part- refs) fixed inside this task in mail/compose/DraftService.kt, outside its touches: the quality gate requires P1 findings to be fixed, not deferred. Follow-up task mail-forward-positioned-images is now redundant; a human may drop it.
 - release by dell26/agent-1: All ACs implemented; AC1-6 verified. Round-2 test-writer + round-3 review done on 47d8ba0dd (check.sh passed there). Then CR-1 (P1, gate forbids deferring) was fixed by fixer in 62058dbc9 (DraftService forward drops cid:cockpit-part- imgs, 2 GreenMail tests in DraftSendGreenMailTests, fixes.md updated). Left: re-run test-writer + code-reviewer on 62058dbc9 (review.md is stale), verify AC7 (gradlew check + integrationTest MailReadGreenMailTests/DraftSendGreenMailTests), write quality.json (CR-1 fixed, TW-1 fixed, CR-2 fixed/verified, CR-3 accepted), run check.sh, done.
 - ASSUMPTION (2026-11-28 11:33+0100 by dell26/agent-1): CR-4 (P2: DraftService.view shows cid:cockpit-part- refs for drafts written by other clients with an unreferenced inline image) deferred to new task mail-draft-positioned-images; non-blocking, outside this task's touches, and fixing it needs another full review round.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 74s on d3c581984; criteria verified 7/7
