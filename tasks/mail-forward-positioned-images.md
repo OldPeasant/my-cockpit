@@ -1,11 +1,11 @@
 ---
 title: Mail: forwards drop internal positioned-image references
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [mail-apple-inline-images]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/compose,server/src/test/kotlin/ch/sonensei/cockpit/mail/compose]
 prio: 2
-lease_until: 2026-11-28T11:42:02Z
+lease_until: 
 ---
 ## Goal
 Forwarding a mail whose body shows inline images by position (mail-apple-inline-images: Apple Mail image without
@@ -23,3 +23,4 @@ editor see a broken image (review CR-1 of mail-apple-inline-images).
 - [x] Test in the compose tests (unit or GreenMail); `cd server && ./gradlew check` green
   - verified (2026-11-28 12:25+0100 by dell26/agent-1): tests in server/src/test/.../mail/compose/DraftSendGreenMailTests.kt (GreenMail, integrationTest: 29/29 pass); server/gradlew -p server check -> exit 0 (BUILD SUCCESSFUL)
 - ASSUMPTION (2026-11-28 12:19+0100 by dell26/agent-1): Behaviour already implemented on main by mail-apple-inline-images (commit 84aaa89fc, CR-1) incl. GreenMail tests; this task adds no production code, only verifies it and records review evidence.
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 75s on 741acf950; criteria verified 3/3
