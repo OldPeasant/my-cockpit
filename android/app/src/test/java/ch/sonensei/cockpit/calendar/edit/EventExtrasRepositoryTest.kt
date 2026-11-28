@@ -266,39 +266,6 @@ class EventExtrasRepositoryTest {
         }
 
     @Test
-    fun `links show the other end in either direction, unavailable items without title`() =
-        runBlocking {
-            server.enqueue(
-                json(
-                    """{"items":[
-                    |${linkJson(50, "OUTGOING", eventEnd, endJson(10, "TASK", "Prepare slides", subtitle = "Inbox"))},
-                    |${linkJson(51, "INCOMING", endJson(11, "NOTE", "Minutes"), eventEnd)},
-                    |${linkJson(52, "OUTGOING", eventEnd, endJson(12, "EMAIL", "Secret", available = false, subtitle = "x"))},
-                    |${linkJson(53, "INCOMING", endJson(13, "JOURNAL_ENTRY", "Day"), eventEnd)}]}
-                    """.trimMargin(),
-                ),
-            )
-            assertEquals(
-                CalendarResult.Ok(
-                    listOf(
-                        LinkedItem(id(50), LinkedType.TASK, id(10), "Prepare slides", "Inbox"),
-                        LinkedItem(id(51), LinkedType.NOTE, id(11), "Minutes", null),
-                        LinkedItem(id(52), LinkedType.EMAIL, id(12), null, null),
-                        LinkedItem(id(53), LinkedType.JOURNAL_ENTRY, id(13), "Day", null),
-                    ),
-                ),
-                repository.links(event),
-            )
-            val url = server.takeRequest().url
-            assertEquals("/api/v1/links", url.encodedPath)
-            assertEquals("EVENT", url.queryParameter("type"))
-            assertEquals(event.toString(), url.queryParameter("id"))
-
-            server.enqueue(status(404))
-            assertEquals(CalendarResult.Failed(404), repository.links(event))
-        }
-
-    @Test
     fun `a task from the event goes to the Inbox and is linked to the event`() =
         runBlocking {
             server.enqueue(json(taskJson(20), 201))

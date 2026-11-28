@@ -1,8 +1,15 @@
 package ch.sonensei.cockpit.calendar.edit
 
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -21,6 +28,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ch.sonensei.cockpit.calendar.agenda.CalendarInfo
+import ch.sonensei.cockpit.search.SearchTarget
 import ch.sonensei.cockpit.ui.theme.CockpitTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -59,15 +67,27 @@ class EventEditorExtrasScreenTest {
     private val other = MailAccount(id(71), "Private mail", "me@example.net")
 
     private val calls = mutableListOf<String>()
+    private lateinit var back: OnBackPressedDispatcher
 
     private fun show(initial: EventEditorUiState): (EventEditorUiState) -> Unit {
         var state by mutableStateOf(initial)
         composeRule.setContent {
+            back = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
             CockpitTheme {
                 EventEditorContent(
+                    linksPanel = { eventId, refresh, open ->
+                        Column {
+                            Text("panel:$eventId:$refresh", Modifier.testTag(FAKE_PANEL))
+                            Button(onClick = { open(SearchTarget.InApp("TASK", id(10))) }, Modifier.testTag(FAKE_OPEN)) { Text("open") }
+                            Button(onClick = { open(SearchTarget.Web("https://example.org/x")) }, Modifier.testTag(FAKE_OPEN_WEB)) {
+                                Text("web")
+                            }
+                        }
+                    },
                     state = state,
                     callbacks =
                         EventEditorCallbacks(
+                            close = { calls += "close" },
                             update = { change -> state = state.copy(form = state.form?.let(change)) },
                             setGuestQuery = { calls += "query:$it" },
                             addGuest = { calls += "add:${it?.email}" },
@@ -78,7 +98,6 @@ class EventEditorExtrasScreenTest {
                             dismissInvitation = { calls += "dismiss" },
                             retryAccounts = { calls += "retry" },
                             createLinked = { calls += "create:$it" },
-                            reloadLinks = { calls += "reload-links" },
                             respond = { calls += "respond:$it" },
                             reload = { calls += "reload" },
                         ),
@@ -347,42 +366,25 @@ class EventEditorExtrasScreenTest {
         composeRule.onNodeWithTag(EventEditorTags.INVITE_SEND).assertIsEnabled()
     }
 
-    // --- Linked items
+    // --- Linked items (the shared panel is replaced by a fake that shows what the editor gives it)
 
     @Test
-    fun `the links panel lists items with type and subtitle and creates a task or a note`() {
-        val items =
-            listOf(
-                LinkedItem(id(50), LinkedType.TASK, id(10), "Prepare slides", "Inbox"),
-                LinkedItem(id(51), LinkedType.JOURNAL_ENTRY, id(11), "Retro", " "),
-                LinkedItem(id(52), LinkedType.EMAIL, id(12), null, null),
-            )
-        show(editable.copy(links = LinksUiState(items = items)))
-        assertInside(EventEditorTags.link(id(50).toString()), "Prepare slides")
-        assertInside(EventEditorTags.link(id(50).toString()), "Task · Inbox")
-        // A blank subtitle is left out.
-        assertInside(EventEditorTags.link(id(51).toString()), "Journal entry", substring = false)
-        assertInside(EventEditorTags.link(id(52).toString()), "Item no longer available")
+    fun `a saved event shows the links panel for its id and creates a task or a note`() {
+        show(editable.copy(links = LinksUiState(id(5))))
+        composeRule.onNodeWithTag(FAKE_PANEL).performScrollTo().assertTextContains("panel:${id(5)}:0")
         composeRule.onNodeWithTag(EventEditorTags.CREATE_TASK).performScrollTo().performClick()
         composeRule.onNodeWithTag(EventEditorTags.CREATE_NOTE).performScrollTo().performClick()
         assertEquals(listOf("create:TASK", "create:NOTE"), calls)
     }
 
     @Test
-    fun `the links panel shows loading, empty, failure with retry and the result of a create`() {
-        val update = show(editable.copy(links = LinksUiState(loading = true)))
-        composeRule.onNodeWithText("Loading linked items…").performScrollTo().assertIsDisplayed()
-
-        update(editable.copy(links = LinksUiState()))
-        composeRule.onNodeWithText("No linked items.").performScrollTo().assertIsDisplayed()
-
-        update(editable.copy(links = LinksUiState(failed = true)))
-        composeRule.onNodeWithTag(EventEditorTags.LINKS_RETRY).performScrollTo().performClick()
-        assertEquals(listOf("reload-links"), calls)
-
-        update(editable.copy(links = LinksUiState(creating = LinkedKind.TASK)))
+    fun `a created task or note refreshes the panel and the result of a create is shown`() {
+        val update = show(editable.copy(links = LinksUiState(id(5), creating = LinkedKind.TASK)))
         composeRule.onNodeWithTag(EventEditorTags.CREATE_TASK).performScrollTo().assertIsNotEnabled()
         composeRule.onNodeWithTag(EventEditorTags.CREATE_NOTE).assertIsNotEnabled()
+
+        update(editable.copy(links = LinksUiState(id(5), refresh = 2)))
+        composeRule.onNodeWithTag(FAKE_PANEL).performScrollTo().assertTextContains("panel:${id(5)}:2")
 
         val results =
             listOf(
@@ -395,53 +397,41 @@ class EventEditorExtrasScreenTest {
                 LinkedResult(LinkedKind.NOTE, LinkedCreateResult.Failed) to "The note could not be created.",
             )
         results.forEach { (result, text) ->
-            update(editable.copy(links = LinksUiState(result = result)))
+            update(editable.copy(links = LinksUiState(id(5), result = result)))
             composeRule.onNodeWithTag(EventEditorTags.LINKS_RESULT).performScrollTo().assertTextContains(text, substring = true)
         }
     }
 
     @Test
-    fun `every type of linked item is named`() {
-        val labels =
-            mapOf(
-                LinkedType.TASK to "Task",
-                LinkedType.PROJECT to "Project",
-                LinkedType.NOTE to "Note",
-                LinkedType.EVENT to "Event",
-                LinkedType.EMAIL to "Email",
-                LinkedType.FILE to "File",
-                LinkedType.FOLDER to "Folder",
-                LinkedType.CONTACT to "Contact",
-                LinkedType.BOOKMARK to "Bookmark",
-                LinkedType.JOURNAL_ENTRY to "Journal entry",
-                LinkedType.HABIT to "Habit",
-                LinkedType.OTHER to "Item",
-            )
-        assertEquals(LinkedType.entries.toSet(), labels.keys)
-        val items = LinkedType.entries.mapIndexed { i, type -> LinkedItem(id(200 + i), type, id(300 + i), "Linked ${type.name}", null) }
-        show(editable.copy(links = LinksUiState(items = items)))
-        items.forEach { item ->
-            assertInside(EventEditorTags.link(item.linkId.toString()), labels.getValue(item.type), substring = false)
-        }
+    fun `nothing is created while the event saves`() {
+        show(editable.copy(saving = true, links = LinksUiState(id(5))))
+        composeRule.onNodeWithTag(EventEditorTags.CREATE_TASK).performScrollTo().assertIsNotEnabled()
+        composeRule.onNodeWithTag(EventEditorTags.CREATE_NOTE).assertIsNotEnabled()
     }
 
     @Test
-    fun `a links reload keeps the shown items, and nothing is created while the event saves`() {
-        val item = LinkedItem(id(60), LinkedType.NOTE, id(61), "Minutes", null)
-        val update = show(editable.copy(links = LinksUiState(loading = true, items = listOf(item))))
-        assertInside(EventEditorTags.link(id(60).toString()), "Minutes")
-        composeRule.onNodeWithText("Loading linked items…").assertDoesNotExist()
-        composeRule.onNodeWithTag(EventEditorTags.CREATE_TASK).performScrollTo().assertIsEnabled()
+    fun `an opened linked item replaces the editor and back returns to it with the unsaved edits`() {
+        show(editable.copy(links = LinksUiState(id(5))))
+        composeRule.onNodeWithTag(EventEditorTags.TITLE).performScrollTo().performTextReplacement("Planning v2")
+        // A web link is opened by the panel itself (in the browser); the editor stays.
+        composeRule.onNodeWithTag(FAKE_OPEN_WEB).performScrollTo().performClick()
+        composeRule.onNodeWithTag(EventEditorTags.EDITOR).assertExists()
 
-        update(editable.copy(saving = true, links = LinksUiState(items = listOf(item))))
-        composeRule.onNodeWithTag(EventEditorTags.CREATE_TASK).performScrollTo().assertIsNotEnabled()
-        composeRule.onNodeWithTag(EventEditorTags.CREATE_NOTE).assertIsNotEnabled()
+        composeRule.onNodeWithTag(FAKE_OPEN).performScrollTo().performClick()
+        composeRule.onNodeWithTag(EventEditorTags.EDITOR).assertDoesNotExist()
+
+        composeRule.runOnUiThread { back.onBackPressed() }
+        composeRule.onNodeWithTag(EventEditorTags.EDITOR).assertExists()
+        composeRule.onNodeWithTag(EventEditorTags.TITLE).assertTextContains("Planning v2")
+        // Back from the item did not close the editor.
+        assertEquals(emptyList<String>(), calls)
     }
 
     @Test
     fun `a new event has no links panel`() {
         show(editable.copy(creating = true))
         composeRule.onNodeWithTag(EventEditorTags.LINKS).assertDoesNotExist()
+        composeRule.onNodeWithTag(FAKE_PANEL).assertDoesNotExist()
     }
 
     // --- The answer to an invitation
@@ -526,5 +516,11 @@ class EventEditorExtrasScreenTest {
         composeRule.onNodeWithTag(EventEditorTags.RESPONSE).assertDoesNotExist()
         update(invited.copy(form = form))
         composeRule.onNodeWithTag(EventEditorTags.RESPONSE).assertDoesNotExist()
+    }
+
+    private companion object {
+        const val FAKE_PANEL = "fake-links-panel"
+        const val FAKE_OPEN = "fake-links-open"
+        const val FAKE_OPEN_WEB = "fake-links-open-web"
     }
 }

@@ -100,8 +100,6 @@ class EventEditorViewModelExtrasTest {
 
     private fun viewModel() = EventEditorViewModel(repo, clock, MutableStateFlow(null), extras)
 
-    private val link = LinkedItem(id(50), LinkedType.TASK, id(10), "Prepare slides", "Inbox")
-
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
@@ -602,21 +600,13 @@ class EventEditorViewModelExtrasTest {
             assertNull(fresh.uiState.value.invitation)
         }
 
-    // --- Linked items
+    // --- Linked items (the shared panel loads them; the editor gives it the event id and reloads it after a create)
 
     @Test
-    fun `the links of an edited event are loaded, a failure can be retried, a new event has none`() =
+    fun `an edited event shows the links panel for its event id, a new event has none`() =
         runTest(dispatcher) {
-            coEvery { extras.links(local.eventId) } returns CalendarResult.Offline andThen CalendarResult.Ok(listOf(link))
             val vm = editing()
-            assertEquals(LinksUiState(failed = true), vm.uiState.value.links)
-            vm.loadLinks()
-            assertTrue(
-                vm.uiState.value.links!!
-                    .loading,
-            )
-            advanceUntilIdle()
-            assertEquals(LinksUiState(items = listOf(link)), vm.uiState.value.links)
+            assertEquals(LinksUiState(local.eventId), vm.uiState.value.links)
 
             val fresh = viewModel()
             fresh.create(today, calendars)
@@ -627,9 +617,18 @@ class EventEditorViewModelExtrasTest {
         }
 
     @Test
-    fun `a task from the event is titled with the event and its date, then the links reload`() =
+    fun `an occurrence of a repeating event links to the same event id as the web`() =
         runTest(dispatcher) {
-            coEvery { extras.links(local.eventId) } returns CalendarResult.Ok(emptyList()) andThen CalendarResult.Ok(listOf(link))
+            val master = id(30)
+            val repeated = occurrence(3, work).copy(eventId = master, seriesId = master, occurrence = "2026-10-22T08:00:00Z")
+            coEvery { repo.event(master) } returns CalendarResult.Ok(details(repeated).copy(rrule = "FREQ=WEEKLY"))
+            val vm = editing(repeated)
+            assertEquals(LinksUiState(master), vm.uiState.value.links)
+        }
+
+    @Test
+    fun `a task from the event is titled with the event and its date, then the panel reloads`() =
+        runTest(dispatcher) {
             coEvery { extras.createTask(any(), any()) } returns LinkedCreateResult.Created("Planning (2026-10-22)")
             val vm = editing()
             vm.createLinked(LinkedKind.TASK)
@@ -642,83 +641,36 @@ class EventEditorViewModelExtrasTest {
             advanceUntilIdle()
             coVerify(exactly = 1) { extras.createTask("Planning (2026-10-22)", local.eventId) }
             coVerify(exactly = 0) { extras.createNote(any(), any()) }
-            val links = vm.uiState.value.links!!
-            assertNull(links.creating)
-            assertEquals(LinkedResult(LinkedKind.TASK, LinkedCreateResult.Created("Planning (2026-10-22)")), links.result)
-            assertEquals(listOf(link), links.items)
+            assertEquals(
+                LinksUiState(
+                    local.eventId,
+                    result = LinkedResult(LinkedKind.TASK, LinkedCreateResult.Created("Planning (2026-10-22)")),
+                    refresh = 1,
+                ),
+                vm.uiState.value.links,
+            )
         }
 
     @Test
-    fun `a note whose link failed still reloads the links, a failed create does not`() =
+    fun `a note whose link failed still reloads the panel, a failed create does not`() =
         runTest(dispatcher) {
             coEvery { extras.createNote(any(), any()) } returns LinkedCreateResult.NotLinked("Planning (2026-10-22)") andThen
                 LinkedCreateResult.Failed
             val vm = editing()
-            coVerify(exactly = 1) { extras.links(local.eventId) }
             vm.createLinked(LinkedKind.NOTE)
             advanceUntilIdle()
-            coVerify(exactly = 2) { extras.links(local.eventId) }
+            coVerify(exactly = 1) { extras.createNote("Planning (2026-10-22)", local.eventId) }
             assertEquals(
-                LinkedCreateResult.NotLinked("Planning (2026-10-22)"),
-                vm.uiState.value.links!!
-                    .result!!
-                    .result,
+                LinksUiState(local.eventId, result = LinkedResult(LinkedKind.NOTE, LinkedCreateResult.NotLinked("Planning (2026-10-22)")), refresh = 1),
+                vm.uiState.value.links,
             )
 
             vm.createLinked(LinkedKind.NOTE)
             advanceUntilIdle()
-            coVerify(exactly = 2) { extras.links(local.eventId) }
             assertEquals(
-                LinkedResult(LinkedKind.NOTE, LinkedCreateResult.Failed),
-                vm.uiState.value.links!!
-                    .result,
+                LinksUiState(local.eventId, result = LinkedResult(LinkedKind.NOTE, LinkedCreateResult.Failed), refresh = 1),
+                vm.uiState.value.links,
             )
-        }
-
-    @Test
-    fun `an older links answer arriving last does not hide a newly created task`() =
-        runTest(dispatcher) {
-            val first = CompletableDeferred<CalendarResult<List<LinkedItem>>>()
-            coEvery { extras.links(local.eventId) } coAnswers { first.await() } andThen CalendarResult.Ok(listOf(link))
-            coEvery { extras.createTask(any(), any()) } returns LinkedCreateResult.Created("Planning (2026-10-22)")
-            val vm = editing()
-            // The first load is still pending when the task is created and the links reload.
-            vm.createLinked(LinkedKind.TASK)
-            advanceUntilIdle()
-            assertEquals(
-                listOf(link),
-                vm.uiState.value.links!!
-                    .items,
-            )
-            first.complete(CalendarResult.Ok(emptyList()))
-            advanceUntilIdle()
-            assertEquals(
-                listOf(link),
-                vm.uiState.value.links!!
-                    .items,
-            )
-        }
-
-    @Test
-    fun `a links reload while one is pending shows the newer answer`() =
-        runTest(dispatcher) {
-            val first = CompletableDeferred<CalendarResult<List<LinkedItem>>>()
-            coEvery { extras.links(local.eventId) } returns CalendarResult.Offline
-            val vm = editing()
-            assertTrue(
-                vm.uiState.value.links!!
-                    .failed,
-            )
-            coEvery { extras.links(local.eventId) } coAnswers { first.await() } andThen CalendarResult.Ok(listOf(link))
-            vm.loadLinks()
-            runCurrent()
-            vm.loadLinks()
-            advanceUntilIdle()
-            first.complete(CalendarResult.Offline)
-            advanceUntilIdle()
-            val links = vm.uiState.value.links!!
-            assertEquals(listOf(link), links.items)
-            assertFalse("an older failure must not replace a newer answer", links.failed)
         }
 
     // --- Reminders and time zone, saved through the editor
@@ -830,24 +782,16 @@ class EventEditorViewModelExtrasTest {
     // --- Answers arriving late or out of order
 
     @Test
-    fun `the links answer of a closed editor never shows in the next event`() =
+    fun `the next event opened after closing gets its own links panel`() =
         runTest(dispatcher) {
-            val pending = CompletableDeferred<CalendarResult<List<LinkedItem>>>()
-            coEvery { extras.links(local.eventId) } coAnswers { pending.await() }
-            coEvery { extras.links(synced.eventId) } returns CalendarResult.Ok(emptyList())
+            coEvery { extras.createTask(any(), any()) } returns LinkedCreateResult.Created("Planning (2026-10-22)")
             val vm = editing()
-            assertTrue(
-                vm.uiState.value.links!!
-                    .loading,
-            )
+            vm.createLinked(LinkedKind.TASK)
+            advanceUntilIdle()
             vm.close()
             vm.edit(synced, calendars)
             advanceUntilIdle()
-            assertEquals(LinksUiState(), vm.uiState.value.links)
-
-            pending.complete(CalendarResult.Ok(listOf(link)))
-            advanceUntilIdle()
-            assertEquals("the closed event's links stay out", LinksUiState(), vm.uiState.value.links)
+            assertEquals(LinksUiState(synced.eventId), vm.uiState.value.links)
         }
 
     @Test
