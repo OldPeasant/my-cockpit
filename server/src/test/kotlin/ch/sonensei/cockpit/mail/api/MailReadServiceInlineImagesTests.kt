@@ -170,6 +170,38 @@ class MailReadServiceInlineImagesTests {
 	}
 
 	@Test
+	fun `a cid reference written with character references shows its image once, through the inline download`() {
+		val content =
+			MimeContent.read(
+				parse(
+					"""
+					Subject: Fictitious entities
+					MIME-Version: 1.0
+					Content-Type: multipart/related; boundary="r"
+
+					--r
+					Content-Type: text/html; charset=UTF-8
+
+					<p><img alt="logo" src="cid:logo%40example&#46;test"></p>
+					--r
+					Content-Type: image/png; name="logo.png"
+					Content-ID: <logo@example.test>
+
+					PNG
+					--r--
+					""",
+				),
+				1024,
+			)
+
+		val view = read(content)
+
+		val html = view.body.html.shouldNotBeNull()
+		Jsoup.parseBodyFragment(html).select("img").map { it.attr("src") } shouldContainExactly listOf(inlineUrl("2"))
+		view.attachments.map { it.partId to it.inline } shouldContainExactly listOf("2" to true)
+	}
+
+	@Test
 	fun `a plain-text-only mail with an image gets an escaped HTML body with the image below the text`() {
 		val content =
 			MimeContent.read(

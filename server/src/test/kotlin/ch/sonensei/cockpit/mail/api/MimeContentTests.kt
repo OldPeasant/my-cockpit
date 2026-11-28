@@ -417,6 +417,53 @@ class MimeContentTests {
 	}
 
 	@Test
+	fun `cid references with named, hex or bracket character references, also mixed with percent escapes, stay inline`() {
+		val html =
+			"<p><img src=\"cid:a&amp;b@example.test\"><img src=\"cid:hex&#x40;example.test\">" +
+				"<img src=\"cid:mixed%40example&#46;test\"><img src=\"cid:&lt;angle@example.test&gt;\"></p>"
+		val content =
+			read(
+				parse(
+					"""
+					Subject: Fictitious
+					MIME-Version: 1.0
+					Content-Type: multipart/related; boundary="r"
+
+					--r
+					Content-Type: text/html; charset=UTF-8
+
+					$html
+					--r
+					Content-Type: image/png; name="named.png"
+					Content-ID: <a&b@example.test>
+
+					PNG
+					--r
+					Content-Type: image/png; name="hex.png"
+					Content-ID: <hex@example.test>
+
+					PNG
+					--r
+					Content-Type: image/png; name="mixed.png"
+					Content-ID: <mixed@example.test>
+
+					PNG
+					--r
+					Content-Type: image/png; name="angle.png"
+					Content-ID: <angle@example.test>
+
+					PNG
+					--r--
+					""",
+				),
+			)
+
+		content.textHtml shouldBe html
+		content.attachments.map { it.filename to it.inline } shouldContainExactly
+			listOf("named.png" to true, "hex.png" to true, "mixed.png" to true, "angle.png" to true)
+	}
+
+	@Test
 	fun `a cid image in the related HTML variant of an alternative stays inline and is not appended`() {
 		val content =
 			read(
