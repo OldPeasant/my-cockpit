@@ -446,6 +446,164 @@ class DraftSendGreenMailTests(
 	}
 
 	@Test
+	fun `an html-only draft of text blocks with a positioned image keeps its html, it has no plain text to fall back to`() {
+		val blocks = "<div>Fictitious bike tour</div><div><br></div><div>Meet at the bridge</div>"
+		val draftId = appendForeignDraft(MimeMultipart(htmlPart(blocks), positionedJpeg()))
+
+		val view = mockMvc.get("/api/v1/mail/drafts/$draftId").andReturn().response
+		view.status shouldBe 200
+		view.contentAsString shouldNotContain "cockpit-part-"
+		val html = view.body()["html"].asString()
+		html shouldContain "Fictitious bike tour"
+		html shouldContain "Meet at the bridge"
+		html shouldNotContain "<img"
+		view.body()["text"].isNull shouldBe true
+		view.body()["attachments"].toList().map { it["filename"].asString() } shouldContainExactly listOf("image0.jpeg")
+
+		val saved = saveAsIs(draftId, view)
+		saved.body.toString() shouldNotContain "cockpit-part-"
+		saved.body["html"].asString() shouldContain "Meet at the bridge"
+		sendDraft(saved).status shouldBe 200
+
+		val received = onServer("INBOX", BOB_USER).single()
+		val texts = leaves(received).filter { it.isMimeType("text/*") }
+		texts.forEach { (it.content as String) shouldNotContain "cockpit-part-" }
+		(texts.single { it.isMimeType("text/html") }.content as String) shouldContain "Fictitious bike tour"
+		leaves(received).single { it.isMimeType("image/jpeg") }.fileName shouldBe "image0.jpeg"
+	}
+
+	@Test
+	fun `a draft with a real cid image and a positioned image keeps the cid image and drops only the positioned one`() {
+		val related =
+			MimeMultipart(
+				"related",
+				htmlPart("<p>Fictitious logo draft</p><p><img src=\"cid:$LOGO_CID\" alt=\"logo\"></p>"),
+				inlineLogo(),
+			)
+		val draftId = appendForeignDraft(MimeMultipart(MimeBodyPart().apply { setContent(related) }, positionedJpeg()))
+
+		val view = mockMvc.get("/api/v1/mail/drafts/$draftId").andReturn().response
+		view.status shouldBe 200
+		view.contentAsString shouldNotContain "cockpit-part-"
+		val html = view.body()["html"].asString()
+		html shouldContain "Fictitious logo draft"
+		html shouldContain "<img src=\"cid:$LOGO_CID\" alt=\"logo\">"
+		val attachments = view.body()["attachments"].toList()
+		attachments.map { it["filename"].asString() } shouldContainExactly listOf("logo.png", "image0.jpeg")
+		attachments.single { it["filename"].asString() == "logo.png" }["inline"].asBoolean() shouldBe true
+		attachments.single { it["filename"].asString() == "image0.jpeg" }["inline"].asBoolean() shouldBe false
+
+		val saved = saveAsIs(draftId, view)
+		saved.body.toString() shouldNotContain "cockpit-part-"
+		saved.body["html"].asString() shouldContain "cid:$LOGO_CID"
+		sendDraft(saved).status shouldBe 200
+
+		val received = leaves(onServer("INBOX", BOB_USER).single())
+		received.filter { it.isMimeType("text/*") }.forEach { (it.content as String) shouldNotContain "cockpit-part-" }
+		(received.single { it.isMimeType("text/html") }.content as String) shouldContain "cid:$LOGO_CID"
+		(received.single { it.isMimeType("image/png") } as MimeBodyPart).contentID shouldBe "<$LOGO_CID>"
+		received.single { it.isMimeType("image/jpeg") }.fileName shouldBe "image0.jpeg"
+	}
+
+	@Test
+	fun `a draft with a real cid image and no positioned image opens with its html unchanged`() {
+		val original = "<p>Fictitious agenda</p><p><img src=\"cid:$LOGO_CID\" alt=\"logo\"></p>"
+		val draftId = appendForeignDraft(MimeMultipart("related", htmlPart(original), inlineLogo()))
+
+		val view = mockMvc.get("/api/v1/mail/drafts/$draftId").andReturn().response
+
+		view.status shouldBe 200
+		view.body()["html"].asString() shouldContain original
+		view.body()["attachments"].toList().map { it["filename"].asString() } shouldContainExactly listOf("logo.png")
+	}
+
+	@Test
+	fun `an html draft without any cid reference opens with its html unchanged`() {
+		val original = "<div><b>Fictitious</b> shopping list</div><div><br></div><div>Bread</div>"
+		val alternative =
+			MimeMultipart(
+				"alternative",
+				MimeBodyPart().apply { setText("Fictitious shopping list\n\nBread", "UTF-8") },
+				htmlPart(original),
+			)
+		val draftId = appendForeignDraft(alternative)
+
+		val view = mockMvc.get("/api/v1/mail/drafts/$draftId").andReturn().response
+
+		view.status shouldBe 200
+		view.body()["html"].asString() shouldContain original
+		view.body()["text"].asString() shouldContain "Fictitious shopping list"
+	}
+
+	@Test
+	fun `a draft with a text alternative and formatted html plus a positioned image keeps its html`() {
+		val alternative =
+			MimeMultipart(
+				"alternative",
+				MimeBodyPart().apply { setText("Fictitious bold plan", "UTF-8") },
+				htmlPart("<div><b>Fictitious</b> bold plan</div>"),
+			)
+		val draftId = appendForeignDraft(MimeMultipart(MimeBodyPart().apply { setContent(alternative) }, positionedJpeg()))
+
+		val view = mockMvc.get("/api/v1/mail/drafts/$draftId").andReturn().response
+
+		view.status shouldBe 200
+		view.contentAsString shouldNotContain "cockpit-part-"
+		view.body()["html"].asString() shouldContain "<b>Fictitious</b> bold plan"
+		view.body()["text"].asString() shouldBe "Fictitious bold plan"
+		view.body()["attachments"].toList().map { it["filename"].asString() } shouldContainExactly listOf("image0.jpeg")
+	}
+
+	@Test
+	fun `a draft with a text alternative and html of only text blocks plus a positioned image opens as plain text`() {
+		// Recorded assumption: such HTML cannot be told apart from the plain-text rendering, so the text part is kept.
+		val alternative =
+			MimeMultipart(
+				"alternative",
+				MimeBodyPart().apply { setText("Fictitious walk", "UTF-8") },
+				htmlPart("<div>Fictitious walk</div>"),
+			)
+		val draftId = appendForeignDraft(MimeMultipart(MimeBodyPart().apply { setContent(alternative) }, positionedJpeg()))
+
+		val view = mockMvc.get("/api/v1/mail/drafts/$draftId").andReturn().response
+
+		view.status shouldBe 200
+		view.contentAsString shouldNotContain "cockpit-part-"
+		view.body()["html"].isNull shouldBe true
+		view.body()["text"].asString() shouldBe "Fictitious walk"
+		view.body()["attachments"].toList().map { it["filename"].asString() } shouldContainExactly listOf("image0.jpeg")
+	}
+
+	@Test
+	fun `a plain-text draft with two positioned images opens as plain text and keeps both images`() {
+		val text = MimeBodyPart().apply { setText("Fictitious holiday\nphotos", "UTF-8") }
+		val second = positionedJpeg().apply { fileName = "image1.jpeg" }
+		val draftId = appendForeignDraft(MimeMultipart(text, positionedJpeg(), second))
+
+		val view = mockMvc.get("/api/v1/mail/drafts/$draftId").andReturn().response
+
+		view.status shouldBe 200
+		view.contentAsString shouldNotContain "cockpit-part-"
+		view.body()["html"].isNull shouldBe true
+		view.body()["text"].asString() shouldContain "Fictitious holiday"
+		view.body()["attachments"].toList().map { it["filename"].asString() } shouldContainExactly listOf("image0.jpeg", "image1.jpeg")
+	}
+
+	@Test
+	fun `a draft that is only a positioned image opens without an image reference`() {
+		val draftId = appendForeignDraft(MimeMultipart(positionedJpeg()))
+
+		val view = mockMvc.get("/api/v1/mail/drafts/$draftId").andReturn().response
+
+		view.status shouldBe 200
+		view.contentAsString shouldNotContain "cockpit-part-"
+		val html = view.body()["html"]
+		if (!html.isNull) html.asString() shouldNotContain "<img"
+		view.body()["text"].isNull shouldBe true
+		view.body()["attachments"].toList().map { it["filename"].asString() } shouldContainExactly listOf("image0.jpeg")
+	}
+
+	@Test
 	fun `a reply is sent by default as the identity the original was addressed to`() {
 		val support = identities.save(MailIdentity(account.id, "Jane Support", "support@example.test"))
 		remote { store ->
@@ -702,6 +860,15 @@ class DraftSendGreenMailTests(
 		}
 
 	private fun htmlPart(html: String) = MimeBodyPart().apply { setText(html, "UTF-8", "html") }
+
+	/** A PNG logo with Content-ID [LOGO_CID], for an HTML part that references it by `cid:`. */
+	private fun inlineLogo() =
+		MimeBodyPart().apply {
+			dataHandler = DataHandler(ByteArrayDataSource(byteArrayOf(-119, 80, 78, 71, 13, 10, 26, 10), "image/png"))
+			disposition = Part.INLINE
+			contentID = "<$LOGO_CID>"
+			fileName = "logo.png"
+		}
 
 	private fun positionedJpeg() =
 		MimeBodyPart().apply {
