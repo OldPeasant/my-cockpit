@@ -35,7 +35,8 @@ nothing else needs it. Server and web need no change.
       to the event editor without losing unsaved edits of the event, or unsaved edits are saved first as in the note
       editor; record which with `tasks.py assume`)
   - verified (2026-11-28 14:13+0100 by dell26/agent-1): ./gradlew testDebugUnitTest -> EventEditorLinksInAppTest 'a linked item is removed with its cross', 'a linked note opens in place of the editor, and back returns to the editor with its unsaved edits' pass (unsaved edits kept, assumption recorded)
-- [ ] "Create task from event" and "Create note for event" still work and the created item shows in the panel
+- [x] "Create task from event" and "Create note for event" still work and the created item shows in the panel
+  - verified (2026-11-28 14:13+0100 by dell26/agent-1): ./gradlew testDebugUnitTest -> EventEditorLinksInAppTest 'a task created from the event reloads the panel so the task shows', EventEditorViewModelExtrasTest task/note create refresh tests, EventEditorExtrasScreenTest create result tests pass
 - [ ] A new, not yet saved event shows no link panel (or a hint that links can be added after saving); read-only
       events (e.g. subscribed/read-only calendars, invitations) behave sensibly: decide whether linking is allowed
       (links are Cockpit data, not CalDAV data, so allowing it is expected) and record it with `tasks.py assume`
