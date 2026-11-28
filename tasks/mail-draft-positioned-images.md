@@ -1,11 +1,11 @@
 ---
 title: Mail: drafts from other clients must not show positioned-image references
-status: in_progress
+status: done
 owner: dell26/agent-1
 deps: [mail-apple-inline-images]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/compose,server/src/test/kotlin/ch/sonensei/cockpit/mail/compose]
 prio: 2
-lease_until: 2026-11-28T11:36:59Z
+lease_until: 
 ---
 ## Goal
 Opening a draft from the Drafts folder that another client wrote (e.g. Apple Mail on iPhone with a pasted image, no
@@ -26,3 +26,4 @@ that `MimeContent` (task mail-apple-inline-images) puts into the cached HTML bod
   - verified (2026-11-28 11:43+0100 by dell26/agent-1): GreenMail tests in DraftSendGreenMailTests append drafts to Drafts, GET, PUT, send: ./gradlew integrationTest --tests '*DraftSendGreenMailTests' -> 20 passed, view/saved/received contain no cockpit-part-; cd server && ./gradlew check -> BUILD SUCCESSFUL
   - verified (2026-11-28 12:16+0100 by dell26/agent-1): cd server && ./gradlew integrationTest --tests '*DraftSendGreenMailTests' --rerun at fd0cb62f1 -> 29 passed (incl. html, plain-text, styled-div, image-only foreign drafts: open/save/send, no cockpit-part-); ./gradlew check -> BUILD SUCCESSFUL
 - ASSUMPTION (2026-11-28 11:39+0100 by dell26/agent-1): DraftService.view drops the HTML of a draft when, after removing positioned image references, it only holds the plain-text rendering MimeContent builds (<div> text/<br> blocks) and the draft has a text part; detected structurally in the compose package instead of adding a flag to MailContent (mail/api is outside this task's touches)
+- done by dell26/agent-1: `sh scripts/check.sh` passed in 70s on 3acc0614c; criteria verified 3/3
