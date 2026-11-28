@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "task": "mail-draft-positioned-images",
+  "reviewed_revision": "fd0cb62f14ec3bb0b40ec3e400c97b1a4b9487d5",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/mail-draft-positioned-images/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-draft-positioned-images/review.md"},
+    "fixer":         {"status": "completed", "report": "reviews/mail-draft-positioned-images/fixes.md"}
+  },
+  "fixes_required": true,
+  "findings": [
+    {"id": "CR-1", "source": "code-reviewer", "severity": "P2", "disposition": "fixed",
+     "note": "plain-text detection now requires attribute-less div/br, styled HTML drafts keep their HTML"},
+    {"id": "CR-2", "source": "code-reviewer", "severity": "P3", "disposition": "fixed",
+     "note": "bare wrapper div removed with the positioned image; image-only draft opens with html null"}
+  ],
+  "validation": [
+    {"command": "cd server && ./gradlew integrationTest --tests '*DraftSendGreenMailTests' --rerun", "result": "pass"},
+    {"command": "cd server && ./gradlew check", "result": "pass"}
+  ]
+}
