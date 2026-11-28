@@ -457,6 +457,7 @@ class DraftSendGreenMailTests(
 		html shouldContain "Fictitious bike tour"
 		html shouldContain "Meet at the bridge"
 		html shouldNotContain "<img"
+		html shouldNotContain "<div></div>"
 		view.body()["text"].isNull shouldBe true
 		view.body()["attachments"].toList().map { it["filename"].asString() } shouldContainExactly listOf("image0.jpeg")
 
@@ -555,6 +556,33 @@ class DraftSendGreenMailTests(
 	}
 
 	@Test
+	fun `a draft with a text alternative and styled div html plus a positioned image keeps its html through open and save`() {
+		val alternative =
+			MimeMultipart(
+				"alternative",
+				MimeBodyPart().apply { setText("Fictitious styled note", "UTF-8") },
+				htmlPart("<div dir=\"ltr\" style=\"font-family:Georgia\">Fictitious styled note<br></div>"),
+			)
+		val draftId = appendForeignDraft(MimeMultipart(MimeBodyPart().apply { setContent(alternative) }, positionedJpeg()))
+
+		val view = mockMvc.get("/api/v1/mail/drafts/$draftId").andReturn().response
+		view.status shouldBe 200
+		view.contentAsString shouldNotContain "cockpit-part-"
+		val html = view.body()["html"].asString()
+		html shouldContain "dir=\"ltr\""
+		html shouldContain "Fictitious styled note"
+		html shouldNotContain "<img"
+		html shouldNotContain "<div></div>"
+		view.body()["text"].asString() shouldBe "Fictitious styled note"
+		view.body()["attachments"].toList().map { it["filename"].asString() } shouldContainExactly listOf("image0.jpeg")
+
+		val saved = saveAsIs(draftId, view)
+		saved.body.toString() shouldNotContain "cockpit-part-"
+		saved.body["html"].asString() shouldContain "dir=\"ltr\""
+		saved.body["html"].asString() shouldContain "Fictitious styled note"
+	}
+
+	@Test
 	fun `a draft with a text alternative and html of only text blocks plus a positioned image opens as plain text`() {
 		// Recorded assumption: such HTML cannot be told apart from the plain-text rendering, so the text part is kept.
 		val alternative =
@@ -597,8 +625,8 @@ class DraftSendGreenMailTests(
 
 		view.status shouldBe 200
 		view.contentAsString shouldNotContain "cockpit-part-"
-		val html = view.body()["html"]
-		if (!html.isNull) html.asString() shouldNotContain "<img"
+		// The image and its wrapper div are removed, so nothing is left: no empty HTML body.
+		view.body()["html"].isNull shouldBe true
 		view.body()["text"].isNull shouldBe true
 		view.body()["attachments"].toList().map { it["filename"].asString() } shouldContainExactly listOf("image0.jpeg")
 	}

@@ -479,9 +479,19 @@ class DraftService(
 				src.startsWith("cid:", ignoreCase = true) && MimeContent.partImageId(src.substring("cid:".length)) != null
 			}
 		if (positioned.isEmpty()) return null
-		positioned.forEach { it.remove() }
+		positioned.forEach { img ->
+			// MimeContent wraps each positioned image in a bare <div>; drop that wrapper with it, not just the image.
+			val parent = img.parent()
+			if (parent != null && isBare(parent, "div") && parent.childNodeSize() == 1) parent.remove() else img.remove()
+		}
 		return document
 	}
+
+	/** Whether [element] is a [tag] without attributes, as [MimeContent] writes its own blocks. */
+	private fun isBare(
+		element: Element,
+		tag: String,
+	): Boolean = element.normalName() == tag && element.attributesSize() == 0
 
 	/**
 	 * The HTML of a stored draft for editing: without the positioned image references [MimeContent] adds for inline images
@@ -499,14 +509,17 @@ class DraftService(
 		return if (rest.isBlank() || (textPlain != null && isPlainTextRendering(body))) null else rest
 	}
 
-	/** Whether [body] holds only text blocks like [MimeContent] renders plain text: `<div>` with text and `<br>`. */
+	/**
+	 * Whether [body] holds only text blocks exactly like [MimeContent] renders plain text: `<div>` with text and `<br>`,
+	 * none of them with attributes (a styled `<div dir="ltr" style="...">` is real HTML and stays).
+	 */
 	private fun isPlainTextRendering(body: Element): Boolean =
 		body.childNodes().all { node ->
 			when (node) {
 				is TextNode -> node.isBlank
 				is Element ->
-					node.normalName() == "div" &&
-						node.childNodes().all { it is TextNode || (it is Element && it.normalName() == "br") }
+					isBare(node, "div") &&
+						node.childNodes().all { it is TextNode || (it is Element && isBare(it, "br")) }
 				else -> false
 			}
 		}
