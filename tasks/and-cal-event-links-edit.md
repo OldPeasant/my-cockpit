@@ -41,7 +41,8 @@ nothing else needs it. Server and web need no change.
       events (e.g. subscribed/read-only calendars, invitations) behave sensibly: decide whether linking is allowed
       (links are Cockpit data, not CalDAV data, so allowing it is expected) and record it with `tasks.py assume`
   - verified (2026-11-28 14:13+0100 by dell26/agent-1): ./gradlew testDebugUnitTest -> EventEditorLinksInAppTest 'a new event shows no links panel and loads no links' + EventEditorViewModelExtrasTest 'a new event has none' pass; read-only events keep the panel (links are Cockpit data, assumption recorded)
-- [ ] Offline / server error: the panel shows its usual error and retry, the event editor stays usable
+- [x] Offline / server error: the panel shows its usual error and retry, the event editor stays usable
+  - verified (2026-11-28 14:13+0100 by dell26/agent-1): ./gradlew testDebugUnitTest -> EventEditorLinksInAppTest 'an offline panel shows its error and retry, and the editor stays usable' + 'a failed removal is shown and keeps the link and the editor' pass
 - [ ] Tests: Robolectric/Compose UI tests in `android/app/src/test/.../calendar/edit` for add, remove, open and the
       create-task/note refresh; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` green
 - [~] Checked on a real device or emulator: link an email to an event from the event editor, then see the event in the
