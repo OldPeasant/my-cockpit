@@ -5,7 +5,7 @@ owner: dell26/agent-1
 deps: []
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/api,server/src/test/kotlin/ch/sonensei/cockpit/mail/api,server/src/main/resources/db/migration/mail]
 prio: 2
-lease_until: 2026-11-28T10:06:06Z
+lease_until: 2026-11-28T10:11:07Z
 ---
 ## Goal
 Images that a mail shows by their position in the MIME tree, not through a `cid:` reference, are visible in My
