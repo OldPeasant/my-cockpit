@@ -290,9 +290,22 @@ class MailReadService(
 			val part =
 				attachments.firstOrNull { it.contentId.equals(decoded, ignoreCase = true) }
 					?: attachments.firstOrNull { it.contentId.equals(contentId, ignoreCase = true) }
+					?: positionedImage(contentId, attachments)
 			if (part == null) img.removeAttr("src") else img.attr("src", attachmentUrl(messageId, part.partId, inline = true))
 		}
 		return document.body().html()
+	}
+
+	/**
+	 * The part a [MimeContent.partImage] reference points to: only a raster image no `cid:` references (`inline` is
+	 * false), so a mail cannot use such a reference to show another kind of part.
+	 */
+	private fun positionedImage(
+		contentId: String,
+		attachments: List<MailAttachment>,
+	): MailAttachment? {
+		val partId = MimeContent.partImageId(contentId) ?: return null
+		return attachments.firstOrNull { it.partId == partId && !it.inline && it.contentType in RemoteImageFetcher.IMAGE_TYPES }
 	}
 
 	/** [value] with its `%XX` escapes decoded as UTF-8 (`+` stays a plus); `null` when an escape is malformed. */
