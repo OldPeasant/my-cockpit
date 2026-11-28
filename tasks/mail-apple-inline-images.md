@@ -64,9 +64,10 @@ Intended approach (server only, clients stay unchanged):
 - [x] Non-raster or unknown inline parts (e.g. `application/pdf` with `inline`, HEIC) are listed as attachments and not
       put into the body as `<img>`
   - verified (2026-11-28 10:42+0100 by dell26/agent-1): MimeContentTests 'a plain-only mail with a non-raster inline part gets no HTML body' (pdf + heic inline -> listed inline=false, html null) and 'a non-raster inline part next to HTML is listed and not put into the body' -> passed
-- [ ] Unit tests in `MimeContentTests` / `MailReadService` tests plus one GreenMail test (`MailReadGreenMailTests`)
+- [x] Unit tests in `MimeContentTests` / `MailReadService` tests plus one GreenMail test (`MailReadGreenMailTests`)
       that appends the reported message to an IMAP folder and reads it through the API; `cd server && ./gradlew check`
       green; OpenAPI unchanged (or regenerated if the response schema changes)
+  - verified (2026-11-28 11:33+0100 by dell26/agent-1): Round 4 on final code (93ab54879): cd server && ./gradlew test --tests '*MimeContentTests' --tests '*MailReadService*' -> 60+5+4 passed; ./gradlew integrationTest --tests '*MailReadGreenMailTests' (appends the reported Apple message via IMAP, reads via API) --tests '*DraftSendGreenMailTests' -> 9 + 18 passed; ./gradlew check jacocoTestReport -> BUILD SUCCESSFUL, 5321 tests 0 failures; no controller/DTO change, git diff origin/main HEAD -- api/openapi.yaml -> empty (OpenAPI unchanged)
 
 ## Notes
 - Web and Android need no change: they already render the HTML body and list `inline = false` parts. Check after the
