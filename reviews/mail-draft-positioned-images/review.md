@@ -4,30 +4,36 @@ Date: 2026-11-28
 
 Task: mail-draft-positioned-images - Mail: drafts from other clients must not show positioned-image references
 
-Scope: task commit 31bbc648b on base 11bd6970b (`git diff 11bd6970b..31bbc648b`); rebased on main as 2f6e8f8c4, `git range-diff` shows the two commits as identical
+Scope: `git diff 114ec5a20..HEAD -- server` (task commits 8b122312a, 2b736f9f5, c379bca47, fd0cb62f1). This is a re-review after the fixes for CR-1 and CR-2 from the previous round.
 
 Requirements:
 - tasks/mail-draft-positioned-images.md (acceptance criteria and the recorded assumption)
-- reviews/mail-apple-inline-images/review.md CR-4 (background)
+- reviews/mail-draft-positioned-images/fixes.md (the fixes claimed for CR-1 and CR-2)
 - AGENTS.md project notes (module boundaries, lint, fictitious test data)
-- Existing code: MimeContent (mail/api), HtmlMailSanitizer, DraftService forward path
+- Existing code: MimeContent.render (mail/api), HtmlMailSanitizer (mail/sanitize), the DraftService forward path
 
 Git range:
 - Branch: main
-- HEAD: 2f6e8f8c43f85aa105571ec5804c264b1c133979 (contains the rebased task commit)
-- Base/start: 11bd6970b5e38867b4a5be3d2ffb2ec3b88e96a8
-- Commits reviewed: 1 (31bbc648bd8225c8f281136a686f3ea50d8c8db0, identical to 2f6e8f8c4); the other commits in the range only touch tasks/
+- HEAD: fd0cb62f14ec3bb0b40ec3e400c97b1a4b9487d5
+- Base/start: 114ec5a2089e430bd5b0ac99db0a2907fc605a84
+- Commits reviewed: 4. Production code changed in 8b122312a and c379bca47; the other two commits change tests and reports.
 
-Summary: 0 P0, 0 P1, 1 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3
 
-Static review only; Gradle was not run, as the parent asked. The parent reports `./gradlew integrationTest --tests '*DraftSendGreenMailTests'` with 20 passed and `./gradlew check` green.
+This was a static review. As the parent asked, Gradle was not run. fixes.md reports `./gradlew integrationTest --tests '*DraftSendGreenMailTests'` with 29 tests and 0 failures, and `./gradlew check` green.
 
-Acceptance criteria assessment:
-1. `view` (used by GET /drafts/{id} and after save, DraftService.kt:146 and :586) now runs `draftHtml`. It removes the positioned references with the same selection as the forward path (`positionedImagesRemoved`, shared with `withoutPositionedImages`). Attachments come unchanged from `content.attachments`, so the image stays listed. Met.
-2. A plain-text draft (text/plain plus an inline image without Content-ID) gets `html = null` and keeps its text. MimeContent renders it as bare `<div>` text/`<br>` blocks plus `<div><img></div>`. After the image is removed, `isPlainTextRendering` sees that structure, so the HTML is dropped. Met for the stated case. A false positive is described in CR-1.
-3. Two GreenMail tests append a foreign draft (HTML and plain text, each with an inline JPEG without Content-ID), then open, save as is, and send it. They assert that `cockpit-part-` is absent from the view, the save response and every received text part, and that the plain draft is sent without an HTML part. The criterion is covered as written.
+Status of the previous findings:
+- CR-1 (styled div HTML turned into plain text) is resolved. `isPlainTextRendering` (DraftService.kt) now requires each top-level `div`, and each `br` inside it, to have no attributes (`isBare`). That matches MimeContent.render exactly: it writes bare `<div>`, `<br>` and `<div><img ...></div>`. HtmlMailSanitizer keeps attributes such as `dir` and `style`, so a styled div now has attributes and its HTML is kept. A new GreenMail test covers `<div dir="ltr" style=...>` through open and save.
+- CR-2 (empty `<div></div>` left behind, so the blank check could never match) is resolved. `positionedImagesRemoved` now removes the parent of a positioned image when the parent is a bare `div` whose only child node is that image, which is MimeContent's wrapper. Otherwise only the `img` is removed. The sanitizer serializes with `prettyPrint(false)` (HtmlMailSanitizer.kt:65), so no whitespace text node gets into the wrapper and the `childNodeSize() == 1` check holds for MimeContent output. The image-only test now asserts `html` is null, and the html-only text-blocks test asserts that no `<div></div>` is left.
 
-The refactor of `withoutPositionedImages` keeps the forward behaviour unchanged. The change stays in the compose package, which matches the recorded assumption and the task's touches. No security concern: the HTML still goes through the sanitizer first, and the change only removes nodes or drops the HTML.
+Shared forward path: `withoutPositionedImages` (used by `respond` for FORWARD, DraftService.kt:314) now also removes the bare wrapper div. Only nodes that held nothing but a synthetic `cid:cockpit-part-...` image are removed. Styled or multi-child parents and real `cid:` images are not affected. This is a small improvement for forwards (no empty divs), not a regression. The existing forward GreenMail test still asserts that no `cockpit-part-` appears in the forwarded HTML. A sender could forge such a reference inside a real bare div, but then removing it only drops a broken image, so there is no harm.
+
+Acceptance criteria:
+1. `view` runs `draftHtml` on the sanitized HTML, so GET /drafts/{id} and the save response no longer carry positioned references. Attachments come unchanged from `content.attachments`, and the tests check that `image0.jpeg` is listed. Met.
+2. A plain-text draft with an inline image without Content-ID opens with `html = null`, keeps its text, and is saved and sent as text/plain plus the image. Met, and the tests cover it, including a case with two images.
+3. The GreenMail tests append foreign drafts to Drafts, then open, save and send them. They assert that `cockpit-part-` appears in neither the view, the saved draft nor the received message. Met as written. The `./gradlew check` evidence is reported by the parent and fixer; this review did not run it again.
+
+Other checks: the change stays inside the compose package and the task's touches, and it matches the recorded assumption. The HTML still goes through the sanitizer before any removal, and the new code only removes nodes or drops the HTML, so there is no new security surface. Test data is fictitious. No debug output and no dead code.
 
 ## P0 Critical
 
@@ -39,22 +45,12 @@ None.
 
 ## P2 Medium
 
-- [ ] **CR-1 | Real HTML drafts made of styled divs are silently turned into plain text**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/compose/DraftService.kt:503`
-    - Category: Correctness
-    - Problem: `isPlainTextRendering` checks only the tag name (`div`) and the child node types (text, `br`). It ignores the attributes of the div. MimeContent's plain rendering (MimeContent.kt:218) always produces bare `<div>` elements. HtmlMailSanitizer, however, keeps `style`, `dir`, `class`, `lang`, `align` on every element (HtmlMailSanitizer.kt:199). Take an HTML draft from another client with a text part and an unreferenced inline image whose HTML is, for example, `<div dir="ltr" style="font-family:Georgia;color:#336">Hello<br></div>`. This is a common shape for simple mobile and webmail HTML drafts. It matches the check, so its HTML is dropped. The first save then rewrites the draft as plain text, and the formatting and text direction are lost without any notice to the user.
-    - Why it matters: Criterion 2 is about plain-text drafts. Converting real HTML drafts loses user content (formatting) on save, and the drafts that trigger this path (Apple Mail with pasted images) are the ones this task targets. The tests do not cover this case: the HTML test uses `<p>`, which never matches.
-    - Suggested fix: Make the check match MimeContent's output exactly. Require `node.attributesSize() == 0` for the div (and for each `br`). Add a GreenMail or focused test: an HTML draft whose HTML is a styled `div` plus a positioned image keeps its HTML (without `cockpit-part-`) through open and save.
+None.
 
 ## P3 Low
 
-- [ ] **CR-2 | `rest.isBlank()` is effectively unreachable; an image-only draft becomes an empty HTML draft**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/compose/DraftService.kt:499`
-    - Category: Quality
-    - Problem: MimeContent wraps every positioned image in `<div>...</div>`, and only the `img` is removed. So after removal the body is never blank for MimeContent output, because at least `<div></div>` remains. Take a draft that has only an inline image and no text part (`textPlain == null`). The view returns `html = "<div></div>"` and no text, and saving it produces an HTML message with an empty div. The same leftover empty wrapper divs remain inside HTML drafts.
-    - Why it matters: Nothing breaks, and no `cockpit-part-` reference survives. But the blank check suggests a case is handled when it is not, and the draft switches from "no body" to an empty HTML body.
-    - Suggested fix: Remove the empty wrapper div together with the image (for example, `img.parent()` when it is a `div` with that image as its only child). Alternatively, treat a body with no text and no remaining elements other than empty divs as blank.
+None.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
