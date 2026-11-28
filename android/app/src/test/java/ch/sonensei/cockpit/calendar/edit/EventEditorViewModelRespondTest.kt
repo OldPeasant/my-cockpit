@@ -96,7 +96,6 @@ class EventEditorViewModelRespondTest {
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         coEvery { extras.localCalendars() } returns CalendarResult.Ok(setOf(work.id))
-        coEvery { extras.links(any()) } returns CalendarResult.Ok(emptyList())
         coEvery { extras.invitationCalendars() } returns CalendarResult.Ok(setOf(google.id))
         coEvery { extras.ownAddresses() } returns CalendarResult.Ok(setOf("me@example.org"))
         coEvery { repo.event(synced.eventId) } returns CalendarResult.Ok(details(synced, listOf(ada, me)))

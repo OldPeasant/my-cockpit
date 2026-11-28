@@ -187,7 +187,6 @@ class TodayWithEditorTest {
             CalendarResult.Ok(holidayDetails(listOf(ada, me.copy(status = AttendeeStatus.DECLINED)), version = 3))
         val sources = mockk<EventExtrasRepository>()
         coEvery { sources.localCalendars() } returns CalendarResult.Ok(emptySet())
-        coEvery { sources.links(any()) } returns CalendarResult.Ok(emptyList())
         coEvery { sources.invitationCalendars() } returns CalendarResult.Ok(setOf(work.id))
         coEvery { sources.ownAddresses() } returns CalendarResult.Ok(setOf("me@example.org"))
 

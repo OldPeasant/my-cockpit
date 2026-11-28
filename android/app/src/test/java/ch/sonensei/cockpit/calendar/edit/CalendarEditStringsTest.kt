@@ -78,23 +78,6 @@ class CalendarEditStringsTest {
             "calendar_edit_invite_skip",
             "calendar_edit_invite_tell_removed",
             "calendar_edit_invite_to",
-            "calendar_edit_links",
-            "calendar_edit_links_failed",
-            "calendar_edit_links_loading",
-            "calendar_edit_links_none",
-            "calendar_edit_link_type_bookmark",
-            "calendar_edit_link_type_contact",
-            "calendar_edit_link_type_email",
-            "calendar_edit_link_type_event",
-            "calendar_edit_link_type_file",
-            "calendar_edit_link_type_folder",
-            "calendar_edit_link_type_habit",
-            "calendar_edit_link_type_journal",
-            "calendar_edit_link_type_note",
-            "calendar_edit_link_type_other",
-            "calendar_edit_link_type_project",
-            "calendar_edit_link_type_task",
-            "calendar_edit_link_unavailable",
             "calendar_edit_no_guests",
             "calendar_edit_no_reminders",
             "calendar_edit_note_created",
@@ -125,7 +108,6 @@ class CalendarEditStringsTest {
         )
 
     /** Words that are the same in both languages. */
-    private val same = setOf("calendar_edit_ok", "calendar_edit_guests", "calendar_edit_link_type_email", "calendar_edit_link_type_event")
 
     @Test
     fun `every new string exists in English and German`() {
