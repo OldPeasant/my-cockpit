@@ -1,0 +1,45 @@
+---
+title: Android: add and remove links from the calendar event editor
+status: todo
+owner:
+deps: []
+touches: [android/app/src/main/java/ch/sonensei/cockpit/calendar/edit,android/app/src/test/java/ch/sonensei/cockpit/calendar/edit,android/app/src/main/res]
+prio: 2
+---
+## Goal
+On Android, links can be added to and removed from a calendar event while looking at the event, as on the web.
+Today the Android event editor's Links section (`calendar/edit/EventEditorSections.kt`, `LinksSection`) is read-only
+("links are added and removed where the items are"): to link an email to an event, the owner has to open the email
+and link the event from there. Requested by the owner: "link any item to a calendar entry when looking at the calendar
+entry".
+
+The web event dialog already does this with the shared panel (`web/.../calendar/overlay/event-links.ts`,
+`<app-linked-items [item]="eventRef(occurrence)">`, item `{type: EVENT, id: occurrence.eventId}`). Android has the
+same shared panel, `core/links/LinkedItemsSection` + `LinkedItemsViewModel` (Add link with search over all item types,
+remove with ✕, open a linked item), used by notes, tasks, projects, mail, files and contacts.
+
+Intended approach: replace the event editor's own read-only list with `LinkedItemsSection(ItemRef("EVENT", eventId))`,
+keeping the event's "Create task from event" / "Create note for event" actions (SPEC.md §6.3) and their results showing
+up in the panel. Drop the editor's now unused link-listing code (`EventExtrasRepository` link list, `LinksUiState`) if
+nothing else needs it. Server and web need no change.
+
+## Acceptance criteria
+- [ ] In the Android event editor of a saved event, "Add link" opens the search; picking any item type (email, task,
+      note, file, contact, ...) links it to the event, and it appears in the panel right away. The link is the same
+      one the web shows (item `EVENT` with the event id; for a recurring event the series, not one occurrence, as on web)
+- [ ] A linked item can be removed with ✕ from the event editor, and opened (tapping it shows the item, back returns
+      to the event editor without losing unsaved edits of the event, or unsaved edits are saved first as in the note
+      editor; record which with `tasks.py assume`)
+- [ ] "Create task from event" and "Create note for event" still work and the created item shows in the panel
+- [ ] A new, not yet saved event shows no link panel (or a hint that links can be added after saving); read-only
+      events (e.g. subscribed/read-only calendars, invitations) behave sensibly: decide whether linking is allowed
+      (links are Cockpit data, not CalDAV data, so allowing it is expected) and record it with `tasks.py assume`
+- [ ] Offline / server error: the panel shows its usual error and retry, the event editor stays usable
+- [ ] Tests: Robolectric/Compose UI tests in `android/app/src/test/.../calendar/edit` for add, remove, open and the
+      create-task/note refresh; `cd android && ./gradlew ktlintCheck testDebugUnitTest lintDebug` green
+- [ ] Checked on a real device or emulator: link an email to an event from the event editor, then see the event in the
+      email's Linked items panel (and on web). Skip with a reason if no device is available
+
+## Notes
+- Android only. Strings: reuse the panel's existing `links_*` strings (en + de); remove event-editor link strings that
+  become unused (lint flags them).
