@@ -60,6 +60,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.multipart
 import org.springframework.test.web.servlet.post
+import org.springframework.test.web.servlet.put
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.util.Properties
@@ -397,6 +398,53 @@ class DraftSendGreenMailTests(
 		forwarded.filter { it.isMimeType("text/html") }.forEach { (it.content as String) shouldNotContain "cockpit-part-" }
 	}
 
+	// --- drafts written by other clients ------------------------------------------------------------------------------
+
+	@Test
+	fun `an html draft from another client with a positioned image opens, saves and sends without the image reference`() {
+		val draftId = appendForeignDraft(MimeMultipart(htmlPart("<p>Fictitious picnic draft</p>"), positionedJpeg()))
+
+		val view = mockMvc.get("/api/v1/mail/drafts/$draftId").andReturn().response
+		view.status shouldBe 200
+		view.contentAsString shouldNotContain "cockpit-part-"
+		view.body()["html"].asString() shouldContain "Fictitious picnic draft"
+		view.body()["attachments"].toList().map { it["filename"].asString() } shouldContainExactly listOf("image0.jpeg")
+
+		val saved = saveAsIs(draftId, view)
+		saved.body.toString() shouldNotContain "cockpit-part-"
+		saved.body["html"].asString() shouldContain "Fictitious picnic draft"
+		sendDraft(saved).status shouldBe 200
+
+		val received = onServer("INBOX", BOB_USER).single()
+		leaves(received).filter { it.isMimeType("text/*") }.forEach { (it.content as String) shouldNotContain "cockpit-part-" }
+		leaves(received).single { it.isMimeType("image/jpeg") }.fileName shouldBe "image0.jpeg"
+	}
+
+	@Test
+	fun `a plain-text draft from another client with a positioned image stays plain text through open, save and send`() {
+		val text = MimeBodyPart().apply { setText("Fictitious plain draft, <b>not bold</b>", "UTF-8") }
+		val draftId = appendForeignDraft(MimeMultipart(text, positionedJpeg()))
+
+		val view = mockMvc.get("/api/v1/mail/drafts/$draftId").andReturn().response
+		view.status shouldBe 200
+		view.contentAsString shouldNotContain "cockpit-part-"
+		view.body()["html"].isNull shouldBe true
+		view.body()["text"].asString() shouldBe "Fictitious plain draft, <b>not bold</b>"
+		view.body()["attachments"].toList().map { it["filename"].asString() } shouldContainExactly listOf("image0.jpeg")
+
+		val saved = saveAsIs(draftId, view)
+		saved.body.toString() shouldNotContain "cockpit-part-"
+		saved.body["html"].isNull shouldBe true
+		sendDraft(saved).status shouldBe 200
+
+		val received = onServer("INBOX", BOB_USER).single()
+		val texts = leaves(received).filter { it.isMimeType("text/*") }
+		texts.forEach { (it.content as String) shouldNotContain "cockpit-part-" }
+		texts.none { it.isMimeType("text/html") } shouldBe true
+		(texts.single().content as String) shouldContain "Fictitious plain draft, <b>not bold</b>"
+		leaves(received).single { it.isMimeType("image/jpeg") }.fileName shouldBe "image0.jpeg"
+	}
+
 	@Test
 	fun `a reply is sent by default as the identity the original was addressed to`() {
 		val support = identities.save(MailIdentity(account.id, "Jane Support", "support@example.test"))
@@ -473,6 +521,52 @@ class DraftSendGreenMailTests(
 	): Saved {
 		val response = createDraftResponse(subject, attachments)
 		response.status shouldBe 201
+		return Saved(response.body(), checkNotNull(response.getHeader(HttpHeaders.ETAG)))
+	}
+
+	/** Appends a draft with [content] to the Drafts folder as another mail client would, and returns its cached id. */
+	private fun appendForeignDraft(content: MimeMultipart): String {
+		remote { store ->
+			val draft =
+				MimeMessage(Session.getInstance(Properties())).apply {
+					setFrom(InternetAddress(EMAIL, "Jane Doe"))
+					setRecipients(Message.RecipientType.TO, arrayOf(InternetAddress(BOB, "Bob Example")))
+					subject = "Draft from the phone"
+					setContent(content)
+					setFlag(Flags.Flag.DRAFT, true)
+					saveChanges()
+				}
+			store.getFolder("Drafts").appendMessages(arrayOf(draft))
+		}
+		syncAll()
+		return cached("Drafts").single().id.toString()
+	}
+
+	/** Saves draft [id] with what its [view] returned, like the editor does when nothing was changed. */
+	private fun saveAsIs(
+		id: String,
+		view: MockHttpServletResponse,
+	): Saved {
+		val body = view.body()
+		val response =
+			mockMvc
+				.put("/api/v1/mail/drafts/$id") {
+					with(csrf())
+					header(HttpHeaders.IF_MATCH, checkNotNull(view.getHeader(HttpHeaders.ETAG)))
+					contentType = MediaType.APPLICATION_JSON
+					content =
+						json.writeValueAsString(
+							mapOf(
+								"to" to body["to"],
+								"subject" to body["subject"].asString(),
+								"html" to body["html"]?.takeUnless { it.isNull }?.asString(),
+								"text" to body["text"]?.takeUnless { it.isNull }?.asString(),
+								"attachments" to body["attachments"].toList().map { mapOf("partId" to it["partId"].asString()) },
+							),
+						)
+				}.andReturn()
+				.response
+		response.status shouldBe 200
 		return Saved(response.body(), checkNotNull(response.getHeader(HttpHeaders.ETAG)))
 	}
 

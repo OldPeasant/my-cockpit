@@ -41,6 +41,9 @@ import jakarta.mail.internet.MimeUtility
 import org.eclipse.angus.mail.imap.IMAPFolder
 import org.eclipse.angus.mail.imap.IMAPStore
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
+import org.jsoup.nodes.TextNode
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
@@ -460,8 +463,14 @@ class DraftService(
 	}
 
 	/** [html] without the images shown by their position ([MimeContent.partImage]); other `cid:` images stay. */
-	private fun withoutPositionedImages(html: String): String {
-		if (!html.contains("cid:", ignoreCase = true)) return html
+	private fun withoutPositionedImages(html: String): String = positionedImagesRemoved(html)?.body()?.html() ?: html
+
+	/**
+	 * The parsed [html] with the images shown by their position ([MimeContent.partImage]) removed, or `null` when it has
+	 * none.
+	 */
+	private fun positionedImagesRemoved(html: String): Document? {
+		if (!html.contains("cid:", ignoreCase = true)) return null
 		val document = Jsoup.parseBodyFragment(html)
 		document.outputSettings().prettyPrint(false).charset(Charsets.UTF_8)
 		val positioned =
@@ -469,10 +478,38 @@ class DraftService(
 				val src = img.attr("src").trim()
 				src.startsWith("cid:", ignoreCase = true) && MimeContent.partImageId(src.substring("cid:".length)) != null
 			}
-		if (positioned.isEmpty()) return html
+		if (positioned.isEmpty()) return null
 		positioned.forEach { it.remove() }
-		return document.body().html()
+		return document
 	}
+
+	/**
+	 * The HTML of a stored draft for editing: without the positioned image references [MimeContent] adds for inline images
+	 * no `cid:` points to (e.g. a picture pasted in Apple Mail), which no saved or sent version may carry; the image stays
+	 * a draft attachment. When the HTML only exists because of such images (a plain-text draft, built as escaped text
+	 * blocks plus images), it is dropped, so the draft stays plain text.
+	 */
+	private fun draftHtml(
+		html: String,
+		textPlain: String?,
+	): String? {
+		val document = positionedImagesRemoved(html) ?: return html
+		val body = document.body()
+		val rest = body.html()
+		return if (rest.isBlank() || (textPlain != null && isPlainTextRendering(body))) null else rest
+	}
+
+	/** Whether [body] holds only text blocks like [MimeContent] renders plain text: `<div>` with text and `<br>`. */
+	private fun isPlainTextRendering(body: Element): Boolean =
+		body.childNodes().all { node ->
+			when (node) {
+				is TextNode -> node.isBlank
+				is Element ->
+					node.normalName() == "div" &&
+						node.childNodes().all { it is TextNode || (it is Element && it.normalName() == "br") }
+				else -> false
+			}
+		}
 
 	/** `<uuid@domain>` with the domain of the account's address. */
 	private fun newMessageId(account: MailAccount): String =
@@ -702,7 +739,7 @@ class DraftService(
 			from?.let { address ->
 				identities.findByAccountIdOrderByPositionAscIdAsc(row.accountId).firstOrNull { it.email.equals(address, ignoreCase = true) }
 			}
-		val html = content.textHtml?.let { sanitizer.sanitize(it, KEEP_REMOTE_IMAGES).html }
+		val html = content.textHtml?.let { draftHtml(sanitizer.sanitize(it, KEEP_REMOTE_IMAGES).html, content.textPlain) }
 		return Draft(row, identity?.id, html, content.textPlain, content.attachments)
 	}
 
