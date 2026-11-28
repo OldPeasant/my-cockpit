@@ -1,10 +1,11 @@
 ---
 title: Mail: forwards drop internal positioned-image references
-status: todo
-owner:
+status: in_progress
+owner: dell26/agent-1
 deps: [mail-apple-inline-images]
 touches: [server/src/main/kotlin/ch/sonensei/cockpit/mail/compose,server/src/test/kotlin/ch/sonensei/cockpit/mail/compose]
 prio: 2
+lease_until: 2026-11-28T11:38:28Z
 ---
 ## Goal
 Forwarding a mail whose body shows inline images by position (mail-apple-inline-images: Apple Mail image without
