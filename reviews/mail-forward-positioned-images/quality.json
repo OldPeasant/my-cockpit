@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "task": "mail-forward-positioned-images",
+  "reviewed_revision": "57bb8be29d12892685fd147803f4be440ec103ef",
+  "helpers": {
+    "test-writer":   {"status": "completed", "report": "reviews/mail-forward-positioned-images/tests.md"},
+    "code-reviewer": {"status": "completed", "report": "reviews/mail-forward-positioned-images/review.md"},
+    "fixer":         {"status": "not_required", "reason": "no findings from test-writer or code-reviewer; behaviour already implemented on main (84aaa89fc)"}
+  },
+  "fixes_required": false,
+  "findings": [],
+  "validation": [
+    {"command": "server/gradlew -p server integrationTest --tests '*DraftSendGreenMailTests*'", "result": "pass"},
+    {"command": "cd server && ./gradlew check", "result": "pass"}
+  ]
+}
