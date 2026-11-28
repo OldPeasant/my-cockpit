@@ -4,30 +4,32 @@ Date: 2026-11-28
 
 Task: mail-apple-inline-images - Mail: show unreferenced inline images and text after images (Apple Mail)
 
-Scope: `git diff 10e5329f19cb29feec8f8ee78e81143e63dc8569..5f824414d` (task commits b99aba389, 5f824414d). The current HEAD f69ba18fa (main, origin/wip/mail-apple-inline-images) is the same code rebased: `git diff 5f824414d f69ba18fa` only touches `tasks/mail-apple-inline-images.md`.
+Scope: round 2, final code. Full task diff `git diff 10e5329f19cb29feec8f8ee78e81143e63dc8569..c372ae8f6 -- server`, with focus on the delta since round 1 (round 1 reviewed code identical to 5f824414d): `git diff 5f824414d..c372ae8f6 -- server` = the TW-1 fix in `MimeContent.cidReferences` (commit c372ae8f6), new tests in `MimeContentTests.kt` and the new `MailReadServiceInlineImagesTests.kt`. Production code outside `MimeContent.kt` is unchanged since round 1.
 
 Requirements:
 - tasks/mail-apple-inline-images.md (goal, acceptance criteria, notes, the two recorded assumptions)
 - AGENTS.md project notes (API contract, migrations, logging, test data)
-- Existing code conventions in `server/.../mail` (sanitizer, `MailContentLoader`, compose `DraftService` / `DraftMime`)
+- reviews/mail-apple-inline-images/review.md (round 1), fixes.md, tests.md
+- tasks/mail-forward-positioned-images.md (follow-up task for round-1 CR-1)
+- Existing code conventions in `server/.../mail`
 
 Git range:
 - Branch: main
-- HEAD: f69ba18fa (code identical to 5f824414d)
+- HEAD: c372ae8f6
 - Base/start: 10e5329f19cb29feec8f8ee78e81143e63dc8569
-- Commits reviewed: 2
+- Commits reviewed: 4 code/test commits (9885f288f, 702b5f1ff, a85b026bd, c372ae8f6); the remaining commits in the range only touch `tasks/` and `reviews/`
+- Uncommitted changes: none at review start
 
-Summary: 0 P0, 1 P1, 1 P2, 1 P3
+Summary: 0 P0, 0 P1, 0 P2, 0 P3 open (round-1 findings: CR-1 deferred, CR-2 resolved, CR-3 accepted)
 
-Gradle was not run for this review (a test-writer runs it at the same time). Existing results read: `server/build/test-results/test/TEST-ch.sonensei.cockpit.mail.api.MimeContentTests.xml` shows 45 tests, 0 failures (2026-11-28T09:40Z). No result file for `MailReadGreenMailTests` was present.
+Gradle was not run for this review (a test-writer may run it concurrently). Existing result files read: `server/build/test-results/test/TEST-ch.sonensei.cockpit.mail.api.MimeContentTests.xml` 59 tests, 0 failures, 0 errors (2026-11-28T10:03Z) and `TEST-ch.sonensei.cockpit.mail.api.MailReadServiceInlineImagesTests.xml` 4 tests, 0 failures, 0 errors (2026-11-28T10:03Z), both written after the TW-1 fix commit time.
 
-What was checked and found in order:
-- AC1: `MimeContent.collect`/`read` lists the Apple part (inline disposition, filename, no Content-ID) with `inline = false` and renders it as a positioned reference after the HTML; `MailReadService.resolveInlineImages` turns it into `attachmentUrl(..., inline = true)` after sanitizing. Covered by the MimeContent unit test and the GreenMail test (including the inline download bytes).
-- AC2: a `cid:`-referenced image keeps `inline = true` (Content-ID found by `cidReferences`, raw and percent-decoded, case-insensitive), is excluded from `images` and therefore not appended; a single HTML part is returned byte-identical. NEWSLETTER test unchanged and green.
-- AC3, AC4, AC6: joined plain and HTML text in MIME order, alternatives by variant, escaped plain text (`&`, `<`, `>`, quotes) and escaped `alt`; non-raster and HEIC parts are listed, not rendered. Everything server-built still passes through `HtmlMailSanitizer` afterwards, so there is no HTML injection path through text or file names.
-- XSS / forged references: `partImageId` only accepts the exact synthetic prefix/suffix and a part id matching `PART_ID`; `positionedImage` only resolves to a part of the same message that is not `cid:`-referenced and has a type in `RemoteImageFetcher.IMAGE_TYPES`, and the URL is built from the attachment's own `partId`. A forged reference can only show the message's own raster part, which the existing `?inline=true` download already allows. No new exposure.
-- AC5: `V202611280930__mail_reparse_bodies.sql` deletes only `mail_body_attachments` (no FK points to it; it references `mail_body`). `MailContentLoader.cached` treats a body without its row as a miss and the reload upserts body, attachments and search index. Version is newer than all existing migrations; location and naming follow the convention. GreenMail test covers the miss after the delete.
-- AC7 / OpenAPI: no controller, DTO or `api/openapi.yaml` change; response schema unchanged.
+What was checked in the delta:
+- TW-1 fix (`MimeContent.kt` `cidReferences`): each `cid:` match is now considered raw and with HTML character references unescaped (`Parser.unescapeEntities(raw, true)`, jsoup already a dependency), and each form is then bracket-stripped and percent-decoded as before. The previous raw and percent-decoded forms are still produced, so no earlier recognized reference is lost. Extra candidate ids only matter when a part with exactly that Content-ID exists, so a wrong unescape can at worst keep a real `cid:` part inline, never expose anything new. This matches how `MailReadService.resolveInlineImages` reads the attribute after HTML parsing, so the classification and the resolve side now agree for entity-encoded references. Regression test `a cid reference written with HTML character references keeps its image inline, shown once` asserts the HTML stays unchanged (no appended positioned image) and the part stays `inline = true`.
+- `MailReadServiceInlineImagesTests.kt`: drives `MailReadService.read` with a mocked locator and loader and the real `HtmlMailSanitizer`, so the sanitize-then-resolve path is exercised end to end at the service level. It covers the reported Apple structure (inline URL, image after the text, no leftover `cid:`, attachment `inline = false`), forged synthetic references to a PDF, a `cid:`-referenced PNG, SVG, an unknown and a malformed part id (all lose `src`), the same forgeries coming from a parsed MIME message, and the plain-only escaped body. Assertions are on behaviour (resolved `src` per `alt`, ordering, attachment list), not on internals. Test data is fictitious. File lies within the task's `touches`.
+- New `MimeContentTests` cases (percent-encoded/bracketed/case variants, related HTML variant of an alternative, alternative without HTML variant, single-variant alternatives framing an image, per-part size limit, every raster type, SVG and attachment-disposition parts not rendered, escaped `alt`, image before the first text and CRLF line breaks, `partImage` round trip and part id validation) match the acceptance criteria and the task notes (per-part `maxTextSize`).
+- The resolve-side guard accepts `RemoteImageFetcher.IMAGE_TYPES` (includes e.g. bmp), which is wider than the raster set `MimeContent` renders; this only lets a mail show its own non-`cid:` image part that the existing `?inline=true` download already serves, and the test pins this behaviour explicitly. No new exposure.
+- Acceptance criteria 1 to 6 remain satisfied by the final code (round-1 analysis of `MimeContent.collect`/`read`, `MailReadService.positionedImage`, migration `V202611280930__mail_reparse_bodies.sql` still applies, unchanged code). AC7: unit tests in `MimeContentTests` and the now added `MailReadService` tests plus the GreenMail test exist; no controller, DTO or `api/openapi.yaml` change, so OpenAPI stays unchanged. The `./gradlew check` part of AC7 is still unticked in the task file; recording it with `tasks.py verify` is the parent worker's step.
 
 ## P0 Critical
 
@@ -35,31 +37,26 @@ None.
 
 ## P1 High
 
-- [ ] **CR-1 | Forwarding a mail with a positioned image sends the internal synthetic cid reference to the recipient**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MimeContent.kt:218` (reference emitted into `MailContent.textHtml`), consumed at `server/src/main/kotlin/ch/sonensei/cockpit/mail/compose/DraftService.kt:303-311` and `:331`, assembled by `server/src/main/kotlin/ch/sonensei/cockpit/mail/compose/DraftMime.kt:80-85`
+- [x] **CR-1 | Forwarding a mail with a positioned image sends the internal synthetic cid reference to the recipient** (round 1; status: deferred)
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MimeContent.kt` (synthetic reference in `MailContent.textHtml`), consumed by `server/src/main/kotlin/ch/sonensei/cockpit/mail/compose/DraftService.kt` (`respond`, FORWARD) and `DraftMime.kt`
     - Category: Integration
-    - Problem: `MailContent.textHtml` is not only read by `MailReadService` (which resolves `cid:cockpit-part-N@cockpit.invalid` after sanitizing) but also by `DraftService.respond`. For `ResponseMode.FORWARD` the sanitized HTML is quoted as is (the sanitizer keeps `cid:` sources), so the forward draft contains an img element whose src is `cid:cockpit-part-2@cockpit.invalid`. The forwarded image arrives via `forwardedAttachments` with `inline = false` and `contentId = null`, so `DraftMime.build` puts it into `multipart/mixed` as a normal attachment and no part carries that Content-ID. Result for the exact mail the task is about (and for every plain-only mail with an inline image, which before had `textHtml = null` and was quoted via `ComposeText.textToHtml`): the compose editor shows a broken image, and the sent mail contains a dangling reference to an internal `@cockpit.invalid` id that recipients render as a broken image next to the attachment. When such a forward draft is later read through `MailReadService`, `positionedImage` interprets the original message's part id against the draft's parts, so it can show a different raster part of the draft or nothing. Replies are not affected (`withoutInlineImages` removes `img[src^=cid:]`). The task notes explicitly ask to check forwarding after this change; the attachment listing works, the body does not.
-    - Why it matters: user-visible defect in mail sent to third parties, introduced by this change; leaks an internal implementation detail into outgoing mail.
-    - Suggested fix: keep the synthetic reference out of anything that is edited or sent. Either strip positioned references when quoting a forward (the image is forwarded as an attachment anyway), or, for a forward, give each referenced positioned image a generated Content-ID, set `inline = true` on its `ComposedAttachment` and rewrite the `src` to that `cid:` so `DraftMime` places it in `multipart/related`. A small helper next to `MimeContent.partImageId` keeps the format in one place. Add a compose test (forward of the Apple structure: the outgoing MIME has no `cockpit.invalid` reference). `DraftService` is outside this task's `touches`; the parent decides whether to fix it here or in a follow-up task before shipping.
+    - Problem: a forward quotes the sanitized HTML including `cid:cockpit-part-N@cockpit.invalid`, while the image is forwarded as a normal attachment without that Content-ID, so the editor and the recipient see a broken image.
+    - Status: deferred by the parent worker to task `mail-forward-positioned-images` (tasks/mail-forward-positioned-images.md, depends on this task, touches `mail/compose`, acceptance criteria require the forwarded HTML to contain no `cid:cockpit-part-` reference and a compose test). The code in `DraftService` is outside this task's `touches`, so the deferral is consistent with the board rules. Note for the owner: until that task is done, forwarding such a mail from main shows the broken reference.
 
 ## P2 Medium
 
-- [ ] **CR-2 | The resolve-side guard for synthetic references has no test**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailReadService.kt:303-309`
+- [x] **CR-2 | The resolve-side guard for synthetic references has no test** (round 1; status: resolved)
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MailReadService.kt` (`positionedImage`)
     - Category: Tests
-    - Problem: `positionedImage` is the security boundary that makes forged `cid:cockpit-part-...@cockpit.invalid` references harmless (only non-inline parts with a type in `IMAGE_TYPES`, valid part ids only). The only test touching it is the GreenMail happy path. No test shows that a forged reference to a non-raster part (e.g. the PDF), to a `cid:`-referenced inline part, to an unknown or malformed part id, or a case/encoding variant loses its `src`, and the acceptance criterion names "MailReadService tests" while no MailReadService test changed.
-    - Why it matters: a later refactor of the lookup (e.g. dropping the `!it.inline` or type check, or reusing `RASTER_TYPES` differently) would silently widen what a mail can embed, without a failing test.
-    - Suggested fix: add `MailReadService` (or controller-level) tests with a mocked loader returning HTML that contains forged synthetic references to a PDF part, an inline `cid:` part and a non-existent part id; assert `src` is removed, and that a valid reference resolves to `attachmentUrl(..., inline = true)`.
+    - Status: resolved by `server/src/test/kotlin/ch/sonensei/cockpit/mail/api/MailReadServiceInlineImagesTests.kt`: forged references to PDF, `cid:`-referenced PNG, SVG, unknown and malformed part ids lose their `src`, valid raster references resolve to `MailReadService.attachmentUrl(..., inline = true)`, both from a hand-built `MailContent` and from a parsed MIME message. Dropping the `!it.inline` or the type check in `positionedImage` would now fail these tests.
 
 ## P3 Low
 
-- [ ] **CR-3 | Plain text rendered into the HTML body loses its whitespace layout; joined plain text mixes line endings**
-    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MimeContent.kt:217` and `:58`
+- [x] **CR-3 | Plain text rendered into the HTML body loses its whitespace layout; joined plain text mixes line endings** (round 1; status: accepted)
+    - File: `server/src/main/kotlin/ch/sonensei/cockpit/mail/api/MimeContent.kt` (plain block rendering and `textPlain` join)
     - Category: Quality
-    - Problem: plain parts become div blocks with br line breaks only, so runs of spaces, indentation and ASCII tables collapse once a plain-only mail gains an HTML body (it is now shown as HTML instead of the plain view). `textPlain` joins parts with `\n` while the parts themselves keep CRLF (visible in the test expectation `"...\r\nline two\nAfter..."`).
-    - Why it matters: small display regression for plain-text mails with an inline image, and inconsistent line endings in reply quoting and the search index.
-    - Suggested fix: emit the plain blocks as div elements with the style white-space: pre-wrap (the sanitizer allows `style`) and join with the part's own line ending or normalize to one.
+    - Status: accepted as is by the parent worker (fixes.md). The behaviour is now pinned by the test `an image before the first text and text with CRLF line ends keep their order and breaks`; changing it later means updating that test deliberately.
 
 ## Review conclusion
 
-Material issues found; fix before completing the task.
+No material issues found.
