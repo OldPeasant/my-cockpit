@@ -621,6 +621,8 @@ class EventEditorViewModelExtrasTest {
         runTest(dispatcher) {
             val master = id(30)
             val repeated = occurrence(3, work).copy(eventId = master, seriesId = master, occurrence = "2026-10-22T08:00:00Z")
+            // A generated occurrence of the series is read again before it is edited.
+            coEvery { repo.reread(repeated) } returns CalendarResult.Ok(repeated)
             coEvery { repo.event(master) } returns CalendarResult.Ok(details(repeated).copy(rrule = "FREQ=WEEKLY"))
             val vm = editing(repeated)
             assertEquals(LinksUiState(master), vm.uiState.value.links)
@@ -661,7 +663,11 @@ class EventEditorViewModelExtrasTest {
             advanceUntilIdle()
             coVerify(exactly = 1) { extras.createNote("Planning (2026-10-22)", local.eventId) }
             assertEquals(
-                LinksUiState(local.eventId, result = LinkedResult(LinkedKind.NOTE, LinkedCreateResult.NotLinked("Planning (2026-10-22)")), refresh = 1),
+                LinksUiState(
+                    local.eventId,
+                    result = LinkedResult(LinkedKind.NOTE, LinkedCreateResult.NotLinked("Planning (2026-10-22)")),
+                    refresh = 1,
+                ),
                 vm.uiState.value.links,
             )
 

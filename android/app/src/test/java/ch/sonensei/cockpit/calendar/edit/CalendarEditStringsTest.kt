@@ -108,6 +108,7 @@ class CalendarEditStringsTest {
         )
 
     /** Words that are the same in both languages. */
+    private val same = setOf("calendar_edit_ok", "calendar_edit_guests")
 
     @Test
     fun `every new string exists in English and German`() {
